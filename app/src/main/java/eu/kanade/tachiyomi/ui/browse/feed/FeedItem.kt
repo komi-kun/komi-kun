@@ -7,7 +7,6 @@ import eu.davidea.flexibleadapter.items.AbstractFlexibleItem
 import eu.davidea.flexibleadapter.items.IFlexible
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.source.CatalogueSource
-import eu.kanade.tachiyomi.ui.browse.source.globalsearch.GlobalSearchItem
 import exh.savedsearches.models.FeedSavedSearch
 import exh.savedsearches.models.SavedSearch
 
@@ -62,8 +61,8 @@ class FeedItem(
      * @return items are equal?
      */
     override fun equals(other: Any?): Boolean {
-        if (other is GlobalSearchItem) {
-            return feed.id == other.source.id
+        if (other is FeedItem) {
+            return feed.id == other.feed.id
         }
         return false
     }

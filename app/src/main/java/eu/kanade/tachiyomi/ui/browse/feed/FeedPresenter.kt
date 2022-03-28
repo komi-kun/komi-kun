@@ -52,7 +52,7 @@ open class FeedPresenter(
     /**
      * Subject which fetches image of given manga.
      */
-    private val fetchImageSubject = PublishSubject.create<Pair<List<Manga>, Source>>()
+    private val fetchImageSubject = PublishSubject.create<Triple<List<Manga>, Source, FeedSavedSearch>>()
 
     /**
      * Subscription for fetching images of manga.
@@ -62,7 +62,7 @@ open class FeedPresenter(
     override fun onCreate(savedState: Bundle?) {
         super.onCreate(savedState)
 
-        db.getFeedSavedSearches()
+        db.getGlobalFeedSavedSearches()
             .asRxObservable()
             .observeOn(AndroidSchedulers.mainThread())
             .doOnEach {
@@ -79,7 +79,7 @@ open class FeedPresenter(
     }
 
     fun hasTooManyFeeds(): Boolean {
-        return db.getFeedSavedSearches().executeAsBlocking().size > 10
+        return db.getGlobalFeedSavedSearches().executeAsBlocking().size > 10
     }
 
     fun getEnabledSources(): List<CatalogueSource> {
@@ -103,7 +103,8 @@ open class FeedPresenter(
                 FeedSavedSearch(
                     id = null,
                     source = source.id,
-                    savedSearch = savedSearch?.id
+                    savedSearch = savedSearch?.id,
+                    global = true
                 )
             ).executeAsBlocking()
         }
@@ -116,9 +117,9 @@ open class FeedPresenter(
     }
 
     private fun getSourcesToGetFeed(): List<Pair<FeedSavedSearch, SavedSearch?>> {
-        val savedSearches = db.getSavedSearchesFeed().executeAsBlocking()
+        val savedSearches = db.getGlobalSavedSearchesFeed().executeAsBlocking()
             .associateBy { it.id!! }
-        return db.getFeedSavedSearches().executeAsBlocking()
+        return db.getGlobalFeedSavedSearches().executeAsBlocking()
             .map { it to savedSearches[it.savedSearch] }
     }
 
@@ -169,7 +170,7 @@ open class FeedPresenter(
                             .onErrorReturn { MangasPage(emptyList(), false) } // Ignore timeouts or other exceptions
                             .map { it.mangas } // Get manga from search result.
                             .map { list -> list.map { networkToLocalManga(it, source.id) } } // Convert to local manga.
-                            .doOnNext { fetchImage(it, source) } // Load manga covers.
+                            .doOnNext { fetchImage(it, source, feed) } // Load manga covers.
                             .map { list -> createCatalogueSearchItem(feed, savedSearch, source, list.map { FeedCardItem(it) }) }
                     } else {
                         Observable.just(createCatalogueSearchItem(feed, null, null, emptyList()))
@@ -215,8 +216,8 @@ open class FeedPresenter(
      *
      * @param manga the list of manga to initialize.
      */
-    private fun fetchImage(manga: List<Manga>, source: Source) {
-        fetchImageSubject.onNext(Pair(manga, source))
+    private fun fetchImage(manga: List<Manga>, source: CatalogueSource, feed: FeedSavedSearch) {
+        fetchImageSubject.onNext(Triple(manga, source, feed))
     }
 
     /**
@@ -230,14 +231,14 @@ open class FeedPresenter(
                 Observable.from(pair.first).filter { it.thumbnail_url == null && !it.initialized }
                     .map { Pair(it, source) }
                     .concatMap { getMangaDetailsObservable(it.first, it.second) }
-                    .map { Pair(source as CatalogueSource, it) }
+                    .map { Pair(pair.third, it) }
             }
             .onBackpressureBuffer()
             .observeOn(AndroidSchedulers.mainThread())
             .subscribe(
-                { (source, manga) ->
+                { (feed, manga) ->
                     @Suppress("DEPRECATION")
-                    view?.onMangaInitialized(source, manga)
+                    view?.onMangaInitialized(feed, manga)
                 },
                 { error ->
                     logcat(LogPriority.ERROR, error)
