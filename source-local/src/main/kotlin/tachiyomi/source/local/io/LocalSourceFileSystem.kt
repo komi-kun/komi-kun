@@ -27,9 +27,7 @@ class LocalSourceFileSystem(
     }
 
     fun getFilesInMangaDirectory(name: String): List<UniFile> {
-        return getBaseDirectory()
-            ?.findFile(name)
-            ?.takeIf { it.isDirectory }
-            ?.listFiles().orEmpty().toList()
+        // Resolve it as the same directory the metadata extractor writes ComicInfo.xml to
+        return getMangaDirectory(name)?.listFiles().orEmpty().toList()
     }
 }
