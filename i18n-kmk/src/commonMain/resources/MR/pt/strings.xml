@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="action_source_search">Pesquisar fonte</string>
+  <string name="action_toggle_nsfw_only">Ativar/desativar somente NSFW</string>
+  <string name="action_bulk_select">Modo de seleção em massa</string>
+  <string name="action_faq_and_guides">FAQ e Guias</string>
+  <string name="pref_details_page_theme">Página de detalhes</string>
+  <string name="pref_details_page_theme_cover_based">Detalhe o tema da página baseado na capa</string>
+  <string name="pref_theme_cover_based_style">Estilo do tema</string>
+  <string name="pref_theme_cover_based_animate">Animação do tema</string>
+  <string name="ext_unofficial">Não-oficial</string>
+  <string name="unofficial_extension_message">Essa extensão não é do repositório oficial.</string>
+  <string name="download_cache_renew_interval">Baixar intervalo de renovação do cache</string>
+  <string name="download_cache_renew_interval_manual">Manualmente</string>
+  <string name="download_cache_renew_interval_1hour">number@@0 horas</string>
+  <string name="download_cache_renew_interval_2hour">2 horas</string>
+  <string name="download_cache_renew_interval_6hour">6 horas</string>
+  <string name="download_cache_renew_interval_12hour">12 horas</string>
+  <string name="download_cache_renew_interval_24hour">1 dia</string>
+  <string name="download_cache_renew_interval_info">Se definido como \"manual\", atualize cada manga ou use a ação \"Invalidar índice de downloads\" em \"Avançado\"</string>
+  <string name="pref_update_tracking_marked_read">Atualizar progresso quando marcado como lido</string>
+  <string name="pref_auto_sync_read_chapters">Sincronizar capítulos de leitura automaticamente dos Rastreadores</string>
+  <string name="pref_clean_invalid_downloads">Limpar downloads inválidos</string>
+  <string name="pref_clean_invalid_downloads_summary">Encontre e remova todos os downloads, arquivos, pastas que não são salvas na sua biblioteca</string>
+  <string name="invalid_downloads_cleaned">Downloads limpos inválidos</string>
+  <string name="pref_private_installer_warning">Evitar usar o Instalador Privado porque ele ainda não está estável levará a iniciar/retomar o aplicativo muito lentamente.</string>
+  <string name="whats_coming">O que está por vir (em breve)</string>
+  <string name="action_allow_duplicate_manga">Permitir que</string>
+  <string name="action_skip_duplicate_manga">Pular isso</string>
+  <string name="action_allow_all_duplicate_manga">Permitir todos</string>
+  <string name="action_skip_all_duplicate_manga">Pular tudo</string>
+  <string name="update_check_try_now">Experimente agora</string>
+  <string name="update_check_notification_preview_available">Atualizações em breve!</string>
+  <string name="changelogs">Registro de alterações</string>
+  <string name="pref_source_related_mangas">Títulos relacionados</string>
+  <string name="pref_source_related_mangas_summary">Mostrar títulos relacionados ao visualizar itens</string>
+  <string name="related_mangas_more">Mais parecido com estas...</string>
+  <string name="too_many_in_feed">Muitas fontes no seu feed, não é possível adicionar mais do que limitado (20)</string>
+  <string name="current_">Atual: %1$s</string>
+</resources>
