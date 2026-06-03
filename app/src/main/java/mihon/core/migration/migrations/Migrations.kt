@@ -60,4 +60,5 @@ val migrations: List<Migration>
         ChapterUrlHashMigration(),
         // KMK <--
         InstallationIdMigration(),
+        MoveVerticalSeekbarSettingsMigration(),
     )

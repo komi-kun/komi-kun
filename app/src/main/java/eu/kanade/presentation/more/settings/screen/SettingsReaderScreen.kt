@@ -38,9 +38,6 @@ object SettingsReaderScreen : SearchableSettings {
     @Composable
     override fun getPreferences(): List<Preference> {
         val readerPref = remember { Injekt.get<ReaderPreferences>() }
-        // SY -->
-        val forceHorizontalSeekbar by readerPref.forceHorizontalSeekbar().collectAsState()
-        // SY <--
 
         return listOf(
             Preference.PreferenceItem.ListPreference(
@@ -69,31 +66,12 @@ object SettingsReaderScreen : SearchableSettings {
                 title = stringResource(MR.strings.pref_show_navigation_mode),
                 subtitle = stringResource(MR.strings.pref_show_navigation_mode_summary),
             ),
-            // KMK -->
+// KMK -->
             Preference.PreferenceItem.SwitchPreference(
                 preference = readerPref.smallerTapZone(),
                 title = stringResource(KMR.strings.pref_viewer_nav_smaller_tap_zone),
             ),
             // KMK <--
-            // SY -->
-            Preference.PreferenceItem.SwitchPreference(
-                preference = readerPref.forceHorizontalSeekbar(),
-                title = stringResource(SYMR.strings.pref_force_horz_seekbar),
-                subtitle = stringResource(SYMR.strings.pref_force_horz_seekbar_summary),
-            ),
-            Preference.PreferenceItem.SwitchPreference(
-                preference = readerPref.landscapeVerticalSeekbar(),
-                title = stringResource(SYMR.strings.pref_show_vert_seekbar_landscape),
-                subtitle = stringResource(SYMR.strings.pref_show_vert_seekbar_landscape_summary),
-                enabled = !forceHorizontalSeekbar,
-            ),
-            Preference.PreferenceItem.SwitchPreference(
-                preference = readerPref.leftVerticalSeekbar(),
-                title = stringResource(SYMR.strings.pref_left_handed_vertical_seekbar),
-                subtitle = stringResource(SYMR.strings.pref_left_handed_vertical_seekbar_summary),
-                enabled = !forceHorizontalSeekbar,
-            ),
-            // SY <--
             /* SY -->
             Preference.PreferenceItem.SwitchPreference(
                 preference = readerPref.pageTransitions(),
@@ -121,6 +99,7 @@ object SettingsReaderScreen : SearchableSettings {
     private fun getDisplayGroup(readerPreferences: ReaderPreferences): Preference.PreferenceGroup {
         val fullscreenPref = readerPreferences.fullscreen()
         val fullscreen by fullscreenPref.collectAsState()
+        val verticalNavigatorForLongStrip by readerPreferences.verticalNavigatorForLongStrip.collectAsState()
         return Preference.PreferenceGroup(
             title = stringResource(MR.strings.pref_category_display),
             preferenceItems = persistentListOf(
@@ -157,6 +136,15 @@ object SettingsReaderScreen : SearchableSettings {
                 Preference.PreferenceItem.SwitchPreference(
                     preference = readerPreferences.showPageNumber(),
                     title = stringResource(MR.strings.pref_show_page_number),
+                ),
+                Preference.PreferenceItem.SwitchPreference(
+                    preference = readerPreferences.verticalNavigatorForLongStrip,
+                    title = stringResource(SYMR.strings.pref_webtoon_vertical_navigator),
+                ),
+                Preference.PreferenceItem.SwitchPreference(
+                    preference = readerPreferences.verticalNavigatorOnLeft,
+                    title = stringResource(SYMR.strings.pref_webtoon_vertical_navigator_on_left),
+                    enabled = verticalNavigatorForLongStrip,
                 ),
             ),
         )
@@ -632,7 +620,7 @@ object SettingsReaderScreen : SearchableSettings {
                     subtitle = stringResource(SYMR.strings.auto_webtoon_mode_summary),
                 ),
                 Preference.PreferenceItem.MultiSelectListPreference(
-                    preference = readerPreferences.readerBottomButtons(),
+                    preference = readerPreferences.readerBottomButtons,
                     entries = ReaderBottomButton.entries
                         .associate { it.value to stringResource(it.stringRes) }
                         .toImmutableMap(),

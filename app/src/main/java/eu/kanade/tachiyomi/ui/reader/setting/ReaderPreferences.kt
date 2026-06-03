@@ -5,6 +5,7 @@ import androidx.compose.ui.graphics.BlendMode
 import com.davemorrissey.labs.subscaleview.SubsamplingScaleImageView
 import dev.icerock.moko.resources.StringResource
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.PagerConfig
+import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.core.common.preference.getEnum
 import tachiyomi.i18n.MR
@@ -35,7 +36,17 @@ class ReaderPreferences(
 
     fun showPageNumber() = preferenceStore.getBoolean("pref_show_page_number_key", true)
 
-    fun showReadingMode() = preferenceStore.getBoolean("pref_show_reading_mode", true)
+fun showReadingMode() = preferenceStore.getBoolean("pref_show_reading_mode", true)
+
+    val verticalNavigatorForLongStrip: Preference<Boolean> = preferenceStore.getBoolean(
+        "pref_webtoon_vertical_navigator",
+        true,
+    )
+
+    val verticalNavigatorOnLeft: Preference<Boolean> = preferenceStore.getBoolean(
+        "pref_webtoon_vertical_navigator_on_left",
+        false,
+    )
 
     fun fullscreen() = preferenceStore.getBoolean("fullscreen", true)
 
@@ -194,13 +205,7 @@ class ReaderPreferences(
 
     fun cropBordersContinuousVertical() = preferenceStore.getBoolean("crop_borders_continues_vertical", false)
 
-    fun forceHorizontalSeekbar() = preferenceStore.getBoolean("pref_force_horz_seekbar", false)
-
-    fun landscapeVerticalSeekbar() = preferenceStore.getBoolean("pref_show_vert_seekbar_landscape", false)
-
-    fun leftVerticalSeekbar() = preferenceStore.getBoolean("pref_left_handed_vertical_seekbar", false)
-
-    fun readerBottomButtons() = preferenceStore.getStringSet("reader_bottom_buttons", ReaderBottomButton.BUTTONS_DEFAULTS)
+val readerBottomButtons: Preference<Set<String>> = preferenceStore.getStringSet("reader_bottom_buttons", ReaderBottomButton.BUTTONS_DEFAULTS)
 
     fun pageLayout() = preferenceStore.getInt("page_layout", PagerConfig.PageLayout.AUTOMATIC)
 
