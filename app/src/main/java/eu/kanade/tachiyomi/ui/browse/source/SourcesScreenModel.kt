@@ -17,7 +17,7 @@ import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.domain.source.service.SourcePreferences.DataSaver
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.presentation.browse.SourceUiModel
-import eu.kanade.presentation.components.SEARCH_DEBOUNCE_MILLIS
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
@@ -67,7 +67,7 @@ class SourcesScreenModel(
         combine(
             // KMK -->
             state.map { Pair(it.searchQuery, it.nsfwOnly) }
-                .distinctUntilChanged().debounce(SEARCH_DEBOUNCE_MILLIS),
+                .distinctUntilChanged().debounce(0.25.seconds),
             // KMK <--
             getEnabledSources.subscribe(),
             getSourceCategories.subscribe(),
