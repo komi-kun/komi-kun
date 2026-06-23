@@ -31,7 +31,12 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.CopyOnWriteArrayList
+import kotlin.concurrent.atomics.AtomicInt
+import kotlin.concurrent.atomics.ExperimentalAtomicApi
+import kotlin.concurrent.atomics.incrementAndFetch
 
+@OptIn(ExperimentalAtomicApi::class)
 class BackupRestorer(
     private val context: Context,
     private val notifier: BackupNotifier,
@@ -52,8 +57,8 @@ class BackupRestorer(
 ) {
 
     private var restoreAmount = 0
-    private var restoreProgress = 0
-    private val errors = mutableListOf<Pair<Date, String>>()
+    private val restoreProgress = AtomicInt(0)
+    private val errors = CopyOnWriteArrayList<Pair<Date, String>>()
 
     /**
      * Mapping of source ID to source name from backup data
@@ -155,11 +160,11 @@ class BackupRestorer(
         scope.ensureActive()
         categoriesRestorer(backupCategories)
 
-        restoreProgress += 1
+        val progress = restoreProgress.incrementAndFetch()
         with(notifier) {
             showRestoreProgress(
                 context.stringResource(MR.strings.categories),
-                restoreProgress,
+                progress,
                 restoreAmount,
                 isSync,
             )
@@ -182,11 +187,11 @@ class BackupRestorer(
         feedRestorer.restoreFeeds(backupFeeds)
         // KMK <--
 
-        restoreProgress += 1
+        val progress = restoreProgress.incrementAndFetch()
         with(notifier) {
             showRestoreProgress(
                 context.stringResource(KMR.strings.saved_searches_feeds),
-                restoreProgress,
+                progress,
                 restoreAmount,
                 isSync,
             )
@@ -208,19 +213,22 @@ class BackupRestorer(
         categoriesJob?.join()
         // SY <--
         mangaRestorer.sortByNew(backupMangas)
-            .forEach {
-                ensureActive()
+            .chunked(100)
+            .forEach { chunk ->
+                chunk.forEach {
+                    ensureActive()
 
-                try {
-                    mangaRestorer.restore(it, backupCategories)
-                } catch (e: Exception) {
-                    val sourceName = sourceMapping[it.source] ?: it.source.toString()
-                    errors.add(Date() to "${it.title} [$sourceName]: ${e.message}")
+                    try {
+                        mangaRestorer.restore(it, backupCategories)
+                    } catch (e: Exception) {
+                        val sourceName = sourceMapping[it.source] ?: it.source.toString()
+                        errors.add(Date() to "${it.title} [$sourceName]: ${e.message}")
+                    }
+
+                    restoreProgress.incrementAndFetch()
                 }
-
-                restoreProgress += 1
                 with(notifier) {
-                    showRestoreProgress(it.title, restoreProgress, restoreAmount, isSync)
+                    showRestoreProgress(chunk.last().title, restoreProgress.load(), restoreAmount, isSync)
                         // KMK -->
                         .show(Notifications.ID_RESTORE_PROGRESS)
                     // KMK <--
@@ -238,11 +246,11 @@ class BackupRestorer(
             categories,
         )
 
-        restoreProgress += 1
+        val progress = restoreProgress.incrementAndFetch()
         with(notifier) {
             showRestoreProgress(
                 context.stringResource(MR.strings.app_settings),
-                restoreProgress,
+                progress,
                 restoreAmount,
                 isSync,
             )
@@ -256,11 +264,11 @@ class BackupRestorer(
         ensureActive()
         preferenceRestorer.restoreSource(preferences)
 
-        restoreProgress += 1
+        val progress = restoreProgress.incrementAndFetch()
         with(notifier) {
             showRestoreProgress(
                 context.stringResource(MR.strings.source_settings),
-                restoreProgress,
+                progress,
                 restoreAmount,
                 isSync,
             )
@@ -274,22 +282,23 @@ class BackupRestorer(
         backupExtensionStores: List<BackupExtensionStore>,
     ) = launch {
         backupExtensionStores
-            .forEach {
-                ensureActive()
+            .chunked(100)
+            .forEach { chunk ->
+                chunk.forEach {
+                    ensureActive()
 
-                try {
-                    extensionStoreRestorer(it)
-                } catch (e: Exception) {
-                    errors.add(Date() to "Error adding extension store: ${it.name} : ${e.message}")
+                    try {
+                        extensionStoreRestorer(it)
+                    } catch (e: Exception) {
+                        errors.add(Date() to "Error adding extension store: ${it.name} : ${e.message}")
+                    }
+
+                    restoreProgress.incrementAndFetch()
                 }
-
-                restoreProgress += 1
-                // KMK -->
                 with(notifier) {
-                    // KMK <--
                     showRestoreProgress(
                         context.stringResource(MR.strings.extensionStores),
-                        restoreProgress,
+                        restoreProgress.load(),
                         restoreAmount,
                         isSync,
                     )
