@@ -494,8 +494,9 @@ abstract class HttpSource : CatalogueSource {
     )
     protected open fun imageUrlParse(response: Response): String = throw UnsupportedOperationException()
 
-    open suspend fun getImage(page: Page): Response {
-        return client.newCachelessCallWithProgress(imageRequest(page), page)
+    /* SY --> protected <-- SY */
+    open suspend fun getImage(page: Page, existingSize: Long = 0L): Response {
+        return client.newCachelessCallWithProgress(imageRequest(page), page, existingSize)
             .awaitSuccess()
     }
 
