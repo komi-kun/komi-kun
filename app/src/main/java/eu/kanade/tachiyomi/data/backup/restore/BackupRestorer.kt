@@ -17,6 +17,7 @@ import eu.kanade.tachiyomi.data.backup.restore.restorers.FeedRestorer
 import eu.kanade.tachiyomi.data.backup.restore.restorers.MangaRestorer
 import eu.kanade.tachiyomi.data.backup.restore.restorers.PreferenceRestorer
 import eu.kanade.tachiyomi.data.backup.restore.restorers.SavedSearchRestorer
+import eu.kanade.tachiyomi.data.download.DownloadCache
 import eu.kanade.tachiyomi.data.notification.Notifications
 import eu.kanade.tachiyomi.util.system.createFileInCacheDir
 import kotlinx.coroutines.CoroutineScope
@@ -24,9 +25,13 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
+import logcat.LogPriority
 import tachiyomi.core.common.i18n.stringResource
+import tachiyomi.core.common.util.system.logcat
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -69,6 +74,15 @@ class BackupRestorer(
         val startTime = System.currentTimeMillis()
 
         restoreFromFile(uri, options)
+
+        // Invalidate download cache to ensure UI reflects any restored downloads
+        if (options.libraryEntries) {
+            try {
+                Injekt.get<DownloadCache>().invalidateCache()
+            } catch (e: Exception) {
+                logcat(LogPriority.ERROR, e) { "Failed to invalidate download cache after restore" }
+            }
+        }
 
         val time = System.currentTimeMillis() - startTime
 
