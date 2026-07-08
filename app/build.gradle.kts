@@ -285,7 +285,15 @@ dependencies {
         exclude(group = "androidx.viewpager", module = "viewpager")
     }
     implementation(libs.richeditor.compose)
-    implementation(libs.aboutLibraries.compose)
+    implementation(libs.aboutLibraries.compose) {
+        // KMK -->
+        // aboutLibraries 15 declares androidx.core 1.19.0, whose AAR metadata requires
+        // AGP 9.1.0. Komikku still builds with AGP 8.13.2, so drop the transitive core
+        // and let the rest of the graph provide the AGP-compatible androidx.core.
+        exclude(group = "androidx.core", module = "core-ktx")
+        exclude(group = "androidx.core", module = "core")
+        // KMK <--
+    }
     implementation(libs.bundles.voyager)
     implementation(libs.compose.materialmotion)
     implementation(libs.swipe)
