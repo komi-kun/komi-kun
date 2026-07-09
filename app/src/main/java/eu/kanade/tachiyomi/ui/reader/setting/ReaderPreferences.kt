@@ -8,6 +8,7 @@ import eu.kanade.tachiyomi.ui.reader.viewer.pager.PagerConfig
 import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.core.common.preference.getEnum
+import tachiyomi.core.common.preference.getEnumSet
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
 import tachiyomi.i18n.sy.SYMR
@@ -38,17 +39,22 @@ class ReaderPreferences(
 
     fun showReadingMode() = preferenceStore.getBoolean("pref_show_reading_mode", true)
 
-    val verticalNavigatorForLongStrip: Preference<Boolean> = preferenceStore.getBoolean(
-        "pref_webtoon_vertical_navigator",
-        true,
+    val verticalNavigator: Preference<Set<ReadingMode>> = preferenceStore.getEnumSet(
+        "pref_vertical_navigator",
+        emptySet(),
     )
 
     val verticalNavigatorOnLeft: Preference<Boolean> = preferenceStore.getBoolean(
-        "pref_webtoon_vertical_navigator_on_left",
+        "pref_vertical_navigator_on_left",
         false,
     )
 
     fun fullscreen() = preferenceStore.getBoolean("fullscreen", true)
+
+    val verticalNavigatorHeight: Preference<Int> = preferenceStore.getInt(
+        "pref_vertical_navigator_height",
+        65,
+    )
 
     fun drawUnderCutout() = preferenceStore.getBoolean("cutout_short", true)
 

@@ -61,4 +61,5 @@ val migrations: List<Migration>
         // KMK <--
         InstallationIdMigration(),
         MoveVerticalSeekbarSettingsMigration(),
+        VerticalNavigatorMigration(),
     )

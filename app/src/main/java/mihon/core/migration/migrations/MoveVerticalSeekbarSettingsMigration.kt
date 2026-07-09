@@ -18,10 +18,12 @@ class MoveVerticalSeekbarSettingsMigration : Migration {
         prefs.edit {
             val forceHorzSeekbar = prefs.getBoolean("pref_force_horz_seekbar", false)
             if (forceHorzSeekbar) {
-                putBoolean(
-                    readerPreferences.verticalNavigatorForLongStrip.key(),
-                    false,
+                // KMK -->
+                putStringSet(
+                    readerPreferences.verticalNavigator.key(),
+                    emptySet(),
                 )
+                // KMK <--
             }
             remove("pref_force_horz_seekbar")
             val leftVerticalSeekbar = prefs.getBoolean("pref_left_handed_vertical_seekbar", false)

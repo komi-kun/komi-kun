@@ -73,6 +73,7 @@ fun ChapterNavigator(
     // SY <--
     totalPages: Int,
     onPageIndexChange: (Int) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val haptic = LocalHapticFeedback.current
 
@@ -111,7 +112,7 @@ fun ChapterNavigator(
     val textColor = MaterialTheme.colorScheme.onSurface
 
     if (type.isHorizontal()) {
-        ChapterNavigator(
+        HorizontalChapterNavigator(
             isRtl = type == ChapterNavigatorType.HORIZONTAL_RTL,
             state = state,
             onNextChapter = onNextChapter,
@@ -129,6 +130,7 @@ fun ChapterNavigator(
             // KMK -->
             textColor = textColor,
             // KMK <--
+            modifier = modifier,
         )
     } else {
         VerticalChapterNavigator(
@@ -148,12 +150,13 @@ fun ChapterNavigator(
             // KMK -->
             textColor = textColor,
             // KMK <--
+            modifier = modifier,
         )
     }
 }
 
 @Composable
-fun ChapterNavigator(
+fun HorizontalChapterNavigator(
     isRtl: Boolean,
     state: SliderState,
     onNextChapter: () -> Unit,
@@ -171,13 +174,14 @@ fun ChapterNavigator(
     // KMK -->
     textColor: Color,
     // KMK <--
+    modifier: Modifier = Modifier,
 ) {
     val layoutDirection = if (isRtl) LayoutDirection.Rtl else LayoutDirection.Ltr
 
     // We explicitly handle direction based on the reader viewer rather than the system direction
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         Row(
-            modifier = Modifier
+            modifier = modifier
                 .fillMaxWidth()
                 .padding(horizontal = mainAxisPadding),
             verticalAlignment = Alignment.CenterVertically,
@@ -272,9 +276,10 @@ fun VerticalChapterNavigator(
     // KMK -->
     textColor: Color,
     // KMK <--
+    modifier: Modifier = Modifier,
 ) {
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxHeight()
             .padding(vertical = mainAxisPadding),
         horizontalAlignment = Alignment.CenterHorizontally,
