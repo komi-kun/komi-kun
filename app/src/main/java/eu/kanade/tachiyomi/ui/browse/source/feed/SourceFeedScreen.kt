@@ -10,7 +10,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
-import cafe.adriel.voyager.core.model.rememberScreenModel
+import androidx.lifecycle.viewmodel.compose.viewModel
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.Navigator
 import cafe.adriel.voyager.navigator.currentOrThrow
@@ -28,7 +28,7 @@ import eu.kanade.presentation.util.Screen
 import eu.kanade.tachiyomi.source.ConfigurableSource
 import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.source.online.HttpSource
-import eu.kanade.tachiyomi.ui.browse.BulkFavoriteScreenModel
+import eu.kanade.tachiyomi.ui.browse.BulkFavoriteViewModel
 import eu.kanade.tachiyomi.ui.browse.extension.details.SourcePreferencesScreen
 import eu.kanade.tachiyomi.ui.browse.source.browse.BrowseSourceScreen
 import eu.kanade.tachiyomi.ui.browse.source.browse.SourceFilterDialog
@@ -59,13 +59,13 @@ class SourceFeedScreen(val sourceId: Long) : Screen() {
             return
         }
 
-        val screenModel = rememberScreenModel { SourceFeedScreenModel(sourceId) }
-        val state by screenModel.state.collectAsState()
+        val viewModel = viewModel { SourceFeedViewModel(sourceId) }
+        val state by viewModel.state.collectAsState()
         val navigator = LocalNavigator.currentOrThrow
         val context = LocalContext.current
 
         // KMK -->
-        screenModel.source.let {
+        viewModel.source.let {
             if (it is StubSource) {
                 MissingSourceScreen(
                     source = it,
@@ -77,22 +77,22 @@ class SourceFeedScreen(val sourceId: Long) : Screen() {
 
         LaunchedEffect(navigator.lastItem) {
             // Reset filters & reload saved-searches when screen is navigated back to
-            screenModel.resetFilters()
+            viewModel.resetFilters()
         }
 
-        val bulkFavoriteScreenModel = rememberScreenModel { BulkFavoriteScreenModel() }
-        val bulkFavoriteState by bulkFavoriteScreenModel.state.collectAsState()
+        val bulkFavoriteViewModel = viewModel<BulkFavoriteViewModel>()
+        val bulkFavoriteState by bulkFavoriteViewModel.state.collectAsState()
         val showingFeedOrderScreen = rememberSaveable { mutableStateOf(false) }
 
         val isHentaiEnabled: Boolean = Injekt.get<ExhPreferences>().isHentaiEnabled().get()
-        val isConfigurableSource = screenModel.source.anyIs<ConfigurableSource>() ||
-            (screenModel.source.isEhBasedSource() && isHentaiEnabled)
+        val isConfigurableSource = viewModel.source.anyIs<ConfigurableSource>() ||
+            (viewModel.source.isEhBasedSource() && isHentaiEnabled)
 
         val haptic = LocalHapticFeedback.current
 
         BackHandler(enabled = bulkFavoriteState.selectionMode || showingFeedOrderScreen.value) {
             when {
-                bulkFavoriteState.selectionMode -> bulkFavoriteScreenModel.backHandler()
+                bulkFavoriteState.selectionMode -> bulkFavoriteViewModel.backHandler()
                 showingFeedOrderScreen.value -> showingFeedOrderScreen.value = false
             }
         }
@@ -103,42 +103,42 @@ class SourceFeedScreen(val sourceId: Long) : Screen() {
             if (targetState) {
                 SourceFeedOrderScreen(
                     state = state,
-                    onClickDelete = screenModel::openDeleteFeed,
-                    onChangeOrder = screenModel::changeOrder,
+                    onClickDelete = viewModel::openDeleteFeed,
+                    onChangeOrder = viewModel::changeOrder,
                     navigateUp = { showingFeedOrderScreen.value = false },
                 )
             } else {
                 // KMK <--
                 SourceFeedScreen(
-                    name = screenModel.source.name,
+                    name = viewModel.source.name,
                     isLoading = state.isLoading,
                     items = state.items,
                     hasFilters = state.filters.isNotEmpty(),
-                    onFabClick = screenModel::openFilterSheet,
-                    onClickBrowse = { onBrowseClick(navigator, screenModel.source) },
-                    onClickLatest = { onLatestClick(navigator, screenModel.source) },
-                    onClickSavedSearch = { onSavedSearchClick(navigator, screenModel.source, it) },
+                    onFabClick = viewModel::openFilterSheet,
+                    onClickBrowse = { onBrowseClick(navigator, viewModel.source) },
+                    onClickLatest = { onLatestClick(navigator, viewModel.source) },
+                    onClickSavedSearch = { onSavedSearchClick(navigator, viewModel.source, it) },
                     // KMK -->
-                    // onClickDelete = screenModel::openDeleteFeed,
-                    onLongClickFeed = screenModel::openActionsDialog,
+                    // onClickDelete = viewModel::openDeleteFeed,
+                    onLongClickFeed = viewModel::openActionsDialog,
                     // KMK <--
                     onClickManga = { manga ->
                         // KMK -->
                         if (bulkFavoriteState.selectionMode) {
-                            bulkFavoriteScreenModel.toggleSelection(manga)
+                            bulkFavoriteViewModel.toggleSelection(manga)
                         } else {
                             // KMK <--
                             onMangaClick(navigator, manga)
                         }
                     },
-                    onClickSearch = { onSearchClick(navigator, screenModel.source, it) },
+                    onClickSearch = { onSearchClick(navigator, viewModel.source, it) },
                     searchQuery = state.searchQuery,
-                    onSearchQueryChange = screenModel::search,
-                    getMangaState = { screenModel.getManga(initialManga = it) },
+                    onSearchQueryChange = viewModel::search,
+                    getMangaState = { viewModel.getManga(initialManga = it) },
                     // KMK -->
                     navigateUp = { navigator.pop() },
                     onWebViewClick = {
-                        val source = screenModel.source as HttpSource
+                        val source = viewModel.source as HttpSource
                         navigator.push(
                             WebViewScreen(
                                 url = source.baseUrl,
@@ -146,76 +146,76 @@ class SourceFeedScreen(val sourceId: Long) : Screen() {
                                 sourceId = source.id,
                             ),
                         )
-                    }.takeIf { screenModel.source is HttpSource },
-                    onToggleIncognito = screenModel::toggleIncognitoMode,
+                    }.takeIf { viewModel.source is HttpSource },
+                    onToggleIncognito = viewModel::toggleIncognitoMode,
                     onSourceSettingClick = {
                         when {
-                            screenModel.source.isEhBasedSource() && isHentaiEnabled ->
+                            viewModel.source.isEhBasedSource() && isHentaiEnabled ->
                                 navigator.push(SettingsEhScreen)
-                            screenModel.source.anyIs<ConfigurableSource>() ->
-                                navigator.push(SourcePreferencesScreen(screenModel.source.id))
+                            viewModel.source.anyIs<ConfigurableSource>() ->
+                                navigator.push(SourcePreferencesScreen(viewModel.source.id))
                             else -> {}
                         }
                     }.takeIf { isConfigurableSource },
                     onSortFeedClick = { showingFeedOrderScreen.value = true }
                         .takeIf {
-                            screenModel.state.value.items
+                            viewModel.state.value.items
                                 .filterIsInstance<SourceFeedUI.SourceSavedSearch>()
                                 .isNotEmpty()
                         },
                     onLongClickManga = { manga ->
                         if (!bulkFavoriteState.selectionMode) {
-                            bulkFavoriteScreenModel.addRemoveManga(manga, haptic)
+                            bulkFavoriteViewModel.addRemoveManga(manga, haptic)
                         } else {
                             navigator.push(MangaScreen(manga.id, true))
                         }
                     },
-                    bulkFavoriteScreenModel = bulkFavoriteScreenModel,
+                    bulkFavoriteViewModel = bulkFavoriteViewModel,
                     // KMK <--
                 )
             }
         }
 
-        val onDismissRequest = screenModel::dismissDialog
+        val onDismissRequest = viewModel::dismissDialog
         when (val dialog = state.dialog) {
-            is SourceFeedScreenModel.Dialog.AddFeed -> {
+            is SourceFeedViewModel.Dialog.AddFeed -> {
                 SourceFeedAddDialog(
                     onDismissRequest = onDismissRequest,
                     name = dialog.name,
                     addFeed = {
-                        screenModel.createFeed(dialog.feedId)
+                        viewModel.createFeed(dialog.feedId)
                         onDismissRequest()
                     },
                 )
             }
-            is SourceFeedScreenModel.Dialog.DeleteFeed -> {
+            is SourceFeedViewModel.Dialog.DeleteFeed -> {
                 SourceFeedDeleteDialog(
                     onDismissRequest = onDismissRequest,
                     deleteFeed = {
-                        screenModel.deleteFeed(dialog.feed)
+                        viewModel.deleteFeed(dialog.feed)
                         onDismissRequest()
                     },
                 )
             }
             // KMK -->
-            is SourceFeedScreenModel.Dialog.FeedActions -> {
+            is SourceFeedViewModel.Dialog.FeedActions -> {
                 FeedActionsDialog(
                     feed = dialog.feedItem.feed,
                     title = dialog.feedItem.title,
-                    onDismissRequest = screenModel::dismissDialog,
-                    onClickDelete = { screenModel.openDeleteFeed(it) },
+                    onDismissRequest = viewModel::dismissDialog,
+                    onClickDelete = { viewModel.openDeleteFeed(it) },
                 )
             }
             // KMK <--
-            is SourceFeedScreenModel.Dialog.Filter -> {
+            is SourceFeedViewModel.Dialog.Filter -> {
                 SourceFilterDialog(
                     onDismissRequest = onDismissRequest,
                     filters = state.filters,
                     // KMK -->
-                    onReset = screenModel::resetFilters,
+                    onReset = viewModel::resetFilters,
                     // KMK <--
                     onFilter = {
-                        screenModel.onFilter { query, filters ->
+                        viewModel.onFilter { query, filters ->
                             onBrowseClick(
                                 navigator = navigator,
                                 sourceId = sourceId,
@@ -224,12 +224,12 @@ class SourceFeedScreen(val sourceId: Long) : Screen() {
                             )
                         }
                     },
-                    onUpdate = screenModel::setFilters,
-                    startExpanded = screenModel.startExpanded,
+                    onUpdate = viewModel::setFilters,
+                    startExpanded = viewModel.startExpanded,
                     onSave = {},
                     savedSearches = state.savedSearches,
                     onSavedSearch = { search ->
-                        screenModel.onSavedSearch(
+                        viewModel.onSavedSearch(
                             search,
                             onBrowseClick = { query, searchId ->
                                 onBrowseClick(
@@ -245,7 +245,7 @@ class SourceFeedScreen(val sourceId: Long) : Screen() {
                         )
                     },
                     onSavedSearchPress = { search ->
-                        screenModel.onSavedSearchAddToFeed(search) {
+                        viewModel.onSavedSearchAddToFeed(search) {
                             context.toast(it)
                         }
                     },
@@ -253,9 +253,9 @@ class SourceFeedScreen(val sourceId: Long) : Screen() {
                     onSavedSearchPressDesc = stringResource(KMR.strings.saved_searches_add_feed),
                     shouldShowSavingButton = false,
                     // KMK <--
-                    openMangaDexRandom = if (screenModel.sourceIsMangaDex) {
+                    openMangaDexRandom = if (viewModel.sourceIsMangaDex) {
                         {
-                            screenModel.onMangaDexRandom {
+                            viewModel.onMangaDexRandom {
                                 // KMK -->
                                 // navigator.replace(
                                 navigator.push(
@@ -270,7 +270,7 @@ class SourceFeedScreen(val sourceId: Long) : Screen() {
                     } else {
                         null
                     },
-                    openMangaDexFollows = if (screenModel.sourceIsMangaDex) {
+                    openMangaDexFollows = if (viewModel.sourceIsMangaDex) {
                         {
                             // KMK -->
                             // navigator.replace(MangaDexFollowsScreen(sourceId))
@@ -287,7 +287,7 @@ class SourceFeedScreen(val sourceId: Long) : Screen() {
 
         // KMK -->
         BulkFavoriteDialogs(
-            bulkFavoriteScreenModel = bulkFavoriteScreenModel,
+            bulkFavoriteViewModel = bulkFavoriteViewModel,
             dialog = bulkFavoriteState.dialog,
         )
         // KMK <--

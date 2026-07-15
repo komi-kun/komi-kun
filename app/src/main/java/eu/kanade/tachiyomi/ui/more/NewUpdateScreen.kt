@@ -4,7 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
-import cafe.adriel.voyager.core.model.rememberScreenModel
+import androidx.lifecycle.viewmodel.compose.viewModel
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.presentation.more.NewUpdateScreen
@@ -22,8 +22,8 @@ class NewUpdateScreen(
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
         val context = LocalContext.current
-        val screenModel = rememberScreenModel { NewUpdateScreenModel(changelogInfo, downloadLink) }
-        val state by screenModel.state.collectAsState()
+        val viewModel = viewModel { NewUpdateViewModel(changelogInfo, downloadLink) }
+        val state by viewModel.state.collectAsState()
 
         NewUpdateScreen(
             versionName = versionName,
@@ -33,8 +33,8 @@ class NewUpdateScreen(
             onOpenInBrowser = { context.openInBrowser(releaseLink) },
             onAcceptUpdate = {
                 when (state.stage) {
-                    NewUpdateScreenModel.Stage.Available, NewUpdateScreenModel.Stage.Failed -> screenModel.startDownload()
-                    NewUpdateScreenModel.Stage.Downloaded -> screenModel.installUpdate()
+                    NewUpdateViewModel.Stage.Available, NewUpdateViewModel.Stage.Failed -> viewModel.startDownload()
+                    NewUpdateViewModel.Stage.Downloaded -> viewModel.installUpdate()
                     else -> Unit
                 }
             },

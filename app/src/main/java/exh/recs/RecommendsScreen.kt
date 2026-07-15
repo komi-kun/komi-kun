@@ -6,13 +6,13 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
-import cafe.adriel.voyager.core.model.rememberScreenModel
+import androidx.lifecycle.viewmodel.compose.viewModel
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.core.util.ifSourcesLoaded
 import eu.kanade.presentation.browse.components.BulkFavoriteDialogs
 import eu.kanade.presentation.util.Screen
-import eu.kanade.tachiyomi.ui.browse.BulkFavoriteScreenModel
+import eu.kanade.tachiyomi.ui.browse.BulkFavoriteViewModel
 import eu.kanade.tachiyomi.ui.browse.source.SourcesScreen
 import eu.kanade.tachiyomi.ui.manga.MangaScreen
 import eu.kanade.tachiyomi.ui.webview.WebViewActivity
@@ -45,17 +45,17 @@ class RecommendsScreen(private val args: Args) : Screen() {
         val context = LocalContext.current
         val navigator = LocalNavigator.currentOrThrow
 
-        val screenModel = rememberScreenModel { RecommendsScreenModel(args) }
-        val state by screenModel.state.collectAsState()
+        val viewModel = viewModel { RecommendsViewModel(args) }
+        val state by viewModel.state.collectAsState()
 
         // KMK -->
-        val bulkFavoriteScreenModel = rememberScreenModel { BulkFavoriteScreenModel() }
-        val bulkFavoriteState by bulkFavoriteScreenModel.state.collectAsState()
+        val bulkFavoriteViewModel = viewModel<BulkFavoriteViewModel>()
+        val bulkFavoriteState by bulkFavoriteViewModel.state.collectAsState()
 
         val haptic = LocalHapticFeedback.current
 
         BackHandler(enabled = bulkFavoriteState.selectionMode) {
-            bulkFavoriteScreenModel.backHandler()
+            bulkFavoriteViewModel.backHandler()
         }
         // KMK <--
 
@@ -74,7 +74,7 @@ class RecommendsScreen(private val args: Args) : Screen() {
                 else -> {
                     // KMK -->
                     // Add to favorite
-                    bulkFavoriteScreenModel.addRemoveManga(
+                    bulkFavoriteViewModel.addRemoveManga(
                         manga,
                         haptic,
                     )
@@ -91,7 +91,7 @@ class RecommendsScreen(private val args: Args) : Screen() {
             },
             state = state,
             navigateUp = navigator::pop,
-            getManga = @Composable { manga: Manga -> screenModel.getManga(manga) },
+            getManga = @Composable { manga: Manga -> viewModel.getManga(manga) },
             onClickSource = { pagingSource ->
                 // Pass class name of paging source as screens need to be serializable
                 navigator.push(
@@ -118,7 +118,7 @@ class RecommendsScreen(private val args: Args) : Screen() {
 
         // KMK -->
         BulkFavoriteDialogs(
-            bulkFavoriteScreenModel = bulkFavoriteScreenModel,
+            bulkFavoriteViewModel = bulkFavoriteViewModel,
             dialog = bulkFavoriteState.dialog,
         )
         // KMK <--

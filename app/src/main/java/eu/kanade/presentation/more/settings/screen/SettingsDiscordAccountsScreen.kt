@@ -28,8 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import cafe.adriel.voyager.core.model.StateScreenModel
-import cafe.adriel.voyager.core.model.screenModelScope
+import androidx.lifecycle.viewModelScope
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
@@ -42,6 +41,7 @@ import eu.kanade.tachiyomi.ui.setting.connections.DiscordLoginScreen
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import logcat.logcat
+import mihon.core.viewmodel.StateViewModel
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.Add
 import mihon.icons.materialsymbols.rounded.Delete
@@ -72,8 +72,8 @@ data class DiscordAccountsScreenState(
 @Composable
 private fun DiscordAccountsScreenContent() {
     val navigator = LocalNavigator.currentOrThrow
-    val screenModel = remember { DiscordAccountsScreenModel() }
-    val state by screenModel.state.collectAsState()
+    val viewModel = remember { DiscordAccountsViewModel() }
+    val state by viewModel.state.collectAsState()
 
     val noAccountsFoundString = stringResource(KMR.strings.no_accounts_found)
 
@@ -129,8 +129,8 @@ private fun DiscordAccountsScreenContent() {
                         items(accounts) { account ->
                             DiscordAccountItem(
                                 account = account,
-                                onRemove = { screenModel.removeAccount(account.id) },
-                                onSetActive = { screenModel.setActiveAccount(account.id, context) },
+                                onRemove = { viewModel.removeAccount(account.id) },
+                                onSetActive = { viewModel.setActiveAccount(account.id, context) },
                             )
                         }
                     }
@@ -140,18 +140,18 @@ private fun DiscordAccountsScreenContent() {
     }
 
     LaunchedEffect(Unit) {
-        screenModel.setNoAccountsFoundString(noAccountsFoundString)
-        screenModel.refreshAccounts()
+        viewModel.setNoAccountsFoundString(noAccountsFoundString)
+        viewModel.refreshAccounts()
     }
 }
 
-class DiscordAccountsScreenModel : StateScreenModel<DiscordAccountsScreenState>(DiscordAccountsScreenState()) {
+class DiscordAccountsViewModel : StateViewModel<DiscordAccountsScreenState>(DiscordAccountsScreenState()) {
     private val discord = Injekt.get<ConnectionsManager>().discord
     private val connectionsPreferences = Injekt.get<ConnectionsPreferences>()
     private var noAccountsFoundString: String = ""
 
     init {
-        screenModelScope.launch {
+        viewModelScope.launch {
             connectionsPreferences.discordAccounts().changes()
                 .collect { loadAccounts() }
         }
@@ -163,7 +163,7 @@ class DiscordAccountsScreenModel : StateScreenModel<DiscordAccountsScreenState>(
     }
 
     private fun loadAccounts() {
-        screenModelScope.launch {
+        viewModelScope.launch {
             mutableState.update { it.copy(isLoading = true, error = null) }
             runCatching {
                 val accounts = discord.getAccounts()
@@ -196,7 +196,7 @@ class DiscordAccountsScreenModel : StateScreenModel<DiscordAccountsScreenState>(
     }
 
     fun removeAccount(accountId: String) {
-        screenModelScope.launch {
+        viewModelScope.launch {
             mutableState.update { it.copy(isLoading = true, error = null) }
             runCatching {
                 discord.removeAccount(accountId)
@@ -208,7 +208,7 @@ class DiscordAccountsScreenModel : StateScreenModel<DiscordAccountsScreenState>(
     }
 
     fun setActiveAccount(accountId: String, context: Context) {
-        screenModelScope.launch {
+        viewModelScope.launch {
             mutableState.update { it.copy(isLoading = true, error = null) }
             runCatching {
                 discord.setActiveAccount(accountId)

@@ -19,7 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import eu.kanade.presentation.components.TabbedDialog
 import eu.kanade.presentation.components.TabbedDialogPaddings
-import eu.kanade.tachiyomi.ui.history.HistorySettingsScreenModel
+import eu.kanade.tachiyomi.ui.history.HistorySettingsViewModel
 import kotlinx.collections.immutable.persistentListOf
 import tachiyomi.domain.history.service.HistoryPreferences
 import tachiyomi.i18n.MR
@@ -33,7 +33,7 @@ import tachiyomi.presentation.core.util.collectAsState
 @Composable
 fun HistoryFilterDialog(
     onDismissRequest: () -> Unit,
-    screenModel: HistorySettingsScreenModel,
+    viewModel: HistorySettingsViewModel,
 ) {
     TabbedDialog(
         onDismissRequest = onDismissRequest,
@@ -46,43 +46,43 @@ fun HistoryFilterDialog(
                 .padding(vertical = TabbedDialogPaddings.Vertical)
                 .verticalScroll(rememberScrollState()),
         ) {
-            FilterSheet(screenModel = screenModel)
+            FilterSheet(viewModel = viewModel)
         }
     }
 }
 
 @Composable
 private fun ColumnScope.FilterSheet(
-    screenModel: HistorySettingsScreenModel,
+    viewModel: HistorySettingsViewModel,
 ) {
-    val filterUnfinishedManga by screenModel.historyPreferences.filterUnfinishedManga().collectAsState()
+    val filterUnfinishedManga by viewModel.historyPreferences.filterUnfinishedManga().collectAsState()
     TriStateItem(
         label = stringResource(KMR.strings.action_filter_unfinished_manga),
         state = filterUnfinishedManga,
-        onClick = { screenModel.toggleFilter(HistoryPreferences::filterUnfinishedManga) },
+        onClick = { viewModel.toggleFilter(HistoryPreferences::filterUnfinishedManga) },
     )
 
-    val filterUnfinishedChapter by screenModel.historyPreferences.filterUnfinishedChapter().collectAsState()
+    val filterUnfinishedChapter by viewModel.historyPreferences.filterUnfinishedChapter().collectAsState()
     TriStateItem(
         label = stringResource(KMR.strings.action_filter_unfinished_chapter),
         state = filterUnfinishedChapter,
-        onClick = { screenModel.toggleFilter(HistoryPreferences::filterUnfinishedChapter) },
+        onClick = { viewModel.toggleFilter(HistoryPreferences::filterUnfinishedChapter) },
     )
 
-    val filterNonLibraryManga by screenModel.historyPreferences.filterNonLibraryManga().collectAsState()
+    val filterNonLibraryManga by viewModel.historyPreferences.filterNonLibraryManga().collectAsState()
     TriStateItem(
         label = stringResource(KMR.strings.action_filter_non_library_entries),
         state = filterNonLibraryManga,
-        onClick = { screenModel.toggleFilter(HistoryPreferences::filterNonLibraryManga) },
+        onClick = { viewModel.toggleFilter(HistoryPreferences::filterNonLibraryManga) },
     )
 
     HorizontalDivider(modifier = Modifier.padding(MaterialTheme.padding.small))
 
-    val panoramaCover by screenModel.historyPreferences.usePanoramaCover().collectAsState()
+    val panoramaCover by viewModel.historyPreferences.usePanoramaCover().collectAsState()
 
     Row(
         modifier = Modifier
-            .clickable { screenModel.toggleSwitch(HistoryPreferences::usePanoramaCover) }
+            .clickable { viewModel.toggleSwitch(HistoryPreferences::usePanoramaCover) }
             .fillMaxWidth()
             .padding(horizontal = SettingsItemsPaddings.Horizontal),
         verticalAlignment = Alignment.CenterVertically,
@@ -96,7 +96,7 @@ private fun ColumnScope.FilterSheet(
 
         Switch(
             checked = panoramaCover,
-            onCheckedChange = { screenModel.toggleSwitch(HistoryPreferences::usePanoramaCover) },
+            onCheckedChange = { viewModel.toggleSwitch(HistoryPreferences::usePanoramaCover) },
         )
     }
 }

@@ -25,7 +25,7 @@ import androidx.compose.ui.util.fastForEachIndexed
 import eu.kanade.presentation.category.visualName
 import eu.kanade.presentation.components.TabbedDialog
 import eu.kanade.presentation.components.TabbedDialogPaddings
-import eu.kanade.tachiyomi.ui.updates.UpdatesSettingsScreenModel
+import eu.kanade.tachiyomi.ui.updates.UpdatesSettingsViewModel
 import kotlinx.collections.immutable.persistentListOf
 import tachiyomi.core.common.preference.TriState
 import tachiyomi.domain.updates.service.UpdatesPreferences
@@ -41,7 +41,7 @@ import tachiyomi.presentation.core.util.collectAsState
 @Composable
 fun UpdatesFilterDialog(
     onDismissRequest: () -> Unit,
-    screenModel: UpdatesSettingsScreenModel,
+    viewModel: UpdatesSettingsViewModel,
 ) {
     TabbedDialog(
         onDismissRequest = onDismissRequest,
@@ -56,8 +56,8 @@ fun UpdatesFilterDialog(
                 .verticalScroll(rememberScrollState()),
         ) {
             when (page) {
-                0 -> FilterSheet(screenModel = screenModel)
-                1 -> CategoryFilterSheet(screenModel = screenModel)
+                0 -> FilterSheet(viewModel = viewModel)
+                1 -> CategoryFilterSheet(viewModel = viewModel)
             }
         }
     }
@@ -65,44 +65,44 @@ fun UpdatesFilterDialog(
 
 @Composable
 private fun ColumnScope.FilterSheet(
-    screenModel: UpdatesSettingsScreenModel,
+    viewModel: UpdatesSettingsViewModel,
 ) {
-    val filterDownloaded by screenModel.updatesPreferences.filterDownloaded().collectAsState()
+    val filterDownloaded by viewModel.updatesPreferences.filterDownloaded().collectAsState()
     TriStateItem(
         label = stringResource(MR.strings.label_downloaded),
         state = filterDownloaded,
-        onClick = { screenModel.toggleFilter(UpdatesPreferences::filterDownloaded) },
+        onClick = { viewModel.toggleFilter(UpdatesPreferences::filterDownloaded) },
     )
 
-    val filterUnread by screenModel.updatesPreferences.filterUnread().collectAsState()
+    val filterUnread by viewModel.updatesPreferences.filterUnread().collectAsState()
     TriStateItem(
         label = stringResource(MR.strings.action_filter_unread),
         state = filterUnread,
-        onClick = { screenModel.toggleFilter(UpdatesPreferences::filterUnread) },
+        onClick = { viewModel.toggleFilter(UpdatesPreferences::filterUnread) },
     )
 
-    val filterStarted by screenModel.updatesPreferences.filterStarted().collectAsState()
+    val filterStarted by viewModel.updatesPreferences.filterStarted().collectAsState()
     TriStateItem(
         label = stringResource(MR.strings.label_started),
         state = filterStarted,
-        onClick = { screenModel.toggleFilter(UpdatesPreferences::filterStarted) },
+        onClick = { viewModel.toggleFilter(UpdatesPreferences::filterStarted) },
     )
 
-    val filterBookmarked by screenModel.updatesPreferences.filterBookmarked().collectAsState()
+    val filterBookmarked by viewModel.updatesPreferences.filterBookmarked().collectAsState()
     TriStateItem(
         label = stringResource(MR.strings.action_filter_bookmarked),
         state = filterBookmarked,
-        onClick = { screenModel.toggleFilter(UpdatesPreferences::filterBookmarked) },
+        onClick = { viewModel.toggleFilter(UpdatesPreferences::filterBookmarked) },
     )
 
     HorizontalDivider(modifier = Modifier.padding(MaterialTheme.padding.small))
 
-    val filterExcludedScanlators by screenModel.updatesPreferences.filterExcludedScanlators().collectAsState()
+    val filterExcludedScanlators by viewModel.updatesPreferences.filterExcludedScanlators().collectAsState()
 
     Row(
         modifier = Modifier
             // KMK -->
-            .clickable { screenModel.toggleSwitch(UpdatesPreferences::filterExcludedScanlators) }
+            .clickable { viewModel.toggleSwitch(UpdatesPreferences::filterExcludedScanlators) }
             // KMK <--
             .fillMaxWidth()
             .padding(horizontal = SettingsItemsPaddings.Horizontal),
@@ -118,7 +118,7 @@ private fun ColumnScope.FilterSheet(
         Switch(
             checked = filterExcludedScanlators,
             // KMK -->
-            onCheckedChange = { screenModel.toggleSwitch(UpdatesPreferences::filterExcludedScanlators) },
+            onCheckedChange = { viewModel.toggleSwitch(UpdatesPreferences::filterExcludedScanlators) },
             // KMK <--
         )
     }
@@ -126,11 +126,11 @@ private fun ColumnScope.FilterSheet(
     // KMK -->
     HorizontalDivider(modifier = Modifier.padding(MaterialTheme.padding.small))
 
-    val panoramaCover by screenModel.updatesPreferences.usePanoramaCover().collectAsState()
+    val panoramaCover by viewModel.updatesPreferences.usePanoramaCover().collectAsState()
 
     Row(
         modifier = Modifier
-            .clickable { screenModel.toggleSwitch(UpdatesPreferences::usePanoramaCover) }
+            .clickable { viewModel.toggleSwitch(UpdatesPreferences::usePanoramaCover) }
             .fillMaxWidth()
             .padding(horizontal = SettingsItemsPaddings.Horizontal),
         verticalAlignment = Alignment.CenterVertically,
@@ -144,7 +144,7 @@ private fun ColumnScope.FilterSheet(
 
         Switch(
             checked = panoramaCover,
-            onCheckedChange = { screenModel.toggleSwitch(UpdatesPreferences::usePanoramaCover) },
+            onCheckedChange = { viewModel.toggleSwitch(UpdatesPreferences::usePanoramaCover) },
         )
     }
     // KMK <--
@@ -152,7 +152,7 @@ private fun ColumnScope.FilterSheet(
 
 @Composable
 private fun ColumnScope.CategoryFilterSheet(
-    screenModel: UpdatesSettingsScreenModel,
+    viewModel: UpdatesSettingsViewModel,
 ) {
     Text(
         stringResource(MR.strings.pref_filter_update_categories_details),
@@ -166,7 +166,7 @@ private fun ColumnScope.CategoryFilterSheet(
 
     HorizontalDivider(modifier = Modifier.padding(MaterialTheme.padding.extraSmall))
 
-    val allCategories by screenModel.getCategories.subscribe().collectAsState(initial = emptyList())
+    val allCategories by viewModel.getCategories.subscribe().collectAsState(initial = emptyList())
 
     if (allCategories.isEmpty()) {
         // since it includes the system category, this should only happen when loading is required
@@ -174,8 +174,8 @@ private fun ColumnScope.CategoryFilterSheet(
         return
     }
 
-    val excluded by screenModel.updatesPreferences.filterExcludedCategories.collectAsState()
-    val included by screenModel.updatesPreferences.filterIncludedCategories.collectAsState()
+    val excluded by viewModel.updatesPreferences.filterExcludedCategories.collectAsState()
+    val included by viewModel.updatesPreferences.filterIncludedCategories.collectAsState()
 
     val selected = remember {
         allCategories.map { category ->
@@ -195,7 +195,7 @@ private fun ColumnScope.CategoryFilterSheet(
                 state = state,
                 onClick = {
                     selected[idx] = state.next()
-                    screenModel.cycleCategory(category)
+                    viewModel.cycleCategory(category)
                 },
             )
         }

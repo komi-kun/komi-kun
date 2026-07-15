@@ -17,7 +17,7 @@ import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastForEachIndexed
-import cafe.adriel.voyager.core.model.rememberScreenModel
+import androidx.lifecycle.viewmodel.compose.viewModel
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.presentation.category.visualName
@@ -42,13 +42,13 @@ class UpcomingScreen : Screen() {
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
 
-        val screenModel = rememberScreenModel { UpcomingScreenModel() }
-        val state by screenModel.state.collectAsState()
+        val viewModel = viewModel<UpcomingViewModel>()
+        val state by viewModel.state.collectAsState()
 
         when (state.dialog) {
-            is UpcomingScreenModel.Dialog.FilterSheet -> {
+            is UpcomingViewModel.Dialog.FilterSheet -> {
                 UpcomingFilterDialog(
-                    screenModel = screenModel,
+                    viewModel = viewModel,
                 )
             }
 
@@ -57,22 +57,22 @@ class UpcomingScreen : Screen() {
 
         UpcomingScreenContent(
             state = state,
-            setSelectedYearMonth = screenModel::setSelectedYearMonth,
+            setSelectedYearMonth = viewModel::setSelectedYearMonth,
             onClickUpcoming = { navigator.push(MangaScreen(it.id)) },
             // KMK -->
-            showUpdatingMangas = screenModel::showUpdatingMangas,
-            hideUpdatingMangas = screenModel::hideUpdatingMangas,
-            isPredictReleaseDate = MANGA_OUTSIDE_RELEASE_PERIOD in screenModel.restriction,
+            showUpdatingMangas = viewModel::showUpdatingMangas,
+            hideUpdatingMangas = viewModel::hideUpdatingMangas,
+            isPredictReleaseDate = MANGA_OUTSIDE_RELEASE_PERIOD in viewModel.restriction,
             // KMK <--
             hasActiveFilters = state.hasActiveFilters,
-            onClickFilter = screenModel::showFilterDialog,
+            onClickFilter = viewModel::showFilterDialog,
         )
     }
 }
 
 @Composable
 private fun ColumnScope.CategoryFilterSheet(
-    screenModel: UpcomingScreenModel,
+    viewModel: UpcomingViewModel,
 ) {
     Text(
         stringResource(MR.strings.pref_filter_upcoming_categories_details),
@@ -86,15 +86,15 @@ private fun ColumnScope.CategoryFilterSheet(
 
     HorizontalDivider(modifier = Modifier.padding(MaterialTheme.padding.extraSmall))
 
-    val allCategories by screenModel.getCategories.subscribe().collectAsState(initial = emptyList())
+    val allCategories by viewModel.getCategories.subscribe().collectAsState(initial = emptyList())
 
     if (allCategories.isEmpty()) {
         LoadingScreen(modifier = Modifier.padding(16.dp))
         return
     }
 
-    val excluded by screenModel.upcomingPreferences.filterExcludedCategories.collectAsState()
-    val included by screenModel.upcomingPreferences.filterIncludedCategories.collectAsState()
+    val excluded by viewModel.upcomingPreferences.filterExcludedCategories.collectAsState()
+    val included by viewModel.upcomingPreferences.filterIncludedCategories.collectAsState()
 
     val selected = remember {
         allCategories.map { category ->
@@ -114,7 +114,7 @@ private fun ColumnScope.CategoryFilterSheet(
                 state = state,
                 onClick = {
                     selected[idx] = state.next()
-                    screenModel.cycleCategory(category)
+                    viewModel.cycleCategory(category)
                 },
             )
         }
@@ -123,10 +123,10 @@ private fun ColumnScope.CategoryFilterSheet(
 
 @Composable
 fun UpcomingFilterDialog(
-    screenModel: UpcomingScreenModel,
+    viewModel: UpcomingViewModel,
 ) {
     TabbedDialog(
-        onDismissRequest = screenModel::resetDialog,
+        onDismissRequest = viewModel::resetDialog,
         tabTitles = persistentListOf(
             stringResource(MR.strings.categories),
         ),
@@ -136,7 +136,7 @@ fun UpcomingFilterDialog(
                 .padding(vertical = TabbedDialogPaddings.Vertical)
                 .verticalScroll(rememberScrollState()),
         ) {
-            CategoryFilterSheet(screenModel = screenModel)
+            CategoryFilterSheet(viewModel = viewModel)
         }
     }
 }

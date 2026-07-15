@@ -23,7 +23,7 @@ import eu.kanade.presentation.components.AppBarActions
 import eu.kanade.presentation.components.AppBarTitle
 import eu.kanade.presentation.components.BulkSelectionToolbar
 import eu.kanade.presentation.components.SearchToolbar
-import eu.kanade.tachiyomi.ui.browse.BulkFavoriteScreenModel
+import eu.kanade.tachiyomi.ui.browse.BulkFavoriteViewModel
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import mihon.icons.materialsymbols.MaterialSymbols
@@ -112,11 +112,11 @@ fun SourceFeedScreen(
     onSourceSettingClick: (() -> Unit?)?,
     onSortFeedClick: (() -> Unit)?,
     onLongClickManga: (Manga) -> Unit,
-    bulkFavoriteScreenModel: BulkFavoriteScreenModel,
+    bulkFavoriteViewModel: BulkFavoriteViewModel,
     // KMK <--
 ) {
     // KMK -->
-    val bulkFavoriteState by bulkFavoriteScreenModel.state.collectAsState()
+    val bulkFavoriteState by bulkFavoriteViewModel.state.collectAsState()
     // KMK <--
 
     Scaffold(
@@ -126,17 +126,17 @@ fun SourceFeedScreen(
                 BulkSelectionToolbar(
                     selectedCount = bulkFavoriteState.selection.size,
                     isRunning = bulkFavoriteState.isRunning,
-                    onClickClearSelection = bulkFavoriteScreenModel::toggleSelectionMode,
-                    onChangeCategoryClick = bulkFavoriteScreenModel::addFavorite,
+                    onClickClearSelection = bulkFavoriteViewModel::toggleSelectionMode,
+                    onChangeCategoryClick = bulkFavoriteViewModel::addFavorite,
                     onSelectAll = {
                         items.mapNotNull { it.results }
                             .flatten()
-                            .forEach { bulkFavoriteScreenModel.select(it) }
+                            .forEach { bulkFavoriteViewModel.select(it) }
                     },
                     onReverseSelection = {
                         items.mapNotNull { it.results }
                             .flatten()
-                            .let { bulkFavoriteScreenModel.reverseSelection(it) }
+                            .let { bulkFavoriteViewModel.reverseSelection(it) }
                     },
                 )
             } else {
@@ -153,7 +153,7 @@ fun SourceFeedScreen(
                     onToggleIncognito = onToggleIncognito,
                     onSourceSettingClick = onSourceSettingClick,
                     onSortFeedClick = onSortFeedClick,
-                    toggleSelectionMode = bulkFavoriteScreenModel::toggleSelectionMode,
+                    toggleSelectionMode = bulkFavoriteViewModel::toggleSelectionMode,
                     isRunning = bulkFavoriteState.isRunning,
                     // KMK <--
                 )

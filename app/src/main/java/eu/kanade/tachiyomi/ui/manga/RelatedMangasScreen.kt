@@ -18,7 +18,7 @@ import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.presentation.browse.RelatedMangasContent
 import eu.kanade.presentation.browse.components.BrowseSourceSimpleToolbar
 import eu.kanade.presentation.components.BulkSelectionToolbar
-import eu.kanade.tachiyomi.ui.browse.BulkFavoriteScreenModel
+import eu.kanade.tachiyomi.ui.browse.BulkFavoriteViewModel
 import eu.kanade.tachiyomi.ui.browse.source.browse.BrowseSourceScreen
 import eu.kanade.tachiyomi.ui.browse.source.globalsearch.GlobalSearchScreen
 import kotlinx.coroutines.CoroutineScope
@@ -29,17 +29,17 @@ import uy.kohesive.injekt.api.get
 
 @Composable
 fun RelatedMangasScreen(
-    screenModel: MangaScreenModel,
-    bulkFavoriteScreenModel: BulkFavoriteScreenModel,
+    viewModel: MangaViewModel,
+    bulkFavoriteViewModel: BulkFavoriteViewModel,
     navigateUp: () -> Unit,
     navigator: Navigator,
     scope: CoroutineScope,
-    successState: MangaScreenModel.State.Success,
+    successState: MangaViewModel.State.Success,
 ) {
     val sourcePreferences: SourcePreferences = Injekt.get()
     var displayMode by sourcePreferences.sourceDisplayMode().asState(scope)
 
-    val bulkFavoriteState by bulkFavoriteScreenModel.state.collectAsState()
+    val bulkFavoriteState by bulkFavoriteViewModel.state.collectAsState()
 
     val haptic = LocalHapticFeedback.current
 
@@ -51,20 +51,20 @@ fun RelatedMangasScreen(
                 BulkSelectionToolbar(
                     selectedCount = bulkFavoriteState.selection.size,
                     isRunning = bulkFavoriteState.isRunning,
-                    onClickClearSelection = bulkFavoriteScreenModel::toggleSelectionMode,
-                    onChangeCategoryClick = bulkFavoriteScreenModel::addFavorite,
+                    onClickClearSelection = bulkFavoriteViewModel::toggleSelectionMode,
+                    onChangeCategoryClick = bulkFavoriteViewModel::addFavorite,
                     onSelectAll = {
                         successState.relatedMangasSorted?.let { result ->
                             result.map { it as RelatedManga.Success }
                                 .flatMap { it.mangaList }
-                                .forEach { bulkFavoriteScreenModel.select(it) }
+                                .forEach { bulkFavoriteViewModel.select(it) }
                         }
                     },
                     onReverseSelection = {
                         successState.relatedMangasSorted?.let { result ->
                             result.map { it as RelatedManga.Success }
                                 .flatMap { it.mangaList }
-                                .let { bulkFavoriteScreenModel.reverseSelection(it) }
+                                .let { bulkFavoriteViewModel.reverseSelection(it) }
                         }
                     },
                 )
@@ -75,7 +75,7 @@ fun RelatedMangasScreen(
                     displayMode = displayMode,
                     onDisplayModeChange = { displayMode = it },
                     scrollBehavior = scrollBehavior,
-                    toggleSelectionMode = bulkFavoriteScreenModel::toggleSelectionMode,
+                    toggleSelectionMode = bulkFavoriteViewModel::toggleSelectionMode,
                     isRunning = bulkFavoriteState.isRunning,
                 )
             }
@@ -84,20 +84,20 @@ fun RelatedMangasScreen(
     ) { paddingValues ->
         RelatedMangasContent(
             relatedMangas = successState.relatedMangasSorted,
-            getMangaState = { manga -> screenModel.getManga(initialManga = manga) },
+            getMangaState = { manga -> viewModel.getManga(initialManga = manga) },
             columns = getColumnsPreference(LocalConfiguration.current.orientation),
             displayMode = displayMode,
             contentPadding = paddingValues,
             onMangaClick = { manga ->
                 if (bulkFavoriteState.selectionMode) {
-                    bulkFavoriteScreenModel.toggleSelection(manga)
+                    bulkFavoriteViewModel.toggleSelection(manga)
                 } else {
                     navigator.push(MangaScreen(manga.id, true))
                 }
             },
             onMangaLongClick = { manga ->
                 if (!bulkFavoriteState.selectionMode) {
-                    bulkFavoriteScreenModel.addRemoveManga(manga, haptic)
+                    bulkFavoriteViewModel.addRemoveManga(manga, haptic)
                 } else {
                     navigator.push(MangaScreen(manga.id, true))
                 }
