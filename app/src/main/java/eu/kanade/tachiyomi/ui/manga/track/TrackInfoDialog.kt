@@ -235,7 +235,7 @@ data class TrackInfoDialogHomeScreen(
         }
     }
 
-    private class Model(
+    class Model(
         private val mangaId: Long,
         private val sourceId: Long,
         private val getTracks: GetTracks = Injekt.get(),
@@ -465,7 +465,7 @@ private data class TrackStatusSelectorScreen(
         )
     }
 
-    private class Model(
+    class Model(
         private val track: Track,
         private val tracker: Tracker,
     ) : StateViewModel<Model.State>(State(track.status)) {
@@ -534,7 +534,7 @@ private data class TrackChapterSelectorScreen(
         )
     }
 
-    private class Model(
+    class Model(
         private val track: Track,
         private val tracker: Tracker,
     ) : StateViewModel<Model.State>(State(track.lastChapterRead.toInt())) {
@@ -608,7 +608,7 @@ private data class TrackScoreSelectorScreen(
         )
     }
 
-    private class Model(
+    class Model(
         private val track: Track,
         private val tracker: Tracker,
     ) : StateViewModel<Model.State>(State(tracker.displayScore(track))) {
@@ -735,7 +735,7 @@ private data class TrackDateSelectorScreen(
         )
     }
 
-    private class Model(
+    class Model(
         private val track: Track,
         private val tracker: Tracker,
         private val start: Boolean,
@@ -851,7 +851,7 @@ private data class TrackDateRemoverScreen(
         )
     }
 
-    private class Model(
+    class Model(
         private val track: Track,
         private val tracker: Tracker,
         private val start: Boolean,
@@ -927,7 +927,7 @@ data class TrackerSearchScreen(
         )
     }
 
-    private class Model(
+    class Model(
         private val mangaId: Long,
         private val currentUrl: String?,
         initialQuery: String,
@@ -1078,7 +1078,7 @@ private data class TrackerRemoveScreen(
         )
     }
 
-    private class Model(
+    class Model(
         private val mangaId: Long,
         private val track: Track,
         private val tracker: Tracker,

@@ -120,7 +120,7 @@ class CreateBackupScreen : Screen() {
     }
 }
 
-private class CreateBackupViewModel : StateViewModel<CreateBackupViewModel.State>(State()) {
+class CreateBackupViewModel : StateViewModel<CreateBackupViewModel.State>(State()) {
 
     fun toggle(setter: (BackupOptions, Boolean) -> BackupOptions, enabled: Boolean) {
         mutableState.update {
