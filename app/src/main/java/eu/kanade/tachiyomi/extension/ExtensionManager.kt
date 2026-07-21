@@ -315,7 +315,8 @@ class ExtensionManager(
                 "_${extension.signatureHash}",
             // KMK <--
         ] ?: return emptyFlow()
-        return installExtension(availableExt)
+        val isUpdateForPrivatelyInstalled = !extension.isShared
+        return installer.downloadAndInstall(availableExt.apkUrl, availableExt, isUpdateForPrivatelyInstalled)
     }
 
     fun cancelInstallUpdateExtension(extension: Extension) {
