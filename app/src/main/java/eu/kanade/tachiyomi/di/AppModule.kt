@@ -1,6 +1,7 @@
 package eu.kanade.tachiyomi.di
 
 import android.app.Application
+import android.content.Context
 import android.os.Build
 import androidx.core.content.ContextCompat
 import androidx.sqlite.db.SupportSQLiteDatabase
@@ -71,6 +72,7 @@ class AppModule(val app: Application) : InjektModule {
 
     override fun InjektRegistrar.registerInjectables() {
         addSingleton(app)
+        addSingleton<Context>(app)
 
         addSingletonFactory<SqlDriver> {
             // SY -->

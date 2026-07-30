@@ -19,6 +19,7 @@ import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.OutOfQuotaPolicy
 import androidx.work.WorkerParameters
+import androidx.work.workDataOf
 import eu.kanade.tachiyomi.BuildConfig
 import eu.kanade.tachiyomi.data.notification.Notifications
 import eu.kanade.tachiyomi.network.NetworkHelper
@@ -26,6 +27,7 @@ import eu.kanade.tachiyomi.network.ProgressListener
 import eu.kanade.tachiyomi.util.storage.getUriCompat
 import eu.kanade.tachiyomi.util.system.connectivityManager
 import eu.kanade.tachiyomi.util.system.isConnectedToWifi
+import eu.kanade.tachiyomi.util.system.notificationBuilder
 import eu.kanade.tachiyomi.util.system.notificationManager
 import eu.kanade.tachiyomi.util.system.setForegroundSafely
 import eu.kanade.tachiyomi.util.system.toast
@@ -55,8 +57,11 @@ import kotlin.coroutines.cancellation.CancellationException
 class AppUpdateDownloadJob(private val context: Context, workerParams: WorkerParameters) :
     CoroutineWorker(context, workerParams) {
 
-    private val notifier = AppUpdateNotifier(context)
     private val network: NetworkHelper by injectLazy()
+
+    // KMK -->
+    private val notifier = AppUpdateNotifier(context)
+    // KMK <--
 
     // KMK -->
     private val exhPreferences = Injekt.get<ExhPreferences>()
@@ -98,21 +103,31 @@ class AppUpdateDownloadJob(private val context: Context, workerParams: WorkerPar
         instance = WeakReference(this)
         // KMK <--
 
-        withIOContext {
-            downloadApk(title, url)
+        return try {
+            withIOContext { downloadApk(title, url) }
+            Result.success(workDataOf(PROGRESS to 100, EXTRA_DOWNLOAD_URL to url))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            Result.failure()
+        } finally {
+            // KMK -->
+            instance = null
+            // KMK <--
         }
-
-        // KMK -->
-        instance = null
-        // KMK <--
-
-        return Result.success()
     }
 
     override suspend fun getForegroundInfo(): ForegroundInfo {
+        val notification = context.notificationBuilder(Notifications.CHANNEL_APP_UPDATE)
+            .setContentTitle(context.stringResource(MR.strings.update_check_notification_update_available))
+            .setContentText(context.stringResource(MR.strings.update_check_notification_download_in_progress))
+            .setSmallIcon(android.R.drawable.stat_sys_download)
+            .setOngoing(true)
+            .build()
+
         return ForegroundInfo(
             Notifications.ID_APP_UPDATER,
-            notifier.onDownloadStarted().build(),
+            notification,
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
             } else {
@@ -162,14 +177,14 @@ class AppUpdateDownloadJob(private val context: Context, workerParams: WorkerPar
                 if (progress > savedProgress && currentTime - 200 > lastTick) {
                     savedProgress = progress
                     lastTick = currentTime
-                    notifier.onProgressChange(progress)
+                    setProgressAsync(workDataOf(PROGRESS to progress, EXTRA_DOWNLOAD_URL to url))
                 }
             }
         }
 
         try {
             // File where the apk will be saved.
-            val apkFile = File(context.externalCacheDir, "update.apk")
+            val apkFile = updateApk(context)
 
             // KMK -->
             network.downloadFileWithResume(url, apkFile, progressListener)
@@ -261,7 +276,9 @@ class AppUpdateDownloadJob(private val context: Context, workerParams: WorkerPar
     // KMK <--
 
     companion object {
-        private const val TAG = "AppUpdateDownload"
+        const val TAG = "AppUpdateDownload"
+
+        const val PROGRESS = "progress"
 
         // KMK -->
         const val PACKAGE_INSTALLED_ACTION =
@@ -271,11 +288,15 @@ class AppUpdateDownloadJob(private val context: Context, workerParams: WorkerPar
         // KMK <--
 
         const val EXTRA_DOWNLOAD_URL = "DOWNLOAD_URL"
+        // KMK -->
         const val EXTRA_DOWNLOAD_TITLE = "DOWNLOAD_TITLE"
+        // KMK <--
 
         // KMK -->
         private var instance: WeakReference<AppUpdateDownloadJob>? = null
         // KMK <--
+
+        fun updateApk(context: Context): File = File(context.externalCacheDir, "update.apk")
 
         fun start(
             context: Context,

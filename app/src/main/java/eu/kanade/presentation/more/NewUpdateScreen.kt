@@ -13,10 +13,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import eu.kanade.presentation.manga.components.MarkdownRender
 import eu.kanade.presentation.theme.TachiyomiPreviewTheme
+import eu.kanade.tachiyomi.ui.more.NewUpdateScreenModel
 import org.intellij.markdown.flavours.gfm.GFMFlavourDescriptor
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.sy.SYMR
@@ -28,16 +30,27 @@ import tachiyomi.presentation.core.screens.InfoScreen
 fun NewUpdateScreen(
     versionName: String,
     changelogInfo: String,
+    stage: NewUpdateScreenModel.Stage,
+    downloadProgress: () -> Int,
     onOpenInBrowser: () -> Unit,
-    onRejectUpdate: () -> Unit,
     onAcceptUpdate: () -> Unit,
+    onRejectUpdate: () -> Unit,
 ) {
     InfoScreen(
         icon = Icons.Outlined.NewReleases,
         headingText = stringResource(MR.strings.update_check_notification_update_available),
         subtitleText = stringResource(SYMR.strings.latest_, versionName),
-        acceptText = stringResource(MR.strings.update_check_confirm),
+        acceptText = when (stage) {
+            NewUpdateScreenModel.Stage.Available -> stringResource(MR.strings.update_check_confirm)
+            NewUpdateScreenModel.Stage.Downloading -> stringResource(
+                MR.strings.downloading_with_progress,
+                downloadProgress(),
+            )
+            NewUpdateScreenModel.Stage.Downloaded -> stringResource(MR.strings.action_install)
+            NewUpdateScreenModel.Stage.Failed -> stringResource(MR.strings.action_retry)
+        },
         onAcceptClick = onAcceptUpdate,
+        canAccept = stage != NewUpdateScreenModel.Stage.Downloading,
         rejectText = stringResource(MR.strings.action_not_now),
         onRejectClick = onRejectUpdate,
     ) {
@@ -48,7 +61,7 @@ fun NewUpdateScreen(
         ) {
             MarkdownRender(
                 content = changelogInfo.trimIndent(),
-                flavour = GFMFlavourDescriptor(),
+                flavour = remember { GFMFlavourDescriptor() },
             )
 
             TextButton(
@@ -77,9 +90,11 @@ private fun NewUpdateScreenPreview() {
                 - Hello
                 - World
             """.trimIndent(),
+            stage = NewUpdateScreenModel.Stage.Available,
+            downloadProgress = { 0 },
             onOpenInBrowser = {},
-            onRejectUpdate = {},
             onAcceptUpdate = {},
+            onRejectUpdate = {},
         )
     }
 }
