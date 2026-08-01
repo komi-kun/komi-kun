@@ -28,6 +28,7 @@ import kotlinx.coroutines.launch
 import logcat.LogPriority
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.util.system.logcat
+import tachiyomi.data.DatabaseHandler
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
 import uy.kohesive.injekt.Injekt
@@ -46,6 +47,10 @@ class BackupRestorer(
     private val context: Context,
     private val notifier: BackupNotifier,
     private val isSync: Boolean,
+
+    // KMK -->
+    private val handler: DatabaseHandler = Injekt.get(),
+    // KMK <--
 
     // SY -->
     private val categoriesRestorer: CategoriesRestorer = CategoriesRestorer(/* SY --> */ isSync /* SY <-- */),
@@ -229,17 +234,36 @@ class BackupRestorer(
         mangaRestorer.sortByNew(backupMangas)
             .chunked(100)
             .forEach { chunk ->
-                chunk.forEach {
-                    ensureActive()
-
-                    try {
-                        mangaRestorer.restore(it, backupCategories)
-                    } catch (e: Exception) {
-                        val sourceName = sourceMapping[it.source] ?: it.source.toString()
-                        errors.add(Date() to "${it.title} [$sourceName]: ${e.message}")
+                val restoredAsBatch = try {
+                    handler.await(inTransaction = true) {
+                        chunk.forEach {
+                            ensureActive()
+                            mangaRestorer.restore(it, backupCategories)
+                        }
                     }
+                    true
+                } catch (e: Exception) {
+                    ensureActive()
+                    logcat(LogPriority.WARN, e) { "Batch restore failed, retrying entry by entry" }
+                    false
+                }
 
-                    restoreProgress.incrementAndFetch()
+                if (restoredAsBatch) {
+                    restoreProgress.addAndFetch(chunk.size)
+                } else {
+                    chunk.forEach {
+                        ensureActive()
+
+                        try {
+                            mangaRestorer.restore(it, backupCategories)
+                        } catch (e: Exception) {
+                            ensureActive()
+                            val sourceName = sourceMapping[it.source] ?: it.source.toString()
+                            errors.add(Date() to "${it.title} [$sourceName]: ${e.message}")
+                        }
+
+                        restoreProgress.incrementAndFetch()
+                    }
                 }
                 with(notifier) {
                     showRestoreProgress(chunk.last().title, restoreProgress.load(), restoreAmount, isSync)

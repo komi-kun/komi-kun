@@ -427,7 +427,7 @@ class MangaRestorer(
     private suspend fun restoreHistory(manga: Manga, backupHistory: List<BackupHistory>) {
         val toUpdate = backupHistory.mapNotNull { history ->
             // KMK -->
-            val dbHistory = handler.awaitList { historyQueries.getHistoryByChapterUrl(manga.id, history.url) }
+            val dbHistory = handler.awaitList { historyQueries.getHistoryByChapterUrlAndMangaId(history.url, manga.id) }
                 .firstOrNull()
             // KMK <--
             val item = history.getHistoryImpl()
