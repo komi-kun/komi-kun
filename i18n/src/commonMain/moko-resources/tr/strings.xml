@@ -75,6 +75,8 @@
     <string name="landscape">Manzara</string>
     <string name="pref_library_update_interval">Otomatik güncellemeler</string>
     <string name="update_never">Kapalı</string>
+    <string name="update_1hour">1 saatte bir</string>
+    <string name="update_3hour">3 saatte bir</string>
     <string name="update_6hour">6 saatte bir</string>
     <string name="update_12hour">12 saatte bir</string>
     <string name="update_24hour">Günlük</string>
@@ -97,7 +99,9 @@
     <string name="ext_untrusted">Güvenilmeyen</string>
     <string name="ext_uninstall">Kaldır</string>
     <string name="untrusted_extension">Güvenilmeyen uzantı</string>
-    <string name="untrusted_extension_message">Kötü niyetli uzantılar, oturum açma bilgilerini okuyabilir veya güvenilmeyen kodlar çalıştırabilir. \n \nBu uzantıya güvenerek bu riskleri kabul etmiş olursunuz.</string>
+    <string name="untrusted_extension_message">Kötü niyetli uzantılar, oturum açma bilgilerini okuyabilir veya güvenilmeyen kodlar çalıştırabilir.
+\n
+\nBu uzantıya güvenerek bu riskleri kabul etmiş olursunuz.</string>
     <string name="pref_fullscreen">Tam ekran</string>
     <string name="pref_page_transitions">Sayfa geçişlerini animasyonla yap</string>
     <string name="pref_double_tap_anim_speed">Çift dokunma animasyon hızı</string>
@@ -193,7 +197,8 @@
     <string name="manga_added_library">Kitaplığa eklendi</string>
     <string name="manga_removed_library">Kitaplıktan kaldırıldı</string>
     <string name="delete_downloads_for_manga">İndirilen bölümler silinsin mi?</string>
-    <string name="copied_to_clipboard">Panoya kopyalandı: \n%1$s</string>
+    <string name="copied_to_clipboard">Panoya kopyalandı:
+\n%1$s</string>
     <string name="source_not_installed">Kaynak yüklenmedi: %1$s</string>
     <string name="display_mode_chapter">Bölüm %1$s</string>
     <string name="chapter_downloading_progress">İndiriliyor (%1$d/%2$d)</string>
@@ -242,6 +247,9 @@
     <string name="file_select_backup">Yedek dosyasını seç</string>
     <string name="update_check_confirm">İndir</string>
     <string name="update_check_no_new_updates">Yeni güncelleme yok</string>
+    <string name="update_check_notification_download_in_progress">İndiriliyor…</string>
+    <string name="update_check_notification_download_complete">Güncellemeyi yüklemek için dokunun</string>
+    <string name="update_check_notification_download_error">İndirme hatası</string>
     <string name="update_check_notification_update_available">Yeni sürüm var!</string>
     <string name="information_no_downloads">İndirme yok</string>
     <string name="information_no_recent">Yeni güncelleme yok</string>
@@ -532,6 +540,7 @@
     <string name="download_queue_size_warning">Uyarı: Büyük toplu indirmeler kaynakların yavaşlamasına ve/veya %s\'u engellemesine neden olabilir. Daha fazla bilgi için dokunun.</string>
     <string name="update_72hour">3 günde bir</string>
     <string name="ext_update_all">Tümünü güncelle</string>
+    <string name="channel_app_updates">Uygulama güncellemeleri</string>
     <string name="pref_auto_clear_chapter_cache">Uygulama başlatıldığında bölüm önbelleğini temizle</string>
     <string name="clear_database_source_item_count">Veri tabanında %1$d kitaplık dışı girdi</string>
     <string name="database_clean">Temizlenecek bir şey yok</string>
@@ -626,7 +635,8 @@
     <string name="download_notifier_cache_renewal">İndirilenler kontrol ediliyor</string>
     <string name="action_open_random_manga">Rastgele girdi aç</string>
     <string name="information_no_entries_found">Bu kategoride girdi bulunamadı</string>
-    <string name="fdroid_warning">F-Droid derlemeleri desteklenmemektedir. \nDaha fazla bilgi için dokunun.</string>
+    <string name="fdroid_warning">F-Droid derlemeleri desteklenmemektedir.
+\nDaha fazla bilgi için dokunun.</string>
     <string name="action_display_show_continue_reading_button">Okumaya devam et butonu</string>
     <string name="track_remove_date_conf_title">Tarih kaldırılsın mı?</string>
     <string name="track_remove_start_date_conf_text">Bu, daha önce seçtiğiniz başlangıç tarihini şuradan kaldıracak: %s</string>
@@ -732,7 +742,11 @@
     <string name="onboarding_action_next">Sonraki</string>
     <string name="onboarding_description">Hadi bazı şeyleri ayarlayalım. Bunları daha sonra ayarlardan da değiştirebilirsiniz.</string>
     <string name="no_location_set">Depolama konumu ayarlanmadı</string>
-    <string name="onboarding_storage_info">%1$s\'un bölüm indirmelerini, yedeklemeleri ve daha fazlasını kaydedeceği bir klasör seçin. \n \nYalnızca buna ait bir klasör tavsiye edilir. \n \nSeçilen klasör: %2$s</string>
+    <string name="onboarding_storage_info">%1$s\'un bölüm indirmelerini, yedeklemeleri ve daha fazlasını kaydedeceği bir klasör seçin.
+\n
+\nYalnızca buna ait bir klasör tavsiye edilir.
+\n
+\nSeçilen klasör: %2$s</string>
     <string name="onboarding_permission_notifications">Bildirim izni</string>
     <string name="onboarding_permission_install_apps">Uygulama yükleme izni</string>
     <string name="onboarding_permission_ignore_battery_opts_description">Uzun süren kitaplık güncellemelerinin, indirmelerin, yedeklemelerin ve geri yüklemelerinin kesintiye uğramasını önleyin.</string>
@@ -945,10 +959,4 @@
     <string name="update_check_skip_title">%s atla?</string>
     <string name="update_check_skip_message">Güncellemeler, hata düzeltmeleri ve güvenlik geliştirmeleri sağlar. Bu sürüm için tekrar hatırlatılmayacaksınız ancak daha yeni bir sürüm yayınlandığında size bildirim gösterilecek.</string>
     <string name="information_webview_crashed">WebView çalışmayı durdurdu ve sayfa kapatıldı</string>
-    <string name="update_1hour">1 saatte bir</string>
-    <string name="update_3hour">3 saatte bir</string>
-    <string name="update_check_notification_download_in_progress">İndiriliyor…</string>
-    <string name="update_check_notification_download_complete">Güncellemeyi yüklemek için dokunun</string>
-    <string name="update_check_notification_download_error">İndirme hatası</string>
-    <string name="channel_app_updates">Uygulama güncellemeleri</string>
 </resources>

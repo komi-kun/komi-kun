@@ -113,7 +113,7 @@
     <string name="app_not_available">Hindi magagamit ang app</string>
     <string name="second_to_last">Pangalawa sa huling kabanata</string>
     <string name="last_read_chapter">Huling nabasang kabanata</string>
-    <string name="disabled">Di-pinagana</string>
+    <string name="disabled">Sarado</string>
     <string name="pref_remove_after_marked_as_read">Pagkatapos na manu-manong namarka bilang nabasa na</string>
     <string name="pref_remove_after_read">Pagkatapos basahin, awtomatikong burahin</string>
     <string name="pref_webtoon_side_padding">Kapal ng gilid</string>
@@ -177,7 +177,9 @@
     <string name="pref_cutout_short">Ipakita ang laman sa cutout area</string>
     <string name="pref_fullscreen">Naka-fullscreen</string>
     <string name="obsolete_extension_message">Ang extension na ito ay walang kaugnayan sa anumang store. Hindi ito makatatanggap ng mga update, maaaring hindi gumana nang maayos, at pwedeng magdulot ng problema sa app. Inirerekomendang i-uninstall ito.</string>
-    <string name="untrusted_extension_message">Maaaring basahin ng mga mapanganib na extension ang anumang nakatagong kredensyal sa pag-log in o magsagawa ng arbitrary code. \n \nSa pamamagitan ng pagtitiwala sa extension na ito, tinatanggap mo ang mga panganib na ito.</string>
+    <string name="untrusted_extension_message">Maaaring basahin ng mga mapanganib na extension ang anumang nakatagong kredensyal sa pag-log in o magsagawa ng arbitrary code.
+\n
+\nSa pamamagitan ng pagtitiwala sa extension na ito, tinatanggap mo ang mga panganib na ito.</string>
     <string name="untrusted_extension">Di-pinagkakatiwalaang extension</string>
     <string name="ext_uninstall">I-uninstall</string>
     <string name="ext_trust">Itiwala</string>
@@ -203,6 +205,8 @@
     <string name="update_24hour">Araw-araw</string>
     <string name="update_12hour">Kada 12 oras</string>
     <string name="update_6hour">Kada 6 na oras</string>
+    <string name="update_1hour">Kada 1 na oras</string>
+    <string name="update_3hour">Kada 3 na oras</string>
     <string name="update_never">Nakapatay</string>
     <string name="pref_library_update_interval">Awtomatikong pag-update</string>
     <string name="pref_category_library_update">Panlahatang update</string>
@@ -250,6 +254,9 @@
     <string name="information_webview_required">Kinakailangan ng app ang WebView upang gumana ito</string>
     <string name="information_cloudflare_bypass_failure">Bigong ma-bypass ang Cloudflare</string>
     <string name="update_check_notification_update_available">May bagong bersyon!</string>
+    <string name="update_check_notification_download_error">Nagka-error sa pag-download</string>
+    <string name="update_check_notification_download_complete">I-tap upang ma-install ang update</string>
+    <string name="update_check_notification_download_in_progress">Dina-download…</string>
     <string name="update_check_no_new_updates">Walang bagong update</string>
     <string name="update_check_confirm">I-download</string>
     <string name="file_select_backup">Pumili ng backup</string>
@@ -320,7 +327,8 @@
     <string name="display_mode_chapter">Kabanata %1$s</string>
     <string name="snack_add_to_library">Idagdag sa Aklatan?</string>
     <string name="source_not_installed">Di naka-install ang source: %1$s</string>
-    <string name="copied_to_clipboard">Kinopya sa clipboard: \n%1$s</string>
+    <string name="copied_to_clipboard">Kinopya sa clipboard:
+\n%1$s</string>
     <string name="delete_downloads_for_manga">Burahin ang mga na-download na kabanata?</string>
     <string name="manga_info_expand">Palawakin</string>
     <string name="manga_info_collapse">Bawasan</string>
@@ -531,6 +539,7 @@
     <string name="connected_to_wifi">Sa Wi-Fi lang</string>
     <string name="update_72hour">Kada 3 araw</string>
     <string name="download_queue_size_warning">Babala: maaaring humantong sa pagbagal at/o pagharang ng mga source sa %s ang maramihang pag-download. I-tap para matuto pa.</string>
+    <string name="channel_app_updates">Mga update sa app</string>
     <string name="ext_update_all">I-update lahat</string>
     <string name="clear_database_source_item_count">%1$d na entry sa database na wala sa aklatan</string>
     <string name="pref_auto_clear_chapter_cache">Linisin ang cache ng kabanata sa paglulunsad ng app</string>
@@ -626,7 +635,8 @@
     <string name="download_notifier_cache_renewal">Tinitignan ang mga download</string>
     <string name="information_no_entries_found">Walang mga entry ang nahanap sa kategoryang ito</string>
     <string name="action_open_random_manga">Buksan ang random na entry</string>
-    <string name="fdroid_warning">Ang mga build mula sa F-Droid ay hindi opisyal na sinusuportahan. \nI-tap para matuto pa.</string>
+    <string name="fdroid_warning">Ang mga build mula sa F-Droid ay hindi opisyal na sinusuportahan.
+\nI-tap para matuto pa.</string>
     <string name="action_display_show_continue_reading_button">Magpatuloy na bumasa na button</string>
     <string name="track_remove_date_conf_title">Tanggalin ang petsa?</string>
     <string name="track_remove_start_date_conf_text">Tatanggalin nito ang huling petsa na napili mo mula sa %s</string>
@@ -732,7 +742,11 @@
     <string name="onboarding_action_next">Susunod</string>
     <string name="onboarding_description">Mag-set up muna tayo ng ilang bagay. Maaari mo ring baguhin ang mga ito anumang oras sa mga setting sa ibang pagkakataon.</string>
     <string name="no_location_set">Walang nakatakdang lokasyon ng storage</string>
-    <string name="onboarding_storage_info">Pumili ng folder kung saan mag-imbak ang %1$s ng mga na-download ng kabanata, mga backup, at higit pa. \n \nInirerekomenda ang isang nakalaang folder. \n \nNapiling folder: %2$s</string>
+    <string name="onboarding_storage_info">Pumili ng folder kung saan mag-imbak ang %1$s ng mga na-download ng kabanata, mga backup, at higit pa.
+\n
+\nInirerekomenda ang isang nakalaang folder.
+\n
+\nNapiling folder: %2$s</string>
     <string name="onboarding_permission_notifications">Pahintulot sa mga abiso</string>
     <string name="onboarding_permission_install_apps">Pahintulot sa pag-install ng mga app</string>
     <string name="onboarding_permission_ignore_battery_opts_description">Ma-iwasan ang mga hadlang sa mahahabang pag-update ng aklatan, pag-download, at pag-restore ng mga backup.</string>
@@ -945,10 +959,4 @@
     <string name="update_check_skip_title">Laktawan ang %s?</string>
     <string name="update_check_skip_message">Ang mga update ay karaniwang may kasamang mga bug fix at pagpapahusay sa seguridad. Hindi ka na muling ipapaalala tungkol sa bersyong ito, ngunit makakatanggap ka pa rin ng abiso kapag may lumabas na mas bagong bersyon.</string>
     <string name="information_webview_crashed">Huminto sa paggana ang WebView at isinarado ang pahina</string>
-    <string name="update_1hour">Kada 1 na oras</string>
-    <string name="update_3hour">Kada 3 na oras</string>
-    <string name="update_check_notification_download_error">Nagka-error sa pag-download</string>
-    <string name="update_check_notification_download_complete">I-tap upang ma-install ang update</string>
-    <string name="update_check_notification_download_in_progress">Dina-download…</string>
-    <string name="channel_app_updates">Mga update sa app</string>
 </resources>

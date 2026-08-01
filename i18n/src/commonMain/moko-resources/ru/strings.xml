@@ -136,7 +136,7 @@
     <string name="pref_read_with_volume_keys">Клавиши громкости</string>
     <string name="pref_reader_navigation">Навигация</string>
     <string name="pref_reader_theme">Цвет фона</string>
-    <string name="pref_remove_after_marked_as_read">Удалять помеченное вручную как «Прочитано»</string>
+    <string name="pref_remove_after_marked_as_read">Удалять помеченое вручную как «Прочитано»</string>
     <string name="pref_remove_after_read">Удалять после прочтения</string>
     <string name="pref_rotation_type">Ориентация по умолчанию</string>
     <string name="pref_show_page_number">Номер страницы</string>
@@ -175,6 +175,9 @@
     <string name="update_6hour">Каждые 6 часов</string>
     <string name="update_check_confirm">Загрузить</string>
     <string name="update_check_no_new_updates">Нет обновлений</string>
+    <string name="update_check_notification_download_complete">Нажмите для установки обновления</string>
+    <string name="update_check_notification_download_error">Ошибка загрузки</string>
+    <string name="update_check_notification_download_in_progress">Загрузка…</string>
     <string name="update_check_notification_update_available">Доступно обновление!</string>
     <string name="update_never">Выключено</string>
     <string name="updating_category">Обновление категории</string>
@@ -225,7 +228,7 @@
     <string name="latest">Последние</string>
     <string name="browse">Поисковик</string>
     <string name="channel_common">Общий</string>
-    <string name="information_empty_category">Нет категорий в библиотеке. Нажмите кнопку «Добавить», чтобы создать категорию для организации вашей библиотеки.</string>
+    <string name="information_empty_category">Нет категорий в библиотеке. Нажмите кнопку «Добавить» чтобы создать категорию для организации вашей библиотеки.</string>
     <string name="label_migration">Перенос</string>
     <string name="label_extensions">Расширения</string>
     <string name="label_extension_info">Информация о расширении</string>
@@ -238,14 +241,17 @@
     <string name="ext_untrusted">Ненадёжное</string>
     <string name="ext_uninstall">Удалить</string>
     <string name="untrusted_extension">Ненадёжное расширение</string>
-    <string name="untrusted_extension_message">Вредоносные расширения могут считывать любые хранящиеся учётные данные для входа или выполнять произвольный код. \n \nДоверяя этому расширению, вы принимаете эти риски.</string>
+    <string name="untrusted_extension_message">Вредоносные расширения могут считывать любые хранящиеся учётные данные для входа или выполнять произвольный код.
+\n
+\nДоверяя этому расширению, вы принимаете эти риски.</string>
     <string name="pref_double_tap_anim_speed">Скорость анимации при двойном нажатии</string>
     <string name="double_tap_anim_speed_0">Без анимации</string>
     <string name="double_tap_anim_speed_normal">Нормальная</string>
     <string name="double_tap_anim_speed_fast">Быстрая</string>
     <string name="manga_added_library">Добавлено в библиотеку</string>
     <string name="manga_removed_library">Удалено из библиотеки</string>
-    <string name="copied_to_clipboard">Скопировано в буфер обмена: \n%1$s</string>
+    <string name="copied_to_clipboard">Скопировано в буфер обмена:
+\n%1$s</string>
     <string name="migration_dialog_what_to_include">Какие данные перенести</string>
     <string name="migrate">Перенести</string>
     <string name="copy">Копировать</string>
@@ -397,7 +403,7 @@
     <string name="channel_complete">Завершено</string>
     <string name="channel_progress">Прогресс</string>
     <string name="channel_errors">Ошибки</string>
-    <string name="backup_restore_missing_trackers">Сервисы отслеживания, в которые не выполнен вход:</string>
+    <string name="backup_restore_missing_trackers">Сервисы отслеживания в которые не выполнен вход:</string>
     <string name="pref_remove_bookmarked_chapters">Удалять главы с закладками</string>
     <string name="pref_category_delete_chapters">Удаление глав</string>
     <string name="no_chapters_error">Нет глав</string>
@@ -532,6 +538,7 @@
     <string name="update_72hour">Каждые 3 дня</string>
     <string name="download_queue_size_warning">Предупреждение: Большое количество загрузок может привести к замедлению работы источников и/или блокировке %s. Нажмите для подробностей.</string>
     <string name="ext_update_all">Обновить все</string>
+    <string name="channel_app_updates">Обновления приложения</string>
     <string name="pref_auto_clear_chapter_cache">Очищать кэш глав при запуске приложения</string>
     <string name="clear_database_source_item_count">%1$d не библиотечных серий в базе данных</string>
     <string name="database_clean">Нечего очищать</string>
@@ -614,7 +621,7 @@
     <string name="pref_downloads_summary">Автоматическая загрузка, загрузка наперёд</string>
     <string name="pref_tracking_summary">Односторонняя синхронизация прогресса, расширенная синхронизация</string>
     <string name="pref_browse_summary">Источники, расширения, глобальный поиск</string>
-    <string name="pref_backup_summary">Ручные и автоматические резервные копии, хранилище</string>
+    <string name="pref_backup_summary">Ручные и автоматические резервные копий, хранилище</string>
     <string name="pref_security_summary">Блокировка приложения, защита экрана</string>
     <string name="pref_advanced_summary">Выгрузка журнала сбоев, оптимизация батареи</string>
     <string name="crash_screen_title">Ой, ошибочка вышла!</string>
@@ -626,7 +633,8 @@
     <string name="download_notifier_cache_renewal">Проверка загрузок</string>
     <string name="information_no_entries_found">В этой категории нет серий</string>
     <string name="action_open_random_manga">Открыть случайную серию</string>
-    <string name="fdroid_warning">Сборки F-Droid официально не поддерживаются. \nНажмите, чтобы узнать больше.</string>
+    <string name="fdroid_warning">Сборки F-Droid официально не поддерживаются.
+\nНажмите, чтобы узнать больше.</string>
     <string name="action_display_show_continue_reading_button">Кнопка «Продолжить чтение»</string>
     <string name="track_remove_finish_date_conf_text">Это удалит ранее выбранную дату окончания из %s</string>
     <string name="track_remove_date_conf_title">Удалить дату?</string>
@@ -732,7 +740,11 @@
     <string name="onboarding_action_next">Следующее</string>
     <string name="onboarding_description">Давайте настроем парочку вещей. Вы всегда можете их поменять позже в настройках.</string>
     <string name="no_location_set">Не указан путь хранилища</string>
-    <string name="onboarding_storage_info">Выберите папку где %1$s будет хранить загруженные главы, резервные копии и другое. \n \nРекомендуется использовать выделенную папку. \n \nВыбранная папка: %2$s</string>
+    <string name="onboarding_storage_info">Выберите папку где %1$s будет хранить загруженные главы, резервные копии и другое.
+\n
+\nРекомендуется использовать выделенную папку.
+\n
+\nВыбранная папка: %2$s</string>
     <string name="onboarding_permission_notifications">Разрешения для уведомлений</string>
     <string name="onboarding_permission_install_apps">Разрешения для установки приложений</string>
     <string name="onboarding_permission_ignore_battery_opts_description">Позволит избежать прерывания длительных обновлений библиотеки, загрузок и восстановлений резервных копий.</string>
@@ -825,7 +837,7 @@
     <string name="migrationConfigScreen.continueButtonText">Продолжить</string>
     <string name="migrationConfigScreen.selectNoneLabel">Ничего не выбирать</string>
     <string name="theme_catppuccin">Котопуссин</string>
-    <string name="migrationConfigScreen.enhancedOptionsWarning">Эти настройки медленные и опасные, а также могут привести к ограничениям источников</string>
+    <string name="migrationConfigScreen.enhancedOptionsWarning">Эти настройки медленные и опасные а также могут привести к ограничениям источников</string>
     <string name="migrationConfigScreen.dataToMigrateHeader">Какие данные перенести</string>
     <string name="migrationConfigScreen.removeDownloadsTitle">Удалить загрузки текущей серии после переноса</string>
     <string name="migrationConfigScreen.additionalSearchQuerySupportingText">Помогает сузить результаты поиска добавляя ключевые слова</string>
@@ -950,8 +962,4 @@
     <string name="follow_language">Как на устройстве</string>
     <string name="time_24_hours">24 часа</string>
     <string name="time_12_hours">12 часов</string>
-    <string name="update_check_notification_download_complete">Нажмите для установки обновления</string>
-    <string name="update_check_notification_download_error">Ошибка загрузки</string>
-    <string name="update_check_notification_download_in_progress">Загрузка…</string>
-    <string name="channel_app_updates">Обновления приложения</string>
 </resources>

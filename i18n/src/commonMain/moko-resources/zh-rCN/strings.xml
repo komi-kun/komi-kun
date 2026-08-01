@@ -97,7 +97,9 @@
     <string name="ext_untrusted">未信任</string>
     <string name="ext_uninstall">卸载</string>
     <string name="untrusted_extension">插件未受信任</string>
-    <string name="untrusted_extension_message">恶意插件可能会读取所有登录的账号或执行任意代码。 \n \n信任此插件即代表你愿意承担上述风险。</string>
+    <string name="untrusted_extension_message">恶意插件可能会读取所有登录的账号或执行任意代码。
+\n
+\n信任此插件即代表你愿意承担上述风险。</string>
     <string name="pref_fullscreen">全屏</string>
     <string name="pref_page_transitions">翻页动画</string>
     <string name="pref_double_tap_anim_speed">双击动画速度</string>
@@ -193,7 +195,8 @@
     <string name="manga_added_library">已添加到书架</string>
     <string name="manga_removed_library">已移出书架</string>
     <string name="delete_downloads_for_manga">要删除已下载的章节吗？</string>
-    <string name="copied_to_clipboard">已复制到剪贴板： \n「%1$s」</string>
+    <string name="copied_to_clipboard">已复制到剪贴板：
+\n「%1$s」</string>
     <string name="source_not_installed">未安装图源：%1$s</string>
     <string name="display_mode_chapter">第 %1$s 章</string>
     <string name="chapter_downloading_progress">正在下载 (%1$d/%2$d)</string>
@@ -250,6 +253,9 @@
     <string name="file_select_backup">选择备份文件</string>
     <string name="update_check_confirm">下载</string>
     <string name="update_check_no_new_updates">没有新版本</string>
+    <string name="update_check_notification_download_in_progress">正在下载…</string>
+    <string name="update_check_notification_download_complete">点击安装更新</string>
+    <string name="update_check_notification_download_error">下载失败</string>
     <string name="update_check_notification_update_available">有新版本！</string>
     <string name="information_no_downloads">无下载任务</string>
     <string name="information_no_recent">最近没有更新</string>
@@ -532,6 +538,7 @@
     <string name="update_72hour">每 3 天</string>
     <string name="download_queue_size_warning">警告：批量下载可能导致图源变慢，甚至会使得它们屏蔽 %s 。点击了解详情。</string>
     <string name="ext_update_all">全部更新</string>
+    <string name="channel_app_updates">应用更新</string>
     <string name="pref_auto_clear_chapter_cache">启动时清除章节缓存</string>
     <string name="database_clean">无需清理</string>
     <string name="clear_database_source_item_count">数据库中有 %1$d 部作品未添加到书架</string>
@@ -626,7 +633,8 @@
     <string name="download_notifier_cache_renewal">正在扫描已下载章节</string>
     <string name="action_open_random_manga">随机打开作品</string>
     <string name="information_no_entries_found">此分类没有作品</string>
-    <string name="fdroid_warning">F-Droid 渠道不受官方支持。 \n点击了解详情。</string>
+    <string name="fdroid_warning">F-Droid 渠道不受官方支持。
+\n点击了解详情。</string>
     <string name="action_display_show_continue_reading_button">继续阅读按钮</string>
     <string name="pref_invalidate_download_cache">重建下载索引</string>
     <string name="track_remove_date_conf_title">要删除日期吗？</string>
@@ -746,7 +754,11 @@
     <string name="onboarding_storage_help_action">存储指南</string>
     <string name="pref_storage_location">存储位置</string>
     <string name="onboarding_storage_action_select">选择文件夹</string>
-    <string name="onboarding_storage_info">选择一个文件夹供 %1$s 存放下载章节、备份文件等。 \n \n推荐使用一个专门的文件夹。 \n \n已选文件夹：%2$s</string>
+    <string name="onboarding_storage_info">选择一个文件夹供 %1$s 存放下载章节、备份文件等。
+\n
+\n推荐使用一个专门的文件夹。
+\n
+\n已选文件夹：%2$s</string>
     <string name="onboarding_storage_selection_required">必须选择一个文件夹</string>
     <string name="available_disk_space_info">%1$s / %2$s</string>
     <string name="theme_nord">Nord</string>
@@ -775,10 +787,10 @@
     <string name="pref_download_new_unread_chapters_only">跳过下载重复阅读的章节</string>
     <string name="confirm_tracker_update">将进度更新到第 %d 章？</string>
     <string name="onboarding_permission_crashlytics">发送崩溃日志</string>
-    <string name="onboarding_permission_crashlytics_description">向开发者发送匿名的崩溃日志。</string>
+    <string name="onboarding_permission_crashlytics_description">向开发者发送匿名的崩溃日志</string>
     <string name="onboarding_permission_analytics">数据分析</string>
     <string name="pref_security">安全</string>
-    <string name="onboarding_permission_analytics_description">发送匿名的应用数据以提升用户体验。</string>
+    <string name="onboarding_permission_analytics_description">发送匿名的应用数据以提升用户体验</string>
     <string name="pref_firebase">数据分析与崩溃日志</string>
     <string name="firebase_summary">允许发送崩溃日志和数据分析帮助开发者辨别并修复问题，提高应用体验，以期更新符合你需要的功能</string>
     <string name="action_sort_random">随机</string>
@@ -798,7 +810,7 @@
     <string name="export">导出</string>
     <string name="library_list">书架列表</string>
     <string name="library_exported">已导出列表</string>
-    <string name="tracked_privately">已私下记录</string>
+    <string name="tracked_privately">私下记录</string>
     <string name="action_toggle_private_on">私下记录</string>
     <string name="pref_mark_duplicate_read_chapter_read_new">获取新章节后</string>
     <string name="pref_behavior">操作</string>
@@ -943,8 +955,4 @@
     <string name="follow_language">跟随系统语言</string>
     <string name="time_24_hours">24小时</string>
     <string name="time_12_hours">12小时</string>
-    <string name="update_check_notification_download_in_progress">正在下载…</string>
-    <string name="update_check_notification_download_complete">点击安装更新</string>
-    <string name="update_check_notification_download_error">下载失败</string>
-    <string name="channel_app_updates">应用更新</string>
 </resources>

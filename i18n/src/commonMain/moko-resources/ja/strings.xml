@@ -6,7 +6,7 @@
     <string name="chapters">章</string>
     <string name="history">履歴</string>
     <string name="label_settings">設定</string>
-    <string name="label_download_queue">ダウンロード キュー</string>
+    <string name="label_download_queue">ダウンロードキュー</string>
     <string name="label_library">ライブラリ</string>
     <string name="label_recent_manga">履歴</string>
     <string name="label_recent_updates">新着</string>
@@ -25,7 +25,7 @@
     <string name="action_download">ダウンロード</string>
     <string name="action_bookmark">章にブックマークを追加</string>
     <string name="action_remove_bookmark">章のブックマークを削除</string>
-    <string name="action_display_grid">コンパクト グリッド</string>
+    <string name="action_display_grid">コンパクトグリッド</string>
     <string name="action_display_list">リスト</string>
     <string name="action_sort">ソート</string>
     <string name="track">トラッキング</string>
@@ -43,7 +43,7 @@
     <string name="action_pause">一時停止</string>
     <string name="action_previous_chapter">前の章</string>
     <string name="action_next_chapter">次の章</string>
-    <string name="action_retry">再試行</string>
+    <string name="action_retry">リトライ</string>
     <string name="action_resume">再開</string>
     <string name="action_open_in_browser">ブラウザーで開く</string>
     <string name="action_display_mode">表示モード</string>
@@ -65,6 +65,8 @@
     <string name="landscape">横向き</string>
     <string name="pref_library_update_interval">自動更新</string>
     <string name="update_never">オフ</string>
+    <string name="update_1hour">1時間ごと</string>
+    <string name="update_3hour">3時間ごと</string>
     <string name="update_6hour">6 時間ごと</string>
     <string name="update_12hour">12 時間ごと</string>
     <string name="update_24hour">毎日</string>
@@ -86,7 +88,7 @@
     <string name="ext_trust">信用する</string>
     <string name="ext_untrusted">信用できない</string>
     <string name="ext_uninstall">アンインストール</string>
-    <string name="untrusted_extension">信頼できない拡張機能</string>
+    <string name="untrusted_extension">信頼できない拡張</string>
     <string name="pref_fullscreen">フルスクリーン</string>
     <string name="pref_page_transitions">ページ遷移エフェクトを表示</string>
     <string name="pref_double_tap_anim_speed">ダブルタップアニメーション速度</string>
@@ -192,7 +194,8 @@
     <string name="manga_added_library">ライブラリに追加しました</string>
     <string name="manga_removed_library">ライブラリから削除しました</string>
     <string name="delete_downloads_for_manga">ダウンロードした章を削除してもよろしいですか？</string>
-    <string name="copied_to_clipboard">次をクリップボードにコピーしました: \n%1$s</string>
+    <string name="copied_to_clipboard">次をクリップボードにコピーしました:
+\n%1$s</string>
     <string name="display_mode_chapter">第 %1$s 章</string>
     <string name="chapter_downloading_progress">ダウンロード中 (%1$d/%2$d)</string>
     <string name="chapter_error">エラー</string>
@@ -242,6 +245,9 @@
     <string name="file_select_backup">バックアップファイルを選択</string>
     <string name="update_check_confirm">ダウンロード</string>
     <string name="update_check_no_new_updates">新しいバージョンがありません</string>
+    <string name="update_check_notification_download_in_progress">ダウンロード中…</string>
+    <string name="update_check_notification_download_complete">タップでアップデートをインストール</string>
+    <string name="update_check_notification_download_error">ダウンロード中にエラー発生</string>
     <string name="update_check_notification_update_available">新しいバージョンがリリースされました！</string>
     <string name="information_no_downloads">ダウンロードがありません</string>
     <string name="information_no_recent">最近の更新はありません</string>
@@ -253,7 +259,7 @@
     <string name="download_notifier_unknown_error">予期せぬエラーが発生したため、ダウンロードは失敗しました</string>
     <string name="download_notifier_text_only_wifi">Wi-Fi 接続は利用できません</string>
     <string name="download_notifier_no_network">ネットワーク接続が利用できません</string>
-    <string name="download_notifier_download_paused">ダウンロードが一時停止されました</string>
+    <string name="download_notifier_download_paused">ダウンロード一時停止済み</string>
     <string name="channel_common">一般設定</string>
     <string name="repeating">読み返し中</string>
     <string name="source_not_installed">未インストールのソース: %1$s</string>
@@ -308,8 +314,8 @@
     <string name="downloaded_only_summary">ライブラリにある項目はフィルターされます</string>
     <string name="label_downloaded_only">ダウンロード済みのみ</string>
     <string name="check_for_updates">更新を確認</string>
-    <string name="licenses">オープン ソース ライセンス</string>
-    <string name="website">ウェブサイト</string>
+    <string name="licenses">オープンソースライセンス</string>
+    <string name="website">Web サイト</string>
     <string name="battery_optimization_setting_activity_not_found">デバイス設定を開きませんでした</string>
     <string name="battery_optimization_disabled">バッテリー最適化は既に無効です</string>
     <string name="pref_disable_battery_optimization_summary">バックグラウンドでのライブラリの更新とバックアップに役立ちます</string>
@@ -376,7 +382,7 @@
     <string name="sort_by_upload_date">アップロード日付順</string>
     <string name="manga_info_expand">詳細を表示</string>
     <string name="in_library">ライブラリ内</string>
-    <string name="local_source_help_guide">ローカル ソース ガイド</string>
+    <string name="local_source_help_guide">ローカルソースガイド</string>
     <string name="pinned_sources">ピン留め済み</string>
     <string name="last_used_source">最近使用</string>
     <string name="pref_show_reading_mode_summary">現在のビューアモードを、ビューアが立ち上がるとしばらく表示します</string>
@@ -398,7 +404,7 @@
     <string name="channel_complete">完了</string>
     <string name="channel_progress">進捗</string>
     <string name="download_insufficient_space">空き領域不足のため、章をダウンロードできませんでした</string>
-    <string name="no_pinned_sources">ピン留めされたソースはありません</string>
+    <string name="no_pinned_sources">ピンソースがありません</string>
     <string name="action_global_search_query">グローバルで「%1$s」を探す</string>
     <string name="pref_category_theme">テーマ</string>
     <string name="action_sort_date_added">ライブラリへの追加日付順</string>
@@ -417,7 +423,7 @@
     <string name="downloaded_chapters">ダウンロードした章の数</string>
     <string name="manga_from_library">ライブラリ内から</string>
     <string name="pref_incognito_mode_summary">閲覧履歴の記録を一時停止します</string>
-    <string name="pref_incognito_mode">シークレット モード</string>
+    <string name="pref_incognito_mode">シークレットモード</string>
     <string name="pref_clear_history">履歴を消去</string>
     <string name="clear_history_confirmation">続行してもよろしいですか？すべての履歴が削除されます。</string>
     <string name="clear_history_completed">履歴が削除されました</string>
@@ -452,12 +458,12 @@
     <string name="pref_show_navigation_mode_summary">ビューアが立ち上がるとしばらく表示します</string>
     <string name="pref_show_navigation_mode">タップ可能なゾーンを表示</string>
     <string name="pref_dns_over_https">DNS over HTTPS (DoH)</string>
-    <string name="pref_download_new_categories_details">除外対象カテゴリーに含まれる項目は、たとえそれらが対象カテゴリーにも含まれている場合でもダウンロードされません。</string>
+    <string name="pref_download_new_categories_details">含まれているカテゴリーに入っていても、除外対象カテゴリーにある項目は更新されません。</string>
     <string name="pref_category_auto_download">自動ダウンロード</string>
     <string name="exclude">下記を除外: %s</string>
     <string name="include">下記を含む: %s</string>
     <string name="none">なし</string>
-    <string name="pref_library_update_categories_details">除外対象カテゴリーに含まれる項目は、たとえそれらが対象カテゴリーにも含まれている場合でも更新されません。</string>
+    <string name="pref_library_update_categories_details">含まれているカテゴリーに入っていても、除外対象カテゴリーにある項目は更新されません。</string>
     <string name="action_show_errors">タップで詳細を表示</string>
     <string name="action_sort_chapter_fetch_date">章の取得された日付順</string>
     <string name="information_empty_category_dialog">まだカテゴリーを登録していません。</string>
@@ -494,13 +500,13 @@
     <string name="theme_yotsuba">四つ葉</string>
     <string name="theme_yinyang">陰陽</string>
     <string name="theme_tako">Tako</string>
-    <string name="theme_strawberrydaiquiri">ストロベリー・ダイキリ</string>
+    <string name="theme_strawberrydaiquiri">ストロベリーダイキリ</string>
     <string name="theme_midnightdusk">黄昏</string>
     <string name="theme_greenapple">青りんご</string>
     <string name="pref_app_theme">アプリテーマ</string>
     <string name="action_start_downloading_now">ダウンロードを開始します</string>
     <string name="theme_monet">ダイナミック</string>
-    <string name="about_dont_kill_my_app">一部のメーカーは、バックグラウンド サービスを停止させる追加のアプリ制限を設けています。この問題を解決する方法については、こちらのウェブサイトに詳しい情報が掲載されています。</string>
+    <string name="about_dont_kill_my_app">一部のメーカーは、バックグラウンドサービスを停止させる追加のアプリ制限を設けています。この問題を解決する方法については、こちらのウェブサイトに詳しい情報が掲載されています。</string>
     <string name="label_background_activity">バックグラウンドアクティビティ</string>
     <string name="restore_miui_warning">MIUI 最適化が無効になっている場合、バックアップおよび復元が正常に機能しない可能性があります。</string>
     <string name="pref_lowest">最低</string>
@@ -513,7 +519,7 @@
     <string name="getting_started_guide">入門ガイド</string>
     <string name="pref_tablet_ui_mode">タブレット UI</string>
     <string name="action_track">追跡</string>
-    <string name="pref_remove_exclude_categories">除外対象カテゴリー</string>
+    <string name="pref_remove_exclude_categories">除外されるカテゴリー</string>
     <string name="pref_hide_threshold">メニューを自動非表示するスクロール量</string>
     <string name="theme_tealturquoise">ティール &amp; ターコイズ</string>
     <string name="pref_category_appearance">外観</string>
@@ -538,11 +544,12 @@
     <string name="update_72hour">3 日ごと</string>
     <string name="connected_to_wifi">Wi-Fi 接続時のみ</string>
     <string name="ext_update_all">すべて更新</string>
+    <string name="channel_app_updates">アプリ更新</string>
     <string name="clear_database_source_item_count">データベース内に %1$d 件のライブラリにない項目があります</string>
     <string name="pref_auto_clear_chapter_cache">アプリ起動時に章のキャッシュを消去</string>
     <string name="database_clean">消去できるものはありませんでした</string>
     <string name="extension_api_error">利用可能な拡張機能を取得できませんでした</string>
-    <string name="privacy_policy">プライバシー ポリシー</string>
+    <string name="privacy_policy">プライバシーポリシー</string>
     <string name="pref_update_only_completely_read">未読の章がある作品をスキップ</string>
     <string name="library_errors_help">ライブラリ更新エラーの修正については、%1$sをご覧ください</string>
     <string name="save_chapter_as_cbz">CBZ アーカイブとして保存</string>
@@ -571,8 +578,6 @@
     <string name="source_filter_empty_screen">インストール済みのソースが見つかりません</string>
     <string name="action_sort_last_manga_update">前回の更新確認</string>
     <string name="action_sort_unread_count">未読の章数</string>
-    <string name="split_tall_images_summary">ビューアのパフォーマンスを向上させます</string>
-    <string name="download_notifier_split_page_not_found">分割時にページ %d が見つかりませんでした</string>
     <string name="pref_reset_viewer_flags">シリーズごとのリーダー設定をリセット</string>
     <string name="pref_reset_viewer_flags_summary">すべてのシリーズの読書モードと画面の向きをリセットします</string>
     <string name="download_notifier_split_page_path_not_found">ページ %d のファイルパスが見つかりませんでした</string>
@@ -621,16 +626,16 @@
     <string name="error_user_agent_string_invalid">ユーザーエージェント文字列が無効です</string>
     <string name="crash_screen_title">おっと！</string>
     <string name="updates_last_update_info_just_now">ちょうど今</string>
-    <string name="crash_screen_restart_application">アプリを再起動</string>
+    <string name="crash_screen_restart_application">アプリケーションを再起動</string>
     <string name="pref_reader_summary">ビューアモード、表示、ナビゲーション</string>
     <string name="pref_downloads_summary">自動ダウンロード、事前ダウンロード</string>
     <string name="pref_tracking_summary">一方同期、高度な同期</string>
     <string name="pref_browse_summary">ソース、拡張機能、グローバル検索</string>
     <string name="pref_backup_summary">手動・自動バックアップ、ストレージ領域</string>
     <string name="pref_security_summary">アプリロック、セキュア画面</string>
-    <string name="pref_advanced_summary">クラッシュ ログのダンプ、バッテリー最適化</string>
+    <string name="pref_advanced_summary">クラッシュログのダンプ、バッテリー最適化</string>
     <string name="pref_appearance_summary">テーマ、日付と時刻の形式</string>
-    <string name="pref_library_summary">カテゴリー、グローバル アップデート、章間スワイプ</string>
+    <string name="pref_library_summary">カテゴリー、グローバルアップデート、章間スワイプ</string>
     <string name="action_open_random_manga">おまかせ閲覧</string>
     <string name="information_no_entries_found">このカテゴリーには該当する項目が見つかりませんでした</string>
     <string name="download_notifier_cache_renewal">ダウンロード内容を検査しています</string>
@@ -672,7 +677,6 @@
     <string name="action_copy_to_clipboard">クリップボードにコピー</string>
     <string name="pref_hide_in_library_items">ライブラリにある項目を非表示</string>
     <string name="action_update_category">カテゴリーを更新</string>
-    <string name="split_tall_images">長い画像を分割</string>
     <string name="overlay_header">オーバーレイ</string>
     <string name="pref_page_rotate">画面に合わせるように幅広いページを回転</string>
     <string name="pref_page_rotate_invert">回転した幅広いページの向きを反転</string>
@@ -712,7 +716,7 @@
     <string name="app_settings">アプリ設定</string>
     <string name="file_null_uri_error">選択したファイルがありません</string>
     <string name="relative_time_span_never">なし</string>
-    <string name="pref_flash_page_summ">電子インクディスプレイの焼き付きを軽減します</string>
+    <string name="pref_flash_page_summ">電子インクディスプレイの焼き付きを軽減</string>
     <string name="last_auto_backup_info">前回の自動バックアップ: %s</string>
     <string name="pref_flash_page">ページめくりの時、画面を点滅させる</string>
     <string name="pref_storage_usage">使用中のストレージ領域</string>
@@ -758,12 +762,12 @@
     <string name="private_settings">トラッカーログイン情報などの機密性の高い情報を含む</string>
     <string name="manga_interval_expected_update_soon">間もなく</string>
     <string name="ext_revoke_trust">不明な拡張機能の信頼を取り消す</string>
-    <string name="onboarding_storage_help_info">古いバージョンからアップデートする場合で、どのオプションを選択すればよいか分からない場合は、ストレージ ガイドを参照してください。</string>
+    <string name="onboarding_storage_help_info">古いバージョンからアップデートする場合で、どのオプションを選択すればよいか分からない場合は、ストレージガイドを参照してください。</string>
     <string name="theme_nord">Nord</string>
     <string name="pref_library_update_smart_update">スマート・アップデート</string>
     <string name="pref_webtoon_disable_zoom_out">ズームアウトを無効にする</string>
     <string name="action_add_anyway">追加</string>
-    <string name="pref_display_profile">カスタム表示プロファイル</string>
+    <string name="pref_display_profile">カスタムディスプレイプロファイル</string>
     <string name="upcoming_calendar_prev">前月</string>
     <string name="upcoming_calendar_next">翌月</string>
     <string name="label_upcoming">近々公開</string>
@@ -771,10 +775,10 @@
     <string name="upcoming_guide">今後のご案内</string>
     <string name="pref_flash_duration">点滅時間</string>
     <string name="pref_flash_duration_summary">%1$s ms</string>
-    <string name="pref_flash_page_interval">点滅間隔</string>
-    <string name="pref_flash_with">点滅</string>
-    <string name="pref_flash_style_black">黒</string>
-    <string name="pref_flash_style_white">白</string>
+    <string name="pref_flash_page_interval">フラッシュ・エブリ</string>
+    <string name="pref_flash_with">フラッシュ</string>
+    <string name="pref_flash_style_black">ブラック</string>
+    <string name="pref_flash_style_white">ホワイト</string>
     <string name="pref_flash_style_white_black">白と黒</string>
     <string name="manga_interval_expected_update_null">このマンガは完結しているか、あるいは発売予定日が決まっていない。</string>
     <string name="file_picker_uri_permission_unsupported">永続的なフォルダーアクセス権の取得に失敗しました。アプリが予期しない動作をする可能性があります。</string>
@@ -812,7 +816,7 @@
     <string name="author">著者</string>
     <string name="artist">アーティスト</string>
     <string name="action_display_unread_badge">未読の章</string>
-    <string name="storage_failed_to_create_download_directory">ダウンロード ディレクトリの作成に失敗しました</string>
+    <string name="storage_failed_to_create_download_directory">ダウンロードディレクトリの作成に失敗しました</string>
     <string name="storage_failed_to_create_directory">ディレクトリの作成に失敗しました: %s</string>
     <string name="clear_database_text">データベースから作品が削除されます</string>
     <string name="clear_database_history_warning">ライブラリ以外の書籍の章の閲覧履歴や進捗状況は失われます</string>
@@ -925,10 +929,4 @@
     <string name="follow_language">システムの言語に従う</string>
     <string name="time_24_hours">24 時間制</string>
     <string name="time_12_hours">12 時間制</string>
-    <string name="update_1hour">1時間ごと</string>
-    <string name="update_3hour">3時間ごと</string>
-    <string name="update_check_notification_download_in_progress">ダウンロード中…</string>
-    <string name="update_check_notification_download_complete">タップでアップデートをインストール</string>
-    <string name="update_check_notification_download_error">ダウンロード中にエラー発生</string>
-    <string name="channel_app_updates">アプリ更新</string>
 </resources>
