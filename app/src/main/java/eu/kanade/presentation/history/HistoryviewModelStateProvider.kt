@@ -2,14 +2,18 @@ package eu.kanade.presentation.history
 
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import eu.kanade.tachiyomi.ui.history.HistoryViewModel
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.atStartOfDayIn
+import kotlinx.datetime.toLocalDateTime
 import tachiyomi.domain.history.model.HistoryWithRelations
 import tachiyomi.domain.manga.model.MangaCover
-import java.time.Instant
-import java.time.LocalDate
-import java.time.ZoneId
-import java.time.temporal.ChronoUnit
 import java.util.Date
 import kotlin.random.Random
+import kotlin.time.Clock
+import kotlin.time.Duration.Companion.days
+import kotlin.time.Instant
+import kotlin.time.toJavaInstant
 
 class HistoryviewModelStateProvider : PreviewParameterProvider<HistoryViewModel.State> {
 
@@ -20,9 +24,9 @@ class HistoryviewModelStateProvider : PreviewParameterProvider<HistoryViewModel.
         listOf(HistoryWithRelationExamples.headerToday)
             .asSequence()
             .plus(HistoryWithRelationExamples.items().take(3))
-            .plus(HistoryWithRelationExamples.header { it.minus(1, ChronoUnit.DAYS) })
+            .plus(HistoryWithRelationExamples.header { it.minus(1.days) })
             .plus(HistoryWithRelationExamples.items().take(1))
-            .plus(HistoryWithRelationExamples.header { it.minus(2, ChronoUnit.DAYS) })
+            .plus(HistoryWithRelationExamples.header { it.minus(2.days) })
             .plus(HistoryWithRelationExamples.items().take(7))
             // KMK <--
             .toList(),
@@ -81,13 +85,17 @@ class HistoryviewModelStateProvider : PreviewParameterProvider<HistoryViewModel.
     // KMK -->
     private object HistoryWithRelationExamples {
         val headerToday = randItem()
-        val headerTomorrow = randItem(LocalDate.now().plusDays(1).toDate())
+        val headerTomorrow = randItem(
+            Clock.System.now().plus(1.days).toLocalDateTime(TimeZone.currentSystemDefault()).date.toDate(),
+        )
 
         fun header(instantBuilder: (Instant) -> Instant = { it }) =
-            randItem(LocalDate.from(instantBuilder(Instant.now())).toDate())
+            randItem(
+                instantBuilder(Clock.System.now()).toLocalDateTime(TimeZone.currentSystemDefault()).date.toDate(),
+            )
 
-        fun LocalDate.toDate(zone: ZoneId = ZoneId.systemDefault()): Date =
-            Date.from(atStartOfDay(zone).toInstant())
+        fun LocalDate.toDate(zone: TimeZone = TimeZone.currentSystemDefault()): Date =
+            Date.from(atStartOfDayIn(zone).toJavaInstant())
         // KMK <--
 
         fun items() = sequence {
@@ -100,7 +108,7 @@ class HistoryviewModelStateProvider : PreviewParameterProvider<HistoryViewModel.
 
         fun randItem(
             // KMK -->
-            readAt: Date = Date.from(Instant.now()),
+            readAt: Date = Date.from(Clock.System.now().toJavaInstant()),
             // KMK <--
             historyBuilder: (HistoryWithRelations) -> HistoryWithRelations = { it },
         ) =

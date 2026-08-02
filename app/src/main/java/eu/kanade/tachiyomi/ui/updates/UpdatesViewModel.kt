@@ -44,6 +44,11 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.atStartOfDayIn
+import kotlinx.datetime.minus
+import kotlinx.datetime.plus
 import logcat.LogPriority
 import tachiyomi.core.common.preference.TriState
 import tachiyomi.core.common.util.lang.launchIO
@@ -59,7 +64,6 @@ import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.domain.updates.interactor.GetUpdates
 import tachiyomi.domain.updates.model.UpdatesWithRelations
 import tachiyomi.domain.updates.service.UpdatesPreferences
-import java.time.ZonedDateTime
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
 
@@ -161,7 +165,7 @@ class UpdatesViewModel(
             .flatMapLatest {
                 getUpdates.subscribe(
                     // Set date limit for recent chapters
-                    ZonedDateTime.now().minusMonths(3).toInstant(),
+                    Clock.System.now().minus(3, DateTimeUnit.MONTH, TimeZone.currentSystemDefault()),
                     unread = it.filterUnread.toBooleanOrNull(),
                     started = it.filterStarted.toBooleanOrNull(),
                     bookmarked = it.filterBookmarked.toBooleanOrNull(),
@@ -443,9 +447,9 @@ class UpdatesViewModel(
         // KMK -->
         if (isGroup && !isExpanded) {
             val selectedItemDate = item.update.dateFetch.toLocalDate()
-            val zone = java.time.ZoneId.systemDefault()
-            val dayStartMillis = selectedItemDate.atStartOfDay(zone).toInstant().toEpochMilli()
-            val dayEndMillis = selectedItemDate.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+            val zone = TimeZone.currentSystemDefault()
+            val dayStartMillis = selectedItemDate.atStartOfDayIn(zone).toEpochMilliseconds()
+            val dayEndMillis = selectedItemDate.plus(1, DateTimeUnit.DAY).atStartOfDayIn(zone).toEpochMilliseconds()
 
             items
                 .filter {
@@ -704,5 +708,5 @@ data class UpdatesItem(
 
 // KMK -->
 /** String to identify which manga's update on which day it is collapsing */
-fun UpdatesWithRelations.groupByDateAndManga() = "${dateFetch.toLocalDate().toEpochDay()}-$mangaId"
+fun UpdatesWithRelations.groupByDateAndManga() = "${dateFetch.toLocalDate().toEpochDays()}-$mangaId"
 // KMK <--

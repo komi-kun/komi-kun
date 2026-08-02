@@ -92,7 +92,7 @@ import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.i18n.sy.SYMR
 import tachiyomi.source.local.isLocal
 import xyz.nulldev.ts.api.http.serializer.FilterSerializer
-import java.time.Instant
+import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
 import eu.kanade.tachiyomi.source.model.Filter as SourceModelFilter
 
@@ -419,7 +419,7 @@ open class BrowseSourceViewModel(
                 favorite = !manga.favorite,
                 dateAdded = when (manga.favorite) {
                     true -> 0
-                    false -> Instant.now().toEpochMilli()
+                    false -> Clock.System.now().toEpochMilliseconds()
                 },
             )
 

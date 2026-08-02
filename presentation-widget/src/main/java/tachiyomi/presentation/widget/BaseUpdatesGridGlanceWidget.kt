@@ -35,6 +35,9 @@ import dev.zacsweers.metro.Inject
 import eu.kanade.tachiyomi.core.security.SecurityPreferences
 import eu.kanade.tachiyomi.util.system.dpToPx
 import kotlinx.coroutines.flow.map
+import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.minus
 import mihon.core.metro.metroGraph
 import mihon.presentation.widget.di.PresentationWidgetGraph
 import tachiyomi.core.common.util.lang.withIOContext
@@ -49,8 +52,8 @@ import tachiyomi.presentation.widget.util.appWidgetBackgroundRadius
 import tachiyomi.presentation.widget.util.calculateRowAndColumnCount
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-import java.time.Instant
-import java.time.ZonedDateTime
+import kotlin.time.Clock
+import kotlin.time.Instant
 
 @HasMemberInjections
 abstract class BaseUpdatesGridGlanceWidget : GlanceAppWidget() {
@@ -95,7 +98,7 @@ abstract class BaseUpdatesGridGlanceWidget : GlanceAppWidget() {
 
             val flow = remember {
                 getUpdates
-                    .subscribe(false, DateLimit.toEpochMilli())
+                    .subscribe(false, DateLimit.toEpochMilliseconds())
                     .map { rawData ->
                         rawData.prepareData(context, rowCount, columnCount)
                     }
@@ -160,6 +163,6 @@ abstract class BaseUpdatesGridGlanceWidget : GlanceAppWidget() {
 
     companion object {
         val DateLimit: Instant
-            get() = ZonedDateTime.now().minusMonths(3).toInstant()
+            get() = Clock.System.now().minus(3, DateTimeUnit.MONTH, TimeZone.currentSystemDefault())
     }
 }

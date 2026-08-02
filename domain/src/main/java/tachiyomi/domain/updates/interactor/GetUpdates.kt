@@ -9,8 +9,8 @@ import logcat.LogPriority
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.updates.model.UpdatesWithRelations
 import tachiyomi.domain.updates.repository.UpdatesRepository
-import java.time.Instant
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Instant
 
 @Inject
 class GetUpdates(
@@ -31,7 +31,7 @@ class GetUpdates(
         excludedCategories: List<Long>,
     ): Flow<List<UpdatesWithRelations>> {
         return repository.subscribeAll(
-            instant.toEpochMilli(),
+            instant.toEpochMilliseconds(),
             limit = 500,
             unread = unread,
             started = started,

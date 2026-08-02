@@ -11,6 +11,7 @@ import eu.kanade.tachiyomi.data.track.TrackerManager
 import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.util.lang.convertEpochMillisZone
 import eu.kanade.tachiyomi.util.system.toast
+import kotlinx.datetime.TimeZone
 import logcat.LogPriority
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.util.lang.withIOContext
@@ -22,7 +23,6 @@ import tachiyomi.domain.history.interactor.GetHistory
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.track.interactor.UpsertTrack
 import tachiyomi.i18n.kmk.KMR
-import java.time.ZoneOffset
 
 @Inject
 class AddTracks(
@@ -75,8 +75,8 @@ class AddTracks(
 
                     firstReadChapterDate?.let {
                         val startDate = firstReadChapterDate.time.convertEpochMillisZone(
-                            ZoneOffset.systemDefault(),
-                            ZoneOffset.UTC,
+                            TimeZone.currentSystemDefault(),
+                            TimeZone.UTC,
                         )
                         track = track.copy(
                             startDate = startDate,

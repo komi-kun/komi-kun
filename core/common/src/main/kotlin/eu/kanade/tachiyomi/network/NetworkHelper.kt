@@ -21,9 +21,9 @@ import okio.IOException
 import tachiyomi.core.common.util.system.logcat
 import java.io.File
 import java.io.RandomAccessFile
-import java.util.concurrent.TimeUnit
 import kotlin.math.pow
 import kotlin.random.Random
+import kotlin.time.Duration.Companion.seconds
 
 @Inject
 @SingleIn(AppScope::class)
@@ -56,9 +56,9 @@ open /* SY <-- */ class NetworkHelper(
         val builder = OkHttpClient.Builder()
             .cookieJar(cookieJar)
             // KMK -->
-            .connectTimeout(connectTimeout, TimeUnit.SECONDS)
-            .readTimeout(readTimeout, TimeUnit.SECONDS)
-            .callTimeout(callTimeout, TimeUnit.SECONDS)
+            .connectTimeout(connectTimeout.seconds)
+            .readTimeout(readTimeout.seconds)
+            .callTimeout(callTimeout.seconds)
             // KMK <--
             .cache(
                 Cache(

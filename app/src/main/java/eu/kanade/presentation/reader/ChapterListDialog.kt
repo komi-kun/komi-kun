@@ -24,6 +24,8 @@ import exh.metadata.MetadataUtil
 import exh.source.isEhBasedManga
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import mihon.app.di.appGraph
 import tachiyomi.domain.chapter.model.Chapter
 import tachiyomi.domain.library.service.LibraryPreferences
@@ -96,10 +98,13 @@ fun ChapterListDialog(
                                 MetadataUtil.EX_DATE_FORMAT
                                     .format(ZonedDateTime.ofInstant(Instant.ofEpochMilli(it), ZoneId.systemDefault()))
                             } else {
-                                LocalDate.ofInstant(
-                                    Instant.ofEpochMilli(it),
-                                    ZoneId.systemDefault(),
-                                ).toRelativeString(context, dateRelativeTime, chapterItem.dateFormat)
+                                // KMK -->
+                                kotlin.time.Instant
+                                    .fromEpochMilliseconds(it)
+                                    .toLocalDateTime(TimeZone.currentSystemDefault())
+                                    .date
+                                    .toRelativeString(context, dateRelativeTime, chapterItem.dateFormat)
+                                // KMK <--
                             }
                             // SY <--
                         },

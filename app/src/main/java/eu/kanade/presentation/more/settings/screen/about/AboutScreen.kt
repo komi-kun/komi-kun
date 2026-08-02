@@ -40,6 +40,8 @@ import eu.kanade.tachiyomi.util.system.isReleaseBuildType
 import eu.kanade.tachiyomi.util.system.toast
 import eu.kanade.tachiyomi.util.system.updaterEnabled
 import kotlinx.coroutines.launch
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import logcat.LogPriority
 import mihon.app.di.appGraph
 import mihon.icons.materialsymbols.MaterialSymbols
@@ -60,9 +62,7 @@ import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.i18n.stringResource
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-import java.time.Instant
-import java.time.LocalDateTime
-import java.time.ZoneId
+import kotlin.time.Instant
 
 class AboutScreen : Screen() {
 
@@ -395,10 +395,8 @@ class AboutScreen : Screen() {
 
         internal fun getFormattedBuildTime(): String {
             return try {
-                LocalDateTime.ofInstant(
-                    Instant.parse(BuildConfig.BUILD_TIME),
-                    ZoneId.systemDefault(),
-                )
+                Instant.parse(BuildConfig.BUILD_TIME)
+                    .toLocalDateTime(TimeZone.currentSystemDefault())
                     .toDateTimestampString(
                         UiPreferences.dateFormat(
                             Injekt.get<Context>().appGraph.uiPreferences.dateFormat.get(),

@@ -114,9 +114,9 @@ import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.clickableNoIndication
 import tachiyomi.presentation.core.util.collectAsState
 import tachiyomi.presentation.core.util.secondaryItemAlpha
-import java.time.Instant
-import java.time.temporal.ChronoUnit
 import kotlin.math.roundToInt
+import kotlin.time.Clock
+import kotlin.time.Instant
 import tachiyomi.domain.manga.model.MangaCover as DomainMangaCover
 
 @Composable
@@ -265,8 +265,8 @@ fun MangaActionRow(
             notSkipCompleted
             // KMK <--
         ) {
-            val now = Instant.now()
-            now.until(nextUpdate, ChronoUnit.DAYS).toInt().coerceAtLeast(0)
+            val now = Clock.System.now()
+            now.daysUntil(nextUpdate, TimeZone.currentSystemDefault()).coerceAtLeast(0)
                 // KMK -->
                 .takeIf { selectedInterval != FetchInterval.MANUAL_DISABLE }
                 ?: FetchInterval.MANUAL_DISABLE

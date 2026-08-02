@@ -35,7 +35,6 @@ import tachiyomi.i18n.sy.SYMR
 import tachiyomi.presentation.core.i18n.pluralStringResource
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsState
-import java.time.LocalDate
 import kotlin.time.Clock
 
 object SettingsAppearanceScreen : SearchableSettings {
@@ -223,7 +222,7 @@ object SettingsAppearanceScreen : SearchableSettings {
         val context = LocalContext.current
         val navigator = LocalNavigator.currentOrThrow
 
-        val now = remember { LocalDate.now() }
+        val now = remember { Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).toJavaLocalDateTime() }
 
         val dateFormat by uiPreferences.dateFormat.collectAsState()
         val formattedNow = remember(dateFormat) {

@@ -11,7 +11,7 @@ import mihon.core.common.extensions.EMPTY
 import tachiyomi.core.common.preference.TriState
 import tachiyomi.domain.manga.interactor.GetCustomMangaInfo
 import java.io.ObjectStreamException
-import java.time.Instant
+import kotlin.time.Instant
 import java.io.Serializable as JavaSerializable
 
 @SuppressLint("UnsafeOptInUsageError")
@@ -83,7 +83,7 @@ data class Manga(
             Always predict release date even for Completed entries
             .takeIf { status != SManga.COMPLETED.toLong() }?
              KMK <-- */
-            .let { Instant.ofEpochMilli(it) }
+            .let { Instant.fromEpochMilliseconds(it) }
 
     val sorting: Long
         get() = chapterFlags and CHAPTER_SORTING_MASK

@@ -24,7 +24,7 @@ import tachiyomi.domain.manga.model.MangaUpdate
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.domain.track.interactor.GetTracks
 import tachiyomi.domain.track.interactor.UpsertTrack
-import java.time.Instant
+import kotlin.time.Clock
 
 @Inject
 class MigrateMangaUseCase(
@@ -187,7 +187,7 @@ class MigrateMangaUseCase(
                     // KMK -->
                     .takeIf { MigrationFlag.EXTRA in flags },
                 // KMK <--
-                dateAdded = if (replace) current.dateAdded else Instant.now().toEpochMilli(),
+                dateAdded = if (replace) current.dateAdded else Clock.System.now().toEpochMilliseconds(),
                 notes = if (MigrationFlag.NOTES in flags) current.notes else null,
             )
 

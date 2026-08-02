@@ -23,6 +23,9 @@ dependencies {
     implementation(libs.material)
 
     implementation(platform(libs.coil.bom))
+
+    implementation(kotlinx.datetime)
+
     implementation(libs.coil.core)
 
     api(libs.injekt)

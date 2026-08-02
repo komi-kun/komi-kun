@@ -5,6 +5,8 @@ import eu.kanade.tachiyomi.data.backup.models.BackupCategory
 import eu.kanade.tachiyomi.data.backup.models.BackupManga
 import exh.EXHMigrations
 import exh.source.MERGED_SOURCE_ID
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import tachiyomi.domain.backup.model.RestoredHistory
 import tachiyomi.domain.backup.model.RestoredManga
 import tachiyomi.domain.backup.repository.RestoreRepository
@@ -12,7 +14,7 @@ import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.domain.manga.interactor.FetchInterval
 import tachiyomi.domain.manga.model.CustomMangaInfo
 import tachiyomi.domain.manga.model.Manga
-import java.time.ZonedDateTime
+import kotlin.time.Clock
 
 @Inject
 class MangaRestorer(
@@ -21,13 +23,9 @@ class MangaRestorer(
     private val fetchInterval: FetchInterval,
 ) {
     var isSync: Boolean = false
-    private var now = ZonedDateTime.now()
-    private var currentFetchWindow = fetchInterval.getWindow(now)
-
-    init {
-        now = ZonedDateTime.now()
-        currentFetchWindow = fetchInterval.getWindow(now)
-    }
+    private val timeZone = TimeZone.currentSystemDefault()
+    private val now = Clock.System.now().toLocalDateTime(timeZone)
+    private val currentFetchWindow = fetchInterval.getWindow(now.date, timeZone)
 
     suspend fun sortByNew(backupMangas: List<BackupManga>): List<BackupManga> {
         val urlsBySource = restoreRepository.getMangaUrlsBySourceId()
@@ -82,7 +80,7 @@ class MangaRestorer(
         }
 
         restoreRepository.restoreManga(entries, isSync) {
-            fetchInterval.toMangaUpdate(it, now, currentFetchWindow)
+            fetchInterval.toMangaUpdate(it, now, timeZone, currentFetchWindow)
         }
     }
 

@@ -11,7 +11,6 @@ import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.binding
 import dev.zacsweers.metrox.viewmodel.ViewModelKey
 import eu.kanade.core.util.insertSeparatorsReversed
-import eu.kanade.tachiyomi.util.lang.toLocalDate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,6 +24,11 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.YearMonth
+import kotlinx.datetime.toLocalDateTime
+import kotlinx.datetime.yearMonth
 import mihon.domain.upcoming.interactor.GetUpcomingManga
 import tachiyomi.core.common.preference.getAndSet
 import tachiyomi.domain.category.interactor.GetCategories
@@ -32,8 +36,6 @@ import tachiyomi.domain.category.model.Category
 import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.upcoming.service.UpcomingPreferences
-import java.time.LocalDate
-import java.time.YearMonth
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
 
@@ -52,7 +54,11 @@ class UpcomingViewModel(
     val excludedCategories = upcomingPreferences.filterExcludedCategories
     val includedCategories = upcomingPreferences.filterIncludedCategories
 
-    private val selectedYearMonth = MutableStateFlow(YearMonth.now())
+    // KMK -->
+    private val selectedYearMonth = MutableStateFlow(
+        Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date.yearMonth,
+    )
+    // KMK <--
 
     private val dialog = MutableStateFlow<Dialog?>(null)
 
@@ -127,8 +133,14 @@ class UpcomingViewModel(
             .insertSeparatorsReversed { before, after ->
                 if (after != null) mangaCount++
 
-                val beforeDate = before?.manga?.expectedNextUpdate?.toLocalDate()
-                val afterDate = after?.manga?.expectedNextUpdate?.toLocalDate()
+                val beforeDate = before?.manga
+                    ?.expectedNextUpdate
+                    ?.toLocalDateTime(TimeZone.currentSystemDefault())
+                    ?.date
+                val afterDate = after?.manga
+                    ?.expectedNextUpdate
+                    ?.toLocalDateTime(TimeZone.currentSystemDefault())
+                    ?.date
 
                 if (beforeDate != afterDate && afterDate != null) {
                     UpcomingUIModel.Header(afterDate, mangaCount).also { mangaCount = 0 }
@@ -212,7 +224,10 @@ class UpcomingViewModel(
     // KMK <--
 
     data class State(
-        val selectedYearMonth: YearMonth = YearMonth.now(),
+        val selectedYearMonth: YearMonth = Clock.System.now()
+            .toLocalDateTime(TimeZone.currentSystemDefault())
+            .date
+            .yearMonth,
         val items: List<UpcomingUIModel> = listOf(),
         val events: Map<LocalDate, Int> = mapOf(),
         val headerIndexes: Map<LocalDate, Int> = mapOf(),

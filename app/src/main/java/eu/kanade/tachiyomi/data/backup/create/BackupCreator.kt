@@ -39,9 +39,9 @@ import tachiyomi.domain.manga.repository.MangaRepository
 import tachiyomi.i18n.MR
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
-import java.time.Instant
 import java.util.Date
 import java.util.Locale
+import kotlin.time.Clock
 
 @AssistedInject
 class BackupCreator(
@@ -137,7 +137,7 @@ class BackupCreator(
             backupFileValidator.validate(fileUri)
 
             if (isAutoBackup) {
-                backupPreferences.lastAutoBackupTimestamp.set(Instant.now().toEpochMilli())
+                backupPreferences.lastAutoBackupTimestamp.set(Clock.System.now().toEpochMilliseconds())
             }
 
             return fileUri.toString()

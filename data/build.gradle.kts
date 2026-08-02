@@ -41,6 +41,8 @@ dependencies {
     implementation(kotlinx.serialization.json.okio)
     implementation(kotlinx.serialization.protobuf)
 
+    implementation(kotlinx.datetime)
+
     api(libs.bundles.sqldelight)
 
     testImplementation(libs.bundles.test)

@@ -127,10 +127,8 @@ import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsState
 import tachiyomi.presentation.core.util.shouldExpandFAB
 import tachiyomi.source.local.isLocal
-import java.time.Instant
-import java.time.ZoneId
-import java.time.ZonedDateTime
 import kotlin.math.roundToInt
+import kotlin.time.Instant
 
 @Composable
 fun MangaScreen(
@@ -1329,8 +1327,15 @@ private fun LazyListScope.sharedChapterItems(
                         ?.let {
                             // SY -->
                             if (manga.isEhBasedManga()) {
+                                // KMK -->
                                 MetadataUtil.EX_DATE_FORMAT
-                                    .format(ZonedDateTime.ofInstant(Instant.ofEpochMilli(it), ZoneId.systemDefault()))
+                                    .format(
+                                        java.time.ZonedDateTime.ofInstant(
+                                            java.time.Instant.ofEpochMilli(it),
+                                            java.time.ZoneId.systemDefault(),
+                                        ),
+                                    )
+                                // KMK <--
                             } else {
                                 relativeDateText(item.chapter.dateUpload)
                             }

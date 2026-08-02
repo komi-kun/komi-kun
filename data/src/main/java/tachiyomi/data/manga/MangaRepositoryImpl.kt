@@ -9,6 +9,9 @@ import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.atStartOfDayIn
+import kotlinx.datetime.toLocalDateTime
 import logcat.LogPriority
 import tachiyomi.core.common.util.lang.toLong
 import tachiyomi.core.common.util.system.logcat
@@ -24,8 +27,7 @@ import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.manga.model.MangaUpdate
 import tachiyomi.domain.manga.model.MangaWithChapterCount
 import tachiyomi.domain.manga.repository.MangaRepository
-import java.time.LocalDate
-import java.time.ZoneId
+import kotlin.time.Clock
 
 @Inject
 @SingleIn(AppScope::class)
@@ -99,7 +101,9 @@ class MangaRepositoryImpl(
         excludedCategories: List<Long>,
         includedCategories: List<Long>,
     ): Flow<List<Manga>> {
-        val epochMillis = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toEpochSecond() * 1000
+        val timeZone = TimeZone.currentSystemDefault()
+        val epochMillis =
+            Clock.System.now().toLocalDateTime(timeZone).date.atStartOfDayIn(timeZone).toEpochMilliseconds()
         return database.mangaQueries
             .getUpcomingManga(
                 startOfDay = epochMillis,

@@ -46,9 +46,7 @@ import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.plus
-import java.time.Instant
-import java.time.LocalDateTime
-import java.time.ZoneId
+import kotlin.time.Instant
 
 class WorkerInfoScreen : Screen() {
 
@@ -160,10 +158,8 @@ class WorkerInfoScreen : Screen() {
                     }
                     appendLine("State: ${workInfo.state}")
                     if (workInfo.state == WorkInfo.State.ENQUEUED) {
-                        val timestamp = LocalDateTime.ofInstant(
-                            Instant.ofEpochMilli(workInfo.nextScheduleTimeMillis),
-                            ZoneId.systemDefault(),
-                        )
+                        val timestamp = Instant.fromEpochMilliseconds(workInfo.nextScheduleTimeMillis)
+                            .toLocalDateTime(TimeZone.currentSystemDefault())
                             .toDateTimestampString(
                                 UiPreferences.dateFormat(
                                     context.appGraph.uiPreferences.dateFormat.get(),
