@@ -319,3 +319,9 @@
 -dontwarn org.ietf.jgss.Oid
 -dontwarn com.google.re2j.Matcher
 -dontwarn com.google.re2j.Pattern
+
+# Methods called by Shizuku only
+-keepclassmembers class mihon.app.shizuku.ShellInterface {
+    public <init>();
+    public void destroy();
+}
