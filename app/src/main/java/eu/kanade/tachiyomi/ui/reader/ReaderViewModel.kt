@@ -143,6 +143,17 @@ class ReaderViewModel @JvmOverloads constructor(
     private val mutableState = MutableStateFlow(State())
     val state = mutableState.asStateFlow()
 
+    /**
+     * Ids of the manga and chapter the reader was launched with, taken from the activity intent.
+     */
+    val mangaId = savedState.get<Long>("manga") ?: -1L
+    private val initialChapterId = savedState.get<Long>("chapter") ?: -1L
+    // SY -->
+    private val initialPage = savedState.get<Int>("page")?.takeUnless { it == -1 }
+    // SY <--
+
+    val hasValidArgs = mangaId != -1L && initialChapterId != -1L
+
     private val eventChannel = Channel<Event>()
     val eventFlow = eventChannel.receiveAsFlow()
 
@@ -384,6 +395,10 @@ class ReaderViewModel @JvmOverloads constructor(
             }
             .launchIn(viewModelScope)
         // SY <--
+
+        if (hasValidArgs) {
+            viewModelScope.launch { init() }
+        }
     }
 
     override fun onCleared() {
@@ -405,99 +420,86 @@ class ReaderViewModel @JvmOverloads constructor(
     }
 
     /**
-     * Whether this presenter is initialized yet.
+     * Initializes this presenter with the [mangaId] and [initialChapterId] the reader was launched
+     * with. This method will fetch the manga from the database and initialize the initial chapter.
+     * Failures are reported through [State.initError].
      */
-    fun needsInit(): Boolean {
-        return manga == null
-    }
-
-    /**
-     * Initializes this presenter with the given [mangaId] and [initialChapterId]. This method will
-     * fetch the manga from the database and initialize the initial chapter.
-     */
-    suspend fun init(mangaId: Long, initialChapterId: Long /* SY --> */, page: Int?/* SY <-- */): Result<Boolean> {
-        if (!needsInit()) return Result.success(true)
-        return withIOContext {
+    private suspend fun init() {
+        withIOContext {
             try {
-                val manga = getManga.await(mangaId)
-                if (manga != null) {
-                    // SY -->
-                    sourceManager.isInitialized.first { it }
-                    val source = sourceManager.getOrStub(manga.source)
-                    val metadataSource = source.getMainSource<MetadataSource<*, *>>()
-                    val metadata = if (metadataSource != null) {
-                        getFlatMetadataById.await(mangaId)?.raise(metadataSource.metaClass)
-                    } else {
-                        null
-                    }
-                    val mergedReferences = if (source is MergedSource) {
-                        runBlocking {
-                            getMergedReferencesById.await(manga.id)
-                        }
-                    } else {
-                        emptyList()
-                    }
-                    val mergedManga = if (source is MergedSource) {
-                        runBlocking {
-                            getMergedMangaById.await(manga.id)
-                        }.associateBy { it.id }
-                    } else {
-                        null
-                    }
-                    val relativeTime = uiPreferences.relativeTime().get()
-                    val autoScrollFreq = readerPreferences.autoscrollInterval().get()
-                    // SY <--
-                    mutableState.update {
-                        it.copy(
-                            manga = manga,
-                            // SY -->
-                            meta = metadata,
-                            mergedManga = mergedManga,
-                            dateRelativeTime = relativeTime,
-                            ehAutoscrollFreq = if (autoScrollFreq == -1f) {
-                                ""
-                            } else {
-                                autoScrollFreq.toString()
-                            },
-                            isAutoScrollEnabled = autoScrollFreq != -1f,
-                            // SY <--
-                        )
-                    }
-                    if (chapterId == -1L) chapterId = initialChapterId
-
-                    val context = Injekt.get<Application>()
-                    // val source = sourceManager.getOrStub(manga.source)
-                    loader = ChapterLoader(
-                        context = context,
-                        downloadManager = downloadManager,
-                        downloadProvider = downloadProvider,
-                        manga = manga,
-                        source = source,
-                        // SY -->
-                        sourceManager = sourceManager,
-                        readerPrefs = readerPreferences,
-                        mergedReferences = mergedReferences,
-                        mergedManga = mergedManga,
-                        // SY <--
-                    )
-
-                    loadChapter(
-                        loader!!,
-                        chapterList.first { chapterId == it.chapter.id },
-                        // SY -->
-                        page,
-                        // SY <--
-                    )
-                    Result.success(true)
+                val manga = getManga.await(mangaId) ?: error("Requested manga of id $mangaId not found")
+                // SY -->
+                sourceManager.isInitialized.first { it }
+                val source = sourceManager.getOrStub(manga.source)
+                val metadataSource = source.getMainSource<MetadataSource<*, *>>()
+                val metadata = if (metadataSource != null) {
+                    getFlatMetadataById.await(mangaId)?.raise(metadataSource.metaClass)
                 } else {
-                    // Unlikely but okay
-                    Result.success(false)
+                    null
                 }
+                val mergedReferences = if (source is MergedSource) {
+                    runBlocking {
+                        getMergedReferencesById.await(manga.id)
+                    }
+                } else {
+                    emptyList()
+                }
+                val mergedManga = if (source is MergedSource) {
+                    runBlocking {
+                        getMergedMangaById.await(manga.id)
+                    }.associateBy { it.id }
+                } else {
+                    null
+                }
+                val relativeTime = uiPreferences.relativeTime().get()
+                val autoScrollFreq = readerPreferences.autoscrollInterval().get()
+                // SY <--
+                mutableState.update {
+                    it.copy(
+                        manga = manga,
+                        // SY -->
+                        meta = metadata,
+                        mergedManga = mergedManga,
+                        dateRelativeTime = relativeTime,
+                        ehAutoscrollFreq = if (autoScrollFreq == -1f) {
+                            ""
+                        } else {
+                            autoScrollFreq.toString()
+                        },
+                        isAutoScrollEnabled = autoScrollFreq != -1f,
+                        // SY <--
+                    )
+                }
+                if (chapterId == -1L) chapterId = initialChapterId
+
+                val context = Injekt.get<Application>()
+                // val source = sourceManager.getOrStub(manga.source)
+                loader = ChapterLoader(
+                    context = context,
+                    downloadManager = downloadManager,
+                    downloadProvider = downloadProvider,
+                    manga = manga,
+                    source = source,
+                    // SY -->
+                    sourceManager = sourceManager,
+                    readerPrefs = readerPreferences,
+                    mergedReferences = mergedReferences,
+                    mergedManga = mergedManga,
+                    // SY <--
+                )
+
+                loadChapter(
+                    loader!!,
+                    chapterList.first { chapterId == it.chapter.id },
+                    // SY -->
+                    initialPage,
+                    // SY <--
+                )
             } catch (e: Throwable) {
                 if (e is CancellationException) {
                     throw e
                 }
-                Result.failure(e)
+                mutableState.update { it.copy(initError = e) }
             }
         }
     }
@@ -1469,6 +1471,7 @@ class ReaderViewModel @JvmOverloads constructor(
     @Immutable
     data class State(
         val manga: Manga? = null,
+        val initError: Throwable? = null,
         val viewerChapters: ViewerChapters? = null,
         val bookmarked: Boolean = false,
         val isLoadingAdjacentChapter: Boolean = false,
