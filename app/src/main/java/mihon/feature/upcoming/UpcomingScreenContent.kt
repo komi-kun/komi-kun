@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
+import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.NewReleases
 import androidx.compose.material3.Badge
 import androidx.compose.material3.Icon
@@ -25,10 +26,12 @@ import androidx.compose.ui.text.font.FontWeight
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.presentation.components.AppBar
+import eu.kanade.presentation.components.AppBarActions
 import eu.kanade.presentation.components.relativeDateText
 import eu.kanade.presentation.util.isTabletUi
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.ImmutableMap
+import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.launch
 import mihon.feature.upcoming.components.UpcomingItem
 import mihon.feature.upcoming.components.calendar.Calendar
@@ -42,6 +45,7 @@ import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.components.material.padding
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.screens.LoadingScreen
+import tachiyomi.presentation.core.theme.active
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -55,6 +59,8 @@ fun UpcomingScreenContent(
     hideUpdatingMangas: () -> Unit,
     isPredictReleaseDate: Boolean,
     // KMK <--
+    onClickFilter: () -> Unit,
+    hasActiveFilters: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
@@ -83,6 +89,8 @@ fun UpcomingScreenContent(
                 hideUpdatingMangas = hideUpdatingMangas,
                 isPredictReleaseDate = isPredictReleaseDate,
                 // KMK <--
+                hasFilters = hasActiveFilters,
+                onClickFilter = onClickFilter,
             )
         },
         modifier = modifier,
@@ -133,6 +141,8 @@ private fun UpcomingToolbar(
     hideUpdatingMangas: () -> Unit,
     isPredictReleaseDate: Boolean,
     // KMK <--
+    hasFilters: Boolean,
+    onClickFilter: () -> Unit,
 ) {
     val navigator = LocalNavigator.currentOrThrow
     val uriHandler = LocalUriHandler.current
@@ -165,12 +175,21 @@ private fun UpcomingToolbar(
                 }
             }
             // KMK <--
-            IconButton(onClick = { uriHandler.openUri(Constants.URL_HELP_UPCOMING) }) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Outlined.HelpOutline,
-                    contentDescription = stringResource(MR.strings.upcoming_guide),
-                )
-            }
+            AppBarActions(
+                persistentListOf(
+                    AppBar.Action(
+                        title = stringResource(MR.strings.action_filter),
+                        icon = Icons.Outlined.FilterList,
+                        iconTint = if (hasFilters) MaterialTheme.colorScheme.active else LocalContentColor.current,
+                        onClick = onClickFilter,
+                    ),
+                    AppBar.Action(
+                        title = stringResource(MR.strings.upcoming_guide),
+                        icon = Icons.AutoMirrored.Outlined.HelpOutline,
+                        onClick = { uriHandler.openUri(Constants.URL_HELP_UPCOMING) },
+                    ),
+                ),
+            )
         },
     )
 }
