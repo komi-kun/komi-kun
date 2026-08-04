@@ -20,11 +20,19 @@ interface CategoryRepository {
     suspend fun insert(category: Category): Long
     // SY <--
 
+    suspend fun updateName(categoryId: Long, name: String)
+
+    suspend fun updateFlags(categoryId: Long, flags: Long)
+
+    suspend fun updateAllFlags(flags: Long?)
+
+    suspend fun updateAllOrders(orderedIds: List<Long>)
+
+    // KMK -->
     suspend fun updatePartial(update: CategoryUpdate)
 
     suspend fun updatePartial(updates: List<CategoryUpdate>)
-
-    suspend fun updateAllFlags(flags: Long?)
+    // KMK <--
 
     suspend fun delete(categoryId: Long)
 }

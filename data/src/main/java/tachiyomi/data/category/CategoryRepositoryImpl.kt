@@ -4,7 +4,6 @@ import kotlinx.coroutines.flow.Flow
 import tachiyomi.data.Database
 import tachiyomi.data.DatabaseHandler
 import tachiyomi.domain.category.model.Category
-import tachiyomi.domain.category.model.CategoryUpdate
 import tachiyomi.domain.category.repository.CategoryRepository
 
 class CategoryRepositoryImpl(
@@ -56,6 +55,33 @@ class CategoryRepositoryImpl(
     }
     // SY <--
 
+    override suspend fun updateName(categoryId: Long, name: String) {
+        handler.await {
+            categoriesQueries.updateName(name = name, categoryId = categoryId)
+        }
+    }
+
+    override suspend fun updateFlags(categoryId: Long, flags: Long) {
+        handler.await {
+            categoriesQueries.updateFlags(flags = flags, categoryId = categoryId)
+        }
+    }
+
+    override suspend fun updateAllFlags(flags: Long?) {
+        handler.await {
+            categoriesQueries.updateAllFlags(flags)
+        }
+    }
+
+    override suspend fun updateAllOrders(orderedIds: List<Long>) {
+        handler.await(inTransaction = true) {
+            orderedIds.forEachIndexed { index, categoryId ->
+                categoriesQueries.updateOrder(order = index.toLong(), categoryId = categoryId)
+            }
+        }
+    }
+
+    // KMK -->
     override suspend fun updatePartial(update: CategoryUpdate) {
         handler.await {
             updatePartialBlocking(update)
@@ -87,12 +113,7 @@ class CategoryRepositoryImpl(
             categoryId = update.id,
         )
     }
-
-    override suspend fun updateAllFlags(flags: Long?) {
-        handler.await {
-            categoriesQueries.updateAllFlags(flags)
-        }
-    }
+    // KMK <--
 
     override suspend fun delete(categoryId: Long) {
         handler.await {

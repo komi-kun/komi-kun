@@ -105,20 +105,35 @@ delete:
 DELETE FROM categories
 WHERE _id = :categoryId;
 
+-- KMK -->
 update:
 UPDATE categories
 SET name = coalesce(:name, name),
     sort = coalesce(:order, sort),
     flags = coalesce(:flags, flags),
-    -- KMK -->
     hidden = coalesce(:hidden, hidden),
-    -- KMK <--
     -- SY -->
     version = coalesce(:version, version),
     uid = coalesce(:uid, uid),
     last_modified_at = coalesce(:lastModifiedAt, last_modified_at),
     is_syncing = coalesce(:isSyncing, is_syncing)
     -- SY <--
+WHERE _id = :categoryId;
+-- KMK <--
+
+updateName:
+UPDATE categories
+SET name = :name
+WHERE _id = :categoryId;
+
+updateOrder:
+UPDATE categories
+SET sort = :order
+WHERE _id = :categoryId;
+
+updateFlags:
+UPDATE categories
+SET flags = :flags
 WHERE _id = :categoryId;
 
 resetIsSyncing:
@@ -128,4 +143,4 @@ WHERE is_syncing = 1;
 
 updateAllFlags:
 UPDATE categories SET
-flags = coalesce(?, flags);
+flags = coalesce(:flags, flags);

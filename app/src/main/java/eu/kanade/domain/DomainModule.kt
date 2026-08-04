@@ -115,7 +115,9 @@ class DomainModule : InjektModule {
         addFactory { CreateCategoryWithName(get(), get()) }
         addFactory { RenameCategory(get()) }
         addFactory { ReorderCategory(get()) }
+        // KMK -->
         addFactory { UpdateCategory(get()) }
+        // KMK <--
         // SY -->
         addFactory {
             DeleteCategory(get(), get(), get(), get<SyncPreferences>()::rememberDeletedCategory)
