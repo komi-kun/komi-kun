@@ -84,6 +84,9 @@
     <string name="file_select_cover">Wybierz okładkę</string>
     <string name="update_check_confirm">Pobierz</string>
     <string name="update_check_no_new_updates">Brak nowych aktualizacji</string>
+    <string name="update_check_notification_download_in_progress">Pobieranie…</string>
+    <string name="update_check_notification_download_complete">Naciśnij, by zaktualizować</string>
+    <string name="update_check_notification_download_error">Błąd pobierania</string>
     <string name="update_check_notification_update_available">Dostępna nowa wersja!</string>
     <string name="information_empty_library">Twoja biblioteka jest pusta</string>
     <string name="download_notifier_title_error">Błąd</string>
@@ -108,6 +111,8 @@
     <string name="landscape">Poziomo</string>
     <string name="pref_library_update_interval">Automatyczne aktualizacje</string>
     <string name="update_never">Wyłączone</string>
+    <string name="update_1hour">Co 1 godzin</string>
+    <string name="update_3hour">Co 3 godzin</string>
     <string name="update_6hour">Co 6 godzin</string>
     <string name="update_12hour">Co 12 godzin</string>
     <string name="update_24hour">Co 1 dzień</string>
@@ -240,14 +245,19 @@
     <string name="manga_added_library">Dodano do biblioteki</string>
     <string name="manga_removed_library">Usunięto z biblioteki</string>
     <string name="label_migration">Migracja</string>
-    <string name="copied_to_clipboard">Skopiowano do schowka: \n %1$s</string>
+    <string name="copied_to_clipboard">Skopiowano do schowka:
+\n %1$s</string>
     <string name="copy">Kopiuj</string>
     <string name="label_extension_info">Szczegóły rozszerzenia</string>
     <string name="ext_update">Aktualizuj</string>
     <string name="ext_trust">Ufaj</string>
     <string name="ext_untrusted">Niezaufane</string>
     <string name="untrusted_extension">Niezaufane rozszerzenie</string>
-    <string name="untrusted_extension_message">To rozszerzenie było podpisane niezaufanym certyfikatem i nie zostało aktywowane. \n \nZłośliwe rozszerzenie może odczytać dane logowania albo uruchomić złośliwy kod. \n \nUfając temu rozszerzeniu akceptujesz to zagrożenie.</string>
+    <string name="untrusted_extension_message">To rozszerzenie było podpisane niezaufanym certyfikatem i nie zostało aktywowane.
+\n
+\nZłośliwe rozszerzenie może odczytać dane logowania albo uruchomić złośliwy kod.
+\n
+\nUfając temu rozszerzeniu akceptujesz to zagrożenie.</string>
     <string name="migration_dialog_what_to_include">Zaznacz dane do zawarcia</string>
     <string name="migrate">Migruj</string>
     <string name="pager_viewer">Widok stron</string>
@@ -439,7 +449,9 @@
     <string name="pref_dual_page_invert">Odwróć układ w podziale podwójnych stron</string>
     <string name="pref_dual_page_split">Podział podwójnych stron</string>
     <string name="pref_dns_over_https">DNS przez HTTPS (DoH)</string>
-    <string name="backup_restore_content_full">Dane z pliku kopii zapasowej zostaną przywrócone. \n \nBędziesz musiał zainstalować brakujące rozszerzenia i zalogować się do usług śledzących, aby móc z nich korzystać.</string>
+    <string name="backup_restore_content_full">Dane z pliku kopii zapasowej zostaną przywrócone.
+\n
+\nBędziesz musiał zainstalować brakujące rozszerzenia i zalogować się do usług śledzących, aby móc z nich korzystać.</string>
     <string name="nav_zone_right">Prawo</string>
     <string name="nav_zone_left">Lewo</string>
     <string name="nav_zone_next">Następne</string>
@@ -530,6 +542,7 @@
     <string name="connected_to_wifi">Tylko przez Wi-Fi</string>
     <string name="enhanced_tracking_info">Usługi dostarczania ulepszonych funkcji dla niektórych źródeł. Mangi po dodaniu do biblioteki są automatycznie śledzone.</string>
     <string name="enhanced_services">Ulepszone usługi śledzenia</string>
+    <string name="channel_app_updates">Aktualizacje aplikacji</string>
     <string name="ext_update_all">Zaktualizuj wszystko</string>
     <string name="ext_installer_legacy">Przestarzały</string>
     <string name="pref_auto_clear_chapter_cache">Wyczyść cache rozdziałów przy uruchamianiu aplikacji</string>
@@ -569,7 +582,6 @@
     <string name="pref_clear_webview_data">Wyczyść dane WebView</string>
     <string name="webview_data_deleted">Dane WebView wyczyszczone</string>
     <string name="action_sort_last_manga_update">Ostatnia aktualizacja</string>
-    <string name="split_tall_images_summary">Poprawia wydajność czytnika</string>
     <string name="description_placeholder">Brak opisu</string>
     <string name="wish_list">Lista życzeń</string>
     <string name="on_hold_list">Lista odłożonych na później</string>
@@ -584,7 +596,6 @@
     <string name="network_not_metered">Tylko na nielimitowanych połączeniach</string>
     <string name="pref_reset_viewer_flags">Resetowanie ustawień czytników serii</string>
     <string name="pref_reset_viewer_flags_summary">Resetuje tryb czytania i orientację wszystkich serii</string>
-    <string name="download_notifier_split_page_not_found">Strona %d nie została znaleziona podczas podziału</string>
     <string name="rotation_reverse_portrait">Do góry nogami</string>
     <string name="download_notifier_split_page_path_not_found">Nie można było znaleźć ścieżki %d strony</string>
     <string name="pref_user_agent_string">Domyślny user agent string</string>
@@ -641,7 +652,8 @@
     <string name="action_open_random_manga">Otwórz losową pozycję</string>
     <string name="pref_library_summary">Kategorie, aktualizacja globalna, przesunięcie rozdziału</string>
     <string name="pref_invalidate_download_cache">Odbuduj indeks pobierania</string>
-    <string name="fdroid_warning">Kompilacje F-Droid nie są oficjalnie obsługiwane. \nNaciśnij, aby dowiedzieć się więcej.</string>
+    <string name="fdroid_warning">Kompilacje F-Droid nie są oficjalnie obsługiwane.
+\nNaciśnij, aby dowiedzieć się więcej.</string>
     <string name="label_read_chapters">Przeczytane</string>
     <string name="pref_downloads_summary">Automatyczne pobieranie, pobierz wstępnie</string>
     <string name="track_remove_start_date_conf_text">To spowoduje usunięcie wcześniej wybranej daty rozpoczęcia z %s</string>
@@ -666,7 +678,6 @@
     <string name="pref_hide_in_library_items">Ukryj pozycje znajdujące się już w bibliotece</string>
     <string name="action_copy_to_clipboard">Kopiuj do schowka</string>
     <string name="action_update_category">Aktualizuj kategorię</string>
-    <string name="split_tall_images">Dziel długie obrazy</string>
     <string name="overlay_header">Nakładka</string>
     <string name="pref_page_rotate">Dopasuj szerokie strony</string>
     <string name="pref_page_rotate_invert">Zmień orientację obróconych obrazów</string>
@@ -737,7 +748,11 @@
     <string name="onboarding_storage_help_info">Aktualizujesz ze starszej wersji i nie jesteś pewien co wybrać? Zobacz na przewodnik po pamięci.</string>
     <string name="pref_update_only_in_release_period">Przewiduj następną aktualizację</string>
     <string name="ext_permission_install_apps_warning">Uprawnienia są wymagane aby zainstalować rozszerzenia. Kliknij tutaj aby je przyznać.</string>
-    <string name="onboarding_storage_info">Wybierz folder gdzie %1$s będzie zapisywał pobrane rozdziały, kopie zapasowe i inne. \n \nZalecany jest dedykowany folder. \n \nWybrany folder:%2$s</string>
+    <string name="onboarding_storage_info">Wybierz folder gdzie %1$s będzie zapisywał pobrane rozdziały, kopie zapasowe i inne.
+\n
+\nZalecany jest dedykowany folder.
+\n
+\nWybrany folder:%2$s</string>
     <string name="ext_revoke_trust">Unieważnij zaufanie nieznanym rozszerzeniom</string>
     <string name="pref_flash_page_summ">Redukuje ghosting na wyświetlaczach e-ink</string>
     <string name="no_location_set">Brak ustawionej ścieżki pamięci</string>
@@ -816,10 +831,4 @@
     <string name="artist">Artysta</string>
     <string name="author">Autor</string>
     <string name="downloading_with_progress">Pobieranie... (%d%%)</string>
-    <string name="update_check_notification_download_in_progress">Pobieranie…</string>
-    <string name="update_check_notification_download_complete">Naciśnij, by zaktualizować</string>
-    <string name="update_check_notification_download_error">Błąd pobierania</string>
-    <string name="update_1hour">Co 1 godzin</string>
-    <string name="update_3hour">Co 3 godzin</string>
-    <string name="channel_app_updates">Aktualizacje aplikacji</string>
 </resources>
