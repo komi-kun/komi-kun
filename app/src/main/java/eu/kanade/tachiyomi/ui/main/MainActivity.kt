@@ -388,7 +388,7 @@ class MainActivity : BaseActivity() {
                 // KMK -->
                 RearmJobs()
                 // KMK <--
-                CheckForUpdates()
+                if (isLaunch) CheckForUpdates()
                 ShowOnboarding()
             }
 
