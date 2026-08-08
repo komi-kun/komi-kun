@@ -3,6 +3,7 @@ package eu.kanade.tachiyomi.ui.history
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.util.fastFilter
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import eu.kanade.core.util.insertSeparators
 import eu.kanade.domain.manga.interactor.UpdateManga
@@ -15,20 +16,23 @@ import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.WhileSubscribed
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.updateAndGet
 import kotlinx.coroutines.launch
 import logcat.LogPriority
 import mihon.core.common.utils.mutate
-import mihon.core.viewmodel.StateViewModel
 import tachiyomi.core.common.preference.CheckboxState
 import tachiyomi.core.common.preference.TriState
 import tachiyomi.core.common.preference.mapAsCheckboxState
@@ -52,6 +56,7 @@ import tachiyomi.domain.manga.model.MangaWithChapterCount
 import tachiyomi.domain.source.service.SourceManager
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import kotlin.time.Duration.Companion.seconds
 
 class HistoryViewModel(
     private val addTracks: AddTracks = Injekt.get(),
@@ -69,75 +74,92 @@ class HistoryViewModel(
     // KMK -->
     private val historyPreferences: HistoryPreferences = Injekt.get(),
     // KMK <--
-) : StateViewModel<HistoryViewModel.State>(State()) {
+) : ViewModel() {
 
     private val _events: Channel<Event> = Channel(Channel.UNLIMITED)
     val events: Flow<Event> = _events.receiveAsFlow()
 
+    private val searchQuery = MutableStateFlow<String?>(null)
+
+    private val dialog = MutableStateFlow<Dialog?>(null)
+
     // KMK -->
     // First and last selected index in list
     private val selectedPositions: Array<Int> = arrayOf(-1, -1)
+
+    private val selection = MutableStateFlow(emptySet<Long>())
+
+    private val selectionMode = MutableStateFlow(false)
     // KMK <--
 
-    init {
-        viewModelScope.launch {
-            // KMK -->
-            combine(
-                // KMK <--
-                state.map { it.searchQuery }
-                    .distinctUntilChanged(),
-                // KMK -->
-                getHistoryItemPreferenceFlow()
-                    .distinctUntilChanged(),
-            ) { query, itemPreferences -> query to itemPreferences }
-                .flatMapLatest { (query, pref) ->
-                    // KMK <--
-                    getHistory.subscribe(
-                        query ?: "",
-                        // KMK -->
-                        unfinishedManga = pref.filterUnfinishedManga.toBooleanOrNull(),
-                        unfinishedChapter = pref.filterUnfinishedChapter.toBooleanOrNull(),
-                        nonLibraryEntries = pref.filterNonLibraryManga.toBooleanOrNull(),
-                        // KMK <--
-                    )
-                        .distinctUntilChanged()
-                        .catch { error ->
-                            logcat(LogPriority.ERROR, error)
-                            _events.send(Event.InternalError)
-                        }
-                        .flowOn(Dispatchers.IO)
-                }
-                .collect { newList ->
-                    mutableState.update {
-                        it.copy(
-                            // KMK -->
-                            isLoading = false,
-                            list = newList.toImmutableList(),
-                            // KMK <--
-                        )
-                    }
-                }
-        }
-
+    private val history = combine(
+        searchQuery,
         // KMK -->
         getHistoryItemPreferenceFlow()
-            .map { prefs ->
-                listOf(
-                    prefs.filterUnfinishedManga,
-                    prefs.filterUnfinishedChapter,
-                    prefs.filterNonLibraryManga,
-                )
-                    .any { it != TriState.DISABLED }
-            }
-            .distinctUntilChanged()
-            .onEach {
-                mutableState.update { state ->
-                    state.copy(hasActiveFilters = it)
-                }
-            }
-            .launchIn(viewModelScope)
+            .distinctUntilChanged(),
         // KMK <--
+    ) { query, itemPreferences -> query to itemPreferences }
+        .flatMapLatest { (query, pref) ->
+            getHistory.subscribe(
+                query ?: "",
+                // KMK -->
+                unfinishedManga = pref.filterUnfinishedManga.toBooleanOrNull(),
+                unfinishedChapter = pref.filterUnfinishedChapter.toBooleanOrNull(),
+                nonLibraryEntries = pref.filterNonLibraryManga.toBooleanOrNull(),
+                // KMK <--
+            )
+                .distinctUntilChanged()
+                .catch { error ->
+                    logcat(LogPriority.ERROR, error)
+                    _events.send(Event.InternalError)
+                }
+                .map { it.toImmutableList() }
+                .flowOn(Dispatchers.IO)
+        }
+
+    // KMK -->
+    private val hasActiveFilters = getHistoryItemPreferenceFlow()
+        .map { prefs ->
+            listOf(
+                prefs.filterUnfinishedManga,
+                prefs.filterUnfinishedChapter,
+                prefs.filterNonLibraryManga,
+            )
+                .any { it != TriState.DISABLED }
+        }
+        .distinctUntilChanged()
+    // KMK <--
+
+    val state: StateFlow<State> = combine(
+        combine(
+            searchQuery,
+            history,
+            dialog,
+            // KMK -->
+            selection,
+            selectionMode,
+            // KMK <--
+        ) { searchQuery, history, dialog, selection, selectionMode ->
+            State(
+                searchQuery = searchQuery,
+                // KMK -->
+                list = history,
+                isLoading = false,
+                // KMK <--
+                dialog = dialog,
+                // KMK -->
+                selection = selection,
+                selectionMode = selectionMode,
+                // KMK <--
+            )
+        },
+        // KMK -->
+        hasActiveFilters,
+        // KMK <--
+    ) { state, hasActiveFilters ->
+        state.copy(hasActiveFilters = hasActiveFilters)
     }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5.seconds), State())
 
     suspend fun getNextChapter(): Chapter? {
         return withIOContext { getNextChapters.await(onlyUnread = false).firstOrNull() }
@@ -180,11 +202,11 @@ class HistoryViewModel(
     }
 
     fun updateSearchQuery(query: String?) {
-        mutableState.update { it.copy(searchQuery = query) }
+        searchQuery.update { query }
     }
 
     fun setDialog(dialog: Dialog?) {
-        mutableState.update { it.copy(dialog = dialog) }
+        this.dialog.update { dialog }
     }
 
     /**
@@ -227,7 +249,7 @@ class HistoryViewModel(
 
             val duplicates = getDuplicateLibraryManga(manga)
             if (duplicates.isNotEmpty()) {
-                mutableState.update { it.copy(dialog = Dialog.DuplicateManga(manga, duplicates)) }
+                dialog.update { Dialog.DuplicateManga(manga, duplicates) }
                 return@launchIO
             }
 
@@ -267,21 +289,17 @@ class HistoryViewModel(
     }
 
     fun showMigrateDialog(target: Manga, current: Manga) {
-        mutableState.update { currentState ->
-            currentState.copy(dialog = Dialog.Migrate(target = target, current = current))
-        }
+        dialog.update { Dialog.Migrate(target = target, current = current) }
     }
 
     private fun showChangeCategoryDialog(manga: Manga) {
         viewModelScope.launch {
             val categories = getCategories()
             val selection = getMangaCategoryIds(manga)
-            mutableState.update { currentState ->
-                currentState.copy(
-                    dialog = Dialog.ChangeCategory(
-                        manga = manga,
-                        initialSelection = categories.mapAsCheckboxState { it.id in selection }.toImmutableList(),
-                    ),
+            dialog.update {
+                Dialog.ChangeCategory(
+                    manga = manga,
+                    initialSelection = categories.mapAsCheckboxState { it.id in selection }.toImmutableList(),
                 )
             }
         }
@@ -298,16 +316,17 @@ class HistoryViewModel(
         selectionOptions: HistorySelectionOptions,
     ) {
         val (selected, fromLongPress) = selectionOptions
+        val list = state.value.list
 
-        mutableState.update { state ->
-            if (item.chapterId in state.selection == selected) return@update state
-            val selectedIndex = state.list.indexOfFirst { it.chapterId == item.chapterId }
-            if (selectedIndex < 0) return@update state
+        val newSelection = selection.updateAndGet { currentSelection ->
+            if (item.chapterId in currentSelection == selected) return@updateAndGet currentSelection
+            val selectedIndex = list.indexOfFirst { it.chapterId == item.chapterId }
+            if (selectedIndex < 0) return@updateAndGet currentSelection
 
-            val selection = state.selection.mutate { list ->
-                state.list.run {
-                    val firstSelection = list.isEmpty()
-                    if (selected) list.add(item.chapterId) else list.remove(item.chapterId)
+            currentSelection.mutate { selection ->
+                list.run {
+                    val firstSelection = selection.isEmpty()
+                    if (selected) selection.add(item.chapterId) else selection.remove(item.chapterId)
 
                     if (firstSelection) {
                         // Since it can go into selectionMode from toolbar (without long press), we need to set both positions here
@@ -329,16 +348,16 @@ class HistoryViewModel(
 
                         range.forEach {
                             val inBetweenItem = get(it)
-                            if (inBetweenItem.chapterId !in list) {
-                                list.add(inBetweenItem.chapterId)
+                            if (inBetweenItem.chapterId !in selection) {
+                                selection.add(inBetweenItem.chapterId)
                             }
                         }
                     } else if (!fromLongPress) {
                         if (!selected) {
                             if (selectedIndex == selectedPositions[0]) {
-                                selectedPositions[0] = indexOfFirst { it.chapterId in list }
+                                selectedPositions[0] = indexOfFirst { it.chapterId in selection }
                             } else if (selectedIndex == selectedPositions[1]) {
-                                selectedPositions[1] = indexOfLast { it.chapterId in list }
+                                selectedPositions[1] = indexOfLast { it.chapterId in selection }
                             }
                         } else {
                             if (selectedIndex < selectedPositions[0]) {
@@ -350,47 +369,40 @@ class HistoryViewModel(
                     }
                 }
             }
-            state.copy(
-                selection = selection,
-                selectionMode = selected || selection.isNotEmpty(),
-            )
         }
+        selectionMode.value = selected || newSelection.isNotEmpty()
     }
 
     fun toggleAllSelection(selected: Boolean) {
-        mutableState.update { state ->
-            val selection = if (selected) {
-                state.list.mapTo(mutableSetOf()) { it.chapterId }
-            } else {
-                emptySet()
-            }
-            selectedPositions[0] = -1
-            selectedPositions[1] = -1
-            state.copy(
-                selection = selection,
-                selectionMode = selected,
-            )
+        val list = state.value.list
+        selection.value = if (selected) {
+            list.mapTo(mutableSetOf()) { it.chapterId }
+        } else {
+            emptySet()
         }
+        selectedPositions[0] = -1
+        selectedPositions[1] = -1
+        selectionMode.value = selected
     }
 
     fun invertSelection() {
-        mutableState.update { state ->
-            val selection = state.selection.mutate { list ->
-                state.list.forEach { item ->
-                    if (!list.remove(item.chapterId)) list.add(item.chapterId)
+        val list = state.value.list
+        selection.update { currentSelection ->
+            currentSelection.mutate { selection ->
+                list.forEach { item ->
+                    if (!selection.remove(item.chapterId)) selection.add(item.chapterId)
                 }
             }
-            selectedPositions[0] = -1
-            selectedPositions[1] = -1
-            state.copy(selection = selection)
         }
+        selectedPositions[0] = -1
+        selectedPositions[1] = -1
     }
 
     fun toggleSelectionMode(newMode: Boolean? = null) {
-        if (newMode == false || state.value.selectionMode) {
+        if (newMode == false || selectionMode.value) {
             toggleAllSelection(false)
         } else {
-            mutableState.update { it.copy(selectionMode = newMode ?: !it.selectionMode) }
+            selectionMode.value = newMode ?: !selectionMode.value
         }
     }
     // KMK <--
@@ -410,7 +422,7 @@ class HistoryViewModel(
     }
 
     fun showFilterDialog() {
-        mutableState.update { it.copy(dialog = Dialog.FilterSheet) }
+        dialog.update { Dialog.FilterSheet }
     }
 
     @Immutable
