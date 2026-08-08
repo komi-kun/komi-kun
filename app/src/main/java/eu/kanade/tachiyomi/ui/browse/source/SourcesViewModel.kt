@@ -1,7 +1,8 @@
 package eu.kanade.tachiyomi.ui.browse.source
 
-import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.Immutable
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import eu.kanade.core.preference.asState
 import eu.kanade.domain.source.interactor.GetEnabledSources
@@ -21,19 +22,18 @@ import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.WhileSubscribed
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.debounce
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import logcat.LogPriority
-import mihon.core.viewmodel.StateViewModel
 import mihon.domain.extension.model.ContentWarning
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.source.model.Pin
@@ -56,62 +56,32 @@ class SourcesViewModel(
     private val sourcePreferences: SourcePreferences = Injekt.get(),
     val smartSearchConfig: SourcesScreen.SmartSearchConfig?,
     // SY <--
-) : StateViewModel<SourcesViewModel.State>(State()) {
+) : ViewModel() {
 
     private val _events = Channel<Event>(Int.MAX_VALUE)
     val events = _events.receiveAsFlow()
 
     val useNewSourceNavigation by uiPreferences.useNewSourceNavigation().asState(viewModelScope)
 
-    init {
-        // SY -->
-        combine(
-            // KMK -->
-            state.map { Pair(it.searchQuery, it.nsfwOnly) }
-                .distinctUntilChanged().debounce(0.25.seconds),
-            // KMK <--
-            getEnabledSources.subscribe(),
-            getSourceCategories.subscribe(),
-            getShowLatest.subscribe(smartSearchConfig != null),
-            flowOf(smartSearchConfig == null),
-            ::collectLatestSources,
-        )
-            .catch {
-                logcat(LogPriority.ERROR, it)
-                _events.send(Event.FailedFetchingSources)
-            }
-            .flowOn(Dispatchers.IO)
-            .launchIn(viewModelScope)
+    private val dialog = MutableStateFlow<Dialog?>(null)
 
-        sourcePreferences.dataSaver().changes()
-            .onEach {
-                mutableState.update {
-                    it.copy(
-                        dataSaverEnabled = sourcePreferences.dataSaver().get() != DataSaver.NONE,
-                    )
-                }
-            }
-            .launchIn(viewModelScope)
-        // SY <--
-    }
+    // KMK -->
+    private val searchQuery = MutableStateFlow<String?>(null)
+    private val nsfwOnly = MutableStateFlow(false)
+    // KMK <--
 
-    private fun collectLatestSources(
+    private val enabledSources = combine(
         // KMK -->
-        filters: Pair<String?, Boolean>,
-        unfilteredSources: List<Source>,
-        // sources: List<Source>,
+        searchQuery,
+        nsfwOnly,
         // KMK <--
-        categories: List<String>,
-        showLatest: Boolean,
-        showPin: Boolean,
-    ) {
+        getEnabledSources.subscribe(),
+    ) { query, nsfw, sources ->
         // KMK -->
-        val searchQuery = filters.first
-        val nsfwOnly = filters.second
-        val queryFilter: (String?) -> ((Source) -> Boolean) = { query ->
+        val queryFilter: (String?) -> ((Source) -> Boolean) = { searchQuery ->
             filter@{ source ->
-                if (query.isNullOrBlank()) return@filter true
-                query.split(",").any {
+                if (searchQuery.isNullOrBlank()) return@filter true
+                searchQuery.split(",").any {
                     val input = it.trim()
                     if (input.isEmpty()) return@any false
                     source.installedExtension?.name?.contains(input, ignoreCase = true) == true ||
@@ -120,60 +90,106 @@ class SourcesViewModel(
                 }
             }
         }
-        val sources = unfilteredSources
-            .filter { !nsfwOnly || it.installedExtension?.contentWarning?.let { cw -> cw != ContentWarning.SAFE } != false }
-            .filter(queryFilter(searchQuery))
+        sources
+            .filter { !nsfw || it.installedExtension?.contentWarning?.let { cw -> cw != ContentWarning.SAFE } != false }
+            .filter(queryFilter(query))
         // KMK <--
-        mutableState.update { state ->
-            val map = TreeMap<String, MutableList<Source>> { d1, d2 ->
-                // Sources without a lang defined will be placed at the end
-                when {
-                    d1 == LAST_USED_KEY && d2 != LAST_USED_KEY -> -1
-                    d2 == LAST_USED_KEY && d1 != LAST_USED_KEY -> 1
-                    d1 == PINNED_KEY && d2 != PINNED_KEY -> -1
-                    d2 == PINNED_KEY && d1 != PINNED_KEY -> 1
-                    // SY -->
-                    d1.startsWith(CATEGORY_KEY_PREFIX) && !d2.startsWith(CATEGORY_KEY_PREFIX) -> -1
-                    d2.startsWith(CATEGORY_KEY_PREFIX) && !d1.startsWith(CATEGORY_KEY_PREFIX) -> 1
-                    // SY <--
-                    d1 == "" && d2 != "" -> 1
-                    d2 == "" && d1 != "" -> -1
-                    else -> d1.compareTo(d2)
-                }
-            }
-            val byLang = sources.groupByTo(map) {
-                when {
-                    // SY -->
-                    it.category != null -> "$CATEGORY_KEY_PREFIX${it.category}"
-                    // SY <--
-                    it.isUsedLast -> LAST_USED_KEY
-                    Pin.Actual in it.pin -> PINNED_KEY
-                    else -> it.lang
-                }
-            }
+    }
+        .catch {
+            logcat(LogPriority.ERROR, it)
+            _events.send(Event.FailedFetchingSources)
+        }
+        .map(::toSourceUiModels)
+        .flowOn(Dispatchers.IO)
 
-            state.copy(
-                isLoading = false,
-                items = byLang
-                    .flatMap {
-                        listOf(
-                            SourceUiModel.Header(
-                                it.key.removePrefix(CATEGORY_KEY_PREFIX),
-                                it.value.firstOrNull()?.category != null,
-                            ),
-                            *it.value.map { source ->
-                                SourceUiModel.Item(source)
-                            }.toTypedArray(),
-                        )
-                    }
-                    .toImmutableList(),
+    private data class PartialState(
+        val items: List<SourceUiModel>,
+        val dialog: Dialog?,
+        val categories: List<String>,
+        val showLatest: Boolean,
+        val dataSaverEnabled: Boolean,
+    )
+
+    private val partialState = combine(
+        enabledSources,
+        dialog,
+        getSourceCategories.subscribe(),
+        getShowLatest.subscribe(smartSearchConfig != null),
+        sourcePreferences.dataSaver().changes(),
+    ) { items, dialog, categories, showLatest, dataSaver ->
+        PartialState(
+            items = items,
+            dialog = dialog,
+            categories = categories,
+            showLatest = showLatest,
+            dataSaverEnabled = dataSaver != DataSaver.NONE,
+        )
+    }
+
+    val state: StateFlow<State> = combine(
+        partialState,
+        // KMK -->
+        searchQuery,
+        nsfwOnly,
+        // KMK <--
+    ) { partial, query, nsfw ->
+        State(
+            dialog = partial.dialog,
+            isLoading = false,
+            items = partial.items.toImmutableList(),
+            // SY -->
+            categories = partial.categories
+                .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it })
+                .toImmutableList(),
+            showPin = smartSearchConfig == null,
+            showLatest = partial.showLatest,
+            dataSaverEnabled = partial.dataSaverEnabled,
+            // SY <--
+            // KMK -->
+            searchQuery = query,
+            nsfwOnly = nsfw,
+            // KMK <--
+        )
+    }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5.seconds), State())
+
+    private fun toSourceUiModels(sources: List<Source>): List<SourceUiModel> {
+        val map = TreeMap<String, MutableList<Source>> { d1, d2 ->
+            // Sources without a lang defined will be placed at the end
+            when {
+                d1 == LAST_USED_KEY && d2 != LAST_USED_KEY -> -1
+                d2 == LAST_USED_KEY && d1 != LAST_USED_KEY -> 1
+                d1 == PINNED_KEY && d2 != PINNED_KEY -> -1
+                d2 == PINNED_KEY && d1 != PINNED_KEY -> 1
                 // SY -->
-                categories = categories
-                    .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it })
-                    .toImmutableList(),
-                showPin = showPin,
-                showLatest = showLatest,
+                d1.startsWith(CATEGORY_KEY_PREFIX) && !d2.startsWith(CATEGORY_KEY_PREFIX) -> -1
+                d2.startsWith(CATEGORY_KEY_PREFIX) && !d1.startsWith(CATEGORY_KEY_PREFIX) -> 1
                 // SY <--
+                d1 == "" && d2 != "" -> 1
+                d2 == "" && d1 != "" -> -1
+                else -> d1.compareTo(d2)
+            }
+        }
+        val byLang = sources.groupByTo(map) {
+            when {
+                // SY -->
+                it.category != null -> "$CATEGORY_KEY_PREFIX${it.category}"
+                // SY <--
+                it.isUsedLast -> LAST_USED_KEY
+                Pin.Actual in it.pin -> PINNED_KEY
+                else -> it.lang
+            }
+        }
+
+        return byLang.flatMap {
+            listOf(
+                SourceUiModel.Header(
+                    it.key.removePrefix(CATEGORY_KEY_PREFIX),
+                    it.value.firstOrNull()?.category != null,
+                ),
+                *it.value.map { source ->
+                    SourceUiModel.Item(source)
+                }.toTypedArray(),
             )
         }
     }
@@ -196,29 +212,25 @@ class SourcesViewModel(
     }
 
     fun showSourceCategoriesDialog(source: Source) {
-        mutableState.update { it.copy(dialog = Dialog.SourceCategories(source)) }
+        dialog.update { Dialog.SourceCategories(source) }
     }
     // SY <--
 
     fun showSourceDialog(source: Source) {
-        mutableState.update { it.copy(dialog = Dialog.SourceLongClick(source)) }
+        dialog.update { Dialog.SourceLongClick(source) }
     }
 
     fun closeDialog() {
-        mutableState.update { it.copy(dialog = null) }
+        dialog.update { null }
     }
 
     // KMK -->
     fun search(query: String?) {
-        mutableState.update {
-            it.copy(searchQuery = query)
-        }
+        searchQuery.value = query
     }
 
     fun toggleNsfwOnly() {
-        mutableState.update {
-            it.copy(nsfwOnly = !it.nsfwOnly)
-        }
+        nsfwOnly.value = !nsfwOnly.value
     }
     // KMK <--
 
