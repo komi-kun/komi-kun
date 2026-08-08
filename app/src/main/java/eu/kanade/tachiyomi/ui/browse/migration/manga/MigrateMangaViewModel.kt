@@ -1,6 +1,7 @@
 package eu.kanade.tachiyomi.ui.browse.migration.manga
 
 import androidx.compose.runtime.Immutable
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import androidx.lifecycle.viewmodel.initializer
@@ -9,29 +10,35 @@ import eu.kanade.tachiyomi.source.Source
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.WhileSubscribed
 import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
 import logcat.LogPriority
 import mihon.core.common.utils.mutate
-import mihon.core.viewmodel.StateViewModel
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.manga.interactor.GetFavorites
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.source.service.SourceManager
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import kotlin.time.Duration.Companion.seconds
 
 class MigrateMangaViewModel(
     private val sourceId: Long,
     private val sourceManager: SourceManager = Injekt.get(),
     private val getFavorites: GetFavorites = Injekt.get(),
-) : StateViewModel<MigrateMangaViewModel.State>(State()) {
+) : ViewModel() {
 
     companion object {
         val SOURCE_ID_KEY = CreationExtras.Key<Long>()
@@ -53,45 +60,35 @@ class MigrateMangaViewModel(
     private val selectedPositions: Array<Int> = arrayOf(-1, -1)
     // KMK <--
 
-    init {
-        viewModelScope.launch {
-            mutableState.update { state ->
-                state.copy(source = sourceManager.getOrStub(sourceId))
-            }
+    private val source by lazy { sourceManager.getOrStub(sourceId) }
 
-            getFavorites.subscribe(sourceId)
-                .catch {
-                    logcat(LogPriority.ERROR, it)
-                    _events.send(MigrationMangaEvent.FailedFetchingFavorites)
-                    mutableState.update { state ->
-                        state.copy(
-                            titleList = persistentListOf(),
-                            // KMK -->
-                            selection = emptySet(),
-                            // KMK <--
-                        )
-                    }
-                }
-                .map { manga ->
-                    manga
-                        .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.title })
-                        .toImmutableList()
-                }
-                .collectLatest { list ->
-                    // KMK -->
-                    mutableState.update { state ->
-                        val titleIds = list.map { it.id }.toSet()
-                        val selection = state.selection.intersect(titleIds).toMutableSet()
-                        updateSelectedPositions(list, selection)
-                        state.copy(
-                            titleList = list,
-                            selection = selection,
-                        )
-                    }
-                    // KMK <--
-                }
+    private val selection = MutableStateFlow(emptySet<Long>())
+
+    private val favorites = getFavorites.subscribe(sourceId)
+        .catch {
+            logcat(LogPriority.ERROR, it)
+            _events.send(MigrationMangaEvent.FailedFetchingFavorites)
+            emit(listOf())
         }
+        .map { manga ->
+            manga
+                .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.title })
+                .toImmutableList()
+        }
+
+    val state: StateFlow<State> = combine(
+        favorites,
+        selection,
+    ) { titleList, selection ->
+        // KMK -->
+        val titleIds = titleList.map { it.id }.toSet()
+        val prunedSelection = selection.intersect(titleIds)
+        updateSelectedPositions(titleList, prunedSelection)
+        // KMK <--
+        State(source = source, selection = prunedSelection, titleList = titleList)
     }
+        .flowOn(Dispatchers.IO)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5.seconds), State())
 
     fun toggleSelection(
         item: Manga,
@@ -99,13 +96,16 @@ class MigrateMangaViewModel(
         selected: Boolean,
         fromLongPress: Boolean = false,
     ) {
-        mutableState.update { state ->
-            if (item.id in state.selection == selected) return@update state
-            val selectedIndex = state.titles.indexOfFirst { it.id == item.id }
-            if (selectedIndex < 0) return@update state
+        // KMK -->
+        val titles = state.value.titles
+        // KMK <--
+        selection.update { currentSelection ->
+            if (item.id in currentSelection == selected) return@update currentSelection
+            val selectedIndex = titles.indexOfFirst { it.id == item.id }
+            if (selectedIndex < 0) return@update currentSelection
 
-            val selection = state.selection.mutate { list ->
-                state.titles.run {
+            currentSelection.mutate { list ->
+                titles.run {
                     val firstSelection = list.isEmpty()
                     if (selected) list.add(item.id) else list.remove(item.id)
 
@@ -152,7 +152,6 @@ class MigrateMangaViewModel(
                 }
             }
             // KMK <--
-            state.copy(selection = selection)
         }
     }
 
@@ -169,29 +168,29 @@ class MigrateMangaViewModel(
     }
 
     fun toggleAllSelection(selected: Boolean = true) {
-        mutableState.update { state ->
-            val selection = if (selected) {
-                state.titles.mapTo(mutableSetOf()) { it.id }
+        val titles = state.value.titles
+        selection.update {
+            if (selected) {
+                titles.mapTo(mutableSetOf()) { it.id }
             } else {
                 emptySet()
             }
-            selectedPositions[0] = -1
-            selectedPositions[1] = -1
-            state.copy(selection = selection)
         }
+        selectedPositions[0] = -1
+        selectedPositions[1] = -1
     }
 
     fun invertSelection() {
-        mutableState.update { state ->
-            val selection = state.selection.mutate { list ->
-                state.titles.forEach { item ->
+        val titles = state.value.titles
+        selection.update { currentSelection ->
+            currentSelection.mutate { list ->
+                titles.forEach { item ->
                     if (!list.remove(item.id)) list.add(item.id)
                 }
             }
-            selectedPositions[0] = -1
-            selectedPositions[1] = -1
-            state.copy(selection = selection)
         }
+        selectedPositions[0] = -1
+        selectedPositions[1] = -1
     }
     // KMK <--
 
