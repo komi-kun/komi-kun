@@ -7,12 +7,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.presentation.browse.ExtensionScreen
@@ -37,19 +37,22 @@ fun extensionsTab(
     val navigator = LocalNavigator.currentOrThrow
     val context = LocalContext.current
 
-    val state by extensionsViewModel.state.collectAsState()
+    val updatesCount by extensionsViewModel.updatesCount.collectAsStateWithLifecycle()
+    // KMK -->
+    val nsfwOnly by extensionsViewModel.nsfwOnly.collectAsStateWithLifecycle()
+    // KMK <--
     var privateExtensionToUninstall by remember { mutableStateOf<Extension.Installed?>(null) }
 
     return TabContent(
         titleRes = MR.strings.label_extensions,
-        badgeNumber = state.updates.takeIf { it > 0 },
+        badgeNumber = updatesCount.takeIf { it > 0 },
         searchEnabled = true,
         actions = persistentListOf(
             // KMK -->
             AppBar.Action(
                 title = stringResource(KMR.strings.action_toggle_nsfw_only),
                 icon = MaterialSymbols.Rounded.`18UpRating`,
-                iconTint = if (state.nsfwOnly) MaterialTheme.colorScheme.error else LocalContentColor.current,
+                iconTint = if (nsfwOnly) MaterialTheme.colorScheme.error else LocalContentColor.current,
                 onClick = { extensionsViewModel.toggleNsfwOnly() },
             ),
             AppBar.OverflowAction(
@@ -67,6 +70,8 @@ fun extensionsTab(
             ),
         ),
         content = { contentPadding, _ ->
+            val state by extensionsViewModel.state.collectAsStateWithLifecycle()
+
             BackHandler(enabled = state.searchQuery != null) {
                 extensionsViewModel.search(null)
             }

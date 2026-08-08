@@ -2,6 +2,7 @@ package eu.kanade.tachiyomi.ui.browse.extension
 
 import android.app.Application
 import androidx.compose.runtime.Immutable
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.icerock.moko.resources.StringResource
 import eu.kanade.domain.base.BasePreferences
@@ -12,22 +13,23 @@ import eu.kanade.tachiyomi.extension.model.Extension
 import eu.kanade.tachiyomi.extension.model.InstallStep
 import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.util.system.LocaleHelper
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.WhileSubscribed
 import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
-import mihon.core.viewmodel.StateViewModel
 import mihon.domain.extension.model.ContentWarning
 import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.i18n.MR
@@ -37,106 +39,147 @@ import uy.kohesive.injekt.api.get
 import kotlin.time.Duration.Companion.seconds
 
 class ExtensionsViewModel(
-    preferences: SourcePreferences = Injekt.get(),
+    private val preferences: SourcePreferences = Injekt.get(),
     basePreferences: BasePreferences = Injekt.get(),
     private val extensionManager: ExtensionManager = Injekt.get(),
     private val getExtensions: GetExtensionsByType = Injekt.get(),
-) : StateViewModel<ExtensionsViewModel.State>(State()) {
+) : ViewModel() {
 
     private val currentDownloads = MutableStateFlow<Map<String, InstallStep>>(hashMapOf())
 
-    init {
-        val context = Injekt.get<Application>()
-        val extensionMapper: (Map<String, InstallStep>) -> ((Extension) -> ExtensionUiModel.Item) = { map ->
-            {
-                ExtensionUiModel.Item(
-                    it,
-                    map[it.pkgName] ?: InstallStep.Idle,
-                )
-            }
-        }
+    private val context = Injekt.get<Application>()
 
-        viewModelScope.launchIO {
-            combine(
-                state.map { it.searchQuery }
-                    .distinctUntilChanged()
-                    .debounce(0.25.seconds)
-                    .map { searchQueryPredicate(it ?: "") },
+    // Public so BrowseTab's search bar can observe it without subscribing to the whole state.
+    val searchQuery: StateFlow<String?>
+        field = MutableStateFlow(null)
+
+    // KMK -->
+    // Public so the tab's NSFW toggle can observe it without subscribing to the whole state.
+    val nsfwOnly: StateFlow<Boolean>
+        field = MutableStateFlow(false)
+    // KMK <--
+
+    // Public so the tab badge can observe it without subscribing to the whole state.
+    val updatesCount = preferences.extensionUpdatesCount().changes()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5.seconds), 0)
+
+    private val isRefreshing = MutableStateFlow(false)
+
+    private fun extensionMapper(map: Map<String, InstallStep>): (Extension) -> ExtensionUiModel.Item = {
+        ExtensionUiModel.Item(it, map[it.pkgName] ?: InstallStep.Idle)
+    }
+
+    @Suppress("LocalVariableName")
+    private val items = combine(
+        searchQuery
+            .debounce(0.25.seconds)
+            .map { searchQueryPredicate(it ?: "") },
+        // KMK -->
+        nsfwOnly
+            .debounce(0.25.seconds),
+        // KMK <--
+        currentDownloads,
+        getExtensions.subscribe(),
+    ) { predicate, nsfwOnly, downloads, (_updates, _loaded, _available, _notLoaded) ->
+        buildMap {
+            val updates = _updates.filter(predicate).map(extensionMapper(downloads))
                 // KMK -->
-                state.map { it.nsfwOnly }
-                    .distinctUntilChanged()
-                    .debounce(0.25.seconds),
-                // KMK <--
-                currentDownloads,
-                getExtensions.subscribe(),
-            ) { predicate, nsfwOnly, downloads, (_updates, _loaded, _available, _notLoaded) ->
-                buildMap {
-                    val updates = _updates.filter(predicate).map(extensionMapper(downloads))
-                        // KMK -->
-                        .filter { !nsfwOnly || it.extension.contentWarning != ContentWarning.SAFE }
-                    // KMK <--
-                    if (updates.isNotEmpty()) {
-                        put(ExtensionUiModel.Header.Resource(MR.strings.ext_updates_pending), updates)
-                    }
-
-                    val notLoaded = _notLoaded.filter(predicate).map(extensionMapper(downloads))
-                        // KMK -->
-                        .filter { !nsfwOnly || it.extension.contentWarning != ContentWarning.SAFE }
-                    // KMK <--
-                    if (notLoaded.isNotEmpty()) {
-                        put(ExtensionUiModel.Header.Resource(MR.strings.ext_not_loaded), notLoaded)
-                    }
-
-                    val loaded = _loaded.filter(predicate).map(extensionMapper(downloads))
-                        // KMK -->
-                        .filter { !nsfwOnly || it.extension.contentWarning != ContentWarning.SAFE }
-                    // KMK <--
-                    if (loaded.isNotEmpty()) {
-                        put(ExtensionUiModel.Header.Resource(MR.strings.ext_installed), loaded)
-                    }
-
-                    val languagesWithExtensions = _available
-                        .filter(predicate)
-                        // KMK -->
-                        .filter { !nsfwOnly || it.contentWarning != ContentWarning.SAFE }
-                        // KMK <--
-                        .groupBy { it.lang }
-                        .toSortedMap(LocaleHelper.comparator)
-                        .map { (lang, exts) ->
-                            ExtensionUiModel.Header.Text(LocaleHelper.getSourceDisplayName(lang, context)) to
-                                exts.map(extensionMapper(downloads))
-                        }
-                    if (languagesWithExtensions.isNotEmpty()) {
-                        putAll(languagesWithExtensions)
-                    }
-
-                    // KMK -->
-                    // Show "More..." header if no available extensions
-                    if (_available.isEmpty()) {
-                        put(ExtensionUiModel.Header.Resource(KMR.strings.extensions_page_more), emptyList())
-                    }
-                    // KMK <--
-                }
+                .filter { !nsfwOnly || it.extension.contentWarning != ContentWarning.SAFE }
+            // KMK <--
+            if (updates.isNotEmpty()) {
+                put(ExtensionUiModel.Header.Resource(MR.strings.ext_updates_pending), updates)
             }
-                .collectLatest { items ->
-                    mutableState.update { state ->
-                        state.copy(
-                            isLoading = false,
-                            items = items,
-                        )
-                    }
+
+            val notLoaded = _notLoaded.filter(predicate).map(extensionMapper(downloads))
+                // KMK -->
+                .filter { !nsfwOnly || it.extension.contentWarning != ContentWarning.SAFE }
+            // KMK <--
+            if (notLoaded.isNotEmpty()) {
+                put(ExtensionUiModel.Header.Resource(MR.strings.ext_not_loaded), notLoaded)
+            }
+
+            val loaded = _loaded.filter(predicate).map(extensionMapper(downloads))
+                // KMK -->
+                .filter { !nsfwOnly || it.extension.contentWarning != ContentWarning.SAFE }
+            // KMK <--
+            if (loaded.isNotEmpty()) {
+                put(ExtensionUiModel.Header.Resource(MR.strings.ext_installed), loaded)
+            }
+
+            val languagesWithExtensions = _available
+                .filter(predicate)
+                // KMK -->
+                .filter { !nsfwOnly || it.contentWarning != ContentWarning.SAFE }
+                // KMK <--
+                .groupBy { it.lang }
+                .toSortedMap(LocaleHelper.comparator)
+                .map { (lang, exts) ->
+                    ExtensionUiModel.Header.Text(LocaleHelper.getSourceDisplayName(lang, context)) to
+                        exts.map(extensionMapper(downloads))
                 }
+            if (languagesWithExtensions.isNotEmpty()) {
+                putAll(languagesWithExtensions)
+            }
+
+            // KMK -->
+            // Show "More..." header if no available extensions
+            if (_available.isEmpty()) {
+                put(ExtensionUiModel.Header.Resource(KMR.strings.extensions_page_more), emptyList())
+            }
+            // KMK <--
         }
+    }
+        .flowOn(Dispatchers.IO)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5.seconds), null)
 
+    private data class PartialState(
+        val items: ItemGroups?,
+        val searchQuery: String?,
+        // KMK -->
+        val nsfwOnly: Boolean,
+        // KMK <--
+        val isRefreshing: Boolean,
+    )
+
+    private val partialState = combine(
+        items,
+        searchQuery,
+        // KMK -->
+        nsfwOnly,
+        // KMK <--
+        isRefreshing,
+    ) { items, searchQuery, nsfwOnly, isRefreshing ->
+        PartialState(
+            items = items,
+            searchQuery = searchQuery,
+            // KMK -->
+            nsfwOnly = nsfwOnly,
+            // KMK <--
+            isRefreshing = isRefreshing,
+        )
+    }
+
+    val state: StateFlow<State> = combine(
+        partialState,
+        preferences.extensionUpdatesCount().changes(),
+        basePreferences.extensionInstaller().changes(),
+    ) { partial, updates, installer ->
+        State(
+            isLoading = partial.items == null,
+            isRefreshing = partial.isRefreshing,
+            items = partial.items.orEmpty(),
+            updates = updates,
+            installer = installer,
+            searchQuery = partial.searchQuery,
+            // KMK -->
+            nsfwOnly = partial.nsfwOnly,
+            // KMK <--
+        )
+    }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5.seconds), State())
+
+    init {
         viewModelScope.launchIO { findAvailableExtensions() }
-
-        preferences.extensionUpdatesCount().changes()
-            .onEach { mutableState.update { state -> state.copy(updates = it) } }
-            .launchIn(viewModelScope)
-
-        basePreferences.extensionInstaller().changes()
-            .onEach { mutableState.update { state -> state.copy(installer = it) } }
-            .launchIn(viewModelScope)
     }
 
     fun searchQueryPredicate(query: String): (Extension) -> Boolean {
@@ -170,9 +213,7 @@ class ExtensionsViewModel(
     }
 
     fun search(query: String?) {
-        mutableState.update {
-            it.copy(searchQuery = query)
-        }
+        searchQuery.update { query }
     }
 
     fun updateAllExtensions() {
@@ -230,14 +271,14 @@ class ExtensionsViewModel(
 
     fun findAvailableExtensions() {
         viewModelScope.launchIO {
-            mutableState.update { it.copy(isRefreshing = true) }
+            isRefreshing.update { true }
 
             extensionManager.findAvailableExtensions()
 
             // Fake slower refresh so it doesn't seem like it's not doing anything
             delay(1.seconds)
 
-            mutableState.update { it.copy(isRefreshing = false) }
+            isRefreshing.update { false }
         }
     }
 
@@ -247,9 +288,7 @@ class ExtensionsViewModel(
 
     // KMK -->
     fun toggleNsfwOnly() {
-        mutableState.update {
-            it.copy(nsfwOnly = !it.nsfwOnly)
-        }
+        nsfwOnly.update { !it }
     }
     // KMK <--
 
