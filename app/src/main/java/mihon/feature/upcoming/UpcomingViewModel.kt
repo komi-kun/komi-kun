@@ -3,6 +3,7 @@ package mihon.feature.upcoming
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.util.fastMap
 import androidx.compose.ui.util.fastMapIndexedNotNull
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import eu.kanade.core.util.insertSeparatorsReversed
 import eu.kanade.tachiyomi.util.lang.toLocalDate
@@ -12,18 +13,21 @@ import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.collections.immutable.toImmutableMap
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.WhileSubscribed
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
-import mihon.core.viewmodel.StateViewModel
+import kotlinx.coroutines.flow.stateIn
 import mihon.domain.upcoming.interactor.GetUpcomingManga
 import tachiyomi.core.common.preference.getAndSet
-import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.domain.category.model.Category
 import tachiyomi.domain.library.service.LibraryPreferences
@@ -33,12 +37,13 @@ import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.time.LocalDate
 import java.time.YearMonth
+import kotlin.time.Duration.Companion.seconds
 
 class UpcomingViewModel(
     private val getUpcomingManga: GetUpcomingManga = Injekt.get(),
     val getCategories: GetCategories = Injekt.get(),
     val upcomingPreferences: UpcomingPreferences = Injekt.get(),
-) : StateViewModel<UpcomingViewModel.State>(State()) {
+) : ViewModel() {
     // KMK -->
     private val libraryPreferences: LibraryPreferences = Injekt.get()
     // KMK <--
@@ -46,59 +51,74 @@ class UpcomingViewModel(
     val excludedCategories = upcomingPreferences.filterExcludedCategories
     val includedCategories = upcomingPreferences.filterIncludedCategories
 
-    init {
-        viewModelScope.launchIO {
-            getUpcomingItemPreferenceFlow()
-                .map { prefs ->
-                    listOf(
-                        prefs.filterIncludedCategories,
-                        prefs.filterExcludedCategories,
-                    )
-                        .any { it.isNotEmpty() }
-                }
-                .distinctUntilChanged()
-                .collectLatest {
-                    mutableState.update { state -> state.copy(hasActiveFilters = it) }
-                }
+    private val selectedYearMonth = MutableStateFlow(YearMonth.now())
+
+    private val dialog = MutableStateFlow<Dialog?>(null)
+
+    // KMK -->
+    private val showingUpdatingMangas = MutableStateFlow(false)
+    // KMK <--
+
+    private val upcoming = getUpcomingItemPreferenceFlow()
+        .distinctUntilChanged()
+        .flatMapLatest {
+            getUpcomingManga.subscribe(
+                excludedCategories = it.filterExcludedCategories,
+                includedCategories = it.filterIncludedCategories,
+            )
         }
-        viewModelScope.launchIO {
-            getUpcomingItemPreferenceFlow()
-                .distinctUntilChanged()
-                .flatMapLatest {
-                    getUpcomingManga.subscribe(
-                        excludedCategories = it.filterExcludedCategories,
-                        includedCategories = it.filterIncludedCategories,
-                    )
-                        .distinctUntilChanged()
-                }
-                .collectLatest {
-                    mutableState.update { state ->
-                        val upcomingItems = it.toUpcomingUIModels()
-                        state.copy(
-                            // KMK -->
-                            isLoadingUpcoming = false,
-                            // KMK <--
-                            items = upcomingItems,
-                            events = upcomingItems.toEvents(),
-                            headerIndexes = upcomingItems.getHeaderIndexes(),
-                        )
-                    }
-                }
+        .distinctUntilChanged()
+        .map { it.toUpcomingUIModels() }
+        .flowOn(Dispatchers.IO)
+
+    // KMK -->
+    private val updating = flow { emit(getUpcomingManga.updatingMangas()) }
+        .map { it.toUpcomingUIModels() }
+        .flowOn(Dispatchers.IO)
+    // KMK <--
+
+    private val hasActiveFilters = getUpcomingItemPreferenceFlow()
+        .map { prefs ->
+            listOf(
+                prefs.filterIncludedCategories,
+                prefs.filterExcludedCategories,
+            ).any { it.isNotEmpty() }
         }
+        .distinctUntilChanged()
+
+    val state: StateFlow<State> = combine(
+        combine(
+            upcoming,
+            // KMK -->
+            updating,
+            // KMK <--
+            hasActiveFilters,
+            selectedYearMonth,
+            dialog,
+        ) { upcoming, updating, hasActiveFilters, selectedYearMonth, dialog ->
+            State(
+                selectedYearMonth = selectedYearMonth,
+                items = upcoming,
+                events = upcoming.toEvents(),
+                headerIndexes = upcoming.getHeaderIndexes(),
+                // KMK -->
+                isLoadingUpcoming = false,
+                updatingItems = updating,
+                updatingEvents = updating.toEvents(),
+                updatingHeaderIndexes = updating.getHeaderIndexes(),
+                isLoadingUpdating = false,
+                // KMK <--
+                hasActiveFilters = hasActiveFilters,
+                dialog = dialog,
+            )
+        },
         // KMK -->
-        viewModelScope.launch {
-            mutableState.update { state ->
-                val updatingItems = getUpcomingManga.updatingMangas().toUpcomingUIModels()
-                state.copy(
-                    isLoadingUpdating = false,
-                    updatingItems = updatingItems,
-                    updatingEvents = updatingItems.toEvents(),
-                    updatingHeaderIndexes = updatingItems.getHeaderIndexes(),
-                )
-            }
-        }
+        showingUpdatingMangas,
         // KMK <--
+    ) { partial, isShowingUpdatingMangas ->
+        partial.copy(isShowingUpdatingMangas = isShowingUpdatingMangas)
     }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5.seconds), State())
 
     private fun List<Manga>.toUpcomingUIModels(): ImmutableList<UpcomingUIModel> {
         var mangaCount = 0
@@ -137,7 +157,7 @@ class UpcomingViewModel(
     }
 
     fun setSelectedYearMonth(yearMonth: YearMonth) {
-        mutableState.update { it.copy(selectedYearMonth = yearMonth) }
+        selectedYearMonth.value = yearMonth
     }
 
     private fun getUpcomingItemPreferenceFlow(): Flow<ItemPreferences> {
@@ -153,11 +173,11 @@ class UpcomingViewModel(
     }
 
     fun resetDialog() {
-        mutableState.update { it.copy(dialog = null) }
+        dialog.value = null
     }
 
     fun showFilterDialog() {
-        mutableState.update { it.copy(dialog = Dialog.FilterSheet) }
+        dialog.value = Dialog.FilterSheet
     }
 
     fun cycleCategory(category: Category) {
@@ -182,19 +202,11 @@ class UpcomingViewModel(
     val restriction by lazy { libraryPreferences.autoUpdateMangaRestrictions().get() }
 
     fun showUpdatingMangas() {
-        mutableState.update { state ->
-            state.copy(
-                isShowingUpdatingMangas = true,
-            )
-        }
+        showingUpdatingMangas.value = true
     }
 
     fun hideUpdatingMangas() {
-        mutableState.update { state ->
-            state.copy(
-                isShowingUpdatingMangas = false,
-            )
-        }
+        showingUpdatingMangas.value = false
     }
     // KMK <--
 
