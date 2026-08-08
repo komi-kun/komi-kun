@@ -1,6 +1,7 @@
 package eu.kanade.tachiyomi.ui.browse.migration.sources
 
 import androidx.compose.runtime.Immutable
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import eu.kanade.domain.source.interactor.GetSourcesWithFavoriteCount
 import eu.kanade.domain.source.interactor.SetMigrateSorting
@@ -9,20 +10,19 @@ import eu.kanade.domain.source.service.SourcePreferences
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.WhileSubscribed
 import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.debounce
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.receiveAsFlow
-import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.stateIn
 import logcat.LogPriority
-import mihon.core.viewmodel.StateViewModel
-import tachiyomi.core.common.util.lang.launchIO
+import tachiyomi.core.common.preference.getAndSet
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.source.model.Source
 import uy.kohesive.injekt.Injekt
@@ -30,89 +30,87 @@ import uy.kohesive.injekt.api.get
 import kotlin.time.Duration.Companion.seconds
 
 class MigrateSourceViewModel(
-    preferences: SourcePreferences = Injekt.get(),
+    private val preferences: SourcePreferences = Injekt.get(),
     private val getSourcesWithFavoriteCount: GetSourcesWithFavoriteCount = Injekt.get(),
-    private val setMigrateSorting: SetMigrateSorting = Injekt.get(),
-) : StateViewModel<MigrateSourceViewModel.State>(State()) {
+) : ViewModel() {
 
     private val _channel = Channel<Event>(Int.MAX_VALUE)
     val channel = _channel.receiveAsFlow()
 
-    init {
-        viewModelScope.launchIO {
-            // KMK -->
-            combine(
-                state.map { it.searchQuery }.distinctUntilChanged().debounce(0.25.seconds),
-                // KMK <--
-                getSourcesWithFavoriteCount.subscribe(),
-                // KMK -->
-            ) { searchQuery, sourceCounts ->
-                val queryFilter: (String?) -> ((Pair<Source, Long>) -> Boolean) = { query ->
-                    filter@{ pair ->
-                        val source = pair.first
-                        if (query.isNullOrBlank()) return@filter true
-                        query.split(",").any {
-                            val input = it.trim()
-                            if (input.isEmpty()) return@any false
-                            source.installedExtension?.name?.contains(input, ignoreCase = true) == true ||
-                                source.name.contains(input, ignoreCase = true) ||
-                                source.id == input.toLongOrNull()
-                        }
-                    }
+    // KMK -->
+    private val searchQuery = MutableStateFlow<String?>(null)
+    // KMK <--
+
+    private val sourcesWithCount = combine(
+        // KMK -->
+        searchQuery,
+        // KMK <--
+        getSourcesWithFavoriteCount.subscribe()
+            .catch {
+                logcat(LogPriority.ERROR, it)
+                _channel.send(Event.FailedFetchingSourcesWithCount)
+            },
+    ) { query, sources ->
+        // KMK -->
+        val queryFilter: (String?) -> ((Pair<Source, Long>) -> Boolean) = { searchQuery ->
+            filter@{ pair ->
+                val source = pair.first
+                if (searchQuery.isNullOrBlank()) return@filter true
+                searchQuery.split(",").any {
+                    val input = it.trim()
+                    if (input.isEmpty()) return@any false
+                    source.installedExtension?.name?.contains(input, ignoreCase = true) == true ||
+                        source.name.contains(input, ignoreCase = true) ||
+                        source.id == input.toLongOrNull()
                 }
-                sourceCounts.filter(queryFilter(searchQuery))
             }
-                // KMK <--
-                .catch {
-                    logcat(LogPriority.ERROR, it)
-                    _channel.send(Event.FailedFetchingSourcesWithCount)
-                }
-                .collectLatest { sources ->
-                    mutableState.update {
-                        it.copy(
-                            isLoading = false,
-                            items = sources.toImmutableList(),
-                        )
-                    }
-                }
         }
-
-        preferences.migrationSortingDirection().changes()
-            .onEach { mutableState.update { state -> state.copy(sortingDirection = it) } }
-            .launchIn(viewModelScope)
-
-        preferences.migrationSortingMode().changes()
-            .onEach { mutableState.update { state -> state.copy(sortingMode = it) } }
-            .launchIn(viewModelScope)
+        sources.filter(queryFilter(query))
+        // KMK <--
     }
 
+    val state: StateFlow<State> = combine(
+        sourcesWithCount,
+        preferences.migrationSortingMode().changes(),
+        preferences.migrationSortingDirection().changes(),
+        // KMK -->
+        searchQuery,
+        // KMK <--
+    ) { sources, sortingMode, sortingDirection, query ->
+        State(
+            isLoading = false,
+            items = sources.toImmutableList(),
+            sortingMode = sortingMode,
+            sortingDirection = sortingDirection,
+            // KMK -->
+            searchQuery = query,
+            // KMK <--
+        )
+    }
+        .flowOn(Dispatchers.IO)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5.seconds), State())
+
     fun toggleSortingMode() {
-        with(state.value) {
-            val newMode = when (sortingMode) {
+        preferences.migrationSortingMode().getAndSet { mode ->
+            when (mode) {
                 SetMigrateSorting.Mode.ALPHABETICAL -> SetMigrateSorting.Mode.TOTAL
                 SetMigrateSorting.Mode.TOTAL -> SetMigrateSorting.Mode.ALPHABETICAL
             }
-
-            setMigrateSorting.await(newMode, sortingDirection)
         }
     }
 
     fun toggleSortingDirection() {
-        with(state.value) {
-            val newDirection = when (sortingDirection) {
+        preferences.migrationSortingDirection().getAndSet { direction ->
+            when (direction) {
                 SetMigrateSorting.Direction.ASCENDING -> SetMigrateSorting.Direction.DESCENDING
                 SetMigrateSorting.Direction.DESCENDING -> SetMigrateSorting.Direction.ASCENDING
             }
-
-            setMigrateSorting.await(sortingMode, newDirection)
         }
     }
 
     // KMK -->
     fun search(query: String?) {
-        mutableState.update {
-            it.copy(searchQuery = query)
-        }
+        searchQuery.value = query
     }
     // KMK <--
 
