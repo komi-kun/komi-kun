@@ -69,12 +69,11 @@ import tachiyomi.presentation.core.components.ScrollbarLazyColumn
 import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.components.material.padding
 import tachiyomi.presentation.core.i18n.stringResource
-import tachiyomi.presentation.core.screens.EmptyScreen
 
 @Composable
 fun ExtensionDetailsScreen(
     navigateUp: () -> Unit,
-    state: ExtensionDetailsViewModel.State,
+    state: ExtensionDetailsViewModel.State.Success,
     onClickSourcePreferences: (sourceId: Long) -> Unit,
     // KMK -->
     onOpenWebView: (() -> Unit)?,
@@ -87,6 +86,15 @@ fun ExtensionDetailsScreen(
     onClickIncognito: (Boolean) -> Unit,
 ) {
     val uriHandler = LocalUriHandler.current
+    val url = remember(state.extension) {
+        val regex = """https://raw.githubusercontent.com/(.+?)/(.+?)/.+""".toRegex()
+        regex.find(state.extension.store?.indexUrl.orEmpty())
+            ?.let {
+                val (user, repo) = it.destructured
+                "https://github.com/$user/$repo"
+            }
+            ?: state.extension.store?.indexUrl
+    }
 
     Scaffold(
         topBar = { scrollBehavior ->
@@ -130,14 +138,6 @@ fun ExtensionDetailsScreen(
             )
         },
     ) { paddingValues ->
-        if (state.extension == null) {
-            EmptyScreen(
-                MR.strings.empty_screen,
-                modifier = Modifier.padding(paddingValues),
-            )
-            return@Scaffold
-        }
-
         ExtensionDetails(
             contentPadding = paddingValues,
             extension = state.extension,

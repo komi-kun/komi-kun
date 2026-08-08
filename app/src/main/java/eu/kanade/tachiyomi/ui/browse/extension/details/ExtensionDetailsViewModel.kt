@@ -3,6 +3,7 @@ package eu.kanade.tachiyomi.ui.browse.extension.details
 import android.app.Application
 import android.content.Context
 import androidx.compose.runtime.Immutable
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import androidx.lifecycle.viewmodel.initializer
@@ -20,32 +21,34 @@ import eu.kanade.tachiyomi.util.system.LocaleHelper
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.WhileSubscribed
 import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.receiveAsFlow
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.stateIn
 import logcat.LogPriority
-import mihon.core.viewmodel.StateViewModel
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import tachiyomi.core.common.util.system.logcat
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import kotlin.time.Duration.Companion.seconds
 
 class ExtensionDetailsViewModel(
     pkgName: String,
-    context: Context,
+    private val context: Context,
     private val network: NetworkHelper = Injekt.get(),
     private val extensionManager: ExtensionManager = Injekt.get(),
     private val getExtensionSources: GetExtensionSources = Injekt.get(),
     private val toggleSource: ToggleSource = Injekt.get(),
     private val toggleIncognito: ToggleIncognito = Injekt.get(),
     private val preferences: SourcePreferences = Injekt.get(),
-) : StateViewModel<ExtensionDetailsViewModel.State>(State()) {
+) : ViewModel() {
 
     companion object {
         val PKG_NAME_KEY = CreationExtras.Key<String>()
@@ -60,62 +63,44 @@ class ExtensionDetailsViewModel(
         }
     }
 
-    private val _events: Channel<ExtensionDetailsEvent> = Channel()
-    val events: Flow<ExtensionDetailsEvent> = _events.receiveAsFlow()
-
-    init {
-        viewModelScope.launch {
-            launch {
-                extensionManager.loadedExtensionsFlow
-                    .map { it.firstOrNull { extension -> extension.pkgName == pkgName } }
-                    .collectLatest { extension ->
-                        if (extension == null) {
-                            _events.send(ExtensionDetailsEvent.Uninstalled)
-                            return@collectLatest
-                        }
-                        mutableState.update { state ->
-                            state.copy(extension = extension)
-                        }
-                    }
-            }
-            launch {
-                state.collectLatest { state ->
-                    if (state.extension == null) return@collectLatest
-                    getExtensionSources.subscribe(state.extension)
-                        .map {
-                            it.sortedWith(
-                                compareBy(
-                                    { !it.enabled },
-                                    { item ->
-                                        item.source.name.takeIf { item.labelAsName }
-                                            ?: LocaleHelper.getSourceDisplayName(item.source.lang, context).lowercase()
-                                    },
-                                ),
-                            )
-                        }
-                        .catch { throwable ->
-                            logcat(LogPriority.ERROR, throwable)
-                            mutableState.update { it.copy(_sources = persistentListOf()) }
-                        }
-                        .collectLatest { sources ->
-                            mutableState.update { it.copy(_sources = sources.toImmutableList()) }
-                        }
-                }
-            }
-            launch {
-                preferences.incognitoExtensions()
-                    .changes()
-                    .map { pkgName in it }
-                    .distinctUntilChanged()
-                    .collectLatest { isIncognito ->
-                        mutableState.update { it.copy(isIncognito = isIncognito) }
-                    }
+    val state: StateFlow<State> = extensionManager.loadedExtensionsFlow
+        .map { it.firstOrNull { extension -> extension.pkgName == pkgName } }
+        .distinctUntilChanged()
+        .flatMapLatest { extension ->
+            if (extension == null) return@flatMapLatest flowOf(State.Uninstalled)
+            combine(
+                subscribeToSources(extension),
+                preferences.incognitoExtensions().changes().map { pkgName in it }.distinctUntilChanged(),
+            ) { sources, isIncognito ->
+                State.Success(extension = extension, isIncognito = isIncognito, sources = sources.toImmutableList())
             }
         }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5.seconds), State.Loading)
+
+    private val successState: State.Success?
+        get() = state.value as? State.Success
+
+    private fun subscribeToSources(extension: Extension.Loaded): Flow<List<ExtensionSourceItem>> {
+        return getExtensionSources.subscribe(extension)
+            .map {
+                it.sortedWith(
+                    compareBy(
+                        { !it.enabled },
+                        { item ->
+                            item.source.name.takeIf { item.labelAsName }
+                                ?: LocaleHelper.getSourceDisplayName(item.source.lang, context).lowercase()
+                        },
+                    ),
+                )
+            }
+            .catch { throwable ->
+                logcat(LogPriority.ERROR, throwable)
+                emit(emptyList())
+            }
     }
 
     fun clearCookies() {
-        val extension = state.value.extension ?: return
+        val extension = successState?.extension ?: return
 
         val urls = extension.sources
             .filterIsInstance<HttpSource>()
@@ -136,7 +121,7 @@ class ExtensionDetailsViewModel(
     }
 
     fun uninstallExtension() {
-        val extension = state.value.extension ?: return
+        val extension = successState?.extension ?: return
         extensionManager.uninstallExtension(extension)
     }
 
@@ -145,32 +130,28 @@ class ExtensionDetailsViewModel(
     }
 
     fun toggleSources(enable: Boolean) {
-        state.value.extension?.sources
+        successState?.extension?.sources
             ?.map { it.id }
             ?.let { toggleSource.await(it, enable) }
     }
 
     fun toggleIncognito(enable: Boolean) {
-        state.value.extension?.pkgName?.let { packageName ->
+        successState?.extension?.pkgName?.let { packageName ->
             toggleIncognito.await(packageName, enable)
         }
     }
 
-    @Immutable
-    data class State(
-        val extension: Extension.Loaded? = null,
-        val isIncognito: Boolean = false,
-        private val _sources: ImmutableList<ExtensionSourceItem>? = null,
-    ) {
+    sealed interface State {
 
-        val sources: ImmutableList<ExtensionSourceItem>
-            get() = _sources ?: persistentListOf()
+        data object Loading : State
 
-        val isLoading: Boolean
-            get() = extension == null || _sources == null
+        data object Uninstalled : State
+
+        @Immutable
+        data class Success(
+            val extension: Extension.Loaded,
+            val isIncognito: Boolean,
+            val sources: ImmutableList<ExtensionSourceItem>,
+        ) : State
     }
-}
-
-sealed interface ExtensionDetailsEvent {
-    data object Uninstalled : ExtensionDetailsEvent
 }
