@@ -3,6 +3,7 @@ package exh.recs
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.produceState
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import exh.recs.sources.RECOMMENDS_SOURCE
 import exh.recs.sources.RecommendationPagingSource
@@ -16,13 +17,14 @@ import kotlinx.collections.immutable.toPersistentMap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import mihon.core.viewmodel.StateViewModel
 import mihon.domain.manga.model.toDomainManga
 import tachiyomi.domain.manga.interactor.GetManga
 import tachiyomi.domain.manga.interactor.NetworkToLocalManga
@@ -34,7 +36,10 @@ open class RecommendsViewModel(
     private val args: RecommendsScreen.Args,
     private val getManga: GetManga = Injekt.get(),
     protected val networkToLocalManga: NetworkToLocalManga = Injekt.get(),
-) : StateViewModel<RecommendsViewModel.State>(State()) {
+) : ViewModel() {
+
+    val state: StateFlow<RecommendsViewModel.State>
+        field = MutableStateFlow<RecommendsViewModel.State>(State())
 
     private val coroutineDispatcher = Dispatchers.IO.limitedParallelism(5)
 
@@ -51,7 +56,7 @@ open class RecommendsViewModel(
             val recommendationSources = when (args) {
                 is RecommendsScreen.Args.SingleSourceManga -> {
                     val manga = getManga.await(args.mangaId) ?: return@launch
-                    mutableState.update { it.copy(title = manga.title) }
+                    state.update { it.copy(title = manga.title) }
 
                     RecommendationPagingSource.createSources(
                         manga,
@@ -118,7 +123,7 @@ open class RecommendsViewModel(
     }
 
     private fun updateItems(items: PersistentMap<RecommendationPagingSource, RecommendationItemResult>) {
-        mutableState.update {
+        state.update {
             it.copy(
                 items = items
                     .toSortedMap(sortComparator(items))

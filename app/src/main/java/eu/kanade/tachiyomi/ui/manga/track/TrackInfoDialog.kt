@@ -70,6 +70,8 @@ import exh.metadata.metadata.base.TrackerIdMetadata
 import exh.source.MERGED_SOURCE_ID
 import exh.source.getMainSource
 import kotlinx.collections.immutable.ImmutableList
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -77,7 +79,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import logcat.LogPriority
-import mihon.core.viewmodel.StateViewModel
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.roundedfilled.Delete
 import tachiyomi.core.common.i18n.stringResource
@@ -246,7 +247,10 @@ data class TrackInfoDialogHomeScreen(
         // KMK -->
         private val sourceManager: SourceManager = Injekt.get(),
         // KMK <--
-    ) : StateViewModel<Model.State>(State()) {
+    ) : ViewModel() {
+
+        val state: StateFlow<Model.State>
+            field = MutableStateFlow<Model.State>(State())
         companion object {
             val MANGA_ID_KEY = CreationExtras.Key<Long>()
             val SOURCE_ID_KEY = CreationExtras.Key<Long>()
@@ -277,7 +281,7 @@ data class TrackInfoDialogHomeScreen(
                     .catch { logcat(LogPriority.ERROR, it) }
                     .distinctUntilChanged()
                     .map { it.mapToTrackItem() }
-                    .collectLatest { trackItems -> mutableState.update { it.copy(trackItems = trackItems) } }
+                    .collectLatest { trackItems -> state.update { it.copy(trackItems = trackItems) } }
             }
         }
 
@@ -316,12 +320,12 @@ data class TrackInfoDialogHomeScreen(
                     // Check if the tracker id is contained in the metadata
                     val result = getTrackerIdFromMetadata(item.tracker.id)
                     if (result != null) {
-                        mutableState.update { it.copy(isLoading = true) }
+                        state.update { it.copy(isLoading = true) }
 
                         // Try to register tracking by id
                         val success = registerTrackingById(item.tracker.id, result)
 
-                        mutableState.update { it.copy(isLoading = false) }
+                        state.update { it.copy(isLoading = false) }
 
                         if (success) {
                             // Return on success
@@ -468,7 +472,10 @@ private data class TrackStatusSelectorScreen(
     class Model(
         private val track: Track,
         private val tracker: Tracker,
-    ) : StateViewModel<Model.State>(State(track.status)) {
+    ) : ViewModel() {
+
+        val state: StateFlow<Model.State>
+            field = MutableStateFlow<Model.State>(State(track.status))
 
         companion object {
             val TRACK_KEY = CreationExtras.Key<Track>()
@@ -489,7 +496,7 @@ private data class TrackStatusSelectorScreen(
         }
 
         fun setSelection(selection: Long) {
-            mutableState.update { it.copy(selection = selection) }
+            state.update { it.copy(selection = selection) }
         }
 
         fun setStatus() {
@@ -537,7 +544,10 @@ private data class TrackChapterSelectorScreen(
     class Model(
         private val track: Track,
         private val tracker: Tracker,
-    ) : StateViewModel<Model.State>(State(track.lastChapterRead.toInt())) {
+    ) : ViewModel() {
+
+        val state: StateFlow<Model.State>
+            field = MutableStateFlow<Model.State>(State(track.lastChapterRead.toInt()))
 
         companion object {
             val TRACK_KEY = CreationExtras.Key<Track>()
@@ -563,7 +573,7 @@ private data class TrackChapterSelectorScreen(
         }
 
         fun setSelection(selection: Int) {
-            mutableState.update { it.copy(selection = selection) }
+            state.update { it.copy(selection = selection) }
         }
 
         fun setChapter() {
@@ -611,7 +621,10 @@ private data class TrackScoreSelectorScreen(
     class Model(
         private val track: Track,
         private val tracker: Tracker,
-    ) : StateViewModel<Model.State>(State(tracker.displayScore(track))) {
+    ) : ViewModel() {
+
+        val state: StateFlow<Model.State>
+            field = MutableStateFlow<Model.State>(State(tracker.displayScore(track)))
 
         companion object {
             val TRACK_KEY = CreationExtras.Key<Track>()
@@ -632,7 +645,7 @@ private data class TrackScoreSelectorScreen(
         }
 
         fun setSelection(selection: String) {
-            mutableState.update { it.copy(selection = selection) }
+            state.update { it.copy(selection = selection) }
         }
 
         fun setScore() {
@@ -932,7 +945,10 @@ data class TrackerSearchScreen(
         private val currentUrl: String?,
         initialQuery: String,
         private val tracker: Tracker,
-    ) : StateViewModel<Model.State>(State()) {
+    ) : ViewModel() {
+
+        val state: StateFlow<Model.State>
+            field = MutableStateFlow<Model.State>(State())
 
         companion object {
             val MANGA_ID_KEY = CreationExtras.Key<Long>()
@@ -964,7 +980,7 @@ data class TrackerSearchScreen(
         fun trackingSearch(query: String) {
             viewModelScope.launch {
                 // To show loading state
-                mutableState.update { it.copy(queryResult = null, selected = null) }
+                state.update { it.copy(queryResult = null, selected = null) }
 
                 val result = withIOContext {
                     try {
@@ -974,7 +990,7 @@ data class TrackerSearchScreen(
                         Result.failure(e)
                     }
                 }
-                mutableState.update { oldState ->
+                state.update { oldState ->
                     oldState.copy(
                         queryResult = result,
                         selected = result.getOrNull()?.find { it.tracking_url == currentUrl },
@@ -988,7 +1004,7 @@ data class TrackerSearchScreen(
         }
 
         fun updateSelection(selected: TrackSearch) {
-            mutableState.update { it.copy(selected = selected) }
+            state.update { it.copy(selected = selected) }
         }
 
         @Immutable

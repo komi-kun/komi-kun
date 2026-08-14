@@ -62,6 +62,6 @@ class BrowseRecommendsViewModel(
     }
 
     init {
-        mutableState.update { it.copy(filterable = false) }
+        updateState { it.copy(filterable = false) }
     }
 }

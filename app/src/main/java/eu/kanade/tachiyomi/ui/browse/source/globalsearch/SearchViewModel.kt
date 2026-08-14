@@ -3,6 +3,7 @@ package eu.kanade.tachiyomi.ui.browse.source.globalsearch
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.produceState
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.tachiyomi.extension.ExtensionManager
@@ -15,6 +16,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
@@ -22,7 +25,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import mihon.core.viewmodel.StateViewModel
 import mihon.domain.manga.model.toDomainManga
 import tachiyomi.core.common.preference.toggle
 import tachiyomi.core.common.util.QuerySanitizer.sanitize
@@ -43,7 +45,16 @@ abstract class SearchViewModel(
     private val networkToLocalManga: NetworkToLocalManga = Injekt.get(),
     private val getManga: GetManga = Injekt.get(),
     private val preferences: SourcePreferences = Injekt.get(),
-) : StateViewModel<SearchViewModel.State>(initialState) {
+) : ViewModel() {
+
+    val state: StateFlow<State>
+        field = MutableStateFlow<State>(initialState)
+
+    // Subclasses can't touch the backing field (Kotlin forbids a visibility modifier on one),
+    // so state writes from them go through here.
+    protected fun updateState(function: (State) -> State) {
+        state.update(function)
+    }
 
     private val coroutineDispatcher = Executors.newFixedThreadPool(5).asCoroutineDispatcher()
     private var searchJob: Job? = null
@@ -67,14 +78,14 @@ abstract class SearchViewModel(
 
     init {
         viewModelScope.launch {
-            preferences.globalSearchFilterState().changes().collectLatest { state ->
-                mutableState.update { it.copy(onlyShowHasResults = state) }
+            preferences.globalSearchFilterState().changes().collectLatest { filterState ->
+                state.update { it.copy(onlyShowHasResults = filterState) }
             }
         }
         // KMK -->
         viewModelScope.launch {
-            preferences.globalSearchPinnedState().changes().collectLatest { state ->
-                mutableState.update { it.copy(sourceFilter = state) }
+            preferences.globalSearchPinnedState().changes().collectLatest { pinnedState ->
+                state.update { it.copy(sourceFilter = pinnedState) }
             }
         }
         // KMK <--
@@ -130,7 +141,7 @@ abstract class SearchViewModel(
     }
 
     fun updateSearchQuery(query: String?) {
-        mutableState.update { it.copy(searchQuery = query) }
+        state.update { it.copy(searchQuery = query) }
     }
 
     fun setSourceFilter(filter: SourceFilter) {
@@ -206,7 +217,7 @@ abstract class SearchViewModel(
     }
 
     private fun updateItems(items: Map<Source, SearchItemResult>) {
-        mutableState.update {
+        state.update {
             it.copy(
                 items = items
                     .toSortedMap(sortComparator(items))
@@ -216,8 +227,8 @@ abstract class SearchViewModel(
     }
 
     private fun updateItem(source: Source, result: SearchItemResult) {
-        // KMK --> Komikku's state is `mutableState` and `items` is a PersistentMap
-        mutableState.update { currentState ->
+        // KMK --> Komikku's state is `state` and `items` is a PersistentMap
+        state.update { currentState ->
             val newItems = currentState.items + (source to result)
             currentState.copy(
                 items = newItems.toSortedMap(sortComparator(newItems)).toPersistentMap(),
@@ -229,12 +240,12 @@ abstract class SearchViewModel(
     fun setMigrateDialog(currentId: Long, target: Manga) {
         viewModelScope.launchIO {
             val current = getManga.await(currentId) ?: return@launchIO
-            mutableState.update { it.copy(dialog = Dialog.Migrate(target, current)) }
+            state.update { it.copy(dialog = Dialog.Migrate(target, current)) }
         }
     }
 
     fun clearDialog() {
-        mutableState.update { it.copy(dialog = null) }
+        state.update { it.copy(dialog = null) }
     }
 
     @Immutable

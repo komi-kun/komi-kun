@@ -5,6 +5,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
@@ -15,8 +16,9 @@ import eu.kanade.presentation.util.Screen
 import eu.kanade.tachiyomi.data.backup.create.BackupOptions
 import eu.kanade.tachiyomi.data.sync.SyncDataJob
 import kotlinx.collections.immutable.ImmutableList
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
-import mihon.core.viewmodel.StateViewModel
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.sy.SYMR
 import tachiyomi.presentation.core.components.LabeledCheckbox
@@ -87,11 +89,14 @@ class SyncSettingsSelector : Screen() {
 
 private class SyncSettingsSelectorModel(
     val syncPreferences: SyncPreferences = Injekt.get(),
-) : StateViewModel<SyncSettingsSelectorModel.State>(
-    State(syncOptionsToBackupOptions(syncPreferences.getSyncSettings())),
-) {
+) : ViewModel() {
+
+    val state: StateFlow<SyncSettingsSelectorModel.State>
+        field = MutableStateFlow<SyncSettingsSelectorModel.State>(
+            State(syncOptionsToBackupOptions(syncPreferences.getSyncSettings())),
+        )
     fun toggle(setter: (BackupOptions, Boolean) -> BackupOptions, enabled: Boolean) {
-        mutableState.update {
+        state.update {
             val updatedOptions = setter(it.options, enabled)
             syncPreferences.setSyncSettings(backupOptionsToSyncOptions(updatedOptions))
             it.copy(options = updatedOptions)

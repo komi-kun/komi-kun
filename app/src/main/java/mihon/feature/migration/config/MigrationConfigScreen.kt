@@ -55,8 +55,9 @@ import eu.kanade.presentation.util.Screen
 import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.util.system.LocaleHelper
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
-import mihon.core.viewmodel.StateViewModel
 import mihon.feature.migration.list.MigrationListScreen
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.automirroredrounded.ArrowForward
@@ -403,7 +404,10 @@ class MigrationConfigScreen(private val mangaIds: Collection<Long>) : Screen() {
     class Model(
         val sourcePreferences: SourcePreferences = Injekt.get(),
         private val sourceManager: SourceManager = Injekt.get(),
-    ) : StateViewModel<Model.State>(State()) {
+    ) : ViewModel() {
+
+        val state: StateFlow<Model.State>
+            field = MutableStateFlow<Model.State>(State())
 
         // KMK -->
         private val pinnedSources by lazy { sourcePreferences.pinnedSources().get().mapNotNull { it.toLongOrNull() } }
@@ -423,12 +427,12 @@ class MigrationConfigScreen(private val mangaIds: Collection<Long>) : Screen() {
         init {
             viewModelScope.launchIO {
                 initSources()
-                mutableState.update { it.copy(isLoading = false) }
+                state.update { it.copy(isLoading = false) }
             }
         }
 
         private fun updateSources(action: (List<MigrationSource>) -> List<MigrationSource>) {
-            mutableState.update { state ->
+            state.update { state ->
                 val updatedSources = action(state.sources)
                 val includedSources = updatedSources.mapNotNull { if (!it.isSelected) null else it.id }
                     // KMK -->
@@ -471,7 +475,7 @@ class MigrationConfigScreen(private val mangaIds: Collection<Long>) : Screen() {
                 }
                 .toList()
 
-            mutableState.update { state ->
+            state.update { state ->
                 state.copy(sources = sources.sortedWith(sourcesComparator(includedSources)))
             }
         }

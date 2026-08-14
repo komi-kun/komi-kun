@@ -7,6 +7,7 @@ import androidx.compose.ui.util.fastAny
 import androidx.compose.ui.util.fastDistinctBy
 import androidx.compose.ui.util.fastForEach
 import androidx.compose.ui.util.fastForEachIndexed
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import eu.kanade.domain.manga.interactor.UpdateManga
 import eu.kanade.domain.track.interactor.AddTracks
@@ -20,11 +21,12 @@ import kotlinx.collections.immutable.mutate
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.collections.immutable.toPersistentList
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import logcat.LogPriority
-import mihon.core.viewmodel.StateViewModel
 import mihon.domain.source.interactor.UpdateMangaFromRemote
 import tachiyomi.core.common.preference.CheckboxState
 import tachiyomi.core.common.preference.mapAsCheckboxState
@@ -57,14 +59,17 @@ class BulkFavoriteViewModel(
     private val setMangaDefaultChapterFlags: SetMangaDefaultChapterFlags = Injekt.get(),
     private val addTracks: AddTracks = Injekt.get(),
     private val updateMangaFromRemote: UpdateMangaFromRemote = Injekt.get(),
-) : StateViewModel<BulkFavoriteViewModel.State>(initialState) {
+) : ViewModel() {
+
+    val state: StateFlow<BulkFavoriteViewModel.State>
+        field = MutableStateFlow<BulkFavoriteViewModel.State>(initialState)
 
     fun backHandler() {
         toggleSelectionMode(false)
     }
 
     fun toggleSelectionMode(newMode: Boolean? = null) {
-        mutableState.update { state ->
+        state.update { state ->
             val mode = newMode ?: !state.selectionMode
             state.copy(
                 selectionMode = mode,
@@ -81,7 +86,7 @@ class BulkFavoriteViewModel(
      * @param toSelectedState set to `true` to only Select, set to `false` to only Unselect
      */
     fun toggleSelection(manga: Manga, toSelectedState: Boolean? = null) {
-        mutableState.update { state ->
+        state.update { state ->
             val newSelection = state.selection.mutate { list ->
                 val isSelected = list.fastAny { it.id == manga.id }
                 val shouldSelect = toSelectedState ?: !isSelected
@@ -100,7 +105,7 @@ class BulkFavoriteViewModel(
     }
 
     fun reverseSelection(mangas: List<Manga>) {
-        mutableState.update { state ->
+        state.update { state ->
             val newSelection = mangas.filterNot { manga ->
                 state.selection.contains(manga)
             }
@@ -209,7 +214,7 @@ class BulkFavoriteViewModel(
     }
 
     internal fun removeDuplicateSelectedManga(index: Int) {
-        mutableState.update { state ->
+        state.update { state ->
             val newSelection = state.selection.mutate { list ->
                 list.removeAt(index)
             }
@@ -423,25 +428,25 @@ class BulkFavoriteViewModel(
     }
 
     private fun setDialog(dialog: Dialog?) {
-        mutableState.update {
+        state.update {
             it.copy(dialog = dialog)
         }
     }
 
     internal fun dismissDialog() {
-        mutableState.update {
+        state.update {
             it.copy(dialog = null)
         }
     }
 
     private fun startRunning() {
-        mutableState.update {
+        state.update {
             it.copy(isRunning = true)
         }
     }
 
     internal fun stopRunning() {
-        mutableState.update {
+        state.update {
             it.copy(isRunning = false)
         }
     }

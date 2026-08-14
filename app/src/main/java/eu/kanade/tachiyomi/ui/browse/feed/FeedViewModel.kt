@@ -6,6 +6,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.util.fastAny
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.presentation.browse.FeedItemUI
@@ -19,6 +20,8 @@ import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -30,7 +33,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
-import mihon.core.viewmodel.StateViewModel
 import mihon.domain.manga.model.toDomainManga
 import tachiyomi.core.common.util.QuerySanitizer.sanitize
 import tachiyomi.core.common.util.lang.launchIO
@@ -71,7 +73,10 @@ open class FeedViewModel(
     // KMK -->
     private val reorderFeed: ReorderFeed = Injekt.get(),
     // KMK <--
-) : StateViewModel<FeedScreenState>(FeedScreenState()) {
+) : ViewModel() {
+
+    val state: StateFlow<FeedScreenState>
+        field = MutableStateFlow<FeedScreenState>(FeedScreenState())
 
     private val _events = Channel<Event>(Int.MAX_VALUE)
     val events = _events.receiveAsFlow()
@@ -92,7 +97,7 @@ open class FeedViewModel(
                         results = null,
                     )
                 }
-                mutableState.update { state ->
+                state.update { state ->
                     state.copy(
                         items = items
                             // KMK -->
@@ -110,7 +115,7 @@ open class FeedViewModel(
         pushed = false
         viewModelScope.launchIO {
             val newItems = state.value.items?.map { it.copy(results = null) } ?: return@launchIO
-            mutableState.update { state ->
+            state.update { state ->
                 state.copy(
                     items = newItems
                         // KMK -->
@@ -128,7 +133,7 @@ open class FeedViewModel(
                 _events.send(Event.TooManyFeeds)
                 return@launchIO
             }
-            mutableState.update { state ->
+            state.update { state ->
                 state.copy(
                     dialog = Dialog.AddFeed(getEnabledSources()),
                 )
@@ -138,7 +143,7 @@ open class FeedViewModel(
 
     fun openAddSearchDialog(source: Source) {
         viewModelScope.launchIO {
-            mutableState.update { state ->
+            state.update { state ->
                 state.copy(
                     dialog = Dialog.AddFeedSearch(
                         source,
@@ -157,7 +162,7 @@ open class FeedViewModel(
 
     fun openDeleteDialog(feed: FeedSavedSearch) {
         viewModelScope.launchIO {
-            mutableState.update { state ->
+            state.update { state ->
                 state.copy(
                     dialog = Dialog.DeleteFeed(feed),
                 )
@@ -170,7 +175,7 @@ open class FeedViewModel(
         feed: FeedItemUI,
     ) {
         viewModelScope.launchIO {
-            mutableState.update { state ->
+            state.update { state ->
                 state.copy(
                     dialog = Dialog.FeedActions(
                         feedItem = feed,
@@ -312,7 +317,7 @@ open class FeedViewModel(
                         )
                     }
 
-                    mutableState.update { state ->
+                    state.update { state ->
                         state.copy(
                             items = state.items?.map { if (it.feed.id == result.feed.id) result else it }
                                 // KMK -->
@@ -357,7 +362,7 @@ open class FeedViewModel(
     // KMK -->
     fun showDialog(dialog: Dialog) {
         if (!state.value.isLoading) {
-            mutableState.update {
+            state.update {
                 it.copy(dialog = dialog)
             }
         }
@@ -365,7 +370,7 @@ open class FeedViewModel(
     // KMK <--
 
     fun dismissDialog() {
-        mutableState.update { it.copy(dialog = null) }
+        state.update { it.copy(dialog = null) }
     }
 
     sealed class Dialog {

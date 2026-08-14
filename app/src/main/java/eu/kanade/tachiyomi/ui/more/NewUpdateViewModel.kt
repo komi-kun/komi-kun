@@ -3,19 +3,21 @@ package eu.kanade.tachiyomi.ui.more
 import android.content.Context
 import android.content.Intent
 import androidx.compose.runtime.Immutable
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.work.WorkInfo
 import eu.kanade.tachiyomi.data.updater.AppUpdateDownloadJob
 import eu.kanade.tachiyomi.extension.util.ExtensionInstaller
 import eu.kanade.tachiyomi.util.storage.getUriCompat
 import eu.kanade.tachiyomi.util.system.workManager
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
-import mihon.core.viewmodel.StateViewModel
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
@@ -23,7 +25,10 @@ class NewUpdateViewModel(
     changelogInfo: String,
     private val downloadLink: String,
     private val context: Context = Injekt.get(),
-) : StateViewModel<NewUpdateViewModel.State>(State(changelogInfo = changelogInfo)) {
+) : ViewModel() {
+
+    val state: StateFlow<NewUpdateViewModel.State>
+        field = MutableStateFlow<NewUpdateViewModel.State>(State(changelogInfo = changelogInfo))
 
     init {
         context.workManager.getWorkInfosByTagFlow(AppUpdateDownloadJob.TAG)
@@ -60,7 +65,7 @@ class NewUpdateViewModel(
             }
             .distinctUntilChanged()
             .onEach { (progress, stage) ->
-                mutableState.update {
+                state.update {
                     it.copy(
                         downloadProgress = progress,
                         stage = stage,
@@ -71,7 +76,7 @@ class NewUpdateViewModel(
     }
 
     fun startDownload() {
-        mutableState.update { it.copy(downloadProgress = 0, stage = Stage.Downloading) }
+        state.update { it.copy(downloadProgress = 0, stage = Stage.Downloading) }
         AppUpdateDownloadJob.start(context, downloadLink)
     }
 

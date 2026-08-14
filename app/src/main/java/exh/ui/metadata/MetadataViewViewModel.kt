@@ -1,13 +1,14 @@
 package exh.ui.metadata
 
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.tachiyomi.source.online.MetadataSource
 import exh.metadata.metadata.RaisedSearchMetadata
 import exh.source.getMainSource
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import mihon.core.viewmodel.StateViewModel
 import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.domain.manga.interactor.GetFlatMetadataById
 import tachiyomi.domain.manga.interactor.GetManga
@@ -22,7 +23,10 @@ class MetadataViewViewModel(
     private val getFlatMetadataById: GetFlatMetadataById = Injekt.get(),
     private val sourceManager: SourceManager = Injekt.get(),
     private val getManga: GetManga = Injekt.get(),
-) : StateViewModel<MetadataViewState>(MetadataViewState.Loading) {
+) : ViewModel() {
+
+    val state: StateFlow<MetadataViewState>
+        field = MutableStateFlow<MetadataViewState>(MetadataViewState.Loading)
 
     // KMK -->
     private val uiPreferences = Injekt.get<UiPreferences>()
@@ -40,11 +44,11 @@ class MetadataViewViewModel(
         viewModelScope.launchIO {
             val metadataSource = sourceManager.get(sourceId)?.getMainSource<MetadataSource<*, *>>()
             if (metadataSource == null) {
-                mutableState.value = MetadataViewState.SourceNotFound
+                state.value = MetadataViewState.SourceNotFound
                 return@launchIO
             }
 
-            mutableState.value = when (val flatMetadata = getFlatMetadataById.await(mangaId)) {
+            state.value = when (val flatMetadata = getFlatMetadataById.await(mangaId)) {
                 null -> MetadataViewState.MetadataNotFound
                 else -> MetadataViewState.Success(flatMetadata.raise(metadataSource.metaClass))
             }

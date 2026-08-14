@@ -1,13 +1,15 @@
 package eu.kanade.tachiyomi.ui.libraryUpdateError
 
 import androidx.compose.runtime.Immutable
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import eu.kanade.core.util.addOrRemove
 import eu.kanade.presentation.libraryUpdateError.components.LibraryUpdateErrorUiModel
 import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
-import mihon.core.viewmodel.StateViewModel
 import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.core.common.util.lang.withUIContext
 import tachiyomi.domain.libraryUpdateError.interactor.DeleteLibraryUpdateErrors
@@ -25,7 +27,10 @@ class LibraryUpdateErrorViewModel(
     private val getLibraryUpdateErrorMessages: GetLibraryUpdateErrorMessages = Injekt.get(),
     private val deleteLibraryUpdateErrors: DeleteLibraryUpdateErrors = Injekt.get(),
     private val sourceManager: SourceManager = Injekt.get(),
-) : StateViewModel<LibraryUpdateErrorScreenState>(LibraryUpdateErrorScreenState()) {
+) : ViewModel() {
+
+    val state: StateFlow<LibraryUpdateErrorScreenState>
+        field = MutableStateFlow<LibraryUpdateErrorScreenState>(LibraryUpdateErrorScreenState())
 
     // First and last selected index in list
     private val selectedPositions: Array<Int> = arrayOf(-1, -1)
@@ -36,7 +41,7 @@ class LibraryUpdateErrorViewModel(
             getLibraryUpdateErrorWithRelations.subscribeAll()
                 .collectLatest { errors ->
                     val errorMessages = getLibraryUpdateErrorMessages.await()
-                    mutableState.update {
+                    state.update {
                         it.copy(
                             isLoading = false,
                             items = errors.toLibraryUpdateErrorItems(),
@@ -64,7 +69,7 @@ class LibraryUpdateErrorViewModel(
         selected: Boolean,
         fromLongPress: Boolean = false,
     ) {
-        mutableState.update { state ->
+        state.update { state ->
             val selectedIndex = state.items.indexOfFirst { it.error.errorId == item.error.errorId }
             if (selectedIndex < 0) return@update state
             val selectedItem = state.items[selectedIndex]
@@ -122,7 +127,7 @@ class LibraryUpdateErrorViewModel(
     }
 
     fun toggleAllSelection(selected: Boolean) {
-        mutableState.update { state ->
+        state.update { state ->
             val newItems = state.items.map {
                 selectedErrorIds.addOrRemove(it.error.errorId, selected)
                 it.copy(selected = selected)
@@ -134,7 +139,7 @@ class LibraryUpdateErrorViewModel(
     }
 
     fun invertSelection() {
-        mutableState.update { state ->
+        state.update { state ->
             val newItems = state.items.map {
                 selectedErrorIds.addOrRemove(it.error.errorId, !it.selected)
                 it.copy(selected = !it.selected)

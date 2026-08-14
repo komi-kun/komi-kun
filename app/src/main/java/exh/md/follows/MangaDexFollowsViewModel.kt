@@ -22,6 +22,6 @@ class MangaDexFollowsViewModel(sourceId: Long) : BrowseSourceViewModel(sourceId,
     }
 
     init {
-        mutableState.update { it.copy(filterable = false) }
+        updateState { it.copy(filterable = false) }
     }
 }

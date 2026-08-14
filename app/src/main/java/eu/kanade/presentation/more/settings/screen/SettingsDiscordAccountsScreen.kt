@@ -28,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
@@ -38,10 +39,11 @@ import eu.kanade.presentation.components.AppBar
 import eu.kanade.tachiyomi.data.connections.ConnectionsManager
 import eu.kanade.tachiyomi.data.connections.discord.DiscordAccount
 import eu.kanade.tachiyomi.ui.setting.connections.DiscordLoginScreen
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import logcat.logcat
-import mihon.core.viewmodel.StateViewModel
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.Add
 import mihon.icons.materialsymbols.rounded.Delete
@@ -145,7 +147,10 @@ private fun DiscordAccountsScreenContent() {
     }
 }
 
-class DiscordAccountsViewModel : StateViewModel<DiscordAccountsScreenState>(DiscordAccountsScreenState()) {
+class DiscordAccountsViewModel : ViewModel() {
+
+    val state: StateFlow<DiscordAccountsScreenState>
+        field = MutableStateFlow<DiscordAccountsScreenState>(DiscordAccountsScreenState())
     private val discord = Injekt.get<ConnectionsManager>().discord
     private val connectionsPreferences = Injekt.get<ConnectionsPreferences>()
     private var noAccountsFoundString: String = ""
@@ -164,12 +169,12 @@ class DiscordAccountsViewModel : StateViewModel<DiscordAccountsScreenState>(Disc
 
     private fun loadAccounts() {
         viewModelScope.launch {
-            mutableState.update { it.copy(isLoading = true, error = null) }
+            state.update { it.copy(isLoading = true, error = null) }
             runCatching {
                 val accounts = discord.getAccounts()
                 logcat(logcat.LogPriority.DEBUG) { "Debug: Loaded accounts: $accounts" } // Debug log
                 if (accounts.isEmpty()) {
-                    mutableState.update {
+                    state.update {
                         it.copy(
                             accounts = emptyList(),
                             isLoading = false,
@@ -177,7 +182,7 @@ class DiscordAccountsViewModel : StateViewModel<DiscordAccountsScreenState>(Disc
                         )
                     }
                 } else {
-                    mutableState.update {
+                    state.update {
                         it.copy(
                             accounts = accounts,
                             isLoading = false,
@@ -185,7 +190,7 @@ class DiscordAccountsViewModel : StateViewModel<DiscordAccountsScreenState>(Disc
                     }
                 }
             }.onFailure { e ->
-                mutableState.update {
+                state.update {
                     it.copy(
                         isLoading = false,
                         error = e.message ?: "Unknown error",
@@ -197,25 +202,25 @@ class DiscordAccountsViewModel : StateViewModel<DiscordAccountsScreenState>(Disc
 
     fun removeAccount(accountId: String) {
         viewModelScope.launch {
-            mutableState.update { it.copy(isLoading = true, error = null) }
+            state.update { it.copy(isLoading = true, error = null) }
             runCatching {
                 discord.removeAccount(accountId)
                 loadAccounts()
             }.onFailure { e ->
-                mutableState.update { it.copy(isLoading = false, error = e.message ?: "Unknown error") }
+                state.update { it.copy(isLoading = false, error = e.message ?: "Unknown error") }
             }
         }
     }
 
     fun setActiveAccount(accountId: String, context: Context) {
         viewModelScope.launch {
-            mutableState.update { it.copy(isLoading = true, error = null) }
+            state.update { it.copy(isLoading = true, error = null) }
             runCatching {
                 discord.setActiveAccount(accountId)
                 discord.restartRichPresence(context)
                 loadAccounts()
             }.onFailure { e ->
-                mutableState.update { it.copy(isLoading = false, error = e.message ?: "Unknown error") }
+                state.update { it.copy(isLoading = false, error = e.message ?: "Unknown error") }
             }
         }
     }

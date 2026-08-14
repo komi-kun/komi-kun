@@ -6,6 +6,7 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.icerock.moko.resources.StringResource
 import eu.kanade.core.preference.asState
@@ -32,6 +33,8 @@ import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
@@ -39,7 +42,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
-import mihon.core.viewmodel.StateViewModel
 import mihon.domain.manga.model.toDomainManga
 import tachiyomi.core.common.util.QuerySanitizer.sanitize
 import tachiyomi.core.common.util.lang.launchIO
@@ -87,7 +89,10 @@ open class SourceFeedViewModel(
     private val extensionManager: ExtensionManager = Injekt.get(),
     sourcePreferences: SourcePreferences = Injekt.get(),
     // KMK <--
-) : StateViewModel<SourceFeedState>(SourceFeedState()) {
+) : ViewModel() {
+
+    val state: StateFlow<SourceFeedState>
+        field = MutableStateFlow<SourceFeedState>(SourceFeedState())
 
     var source = sourceManager.getOrStub(sourceId)
 
@@ -118,7 +123,7 @@ open class SourceFeedViewModel(
         getFeedSavedSearchBySourceId.subscribe(source.id)
             .onEach {
                 val items = getSourcesToGetFeed(it)
-                mutableState.update { state ->
+                state.update { state ->
                     state.copy(
                         items = items,
                     )
@@ -148,7 +153,7 @@ open class SourceFeedViewModel(
     // KMK <--
 
     fun setFilters(filters: FilterList) {
-        mutableState.update { it.copy(filters = filters) }
+        state.update { it.copy(filters = filters) }
     }
 
     private suspend fun hasTooManyFeeds(): Boolean {
@@ -237,7 +242,7 @@ open class SourceFeedViewModel(
                         // KMK <--
                     }
 
-                    mutableState.update { state ->
+                    state.update { state ->
                         state.copy(
                             items = state.items.map { item ->
                                 if (item.id == sourceFeed.id) sourceFeed.withResults(titles) else item
@@ -278,7 +283,7 @@ open class SourceFeedViewModel(
     private fun reloadSavedSearches() {
         viewModelScope.launchIO {
             val searches = loadSearches()
-            mutableState.update { it.copy(savedSearches = searches) }
+            state.update { it.copy(savedSearches = searches) }
         }
     }
     // KMK <--
@@ -362,15 +367,15 @@ open class SourceFeedViewModel(
     }
 
     fun search(query: String?) {
-        mutableState.update { it.copy(searchQuery = query) }
+        state.update { it.copy(searchQuery = query) }
     }
 
     fun openFilterSheet() {
-        mutableState.update { it.copy(dialog = Dialog.Filter) }
+        state.update { it.copy(dialog = Dialog.Filter) }
     }
 
     fun openDeleteFeed(feed: FeedSavedSearch) {
-        mutableState.update { it.copy(dialog = Dialog.DeleteFeed(feed)) }
+        state.update { it.copy(dialog = Dialog.DeleteFeed(feed)) }
     }
 
     // KMK -->
@@ -378,7 +383,7 @@ open class SourceFeedViewModel(
         feed: SourceFeedUI.SourceSavedSearch,
     ) {
         viewModelScope.launchIO {
-            mutableState.update { state ->
+            state.update { state ->
                 state.copy(
                     dialog = Dialog.FeedActions(
                         feedItem = feed,
@@ -390,7 +395,7 @@ open class SourceFeedViewModel(
 
     fun showDialog(dialog: Dialog) {
         if (!state.value.isLoading) {
-            mutableState.update {
+            state.update {
                 it.copy(dialog = dialog)
             }
         }
@@ -398,11 +403,11 @@ open class SourceFeedViewModel(
     // KMK <--
 
     private fun openAddFeed(feedId: Long, name: String) {
-        mutableState.update { it.copy(dialog = Dialog.AddFeed(feedId, name)) }
+        state.update { it.copy(dialog = Dialog.AddFeed(feedId, name)) }
     }
 
     fun dismissDialog() {
-        mutableState.update { it.copy(dialog = null) }
+        state.update { it.copy(dialog = null) }
     }
 
     sealed class Dialog {
