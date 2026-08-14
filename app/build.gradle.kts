@@ -277,6 +277,18 @@ dependencies {
     }
     implementation(libs.image.decoder)
 
+    implementation(libs.image.decoder2)
+    implementation(libs.webgpuviewer) {
+        // KMK -->
+        // webgpuviewer declares androidx.core 1.19.0, whose AAR metadata requires
+        // AGP 9.1.0. Komikku still builds with AGP 8.13.2, so drop the transitive core
+        // and let the rest of the graph provide the AGP-compatible androidx.core.
+        exclude(group = "androidx.core", module = "core-ktx")
+        exclude(group = "androidx.core", module = "core")
+        // KMK <--
+    }
+    implementation(libs.kim)
+
     // UI libraries
     implementation(libs.material)
     implementation(libs.flexibleAdapter)

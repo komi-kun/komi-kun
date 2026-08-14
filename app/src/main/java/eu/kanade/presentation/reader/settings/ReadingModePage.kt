@@ -13,6 +13,7 @@ import eu.kanade.tachiyomi.ui.reader.setting.ReaderOrientation
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderSettingsScreenModel
 import eu.kanade.tachiyomi.ui.reader.setting.ReadingMode
+import eu.kanade.tachiyomi.ui.reader.viewer.webgpu.WebGpuViewer
 import eu.kanade.tachiyomi.ui.reader.viewer.webtoon.WebtoonViewer
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
@@ -23,6 +24,8 @@ import tachiyomi.presentation.core.components.SettingsChipRow
 import tachiyomi.presentation.core.components.SliderItem
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsState
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 import java.text.NumberFormat
 
 @Composable
@@ -38,6 +41,26 @@ internal fun ReadingModePage(screenModel: ReaderSettingsScreenModel) {
                 onClick = { screenModel.onChangeReadingMode(it) },
                 label = { Text(stringResource(it.stringRes)) },
             )
+        }
+    }
+
+    val default = Injekt.get<ReaderPreferences>().defaultReadingMode().get()
+    val resolved = ReadingMode.fromPreference(
+        when {
+            readingMode == ReadingMode.DEFAULT -> default
+            else -> manga?.readingMode?.toInt() ?: default
+        },
+    )
+    if (resolved == ReadingMode.LEFT_TO_RIGHT || resolved == ReadingMode.RIGHT_TO_LEFT) {
+        val dualPageView by screenModel.preferences.dualPageView.collectAsState()
+        SettingsChipRow(MR.strings.pref_dual_page_view) {
+            ReaderPreferences.DualPageView.entries.map {
+                FilterChip(
+                    selected = it == dualPageView,
+                    onClick = { screenModel.preferences.dualPageView.set(it) },
+                    label = { Text(stringResource(it.titleRes)) },
+                )
+            }
         }
     }
 
@@ -65,6 +88,9 @@ internal fun ReadingModePage(screenModel: ReaderSettingsScreenModel) {
         // SY <--
     } else {
         PagerViewerSettings(screenModel)
+        if (viewer is WebGpuViewer) {
+            WebGpuViewerSettings(screenModel)
+        }
     }
 }
 
@@ -359,6 +385,33 @@ private fun TapZonesItems(
                     label = { Text(stringResource(it.titleRes)) },
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun WebGpuViewerSettings(screenModel: ReaderSettingsScreenModel) {
+    HeadingItem(MR.strings.webgpu_viewer)
+
+    val transitionAnimation by screenModel.preferences.transitionAnimation.collectAsState()
+    SettingsChipRow(MR.strings.pref_transition_animation) {
+        ReaderPreferences.TransitionAnimation.entries.map {
+            FilterChip(
+                selected = it == transitionAnimation,
+                onClick = { screenModel.preferences.transitionAnimation.set(it) },
+                label = { Text(stringResource(it.titleRes)) },
+            )
+        }
+    }
+
+    val cutoutMode by screenModel.preferences.cutoutMode.collectAsState()
+    SettingsChipRow(MR.strings.pref_cutout_mode) {
+        ReaderPreferences.CutoutMode.entries.map {
+            FilterChip(
+                selected = it == cutoutMode,
+                onClick = { screenModel.preferences.cutoutMode.set(it) },
+                label = { Text(stringResource(it.titleRes)) },
+            )
         }
     }
 }
