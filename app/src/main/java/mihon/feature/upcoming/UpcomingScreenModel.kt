@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import mihon.domain.upcoming.interactor.GetUpcomingManga
@@ -46,6 +47,20 @@ class UpcomingScreenModel(
     val includedCategories = upcomingPreferences.filterIncludedCategories
 
     init {
+        screenModelScope.launchIO {
+            getUpcomingItemPreferenceFlow()
+                .map { prefs ->
+                    listOf(
+                        prefs.filterIncludedCategories,
+                        prefs.filterExcludedCategories,
+                    )
+                        .any { it.isNotEmpty() }
+                }
+                .distinctUntilChanged()
+                .collectLatest {
+                    mutableState.update { state -> state.copy(hasActiveFilters = it) }
+                }
+        }
         screenModelScope.launchIO {
             getUpcomingItemPreferenceFlow()
                 .distinctUntilChanged()

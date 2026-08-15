@@ -161,7 +161,13 @@ class UpdatesScreenModel(
                     prefs.filterStarted,
                     prefs.filterBookmarked,
                 )
-                    .any { it != TriState.DISABLED }
+                    .any { it != TriState.DISABLED } ||
+                    prefs.filterExcludedScanlators ||
+                    listOf(
+                        prefs.filterIncludedCategories,
+                        prefs.filterExcludedCategories,
+                    )
+                        .any { it.isNotEmpty() }
             }
             .distinctUntilChanged()
             .onEach {
