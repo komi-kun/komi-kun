@@ -136,7 +136,7 @@
     <string name="pref_read_with_volume_keys">Клавиши громкости</string>
     <string name="pref_reader_navigation">Навигация</string>
     <string name="pref_reader_theme">Цвет фона</string>
-    <string name="pref_remove_after_marked_as_read">Удалять помеченое вручную как «Прочитано»</string>
+    <string name="pref_remove_after_marked_as_read">Удалять помеченное вручную как «Прочитано»</string>
     <string name="pref_remove_after_read">Удалять после прочтения</string>
     <string name="pref_rotation_type">Ориентация по умолчанию</string>
     <string name="pref_show_page_number">Номер страницы</string>
@@ -228,7 +228,7 @@
     <string name="latest">Последние</string>
     <string name="browse">Поисковик</string>
     <string name="channel_common">Общий</string>
-    <string name="information_empty_category">Нет категорий в библиотеке. Нажмите кнопку «Добавить» чтобы создать категорию для организации вашей библиотеки.</string>
+    <string name="information_empty_category">Нет категорий в библиотеке. Нажмите кнопку «Добавить», чтобы создать категорию для организации вашей библиотеки.</string>
     <string name="label_migration">Перенос</string>
     <string name="label_extensions">Расширения</string>
     <string name="label_extension_info">Информация о расширении</string>
@@ -403,7 +403,7 @@
     <string name="channel_complete">Завершено</string>
     <string name="channel_progress">Прогресс</string>
     <string name="channel_errors">Ошибки</string>
-    <string name="backup_restore_missing_trackers">Сервисы отслеживания в которые не выполнен вход:</string>
+    <string name="backup_restore_missing_trackers">Сервисы отслеживания, в которые не выполнен вход:</string>
     <string name="pref_remove_bookmarked_chapters">Удалять главы с закладками</string>
     <string name="pref_category_delete_chapters">Удаление глав</string>
     <string name="no_chapters_error">Нет глав</string>
@@ -621,7 +621,7 @@
     <string name="pref_downloads_summary">Автоматическая загрузка, загрузка наперёд</string>
     <string name="pref_tracking_summary">Односторонняя синхронизация прогресса, расширенная синхронизация</string>
     <string name="pref_browse_summary">Источники, расширения, глобальный поиск</string>
-    <string name="pref_backup_summary">Ручные и автоматические резервные копий, хранилище</string>
+    <string name="pref_backup_summary">Ручные и автоматические резервные копии, хранилище</string>
     <string name="pref_security_summary">Блокировка приложения, защита экрана</string>
     <string name="pref_advanced_summary">Выгрузка журнала сбоев, оптимизация батареи</string>
     <string name="crash_screen_title">Ой, ошибочка вышла!</string>
@@ -837,7 +837,7 @@
     <string name="migrationConfigScreen.continueButtonText">Продолжить</string>
     <string name="migrationConfigScreen.selectNoneLabel">Ничего не выбирать</string>
     <string name="theme_catppuccin">Котопуссин</string>
-    <string name="migrationConfigScreen.enhancedOptionsWarning">Эти настройки медленные и опасные а также могут привести к ограничениям источников</string>
+    <string name="migrationConfigScreen.enhancedOptionsWarning">Эти настройки медленные и опасные, а также могут привести к ограничениям источников</string>
     <string name="migrationConfigScreen.dataToMigrateHeader">Какие данные перенести</string>
     <string name="migrationConfigScreen.removeDownloadsTitle">Удалить загрузки текущей серии после переноса</string>
     <string name="migrationConfigScreen.additionalSearchQuerySupportingText">Помогает сузить результаты поиска добавляя ключевые слова</string>

@@ -722,7 +722,7 @@
     <string name="action_apply">Aplicar</string>
     <string name="action_revert_to_default">Reverter para o padrão</string>
     <string name="no_scanlators_found">Nenhum scanlator encontrado</string>
-    <string name="scanlator">Scanner</string>
+    <string name="scanlator">Scanlator</string>
     <string name="exclude_scanlators">Excluir scanlators</string>
     <string name="action_create">Criar</string>
     <string name="selected">Selecionado</string>
