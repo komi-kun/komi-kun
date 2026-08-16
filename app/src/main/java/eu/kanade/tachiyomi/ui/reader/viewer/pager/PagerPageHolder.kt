@@ -5,7 +5,9 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.view.LayoutInflater
 import androidx.annotation.ColorInt
+import androidx.core.graphics.createBitmap
 import androidx.core.view.isVisible
+import ca.mpreg.imagedecoder.ImageDecoder
 import eu.kanade.presentation.util.formattedMessage
 import eu.kanade.tachiyomi.databinding.ReaderErrorBinding
 import eu.kanade.tachiyomi.source.model.Page
@@ -30,7 +32,6 @@ import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.core.common.util.lang.withUIContext
 import tachiyomi.core.common.util.system.ImageUtil
 import tachiyomi.core.common.util.system.logcat
-import tachiyomi.decoder.ImageDecoder
 import tachiyomi.i18n.MR
 import kotlin.math.max
 
@@ -349,7 +350,13 @@ class PagerPageHolder(
 
     private fun decodeImage(imageSource: BufferedSource): Bitmap? {
         return try {
-            ImageDecoder.newInstance(imageSource.inputStream())?.decode()
+            // KMK --> migrated off the dropped legacy decoder to the mpreg decoder
+            val res = ImageDecoder.new(imageSource.inputStream()).decode()
+            createBitmap(res.width, res.height).also { bitmap ->
+                res.image.rewind()
+                bitmap.copyPixelsFromBuffer(res.image)
+            }
+            // KMK <--
         } catch (e: Exception) {
             logcat(LogPriority.ERROR, e) { "Cannot decode image" }
             null

@@ -5,9 +5,11 @@ import android.net.Uri
 import androidx.annotation.ColorInt
 import androidx.annotation.IntRange
 import androidx.compose.runtime.Immutable
+import androidx.core.graphics.createBitmap
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import ca.mpreg.imagedecoder.ImageDecoder
 import eu.kanade.domain.base.BasePreferences
 import eu.kanade.domain.chapter.model.toDbChapter
 import eu.kanade.domain.manga.interactor.SetMangaViewerFlags
@@ -83,7 +85,6 @@ import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.core.common.util.lang.withUIContext
 import tachiyomi.core.common.util.system.ImageUtil
 import tachiyomi.core.common.util.system.logcat
-import tachiyomi.decoder.ImageDecoder
 import tachiyomi.domain.chapter.interactor.GetChaptersByMangaId
 import tachiyomi.domain.chapter.interactor.GetMergedChaptersByMangaId
 import tachiyomi.domain.chapter.interactor.UpdateChapter
@@ -1280,8 +1281,20 @@ class ReaderViewModel @JvmOverloads constructor(
         ImageUtil.findImageType(stream1) ?: throw Exception("Not an image")
         val stream2 = page2.stream!!
         ImageUtil.findImageType(stream2) ?: throw Exception("Not an image")
-        val imageBitmap = ImageDecoder.newInstance(stream1())?.decode()!!
-        val imageBitmap2 = ImageDecoder.newInstance(stream2())?.decode()!!
+        // KMK --> migrated off the dropped legacy decoder to the mpreg decoder
+        val imageBitmap = ImageDecoder.new(stream1()).decode().let { res ->
+            createBitmap(res.width, res.height).also { bitmap ->
+                res.image.rewind()
+                bitmap.copyPixelsFromBuffer(res.image)
+            }
+        }
+        val imageBitmap2 = ImageDecoder.new(stream2()).decode().let { res ->
+            createBitmap(res.width, res.height).also { bitmap ->
+                res.image.rewind()
+                bitmap.copyPixelsFromBuffer(res.image)
+            }
+        }
+        // KMK <--
 
         val chapter = page1.chapter.chapter
 

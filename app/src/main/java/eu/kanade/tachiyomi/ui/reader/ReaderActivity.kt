@@ -77,7 +77,6 @@ import eu.kanade.presentation.reader.components.ChapterNavigatorType
 import eu.kanade.presentation.reader.settings.ReaderSettingsDialog
 import eu.kanade.presentation.theme.TachiyomiTheme
 import eu.kanade.tachiyomi.R
-import eu.kanade.tachiyomi.data.coil.TachiyomiImageDecoder
 import eu.kanade.tachiyomi.data.connections.discord.DiscordRPCService
 import eu.kanade.tachiyomi.data.connections.discord.ReaderData
 import eu.kanade.tachiyomi.data.notification.NotificationReceiver
@@ -1419,6 +1418,7 @@ class ReaderActivity : BaseActivity() {
             // SY <--
         }
 
+        // KMK -->
         /**
          * Sets the display profile to [path].
          */
@@ -1434,9 +1434,9 @@ class ReaderActivity : BaseActivity() {
                 }
                 val data = outputStream.toByteArray()
                 SubsamplingScaleImageView.setDisplayProfile(data)
-                TachiyomiImageDecoder.displayProfile = data
             }
         }
+        // KMK <--
 
         /**
          * Sets the keep screen on mode according to [enabled].

@@ -277,7 +277,6 @@ dependencies {
     }
     implementation(libs.image.decoder)
 
-    implementation(libs.image.decoder2)
     implementation(libs.webgpuviewer) {
         // KMK -->
         // webgpuviewer declares androidx.core 1.19.0, whose AAR metadata requires

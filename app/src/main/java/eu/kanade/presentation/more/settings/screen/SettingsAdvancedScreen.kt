@@ -63,7 +63,6 @@ import eu.kanade.tachiyomi.source.AndroidSourceManager
 import eu.kanade.tachiyomi.ui.more.OnboardingScreen
 import eu.kanade.tachiyomi.util.CrashLogUtil
 import eu.kanade.tachiyomi.util.storage.DiskUtil
-import eu.kanade.tachiyomi.util.system.GLUtil
 import eu.kanade.tachiyomi.util.system.isDebugBuildType
 import eu.kanade.tachiyomi.util.system.isReleaseBuildType
 import eu.kanade.tachiyomi.util.system.isShizukuInstalled
@@ -431,6 +430,7 @@ object SettingsAdvancedScreen : SearchableSettings {
         basePreferences: BasePreferences,
     ): Preference.PreferenceGroup {
         val context = LocalContext.current
+        // KMK -->
         val chooseColorProfile = rememberLauncherForActivityResult(
             contract = ActivityResultContracts.OpenDocument(),
         ) { uri ->
@@ -440,6 +440,7 @@ object SettingsAdvancedScreen : SearchableSettings {
                 basePreferences.displayProfile().set(uri.toString())
             }
         }
+        // KMK <--
         return Preference.PreferenceGroup(
             title = stringResource(MR.strings.pref_category_reader),
             preferenceItems = persistentListOf(
@@ -447,31 +448,7 @@ object SettingsAdvancedScreen : SearchableSettings {
                     preference = basePreferences.highQualityRenderer(),
                     title = stringResource(MR.strings.pref_high_quality_renderer),
                 ),
-                Preference.PreferenceItem.ListPreference(
-                    preference = basePreferences.hardwareBitmapThreshold(),
-                    entries = GLUtil.CUSTOM_TEXTURE_LIMIT_OPTIONS
-                        .mapIndexed { index, option ->
-                            val display = if (index == 0) {
-                                stringResource(MR.strings.pref_hardware_bitmap_threshold_default, option)
-                            } else {
-                                option.toString()
-                            }
-                            option to display
-                        }
-                        .toMap()
-                        .toImmutableMap(),
-                    title = stringResource(MR.strings.pref_hardware_bitmap_threshold),
-                    subtitleProvider = { value, options ->
-                        stringResource(MR.strings.pref_hardware_bitmap_threshold_summary, options[value].orEmpty())
-                    },
-                    enabled = !ImageUtil.HARDWARE_BITMAP_UNSUPPORTED &&
-                        GLUtil.DEVICE_TEXTURE_LIMIT > GLUtil.SAFE_TEXTURE_LIMIT,
-                ),
-                Preference.PreferenceItem.SwitchPreference(
-                    preference = basePreferences.alwaysDecodeLongStripWithSSIV(),
-                    title = stringResource(MR.strings.pref_always_decode_long_strip_with_ssiv_2),
-                    subtitle = stringResource(MR.strings.pref_always_decode_long_strip_with_ssiv_summary),
-                ),
+                // KMK -->
                 Preference.PreferenceItem.TextPreference(
                     title = stringResource(MR.strings.pref_display_profile),
                     subtitle = basePreferences.displayProfile().get(),
@@ -479,6 +456,7 @@ object SettingsAdvancedScreen : SearchableSettings {
                         chooseColorProfile.launch(arrayOf("*/*"))
                     },
                 ),
+                // KMK <--
             ),
         )
     }
