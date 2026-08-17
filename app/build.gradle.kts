@@ -182,6 +182,27 @@ kotlin {
     }
 }
 
+// KMK -->
+// webgpuviewer (v28+) pulls Compose 1.12.0 transitively, whose AAR metadata requires
+// AGP 9.1.0. Komikku still builds with AGP 8.13.2, so pin the Compose runtime/foundation/
+// ui/animation artifacts back to the version Komikku's BOM uses. material3 is deliberately
+// left alone: Komikku resolves a newer alpha whose APIs its UI relies on.
+configurations.configureEach {
+    val composeGroups = setOf(
+        "androidx.compose.foundation",
+        "androidx.compose.ui",
+        "androidx.compose.animation",
+        "androidx.compose.runtime",
+        "androidx.compose.material",
+    )
+    resolutionStrategy.eachDependency {
+        if (requested.group in composeGroups && !requested.name.startsWith("material-icons")) {
+            useVersion("1.11.4")
+        }
+    }
+}
+// KMK <--
+
 dependencies {
     implementation(projects.i18n)
     // KMK -->
@@ -279,11 +300,14 @@ dependencies {
 
     implementation(libs.webgpuviewer) {
         // KMK -->
-        // webgpuviewer declares androidx.core 1.19.0, whose AAR metadata requires
-        // AGP 9.1.0. Komikku still builds with AGP 8.13.2, so drop the transitive core
-        // and let the rest of the graph provide the AGP-compatible androidx.core.
+        // webgpuviewer declares androidx.core 1.19.0 and (from v28) compose-foundation
+        // 1.12.0, whose AAR metadata requires AGP 9.1.0. Komikku still builds with AGP
+        // 8.13.2, so drop the transitive androidx artifacts and let the rest of the graph
+        // provide the AGP-compatible versions pinned by the version catalogs.
         exclude(group = "androidx.core", module = "core-ktx")
         exclude(group = "androidx.core", module = "core")
+        exclude(group = "androidx.compose.foundation", module = "foundation")
+        exclude(group = "androidx.compose", module = "compose-bom")
         // KMK <--
     }
     implementation(libs.kim)
