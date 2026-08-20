@@ -58,7 +58,7 @@ class ImageDecoder(private val resources: ImageSource, private val options: Opti
             }
         }
         // KMK <--
-        val decoder = resources.sourceOrNull()?.use {
+        val decoder = resources.source().use {
             // KMK -->
             coverStream.use { cover ->
                 try {
