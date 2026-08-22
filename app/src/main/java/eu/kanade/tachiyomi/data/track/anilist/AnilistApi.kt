@@ -562,7 +562,9 @@ class AnilistApi(val client: OkHttpClient, interceptor: AnilistInterceptor) {
                         body = payload.toString().toRequestBody(jsonMime),
                     ),
                 )
-                    .awaitSuccess()
+                    // KMK -->
+                    .awaitALSuccess()
+                    // KMK <--
                     .parseAs<ALSearchResult>()
                     .data.page.media
                     .firstOrNull()

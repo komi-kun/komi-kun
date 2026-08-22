@@ -28,9 +28,10 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import logcat.LogPriority
@@ -57,8 +58,7 @@ class ExtensionManager(
 
     val scope = CoroutineScope(SupervisorJob())
 
-    private val _isInitialized = MutableStateFlow(false)
-    val isInitialized: StateFlow<Boolean> = _isInitialized.asStateFlow()
+    private val isInitialized = MutableStateFlow(false)
 
     /**
      * API where all the available extensions can be found.
@@ -73,7 +73,13 @@ class ExtensionManager(
     private val iconMap = mutableMapOf<String, Drawable>()
 
     private val installedExtensionMapFlow = MutableStateFlow(emptyMap<String, Extension.Installed>())
-    val installedExtensionsFlow = installedExtensionMapFlow.mapExtensions(scope)
+    val installedExtensionsFlow = installedExtensionMapFlow.mapExtensionsOnceInitialized()
+
+    // KMK -->
+    /** Synchronous snapshot of the currently loaded installed extensions. */
+    val installedExtensions: List<Extension.Installed>
+        get() = installedExtensionMapFlow.value.values.toList()
+    // KMK <--
 
     private val availableExtensionMapFlow = MutableStateFlow(emptyMap<String, Extension.Available>())
 
@@ -83,7 +89,7 @@ class ExtensionManager(
     // SY <--
 
     private val untrustedExtensionMapFlow = MutableStateFlow(emptyMap<String, Extension.Untrusted>())
-    val untrustedExtensionsFlow = untrustedExtensionMapFlow.mapExtensions(scope)
+    val untrustedExtensionsFlow = untrustedExtensionMapFlow.mapExtensionsOnceInitialized()
 
     init {
         scope.launch(Dispatchers.IO) {
@@ -95,7 +101,7 @@ class ExtensionManager(
     private var subLanguagesEnabledOnFirstRun = preferences.enabledLanguages().isSet()
 
     fun getExtensionPackage(sourceId: Long): String? {
-        return installedExtensionsFlow.value.find { extension ->
+        return installedExtensionMapFlow.value.values.find { extension ->
             extension.sources.any { it.id == sourceId }
         }
             ?.pkgName
@@ -159,7 +165,7 @@ class ExtensionManager(
             .filterNotBlacklisted()
         // SY <--
 
-        _isInitialized.value = true
+        isInitialized.value = true
     }
 
     // EXH -->
@@ -475,5 +481,13 @@ class ExtensionManager(
 
     private fun <T : Extension> StateFlow<Map<String, T>>.mapExtensions(scope: CoroutineScope): StateFlow<List<T>> {
         return map { it.values.toList() }.stateIn(scope, SharingStarted.Lazily, value.values.toList())
+    }
+
+    /**
+     * Extensions are loaded in the background, and [stateIn] would replay the empty list it was
+     * seeded with at construction, so this only starts emitting once that finished.
+     */
+    private fun <T : Extension> StateFlow<Map<String, T>>.mapExtensionsOnceInitialized(): Flow<List<T>> {
+        return onStart { isInitialized.first { it } }.map { it.values.toList() }
     }
 }
