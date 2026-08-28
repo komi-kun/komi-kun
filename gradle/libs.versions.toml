@@ -17,7 +17,7 @@ materialKolor = "5.0.0-alpha07"
 androidx-webkit = "1.16.0"
 image-decoder = "10"
 kim = "0.34.0"
-webgpuviewer = "38"
+webgpuviewer = "39"
 
 [libraries]
 desugar = "com.android.tools:desugar_jdk_libs:2.1.5"

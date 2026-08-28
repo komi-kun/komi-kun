@@ -32,6 +32,7 @@ import java.text.NumberFormat
 internal fun ReadingModePage(screenModel: ReaderSettingsScreenModel) {
     HeadingItem(MR.strings.pref_category_for_this_series)
     val manga by screenModel.mangaFlow.collectAsState()
+    val viewer by screenModel.viewerFlow.collectAsState()
 
     val readingMode = remember(manga) { ReadingMode.fromPreference(manga?.readingMode?.toInt()) }
     SettingsChipRow(MR.strings.pref_category_reading_mode) {
@@ -44,22 +45,24 @@ internal fun ReadingModePage(screenModel: ReaderSettingsScreenModel) {
         }
     }
 
-    val default = Injekt.get<ReaderPreferences>().defaultReadingMode().get()
-    val resolved = ReadingMode.fromPreference(
-        when {
-            readingMode == ReadingMode.DEFAULT -> default
-            else -> manga?.readingMode?.toInt() ?: default
-        },
-    )
-    if (resolved == ReadingMode.LEFT_TO_RIGHT || resolved == ReadingMode.RIGHT_TO_LEFT) {
-        val dualPageView by screenModel.preferences.dualPageView.collectAsState()
-        SettingsChipRow(MR.strings.pref_dual_page_view) {
-            ReaderPreferences.DualPageView.entries.map {
-                FilterChip(
-                    selected = it == dualPageView,
-                    onClick = { screenModel.preferences.dualPageView.set(it) },
-                    label = { Text(stringResource(it.titleRes)) },
-                )
+    if (viewer is WebGpuViewer) {
+        val default = Injekt.get<ReaderPreferences>().defaultReadingMode().get()
+        val resolved = ReadingMode.fromPreference(
+            when {
+                readingMode == ReadingMode.DEFAULT -> default
+                else -> manga?.readingMode?.toInt() ?: default
+            },
+        )
+        if (resolved == ReadingMode.LEFT_TO_RIGHT || resolved == ReadingMode.RIGHT_TO_LEFT) {
+            val dualPageView by screenModel.preferences.dualPageView.collectAsState()
+            SettingsChipRow(MR.strings.pref_dual_page_view) {
+                ReaderPreferences.DualPageView.entries.map {
+                    FilterChip(
+                        selected = it == dualPageView,
+                        onClick = { screenModel.preferences.dualPageView.set(it) },
+                        label = { Text(stringResource(it.titleRes)) },
+                    )
+                }
             }
         }
     }
@@ -75,22 +78,20 @@ internal fun ReadingModePage(screenModel: ReaderSettingsScreenModel) {
         }
     }
 
-    val viewer by screenModel.viewerFlow.collectAsState()
-    if (viewer is WebtoonViewer) {
-        WebtoonViewerSettings(
-            screenModel,
-            // KMK -->
-            readingMode,
-            // KMK <--
-        )
-        // SY -->
-        WebtoonWithGapsViewerSettings(screenModel)
-        // SY <--
-    } else {
-        PagerViewerSettings(screenModel)
-        if (viewer is WebGpuViewer) {
-            WebGpuViewerSettings(screenModel)
+    when (viewer) {
+        is WebtoonViewer -> {
+            WebtoonViewerSettings(
+                screenModel,
+                // KMK -->
+                readingMode,
+                // KMK <--
+            )
+            // SY -->
+            WebtoonWithGapsViewerSettings(screenModel)
+            // SY <--
         }
+        is WebGpuViewer -> WebGpuViewerSettings(screenModel)
+        else -> PagerViewerSettings(screenModel)
     }
 }
 
@@ -393,9 +394,57 @@ private fun TapZonesItems(
 private fun WebGpuViewerSettings(screenModel: ReaderSettingsScreenModel) {
     HeadingItem(MR.strings.webgpu_viewer)
 
+    val navigationModePager by screenModel.preferences.navigationModePager().collectAsState()
+    val pagerNavInverted by screenModel.preferences.pagerNavInverted().collectAsState()
+    TapZonesItems(
+        selected = navigationModePager,
+        onSelect = screenModel.preferences.navigationModePager()::set,
+        invertMode = pagerNavInverted,
+        onSelectInvertMode = screenModel.preferences.pagerNavInverted()::set,
+    )
+
+    val imageScaleType by screenModel.preferences.imageScaleType().collectAsState()
+    SettingsChipRow(MR.strings.pref_image_scale_type) {
+        ReaderPreferences.ImageScaleTypeWebGpuViewer.forEach {
+            FilterChip(
+                selected = ReaderPreferences.ImageScaleType[imageScaleType - 1] == it,
+                onClick = {
+                    screenModel.preferences.imageScaleType().set(ReaderPreferences.ImageScaleType.indexOf(it) + 1)
+                },
+                label = { Text(stringResource(it)) },
+            )
+        }
+    }
+
+    val zoomStart by screenModel.preferences.zoomStart().collectAsState()
+    SettingsChipRow(MR.strings.pref_zoom_start) {
+        ReaderPreferences.ZoomStart.mapIndexed { index, it ->
+            FilterChip(
+                selected = zoomStart == index + 1,
+                onClick = { screenModel.preferences.zoomStart().set(index + 1) },
+                label = { Text(stringResource(it)) },
+            )
+        }
+    }
+
+    CheckboxItem(
+        label = stringResource(MR.strings.pref_crop_borders),
+        pref = screenModel.preferences.cropBorders(),
+    )
+
+    CheckboxItem(
+        label = stringResource(MR.strings.pref_landscape_zoom),
+        pref = screenModel.preferences.landscapeZoom(),
+    )
+
+    CheckboxItem(
+        label = stringResource(MR.strings.pref_navigate_pan),
+        pref = screenModel.preferences.navigateToPan(),
+    )
+
     val transitionAnimation by screenModel.preferences.transitionAnimation.collectAsState()
     SettingsChipRow(MR.strings.pref_transition_animation) {
-        ReaderPreferences.TransitionAnimation.entries.map {
+        ReaderPreferences.TransitionAnimation.entries.forEach {
             FilterChip(
                 selected = it == transitionAnimation,
                 onClick = { screenModel.preferences.transitionAnimation.set(it) },
@@ -406,7 +455,7 @@ private fun WebGpuViewerSettings(screenModel: ReaderSettingsScreenModel) {
 
     val cutoutMode by screenModel.preferences.cutoutMode.collectAsState()
     SettingsChipRow(MR.strings.pref_cutout_mode) {
-        ReaderPreferences.CutoutMode.entries.map {
+        ReaderPreferences.CutoutMode.entries.forEach {
             FilterChip(
                 selected = it == cutoutMode,
                 onClick = { screenModel.preferences.cutoutMode.set(it) },
