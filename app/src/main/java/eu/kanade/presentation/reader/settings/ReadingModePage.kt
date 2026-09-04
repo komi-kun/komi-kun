@@ -65,6 +65,21 @@ internal fun ReadingModePage(screenModel: ReaderSettingsScreenModel) {
                 }
             }
         }
+
+        if (resolved == ReadingMode.WEBTOON) {
+            val numberFormat = remember { NumberFormat.getPercentInstance() }
+            val continuousMinWidth by screenModel.preferences.continuousMinWidth.collectAsState()
+            SliderItem(
+                value = continuousMinWidth,
+                valueRange = ReaderPreferences.let { 1..100 },
+                label = stringResource(MR.strings.pref_continuous_minwidth),
+                valueString = numberFormat.format(continuousMinWidth / 100f),
+                onChange = {
+                    screenModel.preferences.continuousMinWidth.set(it)
+                },
+                pillColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+            )
+        }
     }
 
     val orientation = remember(manga) { ReaderOrientation.fromPreference(manga?.readerOrientation?.toInt()) }
@@ -394,6 +409,10 @@ private fun TapZonesItems(
 private fun WebGpuViewerSettings(screenModel: ReaderSettingsScreenModel) {
     HeadingItem(MR.strings.webgpu_viewer)
 
+    val viewer by screenModel.viewerFlow.collectAsState()
+
+    val isDual = (viewer as? WebGpuViewer)?.isDualPageMode() == true
+
     val navigationModePager by screenModel.preferences.navigationModePager().collectAsState()
     val pagerNavInverted by screenModel.preferences.pagerNavInverted().collectAsState()
     TapZonesItems(
@@ -402,6 +421,33 @@ private fun WebGpuViewerSettings(screenModel: ReaderSettingsScreenModel) {
         invertMode = pagerNavInverted,
         onSelectInvertMode = screenModel.preferences.pagerNavInverted()::set,
     )
+
+    if (isDual) {
+        val transitionAnimation by screenModel.preferences.transitionAnimationDual.collectAsState()
+        SettingsChipRow(MR.strings.pref_transition_animation_dual) {
+            (
+                ReaderPreferences.TransitionAnimation.entries - ReaderPreferences.TransitionAnimation.FLIP_LEFT -
+                    ReaderPreferences.TransitionAnimation.FLIP_RIGHT
+                ).forEach {
+                FilterChip(
+                    selected = it == transitionAnimation,
+                    onClick = { screenModel.preferences.transitionAnimationDual.set(it) },
+                    label = { Text(stringResource(it.titleRes)) },
+                )
+            }
+        }
+        val cutoutMode by screenModel.preferences.cutoutModeDual.collectAsState()
+        SettingsChipRow(MR.strings.pref_cutout_mode_dual) {
+            ReaderPreferences.CutoutMode.entries.forEach {
+                FilterChip(
+                    selected = it == cutoutMode,
+                    onClick = { screenModel.preferences.cutoutModeDual.set(it) },
+                    label = { Text(stringResource(it.titleRes)) },
+                )
+            }
+        }
+        return
+    }
 
     val imageScaleType by screenModel.preferences.imageScaleType().collectAsState()
     SettingsChipRow(MR.strings.pref_image_scale_type) {
