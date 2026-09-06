@@ -135,7 +135,7 @@ class BackupRestorer(
             // Manga restore resolves categories by name, so it must not race the
             // category restore — a delta carrying a new category and a manga in it
             // would silently skip the assignment.
-            val categoriesJob = if (options.categories) {
+            val categoriesRestoreJob = if (options.categories) {
                 launch { restoreCategories(backup.backupCategories) }
             } else {
                 null
@@ -152,7 +152,11 @@ class BackupRestorer(
             }
             // SY <--
             if (options.appSettings) {
-                restoreAppPreferences(backup.backupPreferences, backup.backupCategories.takeIf { options.categories })
+                restoreAppPreferences(
+                    backup.backupPreferences,
+                    backup.backupCategories.takeIf { options.categories },
+                    categoriesRestoreJob,
+                )
             }
             if (options.sourceSettings) {
                 restoreSourcePreferences(backup.backupSourcePreferences)
@@ -162,7 +166,7 @@ class BackupRestorer(
                 restoreManga(
                     backup.backupManga,
                     if (options.categories) backup.backupCategories else emptyList(),
-                    categoriesJob,
+                    categoriesRestoreJob,
                 )
                 // SY <--
             }
@@ -225,11 +229,11 @@ class BackupRestorer(
         backupMangas: List<BackupManga>,
         backupCategories: List<BackupCategory>,
         // SY -->
-        categoriesJob: Job? = null,
+        categoriesRestoreJob: Job? = null,
         // SY <--
     ) = launch {
         // SY -->
-        categoriesJob?.join()
+        categoriesRestoreJob?.join()
         // SY <--
         mangaRestorer.sortByNew(backupMangas)
             .chunked(100)
@@ -277,8 +281,10 @@ class BackupRestorer(
     private fun CoroutineScope.restoreAppPreferences(
         preferences: List<BackupPreference>,
         categories: List<BackupCategory>?,
+        categoriesRestoreJob: Job?,
     ) = launch {
         ensureActive()
+        categoriesRestoreJob?.join()
         preferenceRestorer.restoreApp(
             preferences,
             categories,
