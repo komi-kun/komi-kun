@@ -5,7 +5,7 @@ import eu.kanade.tachiyomi.data.database.models.Track
 import uy.kohesive.injekt.injectLazy
 import tachiyomi.domain.track.model.Track as DomainTrack
 
-fun Track.toApiStatus() = when (status) {
+internal fun Track.toApiStatus() = when (status) {
     Anilist.READING -> "CURRENT"
     Anilist.COMPLETED -> "COMPLETED"
     Anilist.ON_HOLD -> "PAUSED"
@@ -17,7 +17,7 @@ fun Track.toApiStatus() = when (status) {
 
 private val preferences: TrackPreferences by injectLazy()
 
-fun DomainTrack.toApiScore(): String = when (preferences.anilistScoreType().get()) {
+internal fun DomainTrack.toApiScore(): String = when (preferences.anilistScoreType().get()) {
     // 10 point
     "POINT_10" -> (score.toInt() / 10).toString()
     // 100 point
