@@ -63,7 +63,13 @@ class WebGpuConfig(
     var dualPageView = ReaderPreferences.DualPageView.NEVER
         private set
 
-    var continuousMinWidth = 1
+    var continuousMinWidth = 100
+        private set
+
+    var zoomOutDisabled = false
+        private set
+
+    var continuousGap = 10
         private set
 
     init {
@@ -125,41 +131,45 @@ class WebGpuConfig(
                 { imagePropertyChangedListener?.invoke() },
             )
 
-        readerPreferences.transitionAnimation
-            .register(
-                { transitionAnimation = it },
-                { imagePropertyChangedListener?.invoke() },
-            )
+        readerPreferences.transitionAnimation.register(
+            { transitionAnimation = it },
+            { imagePropertyChangedListener?.invoke() },
+        )
 
-        readerPreferences.transitionAnimationDual
-            .register(
-                { transitionAnimationDual = it },
-                { imagePropertyChangedListener?.invoke() },
-            )
+        readerPreferences.transitionAnimationDual.register(
+            { transitionAnimationDual = it },
+            { imagePropertyChangedListener?.invoke() },
+        )
 
-        readerPreferences.cutoutMode
-            .register(
-                { cutoutMode = it },
-                { imagePropertyChangedListener?.invoke() },
-            )
+        readerPreferences.cutoutMode.register(
+            { cutoutMode = it },
+            { imagePropertyChangedListener?.invoke() },
+        )
 
-        readerPreferences.cutoutModeDual
-            .register(
-                { cutoutModeDual = it },
-                { imagePropertyChangedListener?.invoke() },
-            )
+        readerPreferences.cutoutModeDual.register(
+            { cutoutModeDual = it },
+            { imagePropertyChangedListener?.invoke() },
+        )
 
-        readerPreferences.dualPageView
-            .register(
-                { dualPageView = it },
-                { imagePropertyChangedListener?.invoke() },
-            )
+        readerPreferences.dualPageView.register(
+            { dualPageView = it },
+            { imagePropertyChangedListener?.invoke() },
+        )
 
-        readerPreferences.continuousMinWidth
-            .register(
-                { continuousMinWidth = it },
-                { imagePropertyChangedListener?.invoke() },
-            )
+        readerPreferences.continuousMinWidth.register(
+            { continuousMinWidth = it },
+            { imagePropertyChangedListener?.invoke() },
+        )
+
+        readerPreferences.webtoonDisableZoomOut().register(
+            { zoomOutDisabled = it },
+            { imagePropertyChangedListener?.invoke() },
+        )
+
+        readerPreferences.continuousGap.register(
+            { continuousGap = it },
+            { imagePropertyChangedListener?.invoke() },
+        )
     }
 
     private fun zoomTypeFromPreference(value: Int) {
