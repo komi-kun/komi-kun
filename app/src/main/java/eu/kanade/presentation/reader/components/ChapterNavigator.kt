@@ -78,16 +78,22 @@ fun ChapterNavigator(
 ) {
     val haptic = LocalHapticFeedback.current
 
-    val state = remember(totalPages) {
-        SliderState(
-            value = currentPage.toFloat(),
-            steps = totalPages - 2,
-            valueRange = 1f..totalPages.toFloat(),
-        )
+    val state = if (totalPages > 1) {
+        remember(totalPages) {
+            SliderState(
+                value = currentPage.toFloat(),
+                steps = totalPages - 2,
+                valueRange = 1f..totalPages.toFloat(),
+            )
+        }
+            .also { sliderState ->
+                sliderState.value = currentPage.toFloat()
+                sliderState.onValueChange = { onPageIndexChange(it.roundToInt() - 1) }
+                sliderState.onValueChangeFinished = onPageIndexChangeFinished
+            }
+    } else {
+        null
     }
-    state.value = currentPage.toFloat()
-    state.onValueChange = { onPageIndexChange(it.roundToInt() - 1) }
-    state.onValueChangeFinished = onPageIndexChangeFinished
 
     val interactionSource = remember { MutableInteractionSource() }
     val sliderDragged by interactionSource.collectIsDraggedAsState()
@@ -160,7 +166,7 @@ fun ChapterNavigator(
 @Composable
 fun HorizontalChapterNavigator(
     isRtl: Boolean,
-    state: SliderState,
+    state: SliderState?,
     onNextChapter: () -> Unit,
     enabledNext: Boolean,
     onPreviousChapter: () -> Unit,
@@ -201,7 +207,7 @@ fun HorizontalChapterNavigator(
                 )
             }
 
-            if (totalPages > 1) {
+            if (state != null) {
                 CompositionLocalProvider(LocalLayoutDirection provides layoutDirection) {
                     Row(
                         modifier = Modifier
@@ -262,7 +268,7 @@ fun HorizontalChapterNavigator(
 
 @Composable
 fun VerticalChapterNavigator(
-    state: SliderState,
+    state: SliderState?,
     onNextChapter: () -> Unit,
     enabledNext: Boolean,
     onPreviousChapter: () -> Unit,
@@ -298,7 +304,7 @@ fun VerticalChapterNavigator(
             )
         }
 
-        if (totalPages > 1) {
+        if (state != null) {
             Column(
                 modifier = Modifier
                     .weight(1f)
