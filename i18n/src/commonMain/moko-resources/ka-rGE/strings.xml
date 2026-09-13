@@ -98,6 +98,8 @@
     <string name="pref_category_library_update">განახლებები</string>
     <string name="pref_library_update_interval">ბიბლიოთეკის განახლების სიხშირე</string>
     <string name="update_never">ხელით</string>
+    <string name="update_1hour">ყოველ 1 საათში</string>
+    <string name="update_3hour">ყოველ 3 საათში</string>
     <string name="update_6hour">ყოველ 6 საათში</string>
     <string name="update_12hour">ყოველ 12 საათში</string>
     <string name="update_24hour">ყოველდღე</string>
@@ -315,6 +317,9 @@
     <string name="file_select_backup">ამოირჩიე რეზერვის ფაილი</string>
     <string name="update_check_confirm">გადმოწერა</string>
     <string name="update_check_no_new_updates">განახლება ვერ მოიძებნა</string>
+    <string name="update_check_notification_download_in_progress">გადმოწერა…</string>
+    <string name="update_check_notification_download_complete">განახლების დასაყენებლად დაატყაპუნეთ</string>
+    <string name="update_check_notification_download_error">გადმოწერის შეცდომა</string>
     <string name="update_check_notification_update_available">ხელმისაწვდომია ახალი ვერსია!</string>
     <string name="information_no_downloads">გადმოწერები არ არის</string>
     <string name="information_no_recent">განახლებები არ არის</string>
@@ -409,9 +414,4 @@
     <string name="label_default">ნაგულისხმევი</string>
     <string name="action_show_errors">დააჭირე დეტალების სანახავად</string>
     <string name="unread">წაუკითხავი</string>
-    <string name="update_1hour">ყოველ 1 საათში</string>
-    <string name="update_3hour">ყოველ 3 საათში</string>
-    <string name="update_check_notification_download_in_progress">გადმოწერა…</string>
-    <string name="update_check_notification_download_complete">განახლების დასაყენებლად დაატყაპუნეთ</string>
-    <string name="update_check_notification_download_error">გადმოწერის შეცდომა</string>
 </resources>

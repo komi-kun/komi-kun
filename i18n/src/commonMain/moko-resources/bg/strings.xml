@@ -61,6 +61,8 @@
     <string name="landscape">Пейзажно</string>
     <string name="pref_library_update_interval">Автоматини ъпдейти</string>
     <string name="update_never">Изключено</string>
+    <string name="update_1hour">На всеки 1 часа</string>
+    <string name="update_3hour">На всеки 3 часа</string>
     <string name="update_6hour">На всеки 6 часа</string>
     <string name="update_12hour">На всеки 12 часа</string>
     <string name="update_24hour">Ежедневно</string>
@@ -181,6 +183,9 @@
     <string name="file_select_backup">Изберете резервно копие</string>
     <string name="update_check_confirm">Изтегли</string>
     <string name="update_check_no_new_updates">Няма налични актуализации</string>
+    <string name="update_check_notification_download_in_progress">Изтегля се…</string>
+    <string name="update_check_notification_download_complete">Изтегляне завършено</string>
+    <string name="update_check_notification_download_error">Грешка при изтегляне</string>
     <string name="update_check_notification_update_available">Има нова версия!</string>
     <string name="information_no_downloads">Нямате изтегляния</string>
     <string name="information_no_recent">Нямате нови глави</string>
@@ -239,11 +244,7 @@
     <string name="ext_untrusted">Непотвърдени</string>
     <string name="ext_uninstall">Деинсталирай</string>
     <string name="untrusted_extension">Непотвърдено разширение</string>
-    <string name="untrusted_extension_message">Следното разширение имаше непотвърден сертификат и не беше активирано.
-\n
-\nЗлонамереното разширение може да види всичката информация за вход в системата на Komikku или да компилира неблагонадежден код.
-\n
-\nПотвърждавайки този сертификат, вие приемате тези рискове.</string>
+    <string name="untrusted_extension_message">Следното разширение имаше непотвърден сертификат и не беше активирано. \n \nЗлонамереното разширение може да види всичката информация за вход в системата на Komikku или да компилира неблагонадежден код. \n \nПотвърждавайки този сертификат, вие приемате тези рискове.</string>
     <string name="pref_double_tap_anim_speed">Скорост на анимацията</string>
     <string name="double_tap_anim_speed_0">Без анимация</string>
     <string name="double_tap_anim_speed_normal">Нормална</string>
@@ -534,6 +535,7 @@
     <string name="pref_tablet_ui_mode">Потребителски интерфейс на таблет</string>
     <string name="clear_database_source_item_count">%1$d небиблиотечна манга в базата данни</string>
     <string name="database_clean">Нищо за почистване</string>
+    <string name="channel_app_updates">Актуализации на приложението</string>
     <string name="pref_auto_clear_chapter_cache">Изчистване на кеша на главата при затваряне на приложението</string>
     <string name="privacy_policy">Политика за поверителност</string>
     <string name="pref_update_only_completely_read">С непрочетени глави</string>
@@ -551,7 +553,7 @@
     <string name="not_installed">Не е инсталиран</string>
     <string name="rotation_reverse_portrait">Обърнат портрет</string>
     <string name="ext_info_language">Език</string>
-    <string name="crash_screen_title">Опаа!</string>
+    <string name="crash_screen_title">Случи се неочаквана грешка</string>
     <string name="auto_download_while_reading">Автоматично изтегляне при четене</string>
     <string name="description_placeholder">Няма описание</string>
     <string name="empty_backup_error">Няма заглавия в библиотеката за резервно копие</string>
@@ -602,7 +604,7 @@
     <string name="source_filter_empty_screen">Не беше намерен инсталиран източник</string>
     <string name="action_remove_everything">Премахни всичко</string>
     <string name="ext_info_version">Версия</string>
-    <string name="on_hiatus">Прекъсната за неопределен период</string>
+    <string name="on_hiatus">В хиатус</string>
     <string name="custom_cover">Корица по избор</string>
     <string name="action_search_hint">Търсене…</string>
     <string name="disabled_nav">Деактивирано</string>
@@ -652,7 +654,7 @@
     <string name="onboarding_permission_notifications_description">Получавай известия за обновления в библиотеката и други</string>
     <string name="pref_library_update_smart_update">Умно обновяване</string>
     <string name="pref_mark_duplicate_read_chapter_read_existing">След прочитане на глава</string>
-    <string name="has_results">Имащи резулатати</string>
+    <string name="has_results">Има резултати</string>
     <string name="unknown_title">Непознато заглавие</string>
     <string name="possible_duplicates_title">Възможни дубликати</string>
     <string name="action_add_anyway">Добави все пак</string>
@@ -781,10 +783,4 @@
     <string name="update_check_skip">Пропусни тази версия</string>
     <string name="update_check_skip_title">Пропусни%s?</string>
     <string name="tracked_privately">Проследявани в поверителен режим</string>
-    <string name="update_1hour">На всеки 1 часа</string>
-    <string name="update_3hour">На всеки 3 часа</string>
-    <string name="update_check_notification_download_in_progress">Изтегля се…</string>
-    <string name="update_check_notification_download_complete">Изтегляне завършено</string>
-    <string name="update_check_notification_download_error">Грешка при изтегляне</string>
-    <string name="channel_app_updates">Актуализации на приложението</string>
 </resources>

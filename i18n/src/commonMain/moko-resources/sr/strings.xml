@@ -76,6 +76,8 @@
     <string name="landscape">Хоризонтално</string>
     <string name="pref_library_update_interval">Аутоматска ажурирања</string>
     <string name="update_never">Искључено</string>
+    <string name="update_1hour">одинчасовно</string>
+    <string name="update_3hour">тричасовно</string>
     <string name="update_6hour">Шесточасовно</string>
     <string name="update_12hour">Дванаесточасовно</string>
     <string name="update_24hour">Дневно</string>
@@ -335,6 +337,9 @@
     <string name="information_webview_required">WebView је потребан како би апликација функционисала</string>
     <string name="information_cloudflare_bypass_failure">Неуспешно заобилажење Cloudflare-а</string>
     <string name="update_check_notification_update_available">Доступно је ново ажурирање!</string>
+    <string name="update_check_notification_download_error">Грешка током преузимања</string>
+    <string name="update_check_notification_download_complete">Додирните за инсталирање ажурирања</string>
+    <string name="update_check_notification_download_in_progress">Преузимање…</string>
     <string name="update_check_no_new_updates">Нема нових ажурирања</string>
     <string name="update_check_confirm">Преузми</string>
     <string name="file_select_backup">Изаберите датотеку резервне копије</string>
@@ -533,6 +538,7 @@
     <string name="download_queue_size_warning">Упозорење: велики број преузимања може довести до успоравања извора и/или блокирања %s-а. Додирни да сазнаш више.</string>
     <string name="notification_size_warning">Велика ажурирања штете изворима и могу довести до споријег ажурирања и повећања потрошње батерије. Кликни да сазнаш више.</string>
     <string name="ext_update_all">Ажурирај све</string>
+    <string name="channel_app_updates">Ажурирања апликације</string>
     <string name="clear_database_source_item_count">Број наслова у бази података које нису у колекцији: %1$d</string>
     <string name="extension_api_error">Преузимање листе додатака није успело</string>
     <string name="pref_auto_clear_chapter_cache">Испразни кеш меморију поглавља током покретања апликације</string>
@@ -621,7 +627,6 @@
     <string name="pref_reset_viewer_flags_summary">Ресетуј режим читања и оријентацију свих серија</string>
     <string name="popular">Популарно</string>
     <string name="label_completed_titles">Завршени наслови</string>
-    <string name="split_tall_images_summary">Побољшава перформансе читача</string>
     <string name="network_not_metered">Само на мрежи без ограничења</string>
     <string name="missing_storage_permission">Дозвола за меморијски простор није одобрена</string>
     <string name="error_user_agent_string_invalid">Неважећи низ корисничког агента</string>
@@ -642,7 +647,6 @@
     <string name="empty_screen">Е па, ово је незгодно</string>
     <string name="download_notifier_split_page_path_not_found">Није могуће пронаћи пут датотеке странице %d</string>
     <string name="skipped_reason_not_always_update">Прескочено јер наслов не захтева ажурирање</string>
-    <string name="download_notifier_split_page_not_found">Страница %d није пронађена током раздвајања</string>
     <string name="download_notifier_cache_renewal">Провера преузимања</string>
     <string name="action_not_now">Не сада</string>
     <string name="pref_appearance_summary">Формат теме, датума и времена</string>
@@ -667,7 +671,6 @@
     <string name="action_update_category">Ажурирај категорију</string>
     <string name="pref_hide_in_library_items">Сакри уносе који се већ налазе у колекцији</string>
     <string name="overlay_header">Прекривање</string>
-    <string name="split_tall_images">Растави високе слике</string>
     <string name="pref_chapter_swipe_end">Превуци удесно</string>
     <string name="pref_chapter_swipe_start">Превуци улево</string>
     <string name="pref_double_tap_zoom">Додирни двапут за зумирање</string>
@@ -758,10 +761,4 @@
     <string name="action_revert_to_default">Врати на подразумевано</string>
     <string name="action_add_anyway">Dodati svejedno</string>
     <string name="label_upcoming">Predstojeći</string>
-    <string name="update_1hour">одинчасовно</string>
-    <string name="update_3hour">тричасовно</string>
-    <string name="update_check_notification_download_error">Грешка током преузимања</string>
-    <string name="update_check_notification_download_complete">Додирните за инсталирање ажурирања</string>
-    <string name="update_check_notification_download_in_progress">Преузимање…</string>
-    <string name="channel_app_updates">Ажурирања апликације</string>
 </resources>

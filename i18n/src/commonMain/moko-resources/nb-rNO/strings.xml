@@ -67,6 +67,8 @@
     <string name="pref_category_advanced">Avansert</string>
     <string name="pref_category_about">Om</string>
     <string name="update_never">Av</string>
+    <string name="update_1hour">Hver en time</string>
+    <string name="update_3hour">Hver tre time</string>
     <string name="update_6hour">Hver sjette time</string>
     <string name="update_12hour">Hver tolvte time</string>
     <string name="update_24hour">Daglig</string>
@@ -256,6 +258,9 @@
     <string name="file_select_cover">Velg omslagsbilde</string>
     <string name="file_select_backup">Velg sikkerhetskopifil</string>
     <string name="update_check_no_new_updates">Ingen nye oppdateringer tilgjengelige</string>
+    <string name="update_check_notification_download_in_progress">Laster ned…</string>
+    <string name="update_check_notification_download_complete">Trykk for å installere oppdatering</string>
+    <string name="update_check_notification_download_error">Feil ved nedlasting</string>
     <string name="update_check_notification_update_available">Ny versjon tilgjengelig!</string>
     <string name="information_no_downloads">Ingen nedlastinger</string>
     <string name="information_no_recent">Ingen nylige oppdateringer</string>
@@ -528,6 +533,7 @@
     <string name="label_warning">Advarsel</string>
     <string name="notification_size_warning">Store oppdateringer skader kilder og kan føre til tregere oppdateringer samt økt batteribruk. Trykk for å lære mer.</string>
     <string name="backup_info">Du bør oppbevare ekstra kopier av sikkershetskopier andre steder også. Sikkerhetskopier kan inneholde sensitiv data, inkludert eventuelle lagrede passord. Vær forsiktig ved deling.</string>
+    <string name="channel_app_updates">Appoppdateringer</string>
     <string name="update_72hour">Hver 3. dag</string>
     <string name="connected_to_wifi">Bare på Wi-Fi</string>
     <string name="action_show_manga">Vis oppføring</string>
@@ -580,7 +586,6 @@
     <string name="error_user_agent_string_invalid">Ugyldig streng for brukeragent</string>
     <string name="wish_list">Ønskeliste</string>
     <string name="skipped_reason_not_always_update">Hoppet over fordi seriene ikke krever oppdateringer</string>
-    <string name="download_notifier_split_page_not_found">Side %d ble ikke funnet under deling</string>
     <string name="pref_reset_viewer_flags">Tilbakestill leserinnstillinger per serie</string>
     <string name="theme_tidalwave">Tidevannsbølge</string>
     <string name="error_user_agent_string_blank">Strengen for brukeragent kan ikke være tom</string>
@@ -596,7 +601,6 @@
     <string name="pref_reset_viewer_flags_error">Kunne ikke tilbakestille leserinnstillingene</string>
     <string name="multi_lang">Multi</string>
     <string name="auto_download_while_reading">Last ned automatisk mens du leser</string>
-    <string name="split_tall_images_summary">Forbedrer leserytelsen</string>
     <string name="pref_reset_viewer_flags_summary">Tilbakestiller lesemodus og orientering for alle serier</string>
     <string name="action_sort_unread_count">Antall uleste</string>
     <string name="delete_category_confirmation">Ønsker du å slette kategorien \"%s\"?</string>
@@ -666,7 +670,6 @@
     <string name="pref_hide_in_library_items">Skjul oppføringer som allerede er i biblioteket</string>
     <string name="action_copy_to_clipboard">Kopier til utklippstavle</string>
     <string name="action_update_category">Oppdater kategori</string>
-    <string name="split_tall_images">Del opp høye bilder</string>
     <string name="overlay_header">Elementer</string>
     <string name="pref_page_rotate_invert">Vend orienteringen av roterte brede sider</string>
     <string name="pref_page_rotate">Roter brede sider slik at de passer</string>
@@ -757,10 +760,4 @@
     <string name="ext_revoke_trust">Fjern tilliten til ukjente utvidelser</string>
     <string name="label_upcoming">Kommende</string>
     <string name="action_add_anyway">Legg til likevel</string>
-    <string name="update_1hour">Hver en time</string>
-    <string name="update_3hour">Hver tre time</string>
-    <string name="update_check_notification_download_in_progress">Laster ned…</string>
-    <string name="update_check_notification_download_complete">Trykk for å installere oppdatering</string>
-    <string name="update_check_notification_download_error">Feil ved nedlasting</string>
-    <string name="channel_app_updates">Appoppdateringer</string>
 </resources>

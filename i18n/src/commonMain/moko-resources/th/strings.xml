@@ -48,6 +48,8 @@
     <string name="pref_category_reader">ตัวอ่าน</string>
     <string name="pref_category_advanced">ขั้นสูง</string>
     <string name="pref_category_about">เกี่ยวกับ</string>
+    <string name="update_1hour">ทุก 1 ชั่วโมง</string>
+    <string name="update_3hour">ทุก 3 ชั่วโมง</string>
     <string name="update_6hour">ทุก 6 ชั่วโมง</string>
     <string name="update_12hour">ทุก 12 ชั่วโมง</string>
     <string name="update_24hour">ทุกวัน</string>
@@ -259,6 +261,9 @@
     <string name="file_select_backup">เลือกแฟ้มข้อมูลสำรอง</string>
     <string name="update_check_confirm">ดาวน์โหลด</string>
     <string name="update_check_no_new_updates">ไม่มีการอัปเดตใหม่</string>
+    <string name="update_check_notification_download_in_progress">กำลังดาวน์โหลด…</string>
+    <string name="update_check_notification_download_complete">แตะเพื่อติดตั้งการอัปเดต</string>
+    <string name="update_check_notification_download_error">เกิดข้อผิดพลาดในการดาวน์โหลด</string>
     <string name="update_check_notification_update_available">มีเวอร์ชั่นใหม่!</string>
     <string name="information_no_downloads">ไม่มีการดาวน์โหลด</string>
     <string name="information_no_recent">ไม่มีอัปเดตล่าสุด</string>
@@ -494,6 +499,7 @@
     <string name="cover_saved">บันทึกปกแล้ว</string>
     <string name="error_saving_cover">ผิดพลาดในการบันทึกปก</string>
     <string name="source_unsupported">ไม่รองรับแหล่งที่มานี้</string>
+    <string name="channel_app_updates">แอพอัปเดต</string>
     <string name="label_default">ค่าเริ่มต้น</string>
     <string name="error_sharing_cover">ผิดพลาดในการแบ่งปันปก</string>
     <string name="action_start_downloading_now">เริ่มดาวน์โหลดเลย</string>
@@ -565,8 +571,6 @@
     <string name="source_empty_screen">ไม่พบแหล่งที่มาใด ๆ</string>
     <string name="action_sort_unread_count">จำนวนตอนที่ยังไม่ได้อ่าน</string>
     <string name="action_sort_last_manga_update">เช็กอัปเดตล่าสุด</string>
-    <string name="download_notifier_split_page_not_found">ไม่พบหน้า %d ขณะกำลังแยกหน้า</string>
-    <string name="split_tall_images_summary">เพิ่มประสิทธิภาพตัวอ่าน</string>
     <string name="download_notifier_split_page_path_not_found">ไม่พบตำแหน่งไฟล์ของหน้า %d</string>
     <string name="pref_reset_viewer_flags">รีเซ็ตค่ากำหนดตัวอ่านตามเรื่อง</string>
     <string name="pref_reset_viewer_flags_summary">รีเซ็ตโหมดการอ่านและการจัดวางของทุกเรื่อง</string>
@@ -666,7 +670,6 @@
     <string name="pref_hide_in_library_items">ซ่อนรายการที่มีอยู่ในคลังอยู่แล้ว</string>
     <string name="action_copy_to_clipboard">คัดลอกไปยังคลิปบอร์ด</string>
     <string name="action_update_category">อัปเดตหมวดหมู่</string>
-    <string name="split_tall_images">แยกภาพสูงยาว</string>
     <string name="overlay_header">โอเวอร์เลย์</string>
     <string name="pref_page_rotate">หมุนหน้ากว้างให้พอดี</string>
     <string name="pref_page_rotate_invert">พลิกการวางแนวของหน้ากว้างที่หมุน</string>
@@ -810,10 +813,4 @@
     <string name="clear_database_text">คุณกำลังจะลบรายการออกจากฐานข้อมูล</string>
     <string name="pref_display_images_description">เรนเดอร์รูปภาพในคำอธิบายเรื่อง</string>
     <string name="pref_disallow_non_ascii_filenames">ไม่อนุญาตชื่อไฟล์ที่ไม่ใช่ ASCII</string>
-    <string name="update_1hour">ทุก 1 ชั่วโมง</string>
-    <string name="update_3hour">ทุก 3 ชั่วโมง</string>
-    <string name="update_check_notification_download_in_progress">กำลังดาวน์โหลด…</string>
-    <string name="update_check_notification_download_complete">แตะเพื่อติดตั้งการอัปเดต</string>
-    <string name="update_check_notification_download_error">เกิดข้อผิดพลาดในการดาวน์โหลด</string>
-    <string name="channel_app_updates">แอพอัปเดต</string>
 </resources>
