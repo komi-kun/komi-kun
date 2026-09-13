@@ -310,7 +310,6 @@ dependencies {
         exclude(group = "androidx.compose", module = "compose-bom")
         // KMK <--
     }
-    implementation(libs.kim)
 
     // UI libraries
     implementation(libs.material)

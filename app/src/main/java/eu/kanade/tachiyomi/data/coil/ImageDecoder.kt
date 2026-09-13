@@ -15,13 +15,11 @@ import coil3.decode.ImageSource
 import coil3.fetch.SourceFetchResult
 import coil3.request.Options
 import com.hippo.unifile.UniFile
-import logcat.LogPriority
 import mihon.core.archive.CbzCrypto
 import mihon.core.archive.CbzCrypto.getCoverStream
 import mihon.core.archive.archiveReader
 import okio.BufferedSource
 import tachiyomi.core.common.util.system.ImageUtil
-import tachiyomi.core.common.util.system.logcat
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.io.BufferedInputStream
@@ -58,22 +56,13 @@ class ImageDecoder(private val resources: ImageSource, private val options: Opti
             }
         }
         // KMK <--
-        val decoder = resources.source().use {
+        val res = resources.source().use {
             // KMK -->
             coverStream.use { cover ->
-                try {
-                    ImageDecoder.new(cover ?: it.inputStream())
-                } catch (e: ImageDecoder.DecodeException) {
-                    logcat(LogPriority.ERROR, e) { "ImageDecoder.new failed: ${e.message}" }
-                    null
-                }
+                ImageDecoder.new(cover ?: it.inputStream()).use { dec -> dec.decode() }
             }
             // KMK <--
         }
-
-        check(decoder != null && decoder.pages > 0) { "Failed to initialize decoder" }
-
-        val res = decoder.decode()
 
         val srcWidth = res.width
         val srcHeight = res.height
