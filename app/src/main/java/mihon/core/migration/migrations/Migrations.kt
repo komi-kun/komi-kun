@@ -62,4 +62,7 @@ val migrations: List<Migration>
         InstallationIdMigration(),
         MoveVerticalSeekbarSettingsMigration(),
         VerticalNavigatorMigration(),
+        // KMK -->
+        ContentWarningMigration(),
+        // KMK <--
     )

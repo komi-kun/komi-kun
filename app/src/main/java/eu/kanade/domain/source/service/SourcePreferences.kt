@@ -3,10 +3,12 @@ package eu.kanade.domain.source.service
 import eu.kanade.domain.source.interactor.SetMigrateSorting
 import eu.kanade.tachiyomi.ui.browse.source.globalsearch.SourceFilter
 import eu.kanade.tachiyomi.util.system.LocaleHelper
+import mihon.domain.extension.model.ContentWarning
 import mihon.domain.migration.models.MigrationFlag
 import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.core.common.preference.getEnum
+import tachiyomi.core.common.preference.getEnumSet
 import tachiyomi.core.common.preference.getLongArray
 import tachiyomi.domain.library.model.LibraryDisplayMode
 
@@ -39,7 +41,10 @@ class SourcePreferences(
         -1,
     )
 
-    fun showNsfwSource() = preferenceStore.getBoolean("show_nsfw_source", true)
+    val enabledContentWarnings: Preference<Set<ContentWarning>> = preferenceStore.getEnumSet(
+        "enabled_content_warnings",
+        setOf(ContentWarning.SAFE, ContentWarning.MIXED, ContentWarning.NSFW),
+    )
 
     fun migrationSortingMode() = preferenceStore.getEnum("pref_migration_sorting", SetMigrateSorting.Mode.ALPHABETICAL)
 

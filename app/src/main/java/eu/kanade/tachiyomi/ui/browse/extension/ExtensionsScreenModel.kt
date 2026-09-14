@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import mihon.domain.extension.model.ContentWarning
 import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
@@ -77,7 +78,7 @@ class ExtensionsScreenModel(
                 buildMap {
                     val updates = _updates.filter(predicate).map(extensionMapper(downloads))
                         // KMK -->
-                        .filter { !nsfwOnly || it.extension.isNsfw }
+                        .filter { !nsfwOnly || it.extension.contentWarning != ContentWarning.SAFE }
                     // KMK <--
                     if (updates.isNotEmpty()) {
                         put(ExtensionUiModel.Header.Resource(MR.strings.ext_updates_pending), updates)
@@ -85,11 +86,11 @@ class ExtensionsScreenModel(
 
                     val installed = _installed.filter(predicate).map(extensionMapper(downloads))
                         // KMK -->
-                        .filter { !nsfwOnly || it.extension.isNsfw }
+                        .filter { !nsfwOnly || it.extension.contentWarning != ContentWarning.SAFE }
                     // KMK <--
                     val untrusted = _untrusted.filter(predicate).map(extensionMapper(downloads))
                         // KMK -->
-                        .filter { !nsfwOnly || it.extension.isNsfw }
+                        .filter { !nsfwOnly || it.extension.contentWarning != ContentWarning.SAFE }
                     // KMK <--
                     if (installed.isNotEmpty() || untrusted.isNotEmpty()) {
                         put(ExtensionUiModel.Header.Resource(MR.strings.ext_installed), installed + untrusted)
@@ -98,7 +99,7 @@ class ExtensionsScreenModel(
                     val languagesWithExtensions = _available
                         .filter(predicate)
                         // KMK -->
-                        .filter { !nsfwOnly || it.isNsfw }
+                        .filter { !nsfwOnly || it.contentWarning != ContentWarning.SAFE }
                         // KMK <--
                         .groupBy { it.lang }
                         .toSortedMap(LocaleHelper.comparator)

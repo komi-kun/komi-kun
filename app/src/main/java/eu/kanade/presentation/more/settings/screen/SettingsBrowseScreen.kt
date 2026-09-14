@@ -18,7 +18,9 @@ import eu.kanade.presentation.more.settings.screen.browse.ExtensionStoresScreen
 import eu.kanade.tachiyomi.ui.category.sources.SourceCategoryScreen
 import eu.kanade.tachiyomi.util.system.AuthenticatorUtil.authenticate
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.persistentMapOf
 import mihon.domain.extension.interactor.GetExtensionStoreCountAsFlow
+import mihon.domain.extension.model.ContentWarning
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
@@ -151,19 +153,35 @@ object SettingsBrowseScreen : SearchableSettings {
                 ),
             ),
             Preference.PreferenceGroup(
-                title = stringResource(MR.strings.pref_category_nsfw_content),
+                title = stringResource(MR.strings.pref_category_extensions),
                 preferenceItems = persistentListOf(
-                    Preference.PreferenceItem.SwitchPreference(
-                        preference = sourcePreferences.showNsfwSource(),
-                        title = stringResource(MR.strings.pref_show_nsfw_source),
-                        subtitle = stringResource(MR.strings.requires_app_restart),
-                        onValueChanged = {
-                            (context as FragmentActivity).authenticate(
-                                title = context.stringResource(MR.strings.pref_category_nsfw_content),
-                            )
+                    Preference.PreferenceItem.MultiSelectListPreference(
+                        preference = sourcePreferences.enabledContentWarnings,
+                        entries = persistentMapOf(
+                            ContentWarning.SAFE to stringResource(MR.strings.ext_content_warning_safe),
+                            ContentWarning.MIXED to stringResource(MR.strings.ext_content_warning_mixed),
+                            ContentWarning.NSFW to stringResource(MR.strings.ext_content_warning_nsfw),
+                        ),
+                        title = stringResource(MR.strings.pref_allowed_content_warnings),
+                        subtitleProvider = { value, entries ->
+                            remember(value, entries) {
+                                entries.filterKeys { it in value }.values.joinToString()
+                            }
+                                .takeUnless { it.isBlank() }
+                                ?: stringResource(MR.strings.none)
+                        },
+                        onValueChanged = { newValue ->
+                            val added = newValue - sourcePreferences.enabledContentWarnings.get()
+                            if (added.any { it != ContentWarning.SAFE }) {
+                                (context as FragmentActivity).authenticate(
+                                    title = context.stringResource(MR.strings.pref_allowed_content_warnings),
+                                )
+                            } else {
+                                true
+                            }
                         },
                     ),
-                    Preference.PreferenceItem.InfoPreference(stringResource(MR.strings.parental_controls_info)),
+                    Preference.PreferenceItem.InfoPreference(stringResource(MR.strings.content_warnings_info)),
                 ),
             ),
         )
