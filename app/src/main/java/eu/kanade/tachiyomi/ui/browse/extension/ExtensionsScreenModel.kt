@@ -51,12 +51,7 @@ class ExtensionsScreenModel(
             {
                 ExtensionUiModel.Item(
                     it,
-                    map[
-                        it.pkgName +
-                            // KMK -->
-                            "_${it.signatureHash}",
-                        // KMK <--
-                    ] ?: InstallStep.Idle,
+                    map[it.pkgName] ?: InstallStep.Idle,
                 )
             }
         }
@@ -74,7 +69,7 @@ class ExtensionsScreenModel(
                 // KMK <--
                 currentDownloads,
                 getExtensions.subscribe(),
-            ) { predicate, nsfwOnly, downloads, (_updates, _installed, _available, _untrusted) ->
+            ) { predicate, nsfwOnly, downloads, (_updates, _loaded, _available, _notLoaded) ->
                 buildMap {
                     val updates = _updates.filter(predicate).map(extensionMapper(downloads))
                         // KMK -->
@@ -84,16 +79,20 @@ class ExtensionsScreenModel(
                         put(ExtensionUiModel.Header.Resource(MR.strings.ext_updates_pending), updates)
                     }
 
-                    val installed = _installed.filter(predicate).map(extensionMapper(downloads))
+                    val notLoaded = _notLoaded.filter(predicate).map(extensionMapper(downloads))
                         // KMK -->
                         .filter { !nsfwOnly || it.extension.contentWarning != ContentWarning.SAFE }
                     // KMK <--
-                    val untrusted = _untrusted.filter(predicate).map(extensionMapper(downloads))
+                    if (notLoaded.isNotEmpty()) {
+                        put(ExtensionUiModel.Header.Resource(MR.strings.ext_not_loaded), notLoaded)
+                    }
+
+                    val loaded = _loaded.filter(predicate).map(extensionMapper(downloads))
                         // KMK -->
                         .filter { !nsfwOnly || it.extension.contentWarning != ContentWarning.SAFE }
                     // KMK <--
-                    if (installed.isNotEmpty() || untrusted.isNotEmpty()) {
-                        put(ExtensionUiModel.Header.Resource(MR.strings.ext_installed), installed + untrusted)
+                    if (loaded.isNotEmpty()) {
+                        put(ExtensionUiModel.Header.Resource(MR.strings.ext_installed), loaded)
                     }
 
                     val languagesWithExtensions = _available
@@ -152,7 +151,7 @@ class ExtensionsScreenModel(
                 if (extension.name.contains(subquery, ignoreCase = true)) return@any true
 
                 when (extension) {
-                    is Extension.Installed -> extension.sources.any { source ->
+                    is Extension.Loaded -> extension.sources.any { source ->
                         source.name.contains(subquery, ignoreCase = true) ||
                             (source as? HttpSource)?.getHomeUrl()?.contains(subquery, ignoreCase = true) == true ||
                             source.id == subquery.toLongOrNull()
@@ -180,7 +179,7 @@ class ExtensionsScreenModel(
         screenModelScope.launchIO {
             state.value.items.values.flatten()
                 .map { it.extension }
-                .filterIsInstance<Extension.Installed>()
+                .filterIsInstance<Extension.Loaded>()
                 .filter { it.hasUpdate }
                 .forEach(::updateExtension)
         }
@@ -192,7 +191,7 @@ class ExtensionsScreenModel(
         }
     }
 
-    fun updateExtension(extension: Extension.Installed) {
+    fun updateExtension(extension: Extension.Loaded) {
         screenModelScope.launchIO {
             extensionManager.updateExtension(extension).collectToInstallUpdate(extension)
         }
@@ -206,10 +205,7 @@ class ExtensionsScreenModel(
     private fun addDownloadState(extension: Extension, installStep: InstallStep) {
         currentDownloads.update {
             it + Pair(
-                extension.pkgName +
-                    // KMK -->
-                    "_${extension.signatureHash}",
-                // KMK <--
+                extension.pkgName,
                 installStep,
             )
         }
@@ -217,12 +213,7 @@ class ExtensionsScreenModel(
 
     private fun removeDownloadState(extension: Extension) {
         currentDownloads.update {
-            it - (
-                extension.pkgName +
-                    // KMK -->
-                    "_${extension.signatureHash}"
-                // KMK <--
-                )
+            it - extension.pkgName
         }
     }
 
@@ -233,7 +224,7 @@ class ExtensionsScreenModel(
             .onCompletion { removeDownloadState(extension) }
             .collect()
 
-    fun uninstallExtension(extension: Extension) {
+    fun uninstallExtension(extension: Extension.Installed) {
         extensionManager.uninstallExtension(extension)
     }
 
@@ -250,7 +241,7 @@ class ExtensionsScreenModel(
         }
     }
 
-    fun trustExtension(extension: Extension.Untrusted) {
+    fun trustExtension(extension: Extension.NotLoaded) {
         screenModelScope.launch {
             extensionManager.trust(extension)
         }

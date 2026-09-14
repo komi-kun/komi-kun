@@ -60,9 +60,8 @@ internal class ExtensionInstaller(
         extension: Extension,
         isUpdateForPrivatelyInstalled: Boolean = false,
     ): Flow<InstallStep> {
-        val pkgName = extension.pkgName +
-            // KMK -->
-            "_${extension.signatureHash}"
+        val pkgName = extension.pkgName
+        // KMK -->
         val downloadId = pkgName.toDownloadId()
         // KMK <--
         cancelInstall(pkgName)

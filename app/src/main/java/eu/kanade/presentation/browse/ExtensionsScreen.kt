@@ -32,6 +32,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.unit.dp
@@ -52,6 +53,7 @@ import eu.kanade.tachiyomi.extension.model.InstallStep
 import eu.kanade.tachiyomi.ui.browse.extension.ExtensionUiModel
 import eu.kanade.tachiyomi.ui.browse.extension.ExtensionsScreenModel
 import eu.kanade.tachiyomi.util.system.LocaleHelper
+import eu.kanade.tachiyomi.util.system.copyToClipboard
 import eu.kanade.tachiyomi.util.system.launchRequestPackageInstallsPermission
 import kotlinx.collections.immutable.persistentListOf
 import mihon.domain.extension.model.ContentWarning
@@ -60,10 +62,12 @@ import mihon.domain.extension.model.KOMIKKU_SIGNATURE
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.Close
 import mihon.icons.materialsymbols.rounded.Download
+import mihon.icons.materialsymbols.rounded.Info
 import mihon.icons.materialsymbols.rounded.Public
 import mihon.icons.materialsymbols.rounded.Refresh
 import mihon.icons.materialsymbols.rounded.Settings
 import mihon.icons.materialsymbols.rounded.VerifiedUser
+import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
 import tachiyomi.i18n.sy.SYMR
@@ -89,10 +93,10 @@ fun ExtensionScreen(
     onClickItemCancel: (Extension) -> Unit,
     onOpenWebView: (Extension.Available) -> Unit,
     onInstallExtension: (Extension.Available) -> Unit,
-    onUninstallExtension: (Extension) -> Unit,
-    onUpdateExtension: (Extension.Installed) -> Unit,
-    onTrustExtension: (Extension.Untrusted) -> Unit,
-    onOpenExtension: (Extension.Installed) -> Unit,
+    onUninstallExtension: (Extension.Installed) -> Unit,
+    onUpdateExtension: (Extension.Loaded) -> Unit,
+    onTrustExtension: (Extension.NotLoaded) -> Unit,
+    onOpenExtension: (Extension.Loaded) -> Unit,
     onClickUpdateAll: () -> Unit,
     onRefresh: () -> Unit,
 ) {
@@ -150,14 +154,14 @@ private fun ExtensionContent(
     onClickItemCancel: (Extension) -> Unit,
     onOpenWebView: (Extension.Available) -> Unit,
     onInstallExtension: (Extension.Available) -> Unit,
-    onUninstallExtension: (Extension) -> Unit,
-    onUpdateExtension: (Extension.Installed) -> Unit,
-    onTrustExtension: (Extension.Untrusted) -> Unit,
-    onOpenExtension: (Extension.Installed) -> Unit,
+    onUninstallExtension: (Extension.Installed) -> Unit,
+    onUpdateExtension: (Extension.Loaded) -> Unit,
+    onTrustExtension: (Extension.NotLoaded) -> Unit,
+    onOpenExtension: (Extension.Loaded) -> Unit,
     onClickUpdateAll: () -> Unit,
 ) {
     val context = LocalContext.current
-    var trustState by remember { mutableStateOf<Extension.Untrusted?>(null) }
+    var notLoadedState by remember { mutableStateOf<Extension.NotLoaded?>(null) }
     val installGranted = rememberRequestPackageInstallsPermissionState(initialValue = true)
     // KMK -->
     val navigator = LocalNavigator.current
@@ -240,8 +244,8 @@ private fun ExtensionContent(
                 contentType = { "item" },
                 key = { item ->
                     when (item.extension) {
-                        is Extension.Untrusted -> "extension-untrusted-${item.hashCode()}"
-                        is Extension.Installed -> "extension-installed-${item.hashCode()}"
+                        is Extension.NotLoaded -> "extension-not-loaded-${item.hashCode()}"
+                        is Extension.Loaded -> "extension-loaded-${item.hashCode()}"
                         is Extension.Available -> "extension-available-${item.hashCode()}"
                     }
                 },
@@ -252,9 +256,9 @@ private fun ExtensionContent(
                     onClickItem = {
                         when (it) {
                             is Extension.Available -> onInstallExtension(it)
-                            is Extension.Installed -> onOpenExtension(it)
-                            is Extension.Untrusted -> {
-                                trustState = it
+                            is Extension.Loaded -> onOpenExtension(it)
+                            is Extension.NotLoaded -> {
+                                notLoadedState = it
                             }
                         }
                     },
@@ -262,7 +266,7 @@ private fun ExtensionContent(
                     onClickItemSecondaryAction = {
                         when (it) {
                             is Extension.Available -> onOpenWebView(it)
-                            is Extension.Installed -> onOpenExtension(it)
+                            is Extension.Loaded -> onOpenExtension(it)
                             else -> {}
                         }
                     },
@@ -270,15 +274,15 @@ private fun ExtensionContent(
                     onClickItemAction = {
                         when (it) {
                             is Extension.Available -> onInstallExtension(it)
-                            is Extension.Installed -> {
+                            is Extension.Loaded -> {
                                 if (it.hasUpdate) {
                                     onUpdateExtension(it)
                                 } else {
                                     onOpenExtension(it)
                                 }
                             }
-                            is Extension.Untrusted -> {
-                                trustState = it
+                            is Extension.NotLoaded -> {
+                                notLoadedState = it
                             }
                         }
                     },
@@ -286,20 +290,30 @@ private fun ExtensionContent(
             }
         }
     }
-    if (trustState != null) {
-        ExtensionTrustDialog(
-            onClickConfirm = {
-                onTrustExtension(trustState!!)
-                trustState = null
-            },
-            onClickDismiss = {
-                onUninstallExtension(trustState!!)
-                trustState = null
-            },
-            onDismissRequest = {
-                trustState = null
-            },
-        )
+    notLoadedState?.let { extension ->
+        val dismiss = { notLoadedState = null }
+        if (extension.reason is Extension.NotLoaded.Reason.Untrusted) {
+            ExtensionTrustDialog(
+                onClickConfirm = {
+                    onTrustExtension(extension)
+                    dismiss()
+                },
+                onClickDismiss = {
+                    onUninstallExtension(extension)
+                    dismiss()
+                },
+                onDismissRequest = dismiss,
+            )
+        } else {
+            ExtensionNotLoadedDialog(
+                reason = extension.reason,
+                onClickUninstall = {
+                    onUninstallExtension(extension)
+                    dismiss()
+                },
+                onDismissRequest = dismiss,
+            )
+        }
     }
 }
 
@@ -407,17 +421,22 @@ private fun ExtensionItemContent(
                 }
 
                 // KMK -->
-                Text(text = extension.storeName?.let { "@$it" } ?: "(?)")
+                val storeName = when (extension) {
+                    is Extension.Available -> extension.store.name
+                    is Extension.Loaded -> extension.store?.name
+                    is Extension.NotLoaded -> null
+                }
+                Text(text = storeName?.let { "@$it" } ?: "(?)")
                 // KMK <--
 
                 val warnings = listOfNotNull(
                     when {
-                        extension is Extension.Untrusted ->
-                            MR.strings.ext_untrusted to MaterialTheme.colorScheme.error
-                        extension is Extension.Installed && extension.isObsolete ->
+                        extension is Extension.NotLoaded ->
+                            extension.reason.labelRes?.let { it to MaterialTheme.colorScheme.error }
+                        extension is Extension.Loaded && extension.isObsolete ->
                             MR.strings.ext_obsolete to MaterialTheme.colorScheme.error
                         // SY -->
-                        extension is Extension.Installed && extension.isRedundant ->
+                        extension is Extension.Loaded && extension.isRedundant ->
                             SYMR.strings.ext_redundant to MaterialTheme.colorScheme.error
                         // SY <--
                         else -> null
@@ -435,7 +454,7 @@ private fun ExtensionItemContent(
                     )
                 }
 
-                if (extension is Extension.Installed && !extension.isShared) {
+                if (extension is Extension.Loaded && !extension.isShared) {
                     if (hasAlreadyShownAnElement) DotSeparatorNoSpaceText()
                     Text(
                         text = stringResource(MR.strings.ext_installer_private),
@@ -492,7 +511,7 @@ private fun ExtensionItemActions(
             }
             installStep == InstallStep.Idle -> {
                 when (extension) {
-                    is Extension.Installed -> {
+                    is Extension.Loaded -> {
                         IconButton(onClick = { onClickItemSecondaryAction(extension) }) {
                             Icon(
                                 imageVector = MaterialSymbols.Rounded.Settings,
@@ -509,11 +528,20 @@ private fun ExtensionItemActions(
                             }
                         }
                     }
-                    is Extension.Untrusted -> {
+                    is Extension.NotLoaded -> {
+                        val isUntrusted = extension.reason is Extension.NotLoaded.Reason.Untrusted
                         IconButton(onClick = { onClickItemAction(extension) }) {
                             Icon(
-                                imageVector = MaterialSymbols.Rounded.VerifiedUser,
-                                contentDescription = stringResource(MR.strings.ext_trust),
+                                imageVector = if (isUntrusted) {
+                                    MaterialSymbols.Rounded.VerifiedUser
+                                } else {
+                                    MaterialSymbols.Rounded.Info
+                                },
+                                contentDescription = if (isUntrusted) {
+                                    stringResource(MR.strings.ext_trust)
+                                } else {
+                                    stringResource(MR.strings.ext_not_loaded)
+                                },
                             )
                         }
                     }
@@ -576,6 +604,83 @@ private fun ExtensionHeader(
     }
 }
 
+/**
+ * Only the reasons the user can act on are worth naming in the row; the rest all mean "broken" to
+ * them and are spelled out in [ExtensionNotLoadedDialog] instead.
+ */
+private val Extension.NotLoaded.Reason.labelRes: StringResource?
+    get() = when (this) {
+        is Extension.NotLoaded.Reason.Untrusted -> MR.strings.ext_untrusted
+        Extension.NotLoaded.Reason.Filtered -> MR.strings.ext_filtered
+        // The section header already says these aren't loaded; the dialog says why
+        Extension.NotLoaded.Reason.Unsigned,
+        Extension.NotLoaded.Reason.UnsupportedLibVersion,
+        Extension.NotLoaded.Reason.Malformed,
+        is Extension.NotLoaded.Reason.Failed,
+        -> null
+    }
+
+private val Extension.NotLoaded.Reason.descriptionRes: StringResource
+    get() = when (this) {
+        is Extension.NotLoaded.Reason.Untrusted -> MR.strings.untrusted_extension_message
+        Extension.NotLoaded.Reason.Filtered -> MR.strings.ext_filtered_message
+        Extension.NotLoaded.Reason.Unsigned -> MR.strings.ext_unsigned_message
+        Extension.NotLoaded.Reason.UnsupportedLibVersion -> MR.strings.ext_unsupported_message
+        Extension.NotLoaded.Reason.Malformed -> MR.strings.ext_malformed_message
+        is Extension.NotLoaded.Reason.Failed -> MR.strings.ext_load_failed_message
+    }
+
+@Composable
+private fun ExtensionNotLoadedDialog(
+    reason: Extension.NotLoaded.Reason,
+    onClickUninstall: () -> Unit,
+    onDismissRequest: () -> Unit,
+) {
+    AlertDialog(
+        title = {
+            Text(text = stringResource(MR.strings.ext_not_loaded_dialog))
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small)) {
+                Text(text = stringResource(reason.descriptionRes))
+
+                if (reason is Extension.NotLoaded.Reason.Failed) {
+                    Text(
+                        text = reason.message,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = FontFamily.Monospace,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+
+                    val context = LocalContext.current
+                    TextButton(
+                        onClick = {
+                            context.copyToClipboard(
+                                label = context.stringResource(MR.strings.ext_copy_stacktrace),
+                                content = reason.stackTrace,
+                            )
+                        },
+                        contentPadding = PaddingValues(0.dp),
+                    ) {
+                        Text(text = stringResource(MR.strings.ext_copy_stacktrace))
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismissRequest) {
+                Text(text = stringResource(MR.strings.action_ok))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onClickUninstall) {
+                Text(text = stringResource(MR.strings.ext_uninstall))
+            }
+        },
+        onDismissRequest = onDismissRequest,
+    )
+}
+
 @Composable
 private fun ExtensionTrustDialog(
     onClickConfirm: () -> Unit,
@@ -615,14 +720,12 @@ private fun ExtensionItemContentPreview() {
         versionCode = 1,
         libVersion = 1.0,
         contentWarning = ContentWarning.NSFW,
-        signatureHash = "900000",
-        storeName = "Komikku",
         sources = emptyList(),
         apkUrl = "Test",
         iconUrl = "",
         store = ExtensionStore("https://komikku", "Komikku", "", KOMIKKU_SIGNATURE, ExtensionStore.Contact("", ""), false, null),
     )
-    val extInstalled = Extension.Installed(
+    val extLoaded = Extension.Loaded(
         name = "Tachiyomi",
         pkgName = "com.tachiyomi.test",
         versionName = "1.2.3",
@@ -630,8 +733,6 @@ private fun ExtensionItemContentPreview() {
         versionCode = 1,
         libVersion = 1.0,
         contentWarning = ContentWarning.NSFW,
-        signatureHash = "900000",
-        storeName = "Komikku",
         sources = emptyList(),
         store = ExtensionStore("https://komikku", "Komikku", "", KOMIKKU_SIGNATURE, ExtensionStore.Contact("", ""), false, null),
         pkgFactory = null,
@@ -641,7 +742,7 @@ private fun ExtensionItemContentPreview() {
         isShared = false,
         isRedundant = false,
     )
-    val extUntrusted = Extension.Untrusted(
+    val extNotLoaded = Extension.NotLoaded(
         name = "Tachiyomi",
         pkgName = "com.tachiyomi.test",
         versionName = "1.2.3",
@@ -649,8 +750,8 @@ private fun ExtensionItemContentPreview() {
         versionCode = 1,
         libVersion = 1.0,
         contentWarning = ContentWarning.NSFW,
-        signatureHash = "900000",
-        storeName = "Repository",
+        isShared = false,
+        reason = Extension.NotLoaded.Reason.Untrusted("900000"),
     )
 
     TachiyomiPreviewTheme {
@@ -658,25 +759,25 @@ private fun ExtensionItemContentPreview() {
             Column {
                 ExtensionItemContent(
                     extension = extAvail.copy(
-                        storeName = "Repository extensions minion multiple languages various sources",
+                        store = extAvail.store.copy(name = "Repository extensions minion multiple languages various sources"),
                     ),
                     installStep = InstallStep.Idle,
                 )
                 ExtensionItemContent(extension = extAvail, installStep = InstallStep.Installing)
-                ExtensionItemContent(extension = extInstalled, installStep = InstallStep.Idle)
+                ExtensionItemContent(extension = extLoaded, installStep = InstallStep.Idle)
                 ExtensionItemContent(
-                    extension = extInstalled.copy(
+                    extension = extLoaded.copy(
                         isObsolete = true,
                     ),
                     installStep = InstallStep.Idle,
                 )
                 ExtensionItemContent(
-                    extension = extInstalled.copy(
+                    extension = extLoaded.copy(
                         isRedundant = true,
                     ),
                     installStep = InstallStep.Idle,
                 )
-                ExtensionItemContent(extension = extUntrusted, installStep = InstallStep.Idle)
+                ExtensionItemContent(extension = extNotLoaded, installStep = InstallStep.Idle)
             }
         }
     }

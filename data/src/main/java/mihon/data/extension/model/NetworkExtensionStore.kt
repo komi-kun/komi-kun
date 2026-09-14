@@ -111,10 +111,6 @@ fun ExtensionList.toAvailableExtensions(store: ExtensionStore): List<TachiyomiEx
                 ContentWarning.NSFW -> DomainContentWarning.NSFW
                 else -> DomainContentWarning.SAFE
             },
-            // KMK -->
-            signatureHash = store.signingKey,
-            storeName = store.name,
-            // KMK <--
             sources = extension.sources.map { source ->
                 TachiyomiExtension.Available.Source(
                     id = source.id,

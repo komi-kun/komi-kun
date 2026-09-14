@@ -49,7 +49,7 @@ class ExtensionDetailsScreenModel(
     init {
         screenModelScope.launch {
             launch {
-                extensionManager.installedExtensionsFlow
+                extensionManager.loadedExtensionsFlow
                     .map { it.firstOrNull { extension -> extension.pkgName == pkgName } }
                     .collectLatest { extension ->
                         if (extension == null) {
@@ -141,7 +141,7 @@ class ExtensionDetailsScreenModel(
 
     @Immutable
     data class State(
-        val extension: Extension.Installed? = null,
+        val extension: Extension.Loaded? = null,
         val isIncognito: Boolean = false,
         private val _sources: ImmutableList<ExtensionSourceItem>? = null,
     ) {

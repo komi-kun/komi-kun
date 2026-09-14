@@ -122,7 +122,7 @@ abstract class SearchScreenModel(
         }
 
         // SY -->
-        val filteredSourceIds = extensionManager.installedExtensionsFlow.first()
+        val filteredSourceIds = extensionManager.loadedExtensionsFlow.first()
             .filter { it.pkgName == filter }
             .flatMap { it.sources }
             .map { it.id }

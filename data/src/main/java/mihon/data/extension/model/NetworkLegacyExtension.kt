@@ -37,10 +37,6 @@ data class NetworkLegacyExtension(
             versionName = version,
             lang = lang,
             contentWarning = if (nsfw == 1) ContentWarning.NSFW else ContentWarning.SAFE,
-            // KMK -->
-            signatureHash = store.signingKey,
-            storeName = store.name,
-            // KMK <--
             sources = if (sources.isNullOrEmpty()) {
                 listOf(
                     Extension.Available.Source(
