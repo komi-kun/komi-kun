@@ -46,6 +46,11 @@ class SourcePreferences(
         setOf(ContentWarning.SAFE, ContentWarning.MIXED, ContentWarning.NSFW),
     )
 
+    val applyContentWarningsToInstalled: Preference<Boolean> = preferenceStore.getBoolean(
+        "apply_content_warnings_to_installed",
+        true,
+    )
+
     fun migrationSortingMode() = preferenceStore.getEnum("pref_migration_sorting", SetMigrateSorting.Mode.ALPHABETICAL)
 
     fun migrationSortingDirection() = preferenceStore.getEnum(

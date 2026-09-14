@@ -253,6 +253,7 @@ internal object ExtensionLoader {
         val stores = extStores ?: getExtensionStores.get()
         // KMK <--
         val enabledContentWarnings = preferences.enabledContentWarnings.get()
+        val applyContentWarningsToInstalled = preferences.applyContentWarningsToInstalled.get()
         val pkgManager = context.packageManager
         val pkgInfo = extensionInfo.packageInfo
         val appInfo = pkgInfo.applicationInfo!!
@@ -316,7 +317,7 @@ internal object ExtensionLoader {
             appInfo.metaData.getInt(METADATA_NSFW) == 1 -> ContentWarning.NSFW
             else -> ContentWarning.SAFE
         }
-        if (contentWarning !in enabledContentWarnings) {
+        if (applyContentWarningsToInstalled && contentWarning !in enabledContentWarnings) {
             logcat(LogPriority.WARN) { "Extension $pkgName with $contentWarning not allowed" }
             return LoadResult.Error
         }
