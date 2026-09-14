@@ -3,7 +3,6 @@ package eu.kanade.tachiyomi.extension.api
 import android.content.Context
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.tachiyomi.extension.model.Extension
-import eu.kanade.tachiyomi.extension.util.ExtensionLoader
 import exh.source.BlacklistedSources
 import exh.source.ExhPreferences
 import mihon.domain.extension.interactor.UpdateExtensionStores
@@ -36,23 +35,22 @@ internal class ExtensionApi {
         }
     }
 
-    suspend fun checkForUpdates(context: Context) {
+    /**
+     * @param loadedExtensions Extensions already loaded by [eu.kanade.tachiyomi.extension.ExtensionManager].
+     * Only their versions are read, so there's nothing to gain from loading them a second time.
+     */
+    suspend fun checkForUpdates(context: Context, loadedExtensions: List<Extension.Loaded>) {
         updateExtensionStores()
 
         val extensions = findExtensions()
 
         // SY -->
         val blacklistEnabled = sourcePreferences.enableSourceBlacklist().get()
-        // SY <--
-
-        val loadedExtensions = ExtensionLoader.loadExtensions(context)
-            .filterIsInstance<Extension.Loaded>()
-            // SY -->
-            .filterNot { it.isBlacklisted(blacklistEnabled) }
+        val filteredExtensions = loadedExtensions.filterNot { it.isBlacklisted(blacklistEnabled) }
         // SY <--
 
         val extensionsWithUpdate = mutableListOf<Extension.Loaded>()
-        for (installedExt in loadedExtensions) {
+        for (installedExt in filteredExtensions) {
             val pkgName = installedExt.pkgName
             val availableExt = extensions.find { it.pkgName == pkgName } ?: continue
             val hasUpdatedVer = availableExt.versionCode > installedExt.versionCode

@@ -242,9 +242,7 @@ class ExtensionsScreenModel(
     }
 
     fun trustExtension(extension: Extension.NotLoaded) {
-        screenModelScope.launch {
-            extensionManager.trust(extension)
-        }
+        extensionManager.trust(extension)
     }
 
     // KMK -->

@@ -27,9 +27,13 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -92,8 +96,16 @@ class ExtensionManager(
 
     init {
         scope.launch(Dispatchers.IO) {
-            initExtensions()
+            loadExtensions()
             ExtensionInstallReceiver(InstallationListener()).register(context)
+
+            // Everything the load decision rests on can change while running, so decide again
+            merge(
+                trustExtension.changes(),
+                preferences.enabledContentWarnings.changes().distinctUntilChanged().drop(1).map {},
+                preferences.applyContentWarningsToInstalled.changes().distinctUntilChanged().drop(1).map {},
+            )
+                .collectLatest { loadExtensions() }
         }
     }
 
@@ -158,23 +170,33 @@ class ExtensionManager(
     fun getSourceData(id: Long) = availableExtensionsSourcesData[id]
 
     /**
-     * Loads and registers the installed extensions.
+     * Loads and registers the installed extensions. Safe to call again: every extension is judged
+     * again, so one can move between loaded and not loaded in either direction, while extensions
+     * that still pass keep the instances they already had.
      */
-    private fun initExtensions() {
-        val extensions = ExtensionLoader.loadExtensions(context)
+    private suspend fun loadExtensions() {
+        try {
+            val extensions = ExtensionLoader.loadExtensions(context, loadedExtensionMapFlow.value)
 
-        loadedExtensionMapFlow.value = extensions
-            .filterIsInstance<Extension.Loaded>()
-            .associateBy { it.pkgName }
+            loadedExtensionMapFlow.value = extensions
+                .filterIsInstance<Extension.Loaded>()
+                .associateBy { it.pkgName }
 
-        notLoadedExtensionMapFlow.value = extensions
-            .filterIsInstance<Extension.NotLoaded>()
-            .associateBy { it.pkgName }
-            // SY -->
-            .filterNotBlacklisted()
-        // SY <--
+            notLoadedExtensionMapFlow.value = extensions
+                .filterIsInstance<Extension.NotLoaded>()
+                .associateBy { it.pkgName }
+                // SY -->
+                .filterNotBlacklisted()
+            // SY <--
 
-        isInitialized.value = true
+            // Newly loaded extensions have no status derived from the store index yet
+            updatedInstalledExtensionsStatuses(availableExtensionMapFlow.value.values.toList())
+        } catch (e: Throwable) {
+            logcat(LogPriority.ERROR, e) { "Failed to load extensions" }
+        } finally {
+            // Release anything waiting on the extensions whether or not the load worked
+            isInitialized.value = true
+        }
     }
 
     // EXH -->
@@ -350,19 +372,12 @@ class ExtensionManager(
      *
      * @param extension the extension to trust
      */
-    suspend fun trust(extension: Extension.NotLoaded) {
+    fun trust(extension: Extension.NotLoaded) {
         val reason = extension.reason as? Extension.NotLoaded.Reason.Untrusted ?: return
         notLoadedExtensionMapFlow.value[extension.pkgName] ?: return
 
+        // Loading it again is left to the reload triggered by the trust change
         trustExtension.trust(extension.pkgName, extension.versionCode, reason.signatureHash)
-
-        notLoadedExtensionMapFlow.value -= extension.pkgName
-
-        when (val reloaded = ExtensionLoader.loadExtensionFromPkgName(context, extension.pkgName)) {
-            is Extension.Loaded -> registerExtension(reloaded)
-            is Extension.NotLoaded -> notLoadedExtensionMapFlow.value += reloaded
-            null -> {}
-        }
     }
 
     /**
