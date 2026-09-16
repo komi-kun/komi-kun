@@ -254,6 +254,7 @@ dependencies {
 
     // Data serialization (JSON, protobuf, xml)
     implementation(kotlinx.bundles.serialization)
+    implementation(kotlinx.datetime)
 
     // HTML parser
     implementation(libs.jsoup)

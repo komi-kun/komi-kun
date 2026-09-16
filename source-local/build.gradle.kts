@@ -29,6 +29,7 @@ kotlin {
                 implementation(projects.domain)
 
                 implementation(kotlinx.bundles.serialization)
+                implementation(kotlinx.datetime)
             }
         }
     }
@@ -50,3 +51,4 @@ android {
         consumerProguardFiles("consumer-rules.pro")
     }
 }
+
