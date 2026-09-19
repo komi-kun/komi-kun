@@ -186,6 +186,8 @@ class MdList(id: Long) : BaseTracker(id, "MDList") {
 
     class MangaDexNotFoundException : Exception("Mangadex not enabled")
 
+    override suspend fun updateUserConfig() = Unit
+
     // KMK -->
     override fun hasNotStartedReading(status: Long): Boolean = status == FollowStatus.PLAN_TO_READ.long
     // KMK <--
