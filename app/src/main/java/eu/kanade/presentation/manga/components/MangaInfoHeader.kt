@@ -73,6 +73,7 @@ import com.mikepenz.markdown.model.markdownAnnotatorConfig
 import com.mikepenz.markdown.utils.getUnescapedTextInNode
 import eu.kanade.presentation.components.DropdownMenu
 import eu.kanade.tachiyomi.R
+import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.util.system.copyToClipboard
 import kotlinx.datetime.TimeZone
@@ -124,7 +125,10 @@ fun MangaInfoBox(
     isTabletUi: Boolean,
     appBarPadding: Dp,
     manga: Manga,
+    source: Source,
+    // KMK -->
     sourceName: String,
+    // KMK <--
     isStubSource: Boolean,
     // KMK -->
     isSourceIncognito: Boolean,
@@ -189,7 +193,10 @@ fun MangaInfoBox(
                 MangaAndSourceTitlesSmall(
                     appBarPadding = appBarPadding,
                     manga = manga,
+                    source = source,
+                    // KMK -->
                     sourceName = sourceName,
+                    // KMK <--
                     isStubSource = isStubSource,
                     // KMK -->
                     isSourceIncognito = isSourceIncognito,
@@ -209,7 +216,10 @@ fun MangaInfoBox(
                 MangaAndSourceTitlesLarge(
                     appBarPadding = appBarPadding,
                     manga = manga,
+                    source = source,
+                    // KMK -->
                     sourceName = sourceName,
+                    // KMK <--
                     isStubSource = isStubSource,
                     // KMK -->
                     isSourceIncognito = isSourceIncognito,
@@ -487,7 +497,10 @@ fun ExpandableMangaDescription(
 private fun MangaAndSourceTitlesLarge(
     appBarPadding: Dp,
     manga: Manga,
+    source: Source,
+    // KMK -->
     sourceName: String,
+    // KMK <--
     isStubSource: Boolean,
     // KMK -->
     isSourceIncognito: Boolean,
@@ -551,7 +564,10 @@ private fun MangaAndSourceTitlesLarge(
             author = manga.author,
             artist = manga.artist,
             status = manga.status,
+            source = source,
+            // KMK -->
             sourceName = sourceName,
+            // KMK <--
             isStubSource = isStubSource,
             // KMK -->
             isSourceIncognito = isSourceIncognito,
@@ -570,7 +586,10 @@ private fun MangaAndSourceTitlesLarge(
 private fun MangaAndSourceTitlesSmall(
     appBarPadding: Dp,
     manga: Manga,
+    source: Source,
+    // KMK -->
     sourceName: String,
+    // KMK <--
     isStubSource: Boolean,
     // KMK -->
     isSourceIncognito: Boolean,
@@ -646,7 +665,10 @@ private fun MangaAndSourceTitlesSmall(
                 author = manga.author,
                 artist = manga.artist,
                 status = manga.status,
+                source = source,
+                // KMK -->
                 sourceName = sourceName,
+                // KMK <--
                 isStubSource = isStubSource,
                 // KMK -->
                 isSourceIncognito = isSourceIncognito,
@@ -668,7 +690,10 @@ private fun ColumnScope.MangaContentInfo(
     author: String?,
     artist: String?,
     status: Long,
+    source: Source,
+    // KMK -->
     sourceName: String,
+    // KMK <--
     isStubSource: Boolean,
     // KMK -->
     isSourceIncognito: Boolean,
@@ -684,6 +709,7 @@ private fun ColumnScope.MangaContentInfo(
     // KMK -->
     var showMenu by remember { mutableStateOf(false) }
     var tagSelected by remember { mutableStateOf("") }
+    var searchSelected by remember { mutableStateOf("") }
     DropdownMenu(
         expanded = showMenu,
         onDismissRequest = { showMenu = false },
@@ -691,14 +717,14 @@ private fun ColumnScope.MangaContentInfo(
         DropdownMenuItem(
             text = { Text(text = stringResource(KMR.strings.action_library_search)) },
             onClick = {
-                librarySearch(tagSelected)
+                librarySearch(searchSelected)
                 showMenu = false
             },
         )
         DropdownMenuItem(
             text = { Text(text = stringResource(MR.strings.action_global_search)) },
             onClick = {
-                doSearch(tagSelected, true)
+                doSearch(searchSelected, true)
                 showMenu = false
             },
         )
@@ -722,6 +748,7 @@ private fun ColumnScope.MangaContentInfo(
                 if (title.isNotBlank()) {
                     // KMK -->
                     tagSelected = title
+                    searchSelected = title
                     showMenu = true
                     // KMK <--
                 }
@@ -753,6 +780,7 @@ private fun ColumnScope.MangaContentInfo(
                         if (!author.isNullOrBlank()) {
                             // KMK -->
                             tagSelected = author
+                            searchSelected = author
                             showMenu = true
                             // KMK <--
                         }
@@ -782,6 +810,7 @@ private fun ColumnScope.MangaContentInfo(
                         onLongClick = {
                             // KMK -->
                             tagSelected = artist
+                            searchSelected = artist
                             showMenu = true
                             // KMK <--
                         },
@@ -857,6 +886,7 @@ private fun ColumnScope.MangaContentInfo(
                     // KMK -->
                     onLongClick = {
                         tagSelected = sourceName
+                        searchSelected = source.query()
                         showMenu = true
                     },
                     onClick = {
@@ -870,6 +900,8 @@ private fun ColumnScope.MangaContentInfo(
         }
     }
 }
+
+private fun Source.query(): String = """src:"$name" lang:$lang""".takeIf { name.isNotBlank() } ?: "srcid:$id"
 
 @Composable
 private fun descriptionAnnotator(loadImages: Boolean, linkStyle: SpanStyle) = remember(loadImages, linkStyle) {
