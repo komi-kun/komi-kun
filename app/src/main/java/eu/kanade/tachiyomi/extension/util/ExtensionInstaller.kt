@@ -14,15 +14,14 @@ import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.util.storage.getUriCompat
 import eu.kanade.tachiyomi.util.system.isPackageInstalled
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.launch
 import logcat.LogPriority
+import mihon.core.metro.AppCoroutineScope
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import tachiyomi.core.common.util.system.logcat
@@ -36,13 +35,13 @@ import java.util.concurrent.ConcurrentHashMap
  */
 @Inject
 class ExtensionInstaller(
+    @AppCoroutineScope private val scope: CoroutineScope,
     private val context: Context,
     basePreferences: BasePreferences,
     networkHelper: NetworkHelper,
 ) {
 
     // KMK -->
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val activeJobs = ConcurrentHashMap<String, Job>()
     private val activeSteps = ConcurrentHashMap<Long, MutableStateFlow<InstallStep>>()
     // KMK <--

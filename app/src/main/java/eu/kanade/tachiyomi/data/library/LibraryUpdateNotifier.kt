@@ -30,7 +30,8 @@ import eu.kanade.tachiyomi.util.system.cancelNotification
 import eu.kanade.tachiyomi.util.system.getBitmapOrNull
 import eu.kanade.tachiyomi.util.system.notificationBuilder
 import eu.kanade.tachiyomi.util.system.notify
-import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.CoroutineScope
+import mihon.core.metro.AppCoroutineScope
 import tachiyomi.core.common.Constants
 import tachiyomi.core.common.i18n.pluralStringResource
 import tachiyomi.core.common.i18n.stringResource
@@ -46,6 +47,7 @@ import mihon.icons.materialsymbols.R as MaterialSymbolsR
 
 @Inject
 class LibraryUpdateNotifier(
+    @AppCoroutineScope private val scope: CoroutineScope,
     private val context: Context,
     private val securityPreferences: SecurityPreferences,
     private val sourceManager: SourceManager,
@@ -225,7 +227,7 @@ class LibraryUpdateNotifier(
 
         // Per-manga notification
         if (!securityPreferences.hideNotificationContent.get()) {
-            launchUI {
+            scope.launchUI {
                 context.notify(
                     updates.map { (manga, chapters) ->
                         NotificationManagerCompat.NotificationWithIdAndTag(

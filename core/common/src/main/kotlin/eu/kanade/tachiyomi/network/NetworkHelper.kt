@@ -9,7 +9,9 @@ import eu.kanade.tachiyomi.network.interceptor.UncaughtExceptionInterceptor
 import eu.kanade.tachiyomi.network.interceptor.UserAgentInterceptor
 import exh.log.EHLogLevel
 import exh.pref.DelegateSourcePreferences
+import kotlinx.coroutines.CoroutineScope
 import logcat.LogPriority
+import mihon.core.metro.AppCoroutineScope
 import okhttp3.Cache
 import okhttp3.Headers
 import okhttp3.OkHttpClient
@@ -27,6 +29,7 @@ import kotlin.random.Random
 @SingleIn(AppScope::class)
 /* SY --> */
 open /* SY <-- */ class NetworkHelper(
+    @AppCoroutineScope private val scope: CoroutineScope,
     private val context: Context,
     private val preferences: NetworkPreferences,
     // KMK -->
@@ -95,7 +98,7 @@ open /* SY <-- */ class NetworkHelper(
     /* SY --> */ open /* SY <-- */ val client /* KMK --> */ by lazy /* KMK <-- */ {
         clientBuilder()
             .addInterceptor(
-                CloudflareInterceptor(context, cookieJar, ::defaultUserAgentProvider),
+                CloudflareInterceptor(context, cookieJar, scope, ::defaultUserAgentProvider),
             )
             // KMK -->
             // FIXME (KMK): Dirty hack to fetch MangaDex covers
@@ -134,7 +137,7 @@ open /* SY <-- */ class NetworkHelper(
         callTimeout: Long = 120,
     ) = clientBuilder(connectTimeout, readTimeout, callTimeout)
         .addInterceptor(
-            CloudflareInterceptor(context, cookieJar, ::defaultUserAgentProvider),
+            CloudflareInterceptor(context, cookieJar, scope, ::defaultUserAgentProvider),
         )
         .build()
 

@@ -10,6 +10,7 @@ import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.online.HttpSource
 import exh.log.xLogE
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.drop
@@ -20,6 +21,7 @@ import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.runBlocking
 import logcat.LogPriority
+import mihon.core.metro.AppCoroutineScope
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.storage.extension
 import tachiyomi.core.common.util.lang.launchIO
@@ -43,6 +45,7 @@ import tachiyomi.source.local.isLocal
 @Inject
 @SingleIn(AppScope::class)
 class DownloadManager(
+    @AppCoroutineScope private val scope: CoroutineScope,
     private val context: Context,
     private val provider: DownloadProvider,
     private val cache: DownloadCache,
@@ -279,7 +282,7 @@ class DownloadManager(
         ignoreCategoryExclusion: Boolean = false,
         // KMK <--
     ) {
-        launchIO {
+        scope.launchIO {
             val filteredChapters = getChaptersToDelete(
                 chapters,
                 manga,
@@ -312,7 +315,7 @@ class DownloadManager(
      * @param removeQueued whether to also remove queued downloads.
      */
     fun deleteManga(manga: Manga, source: Source, removeQueued: Boolean = true) {
-        launchIO {
+        scope.launchIO {
             if (removeQueued) {
                 downloader.removeFromQueue(manga)
             }

@@ -10,6 +10,7 @@ import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.source.online.all.MergedSource
 import eu.kanade.tachiyomi.ui.reader.model.ReaderChapter
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
+import kotlinx.coroutines.CoroutineScope
 import mihon.core.archive.archiveReader
 import mihon.core.archive.epubReader
 import tachiyomi.core.common.i18n.stringResource
@@ -31,6 +32,7 @@ class ChapterLoader(
     private val downloadManager: DownloadManager,
     private val downloadProvider: DownloadProvider,
     private val chapterCache: ChapterCache,
+    private val appScope: CoroutineScope,
     private val manga: Manga,
     private val source: Source,
     // SY -->
@@ -129,7 +131,7 @@ class ChapterLoader(
                         downloadManager = downloadManager,
                         downloadProvider = downloadProvider,
                     )
-                    source is HttpSource -> HttpPageLoader(chapter, source, chapterCache, readerPrefs, sourcePreferences)
+                    source is HttpSource -> HttpPageLoader(chapter, source, chapterCache, appScope, readerPrefs, sourcePreferences)
                     source is LocalSource -> source.getFormat(chapter.chapter).let { format ->
                         when (format) {
                             is Format.Directory -> DirectoryPageLoader(format.file)
@@ -155,7 +157,7 @@ class ChapterLoader(
                     is Format.Epub -> EpubPageLoader(format.file.epubReader(context))
                 }
             }
-            source is HttpSource -> HttpPageLoader(chapter, source, chapterCache, readerPrefs, sourcePreferences)
+            source is HttpSource -> HttpPageLoader(chapter, source, chapterCache, appScope, readerPrefs, sourcePreferences)
             source is StubSource -> error(context.stringResource(MR.strings.source_not_installed, source.toString()))
             else -> error(context.stringResource(MR.strings.loader_not_implemented_error))
         }

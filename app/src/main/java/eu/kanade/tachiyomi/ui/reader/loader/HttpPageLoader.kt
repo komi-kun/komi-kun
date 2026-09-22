@@ -37,6 +37,7 @@ internal class HttpPageLoader(
     private val chapter: ReaderChapter,
     private val source: HttpSource,
     private val chapterCache: ChapterCache,
+    private val appScope: CoroutineScope,
     // SY -->
     private val readerPreferences: ReaderPreferences,
     sourcePreferences: SourcePreferences,
@@ -169,7 +170,7 @@ internal class HttpPageLoader(
 
         // Cache current page list progress for online chapters to allow a faster reopen
         chapter.pages?.let { pages ->
-            launchIO {
+            appScope.launchIO {
                 try {
                     // Convert to pages without reader information
                     val pagesToSave = pages.map { Page(it.index, it.url, it.imageUrl) }

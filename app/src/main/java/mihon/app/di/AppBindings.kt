@@ -24,9 +24,13 @@ import dev.zacsweers.metro.Provides
 import dev.zacsweers.metro.SingleIn
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.tachiyomi.core.security.SecurityPreferences
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.protobuf.ProtoBuf
 import mihon.core.archive.CbzCrypto
+import mihon.core.metro.AppCoroutineScope
 import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
 import nl.adaptivity.xmlutil.XmlDeclMode
 import nl.adaptivity.xmlutil.core.XmlVersion
@@ -109,6 +113,11 @@ object AppBindings {
             ),
         )
     }
+
+    @Provides
+    @SingleIn(AppScope::class)
+    @AppCoroutineScope
+    fun providesAppCoroutineScope(): CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     @Provides
     @SingleIn(AppScope::class)
