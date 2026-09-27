@@ -76,6 +76,9 @@ class CategoryRepositoryImpl(
     override suspend fun updateAllOrders(orderedIds: List<Long>) {
         handler.await(inTransaction = true) {
             orderedIds.forEachIndexed { index, categoryId ->
+                categoriesQueries.updateOrder(order = -index - 2L, categoryId = categoryId)
+            }
+            orderedIds.forEachIndexed { index, categoryId ->
                 categoriesQueries.updateOrder(order = index.toLong(), categoryId = categoryId)
             }
         }
