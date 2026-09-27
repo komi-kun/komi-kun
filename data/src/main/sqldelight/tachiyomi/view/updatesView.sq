@@ -62,6 +62,7 @@ getRecentUpdates:
 SELECT *
 FROM updatesView
 WHERE dateUpload > :after
+ORDER BY datefetch DESC
 LIMIT :limit;
 
 getRecentUpdatesWithFilters:
@@ -106,6 +107,7 @@ AND (
         )
     )
 )
+ORDER BY datefetch DESC
 LIMIT :limit;
 
 getUpdatesByReadStatus:
@@ -113,4 +115,5 @@ SELECT *
 FROM updatesView
 WHERE read = :read
 AND dateUpload > :after
+ORDER BY datefetch DESC
 LIMIT :limit;
