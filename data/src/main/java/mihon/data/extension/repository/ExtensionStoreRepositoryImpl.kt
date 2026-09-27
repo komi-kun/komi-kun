@@ -43,9 +43,11 @@ class ExtensionStoreRepositoryImpl(
                 service.fetch(store.index_url)
                     .mapCatching {
                         handler.await {
-                            upsert(it)
-                            if (store.index_url != it.indexUrl) {
-                                extension_storeQueries.delete(store.index_url)
+                            if (extension_storeQueries.contains(store.index_url).executeAsOne()) {
+                                upsert(it)
+                                if (store.index_url != it.indexUrl) {
+                                    extension_storeQueries.delete(store.index_url)
+                                }
                             }
                         }
                     }
