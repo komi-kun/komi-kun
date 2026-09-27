@@ -36,20 +36,21 @@ internal class ExtensionApi {
     }
 
     /**
-     * @param loadedExtensions Extensions already loaded by [eu.kanade.tachiyomi.extension.ExtensionManager].
-     * Only their versions are read, so there's nothing to gain from loading them a second time.
+     * @param installedExtensions Extensions already read by [eu.kanade.tachiyomi.extension.ExtensionManager],
+     * loaded or not. Only their versions and signatures are read, so there's nothing to gain from reading them
+     * a second time.
      */
-    suspend fun checkForUpdates(context: Context, loadedExtensions: List<Extension.Loaded>) {
+    suspend fun checkForUpdates(context: Context, installedExtensions: List<Extension.Installed>) {
         updateExtensionStores()
 
         val extensions = findExtensions()
 
         // SY -->
         val blacklistEnabled = sourcePreferences.enableSourceBlacklist().get()
-        val filteredLoadedExtensions = loadedExtensions.filterNot { it.isBlacklisted(blacklistEnabled) }
+        val filteredInstalledExtensions = installedExtensions.filterNot { it.isBlacklisted(blacklistEnabled) }
         // SY <--
 
-        val extensionsWithUpdate = filteredLoadedExtensions.filter { it.findUpdate(extensions) != null }
+        val extensionsWithUpdate = filteredInstalledExtensions.filter { it.findUpdate(extensions) != null }
 
         if (extensionsWithUpdate.isNotEmpty()) {
             ExtensionUpdateNotifier(context).promptUpdates(extensionsWithUpdate.map { it.name })

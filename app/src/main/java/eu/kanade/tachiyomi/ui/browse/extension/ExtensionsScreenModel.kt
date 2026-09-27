@@ -179,7 +179,7 @@ class ExtensionsScreenModel(
         screenModelScope.launchIO {
             state.value.items.values.flatten()
                 .map { it.extension }
-                .filterIsInstance<Extension.Loaded>()
+                .filterIsInstance<Extension.Installed>()
                 .filter { it.hasUpdate }
                 .forEach(::updateExtension)
         }
@@ -191,7 +191,7 @@ class ExtensionsScreenModel(
         }
     }
 
-    fun updateExtension(extension: Extension.Loaded) {
+    fun updateExtension(extension: Extension.Installed) {
         screenModelScope.launchIO {
             extensionManager.updateExtension(extension).collectToInstallUpdate(extension)
         }

@@ -17,7 +17,9 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import logcat.LogPriority
 import mihon.data.dalvik.DelegateLastClassLoaderCompat
+import mihon.domain.extension.interactor.GetExtensionStores
 import mihon.domain.extension.model.ContentWarning
+import mihon.domain.extension.model.ExtensionStore
 import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.core.common.util.system.logcat
 import uy.kohesive.injekt.injectLazy
@@ -41,6 +43,10 @@ internal object ExtensionLoader {
 
     private val preferences: SourcePreferences by injectLazy()
     private val trustExtension: TrustExtension by injectLazy()
+
+    // KMK -->
+    private val getExtensionStores: GetExtensionStores by injectLazy()
+    // KMK <--
 
     private const val EXTENSION_FEATURE = "tachiyomi.extension"
     private const val METADATA_SOURCE_CLASS = "tachiyomi.extension.class"
@@ -124,6 +130,7 @@ internal object ExtensionLoader {
         context: Context,
         alreadyLoaded: Map<String, Extension.Loaded> = emptyMap(),
     ): List<Extension.Installed> {
+        val stores = getExtensionStores.get()
         val enabledContentWarnings = preferences.enabledContentWarnings.get()
         val applyContentWarningsToInstalled = preferences.applyContentWarningsToInstalled.get()
 
@@ -180,6 +187,7 @@ internal object ExtensionLoader {
                             context = context,
                             extensionInfo = it,
                             trustExtension = trustExtension,
+                            stores = stores,
                             enabledContentWarnings = enabledContentWarnings,
                             applyContentWarningsToInstalled = applyContentWarningsToInstalled,
                             alreadyLoaded = alreadyLoaded[it.packageInfo.packageName],
@@ -206,6 +214,7 @@ internal object ExtensionLoader {
             context = context,
             extensionInfo = extensionPackage,
             trustExtension = trustExtension,
+            stores = getExtensionStores.get(),
             enabledContentWarnings = sourcePreferences.enabledContentWarnings.get(),
             applyContentWarningsToInstalled = sourcePreferences.applyContentWarningsToInstalled.get(),
         )
@@ -256,6 +265,7 @@ internal object ExtensionLoader {
         context: Context,
         extensionInfo: ExtensionInfo,
         trustExtension: TrustExtension,
+        stores: List<ExtensionStore>,
         enabledContentWarnings: Set<ContentWarning>,
         applyContentWarningsToInstalled: Boolean,
         alreadyLoaded: Extension.Loaded? = null,
@@ -265,6 +275,7 @@ internal object ExtensionLoader {
                 context = context,
                 extensionInfo = extensionInfo,
                 trustExtension = trustExtension,
+                stores = stores,
                 enabledContentWarnings = enabledContentWarnings,
                 applyContentWarningsToInstalled = applyContentWarningsToInstalled,
                 alreadyLoaded = alreadyLoaded,
@@ -272,6 +283,7 @@ internal object ExtensionLoader {
         } catch (e: Throwable) {
             val pkgInfo = extensionInfo.packageInfo
             logcat(LogPriority.ERROR, e) { "Extension load error: ${pkgInfo.packageName}" }
+            val signatures = getSignatures(pkgInfo).orEmpty()
             Extension.NotLoaded(
                 name = pkgInfo.packageName,
                 pkgName = pkgInfo.packageName,
@@ -279,7 +291,8 @@ internal object ExtensionLoader {
                 versionCode = PackageInfoCompat.getLongVersionCode(pkgInfo),
                 isShared = extensionInfo.isShared,
                 contentWarning = ContentWarning.SAFE,
-                signatures = getSignatures(pkgInfo).orEmpty(),
+                signatures = signatures,
+                store = stores.firstOrNull { it.signingKey in signatures },
                 reason = Extension.NotLoaded.Reason.Failed(e.rootMessage, e.stackTraceToString()),
             )
         }
@@ -295,6 +308,7 @@ internal object ExtensionLoader {
         context: Context,
         extensionInfo: ExtensionInfo,
         trustExtension: TrustExtension,
+        stores: List<ExtensionStore>,
         enabledContentWarnings: Set<ContentWarning>,
         applyContentWarningsToInstalled: Boolean,
         alreadyLoaded: Extension.Loaded? = null,
@@ -311,6 +325,7 @@ internal object ExtensionLoader {
         val versionName = pkgInfo.versionName
         val versionCode = PackageInfoCompat.getLongVersionCode(pkgInfo)
         val signatures = getSignatures(pkgInfo).orEmpty()
+        val store = stores.firstOrNull { it.signingKey in signatures }
         val contentWarning = when {
             metaData == null -> ContentWarning.SAFE
             metaData.containsKey(METADATA_CONTENT_WARNING) -> {
@@ -335,6 +350,7 @@ internal object ExtensionLoader {
             isShared = extensionInfo.isShared,
             contentWarning = contentWarning,
             signatures = signatures,
+            store = store,
             libVersion = libVersion,
             reason = reason,
         )
@@ -381,7 +397,7 @@ internal object ExtensionLoader {
             alreadyLoaded.versionCode == versionCode &&
             alreadyLoaded.isShared == extensionInfo.isShared
         ) {
-            return alreadyLoaded
+            return alreadyLoaded.copy(store = store)
         }
 
         val classLoader = try {
@@ -443,6 +459,7 @@ internal object ExtensionLoader {
             icon = runCatching { appInfo.loadIcon(pkgManager) }.getOrNull(),
             isShared = extensionInfo.isShared,
             signatures = signatures,
+            store = store,
         )
     }
 

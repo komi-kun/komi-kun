@@ -579,7 +579,10 @@ class MainActivity : BaseActivity() {
         // Extensions updates
         LaunchedEffect(Unit) {
             try {
-                ExtensionApi().checkForUpdates(context, extensionManager.getLoadedExtensions())
+                ExtensionApi().checkForUpdates(
+                    context,
+                    extensionManager.getLoadedExtensions() + extensionManager.getNotLoadedExtensions(),
+                )
             } catch (e: Exception) {
                 logcat(LogPriority.ERROR, e)
             }
