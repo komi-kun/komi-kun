@@ -4,6 +4,7 @@ import kotlinx.coroutines.flow.Flow
 import tachiyomi.data.Database
 import tachiyomi.data.DatabaseHandler
 import tachiyomi.domain.category.model.Category
+import tachiyomi.domain.category.model.CategoryUpdate
 import tachiyomi.domain.category.repository.CategoryRepository
 
 class CategoryRepositoryImpl(
@@ -37,9 +38,8 @@ class CategoryRepositoryImpl(
     // SY -->
     override suspend fun insert(category: Category): Long {
         return handler.awaitOneExecutable(true) {
-            categoriesQueries.insert(
+            categoriesQueries.insertWithNextOrder(
                 name = category.name,
-                order = category.order,
                 flags = category.flags,
                 // KMK -->
                 hidden = if (category.hidden) 1L else 0L,
@@ -75,10 +75,12 @@ class CategoryRepositoryImpl(
 
     override suspend fun updateAllOrders(orderedIds: List<Long>) {
         handler.await(inTransaction = true) {
-            orderedIds.forEachIndexed { index, categoryId ->
+            val current = categoriesQueries.getUserCategoryIds().executeAsList()
+            val ids = orderedIds.filter { it in current } + current.filterNot { it in orderedIds }
+            ids.forEachIndexed { index, categoryId ->
                 categoriesQueries.updateOrder(order = -index - 2L, categoryId = categoryId)
             }
-            orderedIds.forEachIndexed { index, categoryId ->
+            ids.forEachIndexed { index, categoryId ->
                 categoriesQueries.updateOrder(order = index.toLong(), categoryId = categoryId)
             }
         }

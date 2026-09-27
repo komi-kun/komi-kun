@@ -134,7 +134,7 @@ fun CategoryRenameDialog(
         onDismissRequest = onDismissRequest,
         confirmButton = {
             TextButton(
-                enabled = valueHasChanged && !nameAlreadyExists,
+                enabled = valueHasChanged && name.isNotEmpty() && !nameAlreadyExists,
                 onClick = {
                     onRename(name)
                     onDismissRequest()
