@@ -84,7 +84,6 @@ import eu.kanade.tachiyomi.data.notification.NotificationReceiver
 import eu.kanade.tachiyomi.data.updater.AppUpdateChecker
 import eu.kanade.tachiyomi.data.updater.AppUpdateJob
 import eu.kanade.tachiyomi.extension.ExtensionManager
-import eu.kanade.tachiyomi.extension.api.ExtensionApi
 import eu.kanade.tachiyomi.ui.base.activity.BaseActivity
 import eu.kanade.tachiyomi.ui.browse.source.browse.BrowseSourceScreen
 import eu.kanade.tachiyomi.ui.browse.source.feed.SourceFeedScreen
@@ -579,10 +578,7 @@ class MainActivity : BaseActivity() {
         // Extensions updates
         LaunchedEffect(Unit) {
             try {
-                ExtensionApi().checkForUpdates(
-                    context,
-                    extensionManager.getLoadedExtensions() + extensionManager.getNotLoadedExtensions(),
-                )
+                extensionManager.checkForUpdates()
             } catch (e: Exception) {
                 logcat(LogPriority.ERROR, e)
             }

@@ -6,7 +6,6 @@ import androidx.core.content.ContextCompat
 import eu.kanade.domain.extension.interactor.TrustExtension
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.tachiyomi.R
-import eu.kanade.tachiyomi.extension.api.ExtensionApi
 import eu.kanade.tachiyomi.extension.api.ExtensionUpdateNotifier
 import eu.kanade.tachiyomi.extension.model.Extension
 import eu.kanade.tachiyomi.extension.model.InstallStep
@@ -38,12 +37,16 @@ import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import logcat.LogPriority
+import mihon.domain.extension.interactor.UpdateExtensionStores
+import mihon.domain.extension.repository.ExtensionStoreRepository
+import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.core.common.util.lang.withUIContext
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.source.model.StubSource
 import tachiyomi.i18n.MR
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import uy.kohesive.injekt.injectLazy
 import java.util.Locale
 
 /**
@@ -63,10 +66,8 @@ class ExtensionManager(
 
     private val isInitialized = MutableStateFlow(false)
 
-    /**
-     * API where all the available extensions can be found.
-     */
-    private val api = ExtensionApi()
+    private val extensionStoreRepository: ExtensionStoreRepository by injectLazy()
+    private val updateExtensionStores: UpdateExtensionStores by injectLazy()
 
     /**
      * The installer which installs, updates and uninstalls the extensions.
@@ -198,7 +199,7 @@ class ExtensionManager(
             // SY <--
 
             // Newly loaded extensions have no status derived from the store index yet
-            updatedInstalledExtensionsStatuses(availableExtensionListFlow.value)
+            refreshStatuses()
         } catch (e: Throwable) {
             logcat(LogPriority.ERROR, e) { "Failed to load extensions" }
         } finally {
@@ -233,21 +234,59 @@ class ExtensionManager(
     // EXH <--
 
     /**
-     * Finds the available extensions in the [api] and updates [availableExtensionListFlow].
+     * Finds the available extensions in the stores and updates [availableExtensionListFlow].
      */
     suspend fun findAvailableExtensions() {
         val extensions: List<Extension.Available> = try {
-            api.findExtensions()
+            fetchExtensions()
         } catch (e: Exception) {
             logcat(LogPriority.ERROR, e)
             withUIContext { context.toast(MR.strings.extension_api_error) }
             return
         }
 
+        setAvailableExtensions(extensions)
+    }
+
+    /**
+     * Refreshes the stores and their listings like [findAvailableExtensions], then notifies about the
+     * installed extensions that have an update. Stays silent when the stores can't be reached.
+     */
+    suspend fun checkForUpdates() {
+        val extensions = try {
+            updateExtensionStores()
+            fetchExtensions()
+        } catch (e: Exception) {
+            logcat(LogPriority.ERROR, e)
+            return
+        }
+
+        isInitialized.first { it }
+        setAvailableExtensions(extensions)
+
+        val names = (loadedExtensionMapFlow.value.values + notLoadedExtensionMapFlow.value.values)
+            .filter { it.hasUpdate }
+            // SY -->
+            .filterNot { it.isBlacklisted() }
+            // SY <--
+            .map { it.name }
+        if (names.isNotEmpty()) {
+            ExtensionUpdateNotifier(context).promptUpdates(names)
+        }
+    }
+
+    private suspend fun fetchExtensions(): List<Extension.Available> {
+        // KMK -->
+        val disabledRepos = preferences.disabledRepos().get()
+        return withIOContext { extensionStoreRepository.fetchExtensions(disabledRepos) }
+        // KMK <--
+    }
+
+    private fun setAvailableExtensions(extensions: List<Extension.Available>) {
         enableAdditionalSubLanguages(extensions)
 
         availableExtensionListFlow.value = extensions
-        updatedInstalledExtensionsStatuses(extensions)
+        refreshStatuses()
         setupAvailableExtensionsSourcesDataMap(extensions)
     }
 
@@ -279,35 +318,6 @@ class ExtensionManager(
 
         preferences.enabledLanguages().set(defaultLanguages + languagesToEnable)
         subLanguagesEnabledOnFirstRun = true
-    }
-
-    /**
-     * Sets the update fields of the installed extensions, loaded or not, with the given [availableExtensions].
-     *
-     * @param availableExtensions The list of extensions given by the [api].
-     */
-    private fun updatedInstalledExtensionsStatuses(availableExtensions: List<Extension.Available>) {
-        if (availableExtensions.isEmpty()) {
-            preferences.extensionUpdatesCount().set(0)
-            return
-        }
-
-        loadedExtensionMapFlow.value = loadedExtensionMapFlow.value.mapValues { (_, extension) ->
-            extension.withStatus(availableExtensions)
-                // SY -->
-                .let {
-                    if (extension.isBlacklisted() && !extension.isRedundant) {
-                        it.copy(isRedundant = true)
-                    } else {
-                        it
-                    }
-                }
-            // SY <--
-        }
-        notLoadedExtensionMapFlow.value = notLoadedExtensionMapFlow.value.mapValues { (_, extension) ->
-            extension.withStatus(availableExtensions)
-        }
-        updatePendingUpdatesCount()
     }
 
     /**
@@ -407,15 +417,15 @@ class ExtensionManager(
     private inner class InstallationListener : ExtensionInstallReceiver.Listener {
 
         override fun onExtensionLoaded(extension: Extension.Loaded) {
-            registerExtension(extension.withStatus(availableExtensionListFlow.value))
+            registerExtension(extension)
             notLoadedExtensionMapFlow.value -= extension.pkgName
-            updatePendingUpdatesCount()
+            refreshStatuses()
         }
 
         override fun onExtensionNotLoaded(extension: Extension.NotLoaded) {
             loadedExtensionMapFlow.value -= extension.pkgName
-            notLoadedExtensionMapFlow.value += extension.withStatus(availableExtensionListFlow.value)
-            updatePendingUpdatesCount()
+            notLoadedExtensionMapFlow.value += extension
+            refreshStatuses()
         }
 
         override fun onPackageUninstalled(pkgName: String) {
@@ -426,29 +436,32 @@ class ExtensionManager(
     }
 
     /**
-     * Derives what the store listings say about an installed extension. Without any listing there's
-     * nothing to derive from, so it's left as is rather than being marked obsolete.
+     * Derives what the store listings say about every installed extension, loaded or not. Without any
+     * listing there's nothing to derive from, so they're left as they are rather than marked obsolete.
      */
-    private fun Extension.Loaded.withStatus(availableExtensions: List<Extension.Available>): Extension.Loaded {
-        if (availableExtensions.isEmpty()) return this
-        val listing = findListing(availableExtensions)
-        return copy(
-            hasUpdate = findUpdate(availableExtensions) != null,
-            isObsolete = listing == null,
-        )
-    }
-
-    /**
-     * An extension that isn't loaded can still be updated, which is often what gets it loaded again.
-     */
-    private fun Extension.NotLoaded.withStatus(availableExtensions: List<Extension.Available>): Extension.NotLoaded {
-        if (availableExtensions.isEmpty()) return this
-        return copy(hasUpdate = findUpdate(availableExtensions) != null)
+    private fun refreshStatuses() {
+        val available = availableExtensionListFlow.value
+        if (available.isNotEmpty()) {
+            loadedExtensionMapFlow.value = loadedExtensionMapFlow.value.mapValues { (_, extension) ->
+                val listing = extension.findListing(available)
+                extension.copy(
+                    hasUpdate = extension.findUpdate(available) != null,
+                    isObsolete = listing == null,
+                    // SY -->
+                    isRedundant = extension.isRedundant || extension.isBlacklisted(),
+                    // SY <--
+                )
+            }
+            notLoadedExtensionMapFlow.value = notLoadedExtensionMapFlow.value.mapValues { (_, extension) ->
+                extension.copy(hasUpdate = extension.findUpdate(available) != null)
+            }
+        }
+        updatePendingUpdatesCount()
     }
 
     private fun updatePendingUpdatesCount() {
-        val pendingUpdateCount = loadedExtensionMapFlow.value.values.count { it.hasUpdate } +
-            notLoadedExtensionMapFlow.value.values.count { it.hasUpdate }
+        val pendingUpdateCount = (loadedExtensionMapFlow.value.values + notLoadedExtensionMapFlow.value.values)
+            .count { it.hasUpdate }
         preferences.extensionUpdatesCount().set(pendingUpdateCount)
         if (pendingUpdateCount == 0) {
             ExtensionUpdateNotifier(context).dismiss()
