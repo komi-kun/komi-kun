@@ -46,20 +46,10 @@ internal class ExtensionApi {
 
         // SY -->
         val blacklistEnabled = sourcePreferences.enableSourceBlacklist().get()
-        val filteredExtensions = loadedExtensions.filterNot { it.isBlacklisted(blacklistEnabled) }
+        val filteredLoadedExtensions = loadedExtensions.filterNot { it.isBlacklisted(blacklistEnabled) }
         // SY <--
 
-        val extensionsWithUpdate = mutableListOf<Extension.Loaded>()
-        for (installedExt in filteredExtensions) {
-            val pkgName = installedExt.pkgName
-            val availableExt = extensions.find { it.pkgName == pkgName } ?: continue
-            val hasUpdatedVer = availableExt.versionCode > installedExt.versionCode
-            val hasUpdatedLib = availableExt.libVersion > installedExt.libVersion
-            val hasUpdate = hasUpdatedVer || hasUpdatedLib
-            if (hasUpdate) {
-                extensionsWithUpdate.add(installedExt)
-            }
-        }
+        val extensionsWithUpdate = filteredLoadedExtensions.filter { it.findUpdate(extensions) != null }
 
         if (extensionsWithUpdate.isNotEmpty()) {
             ExtensionUpdateNotifier(context).promptUpdates(extensionsWithUpdate.map { it.name })

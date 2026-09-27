@@ -740,6 +740,7 @@ private fun ExtensionItemContentPreview() {
         hasUpdate = false,
         isObsolete = false,
         isShared = false,
+        signatures = listOf(KOMIKKU_SIGNATURE),
         isRedundant = false,
     )
     val extNotLoaded = Extension.NotLoaded(
@@ -751,6 +752,7 @@ private fun ExtensionItemContentPreview() {
         libVersion = 1.0,
         contentWarning = ContentWarning.NSFW,
         isShared = false,
+        signatures = listOf(KOMIKKU_SIGNATURE),
         reason = Extension.NotLoaded.Reason.Untrusted("900000"),
     )
 
