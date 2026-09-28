@@ -119,7 +119,12 @@ abstract class Installer(private val service: Service) {
     @CallSuper
     open fun onDestroy() {
         LocalBroadcastManager.getInstance(service).unregisterReceiver(cancelReceiver)
-        queue.forEach { extensionManager.updateInstallStep(it.downloadId, InstallStep.Error) }
+        queue.forEach {
+            extensionManager.updateInstallStep(
+                it.downloadId,
+                InstallStep.Error("The installer stopped before it got to this one"),
+            )
+        }
         queue.clear()
         waitingInstall.store(null)
     }

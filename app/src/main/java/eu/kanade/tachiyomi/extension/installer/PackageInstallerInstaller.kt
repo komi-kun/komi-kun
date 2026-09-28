@@ -23,7 +23,8 @@ class PackageInstallerInstaller(private val service: Service) : Installer(servic
 
     private val packageActionReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            when (intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)) {
+            val status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)
+            when (status) {
                 PackageInstaller.STATUS_PENDING_USER_ACTION -> {
                     val userAction = intent.getParcelableExtraCompat<Intent>(Intent.EXTRA_INTENT)
                         ?.run {
@@ -42,7 +43,7 @@ class PackageInstallerInstaller(private val service: Service) : Installer(servic
                         }
                     if (userAction == null) {
                         xLogE("Fatal error for $intent")
-                        continueQueue(InstallStep.Error)
+                        continueQueue(InstallStep.Error("The system installer asked for an action it didn't provide"))
                         return
                     }
                     userAction.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -52,7 +53,12 @@ class PackageInstallerInstaller(private val service: Service) : Installer(servic
                     continueQueue(InstallStep.Idle)
                 }
                 PackageInstaller.STATUS_SUCCESS -> continueQueue(InstallStep.Installed)
-                else -> continueQueue(InstallStep.Error)
+                else -> continueQueue(
+                    InstallStep.Error(
+                        intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)
+                            ?: "The system installer failed ($status)",
+                    ),
+                )
             }
         }
     }
@@ -98,7 +104,7 @@ class PackageInstallerInstaller(private val service: Service) : Installer(servic
             activeSession?.let { (_, sessionId) ->
                 packageInstaller.abandonSession(sessionId)
             }
-            continueQueue(InstallStep.Error)
+            continueQueue(InstallStep.Error.from(e))
         }
     }
 
