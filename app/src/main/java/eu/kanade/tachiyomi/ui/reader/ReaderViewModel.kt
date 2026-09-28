@@ -1282,13 +1282,13 @@ class ReaderViewModel @JvmOverloads constructor(
         val stream2 = page2.stream!!
         ImageUtil.findImageType(stream2) ?: throw Exception("Not an image")
         // KMK --> migrated off the dropped legacy decoder to the mpreg decoder
-        val imageBitmap = ImageDecoder.new(stream1()).decode().let { res ->
+        val imageBitmap = ImageDecoder.open(stream1()).use { it.decodeNext() }.let { res ->
             createBitmap(res.width, res.height).also { bitmap ->
                 res.image.rewind()
                 bitmap.copyPixelsFromBuffer(res.image)
             }
         }
-        val imageBitmap2 = ImageDecoder.new(stream2()).decode().let { res ->
+        val imageBitmap2 = ImageDecoder.open(stream2()).use { it.decodeNext() }.let { res ->
             createBitmap(res.width, res.height).also { bitmap ->
                 res.image.rewind()
                 bitmap.copyPixelsFromBuffer(res.image)
