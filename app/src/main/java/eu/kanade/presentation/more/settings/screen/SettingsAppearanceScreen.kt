@@ -282,8 +282,6 @@ object SettingsAppearanceScreen : SearchableSettings {
     // SY -->
     @Composable
     fun getForkGroup(uiPreferences: UiPreferences): Preference.PreferenceGroup {
-        val previewsRowCount by uiPreferences.previewsRowCount.collectAsState()
-
         return Preference.PreferenceGroup(
             stringResource(SYMR.strings.pref_category_fork),
             preferenceItems = listOf(
@@ -309,19 +307,24 @@ object SettingsAppearanceScreen : SearchableSettings {
                     subtitle = stringResource(SYMR.strings.put_merge_in_overflow_summary),
                 ),
                 Preference.PreferenceItem.SliderPreference(
-                    value = previewsRowCount,
+                    // KMK -->
+                    preference = uiPreferences.previewsRowCount,
+                    // KMK <--
                     valueRange = 0..10,
                     title = stringResource(SYMR.strings.pref_previews_row_count),
-                    valueString = if (previewsRowCount > 0) {
-                        pluralStringResource(
-                            SYMR.plurals.row_count,
-                            previewsRowCount,
-                            previewsRowCount,
-                        )
-                    } else {
-                        stringResource(MR.strings.disabled)
+                    // KMK -->
+                    valueText = { count ->
+                        if (count > 0) {
+                            pluralStringResource(
+                                SYMR.plurals.row_count,
+                                count,
+                                count,
+                            )
+                        } else {
+                            stringResource(MR.strings.disabled)
+                        }
                     },
-                    onValueChanged = { uiPreferences.previewsRowCount.set(it) },
+                    // KMK <--
                 ),
             ),
         )
