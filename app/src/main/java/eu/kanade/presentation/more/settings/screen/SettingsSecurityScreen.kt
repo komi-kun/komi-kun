@@ -100,7 +100,7 @@ object SettingsSecurityScreen : SearchableSettings {
                 Preference.PreferenceItem.SwitchPreference(
                     preference = useAuthPref,
                     title = stringResource(MR.strings.lock_with_biometrics),
-                    enabled = authSupported,
+                    visible = authSupported,
                     onValueChanged = {
                         (context as FragmentActivity).authenticate(
                             title = context.stringResource(MR.strings.lock_with_biometrics),
@@ -119,7 +119,7 @@ object SettingsSecurityScreen : SearchableSettings {
                         }
                         .toMap(),
                     title = stringResource(MR.strings.lock_when_idle),
-                    enabled = authSupported && useAuth,
+                    visible = authSupported && useAuth,
                     onValueChanged = {
                         (context as FragmentActivity).authenticate(
                             title = context.stringResource(MR.strings.lock_when_idle),
@@ -143,7 +143,7 @@ object SettingsSecurityScreen : SearchableSettings {
                     preference = securityPreferences.passwordProtectDownloads,
                     title = stringResource(SYMR.strings.password_protect_downloads),
                     subtitle = stringResource(SYMR.strings.password_protect_downloads_summary),
-                    enabled = isCbzPasswordSet,
+                    visible = isCbzPasswordSet,
                 ),
                 Preference.PreferenceItem.ListPreference(
                     preference = securityPreferences.encryptionType,
@@ -151,7 +151,7 @@ object SettingsSecurityScreen : SearchableSettings {
                         .associateWith { stringResource(it.titleRes) }
                         .toMap(),
                     title = stringResource(SYMR.strings.encryption_type),
-                    enabled = passwordProtectDownloads,
+                    visible = passwordProtectDownloads,
 
                 ),
                 run {
@@ -176,7 +176,7 @@ object SettingsSecurityScreen : SearchableSettings {
                 },
                 Preference.PreferenceItem.TextPreference(
                     title = stringResource(SYMR.strings.delete_cbz_archive_password),
-                    enabled = isCbzPasswordSet,
+                    visible = isCbzPasswordSet,
                     onClick = {
                         CbzCrypto.deleteKeyCbz()
                         securityPreferences.cbzPassword.set("")
@@ -192,7 +192,7 @@ object SettingsSecurityScreen : SearchableSettings {
                             count.size,
                             count.size,
                         ),
-                        enabled = useAuth,
+                        visible = useAuth,
                         onClick = {
                             navigator.push(BiometricTimesScreen())
                         },
@@ -214,7 +214,7 @@ object SettingsSecurityScreen : SearchableSettings {
                     Preference.PreferenceItem.TextPreference(
                         title = stringResource(SYMR.strings.biometric_lock_days),
                         subtitle = stringResource(SYMR.strings.biometric_lock_days_summary),
-                        enabled = useAuth,
+                        visible = useAuth,
                         onClick = { dialogOpen = true },
                     )
                 },

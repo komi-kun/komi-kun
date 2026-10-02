@@ -173,7 +173,7 @@ object SettingsDiscordScreen : SearchableSettings {
                             0 to stringResource(KMR.strings.pref_discord_idle),
                             1 to stringResource(KMR.strings.pref_discord_online),
                         ),
-                        enabled = enableDRPC,
+                        visible = enableDRPC,
                     ),
                 ),
             ),
@@ -183,7 +183,7 @@ object SettingsDiscordScreen : SearchableSettings {
             ),
             Preference.PreferenceGroup(
                 title = stringResource(KMR.strings.pref_category_discord_customization),
-                enabled = enableDRPC,
+                visible = enableDRPC,
                 preferenceItems = listOf(
                     Preference.PreferenceItem.TextPreference(
                         title = stringResource(KMR.strings.pref_discord_custom_message),
@@ -199,7 +199,7 @@ object SettingsDiscordScreen : SearchableSettings {
                         preference = useChapterTitlesPref,
                         title = stringResource(KMR.strings.show_chapters_titles_title),
                         subtitle = stringResource(KMR.strings.show_chapters_titles_subtitle),
-                        enabled = showProgressEnabled,
+                        visible = showProgressEnabled,
                     ),
                     Preference.PreferenceItem.SwitchPreference(
                         preference = showTimestampPref,
@@ -215,13 +215,13 @@ object SettingsDiscordScreen : SearchableSettings {
                         preference = showDownloadButtonPref,
                         title = stringResource(KMR.strings.pref_discord_show_download_button),
                         subtitle = stringResource(KMR.strings.pref_discord_show_download_button_summary),
-                        enabled = showButtons,
+                        visible = showButtons,
                     ),
                     Preference.PreferenceItem.SwitchPreference(
                         preference = showDiscordButtonPref,
                         title = stringResource(KMR.strings.pref_discord_show_discord_button),
                         subtitle = stringResource(KMR.strings.pref_discord_show_discord_button_summary),
-                        enabled = showButtons,
+                        visible = showButtons,
                     ),
                 ),
             ),
@@ -274,7 +274,7 @@ object SettingsDiscordScreen : SearchableSettings {
                     stringResource(KMR.strings.pref_discord_incognito_categories_details),
                 ),
             ),
-            enabled = enabled,
+            visible = enabled,
         )
     }
 }
