@@ -768,6 +768,9 @@ class LibraryScreenModel(
             getLibraryItemPreferencesFlow(),
             downloadCache.changes,
         ) { libraryManga, preferences, _ ->
+            val sources = libraryManga
+                .mapTo(mutableSetOf()) { it.manga.source }
+                .associateWith { sourceManager.getOrStub(it) }
             libraryManga.map { manga ->
                 // SY -->
                 val downloadCount = if (manga.manga.source == MERGED_SOURCE_ID) {
@@ -777,7 +780,7 @@ class LibraryScreenModel(
                 }
                 // SY <--
                 // KMK -->
-                val source = sourceManager.getOrStub(manga.manga.source)
+                val source = sources.getValue(manga.manga.source)
                 // KMK <--
                 LibraryItem(
                     libraryManga = manga,
@@ -805,7 +808,7 @@ class LibraryScreenModel(
                             false
                         },
                         sourceLanguage = if (preferences.languageBadge) {
-                            sourceManager.getOrStub(manga.manga.source).lang
+                            source.lang
                         } else {
                             ""
                         },
