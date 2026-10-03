@@ -216,7 +216,14 @@ abstract class SearchScreenModel(
     }
 
     private fun updateItem(source: Source, result: SearchItemResult) {
-        updateItems(state.value.items + (source to result))
+        // KMK --> Komikku's state is `mutableState` and `items` is a PersistentMap
+        mutableState.update { currentState ->
+            val newItems = currentState.items + (source to result)
+            currentState.copy(
+                items = newItems.toSortedMap(sortComparator(newItems)).toPersistentMap(),
+            )
+        }
+        // KMK <--
     }
 
     fun setMigrateDialog(currentId: Long, target: Manga) {
