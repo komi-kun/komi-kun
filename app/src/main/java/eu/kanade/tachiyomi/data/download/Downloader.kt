@@ -24,6 +24,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
@@ -43,6 +44,7 @@ import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.supervisorScope
+import kotlinx.coroutines.withContext
 import logcat.LogPriority
 import mihon.core.archive.CbzCrypto
 import mihon.core.archive.ZipWriter
@@ -107,6 +109,8 @@ class Downloader(
     private val notifier by lazy { DownloadNotifier(context) }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    // Kept when canceled, so the next job can wait for it to finish
     private var downloaderJob: Job? = null
 
     /**
@@ -205,7 +209,12 @@ class Downloader(
     private fun launchDownloaderJob() {
         if (isRunning) return
 
+        val previousJob = downloaderJob
         downloaderJob = scope.launch {
+            // Page writes block, so a canceled job can still be writing the pages this one would start on. Not
+            // cancelable, so a job canceled while waiting still finishes after the one before it.
+            withContext(NonCancellable) { previousJob?.join() }
+
             val activeDownloadsFlow = combine(
                 queueState,
                 downloadPreferences.parallelSourceLimit().changes(),
@@ -275,7 +284,6 @@ class Downloader(
      */
     private fun cancelDownloaderJob() {
         downloaderJob?.cancel()
-        downloaderJob = null
     }
 
     /**
