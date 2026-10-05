@@ -216,48 +216,21 @@ class DownloadProvider(
         // SY -->
         includeChapterUrlHash: Boolean = downloadPreferences.includeChapterUrlHash().get(),
         // SY <--
-        sanitizeScanlator: Boolean = true,
     ): String {
-        return buildString {
-            if (!chapterScanlator.isNullOrBlank()) {
-                // A "/" in the scanlator would otherwise nest the chapter in a folder of its own
-                append(if (sanitizeScanlator) DiskUtil.buildValidFilename(chapterScanlator) else chapterScanlator)
-                append("_")
-            }
-
-            // Subtract 7 bytes for hash and underscore, 4 bytes for .cbz
-            append(
-                DiskUtil.buildValidFilename(
-                    sanitizeChapterName(chapterName),
-                    DiskUtil.MAX_FILE_NAME_BYTES - 11,
-                    disallowNonAsciiFilenames,
-                ),
-            )
-            if (includeChapterUrlHash) {
-                append("_${md5(chapterUrl).take(6)}")
-            }
-        }
+        return ChapterDirNameParts(chapterName, chapterScanlator, chapterUrl)
+            .dirName(disallowNonAsciiFilenames, includeChapterUrlHash, sanitizeScanlator = true)
     }
 
     /**
      * Returns list of names that might have been previously used as
      * the directory name for a chapter.
      * Add to this list if naming pattern ever changes.
-     *
-     * @param chapterName the name of the chapter to query.
-     * @param chapterScanlator scanlator of the chapter to query.
-     * @param chapterUrl url of the chapter to query.
      */
-    private fun getLegacyChapterDirNames(
-        chapterName: String,
-        chapterScanlator: String?,
-        chapterUrl: String,
-    ): Set<String> {
-        val sanitizedChapterName = sanitizeChapterName(chapterName)
+    private fun getLegacyChapterDirNames(parts: ChapterDirNameParts): Set<String> {
         val chapterNameV1 = DiskUtil.buildValidFilename(
             when {
-                !chapterScanlator.isNullOrBlank() -> "${chapterScanlator}_$sanitizedChapterName"
-                else -> sanitizedChapterName
+                !parts.chapterScanlator.isNullOrBlank() -> "${parts.chapterScanlator}_${parts.chapterName}"
+                else -> parts.chapterName
             },
         )
 
@@ -268,26 +241,14 @@ class DownloadProvider(
         val booleanPairPermutation = listOf(false to false, false to true, true to false, true to true)
         val othersChapterDirNames = booleanPairPermutation
             .map { (disallowNonAsciiFilenames, includeChapterUrlHash) ->
-                getChapterDirName(
-                    chapterName,
-                    chapterScanlator,
-                    chapterUrl,
-                    disallowNonAsciiFilenames,
-                    includeChapterUrlHash,
-                )
+                parts.dirName(disallowNonAsciiFilenames, includeChapterUrlHash, sanitizeScanlator = true)
             }
 
         // Scanlators weren't sanitized for a while. One with a "/" nested its folder, so it was never found anyway.
-        val unsanitizedScanlatorChapterDirNames = if (chapterScanlator != null && '/' !in chapterScanlator) {
+        val scanlator = parts.chapterScanlator
+        val unsanitizedScanlatorChapterDirNames = if (scanlator != null && '/' !in scanlator) {
             booleanPairPermutation.map { (disallowNonAsciiFilenames, includeChapterUrlHash) ->
-                getChapterDirName(
-                    chapterName,
-                    chapterScanlator,
-                    chapterUrl,
-                    disallowNonAsciiFilenames,
-                    includeChapterUrlHash,
-                    sanitizeScanlator = false,
-                )
+                parts.dirName(disallowNonAsciiFilenames, includeChapterUrlHash, sanitizeScanlator = false)
             }
         } else {
             emptyList()
@@ -299,17 +260,6 @@ class DownloadProvider(
             add(chapterNameV1)
             addAll(othersChapterDirNames)
             addAll(unsanitizedScanlatorChapterDirNames)
-        }
-    }
-
-    /**
-     * Return the new name for the chapter (in case it's empty or blank)
-     *
-     * @param chapterName the name of the chapter
-     */
-    private fun sanitizeChapterName(chapterName: String): String {
-        return chapterName.ifBlank {
-            "Chapter"
         }
     }
 
@@ -326,8 +276,13 @@ class DownloadProvider(
      * @param chapterUrl the unique URL of the chapter.
      */
     fun getValidChapterDirNames(chapterName: String, chapterScanlator: String?, chapterUrl: String): List<String> {
-        val chapterDirName = getChapterDirName(chapterName, chapterScanlator, chapterUrl)
-        val legacyChapterDirNames = getLegacyChapterDirNames(chapterName, chapterScanlator, chapterUrl)
+        val parts = ChapterDirNameParts(chapterName, chapterScanlator, chapterUrl)
+        val chapterDirName = parts.dirName(
+            disallowNonAscii = libraryPreferences.disallowNonAsciiFilenames().get(),
+            enableHash = downloadPreferences.includeChapterUrlHash().get(),
+            sanitizeScanlator = true,
+        )
+        val legacyChapterDirNames = getLegacyChapterDirNames(parts)
 
         return buildList {
             // Folder of images
@@ -341,5 +296,42 @@ class DownloadProvider(
                 add("$it.cbz")
             }
         }
+    }
+}
+
+/**
+ * The parts of a chapter's directory name, each computed once however many name variations are built from them.
+ */
+private class ChapterDirNameParts(chapterName: String, val chapterScanlator: String?, private val chapterUrl: String) {
+
+    /** The chapter name, or a placeholder when it's blank. */
+    val chapterName = chapterName.ifBlank { "Chapter" }
+
+    private val hashSuffix by lazy(LazyThreadSafetyMode.NONE) { "_${md5(chapterUrl).take(6)}" }
+
+    private val sanitizedScanlator by lazy(LazyThreadSafetyMode.NONE) {
+        chapterScanlator?.let { DiskUtil.buildValidFilename(it) }
+    }
+
+    private val validChapterNames = arrayOfNulls<String>(2)
+
+    fun dirName(disallowNonAscii: Boolean, enableHash: Boolean, sanitizeScanlator: Boolean): String {
+        return buildString {
+            if (!chapterScanlator.isNullOrBlank()) {
+                // A "/" in the scanlator would otherwise nest the chapter in a folder of its own
+                append(if (sanitizeScanlator) sanitizedScanlator else chapterScanlator)
+                append("_")
+            }
+            append(validChapterName(disallowNonAscii))
+            if (enableHash) append(hashSuffix)
+        }
+    }
+
+    private fun validChapterName(disallowNonAscii: Boolean): String {
+        val index = if (disallowNonAscii) 1 else 0
+        return validChapterNames[index]
+            // Subtract 7 bytes for hash and underscore, 4 bytes for .cbz
+            ?: DiskUtil.buildValidFilename(chapterName, DiskUtil.MAX_FILE_NAME_BYTES - 11, disallowNonAscii)
+                .also { validChapterNames[index] = it }
     }
 }
