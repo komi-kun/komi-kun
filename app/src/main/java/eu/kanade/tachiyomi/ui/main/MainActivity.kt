@@ -64,6 +64,7 @@ import eu.kanade.presentation.components.IndexingBannerBackgroundColor
 import eu.kanade.presentation.components.RestoringBannerBackgroundColor
 import eu.kanade.presentation.components.SyncingBannerBackgroundColor
 import eu.kanade.presentation.components.UpdatingBannerBackgroundColor
+import eu.kanade.presentation.more.AppMigratingScreen
 import eu.kanade.presentation.more.settings.screen.ConfigureExhDialog
 import eu.kanade.presentation.more.settings.screen.about.AboutScreen.Companion.getReleaseNotes
 import eu.kanade.presentation.more.settings.screen.about.WhatsNewDialog
@@ -109,6 +110,7 @@ import exh.log.DebugModeOverlay
 import exh.source.ExhPreferences
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.drop
@@ -123,6 +125,7 @@ import mihon.app.di.appGraph
 import mihon.core.metro.metroGraph
 import mihon.core.migration.Migrator
 import mihon.core.migration.Migrator.scope
+import mihon.domain.database.repository.DatabaseRepository
 import tachiyomi.core.common.Constants
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.preference.Preference
@@ -169,6 +172,16 @@ class MainActivity : BaseActivity() {
     @Inject private lateinit var downloadCache: DownloadCache
 
     @Inject private lateinit var chapterCache: ChapterCache
+
+    @Inject private lateinit var databaseRepository: DatabaseRepository
+
+    private val isAppMigrating = MutableStateFlow(Migrator.isRunning)
+
+    // KMK -->
+    // Komikku reads the migration result for the "What's new" dialog; it is written by the migration
+    // coroutine below before `isAppMigrating` flips so the gated composition always sees the final value.
+    private var didMigration = false
+    // KMK <--
 
     @Inject private lateinit var getIncognitoState: GetIncognitoState
 
@@ -221,10 +234,13 @@ class MainActivity : BaseActivity() {
 
         super.onCreate(savedInstanceState)
 
-        val didMigration = if (isLaunch) {
-            Migrator.awaitAndRelease()
-        } else {
-            false
+        lifecycleScope.launch {
+            // KMK -->
+            // Keep the migration result while letting the app draw the migrating screen instead of
+            // blocking the main thread; set it before releasing the screen below.
+            didMigration = if (isLaunch) Migrator.awaitAndRelease() else false
+            // KMK <--
+            isAppMigrating.value = false
         }
 
         // Do not let the launcher create a new activity http://stackoverflow.com/questions/16283079
@@ -239,6 +255,15 @@ class MainActivity : BaseActivity() {
         // SY <--
 
         setComposeContent {
+            val appMigrating by isAppMigrating.collectAsState()
+            val databaseMigrating by databaseRepository.isMigrating.collectAsState()
+            if (appMigrating || databaseMigrating) {
+                AppMigratingScreen()
+                // Release the splash screen so the reason for the wait shows
+                LaunchedEffect(Unit) { ready = true }
+                return@setComposeContent
+            }
+
             val context = LocalContext.current
 
             var incognito by remember { mutableStateOf(false) }

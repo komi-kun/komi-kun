@@ -34,6 +34,7 @@ import logcat.LogPriority
 import mihon.core.archive.CbzCrypto
 import mihon.core.metro.AppCoroutineScope
 import mihon.core.metro.IsDebugBuild
+import mihon.data.database.DatabaseRepositoryImpl
 import mihon.telemetry.TelemetryConfig
 import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
 import nl.adaptivity.xmlutil.XmlDeclMode
@@ -53,6 +54,8 @@ object AppBindings {
         // KMK -->
         // Provided by :data's DatabaseBindings, so the app does not reference the generated Database.
         schema: SqlSchema<QueryResult.AsyncValue<Unit>>,
+        // Mihon fd4f73c908: exposes whether the database is being migrated after an update.
+        databaseRepository: DatabaseRepositoryImpl,
         // KMK <--
     ): SqlDriver {
         // KMK -->
@@ -71,8 +74,19 @@ object AppBindings {
                 name = CbzCrypto.DATABASE_NAME,
                 factory = SupportOpenHelperFactory(CbzCrypto.getDecryptedPasswordSql(), null, false, 25),
                 callback = object : AndroidSqliteDriver.Callback(schema.synchronous()) {
+                    // KMK -->
+                    // Mihon fd4f73c908: show the migrating screen while the encrypted database upgrades.
+                    override fun onUpgrade(db: SupportSQLiteDatabase, oldVersion: Int, newVersion: Int) {
+                        databaseRepository.isMigrating.value = true
+                        super.onUpgrade(db, oldVersion, newVersion)
+                    }
+                    // KMK <--
+
                     override fun onOpen(db: SupportSQLiteDatabase) {
                         super.onOpen(db)
+                        // KMK -->
+                        databaseRepository.isMigrating.value = false
+                        // KMK <--
                         setPragma(db, "foreign_keys = ON")
                         // KMK -->
                         // Mihon 61cd786e7f: WAL on every device. SY hardcoded WAL here too.
@@ -116,6 +130,17 @@ object AppBindings {
                 concurrencyModel = MultipleReadersSingleWriter(isWal = true, walCount = if (isLowRam) 1 else 4),
                 // KMK <--
             ),
+            // KMK -->
+            // Mihon fd4f73c908: runs before the driver compares the schema version, and onOpen once
+            // the schema is ready, so the UI can show a migrating screen instead of looking hung.
+            onConfigure = {
+                val version = executePragmaQuery("user_version", { QueryResult.Value(it.apply { next() }.getLong(0)) })
+                databaseRepository.isMigrating.value = version in 1..<schema.version
+            },
+            onOpen = {
+                databaseRepository.isMigrating.value = false
+            },
+            // KMK <--
         )
     }
 
