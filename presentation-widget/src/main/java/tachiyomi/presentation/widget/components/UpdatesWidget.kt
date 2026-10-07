@@ -23,9 +23,9 @@ import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import tachiyomi.core.common.Constants
+import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.domain.manga.model.MangaCover
 import tachiyomi.i18n.MR
-import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.widget.util.calculateRowAndColumnCount
 
 @Composable
@@ -36,6 +36,7 @@ fun UpdatesWidget(
     bottomPadding: Dp,
     modifier: GlanceModifier = GlanceModifier,
 ) {
+    val context = LocalContext.current
     Box(
         contentAlignment = Alignment.Center,
         modifier = modifier,
@@ -44,7 +45,7 @@ fun UpdatesWidget(
             CircularProgressIndicator(color = contentColor)
         } else if (data.isEmpty()) {
             Text(
-                text = stringResource(MR.strings.information_no_recent),
+                text = context.stringResource(MR.strings.information_no_recent),
                 style = TextStyle(color = contentColor),
             )
         } else {
@@ -73,7 +74,7 @@ fun UpdatesWidget(
                                     contentAlignment = Alignment.Center,
                                 ) {
                                     val intent = Intent(
-                                        LocalContext.current,
+                                        context,
                                         Class.forName(Constants.MAIN_ACTIVITY),
                                     ).apply {
                                         action = Constants.SHORTCUT_MANGA
