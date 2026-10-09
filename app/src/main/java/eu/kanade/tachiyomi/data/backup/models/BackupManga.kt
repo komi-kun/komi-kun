@@ -51,6 +51,8 @@ class BackupManga(
     @ProtoNumber(111) var initialized: Boolean = false,
     @ProtoNumber(112) var memo: ByteArray = JsonObjectEmptyBytes,
 
+    @ProtoNumber(113) var nextUpdate: Long = 0,
+
     // SY specific values
     @ProtoNumber(600) var mergedMangaReferences: List<BackupMergedMangaReference> = emptyList(),
     @ProtoNumber(601) var flatMetadata: BackupFlatMetadata? = null,
@@ -98,6 +100,7 @@ class BackupManga(
             notes = this@BackupManga.notes,
             initialized = this@BackupManga.initialized,
             memo = this@BackupManga.memo.toJsonObject(),
+            nextUpdate = this@BackupManga.nextUpdate.toInstantOrNull(),
         )
     }
 }

@@ -150,6 +150,7 @@ class RestoreRepositoryImpl(
             // SY -->
             lastModifiedAt = newer.lastModifiedAt,
             // SY <--
+            nextUpdate = this.nextUpdate ?: newer.nextUpdate,
         )
     }
 
