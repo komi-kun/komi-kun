@@ -75,16 +75,28 @@ internal fun LazyListScope.updatesLastUpdatedItem(
     lastUpdated: Long,
 ) {
     item(key = "updates-lastUpdated") {
-        Box(
-            modifier = Modifier
-                .animateItemFastScroll()
-                .padding(horizontal = MaterialTheme.padding.medium, vertical = MaterialTheme.padding.small),
-        ) {
-            Text(
-                text = stringResource(MR.strings.updates_last_update_info, relativeTimeSpanString(lastUpdated)),
-                fontStyle = FontStyle.Italic,
-            )
-        }
+        UpdatesLastUpdatedHeader(
+            lastUpdated = lastUpdated,
+            // KMK -->
+            modifier = Modifier.animateItemFastScroll(),
+            // KMK <--
+        )
+    }
+}
+
+@Composable
+internal fun UpdatesLastUpdatedHeader(
+    lastUpdated: Long,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .padding(horizontal = MaterialTheme.padding.medium, vertical = MaterialTheme.padding.small),
+    ) {
+        Text(
+            text = stringResource(MR.strings.updates_last_update_info, relativeTimeSpanString(lastUpdated)),
+            fontStyle = FontStyle.Italic,
+        )
     }
 }
 
