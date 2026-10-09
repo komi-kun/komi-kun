@@ -338,6 +338,9 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
             // SY <--
             .filter {
                 when {
+                    // Entries added without opening them have no details yet (Mihon 8c0419657b, #3179)
+                    !it.manga.initialized -> true
+
                     it.manga.updateStrategy == UpdateStrategy.ONLY_FETCH_ONCE && it.totalChapters > 0L -> {
                         skippedUpdates.add(
                             it.manga to
@@ -560,7 +563,7 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
         val update = updateMangaFromRemote(
             source = source,
             manga = manga,
-            fetchDetails = libraryPreferences.autoUpdateMetadata.get(),
+            fetchDetails = !manga.initialized || libraryPreferences.autoUpdateMetadata.get(),
             fetchChapters = true,
             fetchWindow = fetchWindow,
         )
