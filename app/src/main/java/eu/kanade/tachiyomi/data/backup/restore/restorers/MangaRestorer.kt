@@ -619,7 +619,6 @@ class MangaRestorer(
     }
     // SY <--
 
-
     /**
      * Restores the excluded scanlators for the manga.
      *

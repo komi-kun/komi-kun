@@ -51,4 +51,3 @@ android {
         consumerProguardFiles("consumer-rules.pro")
     }
 }
-
