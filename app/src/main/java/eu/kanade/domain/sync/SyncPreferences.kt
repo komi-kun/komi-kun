@@ -14,7 +14,7 @@ class SyncPreferences(
     fun clientAPIKey() = preferenceStore.getString("connection_sync_client_api_key", "")
     fun lastSyncTimestamp() = preferenceStore.getLong(Preference.appStateKey("last_sync_timestamp"), 0L)
 
-    fun lastSyncEtag() = preferenceStore.getString("sync_etag", "")
+    fun lastSyncEtag() = preferenceStore.getString(Preference.appStateKey("sync_etag"), "")
 
     // SY -->
     // SyncYomi protocol v2 state
