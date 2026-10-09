@@ -101,6 +101,11 @@ class BackupNotifier(private val context: Context) {
         }
     }
 
+    // SY -->
+    // SY serialises restore progress notifications with @Synchronized; Komikku's override is a
+    // suspend function, where that annotation is not applicable, so the notification is left
+    // unsynchronised here (only the single restore worker updates it).
+    // SY <--
     suspend fun showRestoreProgress(
         content: String = "",
         progress: Int = 0,

@@ -99,7 +99,7 @@ class WebDavSyncService(
         return success
     }
 
-    override suspend fun doSync(syncData: SyncData): Backup? {
+    override suspend fun doSync(syncData: SyncData, full: Boolean): SyncResult {
         ensureFolderExists()
         try {
             val (remoteData, etag) = pullSyncData()
@@ -114,11 +114,16 @@ class WebDavSyncService(
             }
 
             pushSyncData(finalSyncData, etag)
-            return finalSyncData.backup
+            // KMK -->
+            // WebDAV has no delta protocol, so it always uploads (and restores) the whole library.
+            return SyncResult(finalSyncData.backup, changed = remoteData != null, protocolV2 = false)
+            // KMK <--
         } catch (e: Exception) {
             xLogE("WebDAV sync error:", e)
             notifier.showSyncError(e.message)
-            return null
+            // KMK -->
+            return SyncResult(null, changed = false, protocolV2 = false)
+            // KMK <--
         }
     }
 

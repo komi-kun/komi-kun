@@ -20,6 +20,7 @@ import eu.kanade.tachiyomi.data.backup.restore.restorers.SavedSearchRestorer
 import eu.kanade.tachiyomi.data.notification.Notifications
 import eu.kanade.tachiyomi.util.system.createFileInCacheDir
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
@@ -36,7 +37,9 @@ class BackupRestorer(
     private val notifier: BackupNotifier,
     private val isSync: Boolean,
 
-    private val categoriesRestorer: CategoriesRestorer = CategoriesRestorer(),
+    // SY -->
+    private val categoriesRestorer: CategoriesRestorer = CategoriesRestorer(/* SY --> */ isSync /* SY <-- */),
+    // SY <--
     private val preferenceRestorer: PreferenceRestorer = PreferenceRestorer(context),
     private val extensionStoreRestorer: ExtensionStoreRestorer = ExtensionStoreRestorer(),
     private val mangaRestorer: MangaRestorer = MangaRestorer(isSync),
@@ -104,9 +107,16 @@ class BackupRestorer(
         }
 
         coroutineScope {
-            if (options.categories) {
-                restoreCategories(backup.backupCategories)
+            // SY -->
+            // Manga restore resolves categories by name, so it must not race the
+            // category restore — a delta carrying a new category and a manga in it
+            // would silently skip the assignment.
+            val categoriesJob = if (options.categories) {
+                launch { restoreCategories(backup.backupCategories) }
+            } else {
+                null
             }
+            // SY <--
             // SY -->
             if (options.savedSearchesFeeds) {
                 restoreSavedSearches(
@@ -124,7 +134,13 @@ class BackupRestorer(
                 restoreSourcePreferences(backup.backupSourcePreferences)
             }
             if (options.libraryEntries) {
-                restoreManga(backup.backupManga, if (options.categories) backup.backupCategories else emptyList())
+                // SY -->
+                restoreManga(
+                    backup.backupManga,
+                    if (options.categories) backup.backupCategories else emptyList(),
+                    categoriesJob,
+                )
+                // SY <--
             }
             if (options.extensionStores) {
                 restoreExtensionStores(backup.backupExtensionStores)
@@ -184,7 +200,13 @@ class BackupRestorer(
     private fun CoroutineScope.restoreManga(
         backupMangas: List<BackupManga>,
         backupCategories: List<BackupCategory>,
+        // SY -->
+        categoriesJob: Job? = null,
+        // SY <--
     ) = launch {
+        // SY -->
+        categoriesJob?.join()
+        // SY <--
         mangaRestorer.sortByNew(backupMangas)
             .forEach {
                 ensureActive()
