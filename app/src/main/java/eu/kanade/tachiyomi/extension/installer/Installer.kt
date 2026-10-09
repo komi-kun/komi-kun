@@ -10,7 +10,9 @@ import androidx.annotation.CallSuper
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.extension.model.InstallStep
+import logcat.LogPriority
 import mihon.app.di.appGraph
+import tachiyomi.core.common.util.system.logcat
 import java.util.Collections
 import kotlin.concurrent.atomics.AtomicReference
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
@@ -120,10 +122,8 @@ abstract class Installer(private val service: Service) {
     open fun onDestroy() {
         LocalBroadcastManager.getInstance(service).unregisterReceiver(cancelReceiver)
         queue.forEach {
-            extensionManager.updateInstallStep(
-                it.downloadId,
-                InstallStep.Error("The installer stopped before it got to this one"),
-            )
+            logcat(LogPriority.INFO) { "The installer stopped before installing ${it.downloadId}" }
+            extensionManager.updateInstallStep(it.downloadId, InstallStep.Error)
         }
         queue.clear()
         waitingInstall.store(null)

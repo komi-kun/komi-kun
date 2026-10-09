@@ -104,8 +104,8 @@ class ExtensionInstaller(
                 if (e is InterruptedException) {
                     // Canceled
                 } else {
-                    logcat(LogPriority.ERROR, e)
-                    step.value = InstallStep.Error.from(e)
+                    logcat(LogPriority.INFO, e)
+                    step.value = InstallStep.Error
                 }
                 // KMK -->
                 tmpFile.delete()
@@ -172,8 +172,8 @@ class ExtensionInstaller(
             ExtensionLoader.installPrivateExtensionFile(context, tempFile, packageInfo)
             updateInstallStep(downloadId, InstallStep.Installed)
         } catch (e: Exception) {
-            logcat(LogPriority.ERROR, e) { "Failed to install extension privately" }
-            updateInstallStep(downloadId, InstallStep.Error.from(e))
+            logcat(LogPriority.INFO, e) { "Failed to install extension privately" }
+            updateInstallStep(downloadId, InstallStep.Error)
         }
 
         tempFile.delete()

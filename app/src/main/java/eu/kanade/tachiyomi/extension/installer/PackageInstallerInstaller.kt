@@ -15,7 +15,8 @@ import eu.kanade.tachiyomi.extension.model.InstallStep
 import eu.kanade.tachiyomi.util.lang.use
 import eu.kanade.tachiyomi.util.system.getParcelableExtraCompat
 import eu.kanade.tachiyomi.util.system.getUriSize
-import exh.log.xLogE
+import logcat.LogPriority
+import tachiyomi.core.common.util.system.logcat
 
 class PackageInstallerInstaller(private val service: Service) : Installer(service) {
 
@@ -42,8 +43,10 @@ class PackageInstallerInstaller(private val service: Service) : Installer(servic
                                 .sanitizeByFiltering(this)
                         }
                     if (userAction == null) {
-                        xLogE("Fatal error for $intent")
-                        continueQueue(InstallStep.Error("The system installer asked for an action it didn't provide"))
+                        logcat(LogPriority.INFO) {
+                            "The system installer asked for an action it didn't provide: $intent"
+                        }
+                        continueQueue(InstallStep.Error)
                         return
                     }
                     userAction.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -53,12 +56,14 @@ class PackageInstallerInstaller(private val service: Service) : Installer(servic
                     continueQueue(InstallStep.Idle)
                 }
                 PackageInstaller.STATUS_SUCCESS -> continueQueue(InstallStep.Installed)
-                else -> continueQueue(
-                    InstallStep.Error(
-                        intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)
-                            ?: "The system installer failed ($status)",
-                    ),
-                )
+                else -> {
+                    logcat(LogPriority.INFO) {
+                        "The system installer failed ($status): ${intent.getStringExtra(
+                            PackageInstaller.EXTRA_STATUS_MESSAGE,
+                        )}"
+                    }
+                    continueQueue(InstallStep.Error)
+                }
             }
         }
     }
@@ -100,11 +105,11 @@ class PackageInstallerInstaller(private val service: Service) : Installer(servic
                 session.commit(intentSender)
             }
         } catch (e: Exception) {
-            xLogE("Failed to install extension ${entry.downloadId} ${entry.uri}", e)
+            logcat(LogPriority.INFO, e) { "Failed to install extension ${entry.downloadId} ${entry.uri}" }
             activeSession?.let { (_, sessionId) ->
                 packageInstaller.abandonSession(sessionId)
             }
-            continueQueue(InstallStep.Error.from(e))
+            continueQueue(InstallStep.Error)
         }
     }
 
