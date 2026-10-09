@@ -86,6 +86,8 @@ class SetReadStatus(
         ) {
             chaptersToUpdate
                 // KMK -->
+                // Chapters here still carry their pre-update read state; downstream deletion filtering
+                // (excluded categories) relies on the new state. Ported from Mihon 785f4fd1ed (#3558).
                 .map { it.copy(read = true) } // mark as read so it will respect category exclusion
                 // KMK <--
                 .groupBy { it.mangaId }
