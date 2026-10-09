@@ -4,29 +4,26 @@ SELECT
     M.*,
     coalesce(C.total, 0) AS totalCount,
     coalesce(C.readCount, 0) AS readCount,
-    coalesce(C.latestUpload, 0) AS latestUpload,
-    coalesce(C.fetchedAt, 0) AS chapterFetchedAt,
+    C.latestUpload AS latestUpload,
+    C.fetchedAt AS chapterFetchedAt,
     -- KMK -->
     -- Joining history to every chapter is the slowest part of the query, and only entries with excluded
     -- scanlators need the chapters to leave theirs out
-    coalesce(
-        CASE WHEN EXISTS (SELECT 0 FROM excluded_scanlator WHERE excluded_scanlator.manga_id = M.id)
-        THEN (
-            SELECT max(history.read_at)
-            FROM history
-            JOIN chapter
-            ON chapter.id = history.chapter_id
-            WHERE history.manga_id = M.id
-            AND NOT EXISTS (
-                SELECT 0 FROM excluded_scanlator
-                WHERE excluded_scanlator.manga_id = M.id
-                AND excluded_scanlator.scanlator = chapter.remote_scanlator
-            )
+    CASE WHEN EXISTS (SELECT 0 FROM excluded_scanlator WHERE excluded_scanlator.manga_id = M.id)
+    THEN (
+        SELECT max(history.read_at)
+        FROM history
+        JOIN chapter
+        ON chapter.id = history.chapter_id
+        WHERE history.manga_id = M.id
+        AND NOT EXISTS (
+            SELECT 0 FROM excluded_scanlator
+            WHERE excluded_scanlator.manga_id = M.id
+            AND excluded_scanlator.scanlator = chapter.remote_scanlator
         )
-        ELSE (SELECT max(history.read_at) FROM history WHERE history.manga_id = M.id)
-        END,
-        0
-    ) AS lastRead,
+    )
+    ELSE (SELECT max(history.read_at) FROM history WHERE history.manga_id = M.id)
+    END AS lastRead,
     -- KMK <--
     coalesce(C.bookmarkCount, 0) AS bookmarkCount,
     -- KMK -->
@@ -39,8 +36,8 @@ LEFT JOIN (
         chapter.manga_id,
         count(*) AS total,
         sum(user_read) AS readCount,
-        coalesce(max(chapter.remote_date_upload), 0) AS latestUpload,
-        coalesce(max(chapter.state_date_fetch), 0) AS fetchedAt,
+        max(chapter.remote_date_upload) AS latestUpload,
+        max(chapter.state_date_fetch) AS fetchedAt,
         sum(user_bookmark) AS bookmarkCount,
         -- KMK -->
         sum(CASE WHEN user_bookmark = 1 AND user_read = 1 THEN 1 ELSE 0 END) AS bookmarkReadCount,
@@ -66,35 +63,32 @@ SELECT
     M.*,
     coalesce(C.total, 0) AS totalCount,
     coalesce(C.readCount, 0) AS readCount,
-    coalesce(C.latestUpload, 0) AS latestUpload,
-    coalesce(C.fetchedAt, 0) AS chapterFetchedAt,
+    C.latestUpload AS latestUpload,
+    C.fetchedAt AS chapterFetchedAt,
     -- KMK -->
     -- Same as the non-merged branch above, but over every manga of the merge group
-    coalesce(
-        CASE WHEN EXISTS (
+    CASE WHEN EXISTS (
+        SELECT 0 FROM excluded_scanlator
+        WHERE excluded_scanlator.manga_id IN (SELECT manga_id FROM merged WHERE merge_id = M.id)
+    )
+    THEN (
+        SELECT max(history.read_at)
+        FROM history
+        JOIN chapter
+        ON chapter.id = history.chapter_id
+        WHERE history.manga_id IN (SELECT manga_id FROM merged WHERE merge_id = M.id)
+        AND NOT EXISTS (
             SELECT 0 FROM excluded_scanlator
-            WHERE excluded_scanlator.manga_id IN (SELECT manga_id FROM merged WHERE merge_id = M.id)
+            WHERE excluded_scanlator.manga_id = history.manga_id
+            AND excluded_scanlator.scanlator = chapter.remote_scanlator
         )
-        THEN (
-            SELECT max(history.read_at)
-            FROM history
-            JOIN chapter
-            ON chapter.id = history.chapter_id
-            WHERE history.manga_id IN (SELECT manga_id FROM merged WHERE merge_id = M.id)
-            AND NOT EXISTS (
-                SELECT 0 FROM excluded_scanlator
-                WHERE excluded_scanlator.manga_id = history.manga_id
-                AND excluded_scanlator.scanlator = chapter.remote_scanlator
-            )
-        )
-        ELSE (
-            SELECT max(history.read_at)
-            FROM history
-            WHERE history.manga_id IN (SELECT manga_id FROM merged WHERE merge_id = M.id)
-        )
-        END,
-        0
-    ) AS lastRead,
+    )
+    ELSE (
+        SELECT max(history.read_at)
+        FROM history
+        WHERE history.manga_id IN (SELECT manga_id FROM merged WHERE merge_id = M.id)
+    )
+    END AS lastRead,
     -- KMK <--
     coalesce(C.bookmarkCount, 0) AS bookmarkCount,
     -- KMK -->
@@ -113,8 +107,8 @@ LEFT JOIN(
         ME.merge_id,
         count(*) AS total,
         sum(user_read) AS readCount,
-        coalesce(max(chapter.remote_date_upload), 0) AS latestUpload,
-        coalesce(max(chapter.state_date_fetch), 0) AS fetchedAt,
+        max(chapter.remote_date_upload) AS latestUpload,
+        max(chapter.state_date_fetch) AS fetchedAt,
         sum(user_bookmark) AS bookmarkCount,
         -- KMK -->
         sum(CASE WHEN user_bookmark = 1 AND user_read = 1 THEN 1 ELSE 0 END) AS bookmarkReadCount,

@@ -2,6 +2,7 @@ package tachiyomi.domain.manga.model
 
 import tachiyomi.domain.manga.interactor.GetCustomMangaInfo
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.time.Instant
 
 /**
  * Contains the required data for MangaCoverFetcher
@@ -13,7 +14,7 @@ data class MangaCover(
     // SY -->
     val ogUrl: String?,
     // SY <--
-    val lastModified: Long,
+    val lastModified: Instant?,
 ) {
     // SY -->
     private val customThumbnailUrl = if (isMangaFavorite) {

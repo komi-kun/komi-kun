@@ -189,7 +189,7 @@ class DownloadQueueViewModel(
     }
     // KMK <--
 
-    fun <R : Comparable<R>> reorderQueue(selector: (DownloadItem) -> R, reverse: Boolean = false) {
+    fun <R : Comparable<R>> reorderQueue(selector: (DownloadItem) -> R?, reverse: Boolean = false) {
         val adapter = adapter ?: return
         val newDownloads = mutableListOf<Download>()
         adapter.headerItems.forEach { headerItem ->

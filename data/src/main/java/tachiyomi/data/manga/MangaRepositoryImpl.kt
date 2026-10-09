@@ -102,11 +102,10 @@ class MangaRepositoryImpl(
         includedCategories: List<Long>,
     ): Flow<List<Manga>> {
         val timeZone = TimeZone.currentSystemDefault()
-        val epochMillis =
-            Clock.System.now().toLocalDateTime(timeZone).date.atStartOfDayIn(timeZone).toEpochMilliseconds()
+        val startOfDay = Clock.System.now().toLocalDateTime(timeZone).date.atStartOfDayIn(timeZone)
         return database.mangaQueries
             .getUpcomingManga(
-                startOfDay = epochMillis,
+                startOfDay = startOfDay,
                 statuses = statuses,
                 includedEmpty = includedCategories.isEmpty(),
                 includedCategories = includedCategories,
@@ -243,12 +242,12 @@ class MangaRepositoryImpl(
                     artist = value.artist,
                     author = value.author,
                     description = value.description,
-                    genre = value.genre?.let(StringListColumnAdapter::encode),
+                    genre = value.genre,
                     title = value.title,
                     status = value.status,
                     thumbnailUrl = value.thumbnailUrl,
                     userFavoriteAtSet = value.favorite != null,
-                    userFavoriteAt = if (value.favorite == true) (value.dateAdded ?: 0L) else null,
+                    userFavoriteAt = if (value.favorite == true) value.dateAdded else null,
                     lastUpdate = value.lastUpdate,
                     nextUpdate = value.nextUpdate,
                     calculateInterval = value.fetchInterval?.toLong(),
@@ -257,14 +256,14 @@ class MangaRepositoryImpl(
                     chapterFlags = value.chapterFlags,
                     coverLastModified = value.coverLastModified,
                     mangaId = value.id,
-                    updateStrategy = value.updateStrategy?.let(UpdateStrategyColumnAdapter::encode),
+                    updateStrategy = value.updateStrategy,
                     version = value.version,
                     // SY -->
                     lastModifiedAt = null,
                     isSyncing = null,
                     // SY <--
                     notes = value.notes,
-                    memo = value.memo?.let(MemoColumnAdapter::encode),
+                    memo = value.memo,
                 )
             }
         }

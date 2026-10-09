@@ -17,7 +17,6 @@ import tachiyomi.domain.chapter.model.Chapter
 import tachiyomi.domain.manga.model.Manga
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-import kotlin.time.Instant
 
 // TODO: move these into the domain model
 val Manga.readingMode: Long
@@ -99,11 +98,7 @@ fun getComicInfo(
     categories: List<String>?,
     sourceName: String,
 ): ComicInfo {
-    val date = chapter.dateUpload
-        .takeIf { it != 0L }
-        ?.let {
-            Instant.fromEpochMilliseconds(it).toLocalDateTime(TimeZone.currentSystemDefault())
-        }
+    val date = chapter.dateUpload?.toLocalDateTime(TimeZone.currentSystemDefault())
     return ComicInfo(
         title = ComicInfo.Title(chapter.name),
         series = ComicInfo.Series(manga.title),

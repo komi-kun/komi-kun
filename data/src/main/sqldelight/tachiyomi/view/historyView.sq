@@ -80,7 +80,7 @@ END AS readCountCalculated,
 readAt,
 readDuration
 FROM historyView
-WHERE historyView.readAt > 0
+WHERE historyView.readAt IS NOT NULL
 -- KMK -->
 AND (
     :unfinishedManga IS NULL
@@ -146,6 +146,6 @@ JOIN manga
 ON manga.id = history.manga_id
 JOIN chapter
 ON chapter.id = history.chapter_id
-WHERE history.read_at > 0
+WHERE history.read_at IS NOT NULL
 ORDER BY history.read_at DESC
 LIMIT 1;

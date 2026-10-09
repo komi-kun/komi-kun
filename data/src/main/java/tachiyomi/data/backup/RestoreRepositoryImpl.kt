@@ -29,9 +29,9 @@ import tachiyomi.domain.manga.repository.MangaMetadataRepository
 import tachiyomi.domain.manga.repository.MangaRepository
 import tachiyomi.domain.track.model.Track
 import tachiyomi.domain.track.repository.TrackRepository
-import java.util.Date
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.time.Instant
 
 @Inject
 @SingleIn(AppScope::class)
@@ -129,6 +129,14 @@ class RestoreRepositoryImpl(
     private fun Manga.copyFrom(newer: Manga): Manga {
         return this.copy(
             favorite = this.favorite || newer.favorite,
+            dateAdded = if (this.favorite || newer.favorite) {
+                listOfNotNull(this.dateAdded, newer.dateAdded)
+                    .filter { it > Manga.UNKNOWN_FAVORITE_AT }
+                    .minOrNull()
+                    ?: Manga.UNKNOWN_FAVORITE_AT
+            } else {
+                null
+            },
             // SY -->
             ogAuthor = newer.author,
             ogArtist = newer.artist,
@@ -153,7 +161,7 @@ class RestoreRepositoryImpl(
             artist = manga.ogArtist,
             author = manga.ogAuthor,
             description = manga.ogDescription,
-            genre = manga.ogGenre?.joinToString(separator = ", "),
+            genre = manga.ogGenre,
             title = manga.ogTitle,
             status = manga.ogStatus,
             thumbnailUrl = manga.ogThumbnailUrl,
@@ -168,14 +176,14 @@ class RestoreRepositoryImpl(
             chapterFlags = manga.chapterFlags,
             coverLastModified = manga.coverLastModified,
             mangaId = manga.id,
-            updateStrategy = manga.updateStrategy.let(UpdateStrategyColumnAdapter::encode),
+            updateStrategy = manga.updateStrategy,
             version = manga.version,
             // SY -->
             lastModifiedAt = if (isSync) manga.lastModifiedAt else null,
             isSyncing = syncingFlag,
             // SY <--
             notes = manga.notes,
-            memo = manga.memo.let(MemoColumnAdapter::encode),
+            memo = manga.memo,
         )
         return manga
     }
@@ -205,7 +213,7 @@ class RestoreRepositoryImpl(
             userReaderFlags = manga.viewerFlags,
             userChapterFlags = manga.chapterFlags,
             stateChapterLastUpdate = manga.lastUpdate,
-            stateChapterNextUpdate = 0L,
+            stateChapterNextUpdate = null,
             stateChapterFetchInterval = 0L,
             stateCoverLastModified = manga.coverLastModified,
             stateInitialized = manga.initialized,
@@ -269,7 +277,7 @@ class RestoreRepositoryImpl(
                 lastPageRead = chapter.lastPageRead,
                 // KMK -->
                 sourceOrder = max(chapter.sourceOrder, dbChapter.sourceOrder),
-                dateUpload = min(chapter.dateUpload, dbChapter.dateUpload),
+                dateUpload = listOfNotNull(chapter.dateUpload, dbChapter.dateUpload).minOrNull(),
                 // KMK <--
             )
         } else {
@@ -279,7 +287,7 @@ class RestoreRepositoryImpl(
                     id = dbChapter.id,
                     bookmark = chapter.bookmark || dbChapter.bookmark,
                     sourceOrder = max(chapter.sourceOrder, dbChapter.sourceOrder),
-                    dateUpload = min(chapter.dateUpload, dbChapter.dateUpload),
+                    dateUpload = listOfNotNull(chapter.dateUpload, dbChapter.dateUpload).minOrNull(),
                 )
                 // KMK <--
                 .let {
@@ -298,7 +306,7 @@ class RestoreRepositoryImpl(
         this.copy(
             id = 0L,
             mangaId = 0L,
-            dateFetch = 0L,
+            dateFetch = Instant.DISTANT_PAST,
             // KMK -->
             // dateUpload = 0L, some time source loses dateUpload so we overwrite with backup
             // sourceOrder = 0L, although sourceOrder will be updated on refresh, we want to avoid order mixed up anyway
@@ -360,7 +368,7 @@ class RestoreRepositoryImpl(
                     lastModifiedAt = if (isSync) chapter.lastModifiedAt else null,
                     isSyncing = syncingFlag,
                     // SY <--
-                    memo = chapter.memo.let(MemoColumnAdapter::encode),
+                    memo = chapter.memo,
                 )
             }
         }
@@ -383,17 +391,16 @@ class RestoreRepositoryImpl(
             // each copy; they are one chapter now, read as late as any copy and for as long as all
             .groupBy { chapterIdsByUrl.getValue(it.chapterUrl) }
             .map { (chapterId, copies) ->
-                val readAt = copies.maxOf { it.readAt?.time ?: 0L }
+                val readAt = copies.mapNotNull { it.readAt }.maxOrNull()
                 val readDuration = copies.sumOf { it.readDuration }
                 val dbHistory = dbHistoryByChapterId[chapterId]
                     // New history entry
-                    ?: return@map Triple(chapterId, Date(readAt), readDuration)
+                    ?: return@map Triple(chapterId, readAt, readDuration)
 
-                // Update history entry. 0 is kept rather than written as NULL, since it marks history
-                // the user removed.
+                // Update history entry
                 Triple(
                     chapterId,
-                    Date(max(readAt, dbHistory.read_at?.time ?: 0L)),
+                    listOfNotNull(readAt, dbHistory.read_at).maxOrNull(),
                     max(readDuration, dbHistory.read_duration) - dbHistory.read_duration,
                 )
             }

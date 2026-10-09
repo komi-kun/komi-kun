@@ -2,18 +2,19 @@ package tachiyomi.domain.manga.model
 
 import eu.kanade.tachiyomi.source.model.UpdateStrategy
 import kotlinx.serialization.json.JsonObject
+import kotlin.time.Instant
 
 data class MangaUpdate(
     val id: Long,
     val source: Long? = null,
     val favorite: Boolean? = null,
-    val lastUpdate: Long? = null,
-    val nextUpdate: Long? = null,
+    val lastUpdate: Instant? = null,
+    val nextUpdate: Instant? = null,
     val fetchInterval: Int? = null,
-    val dateAdded: Long? = null,
+    val dateAdded: Instant? = null,
     val viewerFlags: Long? = null,
     val chapterFlags: Long? = null,
-    val coverLastModified: Long? = null,
+    val coverLastModified: Instant? = null,
     val url: String? = null,
     val title: String? = null,
     val artist: String? = null,

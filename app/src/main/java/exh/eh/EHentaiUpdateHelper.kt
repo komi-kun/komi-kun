@@ -29,6 +29,8 @@ import tachiyomi.domain.manga.model.FavoriteEntryAlternative
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.manga.model.MangaUpdate
 import java.io.File
+import kotlin.time.Clock
+import kotlin.time.Instant
 
 data class ChapterChain(val manga: Manga, val chapters: List<Chapter>, val history: List<History>)
 
@@ -106,14 +108,14 @@ class EHentaiUpdateHelper(
                 mangaUpdates += MangaUpdate(
                     id = it.manga.id,
                     favorite = false,
-                    dateAdded = 0,
+                    dateAdded = null,
                 )
             }
             if (!accepted.manga.favorite) {
                 mangaUpdates += MangaUpdate(
                     id = accepted.manga.id,
                     favorite = true,
-                    dateAdded = System.currentTimeMillis(),
+                    dateAdded = Clock.System.now(),
                 )
             }
 
@@ -196,7 +198,7 @@ class EHentaiUpdateHelper(
         val newHistory = currentChapters.mapNotNull { chapter ->
             val newHistory = history[chapter.url]
                 ?.maxByOrNull {
-                    it.readAt?.time ?: 0
+                    it.readAt ?: Instant.fromEpochMilliseconds(0)
                 }
                 ?.takeIf { it.chapterId != chapter.id && it.readAt != null }
             if (newHistory != null) {

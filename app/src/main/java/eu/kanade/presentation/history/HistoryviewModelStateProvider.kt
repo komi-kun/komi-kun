@@ -8,12 +8,10 @@ import kotlinx.datetime.atStartOfDayIn
 import kotlinx.datetime.toLocalDateTime
 import tachiyomi.domain.history.model.HistoryWithRelations
 import tachiyomi.domain.manga.model.MangaCover
-import java.util.Date
 import kotlin.random.Random
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Instant
-import kotlin.time.toJavaInstant
 
 class HistoryviewModelStateProvider : PreviewParameterProvider<HistoryViewModel.State> {
 
@@ -85,17 +83,10 @@ class HistoryviewModelStateProvider : PreviewParameterProvider<HistoryViewModel.
     // KMK -->
     private object HistoryWithRelationExamples {
         val headerToday = randItem()
-        val headerTomorrow = randItem(
-            Clock.System.now().plus(1.days).toLocalDateTime(TimeZone.currentSystemDefault()).date.toDate(),
-        )
+        val headerTomorrow = randItem(Clock.System.now().plus(1.days))
 
         fun header(instantBuilder: (Instant) -> Instant = { it }) =
-            randItem(
-                instantBuilder(Clock.System.now()).toLocalDateTime(TimeZone.currentSystemDefault()).date.toDate(),
-            )
-
-        fun LocalDate.toDate(zone: TimeZone = TimeZone.currentSystemDefault()): Date =
-            Date.from(atStartOfDayIn(zone).toJavaInstant())
+            randItem(instantBuilder(Clock.System.now()))
         // KMK <--
 
         fun items() = sequence {
@@ -108,7 +99,7 @@ class HistoryviewModelStateProvider : PreviewParameterProvider<HistoryViewModel.
 
         fun randItem(
             // KMK -->
-            readAt: Date = Date.from(Clock.System.now().toJavaInstant()),
+            readAt: Instant = Clock.System.now(),
             // KMK <--
             historyBuilder: (HistoryWithRelations) -> HistoryWithRelations = { it },
         ) =
@@ -134,7 +125,7 @@ class HistoryviewModelStateProvider : PreviewParameterProvider<HistoryViewModel.
                         sourceId = Random.nextLong(),
                         isMangaFavorite = Random.nextBoolean(),
                         ogUrl = "https://example.com/cover.png",
-                        lastModified = Random.nextLong(),
+                        lastModified = Instant.fromEpochMilliseconds(Random.nextLong()),
                     ),
                 ),
             )

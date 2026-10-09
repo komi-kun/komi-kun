@@ -133,7 +133,7 @@ class ChapterRepositoryImpl(
                     version = chapterUpdate.version,
                     lastModifiedAt = null,
                     isSyncing = null,
-                    memo = chapterUpdate.memo?.let(MemoColumnAdapter::encode),
+                    memo = chapterUpdate.memo,
                 )
             }
 
@@ -163,7 +163,7 @@ class ChapterRepositoryImpl(
                     lastModifiedAt = null,
                     isSyncing = null,
                     // SY <--
-                    memo = chapterUpdate.memo?.let(MemoColumnAdapter::encode),
+                    memo = chapterUpdate.memo,
                 )
             }
         }

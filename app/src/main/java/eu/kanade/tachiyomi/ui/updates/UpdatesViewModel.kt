@@ -448,13 +448,13 @@ class UpdatesViewModel(
         if (isGroup && !isExpanded) {
             val selectedItemDate = item.update.dateFetch.toLocalDate()
             val zone = TimeZone.currentSystemDefault()
-            val dayStartMillis = selectedItemDate.atStartOfDayIn(zone).toEpochMilliseconds()
-            val dayEndMillis = selectedItemDate.plus(1, DateTimeUnit.DAY).atStartOfDayIn(zone).toEpochMilliseconds()
+            val dayStart = selectedItemDate.atStartOfDayIn(zone)
+            val dayEnd = selectedItemDate.plus(1, DateTimeUnit.DAY).atStartOfDayIn(zone)
 
             items
                 .filter {
                     it.update.mangaId == item.update.mangaId &&
-                        it.update.dateFetch in dayStartMillis..<dayEndMillis
+                        it.update.dateFetch in dayStart..<dayEnd
                 }
                 .forEach { newSelection.addOrRemove(it.update.chapterId, selected) }
         }

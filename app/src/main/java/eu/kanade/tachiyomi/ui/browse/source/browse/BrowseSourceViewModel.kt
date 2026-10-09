@@ -418,8 +418,8 @@ open class BrowseSourceViewModel(
             var new = manga.copy(
                 favorite = !manga.favorite,
                 dateAdded = when (manga.favorite) {
-                    true -> 0
-                    false -> Clock.System.now().toEpochMilliseconds()
+                    true -> null
+                    false -> Clock.System.now()
                 },
             )
 

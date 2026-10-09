@@ -34,6 +34,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZonedDateTime
+import kotlin.time.toJavaInstant
 
 @Composable
 fun ChapterListDialog(
@@ -91,17 +92,14 @@ fun ChapterListDialog(
                 MangaChapterListItem(
                     title = chapterItem.chapter.name,
                     date = chapterItem.chapter.dateUpload
-                        .takeIf { it > 0L }
                         ?.let {
                             // SY -->
                             if (manga?.isEhBasedManga() == true) {
                                 MetadataUtil.EX_DATE_FORMAT
-                                    .format(ZonedDateTime.ofInstant(Instant.ofEpochMilli(it), ZoneId.systemDefault()))
+                                    .format(ZonedDateTime.ofInstant(it.toJavaInstant(), ZoneId.systemDefault()))
                             } else {
                                 // KMK -->
-                                kotlin.time.Instant
-                                    .fromEpochMilliseconds(it)
-                                    .toLocalDateTime(TimeZone.currentSystemDefault())
+                                it.toLocalDateTime(TimeZone.currentSystemDefault())
                                     .date
                                     .toRelativeString(context, dateRelativeTime, chapterItem.dateFormat)
                                 // KMK <--

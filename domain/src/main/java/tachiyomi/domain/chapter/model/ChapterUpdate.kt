@@ -1,6 +1,7 @@
 package tachiyomi.domain.chapter.model
 
 import kotlinx.serialization.json.JsonObject
+import kotlin.time.Instant
 
 data class ChapterUpdate(
     val id: Long,
@@ -8,11 +9,11 @@ data class ChapterUpdate(
     val read: Boolean? = null,
     val bookmark: Boolean? = null,
     val lastPageRead: Long? = null,
-    val dateFetch: Long? = null,
+    val dateFetch: Instant? = null,
     val sourceOrder: Long? = null,
     val url: String? = null,
     val name: String? = null,
-    val dateUpload: Long? = null,
+    val dateUpload: Instant? = null,
     val chapterNumber: Double? = null,
     val scanlator: String? = null,
     val version: Long? = null,

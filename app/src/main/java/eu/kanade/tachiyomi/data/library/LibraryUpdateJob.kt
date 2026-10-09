@@ -106,6 +106,7 @@ import kotlin.concurrent.atomics.AtomicInt
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import kotlin.concurrent.atomics.incrementAndFetch
 import kotlin.time.Clock
+import kotlin.time.Instant
 
 @OptIn(ExperimentalAtomicApi::class)
 class LibraryUpdateJob(private val context: Context, workerParams: WorkerParameters) :
@@ -332,10 +333,10 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
         val restrictions = libraryPreferences.autoUpdateMangaRestrictions.get()
         val skippedUpdates = mutableListOf<Pair<Manga, String?>>()
         val timeZone = TimeZone.currentSystemDefault()
-        val (_, fetchWindowUpperBound) = fetchInterval.getWindow(
+        val fetchWindowUpperBound = fetchInterval.getWindow(
             Clock.System.now().toLocalDateTime(timeZone).date,
             timeZone,
-        )
+        ).endInclusive
 
         mangaToUpdate = listToUpdate
             // SY -->
@@ -369,7 +370,8 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
                         false
                     }
 
-                    MANGA_OUTSIDE_RELEASE_PERIOD in restrictions && it.manga.nextUpdate > fetchWindowUpperBound -> {
+                    MANGA_OUTSIDE_RELEASE_PERIOD in restrictions &&
+                        it.manga.nextUpdate.let { next -> next != null && next > fetchWindowUpperBound } -> {
                         skippedUpdates.add(
                             it.manga to
                                 context.stringResource(MR.strings.skipped_reason_not_in_release_period),
@@ -383,10 +385,10 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
             .sortedWith(
                 compareByDescending<LibraryManga> {
                     // Prefer manga updating today
-                    it.manga.nextUpdate <= fetchWindowUpperBound
+                    it.manga.nextUpdate.let { next -> next != null && next <= fetchWindowUpperBound }
                 }.thenByDescending {
                     // Prefer manga the user has started
-                    it.lastRead > 0L
+                    it.lastRead != null
                 }.thenByDescending {
                     // Prefer manga that the user has most recently read
                     it.lastRead
@@ -563,7 +565,7 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
      * @param manga the manga to update.
      * @return a pair of the inserted and removed chapters.
      */
-    private suspend fun updateManga(manga: Manga, fetchWindow: Pair<Long, Long>): List<Chapter> {
+    private suspend fun updateManga(manga: Manga, fetchWindow: ClosedRange<Instant>): List<Chapter> {
         val source = sourceManager.getOrStub(manga.source)
 
         val update = updateMangaFromRemote(
@@ -614,7 +616,7 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
                             ogTitle = networkManga.title,
                             source = mangaDex.id,
                             favorite = true,
-                            dateAdded = System.currentTimeMillis(),
+                            dateAdded = Clock.System.now(),
                         ),
                     )
                 } else if (!dbManga.favorite) {

@@ -41,7 +41,7 @@ import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.manga.model.MangaWithChapterCount
 import tachiyomi.domain.manga.model.toMangaUpdate
 import tachiyomi.domain.source.service.SourceManager
-import java.time.Instant
+import kotlin.time.Clock
 
 @Inject
 @ViewModelKey
@@ -341,8 +341,8 @@ class BulkFavoriteViewModel(
             var new = manga.copy(
                 favorite = !manga.favorite,
                 dateAdded = when (manga.favorite) {
-                    true -> 0
-                    false -> Instant.now().toEpochMilli()
+                    true -> null
+                    false -> Clock.System.now()
                 },
             )
             // TODO: also allow deleting chapters when remove favorite (just like in [MangaViewModel])

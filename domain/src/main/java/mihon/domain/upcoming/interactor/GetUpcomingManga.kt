@@ -4,6 +4,9 @@ import dev.zacsweers.metro.Inject
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.UpdateStrategy
 import kotlinx.coroutines.flow.Flow
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.atStartOfDayIn
+import kotlinx.datetime.toLocalDateTime
 import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.domain.library.service.LibraryPreferences.Companion.MANGA_HAS_UNREAD
 import tachiyomi.domain.library.service.LibraryPreferences.Companion.MANGA_NON_COMPLETED
@@ -12,8 +15,7 @@ import tachiyomi.domain.library.service.LibraryPreferences.Companion.MANGA_OUTSI
 import tachiyomi.domain.manga.interactor.GetLibraryManga
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.manga.repository.MangaRepository
-import java.time.LocalDate
-import java.time.ZoneId
+import kotlin.time.Clock
 
 @Inject
 class GetUpcomingManga(
@@ -54,7 +56,8 @@ class GetUpcomingManga(
         }
 
         val restrictions = libraryPreferences.autoUpdateMangaRestrictions.get()
-        val today = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toEpochSecond() * 1000
+        val timeZone = TimeZone.currentSystemDefault()
+        val today = Clock.System.now().toLocalDateTime(timeZone).date.atStartOfDayIn(timeZone)
 
         return listToUpdate
             .distinctBy { it.manga.id }
@@ -68,7 +71,8 @@ class GetUpcomingManga(
 
                     MANGA_NON_READ in restrictions && it.totalChapters > 0L && !it.hasStarted -> false
 
-                    MANGA_OUTSIDE_RELEASE_PERIOD in restrictions && it.manga.nextUpdate < today -> false
+                    MANGA_OUTSIDE_RELEASE_PERIOD in restrictions &&
+                        it.manga.nextUpdate.let { next -> next != null && next < today } -> false
 
                     else -> true
                 }

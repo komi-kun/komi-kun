@@ -175,6 +175,8 @@ import tachiyomi.i18n.kmk.KMR
 import tachiyomi.source.local.LocalSource
 import tachiyomi.source.local.isLocal
 import kotlin.math.floor
+import kotlin.time.Clock
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import androidx.compose.runtime.State as RuntimeState
 
@@ -792,7 +794,7 @@ class MangaViewModel(
                 ogDescription = description?.trimOrNull(),
                 ogGenre = tags?.nullIfEmpty(),
                 ogStatus = status ?: 0,
-                lastUpdate = manga.lastUpdate + 1,
+                lastUpdate = manga.lastUpdate?.plus(1.milliseconds) ?: Clock.System.now(),
             )
             viewModelScope.launchNonCancellable {
                 val localSource = sourceManager.get(LocalSource.ID) as LocalSource
@@ -828,7 +830,7 @@ class MangaViewModel(
                     status.takeUnless { it == state.manga.ogStatus },
                 ),
             )
-            manga = manga.copy(lastUpdate = manga.lastUpdate + 1)
+            manga = manga.copy(lastUpdate = manga.lastUpdate?.plus(1.milliseconds) ?: Clock.System.now())
         }
 
         // KMK -->

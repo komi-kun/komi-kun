@@ -51,6 +51,7 @@ import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.source.service.SourceManager
 import java.util.concurrent.TimeUnit
 import kotlin.time.Duration.Companion.days
+import kotlin.time.Instant
 
 class EHentaiUpdateWorker(private val context: Context, workerParams: WorkerParameters) :
     CoroutineWorker(context, workerParams) {
@@ -141,7 +142,7 @@ class EHentaiUpdateWorker(private val context: Context, workerParams: WorkerPara
             }
 
             val chapter = getChaptersByMangaId.await(manga.id).minByOrNull {
-                it.dateUpload
+                it.dateUpload ?: Instant.DISTANT_FUTURE
             }
 
             UpdateEntry(manga, raisedMeta, chapter)

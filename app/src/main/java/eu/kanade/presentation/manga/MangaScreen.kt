@@ -129,6 +129,7 @@ import tachiyomi.presentation.core.util.shouldExpandFAB
 import tachiyomi.source.local.isLocal
 import kotlin.math.roundToInt
 import kotlin.time.Instant
+import kotlin.time.toJavaInstant
 
 @Composable
 fun MangaScreen(
@@ -1323,7 +1324,6 @@ private fun LazyListScope.sharedChapterItems(
                         item.chapter.name
                     },
                     date = item.chapter.dateUpload
-                        .takeIf { it > 0L }
                         ?.let {
                             // SY -->
                             if (manga.isEhBasedManga()) {
@@ -1331,7 +1331,7 @@ private fun LazyListScope.sharedChapterItems(
                                 MetadataUtil.EX_DATE_FORMAT
                                     .format(
                                         java.time.ZonedDateTime.ofInstant(
-                                            java.time.Instant.ofEpochMilli(it),
+                                            it.toJavaInstant(),
                                             java.time.ZoneId.systemDefault(),
                                         ),
                                     )

@@ -173,7 +173,7 @@ class MigrateMangaUseCase(
             val currentMangaUpdate = MangaUpdate(
                 id = current.id,
                 favorite = false,
-                dateAdded = 0,
+                dateAdded = null,
             )
                 .takeIf { replace }
             val targetMangaUpdate = MangaUpdate(
@@ -187,7 +187,7 @@ class MigrateMangaUseCase(
                     // KMK -->
                     .takeIf { MigrationFlag.EXTRA in flags },
                 // KMK <--
-                dateAdded = if (replace) current.dateAdded else Clock.System.now().toEpochMilliseconds(),
+                dateAdded = if (replace) current.dateAdded else Clock.System.now(),
                 notes = if (MigrationFlag.NOTES in flags) current.notes else null,
             )
 

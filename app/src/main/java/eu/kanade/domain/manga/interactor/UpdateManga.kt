@@ -9,6 +9,7 @@ import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.manga.model.MangaUpdate
 import tachiyomi.domain.manga.repository.MangaRepository
 import kotlin.time.Clock
+import kotlin.time.Instant
 
 @Inject
 class UpdateManga(
@@ -28,7 +29,7 @@ class UpdateManga(
         manga: Manga,
         timeZone: TimeZone = TimeZone.currentSystemDefault(),
         dateTime: LocalDateTime = Clock.System.now().toLocalDateTime(timeZone),
-        window: Pair<Long, Long> = fetchInterval.getWindow(dateTime.date, timeZone),
+        window: ClosedRange<Instant>? = fetchInterval.getWindow(dateTime.date, timeZone),
     ): Boolean {
         return mangaRepository.update(
             fetchInterval.toMangaUpdate(manga, dateTime, timeZone, window),
@@ -36,22 +37,22 @@ class UpdateManga(
     }
 
     suspend fun awaitUpdateLastUpdate(mangaId: Long): Boolean {
-        return mangaRepository.update(MangaUpdate(id = mangaId, lastUpdate = Clock.System.now().toEpochMilliseconds()))
+        return mangaRepository.update(MangaUpdate(id = mangaId, lastUpdate = Clock.System.now()))
     }
 
     suspend fun awaitUpdateCoverLastModified(mangaId: Long): Boolean {
         return mangaRepository.update(
             MangaUpdate(
                 id = mangaId,
-                coverLastModified = Clock.System.now().toEpochMilliseconds(),
+                coverLastModified = Clock.System.now(),
             ),
         )
     }
 
     suspend fun awaitUpdateFavorite(mangaId: Long, favorite: Boolean): Boolean {
         val dateAdded = when (favorite) {
-            true -> Clock.System.now().toEpochMilliseconds()
-            false -> 0
+            true -> Clock.System.now()
+            false -> null
         }
         return mangaRepository.update(
             MangaUpdate(id = mangaId, favorite = favorite, dateAdded = dateAdded),

@@ -18,6 +18,7 @@ import tachiyomi.domain.manga.interactor.NetworkToLocalManga
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.manga.model.MergedMangaReference
 import tachiyomi.i18n.sy.SYMR
+import kotlin.time.Clock
 
 @Inject
 class SmartSearchMerge(
@@ -98,7 +99,7 @@ class SmartSearchMerge(
                     lastUpdate = originalManga.lastUpdate,
                     viewerFlags = originalManga.viewerFlags,
                     chapterFlags = originalManga.chapterFlags,
-                    dateAdded = System.currentTimeMillis(),
+                    dateAdded = Clock.System.now(),
                 )
 
             var existingManga = getManga.await(mergedManga.url, mergedManga.source)
