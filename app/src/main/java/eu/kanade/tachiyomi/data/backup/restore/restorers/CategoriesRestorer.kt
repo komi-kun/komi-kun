@@ -8,6 +8,9 @@ import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
 class CategoriesRestorer(
+    // SY -->
+    private val isSync: Boolean = false,
+    // SY <--
     private val handler: DatabaseHandler = Injekt.get(),
     private val getCategories: GetCategories = Injekt.get(),
     private val libraryPreferences: LibraryPreferences = Injekt.get(),
@@ -17,27 +20,76 @@ class CategoriesRestorer(
         if (backupCategories.isNotEmpty()) {
             val dbCategories = getCategories.await()
             val dbCategoriesByName = dbCategories.associateBy { it.name }
+            // SY -->
+            val dbCategoriesByUid = dbCategories.associateBy { it.uid } // Map by UID
+            // SY <--
+
             var nextOrder = dbCategories.maxOfOrNull { it.order }?.plus(1) ?: 0
 
             val categories = backupCategories
                 .sortedBy { it.order }
-                .map {
-                    val dbCategory = dbCategoriesByName[it.name]
-                    if (dbCategory != null) return@map dbCategory
-                    val order = nextOrder++
+                // SY -->
+                .map { backupCategory ->
+                    var dbCategory = if (backupCategory.uid != 0L) {
+                        dbCategoriesByUid[backupCategory.uid]
+                    } else {
+                        null
+                    }
+
+                    if (dbCategory == null) {
+                        dbCategory = dbCategoriesByName[backupCategory.name]
+                    }
+
+                    if (dbCategory != null) {
+                        handler.await {
+                            categoriesQueries.update(
+                                name = backupCategory.name,
+                                order = backupCategory.order,
+                                flags = backupCategory.flags,
+                                // KMK -->
+                                hidden = if (backupCategory.hidden) 1L else null,
+                                // KMK <--
+                                version = backupCategory.version,
+                                uid = if (backupCategory.uid != 0L) backupCategory.uid else dbCategory.uid,
+                                lastModifiedAt = backupCategory.lastModifiedAt,
+                                isSyncing = 1,
+                                categoryId = dbCategory.id,
+                            )
+                        }
+                        return@map dbCategory
+                    }
+
+                    // SY -->
+                    // A sync delta is a converging replica, not an import: new
+                    // categories must land at the position the server holds or
+                    // reorders never converge across devices.
+                    val order = if (isSync) backupCategory.order else nextOrder++
+                    // SY <--
                     handler.awaitOneExecutable {
                         categoriesQueries.insert(
-                            it.name,
+                            backupCategory.name,
                             order,
-                            it.flags,
+                            backupCategory.flags,
                             // KMK -->
-                            hidden = if (it.hidden) 1L else 0L,
+                            hidden = if (backupCategory.hidden) 1L else 0L,
                             // KMK <--
+                            // SY -->
+                            version = backupCategory.version,
+                            uid = backupCategory.uid,
+                            lastModifiedAt = backupCategory.lastModifiedAt,
+                            // SY <--
                         )
                         categoriesQueries.selectLastInsertedRowId()
                     }
-                        .let { id -> it.toCategory(id).copy(order = order) }
+                        .let { id -> backupCategory.toCategory(id).copy(order = order) }
                 }
+            // SY <--
+
+            // SY -->
+            handler.await {
+                categoriesQueries.resetIsSyncing()
+            }
+            // SY <--
 
             libraryPreferences.categorizedDisplaySettings().set(
                 (dbCategories + categories)

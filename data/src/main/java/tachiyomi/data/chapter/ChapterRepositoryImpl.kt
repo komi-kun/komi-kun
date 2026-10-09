@@ -32,6 +32,10 @@ class ChapterRepositoryImpl(
                         chapter.dateFetch,
                         chapter.dateUpload,
                         chapter.version,
+                        // SY -->
+                        chapter.lastModifiedAt,
+                        0L,
+                        // SY <--
                         chapter.memo,
                     )
                     val lastInsertId = chaptersQueries.selectLastInsertedRowId().executeAsOne()
@@ -69,7 +73,10 @@ class ChapterRepositoryImpl(
                     dateUpload = chapterUpdate.dateUpload,
                     chapterId = chapterUpdate.id,
                     version = chapterUpdate.version,
-                    isSyncing = 0,
+                    // SY -->
+                    lastModifiedAt = null,
+                    isSyncing = null,
+                    // SY <--
                     memo = chapterUpdate.memo?.let(MemoColumnAdapter::encode),
                 )
             }

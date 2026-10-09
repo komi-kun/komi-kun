@@ -8,12 +8,18 @@ CREATE TABLE categories(
     flags INTEGER NOT NULL,
     manga_order TEXT AS List<Long> NOT NULL,
     -- KMK -->
-    hidden INTEGER NOT NULL DEFAULT 0
+    hidden INTEGER NOT NULL DEFAULT 0,
     -- KMK <--
+    -- SY -->
+    version INTEGER NOT NULL DEFAULT 0,
+    uid INTEGER NOT NULL DEFAULT 0,
+    last_modified_at INTEGER NOT NULL DEFAULT 0,
+    is_syncing INTEGER NOT NULL DEFAULT 0
+    -- SY <--
 );
 
 -- Insert system category
-INSERT OR IGNORE INTO categories(_id, name, sort, flags, manga_order, hidden) VALUES (0, "", -1, 0, "", 0);
+INSERT OR IGNORE INTO categories(_id, name, sort, flags, manga_order, hidden, version, uid, last_modified_at, is_syncing) VALUES (0, "", -1, 0, "", 0, 0, 0, 0, 0);
 -- Disallow deletion of default category
 CREATE TRIGGER IF NOT EXISTS system_category_delete_trigger BEFORE DELETE
 ON categories
@@ -23,8 +29,34 @@ BEGIN SELECT CASE
     END;
 END;
 
+-- SY -->
+CREATE TRIGGER update_category_version AFTER UPDATE ON categories
+WHEN new.is_syncing = 0 AND (
+    new.name != old.name OR
+    new.sort != old.sort OR
+    new.flags != old.flags
+    -- KMK -->
+    OR new.hidden != old.hidden
+    -- KMK <--
+)
+BEGIN
+    UPDATE categories
+    SET version = version + 1,
+        last_modified_at = strftime('%s', 'now')
+    WHERE _id = new._id;
+END;
+
+CREATE TRIGGER insert_category_uid AFTER INSERT ON categories
+BEGIN
+    UPDATE categories
+    SET uid = CASE WHEN uid = 0 THEN abs(random()) ELSE uid END,
+        last_modified_at = CASE WHEN last_modified_at = 0 THEN strftime('%s', 'now') ELSE last_modified_at END
+    WHERE _id = new._id;
+END;
+-- SY <--
+
 getCategory:
-SELECT _id,name,sort,flags,hidden
+SELECT _id,name,sort,flags,hidden,version,uid,last_modified_at
 FROM categories
 WHERE _id = :id
 LIMIT 1;
@@ -36,8 +68,11 @@ name,
 sort AS `order`,
 flags,
 -- KMK -->
-hidden
+hidden,
 -- KMK <--
+version,
+uid,
+last_modified_at
 FROM categories
 ORDER BY sort;
 
@@ -48,16 +83,22 @@ C.name,
 C.sort AS `order`,
 C.flags,
 -- KMK -->
-C.hidden
+C.hidden,
 -- KMK <--
+C.version,
+C.uid,
+C.last_modified_at
 FROM categories C
 JOIN mangas_categories MC
 ON C._id = MC.category_id
 WHERE MC.manga_id = :mangaId;
 
 insert:
-INSERT INTO categories(name, sort, flags, manga_order, hidden)
-VALUES (:name, :order, :flags, "", :hidden);
+INSERT INTO categories(name, sort, flags, manga_order, hidden, version, uid, last_modified_at)
+VALUES (:name, :order, :flags, "", :hidden, :version, :uid, :lastModifiedAt);
+
+selectLastInsertedRowId:
+SELECT last_insert_rowid();
 
 delete:
 DELETE FROM categories
@@ -69,13 +110,21 @@ SET name = coalesce(:name, name),
     sort = coalesce(:order, sort),
     flags = coalesce(:flags, flags),
     -- KMK -->
-    hidden = coalesce(:hidden, hidden)
+    hidden = coalesce(:hidden, hidden),
     -- KMK <--
+    -- SY -->
+    version = coalesce(:version, version),
+    uid = coalesce(:uid, uid),
+    last_modified_at = coalesce(:lastModifiedAt, last_modified_at),
+    is_syncing = coalesce(:isSyncing, is_syncing)
+    -- SY <--
 WHERE _id = :categoryId;
+
+resetIsSyncing:
+UPDATE categories
+SET is_syncing = 0
+WHERE is_syncing = 1;
 
 updateAllFlags:
 UPDATE categories SET
 flags = coalesce(?, flags);
-
-selectLastInsertedRowId:
-SELECT last_insert_rowid();
