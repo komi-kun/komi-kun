@@ -378,6 +378,7 @@ private fun ChapterNavigatorPreview() {
             currentPage = currentPage,
             totalPages = 10,
             onPageIndexChange = { currentPage = (it + 1) },
+            onPageIndexChangeFinished = {},
             currentPageText = "1",
         )
         // KMK <--
