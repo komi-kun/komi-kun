@@ -36,7 +36,7 @@ class ReaderPreferences(
 
     fun showPageNumber() = preferenceStore.getBoolean("pref_show_page_number_key", true)
 
-fun showReadingMode() = preferenceStore.getBoolean("pref_show_reading_mode", true)
+    fun showReadingMode() = preferenceStore.getBoolean("pref_show_reading_mode", true)
 
     val verticalNavigatorForLongStrip: Preference<Boolean> = preferenceStore.getBoolean(
         "pref_webtoon_vertical_navigator",
@@ -205,7 +205,7 @@ fun showReadingMode() = preferenceStore.getBoolean("pref_show_reading_mode", tru
 
     fun cropBordersContinuousVertical() = preferenceStore.getBoolean("crop_borders_continues_vertical", false)
 
-val readerBottomButtons: Preference<Set<String>> = preferenceStore.getStringSet("reader_bottom_buttons", ReaderBottomButton.BUTTONS_DEFAULTS)
+    val readerBottomButtons: Preference<Set<String>> = preferenceStore.getStringSet("reader_bottom_buttons", ReaderBottomButton.BUTTONS_DEFAULTS)
 
     fun pageLayout() = preferenceStore.getInt("page_layout", PagerConfig.PageLayout.AUTOMATIC)
 

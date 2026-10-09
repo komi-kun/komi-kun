@@ -61,7 +61,7 @@ internal fun GeneralPage(screenModel: ReaderSettingsScreenModel) {
         pref = screenModel.preferences.showPageNumber(),
     )
 
-val verticalNavigatorForLongStrip by screenModel.preferences.verticalNavigatorForLongStrip.collectAsState()
+    val verticalNavigatorForLongStrip by screenModel.preferences.verticalNavigatorForLongStrip.collectAsState()
     CheckboxItem(
         label = stringResource(SYMR.strings.pref_webtoon_vertical_navigator),
         pref = screenModel.preferences.verticalNavigatorForLongStrip,

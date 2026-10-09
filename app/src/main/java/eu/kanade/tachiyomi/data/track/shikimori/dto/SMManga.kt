@@ -68,4 +68,3 @@ data class SMPersonRole(
 )
 
 // KMK --> SMPerson already exists in SMMetadata.kt; the Shikimori GraphQL port added a second copy
-
