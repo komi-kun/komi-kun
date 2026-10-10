@@ -37,10 +37,10 @@ import eu.kanade.tachiyomi.ui.manga.MangaScreen
 import eu.kanade.tachiyomi.ui.webview.WebViewScreen
 import eu.kanade.tachiyomi.util.system.toast
 import exh.md.follows.MangaDexFollowsScreen
-import exh.source.ExhPreferences
 import exh.source.anyIs
 import exh.source.isEhBasedSource
 import exh.util.nullIfBlank
+import mihon.app.di.appGraph
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.source.interactor.GetRemoteManga
 import tachiyomi.domain.source.model.SavedSearch
@@ -48,7 +48,6 @@ import tachiyomi.domain.source.model.StubSource
 import tachiyomi.i18n.kmk.KMR
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.screens.LoadingScreen
-import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
 class SourceFeedScreen(val sourceId: Long) : Screen() {
@@ -87,7 +86,7 @@ class SourceFeedScreen(val sourceId: Long) : Screen() {
         val bulkFavoriteState by bulkFavoriteViewModel.state.collectAsState()
         val showingFeedOrderScreen = rememberSaveable { mutableStateOf(false) }
 
-        val isHentaiEnabled: Boolean = Injekt.get<ExhPreferences>().isHentaiEnabled.get()
+        val isHentaiEnabled: Boolean = LocalContext.current.appGraph.exhPreferences.isHentaiEnabled.get()
         val isConfigurableSource = viewModel.source.anyIs<ConfigurableSource>() ||
             (viewModel.source.isEhBasedSource() && isHentaiEnabled)
 

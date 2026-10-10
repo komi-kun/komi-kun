@@ -19,7 +19,6 @@ import cafe.adriel.voyager.navigator.tab.LocalTabNavigator
 import cafe.adriel.voyager.navigator.tab.TabOptions
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 import eu.kanade.core.preference.asState
-import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.presentation.updates.UpdateScreen
 import eu.kanade.presentation.updates.UpdatesDeleteConfirmationDialog
 import eu.kanade.presentation.updates.UpdatesFilterDialog
@@ -34,13 +33,13 @@ import eu.kanade.tachiyomi.ui.manga.MangaScreen
 import eu.kanade.tachiyomi.ui.reader.ReaderActivity
 import eu.kanade.tachiyomi.ui.updates.UpdatesViewModel.Event
 import kotlinx.coroutines.flow.collectLatest
+import mihon.app.di.appGraph
 import mihon.feature.upcoming.UpcomingScreen
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsState
-import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
 data object UpdatesTab : Tab {
@@ -66,9 +65,10 @@ data object UpdatesTab : Tab {
     // SY -->
     @Composable
     override fun isEnabled(): Boolean {
+        val context = LocalContext.current
         val scope = rememberCoroutineScope()
         return remember {
-            Injekt.get<UiPreferences>().showNavUpdates.asState(scope)
+            context.appGraph.uiPreferences.showNavUpdates.asState(scope)
         }.value
     }
     // SY <--

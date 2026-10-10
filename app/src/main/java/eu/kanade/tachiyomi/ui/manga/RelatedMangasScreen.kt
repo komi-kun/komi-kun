@@ -10,6 +10,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.navigator.Navigator
@@ -22,9 +23,9 @@ import eu.kanade.tachiyomi.ui.browse.BulkFavoriteViewModel
 import eu.kanade.tachiyomi.ui.browse.source.browse.BrowseSourceScreen
 import eu.kanade.tachiyomi.ui.browse.source.globalsearch.GlobalSearchScreen
 import kotlinx.coroutines.CoroutineScope
+import mihon.app.di.appGraph
 import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.presentation.core.components.material.Scaffold
-import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
 @Composable
@@ -36,7 +37,7 @@ fun RelatedMangasScreen(
     scope: CoroutineScope,
     successState: MangaViewModel.State.Success,
 ) {
-    val sourcePreferences: SourcePreferences = Injekt.get()
+    val sourcePreferences: SourcePreferences = LocalContext.current.appGraph.sourcePreferences
     var displayMode by sourcePreferences.sourceDisplayMode.asState(scope)
 
     val bulkFavoriteState by bulkFavoriteViewModel.state.collectAsState()
@@ -85,7 +86,10 @@ fun RelatedMangasScreen(
         RelatedMangasContent(
             relatedMangas = successState.relatedMangasSorted,
             getMangaState = { manga -> viewModel.getManga(initialManga = manga) },
-            columns = getColumnsPreference(LocalConfiguration.current.orientation),
+            columns = getColumnsPreference(
+                LocalConfiguration.current.orientation,
+                LocalContext.current.appGraph.libraryPreferences,
+            ),
             displayMode = displayMode,
             contentPadding = paddingValues,
             onMangaClick = { manga ->
@@ -113,9 +117,7 @@ fun RelatedMangasScreen(
     }
 }
 
-private fun getColumnsPreference(orientation: Int): GridCells {
-    val libraryPreferences: LibraryPreferences = Injekt.get()
-
+private fun getColumnsPreference(orientation: Int, libraryPreferences: LibraryPreferences): GridCells {
     val isLandscape = orientation == Configuration.ORIENTATION_LANDSCAPE
     val columns = if (isLandscape) {
         libraryPreferences.landscapeColumns

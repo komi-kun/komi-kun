@@ -21,7 +21,6 @@ import cafe.adriel.voyager.navigator.tab.LocalTabNavigator
 import cafe.adriel.voyager.navigator.tab.TabOptions
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 import eu.kanade.core.preference.asState
-import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.presentation.category.components.ChangeCategoryDialog
 import eu.kanade.presentation.history.HistoryScreen
 import eu.kanade.presentation.history.components.HistoryDeleteAllDialog
@@ -39,6 +38,7 @@ import eu.kanade.tachiyomi.ui.reader.ReaderActivity
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.receiveAsFlow
+import mihon.app.di.appGraph
 import mihon.feature.migration.dialog.MigrateMangaDialog
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.util.lang.launchIO
@@ -46,7 +46,6 @@ import tachiyomi.domain.chapter.model.Chapter
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsState
-import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
 data object HistoryTab : Tab {
@@ -76,9 +75,10 @@ data object HistoryTab : Tab {
     // SY -->
     @Composable
     override fun isEnabled(): Boolean {
+        val context = LocalContext.current
         val scope = rememberCoroutineScope()
         return remember {
-            Injekt.get<UiPreferences>().showNavHistory.asState(scope)
+            context.appGraph.uiPreferences.showNavHistory.asState(scope)
         }.value
     }
     // SY <--

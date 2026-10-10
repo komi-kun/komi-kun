@@ -61,7 +61,6 @@ import eu.kanade.tachiyomi.ui.manga.MangaScreen
 import eu.kanade.tachiyomi.ui.webview.WebViewScreen
 import eu.kanade.tachiyomi.util.system.toast
 import exh.md.follows.MangaDexFollowsScreen
-import exh.source.ExhPreferences
 import exh.source.anyIs
 import exh.source.isEhBasedSource
 import exh.source.isMdBasedSource
@@ -69,6 +68,7 @@ import exh.ui.smartsearch.SmartSearchScreen
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.receiveAsFlow
+import mihon.app.di.appGraph
 import mihon.feature.migration.dialog.MigrateMangaDialog
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.FilterList
@@ -85,7 +85,6 @@ import tachiyomi.presentation.core.components.material.padding
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.screens.LoadingScreen
 import tachiyomi.source.local.LocalSource
-import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
 data class BrowseSourceScreen(
@@ -181,7 +180,7 @@ data class BrowseSourceScreen(
         // KMK -->
         val mangaList = viewModel.mangaPagerFlowFlow.collectAsLazyPagingItems()
 
-        val isHentaiEnabled: Boolean = Injekt.get<ExhPreferences>().isHentaiEnabled.get()
+        val isHentaiEnabled: Boolean = LocalContext.current.appGraph.exhPreferences.isHentaiEnabled.get()
         val isConfigurableSource = viewModel.source.anyIs<ConfigurableSource>() ||
             (viewModel.source.isEhBasedSource() && isHentaiEnabled)
         // KMK <--
