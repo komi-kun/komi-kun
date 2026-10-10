@@ -8,6 +8,10 @@ import androidx.compose.runtime.produceState
 import androidx.compose.ui.util.fastAny
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import dev.zacsweers.metro.AppScope
+import dev.zacsweers.metro.ContributesIntoMap
+import dev.zacsweers.metro.Inject
+import dev.zacsweers.metrox.viewmodel.ViewModelKey
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.presentation.browse.FeedItemUI
 import eu.kanade.tachiyomi.source.Source
@@ -47,8 +51,6 @@ import tachiyomi.domain.source.interactor.ReorderFeed
 import tachiyomi.domain.source.model.FeedSavedSearch
 import tachiyomi.domain.source.model.SavedSearch
 import tachiyomi.domain.source.service.SourceManager
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 import xyz.nulldev.ts.api.http.serializer.FilterSerializer
 import java.util.concurrent.Executors
 import tachiyomi.domain.manga.model.Manga as DomainManga
@@ -56,19 +58,22 @@ import tachiyomi.domain.manga.model.Manga as DomainManga
 /**
  * Presenter of [feedTab]
  */
-open class FeedViewModel(
-    val sourceManager: SourceManager = Injekt.get(),
-    val sourcePreferences: SourcePreferences = Injekt.get(),
-    private val getManga: GetManga = Injekt.get(),
-    private val networkToLocalManga: NetworkToLocalManga = Injekt.get(),
-    getFeedSavedSearchGlobal: GetFeedSavedSearchGlobal = Injekt.get(),
-    private val getSavedSearchGlobalFeed: GetSavedSearchGlobalFeed = Injekt.get(),
-    private val countFeedSavedSearchGlobal: CountFeedSavedSearchGlobal = Injekt.get(),
-    private val getSavedSearchBySourceId: GetSavedSearchBySourceId = Injekt.get(),
-    private val insertFeedSavedSearch: InsertFeedSavedSearch = Injekt.get(),
-    private val deleteFeedSavedSearchById: DeleteFeedSavedSearchById = Injekt.get(),
+@Inject
+@ViewModelKey
+@ContributesIntoMap(AppScope::class)
+class FeedViewModel(
+    val sourceManager: SourceManager,
+    val sourcePreferences: SourcePreferences,
+    private val getManga: GetManga,
+    private val networkToLocalManga: NetworkToLocalManga,
+    getFeedSavedSearchGlobal: GetFeedSavedSearchGlobal,
+    private val getSavedSearchGlobalFeed: GetSavedSearchGlobalFeed,
+    private val countFeedSavedSearchGlobal: CountFeedSavedSearchGlobal,
+    private val getSavedSearchBySourceId: GetSavedSearchBySourceId,
+    private val insertFeedSavedSearch: InsertFeedSavedSearch,
+    private val deleteFeedSavedSearchById: DeleteFeedSavedSearchById,
     // KMK -->
-    private val reorderFeed: ReorderFeed = Injekt.get(),
+    private val reorderFeed: ReorderFeed,
     // KMK <--
 ) : ViewModel() {
 

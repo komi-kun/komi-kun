@@ -3,6 +3,10 @@ package eu.kanade.tachiyomi.ui.libraryUpdateError
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import dev.zacsweers.metro.AppScope
+import dev.zacsweers.metro.ContributesIntoMap
+import dev.zacsweers.metro.Inject
+import dev.zacsweers.metrox.viewmodel.ViewModelKey
 import eu.kanade.core.util.addOrRemove
 import eu.kanade.presentation.libraryUpdateError.components.LibraryUpdateErrorUiModel
 import kotlinx.coroutines.DelicateCoroutinesApi
@@ -19,14 +23,15 @@ import tachiyomi.domain.libraryUpdateErrorMessage.interactor.GetLibraryUpdateErr
 import tachiyomi.domain.libraryUpdateErrorMessage.model.LibraryUpdateErrorMessage
 import tachiyomi.domain.manga.model.MangaCover
 import tachiyomi.domain.source.service.SourceManager
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 
+@Inject
+@ViewModelKey
+@ContributesIntoMap(AppScope::class)
 class LibraryUpdateErrorViewModel(
-    private val getLibraryUpdateErrorWithRelations: GetLibraryUpdateErrorWithRelations = Injekt.get(),
-    private val getLibraryUpdateErrorMessages: GetLibraryUpdateErrorMessages = Injekt.get(),
-    private val deleteLibraryUpdateErrors: DeleteLibraryUpdateErrors = Injekt.get(),
-    private val sourceManager: SourceManager = Injekt.get(),
+    private val getLibraryUpdateErrorWithRelations: GetLibraryUpdateErrorWithRelations,
+    private val getLibraryUpdateErrorMessages: GetLibraryUpdateErrorMessages,
+    private val deleteLibraryUpdateErrors: DeleteLibraryUpdateErrors,
+    private val sourceManager: SourceManager,
 ) : ViewModel() {
 
     val state: StateFlow<LibraryUpdateErrorScreenState>

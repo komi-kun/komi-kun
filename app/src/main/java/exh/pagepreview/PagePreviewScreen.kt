@@ -5,9 +5,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
-import androidx.lifecycle.viewmodel.compose.viewModel
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import dev.zacsweers.metrox.viewmodel.assistedMetroViewModel
 import eu.kanade.presentation.util.Screen
 import eu.kanade.tachiyomi.ui.reader.ReaderActivity
 import exh.pagepreview.components.PagePreviewScreen
@@ -16,7 +16,9 @@ class PagePreviewScreen(private val mangaId: Long) : Screen() {
 
     @Composable
     override fun Content() {
-        val viewModel = viewModel { PagePreviewViewModel(mangaId) }
+        val viewModel = assistedMetroViewModel<PagePreviewViewModel, PagePreviewViewModel.Factory> {
+            create(mangaId = mangaId)
+        }
         val context = LocalContext.current
         val state by viewModel.state.collectAsState()
         val navigator = LocalNavigator.currentOrThrow

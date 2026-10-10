@@ -26,8 +26,6 @@ import kotlinx.coroutines.flow.onEach
 import mihon.app.di.AppGraph
 import mihon.core.metro.metroGraph
 import tachiyomi.domain.download.service.DownloadPreferences
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 import kotlin.time.Duration.Companion.seconds
 import tachiyomi.i18n.R as I18nR
 

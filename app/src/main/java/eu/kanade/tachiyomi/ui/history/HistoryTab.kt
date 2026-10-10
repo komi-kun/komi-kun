@@ -90,7 +90,7 @@ data object HistoryTab : Tab {
         val viewModel = metroViewModel<HistoryViewModel>()
         val state by viewModel.state.collectAsStateWithLifecycle()
         // KMK -->
-        val settingsViewModel = viewModel<HistorySettingsViewModel>()
+        val settingsViewModel = metroViewModel<HistorySettingsViewModel>()
         val usePanoramaCover by settingsViewModel.historyPreferences.usePanoramaCover.collectAsState()
         // KMK <--
 

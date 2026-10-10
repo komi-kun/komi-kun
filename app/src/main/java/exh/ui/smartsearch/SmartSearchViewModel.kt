@@ -2,6 +2,13 @@ package exh.ui.smartsearch
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import dev.zacsweers.metro.AppScope
+import dev.zacsweers.metro.Assisted
+import dev.zacsweers.metro.AssistedFactory
+import dev.zacsweers.metro.AssistedInject
+import dev.zacsweers.metro.ContributesIntoMap
+import dev.zacsweers.metrox.viewmodel.ManualViewModelAssistedFactory
+import dev.zacsweers.metrox.viewmodel.ManualViewModelAssistedFactoryKey
 import eu.kanade.tachiyomi.ui.browse.source.SourcesScreen
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -11,15 +18,21 @@ import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.domain.manga.interactor.NetworkToLocalManga
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.source.service.SourceManager
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 
+@AssistedInject
 class SmartSearchViewModel(
-    sourceId: Long,
-    private val config: SourcesScreen.SmartSearchConfig,
-    private val networkToLocalManga: NetworkToLocalManga = Injekt.get(),
-    sourceManager: SourceManager = Injekt.get(),
+    @Assisted sourceId: Long,
+    @Assisted private val config: SourcesScreen.SmartSearchConfig,
+    private val networkToLocalManga: NetworkToLocalManga,
+    sourceManager: SourceManager,
 ) : ViewModel() {
+
+    @AssistedFactory
+    @ManualViewModelAssistedFactoryKey
+    @ContributesIntoMap(AppScope::class)
+    interface Factory : ManualViewModelAssistedFactory {
+        fun create(sourceId: Long, config: SourcesScreen.SmartSearchConfig): SmartSearchViewModel
+    }
 
     val state: StateFlow<SmartSearchViewModel.SearchResults?>
         field = MutableStateFlow<SmartSearchViewModel.SearchResults?>(null)

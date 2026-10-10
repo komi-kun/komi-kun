@@ -2,6 +2,13 @@ package exh.ui.metadata
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import dev.zacsweers.metro.AppScope
+import dev.zacsweers.metro.Assisted
+import dev.zacsweers.metro.AssistedFactory
+import dev.zacsweers.metro.AssistedInject
+import dev.zacsweers.metro.ContributesIntoMap
+import dev.zacsweers.metrox.viewmodel.ManualViewModelAssistedFactory
+import dev.zacsweers.metrox.viewmodel.ManualViewModelAssistedFactoryKey
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.tachiyomi.source.online.MetadataSource
 import exh.metadata.metadata.RaisedSearchMetadata
@@ -14,22 +21,28 @@ import tachiyomi.domain.manga.interactor.GetFlatMetadataById
 import tachiyomi.domain.manga.interactor.GetManga
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.source.service.SourceManager
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 
+@AssistedInject
 class MetadataViewViewModel(
-    val mangaId: Long,
-    val sourceId: Long,
-    private val getFlatMetadataById: GetFlatMetadataById = Injekt.get(),
-    private val sourceManager: SourceManager = Injekt.get(),
-    private val getManga: GetManga = Injekt.get(),
+    @Assisted val mangaId: Long,
+    @Assisted val sourceId: Long,
+    private val getFlatMetadataById: GetFlatMetadataById,
+    private val sourceManager: SourceManager,
+    private val getManga: GetManga,
+    private val uiPreferences: UiPreferences,
 ) : ViewModel() {
+
+    @AssistedFactory
+    @ManualViewModelAssistedFactoryKey
+    @ContributesIntoMap(AppScope::class)
+    interface Factory : ManualViewModelAssistedFactory {
+        fun create(mangaId: Long, sourceId: Long): MetadataViewViewModel
+    }
 
     val state: StateFlow<MetadataViewState>
         field = MutableStateFlow<MetadataViewState>(MetadataViewState.Loading)
 
     // KMK -->
-    private val uiPreferences = Injekt.get<UiPreferences>()
     val themeCoverBased = uiPreferences.themeCoverBased.get()
     // KMK <--
 

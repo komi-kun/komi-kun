@@ -16,9 +16,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import dev.zacsweers.metrox.viewmodel.assistedMetroViewModel
 import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.util.Screen
 import eu.kanade.tachiyomi.ui.browse.source.SourcesScreen
@@ -39,7 +39,9 @@ class SmartSearchScreen(
 
     @Composable
     override fun Content() {
-        val viewModel = viewModel { SmartSearchViewModel(sourceId, smartSearchConfig) }
+        val viewModel = assistedMetroViewModel<SmartSearchViewModel, SmartSearchViewModel.Factory> {
+            create(sourceId = sourceId, config = smartSearchConfig)
+        }
 
         val navigator = LocalNavigator.currentOrThrow
         val context = LocalContext.current

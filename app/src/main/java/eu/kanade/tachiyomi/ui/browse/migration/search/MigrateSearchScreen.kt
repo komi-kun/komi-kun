@@ -4,10 +4,10 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.lifecycle.viewmodel.compose.viewModel
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import dev.zacsweers.metrox.viewmodel.assistedMetroViewModel
+import dev.zacsweers.metrox.viewmodel.metroViewModel
 import eu.kanade.presentation.browse.MigrateSearchScreen
 import eu.kanade.presentation.browse.components.BulkFavoriteDialogs
 import eu.kanade.presentation.util.Screen
@@ -28,7 +28,7 @@ class MigrateSearchScreen(private val mangaId: Long) : Screen() {
         val state by viewModel.state.collectAsState()
 
         // KMK -->
-        val bulkFavoriteViewModel = viewModel<BulkFavoriteViewModel>()
+        val bulkFavoriteViewModel = metroViewModel<BulkFavoriteViewModel>()
         val bulkFavoriteState by bulkFavoriteViewModel.state.collectAsState()
 
         BackHandler(enabled = bulkFavoriteState.selectionMode) {

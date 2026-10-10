@@ -7,8 +7,6 @@ import eu.kanade.tachiyomi.data.backup.models.BackupFeed
 import exh.EXHMigrations
 import exh.util.nullIfBlank
 import tachiyomi.data.Database
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 
 @Inject
 class FeedRestorer(

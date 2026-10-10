@@ -18,7 +18,6 @@ import mihon.graphql.suwayomi.SuwayomiMarkChaptersReadMutation
 import mihon.graphql.suwayomi.SuwayomiUpdateMangaProgressMutation
 import okhttp3.OkHttpClient
 import tachiyomi.domain.source.service.SourceManager
-import uy.kohesive.injekt.injectLazy
 import java.security.MessageDigest
 
 class SuwayomiApi(

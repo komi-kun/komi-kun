@@ -9,6 +9,10 @@ import androidx.compose.ui.util.fastForEach
 import androidx.compose.ui.util.fastForEachIndexed
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import dev.zacsweers.metro.AppScope
+import dev.zacsweers.metro.ContributesIntoMap
+import dev.zacsweers.metro.Inject
+import dev.zacsweers.metrox.viewmodel.ViewModelKey
 import eu.kanade.domain.manga.interactor.UpdateManga
 import eu.kanade.domain.track.interactor.AddTracks
 import eu.kanade.presentation.components.BulkSelectionToolbar
@@ -37,26 +41,26 @@ import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.manga.model.MangaWithChapterCount
 import tachiyomi.domain.manga.model.toMangaUpdate
 import tachiyomi.domain.source.service.SourceManager
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 import java.time.Instant
 
+@Inject
+@ViewModelKey
+@ContributesIntoMap(AppScope::class)
 class BulkFavoriteViewModel(
-    initialState: State = State(),
-    private val sourceManager: SourceManager = Injekt.get(),
-    private val libraryPreferences: LibraryPreferences = Injekt.get(),
-    private val getDuplicateLibraryManga: GetDuplicateLibraryManga = Injekt.get(),
-    private val getCategories: GetCategories = Injekt.get(),
-    private val setMangaCategories: SetMangaCategories = Injekt.get(),
-    private val updateManga: UpdateManga = Injekt.get(),
-    private val coverCache: CoverCache = Injekt.get(),
-    private val setMangaDefaultChapterFlags: SetMangaDefaultChapterFlags = Injekt.get(),
-    private val addTracks: AddTracks = Injekt.get(),
-    private val updateMangaFromRemote: UpdateMangaFromRemote = Injekt.get(),
+    private val sourceManager: SourceManager,
+    private val libraryPreferences: LibraryPreferences,
+    private val getDuplicateLibraryManga: GetDuplicateLibraryManga,
+    private val getCategories: GetCategories,
+    private val setMangaCategories: SetMangaCategories,
+    private val updateManga: UpdateManga,
+    private val coverCache: CoverCache,
+    private val setMangaDefaultChapterFlags: SetMangaDefaultChapterFlags,
+    private val addTracks: AddTracks,
+    private val updateMangaFromRemote: UpdateMangaFromRemote,
 ) : ViewModel() {
 
     val state: StateFlow<BulkFavoriteViewModel.State>
-        field = MutableStateFlow<BulkFavoriteViewModel.State>(initialState)
+        field = MutableStateFlow<BulkFavoriteViewModel.State>(State())
 
     fun backHandler() {
         toggleSelectionMode(false)

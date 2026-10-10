@@ -9,6 +9,13 @@ import androidx.compose.runtime.produceState
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.icerock.moko.resources.StringResource
+import dev.zacsweers.metro.AppScope
+import dev.zacsweers.metro.Assisted
+import dev.zacsweers.metro.AssistedFactory
+import dev.zacsweers.metro.AssistedInject
+import dev.zacsweers.metro.ContributesIntoMap
+import dev.zacsweers.metrox.viewmodel.ManualViewModelAssistedFactory
+import dev.zacsweers.metrox.viewmodel.ManualViewModelAssistedFactoryKey
 import eu.kanade.core.preference.asState
 import eu.kanade.domain.source.interactor.GetExhSavedSearch
 import eu.kanade.domain.source.interactor.GetIncognitoState
@@ -61,32 +68,38 @@ import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.i18n.kmk.KMR
 import tachiyomi.i18n.sy.SYMR
 import tachiyomi.source.local.isLocal
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 import xyz.nulldev.ts.api.http.serializer.FilterSerializer
 import java.util.concurrent.Executors
 import tachiyomi.domain.manga.model.Manga as DomainManga
 
-open class SourceFeedViewModel(
-    val sourceId: Long,
-    uiPreferences: UiPreferences = Injekt.get(),
-    sourceManager: SourceManager = Injekt.get(),
-    private val getManga: GetManga = Injekt.get(),
-    private val networkToLocalManga: NetworkToLocalManga = Injekt.get(),
-    getFeedSavedSearchBySourceId: GetFeedSavedSearchBySourceId = Injekt.get(),
-    private val getSavedSearchBySourceIdFeed: GetSavedSearchBySourceIdFeed = Injekt.get(),
-    private val countFeedSavedSearchBySourceId: CountFeedSavedSearchBySourceId = Injekt.get(),
-    private val insertFeedSavedSearch: InsertFeedSavedSearch = Injekt.get(),
-    private val deleteFeedSavedSearchById: DeleteFeedSavedSearchById = Injekt.get(),
-    private val getExhSavedSearch: GetExhSavedSearch = Injekt.get(),
+@AssistedInject
+class SourceFeedViewModel(
+    @Assisted val sourceId: Long,
+    uiPreferences: UiPreferences,
+    sourceManager: SourceManager,
+    private val getManga: GetManga,
+    private val networkToLocalManga: NetworkToLocalManga,
+    getFeedSavedSearchBySourceId: GetFeedSavedSearchBySourceId,
+    private val getSavedSearchBySourceIdFeed: GetSavedSearchBySourceIdFeed,
+    private val countFeedSavedSearchBySourceId: CountFeedSavedSearchBySourceId,
+    private val insertFeedSavedSearch: InsertFeedSavedSearch,
+    private val deleteFeedSavedSearchById: DeleteFeedSavedSearchById,
+    private val getExhSavedSearch: GetExhSavedSearch,
     // KMK -->
-    private val reorderFeed: ReorderFeed = Injekt.get(),
-    getIncognitoState: GetIncognitoState = Injekt.get(),
-    private val toggleIncognito: ToggleIncognito = Injekt.get(),
-    private val extensionManager: ExtensionManager = Injekt.get(),
-    sourcePreferences: SourcePreferences = Injekt.get(),
+    private val reorderFeed: ReorderFeed,
+    getIncognitoState: GetIncognitoState,
+    private val toggleIncognito: ToggleIncognito,
+    private val extensionManager: ExtensionManager,
+    sourcePreferences: SourcePreferences,
     // KMK <--
 ) : ViewModel() {
+
+    @AssistedFactory
+    @ManualViewModelAssistedFactoryKey
+    @ContributesIntoMap(AppScope::class)
+    interface Factory : ManualViewModelAssistedFactory {
+        fun create(sourceId: Long): SourceFeedViewModel
+    }
 
     val state: StateFlow<SourceFeedState>
         field = MutableStateFlow<SourceFeedState>(SourceFeedState())

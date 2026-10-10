@@ -15,7 +15,6 @@ import mihon.graphql.anilist.AniListSearchMangaQuery
 import mihon.graphql.anilist.fragment.MangaFragment
 import mihon.graphql.anilist.type.MediaListStatus
 import mihon.graphql.anilist.type.ScoreFormat
-import uy.kohesive.injekt.injectLazy
 import tachiyomi.domain.track.model.Track as DomainTrack
 
 internal fun AniListGetCurrentUserQuery.Viewer.toALUser(): ALUser {

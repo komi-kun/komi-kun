@@ -1,15 +1,20 @@
 package eu.kanade.tachiyomi.ui.history
 
 import androidx.lifecycle.ViewModel
+import dev.zacsweers.metro.AppScope
+import dev.zacsweers.metro.ContributesIntoMap
+import dev.zacsweers.metro.Inject
+import dev.zacsweers.metrox.viewmodel.ViewModelKey
 import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.TriState
 import tachiyomi.core.common.preference.getAndSet
 import tachiyomi.domain.history.service.HistoryPreferences
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 
+@Inject
+@ViewModelKey
+@ContributesIntoMap(AppScope::class)
 class HistorySettingsViewModel(
-    val historyPreferences: HistoryPreferences = Injekt.get(),
+    val historyPreferences: HistoryPreferences,
 ) : ViewModel() {
 
     fun toggleFilter(preference: (HistoryPreferences) -> Preference<TriState>) {

@@ -4,6 +4,10 @@ import android.content.Context
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import dev.zacsweers.metro.AppScope
+import dev.zacsweers.metro.ContributesIntoMap
+import dev.zacsweers.metro.Inject
+import dev.zacsweers.metrox.viewmodel.ViewModelKey
 import eu.kanade.core.preference.asState
 import exh.GalleryAddEvent
 import exh.GalleryAdder
@@ -20,11 +24,12 @@ import kotlinx.coroutines.launch
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.i18n.sy.SYMR
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 
+@Inject
+@ViewModelKey
+@ContributesIntoMap(AppScope::class)
 class BatchAddViewModel(
-    private val exhPreferences: ExhPreferences = Injekt.get(),
+    private val exhPreferences: ExhPreferences,
 ) : ViewModel() {
 
     val state: StateFlow<BatchAddState>
@@ -32,7 +37,7 @@ class BatchAddViewModel(
     private val galleryAdder by lazy { GalleryAdder() }
 
     // KMK -->
-    val isHentaiEnabled by Injekt.get<ExhPreferences>().isHentaiEnabled.asState(viewModelScope)
+    val isHentaiEnabled by exhPreferences.isHentaiEnabled.asState(viewModelScope)
     // KMK <--
 
     fun addGalleries(context: Context) {
