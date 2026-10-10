@@ -75,7 +75,10 @@ class CategoryRepositoryImpl(
         val dbCategoriesByName = dbCategories.associateBy { it.name }
         val dbCategoriesByUid = dbCategories.associateBy { it.uid } // Map by UID
 
-        var nextOrder = dbCategories.maxOfOrNull { it.order }?.plus(1) ?: 0
+        // SY --> `order` is UNIQUE, so a server position already taken by another category must fall back
+        val usedOrders = dbCategories.mapTo(mutableSetOf()) { it.order }
+        var nextOrder = (dbCategories.maxOfOrNull { it.order } ?: -1L) + 1
+        // SY <--
 
         val restored = categories
             .sortedBy { it.order }
@@ -110,7 +113,13 @@ class CategoryRepositoryImpl(
                 // A sync delta is a converging replica, not an import: new
                 // categories must land at the position the server holds or
                 // reorders never converge across devices.
-                val order = if (isSync) category.order else nextOrder++
+                val order = if (isSync && category.order !in usedOrders) {
+                    category.order
+                } else {
+                    while (nextOrder in usedOrders) nextOrder++
+                    nextOrder++
+                }
+                usedOrders.add(order)
                 database.categoryQueries.insert(
                     name = category.name,
                     order = order,

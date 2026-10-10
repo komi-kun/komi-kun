@@ -127,4 +127,21 @@ object AppBindings {
     fun providesFilterSerializer(): xyz.nulldev.ts.api.http.serializer.FilterSerializer =
         xyz.nulldev.ts.api.http.serializer.FilterSerializer()
     // KMK <--
+
+    // SY -->
+    // Metro cannot bind a function type, so DeleteCategory's sync tombstone callback is wired here.
+    @Provides
+    @SingleIn(AppScope::class)
+    fun providesDeleteCategory(
+        categoryRepository: tachiyomi.domain.category.repository.CategoryRepository,
+        libraryPreferences: tachiyomi.domain.library.service.LibraryPreferences,
+        downloadPreferences: tachiyomi.domain.download.service.DownloadPreferences,
+        syncPreferences: eu.kanade.domain.sync.SyncPreferences,
+    ): tachiyomi.domain.category.interactor.DeleteCategory = tachiyomi.domain.category.interactor.DeleteCategory(
+        categoryRepository = categoryRepository,
+        libraryPreferences = libraryPreferences,
+        downloadPreferences = downloadPreferences,
+        onCategoryDeleted = syncPreferences::rememberDeletedCategory,
+    )
+    // SY <--
 }
