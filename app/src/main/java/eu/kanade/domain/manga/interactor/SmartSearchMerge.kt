@@ -1,6 +1,7 @@
 package eu.kanade.domain.manga.interactor
 
 import android.app.Application
+import dev.zacsweers.metro.Inject
 import eu.kanade.domain.manga.model.copyFrom
 import eu.kanade.domain.manga.model.toSManga
 import exh.source.MERGED_SOURCE_ID
@@ -20,6 +21,7 @@ import tachiyomi.i18n.sy.SYMR
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
+@Inject
 class SmartSearchMerge(
     private val getManga: GetManga = Injekt.get(),
     private val getMergedReferencesById: GetMergedReferencesById = Injekt.get(),

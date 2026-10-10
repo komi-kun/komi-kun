@@ -17,6 +17,7 @@ import eu.kanade.presentation.more.settings.Preference
 import eu.kanade.presentation.more.settings.screen.browse.ExtensionStoresScreen
 import eu.kanade.tachiyomi.ui.category.sources.SourceCategoryScreen
 import eu.kanade.tachiyomi.util.system.AuthenticatorUtil.authenticate
+import mihon.app.di.appGraph
 import mihon.domain.extension.interactor.GetExtensionStoreCountAsFlow
 import mihon.domain.extension.model.ContentWarning
 import tachiyomi.core.common.i18n.stringResource
@@ -42,8 +43,8 @@ object SettingsBrowseScreen : SearchableSettings {
         val context = LocalContext.current
         val navigator = LocalNavigator.currentOrThrow
 
-        val sourcePreferences = remember { Injekt.get<SourcePreferences>() }
-        val getExtensionStoreCountAsFlow = remember { Injekt.get<GetExtensionStoreCountAsFlow>() }
+        val sourcePreferences = remember { context.appGraph.sourcePreferences }
+        val getExtensionStoreCountAsFlow = remember { context.appGraph.getExtensionStoreCountAsFlow }
 
         val reposCount by getExtensionStoreCountAsFlow().collectAsState(0)
 

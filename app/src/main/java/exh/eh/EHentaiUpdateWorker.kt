@@ -63,7 +63,7 @@ class EHentaiUpdateWorker(private val context: Context, workerParams: WorkerPara
     private val getExhFavoriteMangaWithMetadata: GetExhFavoriteMangaWithMetadata by injectLazy()
 
     private val updateNotifier by lazy { EHentaiUpdateNotifier(context) }
-    private val libraryUpdateNotifier by lazy { LibraryUpdateNotifier(context) }
+    private val libraryUpdateNotifier by lazy { Injekt.get<LibraryUpdateNotifier>() }
 
     override suspend fun doWork(): Result {
         return try {

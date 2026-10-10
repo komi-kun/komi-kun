@@ -11,8 +11,10 @@ import androidx.work.ForegroundInfo
 import androidx.work.OneTimeWorkRequest
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkInfo
+import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
+import dev.zacsweers.metro.Inject
 import eu.kanade.tachiyomi.data.BackupRestoreStatus
 import eu.kanade.tachiyomi.data.backup.BackupNotifier
 import eu.kanade.tachiyomi.data.notification.Notifications
@@ -24,6 +26,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import logcat.LogPriority
+import mihon.app.di.AppGraph
+import mihon.core.metro.metroGraph
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.i18n.MR
@@ -33,13 +37,19 @@ import uy.kohesive.injekt.api.get
 class BackupRestoreJob(private val context: Context, workerParams: WorkerParameters) :
     CoroutineWorker(context, workerParams) {
 
-    private val notifier = BackupNotifier(context)
+    private val graph: AppGraph = context.metroGraph()
+
+    @Inject private lateinit var backupRestorerFactory: BackupRestorer.Factory
+
+    @Inject private lateinit var notifier: BackupNotifier
 
     // KMK -->
     private val backupRestoreStatus: BackupRestoreStatus = Injekt.get()
     // KMK <--
 
     override suspend fun doWork(): Result {
+        graph.inject(this)
+
         val uri = inputData.getString(LOCATION_URI_KEY)?.toUri()
         val options = inputData.getBooleanArray(OPTIONS_KEY)?.let { RestoreOptions.fromBooleanArray(it) }
 
@@ -56,7 +66,7 @@ class BackupRestoreJob(private val context: Context, workerParams: WorkerParamet
         setForegroundSafely()
 
         return try {
-            BackupRestorer(context, notifier, isSync).restore(uri, options)
+            backupRestorerFactory.create(notifier = notifier, isSync = isSync).restore(uri, options)
             Result.success()
         } catch (e: Exception) {
             if (e is CancellationException) {
@@ -88,18 +98,18 @@ class BackupRestoreJob(private val context: Context, workerParams: WorkerParamet
     }
 
     companion object {
-        fun isRunning(context: Context): Boolean {
-            return context.workManager.isRunning(TAG)
+        fun isRunning(workManager: WorkManager): Boolean {
+            return workManager.isRunning(TAG)
         }
 
         fun start(
-            context: Context,
+            workManager: WorkManager,
             uri: Uri,
             options: RestoreOptions,
             sync: Boolean = false,
         ) {
             // SY -->
-            enqueue(context, uri, options, sync)
+            enqueue(workManager, uri, options, sync)
             // SY <--
         }
 
@@ -117,7 +127,7 @@ class BackupRestoreJob(private val context: Context, workerParams: WorkerParamet
             options: RestoreOptions,
             sync: Boolean = false,
         ): Boolean {
-            val request = enqueue(context, uri, options, sync)
+            val request = enqueue(context.workManager, uri, options, sync)
             val own = context.workManager.getWorkInfoByIdFlow(request.id)
                 .first { it == null || it.state.isFinished }
             if (own != null) {
@@ -129,7 +139,7 @@ class BackupRestoreJob(private val context: Context, workerParams: WorkerParamet
         }
 
         private fun enqueue(
-            context: Context,
+            workManager: WorkManager,
             uri: Uri,
             options: RestoreOptions,
             sync: Boolean,
@@ -143,13 +153,13 @@ class BackupRestoreJob(private val context: Context, workerParams: WorkerParamet
                 .addTag(TAG)
                 .setInputData(inputData)
                 .build()
-            context.workManager.enqueueUniqueWork(TAG, ExistingWorkPolicy.KEEP, request)
+            workManager.enqueueUniqueWork(TAG, ExistingWorkPolicy.KEEP, request)
             return request
         }
         // SY <--
 
-        fun stop(context: Context) {
-            context.workManager.cancelUniqueWork(TAG)
+        fun stop(workManager: WorkManager) {
+            workManager.cancelUniqueWork(TAG)
             // KMK -->
             val backupRestoreStatus: BackupRestoreStatus = Injekt.get()
             runBlocking { backupRestoreStatus.stop() }

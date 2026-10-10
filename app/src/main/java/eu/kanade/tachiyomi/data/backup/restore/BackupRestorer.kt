@@ -2,6 +2,9 @@ package eu.kanade.tachiyomi.data.backup.restore
 
 import android.content.Context
 import android.net.Uri
+import dev.zacsweers.metro.Assisted
+import dev.zacsweers.metro.AssistedFactory
+import dev.zacsweers.metro.AssistedInject
 import eu.kanade.tachiyomi.data.backup.BackupDecoder
 import eu.kanade.tachiyomi.data.backup.BackupNotifier
 import eu.kanade.tachiyomi.data.backup.models.BackupCategory
@@ -46,34 +49,43 @@ import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import kotlin.concurrent.atomics.incrementAndFetch
 
 @OptIn(ExperimentalAtomicApi::class)
+@AssistedInject
 class BackupRestorer(
+    @Assisted private val notifier: BackupNotifier,
+    @Assisted private val isSync: Boolean,
     private val context: Context,
-    private val notifier: BackupNotifier,
-    private val isSync: Boolean,
-
+    private val database: Database,
+    private val downloadCache: DownloadCache,
+    private val categoriesRestorer: CategoriesRestorer,
+    private val preferenceRestorer: PreferenceRestorer,
+    private val extensionStoreRestorer: ExtensionStoreRestorer,
+    private val mangaRestorer: MangaRestorer,
+    private val backupDecoder: BackupDecoder,
     // KMK -->
-    private val database: Database = Injekt.get(),
-    private val sourceManager: SourceManager = Injekt.get(),
-    private val stubSourceRepository: StubSourceRepository = Injekt.get(),
+    private val sourceManager: SourceManager,
+    private val stubSourceRepository: StubSourceRepository,
     // KMK <--
-
     // SY -->
-    private val categoriesRestorer: CategoriesRestorer = CategoriesRestorer(/* SY --> */ isSync /* SY <-- */),
+    private val savedSearchRestorer: SavedSearchRestorer,
+    private val feedRestorer: FeedRestorer,
     // SY <--
-    private val preferenceRestorer: PreferenceRestorer = PreferenceRestorer(context),
-    private val extensionStoreRestorer: ExtensionStoreRestorer = ExtensionStoreRestorer(),
-    private val mangaRestorer: MangaRestorer = MangaRestorer(isSync),
-    // SY -->
-    private val savedSearchRestorer: SavedSearchRestorer = SavedSearchRestorer(),
-    // SY <--
-    // KMK -->
-    private val feedRestorer: FeedRestorer = FeedRestorer(),
-    // KMK <--
 ) {
+
+    @AssistedFactory
+    fun interface Factory {
+        fun create(notifier: BackupNotifier, isSync: Boolean): BackupRestorer
+    }
 
     private var restoreAmount = 0
     private val restoreProgress = AtomicInt(0)
     private val errors = CopyOnWriteArrayList<Pair<Date, String>>()
+
+    init {
+        // SY -->
+        mangaRestorer.isSync = isSync
+        categoriesRestorer.isSync = isSync
+        // SY <--
+    }
 
     /**
      * Mapping of source ID to source name from backup data
@@ -88,7 +100,7 @@ class BackupRestorer(
         // Invalidate download cache to ensure UI reflects any restored downloads
         if (options.libraryEntries) {
             try {
-                Injekt.get<DownloadCache>().invalidateCache()
+                downloadCache.invalidateCache()
             } catch (e: Exception) {
                 logcat(LogPriority.ERROR, e) { "Failed to invalidate download cache after restore" }
             }
@@ -108,7 +120,7 @@ class BackupRestorer(
     }
 
     private suspend fun restoreFromFile(uri: Uri, options: RestoreOptions) {
-        val backup = BackupDecoder(context).decode(uri)
+        val backup = backupDecoder.decode(uri)
 
         // Store source mapping for error messages
         val backupMaps = backup.backupSources

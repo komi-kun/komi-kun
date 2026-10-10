@@ -25,6 +25,10 @@ import eu.kanade.presentation.more.settings.screen.appearance.AppLanguageScreen
 import eu.kanade.presentation.more.settings.widget.AppThemeModePreferenceWidget
 import eu.kanade.presentation.more.settings.widget.AppThemePreferenceWidget
 import eu.kanade.tachiyomi.util.system.toast
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toJavaLocalDateTime
+import kotlinx.datetime.toLocalDateTime
+import mihon.app.di.appGraph
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
 import tachiyomi.i18n.sy.SYMR
@@ -34,6 +38,7 @@ import tachiyomi.presentation.core.util.collectAsState
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.time.LocalDate
+import kotlin.time.Clock
 
 object SettingsAppearanceScreen : SearchableSettings {
     @Suppress("unused")
@@ -45,7 +50,8 @@ object SettingsAppearanceScreen : SearchableSettings {
 
     @Composable
     override fun getPreferences(): List<Preference> {
-        val uiPreferences = remember { Injekt.get<UiPreferences>() }
+        val context = LocalContext.current
+        val uiPreferences = remember { context.appGraph.uiPreferences }
 
         return listOf(
             getThemeGroup(uiPreferences = uiPreferences),

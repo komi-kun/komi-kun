@@ -11,6 +11,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import dev.zacsweers.metrox.viewmodel.assistedMetroViewModel
+import dev.zacsweers.metrox.viewmodel.metroViewModel
 import eu.kanade.domain.source.model.installedExtension
 import eu.kanade.presentation.browse.SourceCategoriesDialog
 import eu.kanade.presentation.browse.SourceOptionsDialog
@@ -40,8 +42,11 @@ fun Screen.sourcesTab(
     smartSearchConfig: SmartSearchConfig? = null,
 ): TabContent {
     val navigator = LocalNavigator.currentOrThrow
-    val viewModel = viewModel { SourcesViewModel(smartSearchConfig = smartSearchConfig) }
-    val state by viewModel.state.collectAsState()
+    val viewModel =
+        assistedMetroViewModel<SourcesViewModel, SourcesViewModel.Factory> {
+            create(smartSearchConfig = smartSearchConfig)
+        }
+    val state by viewModel.state.collectAsStateWithLifecycle()
 
     return TabContent(
         // SY -->

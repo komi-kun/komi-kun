@@ -17,6 +17,7 @@ import cafe.adriel.voyager.navigator.Navigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import cafe.adriel.voyager.navigator.tab.LocalTabNavigator
 import cafe.adriel.voyager.navigator.tab.TabOptions
+import dev.zacsweers.metrox.viewmodel.metroViewModel
 import eu.kanade.core.preference.asState
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.presentation.updates.UpdateScreen
@@ -76,8 +77,8 @@ data object UpdatesTab : Tab {
     override fun Content() {
         val context = LocalContext.current
         val navigator = LocalNavigator.currentOrThrow
-        val viewModel = viewModel<UpdatesViewModel>()
-        val settingsViewModel = viewModel<UpdatesSettingsViewModel>()
+        val viewModel = metroViewModel<UpdatesViewModel>()
+        val settingsViewModel = metroViewModel<UpdatesSettingsViewModel>()
         val state by viewModel.state.collectAsStateWithLifecycle()
 
         // KMK -->

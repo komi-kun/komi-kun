@@ -13,6 +13,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import dev.zacsweers.metro.Inject
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.notification.Notifications
 import eu.kanade.tachiyomi.util.system.activeNetworkState
@@ -21,6 +22,9 @@ import eu.kanade.tachiyomi.util.system.setForegroundSafely
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
+import mihon.app.di.AppGraph
+import mihon.core.metro.metroGraph
 import tachiyomi.domain.download.service.DownloadPreferences
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
@@ -33,8 +37,15 @@ import tachiyomi.i18n.R as I18nR
  */
 class DownloadJob(private val context: Context, workerParams: WorkerParameters) : CoroutineWorker(context, workerParams) {
 
-    private val downloadManager: DownloadManager = Injekt.get()
-    private val downloadPreferences: DownloadPreferences = Injekt.get()
+    private val graph: AppGraph = context.metroGraph()
+
+    @Inject private lateinit var downloadManager: DownloadManager
+
+    @Inject private lateinit var downloadPreferences: DownloadPreferences
+
+    init {
+        graph.inject(this)
+    }
 
     override suspend fun getForegroundInfo(): ForegroundInfo {
         val notification = applicationContext.notificationBuilder(Notifications.CHANNEL_DOWNLOADER_PROGRESS) {

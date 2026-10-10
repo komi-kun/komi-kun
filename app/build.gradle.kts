@@ -14,6 +14,7 @@ plugins {
     kotlin("plugin.serialization")
     alias(libs.plugins.aboutLibraries)
     alias(libs.plugins.apollo)
+    alias(libs.plugins.metro)
     alias(libs.plugins.androidx.baselineProfile)
     id("com.github.ben-manes.versions")
 }
@@ -270,6 +271,11 @@ dependencies {
     implementation(projects.presentationCore)
     implementation(projects.presentationWidget)
     implementation(projects.telemetry)
+
+    implementation(projects.core.metro)
+    implementation(libs.metro.runtime)
+    implementation(libs.metrox.viewmodel)
+    implementation(libs.metrox.viewmodel.compose)
 
     // Compose
     implementation(compose.activity)

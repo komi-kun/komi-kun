@@ -1,11 +1,16 @@
 package mihon.core.migration.migrations
 
+import dev.zacsweers.metro.AppScope
+import dev.zacsweers.metro.ContributesIntoSet
+import dev.zacsweers.metro.Inject
 import eu.kanade.domain.source.service.SourcePreferences
 import mihon.core.migration.Migration
 import mihon.core.migration.MigrationContext
 import mihon.domain.extension.model.ContentWarning
 import tachiyomi.core.common.preference.PreferenceStore
 
+@Inject
+@ContributesIntoSet(AppScope::class)
 class ContentWarningMigration : Migration {
     override val version: Float = 83f
 

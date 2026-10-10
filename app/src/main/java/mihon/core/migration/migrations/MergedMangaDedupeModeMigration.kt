@@ -1,6 +1,9 @@
 package mihon.core.migration.migrations
 
 import app.cash.sqldelight.async.coroutines.awaitAsList
+import dev.zacsweers.metro.AppScope
+import dev.zacsweers.metro.ContributesIntoSet
+import dev.zacsweers.metro.Inject
 import mihon.core.migration.Migration
 import mihon.core.migration.MigrationContext
 import tachiyomi.core.common.util.lang.withIOContext
@@ -9,6 +12,8 @@ import tachiyomi.data.manga.MergedMangaMapper
 import tachiyomi.domain.manga.interactor.UpdateMergedSettings
 import tachiyomi.domain.manga.model.MergeMangaSettingsUpdate
 
+@Inject
+@ContributesIntoSet(AppScope::class)
 class MergedMangaDedupeModeMigration : Migration {
     override val version: Float = 77f
 

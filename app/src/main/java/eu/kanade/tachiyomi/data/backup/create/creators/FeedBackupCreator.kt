@@ -1,14 +1,16 @@
 package eu.kanade.tachiyomi.data.backup.create.creators
 
 import app.cash.sqldelight.async.coroutines.awaitAsList
+import dev.zacsweers.metro.Inject
 import eu.kanade.tachiyomi.data.backup.models.BackupFeed
 import eu.kanade.tachiyomi.data.backup.models.backupFeedMapper
 import tachiyomi.data.Database
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
+@Inject
 class FeedBackupCreator(
-    private val database: Database = Injekt.get(),
+    private val database: Database,
 ) {
 
     /**

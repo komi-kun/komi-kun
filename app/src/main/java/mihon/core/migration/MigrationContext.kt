@@ -7,7 +7,9 @@ class MigrationContext(
     val previousVersion: Int,
 ) {
 
+    // KMK -->
     inline fun <reified T> get(): T? {
         return Injekt.getInstanceOrNull(T::class.java)
     }
+    // KMK <--
 }

@@ -5,6 +5,7 @@ import android.graphics.BitmapFactory
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.hippo.unifile.UniFile
+import dev.zacsweers.metro.Inject
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.core.security.SecurityPreferences
 import eu.kanade.tachiyomi.data.BackupRestoreStatus
@@ -25,14 +26,14 @@ import java.io.File
 import java.util.concurrent.TimeUnit
 import mihon.icons.materialsymbols.R as MaterialSymbolsR
 
-class BackupNotifier(private val context: Context) {
-
-    private val preferences: SecurityPreferences by injectLazy()
-
+@Inject
+class BackupNotifier(
+    private val context: Context,
+    private val preferences: SecurityPreferences,
+) {
     // KMK -->
-    private val backupRestoreStatus: BackupRestoreStatus = Injekt.get()
+    @Inject private lateinit var backupRestoreStatus: BackupRestoreStatus
     // KMK <--
-
     private val progressNotificationBuilder = context.notificationBuilder(
         Notifications.CHANNEL_BACKUP_RESTORE_PROGRESS,
     ) {

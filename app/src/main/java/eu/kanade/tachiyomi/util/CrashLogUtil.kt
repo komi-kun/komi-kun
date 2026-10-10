@@ -2,10 +2,12 @@ package eu.kanade.tachiyomi.util
 
 import android.content.Context
 import android.os.Build
+import dev.zacsweers.metro.Inject
 import eu.kanade.domain.base.BasePreferences
 import eu.kanade.tachiyomi.BuildConfig
 import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.extension.model.Extension
+import eu.kanade.tachiyomi.network.NetworkPreferences
 import eu.kanade.tachiyomi.util.storage.getUriCompat
 import eu.kanade.tachiyomi.util.system.WebViewUtil
 import eu.kanade.tachiyomi.util.system.createFileInCacheDir
@@ -17,11 +19,14 @@ import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.time.OffsetDateTime
 import java.time.ZoneId
+import kotlin.time.Clock
 
+@Inject
 class CrashLogUtil(
     private val context: Context,
-    private val extensionManager: ExtensionManager = Injekt.get(),
-    private val preferences: BasePreferences = Injekt.get(),
+    private val extensionManager: ExtensionManager,
+    private val preferences: BasePreferences,
+    private val networkPreferences: NetworkPreferences,
 ) {
 
     suspend fun dumpLogs(exception: Throwable? = null) = withNonCancellableContext {

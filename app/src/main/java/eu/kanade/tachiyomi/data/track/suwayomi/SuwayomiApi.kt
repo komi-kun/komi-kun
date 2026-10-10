@@ -23,9 +23,9 @@ import java.security.MessageDigest
 
 class SuwayomiApi(
     private val trackerId: Long,
+    private val sourceManager: SourceManager,
 ) {
 
-    private val sourceManager: SourceManager by injectLazy()
     private val source: Source by lazy { sourceManager.get(sourceId)!! }
     private val httpSource: HttpSource by lazy { source as HttpSource }
     private val configurableSource: ConfigurableSource by lazy { source as ConfigurableSource }

@@ -19,6 +19,9 @@ image-decoder = "16"
 webgpuviewer = "52"
 apollo = "5.2.0"
 apollo-adapters = "0.8.0"
+metro = "1.4.2"
+metrox-viewmodel = "1.4.2"
+metrox-viewmodel-compose = "1.4.2"
 # KMK -->
 valkyrie = "0.5.2"
 # KMK <--
@@ -28,6 +31,10 @@ desugar = "com.android.tools:desugar_jdk_libs:2.1.5"
 
 apollo = { module = "com.apollographql.apollo:apollo-runtime", version.ref = "apollo" }
 apollo-adapters = { module = "com.apollographql.adapters:apollo-adapters-core", version.ref = "apollo-adapters" }
+
+metro-runtime = { module = "dev.zacsweers.metro:runtime", version.ref = "metro" }
+metrox-viewmodel = { module = "dev.zacsweers.metro:metrox-viewmodel", version.ref = "metrox-viewmodel" }
+metrox-viewmodel-compose = { module = "dev.zacsweers.metro:metrox-viewmodel-compose", version.ref = "metrox-viewmodel-compose" }
 
 rxjava = "io.reactivex:rxjava:1.3.8"
 
@@ -128,6 +135,7 @@ materialKolor = { module = "com.materialkolor:material-kolor", version.ref = "ma
 google-services = { id = "com.google.gms.google-services", version = "4.5.0" }
 aboutLibraries = { id = "com.mikepenz.aboutlibraries.plugin.android", version.ref = "aboutlib_version" }
 apollo = { id = "com.apollographql.apollo", version.ref = "apollo" }
+metro = { id = "dev.zacsweers.metro", version.ref = "metro" }
 sqldelight = { id = "app.cash.sqldelight", version.ref = "sqldelight" }
 moko = { id = "dev.icerock.mobile.multiplatform-resources", version.ref = "moko" }
 firebase-crashlytics = { id = "com.google.firebase.crashlytics", version = "3.0.8" }

@@ -1,6 +1,7 @@
 plugins {
     id("mihon.library")
     kotlin("android")
+    alias(libs.plugins.metro)
 }
 
 android {
@@ -36,6 +37,8 @@ dependencies {
     implementation(kotlinx.datetime)
 
     implementation(libs.unifile)
+
+    implementation(libs.metro.runtime)
 
     implementation(libs.injekt)
     implementation(libs.jsoup)

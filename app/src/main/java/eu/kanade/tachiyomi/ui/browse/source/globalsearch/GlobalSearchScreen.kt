@@ -13,6 +13,7 @@ import androidx.lifecycle.viewmodel.CreationExtras
 import androidx.lifecycle.viewmodel.compose.viewModel
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import dev.zacsweers.metrox.viewmodel.assistedMetroViewModel
 import eu.kanade.core.util.ifSourcesLoaded
 import eu.kanade.presentation.browse.GlobalSearchScreen
 import eu.kanade.presentation.browse.components.BulkFavoriteDialogs
@@ -36,13 +37,10 @@ class GlobalSearchScreen(
 
         val navigator = LocalNavigator.currentOrThrow
 
-        val viewModel = viewModel<GlobalSearchViewModel>(
-            factory = GlobalSearchViewModel.Factory,
-            extras = CreationExtras {
-                set(GlobalSearchViewModel.INITIAL_QUERY_KEY, searchQuery)
-                set(GlobalSearchViewModel.INITIAL_EXTENSION_FILTER_KEY, extensionFilter)
-            },
-        )
+        val viewModel =
+            assistedMetroViewModel<GlobalSearchViewModel, GlobalSearchViewModel.Factory> {
+                create(initialQuery = searchQuery, initialExtensionFilter = extensionFilter)
+            }
         val state by viewModel.state.collectAsState()
         var showSingleLoadingScreen by remember {
             mutableStateOf(searchQuery.isNotEmpty() && !extensionFilter.isNullOrEmpty() && state.total == 1)

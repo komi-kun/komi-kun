@@ -3,6 +3,9 @@ package mihon.core.migration.migrations
 import android.app.Application
 import androidx.core.content.edit
 import androidx.preference.PreferenceManager
+import dev.zacsweers.metro.AppScope
+import dev.zacsweers.metro.ContributesIntoSet
+import dev.zacsweers.metro.Inject
 import mihon.core.migration.Migration
 import mihon.core.migration.MigrationContext
 import tachiyomi.core.common.preference.Preference
@@ -12,6 +15,8 @@ import tachiyomi.core.common.preference.Preference
  * connection keys ("connection_*") and sync-toggle keys ("sync_*") no longer
  * collide with unrelated preferences.
  */
+@Inject
+@ContributesIntoSet(AppScope::class)
 class SyncPrefKeyMigration : Migration {
     override val version: Float = 80f
 

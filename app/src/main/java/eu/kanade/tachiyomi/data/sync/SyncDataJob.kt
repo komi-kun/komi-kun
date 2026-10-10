@@ -10,6 +10,7 @@ import androidx.work.ForegroundInfo
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkInfo
+import androidx.work.WorkManager
 import androidx.work.WorkQuery
 import androidx.work.WorkerParameters
 import eu.kanade.domain.sync.SyncPreferences
@@ -92,6 +93,12 @@ class SyncDataJob(private val context: Context, workerParams: WorkerParameters) 
         fun isRunning(context: Context): Boolean {
             return context.workManager.isRunning(TAG_JOB)
         }
+
+        // SY -->
+        fun isRunning(workManager: WorkManager): Boolean {
+            return workManager.isRunning(TAG_JOB)
+        }
+        // SY <--
 
         fun setupTask(context: Context, prefInterval: Int? = null) {
             val syncPreferences = Injekt.get<SyncPreferences>()

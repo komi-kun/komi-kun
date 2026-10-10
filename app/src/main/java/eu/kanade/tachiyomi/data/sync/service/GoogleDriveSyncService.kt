@@ -16,6 +16,9 @@ import com.google.api.client.json.gson.GsonFactory
 import com.google.api.services.drive.Drive
 import com.google.api.services.drive.DriveScopes
 import com.google.api.services.drive.model.File
+import dev.zacsweers.metro.AppScope
+import dev.zacsweers.metro.Inject
+import dev.zacsweers.metro.SingleIn
 import eu.kanade.domain.sync.SyncPreferences
 import eu.kanade.tachiyomi.data.backup.models.Backup
 import kotlinx.coroutines.launch
@@ -248,6 +251,8 @@ class GoogleDriveSyncService(context: Context, json: Json, syncPreferences: Sync
     }
 }
 
+@Inject
+@SingleIn(AppScope::class)
 class GoogleDriveService(private val context: Context) {
     var driveService: Drive? = null
     companion object {

@@ -65,6 +65,7 @@ import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import logcat.LogPriority
+import mihon.app.di.appGraph
 import tachiyomi.core.common.util.system.logcat
 import java.io.FilterInputStream
 import java.lang.ref.WeakReference
@@ -94,6 +95,8 @@ open class WebGpuViewer(
     /** Resolved once: render() asks per frame, and createReaderThemeContext builds a Resources. */
     @Volatile
     private var cachedBackgroundColor: Int? = null
+
+    val readerPreferences by lazy { activity.appGraph.readerPreferences }
 
     @Volatile
     private var cachedOnBackgroundColor: Int? = null
@@ -270,7 +273,7 @@ open class WebGpuViewer(
     /**
      * Configuration used by the pager, like allow taps, scale mode on images, page transitions...
      */
-    val config = WebGpuConfig(this, scope)
+    val config = WebGpuConfig(this, scope, readerPreferences)
 
     // Read from the render and decode threads, via the prevChapter/nextChapter getters.
     @Volatile

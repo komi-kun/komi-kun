@@ -49,6 +49,7 @@ import eu.kanade.tachiyomi.ui.category.biometric.BiometricTimesScreen
 import eu.kanade.tachiyomi.util.system.AuthenticatorUtil.authenticate
 import eu.kanade.tachiyomi.util.system.AuthenticatorUtil.isAuthenticationSupported
 import eu.kanade.tachiyomi.util.system.telemetryIncluded
+import mihon.app.di.appGraph
 import mihon.core.archive.CbzCrypto
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.roundedfilled.Visibility
@@ -59,8 +60,6 @@ import tachiyomi.i18n.sy.SYMR
 import tachiyomi.presentation.core.i18n.pluralStringResource
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsState
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 
 object SettingsSecurityScreen : SearchableSettings {
     @Suppress("unused")
@@ -72,8 +71,9 @@ object SettingsSecurityScreen : SearchableSettings {
 
     @Composable
     override fun getPreferences(): List<Preference> {
-        val securityPreferences = remember { Injekt.get<SecurityPreferences>() }
-        val privacyPreferences = remember { Injekt.get<PrivacyPreferences>() }
+        val context = LocalContext.current
+        val securityPreferences = remember { context.appGraph.securityPreferences }
+        val privacyPreferences = remember { context.appGraph.privacyPreferences }
         return buildList(2) {
             add(getSecurityGroup(securityPreferences))
             if (!telemetryIncluded) return@buildList

@@ -16,6 +16,7 @@ import eu.kanade.tachiyomi.util.storage.copyAndSetReadOnlyTo
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import logcat.LogPriority
+import mihon.app.di.appGraph
 import mihon.data.dalvik.DelegateLastClassLoaderCompat
 import mihon.domain.extension.interactor.GetExtensionStores
 import mihon.domain.extension.model.ContentWarning
@@ -43,11 +44,9 @@ internal object ExtensionLoader {
 
     private val preferences: SourcePreferences by injectLazy()
     private val trustExtension: TrustExtension by injectLazy()
-
     // KMK -->
     private val getExtensionStores: GetExtensionStores by injectLazy()
     // KMK <--
-
     private const val EXTENSION_FEATURE = "tachiyomi.extension"
     private const val METADATA_SOURCE_CLASS = "tachiyomi.extension.class"
     private const val METADATA_SOURCE_FACTORY = "tachiyomi.extension.factory"

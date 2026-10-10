@@ -19,6 +19,7 @@ import cafe.adriel.voyager.navigator.Navigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import cafe.adriel.voyager.navigator.tab.LocalTabNavigator
 import cafe.adriel.voyager.navigator.tab.TabOptions
+import dev.zacsweers.metrox.viewmodel.metroViewModel
 import eu.kanade.core.preference.asState
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.presentation.category.components.ChangeCategoryDialog
@@ -86,8 +87,8 @@ data object HistoryTab : Tab {
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
         val context = LocalContext.current
-        val viewModel = viewModel<HistoryViewModel>()
-        val state by viewModel.state.collectAsState()
+        val viewModel = metroViewModel<HistoryViewModel>()
+        val state by viewModel.state.collectAsStateWithLifecycle()
         // KMK -->
         val settingsViewModel = viewModel<HistorySettingsViewModel>()
         val usePanoramaCover by settingsViewModel.historyPreferences.usePanoramaCover.collectAsState()

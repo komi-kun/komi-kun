@@ -41,6 +41,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.recyclerview.widget.LinearLayoutManager
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import dev.zacsweers.metrox.viewmodel.assistedMetroViewModel
+import dev.zacsweers.metrox.viewmodel.metroViewModel
 import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.components.AppBarActions
 import eu.kanade.presentation.components.DropdownMenu
@@ -68,13 +70,14 @@ object DownloadQueueScreen : Screen() {
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
         val scope = rememberCoroutineScope()
-        val viewModel = viewModel {
-            DownloadQueueViewModel(
-                // KMK -->
-                navigator = navigator,
-                // KMK <--
-            )
-        }
+        val viewModel =
+            assistedMetroViewModel<DownloadQueueViewModel, DownloadQueueViewModel.Factory> {
+                create(
+                    // KMK -->
+                    navigator = navigator,
+                    // KMK <--
+                )
+            }
         val downloadList by viewModel.state.collectAsStateWithLifecycle()
         val downloadCount by remember {
             derivedStateOf { downloadList.sumOf { it.subItems.size } }

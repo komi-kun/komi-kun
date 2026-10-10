@@ -54,9 +54,9 @@ class SyncManager(
     },
     private val getCategories: GetCategories = Injekt.get(),
 ) {
-    private val backupCreator: BackupCreator = BackupCreator(context, false)
+    private val backupCreator: BackupCreator = Injekt.get<BackupCreator.Factory>().create(isAutoBackup = false)
     private val notifier: SyncNotifier = SyncNotifier(context)
-    private val mangaRestorer: MangaRestorer = MangaRestorer(isSync = true)
+    private val mangaRestorer: MangaRestorer = Injekt.get<MangaRestorer>().also { it.isSync = true }
 
     enum class SyncService(val value: Int) {
         NONE(0),

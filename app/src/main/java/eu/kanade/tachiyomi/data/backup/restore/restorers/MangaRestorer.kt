@@ -3,6 +3,7 @@ package eu.kanade.tachiyomi.data.backup.restore.restorers
 import app.cash.sqldelight.async.coroutines.awaitAsList
 import app.cash.sqldelight.async.coroutines.awaitAsOne
 import app.cash.sqldelight.async.coroutines.awaitAsOneOrNull
+import dev.zacsweers.metro.Inject
 import eu.kanade.domain.manga.interactor.UpdateManga
 import eu.kanade.tachiyomi.data.backup.models.BackupCategory
 import eu.kanade.tachiyomi.data.backup.models.BackupChapter
@@ -38,23 +39,23 @@ import java.util.Date
 import kotlin.math.max
 import kotlin.math.min
 
+@Inject
 class MangaRestorer(
-    private var isSync: Boolean = false,
-
-    private val database: Database = Injekt.get(),
-    private val getCategories: GetCategories = Injekt.get(),
-    private val getMangaByUrlAndSourceId: GetMangaByUrlAndSourceId = Injekt.get(),
-    private val getChaptersByMangaId: GetChaptersByMangaId = Injekt.get(),
-    private val updateManga: UpdateManga = Injekt.get(),
-    private val getTracks: GetTracks = Injekt.get(),
-    private val upsertTrack: UpsertTrack = Injekt.get(),
-    fetchInterval: FetchInterval = Injekt.get(),
+    private val database: Database,
+    private val getCategories: GetCategories,
+    private val getMangaByUrlAndSourceId: GetMangaByUrlAndSourceId,
+    private val getChaptersByMangaId: GetChaptersByMangaId,
+    private val updateManga: UpdateManga,
+    private val getTracks: GetTracks,
+    fetchInterval: FetchInterval,
+    private val upsertTrack: UpsertTrack,
     // SY -->
-    private val setCustomMangaInfo: SetCustomMangaInfo = Injekt.get(),
-    private val insertFlatMetadata: InsertFlatMetadata = Injekt.get(),
-    private val getFlatMetadataById: GetFlatMetadataById = Injekt.get(),
+    private val setCustomMangaInfo: SetCustomMangaInfo,
+    private val insertFlatMetadata: InsertFlatMetadata,
+    private val getFlatMetadataById: GetFlatMetadataById,
     // SY <--
 ) {
+    var isSync: Boolean = false
     private var now = ZonedDateTime.now()
     private var currentFetchWindow = fetchInterval.getWindow(now)
 

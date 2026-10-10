@@ -1,6 +1,6 @@
 package eu.kanade.domain.manga.model
 
-import eu.kanade.domain.base.BasePreferences
+import android.content.Context
 import eu.kanade.tachiyomi.data.cache.CoverCache
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderOrientation
@@ -8,6 +8,7 @@ import eu.kanade.tachiyomi.ui.reader.setting.ReadingMode
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.number
 import kotlinx.datetime.toLocalDateTime
+import mihon.app.di.appGraph
 import mihon.core.archive.CbzCrypto
 import tachiyomi.core.common.preference.TriState
 import tachiyomi.core.metadata.comicinfo.ComicInfo
@@ -27,7 +28,7 @@ val Manga.readerOrientation: Long
 
 val Manga.downloadedFilter: TriState
     get() {
-        if (Injekt.get<BasePreferences>().downloadedOnly.get()) return TriState.ENABLED_IS
+        if (Injekt.get<Context>().appGraph.basePreferences.downloadedOnly.get()) return TriState.ENABLED_IS
         return when (downloadedFilterRaw) {
             Manga.CHAPTER_SHOW_DOWNLOADED -> TriState.ENABLED_IS
             Manga.CHAPTER_SHOW_NOT_DOWNLOADED -> TriState.ENABLED_NOT

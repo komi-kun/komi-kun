@@ -1,5 +1,8 @@
 package mihon.core.migration.migrations
 
+import dev.zacsweers.metro.AppScope
+import dev.zacsweers.metro.ContributesIntoSet
+import dev.zacsweers.metro.Inject
 import mihon.core.migration.Migration
 import mihon.core.migration.MigrationContext
 import tachiyomi.core.common.util.lang.withIOContext
@@ -12,6 +15,8 @@ import tachiyomi.domain.download.service.DownloadPreferences
  * true for existing users who haven't explicitly set it, preserving their
  * previous download folder naming behavior.
  */
+@Inject
+@ContributesIntoSet(AppScope::class)
 class ChapterUrlHashMigration : Migration {
     override val version: Float = 81f
 

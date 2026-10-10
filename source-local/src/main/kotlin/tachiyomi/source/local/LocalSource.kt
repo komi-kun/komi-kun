@@ -2,6 +2,9 @@ package tachiyomi.source.local
 
 import android.content.Context
 import com.hippo.unifile.UniFile
+import dev.zacsweers.metro.AppScope
+import dev.zacsweers.metro.Inject
+import dev.zacsweers.metro.SingleIn
 import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.source.UnmeteredSource
 import eu.kanade.tachiyomi.source.model.FilterList
@@ -53,12 +56,14 @@ import java.nio.charset.StandardCharsets
 import kotlin.time.Duration.Companion.days
 import tachiyomi.domain.source.model.Source as DomainSource
 
+@Inject
+@SingleIn(AppScope::class)
 class LocalSource(
     private val context: Context,
     private val fileSystem: LocalSourceFileSystem,
     private val coverManager: LocalCoverManager,
     // SY -->
-    private val allowHiddenFiles: () -> Boolean,
+    private val allowHiddenFiles: Boolean,
     // SY <--
 ) : Source, UnmeteredSource {
 
@@ -93,7 +98,7 @@ class LocalSource(
             0L
         }
         // SY -->
-        val allowLocalSourceHiddenFolders = allowHiddenFiles()
+        val allowLocalSourceHiddenFolders = allowHiddenFiles
         // SY <--
 
         var mangaDirs = fileSystem.getFilesInBaseDirectory()

@@ -52,6 +52,7 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.Navigator
 import cafe.adriel.voyager.navigator.NavigatorDisposeBehavior
 import cafe.adriel.voyager.navigator.currentOrThrow
+import dev.zacsweers.metro.Inject
 import eu.kanade.domain.base.BasePreferences
 import eu.kanade.domain.connections.service.ConnectionsPreferences
 import eu.kanade.domain.source.interactor.GetIncognitoState
@@ -118,6 +119,9 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import logcat.LogPriority
+import mihon.app.di.AppGraph
+import mihon.app.di.appGraph
+import mihon.core.metro.metroGraph
 import mihon.core.migration.Migrator
 import mihon.core.migration.Migrator.scope
 import tachiyomi.core.common.Constants
@@ -137,11 +141,14 @@ import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
 import java.util.LinkedList
+import kotlin.time.Clock
+import kotlin.time.Duration.Companion.days
+import kotlin.time.Instant
+import kotlin.time.times
 
 class MainActivity : BaseActivity() {
 
-    private val libraryPreferences: LibraryPreferences by injectLazy()
-    private val preferences: BasePreferences by injectLazy()
+    private val graph: AppGraph by lazy { metroGraph() }
 
     // SY -->
     private val exhPreferences: ExhPreferences by injectLazy()
@@ -155,10 +162,15 @@ class MainActivity : BaseActivity() {
     private val libraryUpdateStatus: LibraryUpdateStatus by injectLazy()
     // KMK <--
 
-    private val downloadCache: DownloadCache by injectLazy()
-    private val chapterCache: ChapterCache by injectLazy()
+    @Inject private lateinit var libraryPreferences: LibraryPreferences
 
-    private val getIncognitoState: GetIncognitoState by injectLazy()
+    @Inject private lateinit var preferences: BasePreferences
+
+    @Inject private lateinit var downloadCache: DownloadCache
+
+    @Inject private lateinit var chapterCache: ChapterCache
+
+    @Inject private lateinit var getIncognitoState: GetIncognitoState
 
     // KMK -->
     private val extensionManager: ExtensionManager by injectLazy()
@@ -199,6 +211,7 @@ class MainActivity : BaseActivity() {
     // SY <--
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        graph.inject(this)
         val isLaunch = savedInstanceState == null
 
         // Prevent splash screen showing up on configuration changes

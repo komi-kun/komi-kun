@@ -17,11 +17,11 @@ import exh.util.ThrottleManager
 import exh.util.jobScheduler
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.protobuf.schema.ProtoBufSchemaGenerator
+import mihon.core.migration.Migration
 import mihon.core.migration.MigrationContext
 import mihon.core.migration.MigrationJobFactory
 import mihon.core.migration.MigrationStrategyFactory
 import mihon.core.migration.Migrator
-import mihon.core.migration.migrations.migrations
 import mihon.domain.source.interactor.UpdateMangaFromRemote
 import tachiyomi.data.Database
 import tachiyomi.domain.manga.interactor.GetAllManga
@@ -48,13 +48,14 @@ object DebugFunctions {
     private val getExhFavoriteMangaWithMetadata: GetExhFavoriteMangaWithMetadata by injectLazy()
     private val getSearchMetadata: GetSearchMetadata by injectLazy()
     private val getAllManga: GetAllManga by injectLazy()
+    private val migrations: Set<Migration> by injectLazy()
 
     fun forceUpgradeMigration(): Boolean {
         val migrationContext = MigrationContext(dryrun = false, previousVersion = 1)
         val migrationJobFactory = MigrationJobFactory(migrationContext, Migrator.scope)
         val migrationStrategyFactory = MigrationStrategyFactory(migrationJobFactory) {}
         val strategy = migrationStrategyFactory.create(1, BuildConfig.VERSION_CODE)
-        return runBlocking { strategy(migrations).await() }
+        return runBlocking { strategy(migrations.toList()).await() }
     }
 
     fun forceSetupJobs(): Boolean {
@@ -62,7 +63,7 @@ object DebugFunctions {
         val migrationJobFactory = MigrationJobFactory(migrationContext, Migrator.scope)
         val migrationStrategyFactory = MigrationStrategyFactory(migrationJobFactory) {}
         val strategy = migrationStrategyFactory.create(0, BuildConfig.VERSION_CODE)
-        return runBlocking { strategy(migrations).await() }
+        return runBlocking { strategy(migrations.toList()).await() }
     }
 
     fun resetAgedFlagInExhManga() {

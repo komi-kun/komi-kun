@@ -1,6 +1,5 @@
 package eu.kanade.tachiyomi.ui.manga
 
-import android.app.Application
 import android.content.Context
 import android.content.Intent
 import android.provider.DocumentsContract
@@ -16,15 +15,19 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.util.fastAny
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.CreationExtras
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.palette.graphics.Palette
 import coil3.Image
 import coil3.asDrawable
 import coil3.imageLoader
 import coil3.request.ImageRequest
 import coil3.request.allowHardware
+import dev.zacsweers.metro.AppScope
+import dev.zacsweers.metro.Assisted
+import dev.zacsweers.metro.AssistedFactory
+import dev.zacsweers.metro.AssistedInject
+import dev.zacsweers.metro.ContributesIntoMap
+import dev.zacsweers.metrox.viewmodel.ManualViewModelAssistedFactory
+import dev.zacsweers.metrox.viewmodel.ManualViewModelAssistedFactoryKey
 import eu.kanade.core.preference.asState
 import eu.kanade.core.util.addOrRemove
 import eu.kanade.core.util.insertSeparators
@@ -50,6 +53,7 @@ import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.presentation.manga.DownloadAction
 import eu.kanade.presentation.manga.components.ChapterDownloadAction
 import eu.kanade.presentation.util.formattedMessage
+import eu.kanade.tachiyomi.data.cache.CoverCache
 import eu.kanade.tachiyomi.data.coil.getBestColor
 import eu.kanade.tachiyomi.data.download.DownloadCache
 import eu.kanade.tachiyomi.data.download.DownloadManager
@@ -164,100 +168,80 @@ import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
 import tachiyomi.source.local.LocalSource
 import tachiyomi.source.local.isLocal
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
 import kotlin.math.floor
 import androidx.compose.runtime.State as RuntimeState
 
+@AssistedInject
 class MangaViewModel(
-    private val context: Context,
-    private val mangaId: Long,
+    @Assisted private val mangaId: Long,
     // SY -->
     /** If it is opened from Source then it will auto expand the manga description */
-    private val isFromSource: Boolean,
-    private val smartSearched: Boolean,
+    @Assisted private val isFromSource: Boolean,
+    @Assisted private val smartSearched: Boolean,
     // SY <--
-    private val libraryPreferences: LibraryPreferences = Injekt.get(),
-    private val trackPreferences: TrackPreferences = Injekt.get(),
-    readerPreferences: ReaderPreferences = Injekt.get(),
-    private val uiPreferences: UiPreferences = Injekt.get(),
+    private val context: Context,
+    private val libraryPreferences: LibraryPreferences,
+    private val trackPreferences: TrackPreferences,
+    private val readerPreferences: ReaderPreferences,
+    private val trackerManager: TrackerManager,
+    private val trackChapter: TrackChapter,
+    private val downloadManager: DownloadManager,
+    private val downloadCache: DownloadCache,
+    private val getMangaAndChapters: GetMangaWithChapters,
+    private val getDuplicateLibraryManga: GetDuplicateLibraryManga,
+    private val getAvailableScanlators: GetAvailableScanlators,
+    private val getExcludedScanlators: GetExcludedScanlators,
+    private val setExcludedScanlators: SetExcludedScanlators,
+    private val setMangaChapterFlags: SetMangaChapterFlags,
+    private val setMangaDefaultChapterFlags: SetMangaDefaultChapterFlags,
+    private val setReadStatus: SetReadStatus,
+    private val updateChapter: UpdateChapter,
+    private val updateManga: UpdateManga,
+    private val getCategories: GetCategories,
+    private val getTracks: GetTracks,
+    private val addTracks: AddTracks,
+    private val setMangaCategories: SetMangaCategories,
+    private val mangaRepository: MangaRepository,
+    private val filterChaptersForDownload: FilterChaptersForDownload,
+    private val updateMangaFromRemote: UpdateMangaFromRemote,
+    private val sourceManager: SourceManager,
+    private val refreshTracks: RefreshTracks,
+    private val coverCache: CoverCache,
+    private val uiPreferences: UiPreferences,
     // KMK -->
-    private val sourcePreferences: SourcePreferences = Injekt.get(),
-    private val downloadProvider: DownloadProvider = Injekt.get(),
+    private val sourcePreferences: SourcePreferences,
+    private val downloadProvider: DownloadProvider,
     // KMK <--
-    private val trackerManager: TrackerManager = Injekt.get(),
-    private val trackChapter: TrackChapter = Injekt.get(),
-    private val downloadManager: DownloadManager = Injekt.get(),
-    private val downloadCache: DownloadCache = Injekt.get(),
-    private val getMangaAndChapters: GetMangaWithChapters = Injekt.get(),
-    // SY -->
-    private val sourceManager: SourceManager = Injekt.get(),
-    private val getManga: GetManga = Injekt.get(),
-    private val getMergedChaptersByMangaId: GetMergedChaptersByMangaId = Injekt.get(),
-    private val getMergedMangaById: GetMergedMangaById = Injekt.get(),
-    private val getMergedReferencesById: GetMergedReferencesById = Injekt.get(),
-    // KMK -->
-    private val smartSearchMerge: SmartSearchMerge = Injekt.get(),
-    // KMK <--
-    private val updateMergedSettings: UpdateMergedSettings = Injekt.get(),
-    private val networkToLocalManga: NetworkToLocalManga = Injekt.get(),
-    private val deleteMergeById: DeleteMergeById = Injekt.get(),
-    private val getFlatMetadata: GetFlatMetadataById = Injekt.get(),
-    private val getPagePreviews: GetPagePreviews = Injekt.get(),
-    private val upsertTrack: UpsertTrack = Injekt.get(),
-    private val setCustomMangaInfo: SetCustomMangaInfo = Injekt.get(),
-    // SY <--
-    private val getDuplicateLibraryManga: GetDuplicateLibraryManga = Injekt.get(),
-    private val getAvailableScanlators: GetAvailableScanlators = Injekt.get(),
-    private val getExcludedScanlators: GetExcludedScanlators = Injekt.get(),
-    private val setExcludedScanlators: SetExcludedScanlators = Injekt.get(),
-    private val setMangaChapterFlags: SetMangaChapterFlags = Injekt.get(),
-    private val setMangaDefaultChapterFlags: SetMangaDefaultChapterFlags = Injekt.get(),
-    private val setReadStatus: SetReadStatus = Injekt.get(),
-    private val updateChapter: UpdateChapter = Injekt.get(),
-    private val updateManga: UpdateManga = Injekt.get(),
-    private val getCategories: GetCategories = Injekt.get(),
-    private val getTracks: GetTracks = Injekt.get(),
-    private val addTracks: AddTracks = Injekt.get(),
-    private val setMangaCategories: SetMangaCategories = Injekt.get(),
-    private val mangaRepository: MangaRepository = Injekt.get(),
-    private val filterChaptersForDownload: FilterChaptersForDownload = Injekt.get(),
-    private val updateMangaFromRemote: UpdateMangaFromRemote = Injekt.get(),
-    val snackbarHostState: SnackbarHostState = SnackbarHostState(),
-    // KMK -->
-    private val deleteLibraryUpdateErrors: DeleteLibraryUpdateErrors = Injekt.get(),
-    private val insertLibraryUpdateErrors: InsertLibraryUpdateErrors = Injekt.get(),
-    private val insertLibraryUpdateErrorMessages: InsertLibraryUpdateErrorMessages = Injekt.get(),
-    private val deleteChaptersFromDb: DeleteChapters = Injekt.get(),
-    // KMK <--
+    private val getManga: GetManga,
+    private val getMergedChaptersByMangaId: GetMergedChaptersByMangaId,
+    private val getMergedMangaById: GetMergedMangaById,
+    private val getMergedReferencesById: GetMergedReferencesById,
+    private val smartSearchMerge: SmartSearchMerge,
+    private val updateMergedSettings: UpdateMergedSettings,
+    private val networkToLocalManga: NetworkToLocalManga,
+    private val deleteMergeById: DeleteMergeById,
+    private val getFlatMetadata: GetFlatMetadataById,
+    private val getPagePreviews: GetPagePreviews,
+    private val upsertTrack: UpsertTrack,
+    private val setCustomMangaInfo: SetCustomMangaInfo,
+    private val deleteLibraryUpdateErrors: DeleteLibraryUpdateErrors,
+    private val insertLibraryUpdateErrors: InsertLibraryUpdateErrors,
+    private val insertLibraryUpdateErrorMessages: InsertLibraryUpdateErrorMessages,
+    private val deleteChaptersFromDb: DeleteChapters,
 ) : ViewModel() {
 
     val state: StateFlow<MangaViewModel.State>
         field = MutableStateFlow<MangaViewModel.State>(State.Loading)
 
-    companion object {
-        val MANGA_ID_KEY = CreationExtras.Key<Long>()
-
-        val IS_FROM_SOURCE_KEY = CreationExtras.Key<Boolean>()
-
-        // SY -->
-        val SMART_SEARCHED_KEY = CreationExtras.Key<Boolean>()
-        // SY <--
-
-        val Factory = viewModelFactory {
-            initializer {
-                MangaViewModel(
-                    context = Injekt.get<Application>(),
-                    mangaId = get(MANGA_ID_KEY)!!,
-                    isFromSource = get(IS_FROM_SOURCE_KEY)!!,
-                    // SY -->
-                    smartSearched = get(SMART_SEARCHED_KEY)!!,
-                    // SY <--
-                )
-            }
-        }
+    @AssistedFactory
+    @ManualViewModelAssistedFactoryKey
+    @ContributesIntoMap(AppScope::class)
+    interface Factory : ManualViewModelAssistedFactory {
+        fun create(mangaId: Long, isFromSource: Boolean, smartSearched: Boolean): MangaViewModel
     }
+
+    val snackbarHostState: SnackbarHostState = SnackbarHostState()
 
     private val successState: State.Success?
         get() = state.value as? State.Success
@@ -839,7 +823,7 @@ class MangaViewModel(
                 // Remove from library
                 if (updateManga.awaitUpdateFavorite(manga.id, false)) {
                     // Remove covers and update last modified in db
-                    if (manga.removeCovers() != manga) {
+                    if (manga.removeCovers(coverCache) != manga) {
                         updateManga.awaitUpdateCoverLastModified(manga.id)
                     }
                     withUIContext { onRemoved() }
@@ -1432,7 +1416,6 @@ class MangaViewModel(
         // KMK -->
         enhancedTrackersOnly: Boolean = true,
         // KMK <--
-        refreshTracks: RefreshTracks = Injekt.get(),
     ) {
         // KMK -->
         refreshTracks.await(mangaId, enhancedTrackersOnly = enhancedTrackersOnly)

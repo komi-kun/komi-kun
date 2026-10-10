@@ -60,6 +60,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.davemorrissey.labs.subscaleview.SubsamplingScaleImageView
 import com.google.android.material.transition.platform.MaterialContainerTransform
 import com.hippo.unifile.UniFile
+import dev.zacsweers.metro.Inject
 import eu.kanade.core.util.ifSourcesLoaded
 import eu.kanade.domain.base.BasePreferences
 import eu.kanade.domain.connections.service.ConnectionsPreferences
@@ -125,6 +126,8 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.launch
 import logcat.LogPriority
+import mihon.app.di.AppGraph
+import mihon.core.metro.metroGraph
 import tachiyomi.core.common.Constants
 import tachiyomi.core.common.i18n.pluralStringResource
 import tachiyomi.core.common.i18n.stringResource
@@ -147,6 +150,8 @@ import androidx.compose.ui.graphics.Color as ComposeColor
 
 class ReaderActivity : BaseActivity() {
 
+    private val graph: AppGraph by lazy { metroGraph() }
+
     companion object {
 
         fun newIntent(context: Context, mangaId: Long?, chapterId: Long?/* SY --> */, page: Int? = null/* SY <-- */): Intent {
@@ -161,8 +166,9 @@ class ReaderActivity : BaseActivity() {
         }
     }
 
-    private val readerPreferences = Injekt.get<ReaderPreferences>()
-    private val preferences = Injekt.get<BasePreferences>()
+    @Inject private lateinit var readerPreferences: ReaderPreferences
+
+    @Inject private lateinit var preferences: BasePreferences
 
     // KMK -->
     val themeCoverBased = Injekt.get<UiPreferences>().themeCoverBased.get()
@@ -174,7 +180,7 @@ class ReaderActivity : BaseActivity() {
 
     lateinit var binding: ReaderActivityBinding
 
-    val viewModel by viewModels<ReaderViewModel>()
+    val viewModel by viewModels<ReaderViewModel> { graph.viewModelFactory }
     private var assistUrl: String? = null
 
     // SY -->
@@ -201,6 +207,7 @@ class ReaderActivity : BaseActivity() {
      * Called when the activity is created. Initializes the presenter and configuration.
      */
     override fun onCreate(savedInstanceState: Bundle?) {
+        graph.inject(this)
         registerSecureActivity(this)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             overrideActivityTransition(
@@ -322,6 +329,7 @@ class ReaderActivity : BaseActivity() {
                     readerState = viewModel.state,
                     onChangeReadingMode = viewModel::setMangaReadingMode,
                     onChangeOrientation = viewModel::setMangaOrientationType,
+                    preferences = readerPreferences,
                 )
             }
 

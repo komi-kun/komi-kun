@@ -28,6 +28,7 @@ import eu.kanade.presentation.util.LocalBackPress
 import eu.kanade.presentation.util.Screen
 import eu.kanade.tachiyomi.BuildConfig
 import eu.kanade.tachiyomi.data.updater.AppUpdateChecker
+import eu.kanade.tachiyomi.data.updater.RELEASE_URL
 import eu.kanade.tachiyomi.ui.more.ComingUpdatesScreen
 import eu.kanade.tachiyomi.ui.more.NewUpdateScreen
 import eu.kanade.tachiyomi.ui.more.WhatsNewScreen
@@ -41,11 +42,13 @@ import eu.kanade.tachiyomi.util.system.toast
 import eu.kanade.tachiyomi.util.system.updaterEnabled
 import kotlinx.coroutines.launch
 import logcat.LogPriority
+import mihon.app.di.appGraph
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.Public
 import mihon.icons.simpleicons.Discord
 import mihon.icons.simpleicons.Github
 import mihon.icons.simpleicons.SimpleIcons
+import tachiyomi.core.common.Constants
 import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.core.common.util.lang.withUIContext
 import tachiyomi.core.common.util.system.logcat
@@ -72,6 +75,7 @@ class AboutScreen : Screen() {
         val handleBack = LocalBackPress.current
         val navigator = LocalNavigator.currentOrThrow
         var isCheckingUpdates by remember { mutableStateOf(false) }
+        val crashLogUtil = remember { context.appGraph.crashLogUtil }
 
         // KMK -->
         var isCheckingWhatsNew by remember { mutableStateOf(false) }
@@ -99,7 +103,7 @@ class AboutScreen : Screen() {
                         title = stringResource(MR.strings.version),
                         subtitle = getVersionName(withBuildDate = true),
                         onPreferenceClick = {
-                            val deviceInfo = CrashLogUtil(context).getDebugInfo()
+                            val deviceInfo = crashLogUtil.getDebugInfo()
                             context.copyToClipboard("Debug information", deviceInfo)
                         },
                     )

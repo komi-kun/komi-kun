@@ -76,6 +76,9 @@ import eu.kanade.presentation.components.DropdownMenu
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.util.system.copyToClipboard
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.daysUntil
+import mihon.app.di.appGraph
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.automirroredrounded.CallMerge
 import mihon.icons.materialsymbols.rounded.AttachMoney
@@ -921,7 +924,8 @@ private fun MangaSummary(
     onEditNotesClicked: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val preferences = remember { Injekt.get<UiPreferences>() }
+    val context = LocalContext.current
+    val preferences = remember { context.appGraph.uiPreferences }
     val loadImages = remember { preferences.imagesInDescription.get() }
     val animProgress by animateFloatAsState(
         targetValue = if (expanded) 1f else 0f,

@@ -12,6 +12,9 @@ import androidx.core.content.ContextCompat
 import coil3.asDrawable
 import coil3.imageLoader
 import coil3.request.ImageRequest
+import coil3.request.transformations
+import coil3.transform.CircleCropTransformation
+import dev.zacsweers.metro.Inject
 import eu.kanade.presentation.util.formatChapterNumber
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.core.security.SecurityPreferences
@@ -43,12 +46,11 @@ import java.math.RoundingMode
 import java.text.NumberFormat
 import mihon.icons.materialsymbols.R as MaterialSymbolsR
 
-@OptIn(DelicateCoroutinesApi::class)
+@Inject
 class LibraryUpdateNotifier(
     private val context: Context,
-
-    private val securityPreferences: SecurityPreferences = Injekt.get(),
-    private val sourceManager: SourceManager = Injekt.get(),
+    private val securityPreferences: SecurityPreferences,
+    private val sourceManager: SourceManager,
 ) {
     // KMK -->
     private val libraryUpdateStatus: LibraryUpdateStatus = Injekt.get()

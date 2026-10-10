@@ -1,5 +1,8 @@
 package mihon.core.migration.migrations
 
+import dev.zacsweers.metro.AppScope
+import dev.zacsweers.metro.ContributesIntoSet
+import dev.zacsweers.metro.Inject
 import exh.source.EH_OLD_ID
 import exh.source.EH_SOURCE_ID
 import exh.source.EXH_OLD_ID
@@ -9,6 +12,8 @@ import mihon.core.migration.Migration
 import mihon.core.migration.MigrationContext
 import tachiyomi.core.common.util.lang.withIOContext
 
+@Inject
+@ContributesIntoSet(AppScope::class)
 class EHentaiMigration : Migration {
     override val version: Float = 72f
 

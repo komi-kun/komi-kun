@@ -33,7 +33,7 @@ abstract class RecommendationPagingSource(
     // KMK -->
     source: RecommendationSource = RecommendationSource(),
     // KMK <--
-) : BaseSourcePagingSource(source) {
+) : BaseSourcePagingSource(source, Injekt.get()) {
     // Display name
     abstract val name: String
 

@@ -1,10 +1,15 @@
 package mihon.core.migration.migrations
 
+import dev.zacsweers.metro.AppScope
+import dev.zacsweers.metro.ContributesIntoSet
+import dev.zacsweers.metro.Inject
 import exh.source.ExhPreferences
 import mihon.core.migration.Migration
 import mihon.core.migration.MigrationContext
 import tachiyomi.core.common.util.lang.withIOContext
 
+@Inject
+@ContributesIntoSet(AppScope::class)
 class IntegratedHentaiMigration : Migration {
     override val version: Float = 71f
 

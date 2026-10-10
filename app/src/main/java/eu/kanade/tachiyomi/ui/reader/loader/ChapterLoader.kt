@@ -1,6 +1,8 @@
 package eu.kanade.tachiyomi.ui.reader.loader
 
 import android.content.Context
+import eu.kanade.domain.source.service.SourcePreferences
+import eu.kanade.tachiyomi.data.cache.ChapterCache
 import eu.kanade.tachiyomi.data.download.DownloadManager
 import eu.kanade.tachiyomi.data.download.DownloadProvider
 import eu.kanade.tachiyomi.source.Source
@@ -20,6 +22,8 @@ import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.i18n.MR
 import tachiyomi.source.local.LocalSource
 import tachiyomi.source.local.io.Format
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 
 /**
  * Loader used to retrieve the [PageLoader] for a given chapter.
@@ -28,6 +32,7 @@ class ChapterLoader(
     private val context: Context,
     private val downloadManager: DownloadManager,
     private val downloadProvider: DownloadProvider,
+    private val chapterCache: ChapterCache,
     private val manga: Manga,
     private val source: Source,
     // SY -->
@@ -37,6 +42,9 @@ class ChapterLoader(
     private val mergedManga: Map<Long, Manga>?,
     // SY <--
 ) {
+    // SY -->
+    private val sourcePreferences: SourcePreferences = Injekt.get()
+    // SY <--
 
     /**
      * Assigns the chapter's page loader and loads the its pages. Returns immediately if the chapter
@@ -127,7 +135,7 @@ class ChapterLoader(
                         downloadManager = downloadManager,
                         downloadProvider = downloadProvider,
                     )
-                    source is HttpSource -> HttpPageLoader(chapter, source)
+                    source is HttpSource -> HttpPageLoader(chapter, source, chapterCache, readerPrefs, sourcePreferences)
                     source is LocalSource -> source.getFormat(chapter.chapter).let { format ->
                         when (format) {
                             is Format.Directory -> DirectoryPageLoader(format.file)
@@ -153,7 +161,7 @@ class ChapterLoader(
                     is Format.Epub -> EpubPageLoader(format.file.epubReader(context))
                 }
             }
-            source is HttpSource -> HttpPageLoader(chapter, source)
+            source is HttpSource -> HttpPageLoader(chapter, source, chapterCache, readerPrefs, sourcePreferences)
             source is StubSource -> error(context.stringResource(MR.strings.source_not_installed, source.toString()))
             else -> error(context.stringResource(MR.strings.loader_not_implemented_error))
         }

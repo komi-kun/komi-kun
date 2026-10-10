@@ -3,6 +3,7 @@ plugins {
     kotlin("android")
     kotlin("plugin.serialization")
     id("com.github.ben-manes.versions")
+    alias(libs.plugins.metro)
 }
 
 android {
@@ -23,6 +24,9 @@ dependencies {
     // SY -->
     implementation(projects.i18nSy)
     // SY <--
+
+    implementation(libs.metro.runtime)
+    implementation(projects.core.metro)
 
     api(libs.logcat)
 

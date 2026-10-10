@@ -2,6 +2,7 @@ plugins {
     id("mihon.library")
     kotlin("android")
     kotlin("plugin.serialization")
+    alias(libs.plugins.metro)
 }
 
 android {
@@ -22,6 +23,8 @@ kotlin {
 dependencies {
     implementation(projects.sourceApi)
     implementation(projects.core.common)
+
+    implementation(libs.metro.runtime)
 
     implementation(platform(kotlinx.coroutines.bom))
     implementation(kotlinx.bundles.coroutines)

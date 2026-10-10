@@ -14,6 +14,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import cafe.adriel.voyager.navigator.Navigator
 import cafe.adriel.voyager.navigator.tab.LocalTabNavigator
 import cafe.adriel.voyager.navigator.tab.TabOptions
+import dev.zacsweers.metrox.viewmodel.metroViewModel
 import eu.kanade.core.preference.asState
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.presentation.components.TabbedScreen
@@ -77,7 +78,7 @@ data object BrowseTab : Tab {
         // SY <--
 
         // Hoisted for extensions tab's search bar
-        val extensionsViewModel = viewModel<ExtensionsViewModel>()
+        val extensionsViewModel = metroViewModel<ExtensionsViewModel>()
         val extensionsSearchQuery by extensionsViewModel.searchQuery.collectAsStateWithLifecycle()
 
         // KMK -->
