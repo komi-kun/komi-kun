@@ -1,5 +1,6 @@
 package eu.kanade.presentation.more.settings.screen
 
+import android.content.Context
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -40,6 +41,7 @@ import eu.kanade.tachiyomi.util.system.workManager
 import exh.md.utils.MdConstants
 import exh.md.utils.MdUtil
 import logcat.LogPriority
+import mihon.app.di.appGraph
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.Group
 import tachiyomi.core.common.util.lang.launchIO
@@ -62,12 +64,13 @@ object SettingsMangadexScreen : SearchableSettings {
     @Composable
     override fun getTitleRes() = SYMR.strings.pref_category_mangadex
 
-    override fun isEnabled(): Boolean = MdUtil.getEnabledMangaDexs(Injekt.get()).isNotEmpty()
+    override fun isEnabled(): Boolean = MdUtil.getEnabledMangaDexs(Injekt.get<Context>().appGraph.sourcePreferences).isNotEmpty()
 
     @Composable
     override fun getPreferences(): List<Preference> {
-        val sourcePreferences: SourcePreferences = remember { Injekt.get() }
-        val trackPreferences: TrackPreferences = remember { Injekt.get() }
+        val context = LocalContext.current
+        val sourcePreferences: SourcePreferences = remember { context.appGraph.sourcePreferences }
+        val trackPreferences: TrackPreferences = remember { context.appGraph.trackPreferences }
         val mdex = remember { MdUtil.getEnabledMangaDex(sourcePreferences) } ?: return emptyList()
 
         return listOf(

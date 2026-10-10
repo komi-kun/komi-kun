@@ -47,7 +47,6 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastMaxOfOrNull
-import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.presentation.components.AdaptiveSheet
 import eu.kanade.presentation.components.TabbedDialogPaddings
 import eu.kanade.presentation.manga.components.MangaCover
@@ -81,8 +80,6 @@ import tachiyomi.presentation.core.i18n.pluralStringResource
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsState
 import tachiyomi.presentation.core.util.secondaryItemAlpha
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 
 @Composable
 fun DuplicateMangaDialog(
@@ -296,7 +293,7 @@ private fun DuplicateMangaListItem(
     onMigrate: () -> Unit,
 ) {
     // KMK -->
-    val usePanoramaCover by Injekt.get<UiPreferences>().usePanoramaCoverAlways.collectAsState()
+    val usePanoramaCover by LocalContext.current.appGraph.uiPreferences.usePanoramaCoverAlways.collectAsState()
     val coverRatio = remember { mutableFloatStateOf(1f) }
     val coverIsWide = coverRatio.floatValue <= RatioSwitchToPanorama
     // KMK <--

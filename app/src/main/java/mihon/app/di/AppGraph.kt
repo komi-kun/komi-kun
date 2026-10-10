@@ -9,7 +9,9 @@ import dev.zacsweers.metrox.viewmodel.ViewModelGraph
 import eu.kanade.domain.base.BasePreferences
 import eu.kanade.domain.connections.service.ConnectionsPreferences
 import eu.kanade.domain.extension.interactor.TrustExtension
+import eu.kanade.domain.source.interactor.ToggleIncognito
 import eu.kanade.domain.source.service.SourcePreferences
+import eu.kanade.domain.sync.SyncPreferences
 import eu.kanade.domain.track.interactor.AddTracks
 import eu.kanade.domain.track.service.DelayedTrackingUpdateJob
 import eu.kanade.domain.track.service.TrackPreferences
@@ -20,6 +22,7 @@ import eu.kanade.tachiyomi.core.security.SecurityPreferences
 import eu.kanade.tachiyomi.data.backup.create.BackupCreateJob
 import eu.kanade.tachiyomi.data.backup.restore.BackupRestoreJob
 import eu.kanade.tachiyomi.data.cache.ChapterCache
+import eu.kanade.tachiyomi.data.cache.PagePreviewCache
 import eu.kanade.tachiyomi.data.connections.ConnectionsManager
 import eu.kanade.tachiyomi.data.download.DownloadCache
 import eu.kanade.tachiyomi.data.download.DownloadJob
@@ -27,6 +30,7 @@ import eu.kanade.tachiyomi.data.download.DownloadManager
 import eu.kanade.tachiyomi.data.library.LibraryUpdateJob
 import eu.kanade.tachiyomi.data.library.MetadataUpdateJob
 import eu.kanade.tachiyomi.data.notification.NotificationReceiver
+import eu.kanade.tachiyomi.data.sync.service.GoogleDriveService
 import eu.kanade.tachiyomi.data.track.TrackerManager
 import eu.kanade.tachiyomi.data.updater.AppUpdateChecker
 import eu.kanade.tachiyomi.extension.ExtensionManager
@@ -40,15 +44,22 @@ import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.ui.setting.track.BaseOAuthLoginActivity
 import eu.kanade.tachiyomi.ui.webview.WebViewActivity
 import eu.kanade.tachiyomi.util.CrashLogUtil
+import exh.pref.DelegateSourcePreferences
+import exh.source.ExhPreferences
 import kotlinx.serialization.json.Json
 import mihon.core.metro.IsDebugBuild
 import mihon.domain.extension.interactor.GetExtensionStoreCountAsFlow
 import tachiyomi.domain.backup.service.BackupPreferences
 import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.domain.category.interactor.ResetCategoryFlags
+import tachiyomi.domain.chapter.interactor.GetChaptersByMangaId
 import tachiyomi.domain.download.service.DownloadPreferences
 import tachiyomi.domain.library.service.LibraryPreferences
+import tachiyomi.domain.manga.interactor.DeleteFavoriteEntries
+import tachiyomi.domain.manga.interactor.GetAllManga
+import tachiyomi.domain.manga.interactor.GetExhFavoriteMangaWithMetadata
 import tachiyomi.domain.manga.interactor.GetFavorites
+import tachiyomi.domain.manga.interactor.GetFlatMetadataById
 import tachiyomi.domain.manga.interactor.ResetViewerFlags
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.domain.storage.service.StoragePreferences
@@ -108,6 +119,17 @@ interface AppGraph : ViewModelGraph {
     // KMK -->
     val connectionsManager: ConnectionsManager
     val connectionsPreferences: ConnectionsPreferences
+    val syncPreferences: SyncPreferences
+    val exhPreferences: ExhPreferences
+    val delegateSourcePreferences: DelegateSourcePreferences
+    val pagePreviewCache: PagePreviewCache
+    val googleDriveService: GoogleDriveService
+    val toggleIncognito: ToggleIncognito
+    val getAllManga: GetAllManga
+    val getChaptersByMangaId: GetChaptersByMangaId
+    val getFlatMetadataById: GetFlatMetadataById
+    val deleteFavoriteEntries: DeleteFavoriteEntries
+    val getExhFavoriteMangaWithMetadata: GetExhFavoriteMangaWithMetadata
     // KMK <--
 
     val json: Json

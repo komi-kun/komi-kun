@@ -37,8 +37,8 @@ import eu.kanade.presentation.components.SOURCE_SEARCH_BOX_HEIGHT
 import eu.kanade.presentation.util.animateItemFastScroll
 import eu.kanade.tachiyomi.ui.browse.migration.sources.MigrateSourceViewModel
 import eu.kanade.tachiyomi.util.system.copyToClipboard
-import exh.source.ExhPreferences
 import exh.source.eHentaiSourceIds
+import mihon.app.di.appGraph
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.ArrowDownward
 import mihon.icons.materialsymbols.rounded.ArrowUpward
@@ -58,8 +58,6 @@ import tachiyomi.presentation.core.screens.EmptyScreen
 import tachiyomi.presentation.core.screens.LoadingScreen
 import tachiyomi.presentation.core.theme.header
 import tachiyomi.presentation.core.util.secondaryItemAlpha
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 
 @Composable
 fun MigrateSourceScreen(
@@ -121,7 +119,8 @@ private fun MigrateSourceList(
     // KMK -->
     val lazyListState = rememberLazyListState()
     var filterObsoleteSource by rememberSaveable { mutableStateOf(false) }
-    val isHentaiEnabled = remember { Injekt.get<ExhPreferences>().isHentaiEnabled.get() }
+    val context = LocalContext.current
+    val isHentaiEnabled = remember { context.appGraph.exhPreferences.isHentaiEnabled.get() }
 
     BackHandler(enabled = !state.searchQuery.isNullOrBlank()) {
         onChangeSearchQuery("")

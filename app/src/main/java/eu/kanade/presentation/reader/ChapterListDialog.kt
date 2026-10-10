@@ -24,11 +24,10 @@ import exh.metadata.MetadataUtil
 import exh.source.isEhBasedManga
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
+import mihon.app.di.appGraph
 import tachiyomi.domain.chapter.model.Chapter
 import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.source.local.isLocal
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -49,7 +48,7 @@ fun ChapterListDialog(
     val manga by viewModel.mangaFlow.collectAsState()
     val context = LocalContext.current
     val state = rememberLazyListState(chapters.indexOfFirst { it.isCurrent }.coerceAtLeast(0))
-    val downloadManager: DownloadManager = remember { Injekt.get() }
+    val downloadManager: DownloadManager = remember { context.appGraph.downloadManager }
     val downloadQueueState by downloadManager.queueState.collectAsState()
 
     AdaptiveSheet(

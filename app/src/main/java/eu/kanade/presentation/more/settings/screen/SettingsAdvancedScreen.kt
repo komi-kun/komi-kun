@@ -35,14 +35,11 @@ import eu.kanade.domain.base.BasePreferences
 import eu.kanade.domain.extension.interactor.TrustExtension
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.domain.source.service.SourcePreferences.DataSaver
-import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.presentation.more.settings.Preference
 import eu.kanade.presentation.more.settings.screen.advanced.ClearDatabaseScreen
 import eu.kanade.presentation.more.settings.screen.debug.DebugInfoScreen
 import eu.kanade.tachiyomi.R
-import eu.kanade.tachiyomi.core.security.SecurityPreferences
 import eu.kanade.tachiyomi.data.download.DownloadCache
-import eu.kanade.tachiyomi.data.download.DownloadManager
 import eu.kanade.tachiyomi.data.library.MetadataUpdateJob
 import eu.kanade.tachiyomi.data.updater.AppUpdateJob
 import eu.kanade.tachiyomi.network.NetworkHelper
@@ -72,8 +69,6 @@ import eu.kanade.tachiyomi.util.system.toast
 import eu.kanade.tachiyomi.util.system.workManager
 import exh.debug.SettingsDebugScreen
 import exh.log.EHLogLevel
-import exh.pref.DelegateSourcePreferences
-import exh.source.ExhPreferences
 import exh.util.toAnnotatedString
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -86,21 +81,16 @@ import tachiyomi.core.common.util.lang.launchNonCancellable
 import tachiyomi.core.common.util.lang.withUIContext
 import tachiyomi.core.common.util.system.ImageUtil
 import tachiyomi.core.common.util.system.logcat
-import tachiyomi.domain.chapter.interactor.GetChaptersByMangaId
 import tachiyomi.domain.download.service.DownloadPreferences
 import tachiyomi.domain.library.service.LibraryPreferences
-import tachiyomi.domain.manga.interactor.GetAllManga
 import tachiyomi.domain.manga.interactor.ResetViewerFlags
 import tachiyomi.domain.release.service.AppUpdatePolicy
-import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
 import tachiyomi.i18n.sy.SYMR
 import tachiyomi.presentation.core.components.LabeledCheckbox
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsState
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 import java.io.File
 
 object SettingsAdvancedScreen : SearchableSettings {
@@ -124,7 +114,7 @@ object SettingsAdvancedScreen : SearchableSettings {
         val crashLogUtil = remember { graph.crashLogUtil }
         // SY -->
         val downloadPreferences = remember { graph.downloadPreferences }
-        val exhPreferences = remember { Injekt.get<ExhPreferences>() }
+        val exhPreferences = remember { graph.exhPreferences }
         // SY <--
 
         return listOf(
@@ -361,7 +351,7 @@ object SettingsAdvancedScreen : SearchableSettings {
         val scope = rememberCoroutineScope()
         val context = LocalContext.current
         // KMK -->
-        val uiPreferences = remember { Injekt.get<UiPreferences>() }
+        val uiPreferences = remember { context.appGraph.uiPreferences }
         // KMK <--
 
         return Preference.PreferenceGroup(
@@ -601,10 +591,10 @@ object SettingsAdvancedScreen : SearchableSettings {
                     if (job?.isActive == true) return@CleanupDownloadsDialog
                     context.toast(SYMR.strings.starting_cleanup)
                     job = scope.launchNonCancellable {
-                        val mangaList = Injekt.get<GetAllManga>().await()
-                        val downloadManager: DownloadManager = Injekt.get()
+                        val mangaList = context.appGraph.getAllManga.await()
+                        val downloadManager = context.appGraph.downloadManager
                         var foldersCleared = 0
-                        Injekt.get<SourceManager>().getOnlineSources().forEach { source ->
+                        context.appGraph.sourceManager.getOnlineSources().forEach { source ->
                             val mangaFolders = downloadManager.getMangaFolders(source)
                             val sourceManga = mangaList
                                 .asSequence()
@@ -625,7 +615,7 @@ object SettingsAdvancedScreen : SearchableSettings {
                                         )
                                     mangaFolder.delete()
                                 } else {
-                                    val chapterList = Injekt.get<GetChaptersByMangaId>().await(manga.id)
+                                    val chapterList = context.appGraph.getChaptersByMangaId.await(manga.id)
                                     foldersCleared += downloadManager.cleanupChapters(
                                         chapterList,
                                         manga,
@@ -667,7 +657,8 @@ object SettingsAdvancedScreen : SearchableSettings {
 
     @Composable
     private fun getDataSaverGroup(): Preference.PreferenceGroup {
-        val sourcePreferences = remember { Injekt.get<SourcePreferences>() }
+        val context = LocalContext.current
+        val sourcePreferences = remember { context.appGraph.sourcePreferences }
         val dataSaver by sourcePreferences.dataSaver.collectAsState()
         return Preference.PreferenceGroup(
             title = stringResource(SYMR.strings.data_saver),
@@ -746,10 +737,10 @@ object SettingsAdvancedScreen : SearchableSettings {
     private fun getDeveloperToolsGroup(): Preference.PreferenceGroup {
         val context = LocalContext.current
         val navigator = LocalNavigator.currentOrThrow
-        val sourcePreferences = remember { Injekt.get<SourcePreferences>() }
-        val exhPreferences = remember { Injekt.get<ExhPreferences>() }
-        val delegateSourcePreferences = remember { Injekt.get<DelegateSourcePreferences>() }
-        val securityPreferences = remember { Injekt.get<SecurityPreferences>() }
+        val sourcePreferences = remember { context.appGraph.sourcePreferences }
+        val exhPreferences = remember { context.appGraph.exhPreferences }
+        val delegateSourcePreferences = remember { context.appGraph.delegateSourcePreferences }
+        val securityPreferences = remember { context.appGraph.securityPreferences }
         return Preference.PreferenceGroup(
             title = stringResource(SYMR.strings.developer_tools),
             preferenceItems = listOf(

@@ -38,10 +38,10 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import dev.icerock.moko.resources.StringResource
 import eu.kanade.presentation.more.settings.Preference
-import eu.kanade.tachiyomi.data.connections.ConnectionsManager
 import eu.kanade.tachiyomi.data.connections.ConnectionsService
 import eu.kanade.tachiyomi.ui.setting.connections.DiscordLoginScreen
 import eu.kanade.tachiyomi.util.system.toast
+import mihon.app.di.appGraph
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.Close
 import mihon.icons.materialsymbols.roundedfilled.Visibility
@@ -51,8 +51,6 @@ import tachiyomi.core.common.util.lang.withUIContext
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
 import tachiyomi.presentation.core.i18n.stringResource
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 
 object SettingsConnectionScreen : SearchableSettings {
     @Suppress("unused")
@@ -65,7 +63,8 @@ object SettingsConnectionScreen : SearchableSettings {
     @Composable
     override fun getPreferences(): List<Preference> {
         val navigator = LocalNavigator.currentOrThrow
-        val connectionsManager = remember { Injekt.get<ConnectionsManager>() }
+        val context = LocalContext.current
+        val connectionsManager = remember { context.appGraph.connectionsManager }
 
         var dialog by remember { mutableStateOf<Any?>(null) }
         dialog?.run {

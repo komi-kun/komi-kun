@@ -35,8 +35,6 @@ import tachiyomi.i18n.sy.SYMR
 import tachiyomi.presentation.core.i18n.pluralStringResource
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsState
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 import java.time.LocalDate
 import kotlin.time.Clock
 
@@ -165,7 +163,7 @@ object SettingsAppearanceScreen : SearchableSettings {
     ): Preference.PreferenceGroup {
         val scope = rememberCoroutineScope()
         val mangaInfoThemeCoverBased by remember {
-            Injekt.get<UiPreferences>().themeCoverBased.asState(scope)
+            uiPreferences.themeCoverBased.asState(scope)
         }
         return Preference.PreferenceGroup(
             title = stringResource(KMR.strings.pref_manga_info),

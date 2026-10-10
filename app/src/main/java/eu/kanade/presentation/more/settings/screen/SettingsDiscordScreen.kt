@@ -22,6 +22,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
@@ -29,18 +30,15 @@ import eu.kanade.domain.connections.service.ConnectionsPreferences
 import eu.kanade.presentation.category.visualName
 import eu.kanade.presentation.more.settings.Preference
 import eu.kanade.presentation.more.settings.widget.TextPreferenceWidget
-import eu.kanade.tachiyomi.data.connections.ConnectionsManager
+import mihon.app.di.appGraph
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.automirroredrounded.Help
 import mihon.icons.materialsymbols.automirroredrounded.Logout
-import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
 import tachiyomi.presentation.core.components.material.padding
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsState
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 
 object SettingsDiscordScreen : SearchableSettings {
     @Suppress("unused")
@@ -64,8 +62,9 @@ object SettingsDiscordScreen : SearchableSettings {
     @Composable
     override fun getPreferences(): List<Preference> {
         val navigator = LocalNavigator.currentOrThrow
-        val connectionsPreferences = remember { Injekt.get<ConnectionsPreferences>() }
-        val connectionsManager = remember { Injekt.get<ConnectionsManager>() }
+        val context = LocalContext.current
+        val connectionsPreferences = remember { context.appGraph.connectionsPreferences }
+        val connectionsManager = remember { context.appGraph.connectionsManager }
         val enableDRPCPref = connectionsPreferences.enableDiscordRPC
         val useChapterTitlesPref = connectionsPreferences.useChapterTitles
         val discordRPCStatus = connectionsPreferences.discordRPCStatus
@@ -249,7 +248,8 @@ object SettingsDiscordScreen : SearchableSettings {
         connectionsPreferences: ConnectionsPreferences,
         enabled: Boolean,
     ): Preference.PreferenceGroup {
-        val getCategories = remember { Injekt.get<GetCategories>() }
+        val context = LocalContext.current
+        val getCategories = remember { context.appGraph.getCategories }
         val allCategories by getCategories.subscribe().collectAsState(initial = emptyList())
 
         val discordRPCIncognitoPref = connectionsPreferences.discordRPCIncognito

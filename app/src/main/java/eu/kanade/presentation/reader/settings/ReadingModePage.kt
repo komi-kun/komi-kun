@@ -26,8 +26,6 @@ import tachiyomi.presentation.core.components.SettingsChipRow
 import tachiyomi.presentation.core.components.SliderItem
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsState
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 import java.text.NumberFormat
 
 @Composable
@@ -48,7 +46,7 @@ internal fun ReadingModePage(viewModel: ReaderSettingsViewModel) {
     }
 
     if (viewer is WebGpuViewer) {
-        val default = Injekt.get<ReaderPreferences>().defaultReadingMode.get()
+        val default = LocalContext.current.appGraph.readerPreferences.defaultReadingMode.get()
         val resolved = ReadingMode.fromPreference(
             when {
                 readingMode == ReadingMode.DEFAULT -> default
@@ -434,7 +432,7 @@ private fun WebGpuViewerSettings(viewModel: ReaderSettingsViewModel) {
     val viewer by viewModel.viewerFlow.collectAsState()
 
     val readingMode = remember(manga) { ReadingMode.fromPreference(manga?.readingMode?.toInt()) }
-    val default = Injekt.get<ReaderPreferences>().defaultReadingMode.get()
+    val default = LocalContext.current.appGraph.readerPreferences.defaultReadingMode.get()
     val resolved = ReadingMode.fromPreference(
         when {
             readingMode == ReadingMode.DEFAULT -> default

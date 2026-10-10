@@ -58,12 +58,10 @@ import eu.kanade.presentation.util.relativeTimeSpanString
 import eu.kanade.tachiyomi.data.backup.create.BackupCreateJob
 import eu.kanade.tachiyomi.data.backup.restore.BackupRestoreJob
 import eu.kanade.tachiyomi.data.cache.ChapterCache
-import eu.kanade.tachiyomi.data.cache.PagePreviewCache
 import eu.kanade.tachiyomi.data.export.LibraryExporter
 import eu.kanade.tachiyomi.data.export.LibraryExporter.ExportOptions
 import eu.kanade.tachiyomi.data.sync.SyncDataJob
 import eu.kanade.tachiyomi.data.sync.SyncManager
-import eu.kanade.tachiyomi.data.sync.service.GoogleDriveService
 import eu.kanade.tachiyomi.data.sync.service.GoogleDriveSyncService
 import eu.kanade.tachiyomi.util.system.DeviceUtil
 import eu.kanade.tachiyomi.util.system.toast
@@ -91,8 +89,6 @@ import tachiyomi.i18n.kmk.KMR
 import tachiyomi.i18n.sy.SYMR
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsState
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 
 object SettingsDataScreen : SearchableSettings {
     @Suppress("unused")
@@ -122,7 +118,7 @@ object SettingsDataScreen : SearchableSettings {
         val backupPreferences = remember { context.appGraph.backupPreferences }
         val storagePreferences = remember { context.appGraph.storagePreferences }
 
-        val syncPreferences = remember { Injekt.get<SyncPreferences>() }
+        val syncPreferences = remember { context.appGraph.syncPreferences }
         val syncService by syncPreferences.syncService.collectAsState()
 
         return listOf(
@@ -345,7 +341,7 @@ object SettingsDataScreen : SearchableSettings {
         val cacheReadableSize = remember(cacheReadableSizeSema) { chapterCache.readableSize }
 
         // SY -->
-        val pagePreviewCache = remember { Injekt.get<PagePreviewCache>() }
+        val pagePreviewCache = remember { context.appGraph.pagePreviewCache }
         var pagePreviewReadableSizeSema by remember { mutableIntStateOf(0) }
         val pagePreviewReadableSize = remember(pagePreviewReadableSizeSema) { pagePreviewCache.readableSize }
         // SY <--
@@ -640,7 +636,7 @@ object SettingsDataScreen : SearchableSettings {
     @Composable
     private fun getGoogleDrivePreferences(): List<Preference> {
         val context = LocalContext.current
-        val googleDriveSync = Injekt.get<GoogleDriveService>()
+        val googleDriveSync = context.appGraph.googleDriveService
         return listOf(
             Preference.PreferenceItem.TextPreference(
                 title = stringResource(SYMR.strings.pref_google_drive_sign_in),

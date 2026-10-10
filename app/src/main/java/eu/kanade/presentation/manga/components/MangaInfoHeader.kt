@@ -71,7 +71,6 @@ import coil3.request.crossfade
 import com.mikepenz.markdown.model.markdownAnnotator
 import com.mikepenz.markdown.model.markdownAnnotatorConfig
 import com.mikepenz.markdown.utils.getUnescapedTextInNode
-import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.presentation.components.DropdownMenu
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.source.model.SManga
@@ -115,8 +114,6 @@ import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.clickableNoIndication
 import tachiyomi.presentation.core.util.collectAsState
 import tachiyomi.presentation.core.util.secondaryItemAlpha
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import kotlin.math.roundToInt
@@ -143,8 +140,8 @@ fun MangaInfoBox(
     // KMK <--
 ) {
     // KMK -->
-    val usePanoramaCover by Injekt.get<UiPreferences>().usePanoramaCoverMangaInfo.collectAsState()
-    val topAlignCover by Injekt.get<UiPreferences>().topAlignCover.collectAsState()
+    val usePanoramaCover by LocalContext.current.appGraph.uiPreferences.usePanoramaCoverMangaInfo.collectAsState()
+    val topAlignCover by LocalContext.current.appGraph.uiPreferences.topAlignCover.collectAsState()
     // KMK <--
     Box(modifier = modifier) {
         // Backdrop
@@ -254,7 +251,7 @@ fun MangaActionRow(
     modifier: Modifier = Modifier,
 ) {
     // KMK -->
-    val libraryPreferences: LibraryPreferences = Injekt.get()
+    val libraryPreferences: LibraryPreferences = LocalContext.current.appGraph.libraryPreferences
     val restrictions = libraryPreferences.autoUpdateMangaRestrictions.get()
     val notSkipCompleted = MANGA_NON_COMPLETED !in restrictions || status != SManga.COMPLETED.toLong()
     val selectedInterval by remember(interval) { mutableIntStateOf(if (interval < 0) -interval else 0) }
@@ -368,7 +365,7 @@ fun ExpandableMangaDescription(
     modifier: Modifier = Modifier,
 ) {
     // KMK -->
-    val uiPreferences = Injekt.get<UiPreferences>()
+    val uiPreferences = LocalContext.current.appGraph.uiPreferences
     val pureDarkMode = uiPreferences.themeDarkAmoled.get()
     // KMK <--
     Column(modifier = modifier) {

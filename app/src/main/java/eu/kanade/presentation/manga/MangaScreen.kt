@@ -62,8 +62,6 @@ import androidx.compose.ui.util.fastAny
 import androidx.compose.ui.util.fastMap
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
-import eu.kanade.domain.source.service.SourcePreferences
-import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.presentation.browse.RelatedMangaTitle
 import eu.kanade.presentation.components.relativeDateText
 import eu.kanade.presentation.manga.components.ChapterDownloadAction
@@ -108,6 +106,7 @@ import exh.ui.metadata.adapters.LanraragiDescription
 import exh.ui.metadata.adapters.MangaDexDescription
 import exh.ui.metadata.adapters.NHentaiDescription
 import exh.ui.metadata.adapters.PururinDescription
+import mihon.app.di.appGraph
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.roundedfilled.PlayArrow
 import tachiyomi.domain.chapter.model.Chapter
@@ -127,8 +126,6 @@ import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsState
 import tachiyomi.presentation.core.util.shouldExpandFAB
 import tachiyomi.source.local.isLocal
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 import java.time.Instant
 import java.time.ZoneId
 import java.time.ZonedDateTime
@@ -436,8 +433,8 @@ private fun MangaScreenSmallImpl(
     }
     // SY <--
     // KMK -->
-    val uiPreferences = Injekt.get<UiPreferences>()
-    val relatedMangasEnabled by Injekt.get<SourcePreferences>().relatedMangas.collectAsState()
+    val uiPreferences = LocalContext.current.appGraph.uiPreferences
+    val relatedMangasEnabled by LocalContext.current.appGraph.sourcePreferences.relatedMangas.collectAsState()
     val expandRelatedMangas by uiPreferences.expandRelatedMangas.collectAsState()
     val showRelatedMangasInOverflow by uiPreferences.relatedMangasInOverflow.collectAsState()
 
@@ -895,8 +892,8 @@ private fun MangaScreenLargeImpl(
     val metadataDescription = metadataDescription(state.source)
     // SY <--
     // KMK -->
-    val uiPreferences = Injekt.get<UiPreferences>()
-    val relatedMangasEnabled by Injekt.get<SourcePreferences>().relatedMangas.collectAsState()
+    val uiPreferences = LocalContext.current.appGraph.uiPreferences
+    val relatedMangasEnabled by LocalContext.current.appGraph.sourcePreferences.relatedMangas.collectAsState()
     val expandRelatedMangas by uiPreferences.expandRelatedMangas.collectAsState()
     val showRelatedMangasInOverflow by uiPreferences.relatedMangasInOverflow.collectAsState()
 

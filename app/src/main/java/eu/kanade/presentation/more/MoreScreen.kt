@@ -29,8 +29,7 @@ import eu.kanade.presentation.theme.TachiyomiPreviewTheme
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.ui.more.DownloadQueueState
 import eu.kanade.tachiyomi.util.system.openInBrowser
-import exh.pref.DelegateSourcePreferences
-import exh.source.ExhPreferences
+import mihon.app.di.appGraph
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.automirroredrounded.Help
 import mihon.icons.materialsymbols.automirroredrounded.Label
@@ -54,8 +53,6 @@ import tachiyomi.presentation.core.components.material.TextButton
 import tachiyomi.presentation.core.components.material.padding
 import tachiyomi.presentation.core.i18n.pluralStringResource
 import tachiyomi.presentation.core.i18n.stringResource
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 
 @Composable
 fun MoreScreen(
@@ -83,8 +80,9 @@ fun MoreScreen(
 ) {
     val uriHandler = LocalUriHandler.current
     // SY -->
-    val exhPreferences = remember { Injekt.get<ExhPreferences>() }
-    val delegateSourcePreferences = remember { Injekt.get<DelegateSourcePreferences>() }
+    val context = LocalContext.current
+    val exhPreferences = remember { context.appGraph.exhPreferences }
+    val delegateSourcePreferences = remember { context.appGraph.delegateSourcePreferences }
     // SY <--
 
     Scaffold { contentPadding ->

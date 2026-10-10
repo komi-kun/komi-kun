@@ -12,7 +12,6 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.core.preference.asState
 import eu.kanade.domain.source.service.SourcePreferences
-import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.presentation.more.settings.Preference
 import eu.kanade.presentation.more.settings.screen.browse.ExtensionStoresScreen
 import eu.kanade.tachiyomi.ui.category.sources.SourceCategoryScreen
@@ -27,8 +26,6 @@ import tachiyomi.i18n.sy.SYMR
 import tachiyomi.presentation.core.i18n.pluralStringResource
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsState
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 
 object SettingsBrowseScreen : SearchableSettings {
     @Suppress("unused")
@@ -50,8 +47,8 @@ object SettingsBrowseScreen : SearchableSettings {
 
         // SY -->
         val scope = rememberCoroutineScope()
-        val hideFeedTab by remember { Injekt.get<UiPreferences>().hideFeedTab.asState(scope) }
-        val uiPreferences = remember { Injekt.get<UiPreferences>() }
+        val hideFeedTab by remember { context.appGraph.uiPreferences.hideFeedTab.asState(scope) }
+        val uiPreferences = remember { context.appGraph.uiPreferences }
         // SY <--
         // KMK -->
         val relatedMangasInOverflow by uiPreferences.expandRelatedMangas.collectAsState()
