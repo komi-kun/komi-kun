@@ -9,11 +9,6 @@ import exh.recs.sources.RECOMMENDS_SOURCE
 import exh.recs.sources.RecommendationPagingSource
 import exh.recs.sources.RecommendationSource
 import exh.recs.sources.StaticResultPagingSource
-import kotlinx.collections.immutable.PersistentMap
-import kotlinx.collections.immutable.mutate
-import kotlinx.collections.immutable.persistentMapOf
-import kotlinx.collections.immutable.toImmutableMap
-import kotlinx.collections.immutable.toPersistentMap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -73,7 +68,7 @@ open class RecommendsViewModel(
             updateItems(
                 recommendationSources
                     .associateWith { RecommendationItemResult.Loading }
-                    .toPersistentMap(),
+                    .toMap(),
             )
 
             recommendationSources.map { recSource ->
@@ -122,18 +117,18 @@ open class RecommendsViewModel(
         }
     }
 
-    private fun updateItems(items: PersistentMap<RecommendationPagingSource, RecommendationItemResult>) {
+    private fun updateItems(items: Map<RecommendationPagingSource, RecommendationItemResult>) {
         state.update {
             it.copy(
                 items = items
                     .toSortedMap(sortComparator(items))
-                    .toPersistentMap(),
+                    .toMap(),
             )
         }
     }
 
     private fun updateItem(source: RecommendationPagingSource, result: RecommendationItemResult) {
-        val newItems = state.value.items.mutate {
+        val newItems = state.value.items.toMutableMap().also {
             it[source] = result
         }
         updateItems(newItems)
@@ -142,12 +137,12 @@ open class RecommendsViewModel(
     @Immutable
     data class State(
         val title: String? = null,
-        val items: PersistentMap<RecommendationPagingSource, RecommendationItemResult> = persistentMapOf(),
+        val items: Map<RecommendationPagingSource, RecommendationItemResult> = mapOf(),
     ) {
         val progress: Int = items.count { it.value !is RecommendationItemResult.Loading }
         val total: Int = items.size
         val filteredItems = items.filter { (_, result) -> result.isVisible(false) }
-            .toImmutableMap()
+            .toMap()
     }
 }
 

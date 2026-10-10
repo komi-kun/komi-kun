@@ -22,8 +22,6 @@ dependencies {
     implementation(compose.glance)
     implementation(libs.material)
 
-    implementation(kotlinx.immutables)
-
     implementation(platform(libs.coil.bom))
     implementation(libs.coil.core)
 

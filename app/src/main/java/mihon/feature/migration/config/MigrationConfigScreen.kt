@@ -54,7 +54,6 @@ import eu.kanade.presentation.components.SOURCE_SEARCH_BOX_HEIGHT
 import eu.kanade.presentation.util.Screen
 import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.util.system.LocaleHelper
-import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -166,7 +165,7 @@ class MigrationConfigScreen(private val mangaIds: Collection<Long>) : Screen() {
                     scrollBehavior = it,
                     actions = {
                         AppBarActions(
-                            persistentListOf(
+                            listOf(
                                 AppBar.Action(
                                     title = stringResource(MR.strings.migrationConfigScreen_selectPinnedLabel),
                                     icon = MaterialSymbols.Rounded.Keep,

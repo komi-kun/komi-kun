@@ -27,9 +27,6 @@ import exh.source.getMainSource
 import exh.source.isEhBasedSource
 import exh.source.mangaDexSourceIds
 import exh.util.nullIfBlank
-import kotlinx.collections.immutable.ImmutableList
-import kotlinx.collections.immutable.persistentListOf
-import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -188,7 +185,7 @@ open class SourceFeedViewModel(
     }
     // KMK <--
 
-    private suspend fun getSourcesToGetFeed(feedSavedSearch: List<FeedSavedSearch>): ImmutableList<SourceFeedUI> {
+    private suspend fun getSourcesToGetFeed(feedSavedSearch: List<FeedSavedSearch>): List<SourceFeedUI> {
         val savedSearches = getSavedSearchBySourceIdFeed.await(source.id)
             .associateBy { it.id }
 
@@ -203,7 +200,7 @@ open class SourceFeedViewModel(
             ) + feedSavedSearch
                 .map { SourceFeedUI.SourceSavedSearch(it, savedSearches[it.savedSearch]!!, null) }
             )
-            .toImmutableList()
+            .toList()
     }
 
     // KMK -->
@@ -246,7 +243,7 @@ open class SourceFeedViewModel(
                         state.copy(
                             items = state.items.map { item ->
                                 if (item.id == sourceFeed.id) sourceFeed.withResults(titles) else item
-                            }.toImmutableList(),
+                            }.toList(),
                         )
                     }
                 }
@@ -291,7 +288,7 @@ open class SourceFeedViewModel(
     private suspend fun loadSearches() =
         getExhSavedSearch.await(source.id, source::getFilterList)
             .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER, EXHSavedSearch::name))
-            .toImmutableList()
+            .toList()
 
     fun onFilter(onBrowseClick: (query: String?, filters: String?) -> Unit) {
         viewModelScope.launchIO {
@@ -431,9 +428,9 @@ open class SourceFeedViewModel(
 @Immutable
 data class SourceFeedState(
     val searchQuery: String? = null,
-    val items: ImmutableList<SourceFeedUI> = persistentListOf(),
+    val items: List<SourceFeedUI> = listOf(),
     val filters: FilterList = FilterList(),
-    val savedSearches: ImmutableList<EXHSavedSearch> = persistentListOf(),
+    val savedSearches: List<EXHSavedSearch> = listOf(),
     val dialog: SourceFeedViewModel.Dialog? = null,
 ) {
     val isLoading

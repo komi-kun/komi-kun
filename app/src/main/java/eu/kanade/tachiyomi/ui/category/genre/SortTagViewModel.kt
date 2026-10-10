@@ -8,8 +8,6 @@ import eu.kanade.domain.manga.interactor.CreateSortTag
 import eu.kanade.domain.manga.interactor.DeleteSortTag
 import eu.kanade.domain.manga.interactor.GetSortTag
 import eu.kanade.domain.manga.interactor.ReorderSortTag
-import kotlinx.collections.immutable.ImmutableList
-import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -41,7 +39,7 @@ class SortTagViewModel(
                 .collectLatest { tags ->
                     state.update {
                         SortTagScreenState.Success(
-                            tags = tags.toImmutableList(),
+                            tags = tags.toList(),
                         )
                     }
                 }
@@ -118,7 +116,7 @@ sealed class SortTagScreenState {
 
     @Immutable
     data class Success(
-        val tags: ImmutableList<String>,
+        val tags: List<String>,
         val dialog: SortTagDialog? = null,
     ) : SortTagScreenState() {
 

@@ -26,7 +26,6 @@ import androidx.compose.ui.Modifier
 import eu.kanade.presentation.components.AppBarActions
 import eu.kanade.presentation.components.SearchToolbar
 import eu.kanade.tachiyomi.ui.browse.source.globalsearch.SourceFilter
-import kotlinx.collections.immutable.persistentListOf
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.DoneAll
 import mihon.icons.materialsymbols.rounded.FilterList
@@ -67,7 +66,7 @@ fun GlobalSearchToolbar(
                 // KMK -->
                 actions = {
                     AppBarActions(
-                        actions = persistentListOf(
+                        actions = listOf(
                             bulkSelectionButton(isRunning, toggleSelectionMode),
                         ),
                     )

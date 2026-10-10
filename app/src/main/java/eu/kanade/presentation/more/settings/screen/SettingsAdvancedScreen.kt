@@ -74,9 +74,6 @@ import exh.log.EHLogLevel
 import exh.pref.DelegateSourcePreferences
 import exh.source.ExhPreferences
 import exh.util.toAnnotatedString
-import kotlinx.collections.immutable.persistentListOf
-import kotlinx.collections.immutable.persistentMapOf
-import kotlinx.collections.immutable.toImmutableMap
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import logcat.LogPriority
@@ -165,7 +162,7 @@ object SettingsAdvancedScreen : SearchableSettings {
             // KMK -->
             Preference.PreferenceItem.MultiSelectListPreference(
                 preference = exhPreferences.appShouldAutoUpdate(),
-                entries = persistentMapOf(
+                entries = mapOf(
                     AppUpdatePolicy.DEVICE_ONLY_ON_WIFI to stringResource(MR.strings.connected_to_wifi),
                     AppUpdatePolicy.DEVICE_NETWORK_NOT_METERED to stringResource(MR.strings.network_not_metered),
                     AppUpdatePolicy.DEVICE_CHARGING to stringResource(MR.strings.charging),
@@ -204,7 +201,7 @@ object SettingsAdvancedScreen : SearchableSettings {
 
         return Preference.PreferenceGroup(
             title = stringResource(MR.strings.label_background_activity),
-            preferenceItems = persistentListOf(
+            preferenceItems = listOf(
                 Preference.PreferenceItem.TextPreference(
                     title = stringResource(MR.strings.pref_disable_battery_optimization),
                     subtitle = stringResource(MR.strings.pref_disable_battery_optimization_summary),
@@ -243,7 +240,7 @@ object SettingsAdvancedScreen : SearchableSettings {
 
         return Preference.PreferenceGroup(
             title = stringResource(MR.strings.label_data),
-            preferenceItems = persistentListOf(
+            preferenceItems = listOf(
                 Preference.PreferenceItem.TextPreference(
                     title = stringResource(MR.strings.pref_invalidate_download_cache),
                     subtitle = stringResource(MR.strings.pref_invalidate_download_cache_summary),
@@ -273,7 +270,7 @@ object SettingsAdvancedScreen : SearchableSettings {
 
         return Preference.PreferenceGroup(
             title = stringResource(MR.strings.label_network),
-            preferenceItems = persistentListOf(
+            preferenceItems = listOf(
                 Preference.PreferenceItem.TextPreference(
                     title = stringResource(MR.strings.pref_clear_cookies),
                     onClick = {
@@ -305,7 +302,7 @@ object SettingsAdvancedScreen : SearchableSettings {
                 ),
                 Preference.PreferenceItem.ListPreference(
                     preference = networkPreferences.dohProvider(),
-                    entries = persistentMapOf(
+                    entries = mapOf(
                         -1 to stringResource(MR.strings.disabled),
                         PREF_DOH_CLOUDFLARE to "Cloudflare",
                         PREF_DOH_GOOGLE to "Google",
@@ -365,7 +362,7 @@ object SettingsAdvancedScreen : SearchableSettings {
 
         return Preference.PreferenceGroup(
             title = stringResource(MR.strings.label_library),
-            preferenceItems = persistentListOf(
+            preferenceItems = listOf(
                 Preference.PreferenceItem.TextPreference(
                     title = stringResource(MR.strings.pref_refresh_library_covers),
                     onClick = { MetadataUpdateJob.startNow(context) },
@@ -414,7 +411,7 @@ object SettingsAdvancedScreen : SearchableSettings {
     ): Preference.PreferenceGroup {
         return Preference.PreferenceGroup(
             title = stringResource(MR.strings.pref_category_downloads),
-            preferenceItems = persistentListOf(
+            preferenceItems = listOf(
                 Preference.PreferenceItem.SwitchPreference(
                     preference = downloadPreferences.includeChapterUrlHash(),
                     title = stringResource(SYMR.strings.pref_include_chapter_url_hash),
@@ -443,7 +440,7 @@ object SettingsAdvancedScreen : SearchableSettings {
         // KMK <--
         return Preference.PreferenceGroup(
             title = stringResource(MR.strings.pref_category_reader),
-            preferenceItems = persistentListOf(
+            preferenceItems = listOf(
                 Preference.PreferenceItem.SwitchPreference(
                     preference = basePreferences.highQualityRenderer(),
                     title = stringResource(MR.strings.pref_high_quality_renderer),
@@ -496,7 +493,7 @@ object SettingsAdvancedScreen : SearchableSettings {
         }
         return Preference.PreferenceGroup(
             title = stringResource(MR.strings.label_extensions),
-            preferenceItems = persistentListOf(
+            preferenceItems = listOf(
                 Preference.PreferenceItem.ListPreference(
                     preference = extensionInstallerPref,
                     entries = extensionInstallerPref.entries
@@ -509,7 +506,7 @@ object SettingsAdvancedScreen : SearchableSettings {
                             }
                         }
                         .associateWith { stringResource(it.titleRes) }
-                        .toImmutableMap(),
+                        .toMap(),
                     title = stringResource(MR.strings.ext_installer_pref),
                     onValueChanged = {
                         if (it == BasePreferences.ExtensionInstaller.SHIZUKU &&
@@ -654,7 +651,7 @@ object SettingsAdvancedScreen : SearchableSettings {
         }
         return Preference.PreferenceGroup(
             title = stringResource(MR.strings.download_notifier_downloader_title),
-            preferenceItems = persistentListOf(
+            preferenceItems = listOf(
                 Preference.PreferenceItem.TextPreference(
                     title = stringResource(SYMR.strings.clean_up_downloaded_chapters),
                     subtitle = stringResource(SYMR.strings.delete_unused_chapters),
@@ -670,10 +667,10 @@ object SettingsAdvancedScreen : SearchableSettings {
         val dataSaver by sourcePreferences.dataSaver().collectAsState()
         return Preference.PreferenceGroup(
             title = stringResource(SYMR.strings.data_saver),
-            preferenceItems = persistentListOf(
+            preferenceItems = listOf(
                 Preference.PreferenceItem.ListPreference(
                     preference = sourcePreferences.dataSaver(),
-                    entries = persistentMapOf(
+                    entries = mapOf(
                         DataSaver.NONE to stringResource(MR.strings.disabled),
                         DataSaver.BANDWIDTH_HERO to stringResource(SYMR.strings.bandwidth_hero),
                         DataSaver.WSRV_NL to stringResource(SYMR.strings.wsrv),
@@ -713,7 +710,7 @@ object SettingsAdvancedScreen : SearchableSettings {
                         "80%",
                         "90%",
                         "95%",
-                    ).associateBy { it.trimEnd('%').toInt() }.toImmutableMap(),
+                    ).associateBy { it.trimEnd('%').toInt() }.toMap(),
                     title = stringResource(SYMR.strings.data_saver_image_quality),
                     subtitle = stringResource(SYMR.strings.data_saver_image_quality_summary),
                     enabled = dataSaver != DataSaver.NONE,
@@ -751,7 +748,7 @@ object SettingsAdvancedScreen : SearchableSettings {
         val securityPreferences = remember { Injekt.get<SecurityPreferences>() }
         return Preference.PreferenceGroup(
             title = stringResource(SYMR.strings.developer_tools),
-            preferenceItems = persistentListOf(
+            preferenceItems = listOf(
                 Preference.PreferenceItem.SwitchPreference(
                     preference = exhPreferences.isHentaiEnabled(),
                     title = stringResource(SYMR.strings.toggle_hentai_features),
@@ -786,7 +783,7 @@ object SettingsAdvancedScreen : SearchableSettings {
                         index to "${context.stringResource(ehLogLevel.nameRes)} (${
                             context.stringResource(ehLogLevel.description)
                         })"
-                    }.toMap().toImmutableMap(),
+                    }.toMap().toMap(),
                     title = stringResource(SYMR.strings.log_level),
                     subtitle = stringResource(SYMR.strings.log_level_summary),
                 ),

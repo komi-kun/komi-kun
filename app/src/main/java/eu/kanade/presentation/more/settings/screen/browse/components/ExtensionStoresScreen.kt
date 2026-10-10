@@ -20,7 +20,6 @@ import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.more.settings.screen.browse.ExtensionStoreScreenState
 import eu.kanade.presentation.theme.TachiyomiPreviewTheme
 import eu.kanade.tachiyomi.util.system.openInBrowser
-import kotlinx.collections.immutable.persistentListOf
 import mihon.domain.extension.model.ExtensionStore
 import mihon.domain.extension.model.KOMIKKU_SIGNATURE
 import mihon.domain.extension.model.REPO_HELP
@@ -119,7 +118,7 @@ fun ExtensionStoresScreen(
 @Composable
 private fun ExtensionStoresScreenPreview() {
     val state = ExtensionStoreScreenState.Success(
-        stores = persistentListOf(
+        stores = listOf(
             ExtensionStore("https://komikku", "Komikku", "", KOMIKKU_SIGNATURE, ExtensionStore.Contact("", ""), false, null),
             ExtensionStore("https://repo", "Repo", "", REPO_SIGNATURE, ExtensionStore.Contact("", ""), false, null),
             ExtensionStore("https://other", "Other", "", "key2", ExtensionStore.Contact("", ""), true, null),
@@ -147,7 +146,7 @@ private fun ExtensionStoresScreenPreview() {
 @PreviewLightDark
 @Composable
 private fun ExtensionStoresScreenEmptyPreview() {
-    val state = ExtensionStoreScreenState.Success(stores = persistentListOf())
+    val state = ExtensionStoreScreenState.Success(stores = listOf())
     TachiyomiPreviewTheme {
         Surface {
             ExtensionStoresScreen(

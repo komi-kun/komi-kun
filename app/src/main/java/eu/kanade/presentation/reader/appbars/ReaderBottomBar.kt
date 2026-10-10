@@ -14,7 +14,6 @@ import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderBottomButton
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderOrientation
 import eu.kanade.tachiyomi.ui.reader.setting.ReadingMode
-import kotlinx.collections.immutable.ImmutableSet
 import mihon.icons.custommaterialsymbols.CustomMaterialSymbols
 import mihon.icons.custommaterialsymbols.rounded.CropOff
 import mihon.icons.materialsymbols.MaterialSymbols
@@ -31,7 +30,7 @@ import tachiyomi.presentation.core.i18n.stringResource
 @Composable
 fun ReaderBottomBar(
     // SY -->
-    enabledButtons: ImmutableSet<String>,
+    enabledButtons: Set<String>,
     // SY <--
     readingMode: ReadingMode,
     onClickReadingMode: () -> Unit,

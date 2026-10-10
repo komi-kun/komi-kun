@@ -23,7 +23,6 @@ import eu.kanade.tachiyomi.extension.model.Extension
 import eu.kanade.tachiyomi.ui.browse.extension.details.ExtensionDetailsScreen
 import eu.kanade.tachiyomi.ui.webview.WebViewScreen
 import eu.kanade.tachiyomi.util.system.isPackageInstalled
-import kotlinx.collections.immutable.persistentListOf
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.`18UpRating`
 import tachiyomi.i18n.MR
@@ -47,7 +46,7 @@ fun extensionsTab(
         titleRes = MR.strings.label_extensions,
         badgeNumber = updatesCount.takeIf { it > 0 },
         searchEnabled = true,
-        actions = persistentListOf(
+        actions = listOf(
             // KMK -->
             AppBar.Action(
                 title = stringResource(KMR.strings.action_toggle_nsfw_only),

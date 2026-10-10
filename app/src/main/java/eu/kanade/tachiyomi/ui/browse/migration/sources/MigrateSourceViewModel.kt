@@ -7,9 +7,6 @@ import eu.kanade.domain.source.interactor.GetSourcesWithFavoriteCount
 import eu.kanade.domain.source.interactor.SetMigrateSorting
 import eu.kanade.domain.source.model.installedExtension
 import eu.kanade.domain.source.service.SourcePreferences
-import kotlinx.collections.immutable.ImmutableList
-import kotlinx.collections.immutable.persistentListOf
-import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -79,7 +76,7 @@ class MigrateSourceViewModel(
     ) { sources, sortingMode, sortingDirection, query ->
         State(
             isLoading = false,
-            items = sources.toImmutableList(),
+            items = sources.toList(),
             sortingMode = sortingMode,
             sortingDirection = sortingDirection,
             // KMK -->
@@ -117,7 +114,7 @@ class MigrateSourceViewModel(
     @Immutable
     data class State(
         val isLoading: Boolean = true,
-        val items: ImmutableList<Pair<Source, Long>> = persistentListOf(),
+        val items: List<Pair<Source, Long>> = listOf(),
         val sortingMode: SetMigrateSorting.Mode = SetMigrateSorting.Mode.ALPHABETICAL,
         val sortingDirection: SetMigrateSorting.Direction = SetMigrateSorting.Direction.ASCENDING,
         // KMK -->

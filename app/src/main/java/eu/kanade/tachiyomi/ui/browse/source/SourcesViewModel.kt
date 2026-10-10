@@ -17,9 +17,6 @@ import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.domain.source.service.SourcePreferences.DataSaver
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.presentation.browse.SourceUiModel
-import kotlinx.collections.immutable.ImmutableList
-import kotlinx.collections.immutable.persistentListOf
-import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -136,11 +133,11 @@ class SourcesViewModel(
         State(
             dialog = partial.dialog,
             isLoading = false,
-            items = partial.items.toImmutableList(),
+            items = partial.items.toList(),
             // SY -->
             categories = partial.categories
                 .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it })
-                .toImmutableList(),
+                .toList(),
             showPin = smartSearchConfig == null,
             showLatest = partial.showLatest,
             dataSaverEnabled = partial.dataSaverEnabled,
@@ -247,9 +244,9 @@ class SourcesViewModel(
     data class State(
         val dialog: Dialog? = null,
         val isLoading: Boolean = true,
-        val items: ImmutableList<SourceUiModel> = persistentListOf(),
+        val items: List<SourceUiModel> = listOf(),
         // SY -->
-        val categories: ImmutableList<String> = persistentListOf(),
+        val categories: List<String> = listOf(),
         val showPin: Boolean = true,
         val showLatest: Boolean = false,
         val dataSaverEnabled: Boolean = false,

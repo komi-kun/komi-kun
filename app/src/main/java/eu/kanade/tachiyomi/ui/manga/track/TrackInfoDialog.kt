@@ -69,7 +69,6 @@ import eu.kanade.tachiyomi.util.system.toast
 import exh.metadata.metadata.base.TrackerIdMetadata
 import exh.source.MERGED_SOURCE_ID
 import exh.source.getMainSource
-import kotlinx.collections.immutable.ImmutableList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
@@ -640,7 +639,7 @@ private data class TrackScoreSelectorScreen(
             }
         }
 
-        fun getSelections(): ImmutableList<String> {
+        fun getSelections(): List<String> {
             return tracker.getScoreList()
         }
 

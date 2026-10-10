@@ -12,7 +12,6 @@ import eu.kanade.domain.sync.SyncPreferences
 import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.util.Screen
 import eu.kanade.tachiyomi.data.sync.models.SyncTriggerOptions
-import kotlinx.collections.immutable.ImmutableList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -62,7 +61,7 @@ class SyncTriggerOptionsScreen : Screen() {
 
     @Composable
     private fun Options(
-        options: ImmutableList<SyncTriggerOptions.Entry>,
+        options: List<SyncTriggerOptions.Entry>,
         state: SyncOptionsViewModel.State,
         model: SyncOptionsViewModel,
     ) {

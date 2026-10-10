@@ -20,11 +20,6 @@ import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.util.lang.toLocalDate
 import exh.source.EH_SOURCE_ID
 import exh.source.EXH_SOURCE_ID
-import kotlinx.collections.immutable.PersistentList
-import kotlinx.collections.immutable.mutate
-import kotlinx.collections.immutable.persistentListOf
-import kotlinx.collections.immutable.persistentSetOf
-import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -216,7 +211,7 @@ class UpdatesViewModel(
                         },
                     )
                 }
-                    .toPersistentList(),
+                    .toList(),
                 // KMK -->
                 expandedState = expandedState,
                 // KMK <--
@@ -615,9 +610,9 @@ class UpdatesViewModel(
     data class State(
         val isLoading: Boolean = true,
         val hasActiveFilters: Boolean = false,
-        val items: PersistentList<UpdatesItem> = persistentListOf(),
+        val items: List<UpdatesItem> = listOf(),
         // KMK -->
-        val expandedState: Set<String> = persistentSetOf(),
+        val expandedState: Set<String> = setOf(),
         // KMK <--
         val dialog: Dialog? = null,
     ) {

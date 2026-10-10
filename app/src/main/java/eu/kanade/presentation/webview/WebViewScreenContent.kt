@@ -42,7 +42,6 @@ import eu.kanade.tachiyomi.util.system.getHtml
 import eu.kanade.tachiyomi.util.system.isDebugBuildType
 import eu.kanade.tachiyomi.util.system.setDefaultSettings
 import eu.kanade.tachiyomi.util.system.setUserAgent
-import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.launch
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.automirroredrounded.ArrowBack
@@ -196,7 +195,7 @@ fun WebViewScreenContent(
                         navigationIcon = MaterialSymbols.Rounded.Close,
                         actions = {
                             AppBarActions(
-                                persistentListOf(
+                                listOf(
                                     AppBar.Action(
                                         title = stringResource(MR.strings.action_webview_back),
                                         icon = MaterialSymbols.AutoMirroredRounded.ArrowBack,
@@ -233,7 +232,7 @@ fun WebViewScreenContent(
                                         title = stringResource(MR.strings.pref_clear_cookies),
                                         onClick = { onClearCookies(currentUrl) },
                                     ),
-                                ).builder().apply {
+                                ).toMutableList().apply {
                                     if (windowStack.size > 1) {
                                         add(
                                             0,
@@ -244,7 +243,7 @@ fun WebViewScreenContent(
                                             ),
                                         )
                                     }
-                                }.build(),
+                                },
                             )
                         },
                     )

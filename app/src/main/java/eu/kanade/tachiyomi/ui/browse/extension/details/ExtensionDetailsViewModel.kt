@@ -18,9 +18,6 @@ import eu.kanade.tachiyomi.extension.model.Extension
 import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.util.system.LocaleHelper
-import kotlinx.collections.immutable.ImmutableList
-import kotlinx.collections.immutable.persistentListOf
-import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -72,7 +69,7 @@ class ExtensionDetailsViewModel(
                 subscribeToSources(extension),
                 preferences.incognitoExtensions().changes().map { pkgName in it }.distinctUntilChanged(),
             ) { sources, isIncognito ->
-                State.Success(extension = extension, isIncognito = isIncognito, sources = sources.toImmutableList())
+                State.Success(extension = extension, isIncognito = isIncognito, sources = sources.toList())
             }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5.seconds), State.Loading)
@@ -151,7 +148,7 @@ class ExtensionDetailsViewModel(
         data class Success(
             val extension: Extension.Loaded,
             val isIncognito: Boolean,
-            val sources: ImmutableList<ExtensionSourceItem>,
+            val sources: List<ExtensionSourceItem>,
         ) : State
     }
 }

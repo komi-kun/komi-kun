@@ -24,7 +24,6 @@ import eu.kanade.presentation.theme.TachiyomiPreviewTheme
 import eu.kanade.presentation.util.animateItemFastScroll
 import eu.kanade.tachiyomi.ui.history.HistoryViewModel
 import eu.kanade.tachiyomi.ui.history.HistoryViewModel.HistorySelectionOptions
-import kotlinx.collections.immutable.persistentListOf
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.Checklist
 import mihon.icons.materialsymbols.rounded.DeleteSweep
@@ -83,7 +82,7 @@ fun HistoryScreen(
                     onChangeSearchQuery = onSearchQueryChange,
                     actions = {
                         AppBarActions(
-                            persistentListOf(
+                            listOf(
                                 // KMK -->
                                 AppBar.Action(
                                     title = stringResource(MR.strings.action_filter),
@@ -259,7 +258,7 @@ private fun HistorySelectionToolbar(
         titleContent = { Text(text = "$selectedCount") },
         actions = {
             AppBarActions(
-                persistentListOf(
+                listOf(
                     AppBar.Action(
                         title = stringResource(MR.strings.action_select_all),
                         icon = MaterialSymbols.Rounded.SelectAll,

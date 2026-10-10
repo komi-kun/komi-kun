@@ -7,8 +7,6 @@ import eu.kanade.tachiyomi.data.track.BaseTracker
 import eu.kanade.tachiyomi.data.track.DeletableTracker
 import eu.kanade.tachiyomi.data.track.mangabaka.dto.MangaBakaOAuth
 import eu.kanade.tachiyomi.data.track.model.TrackSearch
-import kotlinx.collections.immutable.ImmutableList
-import kotlinx.collections.immutable.toImmutableList
 import kotlinx.serialization.json.Json
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.sy.SYMR
@@ -54,18 +52,18 @@ class MangaBaka(id: Long) : BaseTracker(id, "MangaBaka"), DeletableTracker {
     override fun hasNotStartedReading(status: Long): Boolean = status == PLAN_TO_READ
     // KMK <--
 
-    override fun getScoreList(): ImmutableList<String> {
+    override fun getScoreList(): List<String> {
         return when (scorePreference.get()) {
             // 1, 2, ..., 99, 100
-            STEP_1 -> IntRange(0, 100).map(Int::toString).toImmutableList()
+            STEP_1 -> IntRange(0, 100).map(Int::toString).toList()
             // 5, 10, ..., 95, 100
-            STEP_5 -> IntRange(0, 100).step(5).map(Int::toString).toImmutableList()
+            STEP_5 -> IntRange(0, 100).step(5).map(Int::toString).toList()
             // 10, 20, ..., 90, 100
-            STEP_10 -> IntRange(0, 100).step(10).map(Int::toString).toImmutableList()
+            STEP_10 -> IntRange(0, 100).step(10).map(Int::toString).toList()
             // 20, 40, ..., 80, 100
-            STEP_20 -> IntRange(0, 100).step(20).map(Int::toString).toImmutableList()
+            STEP_20 -> IntRange(0, 100).step(20).map(Int::toString).toList()
             // 25, 50, 75, 100
-            STEP_25 -> IntRange(0, 100).step(25).map(Int::toString).toImmutableList()
+            STEP_25 -> IntRange(0, 100).step(25).map(Int::toString).toList()
             else -> throw Exception("Unknown score type")
         }
     }

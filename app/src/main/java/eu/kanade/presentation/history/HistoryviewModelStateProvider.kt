@@ -2,8 +2,6 @@ package eu.kanade.presentation.history
 
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import eu.kanade.tachiyomi.ui.history.HistoryViewModel
-import kotlinx.collections.immutable.persistentListOf
-import kotlinx.collections.immutable.toImmutableList
 import tachiyomi.domain.history.model.HistoryWithRelations
 import tachiyomi.domain.manga.model.MangaCover
 import java.time.Instant
@@ -19,7 +17,7 @@ class HistoryviewModelStateProvider : PreviewParameterProvider<HistoryViewModel.
         searchQuery = null,
         list =
         // KMK -->
-        persistentListOf(HistoryWithRelationExamples.headerToday)
+        listOf(HistoryWithRelationExamples.headerToday)
             .asSequence()
             .plus(HistoryWithRelationExamples.items().take(3))
             .plus(HistoryWithRelationExamples.header { it.minus(1, ChronoUnit.DAYS) })
@@ -27,13 +25,13 @@ class HistoryviewModelStateProvider : PreviewParameterProvider<HistoryViewModel.
             .plus(HistoryWithRelationExamples.header { it.minus(2, ChronoUnit.DAYS) })
             .plus(HistoryWithRelationExamples.items().take(7))
             // KMK <--
-            .toImmutableList(),
+            .toList(),
         dialog = null,
     )
 
     private val shortRecent = HistoryViewModel.State(
         searchQuery = null,
-        list = persistentListOf(
+        list = listOf(
             // KMK -->
             HistoryWithRelationExamples.headerToday,
             HistoryWithRelationExamples.items().first(),
@@ -44,7 +42,7 @@ class HistoryviewModelStateProvider : PreviewParameterProvider<HistoryViewModel.
 
     private val shortFuture = HistoryViewModel.State(
         searchQuery = null,
-        list = persistentListOf(
+        list = listOf(
             // KMK -->
             HistoryWithRelationExamples.headerTomorrow,
             HistoryWithRelationExamples.items().first(),
@@ -55,7 +53,7 @@ class HistoryviewModelStateProvider : PreviewParameterProvider<HistoryViewModel.
 
     private val empty = HistoryViewModel.State(
         searchQuery = null,
-        list = persistentListOf(),
+        list = listOf(),
         dialog = null,
     )
 

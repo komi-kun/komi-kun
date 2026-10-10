@@ -4,7 +4,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import eu.kanade.presentation.theme.TachiyomiPreviewTheme
-import kotlinx.collections.immutable.persistentListOf
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.automirroredrounded.Help
 import mihon.icons.materialsymbols.rounded.Refresh
@@ -31,7 +30,7 @@ private fun WithActionPreview() {
         Surface {
             EmptyScreen(
                 stringRes = MR.strings.empty_screen,
-                actions = persistentListOf(
+                actions = listOf(
                     EmptyScreenAction(
                         stringRes = MR.strings.action_retry,
                         icon = MaterialSymbols.Rounded.Refresh,

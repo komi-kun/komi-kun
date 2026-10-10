@@ -22,7 +22,6 @@ import eu.kanade.tachiyomi.ui.browse.source.browse.BrowseSourceScreen
 import eu.kanade.tachiyomi.ui.browse.source.feed.SourceFeedScreen
 import eu.kanade.tachiyomi.ui.manga.MangaScreen
 import eu.kanade.tachiyomi.util.system.isDebugBuildType
-import kotlinx.collections.immutable.persistentListOf
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.Download
 import mihon.icons.materialsymbols.rounded.FilterList
@@ -119,7 +118,7 @@ fun MangaToolbar(
 
             val filterTint = if (hasFilters) MaterialTheme.colorScheme.active else LocalContentColor.current
             AppBarActions(
-                actions = persistentListOf<AppBar.AppBarAction>().builder().apply {
+                actions = buildList {
                     if (isActionMode) {
                         add(
                             AppBar.Action(
@@ -135,7 +134,7 @@ fun MangaToolbar(
                                 onClick = onInvertSelection,
                             ),
                         )
-                        return@apply
+                        return@buildList
                     }
                     if (onClickDownload != null) {
                         add(
@@ -266,8 +265,7 @@ fun MangaToolbar(
                         )
                     }
                     // KMK <--
-                }
-                    .build(),
+                },
             )
         },
         isActionMode = isActionMode,

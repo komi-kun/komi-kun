@@ -31,8 +31,6 @@ import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.util.Screen
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.util.system.LocaleHelper
-import kotlinx.collections.immutable.ImmutableList
-import kotlinx.collections.immutable.toImmutableList
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.Check
 import org.xmlpull.v1.XmlPullParser
@@ -114,7 +112,7 @@ class AppLanguageScreen : Screen() {
         }
     }
 
-    private fun getLangs(context: Context): ImmutableList<Language> {
+    private fun getLangs(context: Context): List<Language> {
         val langs = mutableListOf<Language>()
         val parser = context.resources.getXml(I18nR.xml.locales_config)
         var eventType = parser.eventType
@@ -136,7 +134,7 @@ class AppLanguageScreen : Screen() {
         langs.sortBy { it.displayName }
         langs.add(0, Language("", context.stringResource(MR.strings.label_default), null))
 
-        return langs.toImmutableList()
+        return langs.toList()
     }
 
     private data class Language(

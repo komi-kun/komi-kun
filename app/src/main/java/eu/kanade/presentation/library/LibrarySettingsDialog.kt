@@ -36,8 +36,6 @@ import eu.kanade.presentation.more.settings.widget.TriStateListDialog
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.ui.library.LibrarySettingsViewModel
 import eu.kanade.tachiyomi.util.system.isReleaseBuildType
-import kotlinx.collections.immutable.persistentListOf
-import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.map
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.Refresh
@@ -79,7 +77,7 @@ fun LibrarySettingsDialog(
 ) {
     TabbedDialog(
         onDismissRequest = onDismissRequest,
-        tabTitles = persistentListOf(
+        tabTitles = listOf(
             stringResource(MR.strings.action_filter),
             stringResource(MR.strings.action_sort),
             stringResource(MR.strings.action_display),
@@ -449,7 +447,7 @@ private fun ColumnScope.GroupPage(
                 LibraryGroup.groupTypeStringRes(it),
                 groupTypeDrawableRes(it),
             )
-        }.toImmutableList()
+        }.toList()
     }
 
     groups.fastForEach {

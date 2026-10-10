@@ -13,9 +13,6 @@ import eu.kanade.presentation.browse.FeedItemUI
 import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.util.system.LocaleHelper
-import kotlinx.collections.immutable.ImmutableList
-import kotlinx.collections.immutable.persistentListOf
-import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -101,7 +98,7 @@ open class FeedViewModel(
                     state.copy(
                         items = items
                             // KMK -->
-                            .toImmutableList(),
+                            .toList(),
                         // KMK <--
                     )
                 }
@@ -119,7 +116,7 @@ open class FeedViewModel(
                 state.copy(
                     items = newItems
                         // KMK -->
-                        .toImmutableList(),
+                        .toList(),
                     // KMK <--
                 )
             }
@@ -149,11 +146,11 @@ open class FeedViewModel(
                         source,
                         (
                             // KMK -->
-                            // (if (source.supportsLatest) persistentListOf(null) else persistentListOf()) +
-                            persistentListOf(null) +
+                            // (if (source.supportsLatest) listOf(null) else listOf()) +
+                            listOf(null) +
                                 // KMK <-->
                                 getSourceSavedSearches(source.id)
-                            ).toImmutableList(),
+                            ).toList(),
                     ),
                 )
             }
@@ -190,7 +187,7 @@ open class FeedViewModel(
         return countFeedSavedSearchGlobal.await() > MaxFeedItems
     }
 
-    private fun getEnabledSources(): ImmutableList<Source> {
+    private fun getEnabledSources(): List<Source> {
         val languages = sourcePreferences.enabledLanguages().get()
         val pinnedSources = sourcePreferences.pinnedSources().get()
         val disabledSources = sourcePreferences.disabledSources().get()
@@ -201,11 +198,11 @@ open class FeedViewModel(
             .filterNot { it.id in disabledSources }
             .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { "(${it.lang}) ${it.name}" })
 
-        return list.sortedBy { it.id.toString() !in pinnedSources }.toImmutableList()
+        return list.sortedBy { it.id.toString() !in pinnedSources }.toList()
     }
 
-    private suspend fun getSourceSavedSearches(sourceId: Long): ImmutableList<SavedSearch> {
-        return getSavedSearchBySourceId.await(sourceId).toImmutableList()
+    private suspend fun getSourceSavedSearches(sourceId: Long): List<SavedSearch> {
+        return getSavedSearchBySourceId.await(sourceId).toList()
     }
 
     fun createFeed(source: Source, savedSearch: SavedSearch?) {
@@ -321,7 +318,7 @@ open class FeedViewModel(
                         state.copy(
                             items = state.items?.map { if (it.feed.id == result.feed.id) result else it }
                                 // KMK -->
-                                ?.toImmutableList(),
+                                ?.toList(),
                             // KMK <--
                         )
                     }
@@ -374,8 +371,8 @@ open class FeedViewModel(
     }
 
     sealed class Dialog {
-        data class AddFeed(val options: ImmutableList<Source>) : Dialog()
-        data class AddFeedSearch(val source: Source, val options: ImmutableList<SavedSearch?>) : Dialog()
+        data class AddFeed(val options: List<Source>) : Dialog()
+        data class AddFeedSearch(val source: Source, val options: List<SavedSearch?>) : Dialog()
         data class DeleteFeed(val feed: FeedSavedSearch) : Dialog()
 
         // KMK -->
@@ -393,7 +390,7 @@ open class FeedViewModel(
 
 data class FeedScreenState(
     val dialog: FeedViewModel.Dialog? = null,
-    val items: ImmutableList<FeedItemUI>? = null,
+    val items: List<FeedItemUI>? = null,
 ) {
     val isLoading
         get() = items == null

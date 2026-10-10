@@ -113,9 +113,6 @@ import eu.kanade.tachiyomi.util.view.setComposeContent
 import exh.source.isEhBasedSource
 import exh.util.defaultReaderType
 import exh.util.mangaType
-import kotlinx.collections.immutable.persistentSetOf
-import kotlinx.collections.immutable.toImmutableList
-import kotlinx.collections.immutable.toImmutableSet
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -444,7 +441,7 @@ class ReaderActivity : BaseActivity() {
 
                 is ReaderViewModel.Dialog.ChapterList -> {
                     var chapters by remember {
-                        mutableStateOf(viewModel.getChapters().toImmutableList())
+                        mutableStateOf(viewModel.getChapters().toList())
                     }
                     ChapterListDialog(
                         onDismissRequest = onDismissRequest,
@@ -462,7 +459,7 @@ class ReaderActivity : BaseActivity() {
                                 } else {
                                     it
                                 }
-                            }.toImmutableList()
+                            }.toList()
                         },
                         state.dateRelativeTime,
                         // KMK -->
@@ -657,8 +654,8 @@ class ReaderActivity : BaseActivity() {
             cropBorderContinuousVertical
         }
         val readerBottomButtons by remember {
-            readerPreferences.readerBottomButtons.changes().map { it.toImmutableSet() }
-        }.collectAsState(persistentSetOf())
+            readerPreferences.readerBottomButtons.changes().map { it.toSet() }
+        }.collectAsState(setOf())
         val dualPageSplitPaged by readerPreferences.dualPageSplitPaged().collectAsState()
         // SY <--
 

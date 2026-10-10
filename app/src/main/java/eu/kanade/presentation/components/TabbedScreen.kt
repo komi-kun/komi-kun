@@ -26,8 +26,6 @@ import androidx.compose.ui.zIndex
 import dev.icerock.moko.resources.StringResource
 import eu.kanade.tachiyomi.ui.browse.BulkFavoriteViewModel
 import eu.kanade.tachiyomi.ui.browse.feed.FeedViewModel
-import kotlinx.collections.immutable.ImmutableList
-import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.launch
 import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.components.material.TabText
@@ -36,7 +34,7 @@ import tachiyomi.presentation.core.i18n.stringResource
 @Composable
 fun TabbedScreen(
     titleRes: StringResource,
-    tabs: ImmutableList<TabContent>,
+    tabs: List<TabContent>,
     state: PagerState = rememberPagerState { tabs.size },
     searchQuery: String? = null,
     onChangeSearchQuery: (String?) -> Unit = {},
@@ -131,6 +129,6 @@ data class TabContent(
     val titleRes: StringResource,
     val badgeNumber: Int? = null,
     val searchEnabled: Boolean = false,
-    val actions: ImmutableList<AppBar.AppBarAction> = persistentListOf(),
+    val actions: List<AppBar.AppBarAction> = listOf(),
     val content: @Composable (contentPadding: PaddingValues, snackbarHostState: SnackbarHostState) -> Unit,
 )

@@ -42,7 +42,6 @@ import eu.kanade.tachiyomi.data.connections.ConnectionsManager
 import eu.kanade.tachiyomi.data.connections.ConnectionsService
 import eu.kanade.tachiyomi.ui.setting.connections.DiscordLoginScreen
 import eu.kanade.tachiyomi.util.system.toast
-import kotlinx.collections.immutable.persistentListOf
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.Close
 import mihon.icons.materialsymbols.roundedfilled.Visibility
@@ -86,7 +85,7 @@ object SettingsConnectionScreen : SearchableSettings {
         return listOf(
             Preference.PreferenceGroup(
                 title = stringResource(KMR.strings.special_services),
-                preferenceItems = persistentListOf(
+                preferenceItems = listOf(
                     Preference.PreferenceItem.ConnectionPreference(
                         title = stringResource(connectionsManager.discord.nameStrRes()),
                         subtitle = stringResource(KMR.strings.pref_discord_configuration).takeIf { isLoggedIn },

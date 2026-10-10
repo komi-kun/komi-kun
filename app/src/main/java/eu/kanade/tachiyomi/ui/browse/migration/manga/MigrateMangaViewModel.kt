@@ -7,9 +7,6 @@ import androidx.lifecycle.viewmodel.CreationExtras
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import eu.kanade.tachiyomi.source.Source
-import kotlinx.collections.immutable.ImmutableList
-import kotlinx.collections.immutable.persistentListOf
-import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -73,7 +70,7 @@ class MigrateMangaViewModel(
         .map { manga ->
             manga
                 .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.title })
-                .toImmutableList()
+                .toList()
         }
 
     val state: StateFlow<State> = combine(
@@ -204,11 +201,11 @@ class MigrateMangaViewModel(
     data class State(
         val source: Source? = null,
         val selection: Set<Long> = emptySet(),
-        private val titleList: ImmutableList<Manga>? = null,
+        private val titleList: List<Manga>? = null,
     ) {
 
-        val titles: ImmutableList<Manga>
-            get() = titleList ?: persistentListOf()
+        val titles: List<Manga>
+            get() = titleList ?: listOf()
 
         val isLoading: Boolean
             get() = source == null || titleList == null

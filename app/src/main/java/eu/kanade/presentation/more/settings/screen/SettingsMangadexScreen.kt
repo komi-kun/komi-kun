@@ -38,7 +38,6 @@ import eu.kanade.tachiyomi.util.system.openInBrowser
 import eu.kanade.tachiyomi.util.system.toast
 import exh.md.utils.MdConstants
 import exh.md.utils.MdUtil
-import kotlinx.collections.immutable.toImmutableMap
 import logcat.LogPriority
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.Group
@@ -181,7 +180,7 @@ object SettingsMangadexScreen : SearchableSettings {
             preference = sourcePreferences.preferredMangaDexId(),
             entries = MdUtil.getEnabledMangaDexs(sourcePreferences)
                 .associate { it.id.toString() to it.toString() }
-                .toImmutableMap(),
+                .toMap(),
             title = stringResource(SYMR.strings.mangadex_preffered_source),
             subtitle = stringResource(SYMR.strings.mangadex_preffered_source_summary),
         )

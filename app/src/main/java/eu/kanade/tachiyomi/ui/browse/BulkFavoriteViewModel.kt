@@ -15,12 +15,6 @@ import eu.kanade.presentation.components.BulkSelectionToolbar
 import eu.kanade.presentation.manga.DuplicateMangaDialog
 import eu.kanade.tachiyomi.data.cache.CoverCache
 import eu.kanade.tachiyomi.util.removeCovers
-import kotlinx.collections.immutable.ImmutableList
-import kotlinx.collections.immutable.PersistentList
-import kotlinx.collections.immutable.mutate
-import kotlinx.collections.immutable.persistentListOf
-import kotlinx.collections.immutable.toImmutableList
-import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.firstOrNull
@@ -73,7 +67,7 @@ class BulkFavoriteViewModel(
             val mode = newMode ?: !state.selectionMode
             state.copy(
                 selectionMode = mode,
-                selection = if (mode) state.selection else persistentListOf(),
+                selection = if (mode) state.selection else listOf(),
             )
         }
     }
@@ -87,7 +81,7 @@ class BulkFavoriteViewModel(
      */
     fun toggleSelection(manga: Manga, toSelectedState: Boolean? = null) {
         state.update { state ->
-            val newSelection = state.selection.mutate { list ->
+            val newSelection = state.selection.toMutableList().also { list ->
                 val isSelected = list.fastAny { it.id == manga.id }
                 val shouldSelect = toSelectedState ?: !isSelected
                 // Both condition to avoid adding duplicate entries
@@ -110,7 +104,7 @@ class BulkFavoriteViewModel(
                 state.selection.contains(manga)
             }
                 .fastDistinctBy { it.id }
-                .toPersistentList()
+                .toList()
             state.copy(
                 selection = newSelection,
                 selectionMode = newSelection.isNotEmpty(),
@@ -188,7 +182,7 @@ class BulkFavoriteViewModel(
                                 else -> CheckboxState.State.None(it)
                             }
                         }
-                        .toImmutableList()
+                        .toList()
                     stopRunning()
                     setDialog(Dialog.ChangeMangasCategory(mangaList, preselected))
                 }
@@ -215,7 +209,7 @@ class BulkFavoriteViewModel(
 
     internal fun removeDuplicateSelectedManga(index: Int) {
         state.update { state ->
-            val newSelection = state.selection.mutate { list ->
+            val newSelection = state.selection.toMutableList().also { list ->
                 list.removeAt(index)
             }
             state.copy(selection = newSelection)
@@ -401,7 +395,7 @@ class BulkFavoriteViewModel(
                     setDialog(
                         Dialog.ChangeMangasCategory(
                             listOf(manga),
-                            categories.mapAsCheckboxState { it.id in preselectedIds }.toImmutableList(),
+                            categories.mapAsCheckboxState { it.id in preselectedIds }.toList(),
                         ),
                     )
                 }
@@ -458,14 +452,14 @@ class BulkFavoriteViewModel(
         data class RemoveManga(val manga: Manga) : Dialog
         data class ChangeMangasCategory(
             val mangas: List<Manga>,
-            val initialSelection: ImmutableList<CheckboxState<Category>>,
+            val initialSelection: List<CheckboxState<Category>>,
         ) : Dialog
     }
 
     @Immutable
     data class State(
         val dialog: Dialog? = null,
-        val selection: PersistentList<Manga> = persistentListOf(),
+        val selection: List<Manga> = listOf(),
         val selectionMode: Boolean = false,
         val isRunning: Boolean = false,
     )

@@ -21,8 +21,6 @@ import eu.kanade.presentation.util.formattedMessage
 import eu.kanade.tachiyomi.source.Source
 import exh.metadata.metadata.RaisedSearchMetadata
 import exh.source.isEhBasedSource
-import kotlinx.collections.immutable.persistentListOf
-import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.StateFlow
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.automirroredrounded.Help
@@ -98,7 +96,7 @@ fun BrowseSourceContent(
                 else -> stringResource(MR.strings.no_results_found)
             },
             actions = if (source is LocalSource /* SY --> */ && onLocalSourceHelpClick != null /* SY <-- */) {
-                persistentListOf(
+                listOf(
                     EmptyScreenAction(
                         stringRes = MR.strings.local_source_help_guide,
                         icon = MaterialSymbols.AutoMirroredRounded.Help,
@@ -132,7 +130,7 @@ fun BrowseSourceContent(
                         null
                     },
                     // SY <--
-                ).toImmutableList()
+                ).toList()
             },
         )
 

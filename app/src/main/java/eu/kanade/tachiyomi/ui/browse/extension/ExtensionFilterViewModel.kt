@@ -6,11 +6,6 @@ import androidx.lifecycle.viewModelScope
 import eu.kanade.domain.extension.interactor.GetExtensionLanguages
 import eu.kanade.domain.source.interactor.ToggleLanguage
 import eu.kanade.domain.source.service.SourcePreferences
-import kotlinx.collections.immutable.ImmutableList
-import kotlinx.collections.immutable.ImmutableSet
-import kotlinx.collections.immutable.persistentSetOf
-import kotlinx.collections.immutable.toImmutableList
-import kotlinx.collections.immutable.toImmutableSet
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
@@ -40,8 +35,8 @@ class ExtensionFilterViewModel(
         preferences.enabledLanguages().changes(),
     ) { extensionLanguages, enabledLanguages ->
         ExtensionFilterState.Success(
-            languages = extensionLanguages.toImmutableList(),
-            enabledLanguages = enabledLanguages.toImmutableSet(),
+            languages = extensionLanguages.toList(),
+            enabledLanguages = enabledLanguages.toSet(),
         )
     }
         .catch { throwable ->
@@ -66,8 +61,8 @@ sealed interface ExtensionFilterState {
 
     @Immutable
     data class Success(
-        val languages: ImmutableList<String>,
-        val enabledLanguages: ImmutableSet<String> = persistentSetOf(),
+        val languages: List<String>,
+        val enabledLanguages: Set<String> = setOf(),
     ) : ExtensionFilterState {
 
         val isEmpty: Boolean

@@ -31,7 +31,6 @@ import eu.kanade.presentation.components.AroundLayout
 import eu.kanade.presentation.manga.components.PagePreview
 import exh.pagepreview.PagePreviewState
 import exh.util.floor
-import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.launch
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.UTurnRight
@@ -189,7 +188,7 @@ fun PagePreviewTopAppBar(
         actions = {
             AppBarActions(
                 if (showOpenPageDialog) {
-                    persistentListOf(
+                    listOf(
                         AppBar.Action(
                             title = stringResource(SYMR.strings.page_preview_page_go_to),
                             icon = MaterialSymbols.Rounded.UTurnRight,
@@ -197,7 +196,7 @@ fun PagePreviewTopAppBar(
                         ),
                     )
                 } else {
-                    persistentListOf()
+                    listOf()
                 },
             )
         },

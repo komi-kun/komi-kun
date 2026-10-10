@@ -7,12 +7,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import eu.kanade.core.util.insertSeparatorsReversed
 import eu.kanade.tachiyomi.util.lang.toLocalDate
-import kotlinx.collections.immutable.ImmutableList
-import kotlinx.collections.immutable.ImmutableMap
-import kotlinx.collections.immutable.persistentListOf
-import kotlinx.collections.immutable.persistentMapOf
-import kotlinx.collections.immutable.toImmutableList
-import kotlinx.collections.immutable.toImmutableMap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -120,7 +114,7 @@ class UpcomingViewModel(
     }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5.seconds), State())
 
-    private fun List<Manga>.toUpcomingUIModels(): ImmutableList<UpcomingUIModel> {
+    private fun List<Manga>.toUpcomingUIModels(): List<UpcomingUIModel> {
         var mangaCount = 0
         return fastMap { UpcomingUIModel.Item(it) }
             .insertSeparatorsReversed { before, after ->
@@ -135,16 +129,16 @@ class UpcomingViewModel(
                     null
                 }
             }
-            .toImmutableList()
+            .toList()
     }
 
-    private fun List<UpcomingUIModel>.toEvents(): ImmutableMap<LocalDate, Int> {
+    private fun List<UpcomingUIModel>.toEvents(): Map<LocalDate, Int> {
         return filterIsInstance<UpcomingUIModel.Header>()
             .associate { it.date to it.mangaCount }
-            .toImmutableMap()
+            .toMap()
     }
 
-    private fun List<UpcomingUIModel>.getHeaderIndexes(): ImmutableMap<LocalDate, Int> {
+    private fun List<UpcomingUIModel>.getHeaderIndexes(): Map<LocalDate, Int> {
         return fastMapIndexedNotNull { index, upcomingUIModel ->
             if (upcomingUIModel is UpcomingUIModel.Header) {
                 upcomingUIModel.date to index
@@ -153,7 +147,7 @@ class UpcomingViewModel(
             }
         }
             .toMap()
-            .toImmutableMap()
+            .toMap()
     }
 
     fun setSelectedYearMonth(yearMonth: YearMonth) {
@@ -212,15 +206,15 @@ class UpcomingViewModel(
 
     data class State(
         val selectedYearMonth: YearMonth = YearMonth.now(),
-        val items: ImmutableList<UpcomingUIModel> = persistentListOf(),
-        val events: ImmutableMap<LocalDate, Int> = persistentMapOf(),
-        val headerIndexes: ImmutableMap<LocalDate, Int> = persistentMapOf(),
+        val items: List<UpcomingUIModel> = listOf(),
+        val events: Map<LocalDate, Int> = mapOf(),
+        val headerIndexes: Map<LocalDate, Int> = mapOf(),
         // KMK -->
         val isLoadingUpcoming: Boolean = true,
         val isShowingUpdatingMangas: Boolean = false,
-        val updatingItems: ImmutableList<UpcomingUIModel> = persistentListOf(),
-        val updatingEvents: ImmutableMap<LocalDate, Int> = persistentMapOf(),
-        val updatingHeaderIndexes: ImmutableMap<LocalDate, Int> = persistentMapOf(),
+        val updatingItems: List<UpcomingUIModel> = listOf(),
+        val updatingEvents: Map<LocalDate, Int> = mapOf(),
+        val updatingHeaderIndexes: Map<LocalDate, Int> = mapOf(),
         val isLoadingUpdating: Boolean = true,
         // KMK <--
         val hasActiveFilters: Boolean = false,

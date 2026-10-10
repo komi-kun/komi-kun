@@ -6,8 +6,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.icerock.moko.resources.StringResource
 import eu.kanade.tachiyomi.core.security.SecurityPreferences
-import kotlinx.collections.immutable.ImmutableList
-import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -42,7 +40,7 @@ class BiometricTimesViewModel(
                             timeRanges = times.toList()
                                 .mapNotNull(TimeRange::fromPreferenceString)
                                 .map { TimeRangeItem(it, it.getFormattedString(context)) }
-                                .toImmutableList(),
+                                .toList(),
                         )
                     }
                 }
@@ -127,7 +125,7 @@ sealed class BiometricTimesScreenState {
 
     @Immutable
     data class Success(
-        val timeRanges: ImmutableList<TimeRangeItem>,
+        val timeRanges: List<TimeRangeItem>,
         val dialog: BiometricTimesDialog? = null,
     ) : BiometricTimesScreenState() {
 

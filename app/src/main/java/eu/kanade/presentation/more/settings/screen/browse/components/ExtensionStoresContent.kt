@@ -27,7 +27,6 @@ import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.unit.dp
 import eu.kanade.presentation.theme.TachiyomiPreviewTheme
 import eu.kanade.tachiyomi.R
-import kotlinx.collections.immutable.persistentListOf
 import mihon.domain.extension.model.ExtensionStore
 import mihon.domain.extension.model.KOMIKKU_SIGNATURE
 import mihon.domain.extension.model.REPO_SIGNATURE
@@ -198,7 +197,7 @@ fun repoResId(signKey: String) = when (signKey) {
 @PreviewLightDark
 @Composable
 fun ExtensionReposContentPreview() {
-    val repos = persistentListOf(
+    val repos = listOf(
         ExtensionStore("https://komikku", "Komikku", "", KOMIKKU_SIGNATURE, ExtensionStore.Contact("", ""), false, null),
         ExtensionStore("https://repo", "Repo", "", REPO_SIGNATURE, ExtensionStore.Contact("", ""), false, null),
         ExtensionStore("https://other", "Other", "", "key2", ExtensionStore.Contact("", ""), true, null),

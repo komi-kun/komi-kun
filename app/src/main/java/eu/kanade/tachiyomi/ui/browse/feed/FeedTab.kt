@@ -29,7 +29,6 @@ import eu.kanade.tachiyomi.ui.browse.BulkFavoriteViewModel
 import eu.kanade.tachiyomi.ui.browse.source.browse.BrowseSourceScreen
 import eu.kanade.tachiyomi.ui.home.HomeScreen
 import eu.kanade.tachiyomi.ui.manga.MangaScreen
-import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import mihon.icons.materialsymbols.MaterialSymbols
@@ -82,7 +81,7 @@ fun Screen.feedTab(
         actions =
         // KMK -->
         if (showingFeedOrderScreen.value) {
-            persistentListOf(
+            listOf(
                 AppBar.Action(
                     title = stringResource(KMR.strings.action_sort_feed),
                     icon = MaterialSymbols.Rounded.Close,
@@ -92,7 +91,7 @@ fun Screen.feedTab(
             )
         } else {
             // KMK <--
-            persistentListOf(
+            listOf(
                 AppBar.Action(
                     title = stringResource(MR.strings.action_add),
                     icon = MaterialSymbols.Rounded.Add,

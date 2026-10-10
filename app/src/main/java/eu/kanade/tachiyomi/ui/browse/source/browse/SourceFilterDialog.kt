@@ -20,8 +20,6 @@ import androidx.compose.ui.unit.dp
 import eu.kanade.presentation.components.AdaptiveSheet
 import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
-import kotlinx.collections.immutable.ImmutableList
-import kotlinx.collections.immutable.toImmutableList
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.Save
 import tachiyomi.core.common.preference.TriState
@@ -47,7 +45,7 @@ fun SourceFilterDialog(
     onUpdate: (FilterList) -> Unit,
     // SY -->
     startExpanded: Boolean,
-    savedSearches: ImmutableList<EXHSavedSearch>,
+    savedSearches: List<EXHSavedSearch>,
     onSave: () -> Unit,
     onSavedSearch: (EXHSavedSearch) -> Unit,
     onSavedSearchPress: (EXHSavedSearch) -> Unit,
@@ -139,11 +137,11 @@ private fun FilterItem(filter: Filter<*>, onUpdate: () -> Unit/* SY --> */, star
         is Filter.AutoComplete -> {
             AutoCompleteItem(
                 name = filter.name,
-                state = filter.state.toImmutableList(),
+                state = filter.state.toList(),
                 hint = filter.hint,
-                values = filter.values.toImmutableList(),
-                skipAutoFillTags = filter.skipAutoFillTags.toImmutableList(),
-                validPrefixes = filter.validPrefixes.toImmutableList(),
+                values = filter.values.toList(),
+                skipAutoFillTags = filter.skipAutoFillTags.toList(),
+                validPrefixes = filter.validPrefixes.toList(),
             ) {
                 filter.state = it
                 onUpdate()

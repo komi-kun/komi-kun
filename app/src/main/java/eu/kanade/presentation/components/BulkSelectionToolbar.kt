@@ -8,7 +8,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import kotlinx.collections.immutable.persistentListOf
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.FlipToBack
 import mihon.icons.materialsymbols.rounded.SelectAll
@@ -30,7 +29,7 @@ fun BulkSelectionToolbar(
         titleContent = { Text(text = "$selectedCount") },
         actions = {
             AppBarActions(
-                actions = persistentListOf<AppBar.AppBarAction>().builder().apply {
+                actions = buildList {
                     if (onSelectAll != null) {
                         add(
                             AppBar.Action(
@@ -74,7 +73,7 @@ fun BulkSelectionToolbar(
                             ),
                         )
                     }
-                }.build(),
+                },
             )
         },
         isActionMode = true,

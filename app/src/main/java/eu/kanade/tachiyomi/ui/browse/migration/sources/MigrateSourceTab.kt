@@ -12,7 +12,6 @@ import eu.kanade.presentation.browse.MigrateSourceScreen
 import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.components.TabContent
 import eu.kanade.tachiyomi.ui.browse.migration.manga.MigrateMangaScreen
-import kotlinx.collections.immutable.persistentListOf
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.automirroredrounded.Help
 import tachiyomi.i18n.MR
@@ -27,7 +26,7 @@ fun Screen.migrateSourceTab(): TabContent {
 
     return TabContent(
         titleRes = MR.strings.label_migration,
-        actions = persistentListOf(
+        actions = listOf(
             AppBar.Action(
                 title = stringResource(MR.strings.migration_help_guide),
                 icon = MaterialSymbols.AutoMirroredRounded.Help,

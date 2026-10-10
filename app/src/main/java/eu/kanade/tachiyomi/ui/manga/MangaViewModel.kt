@@ -85,10 +85,6 @@ import exh.source.isEhBasedManga
 import exh.source.mangaDexSourceIds
 import exh.util.nullIfEmpty
 import exh.util.trimOrNull
-import kotlinx.collections.immutable.ImmutableList
-import kotlinx.collections.immutable.ImmutableSet
-import kotlinx.collections.immutable.toImmutableList
-import kotlinx.collections.immutable.toImmutableSet
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -424,7 +420,7 @@ class MangaViewModel(
                 .distinctUntilChanged()
                 .collectLatest { excludedScanlators ->
                     updateSuccessState {
-                        it.copy(excludedScanlators = excludedScanlators.toImmutableSet())
+                        it.copy(excludedScanlators = excludedScanlators.toSet())
                     }
                 }
         }
@@ -448,7 +444,7 @@ class MangaViewModel(
                 } // SY <--
                 .collectLatest { availableScanlators ->
                     updateSuccessState {
-                        it.copy(availableScanlators = availableScanlators.toImmutableSet())
+                        it.copy(availableScanlators = availableScanlators.toSet())
                     }
                 }
         }
@@ -498,9 +494,9 @@ class MangaViewModel(
                         getAvailableScanlators.awaitMerge(mangaId)
                     } else {
                         getAvailableScanlators.await(mangaId)
-                    }.toImmutableSet(),
+                    }.toSet(),
                     // SY <--
-                    excludedScanlators = getExcludedScanlators.await(mangaId).toImmutableSet(),
+                    excludedScanlators = getExcludedScanlators.await(mangaId).toSet(),
                     isRefreshingData = needRefreshInfo || needRefreshChapter,
                     dialog = null,
                     hideMissingChapters = libraryPreferences.hideMissingChapters().get(),
@@ -904,7 +900,7 @@ class MangaViewModel(
                 successState.copy(
                     dialog = Dialog.ChangeCategory(
                         manga = manga,
-                        initialSelection = categories.mapAsCheckboxState { it.id in selection }.toImmutableList(),
+                        initialSelection = categories.mapAsCheckboxState { it.id in selection }.toList(),
                     ),
                 )
             }
@@ -1912,7 +1908,7 @@ class MangaViewModel(
     sealed interface Dialog {
         data class ChangeCategory(
             val manga: Manga,
-            val initialSelection: ImmutableList<CheckboxState<Category>>,
+            val initialSelection: List<CheckboxState<Category>>,
         ) : Dialog
         data class DeleteChapters(val chapters: List<Chapter>) : Dialog
         data class DuplicateManga(val manga: Manga, val duplicates: List<MangaWithChapterCount>) : Dialog
@@ -2005,8 +2001,8 @@ class MangaViewModel(
             val source: Source,
             val isFromSource: Boolean,
             val chapters: List<ChapterList.Item>,
-            val availableScanlators: ImmutableSet<String>,
-            val excludedScanlators: ImmutableSet<String>,
+            val availableScanlators: Set<String>,
+            val excludedScanlators: Set<String>,
             val trackingCount: Int = 0,
             val hasLoggedInTrackers: Boolean = false,
             val isRefreshingData: Boolean = false,

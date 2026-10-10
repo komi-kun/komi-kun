@@ -8,10 +8,6 @@ import androidx.lifecycle.viewModelScope
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.source.Source
-import kotlinx.collections.immutable.PersistentMap
-import kotlinx.collections.immutable.persistentMapOf
-import kotlinx.collections.immutable.toImmutableMap
-import kotlinx.collections.immutable.toPersistentMap
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.async
@@ -176,13 +172,13 @@ abstract class SearchViewModel(
                 updateItems(
                     sources
                         .associateWith { existingResults[it] ?: SearchItemResult.Loading }
-                        .toPersistentMap(),
+                        .toMap(),
                 )
             } else {
                 updateItems(
                     sources
                         .associateWith { SearchItemResult.Loading }
-                        .toPersistentMap(),
+                        .toMap(),
                 )
             }
 
@@ -221,17 +217,17 @@ abstract class SearchViewModel(
             it.copy(
                 items = items
                     .toSortedMap(sortComparator(items))
-                    .toPersistentMap(),
+                    .toMap(),
             )
         }
     }
 
     private fun updateItem(source: Source, result: SearchItemResult) {
-        // KMK --> Komikku's state is `state` and `items` is a PersistentMap
+        // KMK --> Komikku's state is `state` and `items` is a Map
         state.update { currentState ->
             val newItems = currentState.items + (source to result)
             currentState.copy(
-                items = newItems.toSortedMap(sortComparator(newItems)).toPersistentMap(),
+                items = newItems.toSortedMap(sortComparator(newItems)).toMap(),
             )
         }
         // KMK <--
@@ -254,13 +250,13 @@ abstract class SearchViewModel(
         val searchQuery: String? = null,
         val sourceFilter: SourceFilter = SourceFilter.PinnedOnly,
         val onlyShowHasResults: Boolean = false,
-        val items: PersistentMap<Source, SearchItemResult> = persistentMapOf(),
+        val items: Map<Source, SearchItemResult> = mapOf(),
         val dialog: Dialog? = null,
     ) {
         val progress: Int = items.count { it.value !is SearchItemResult.Loading }
         val total: Int = items.size
         val filteredItems = items.filter { (_, result) -> result.isVisible(onlyShowHasResults) }
-            .toImmutableMap()
+            .toMap()
     }
 
     sealed interface Dialog {

@@ -51,7 +51,6 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.collections.immutable.ImmutableList
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.automirroredrounded.ArrowBack
 import mihon.icons.materialsymbols.rounded.Close
@@ -209,7 +208,7 @@ fun AppBarTitle(
 
 @Composable
 fun AppBarActions(
-    actions: ImmutableList<AppBar.AppBarAction>,
+    actions: List<AppBar.AppBarAction>,
 ) {
     var showMenu by remember { mutableStateOf(false) }
 

@@ -34,7 +34,6 @@ import eu.kanade.presentation.libraryUpdateError.components.libraryUpdateErrorUi
 import eu.kanade.presentation.manga.components.Button
 import eu.kanade.tachiyomi.ui.libraryUpdateError.LibraryUpdateErrorItem
 import eu.kanade.tachiyomi.ui.libraryUpdateError.LibraryUpdateErrorScreenState
-import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -320,7 +319,7 @@ private fun LibraryUpdateErrorAppBar(
         actions = {
             if (itemCnt > 0) {
                 AppBarActions(
-                    persistentListOf(
+                    listOf(
                         AppBar.Action(
                             title = stringResource(MR.strings.action_select_all),
                             icon = MaterialSymbols.Rounded.SelectAll,
@@ -334,7 +333,7 @@ private fun LibraryUpdateErrorAppBar(
         onCancelActionMode = onClickUnselectAll,
         actionModeActions = {
             AppBarActions(
-                persistentListOf(
+                listOf(
                     AppBar.Action(
                         title = stringResource(MR.strings.action_delete),
                         icon = MaterialSymbols.Rounded.Delete,

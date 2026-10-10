@@ -20,7 +20,6 @@ import eu.kanade.tachiyomi.ui.browse.source.globalsearch.SearchItemResult
 import eu.kanade.tachiyomi.ui.browse.source.globalsearch.SearchViewModel
 import eu.kanade.tachiyomi.ui.browse.source.globalsearch.SourceFilter
 import eu.kanade.tachiyomi.util.system.LocaleHelper
-import kotlinx.collections.immutable.ImmutableMap
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.domain.source.model.Source as DomainSource
@@ -108,7 +107,7 @@ fun GlobalSearchScreen(
 
 @Composable
 internal fun GlobalSearchContent(
-    items: ImmutableMap<Source, SearchItemResult>,
+    items: Map<Source, SearchItemResult>,
     contentPadding: PaddingValues,
     getManga: @Composable (Manga) -> State<Manga>,
     onClickSource: (Source) -> Unit,

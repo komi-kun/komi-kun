@@ -6,7 +6,6 @@ import dev.icerock.moko.resources.StringResource
 import eu.kanade.tachiyomi.data.database.models.Track
 import eu.kanade.tachiyomi.data.track.model.TrackMangaMetadata
 import eu.kanade.tachiyomi.data.track.model.TrackSearch
-import kotlinx.collections.immutable.ImmutableList
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -39,7 +38,7 @@ interface Tracker {
 
     fun getCompletionStatus(): Long
 
-    fun getScoreList(): ImmutableList<String>
+    fun getScoreList(): List<String>
 
     // TODO: Store all scores as 10 point in the future maybe?
     fun get10PointScore(track: DomainTrack): Double

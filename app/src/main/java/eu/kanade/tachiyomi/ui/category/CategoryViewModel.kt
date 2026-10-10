@@ -4,8 +4,6 @@ import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.icerock.moko.resources.StringResource
-import kotlinx.collections.immutable.ImmutableList
-import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -51,7 +49,7 @@ class CategoryViewModel(
         CategoryScreenState.Success(
             categories = categories
                 .filterNot(Category::isSystemCategory)
-                .toImmutableList(),
+                .toList(),
             dialog = dialog,
         )
     }
@@ -131,7 +129,7 @@ sealed interface CategoryScreenState {
 
     @Immutable
     data class Success(
-        val categories: ImmutableList<Category>,
+        val categories: List<Category>,
         val dialog: CategoryDialog? = null,
     ) : CategoryScreenState {
 

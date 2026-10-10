@@ -48,7 +48,6 @@ import eu.kanade.presentation.components.NestedMenuItem
 import eu.kanade.presentation.theme.colorscheme.AndroidViewColorScheme
 import eu.kanade.presentation.util.Screen
 import eu.kanade.tachiyomi.databinding.DownloadListBinding
-import kotlinx.collections.immutable.persistentListOf
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.automirroredrounded.Sort
 import mihon.icons.materialsymbols.roundedfilled.Pause
@@ -190,7 +189,7 @@ object DownloadQueueScreen : Screen() {
                             }
 
                             AppBarActions(
-                                persistentListOf(
+                                listOf(
                                     AppBar.Action(
                                         title = stringResource(MR.strings.action_sort),
                                         icon = MaterialSymbols.AutoMirroredRounded.Sort,

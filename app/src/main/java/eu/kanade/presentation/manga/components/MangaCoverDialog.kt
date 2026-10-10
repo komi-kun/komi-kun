@@ -55,7 +55,6 @@ import eu.kanade.presentation.manga.EditCoverAction
 import eu.kanade.tachiyomi.data.coil.ImageDecoder
 import eu.kanade.tachiyomi.data.coil.newDecoder
 import eu.kanade.tachiyomi.ui.reader.viewer.ReaderPageImageView
-import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import mihon.icons.materialsymbols.MaterialSymbols
@@ -126,7 +125,7 @@ fun MangaCoverDialog(
                     Spacer(modifier = Modifier.weight(1f))
                     ActionsPill {
                         AppBarActions(
-                            actions = persistentListOf(
+                            actions = listOf(
                                 AppBar.Action(
                                     title = stringResource(MR.strings.action_share),
                                     icon = MaterialSymbols.Rounded.Share,

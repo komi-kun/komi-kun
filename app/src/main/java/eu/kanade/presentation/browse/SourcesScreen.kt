@@ -41,7 +41,6 @@ import eu.kanade.tachiyomi.ui.browse.source.browse.BrowseSourceViewModel.Listing
 import eu.kanade.tachiyomi.util.system.LocaleHelper
 import exh.source.EH_SOURCE_ID
 import exh.source.EXH_SOURCE_ID
-import kotlinx.collections.immutable.ImmutableList
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.Keep
 import mihon.icons.materialsymbols.roundedfilled.Keep
@@ -343,7 +342,7 @@ sealed interface SourceUiModel {
 @Composable
 fun SourceCategoriesDialog(
     source: Source,
-    categories: ImmutableList<String>,
+    categories: List<String>,
     onClickCategories: (List<String>) -> Unit,
     onDismissRequest: () -> Unit,
 ) {

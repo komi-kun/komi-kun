@@ -35,7 +35,6 @@ import eu.kanade.presentation.util.Screen
 import exh.assets.EhAssets
 import exh.assets.ehassets.EhLogo
 import exh.assets.ehassets.MangadexLogo
-import kotlinx.collections.immutable.persistentListOf
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.automirroredrounded.ChromeReaderMode
 import mihon.icons.materialsymbols.rounded.Code
@@ -96,7 +95,7 @@ object SettingsMainScreen : Screen() {
                     navigateUp = backPress::invoke,
                     actions = {
                         AppBarActions(
-                            persistentListOf(
+                            listOf(
                                 AppBar.Action(
                                     title = stringResource(MR.strings.action_search),
                                     icon = MaterialSymbols.Rounded.Search,

@@ -17,8 +17,6 @@ import eu.kanade.presentation.more.settings.Preference
 import eu.kanade.presentation.more.settings.screen.browse.ExtensionStoresScreen
 import eu.kanade.tachiyomi.ui.category.sources.SourceCategoryScreen
 import eu.kanade.tachiyomi.util.system.AuthenticatorUtil.authenticate
-import kotlinx.collections.immutable.persistentListOf
-import kotlinx.collections.immutable.persistentMapOf
 import mihon.domain.extension.interactor.GetExtensionStoreCountAsFlow
 import mihon.domain.extension.model.ContentWarning
 import tachiyomi.core.common.i18n.stringResource
@@ -61,7 +59,7 @@ object SettingsBrowseScreen : SearchableSettings {
             // SY -->
             Preference.PreferenceGroup(
                 title = stringResource(MR.strings.label_sources),
-                preferenceItems = persistentListOf(
+                preferenceItems = listOf(
                     // KMK -->
                     Preference.PreferenceItem.SwitchPreference(
                         preference = sourcePreferences.relatedMangas(),
@@ -116,7 +114,7 @@ object SettingsBrowseScreen : SearchableSettings {
             ),
             Preference.PreferenceGroup(
                 title = stringResource(SYMR.strings.feed),
-                preferenceItems = persistentListOf(
+                preferenceItems = listOf(
                     Preference.PreferenceItem.SwitchPreference(
                         preference = uiPreferences.hideFeedTab(),
                         title = stringResource(SYMR.strings.pref_hide_feed),
@@ -138,7 +136,7 @@ object SettingsBrowseScreen : SearchableSettings {
             // SY <--
             Preference.PreferenceGroup(
                 title = stringResource(MR.strings.label_sources),
-                preferenceItems = persistentListOf(
+                preferenceItems = listOf(
                     Preference.PreferenceItem.SwitchPreference(
                         preference = sourcePreferences.hideInLibraryItems(),
                         title = stringResource(MR.strings.pref_hide_in_library_items),
@@ -154,10 +152,10 @@ object SettingsBrowseScreen : SearchableSettings {
             ),
             Preference.PreferenceGroup(
                 title = stringResource(MR.strings.pref_category_extensions),
-                preferenceItems = persistentListOf(
+                preferenceItems = listOf(
                     Preference.PreferenceItem.MultiSelectListPreference(
                         preference = sourcePreferences.enabledContentWarnings,
-                        entries = persistentMapOf(
+                        entries = mapOf(
                             ContentWarning.SAFE to stringResource(MR.strings.ext_content_warning_safe),
                             ContentWarning.MIXED to stringResource(MR.strings.ext_content_warning_mixed),
                             ContentWarning.NSFW to stringResource(MR.strings.ext_content_warning_nsfw),

@@ -30,9 +30,6 @@ import eu.kanade.presentation.category.visualName
 import eu.kanade.presentation.more.settings.Preference
 import eu.kanade.presentation.more.settings.widget.TextPreferenceWidget
 import eu.kanade.tachiyomi.data.connections.ConnectionsManager
-import kotlinx.collections.immutable.persistentListOf
-import kotlinx.collections.immutable.persistentMapOf
-import kotlinx.collections.immutable.toImmutableMap
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.automirroredrounded.Help
 import mihon.icons.materialsymbols.automirroredrounded.Logout
@@ -164,7 +161,7 @@ object SettingsDiscordScreen : SearchableSettings {
             ),
             Preference.PreferenceGroup(
                 title = stringResource(KMR.strings.connections_discord),
-                preferenceItems = persistentListOf(
+                preferenceItems = listOf(
                     Preference.PreferenceItem.SwitchPreference(
                         preference = enableDRPCPref,
                         title = stringResource(KMR.strings.pref_enable_discord_rpc),
@@ -172,7 +169,7 @@ object SettingsDiscordScreen : SearchableSettings {
                     Preference.PreferenceItem.ListPreference(
                         preference = discordRPCStatus,
                         title = stringResource(KMR.strings.pref_discord_status),
-                        entries = persistentMapOf(
+                        entries = mapOf(
                             -1 to stringResource(KMR.strings.pref_discord_dnd),
                             0 to stringResource(KMR.strings.pref_discord_idle),
                             1 to stringResource(KMR.strings.pref_discord_online),
@@ -188,7 +185,7 @@ object SettingsDiscordScreen : SearchableSettings {
             Preference.PreferenceGroup(
                 title = stringResource(KMR.strings.pref_category_discord_customization),
                 enabled = enableDRPC,
-                preferenceItems = persistentListOf(
+                preferenceItems = listOf(
                     Preference.PreferenceItem.TextPreference(
                         title = stringResource(KMR.strings.pref_discord_custom_message),
                         subtitle = stringResource(KMR.strings.pref_discord_custom_message_summary),
@@ -260,7 +257,7 @@ object SettingsDiscordScreen : SearchableSettings {
 
         return Preference.PreferenceGroup(
             title = stringResource(MR.strings.categories),
-            preferenceItems = persistentListOf(
+            preferenceItems = listOf(
                 Preference.PreferenceItem.SwitchPreference(
                     preference = discordRPCIncognitoPref,
                     title = stringResource(KMR.strings.pref_discord_incognito),
@@ -270,7 +267,7 @@ object SettingsDiscordScreen : SearchableSettings {
                     preference = discordRPCIncognitoCategoriesPref,
                     entries = allCategories
                         .associate { it.id.toString() to it.visualName }
-                        .toImmutableMap(),
+                        .toMap(),
                     title = stringResource(MR.strings.categories),
                 ),
                 Preference.PreferenceItem.InfoPreference(

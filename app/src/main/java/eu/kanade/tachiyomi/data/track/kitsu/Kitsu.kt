@@ -8,8 +8,6 @@ import eu.kanade.tachiyomi.data.track.DeletableTracker
 import eu.kanade.tachiyomi.data.track.kitsu.dto.KitsuOAuth
 import eu.kanade.tachiyomi.data.track.model.TrackMangaMetadata
 import eu.kanade.tachiyomi.data.track.model.TrackSearch
-import kotlinx.collections.immutable.ImmutableList
-import kotlinx.collections.immutable.toImmutableList
 import kotlinx.serialization.json.Json
 import logcat.LogPriority
 import tachiyomi.core.common.util.system.logcat
@@ -101,7 +99,7 @@ class Kitsu(id: Long) : BaseTracker(id, "Kitsu"), DeletableTracker {
         return ratingSystems[ratingSystem] ?: throw Exception("Unknown score type $ratingSystem")
     }
 
-    override fun getScoreList(): ImmutableList<String> = getCurrentRatingSystem().scoreList.toImmutableList()
+    override fun getScoreList(): List<String> = getCurrentRatingSystem().scoreList.toList()
 
     override fun get10PointScore(track: DomainTrack): Double {
         // score is stored in Kitsu's native 2-20 scale

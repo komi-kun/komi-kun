@@ -11,7 +11,6 @@ import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.components.AppBarActions
 import eu.kanade.presentation.components.DropdownMenu
 import eu.kanade.presentation.components.RadioMenuItem
-import kotlinx.collections.immutable.persistentListOf
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.automirroredroundedfilled.ViewList
 import mihon.icons.materialsymbols.roundedfilled.ViewModule
@@ -39,7 +38,7 @@ fun BrowseSourceSimpleToolbar(
             var selectingDisplayMode by remember { mutableStateOf(false) }
             // KMK -->
             AppBarActions(
-                actions = persistentListOf<AppBar.AppBarAction>().builder().apply {
+                actions = buildList {
                     displayMode?.let { mode ->
                         add(
                             AppBar.Action(
@@ -58,8 +57,7 @@ fun BrowseSourceSimpleToolbar(
                             bulkSelectionButton(isRunning, mode),
                         )
                     }
-                }
-                    .build(),
+                },
             )
             // KMK <--
             DropdownMenu(

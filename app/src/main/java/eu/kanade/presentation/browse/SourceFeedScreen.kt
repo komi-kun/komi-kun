@@ -24,8 +24,6 @@ import eu.kanade.presentation.components.AppBarTitle
 import eu.kanade.presentation.components.BulkSelectionToolbar
 import eu.kanade.presentation.components.SearchToolbar
 import eu.kanade.tachiyomi.ui.browse.BulkFavoriteViewModel
-import kotlinx.collections.immutable.ImmutableList
-import kotlinx.collections.immutable.persistentListOf
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.FilterList
 import mihon.icons.materialsymbols.rounded.Public
@@ -90,7 +88,7 @@ sealed class SourceFeedUI {
 fun SourceFeedScreen(
     name: String,
     isLoading: Boolean,
-    items: ImmutableList<SourceFeedUI>,
+    items: List<SourceFeedUI>,
     hasFilters: Boolean,
     onFabClick: () -> Unit,
     onClickBrowse: () -> Unit,
@@ -206,7 +204,7 @@ fun SourceFeedScreen(
 
 @Composable
 fun SourceFeedList(
-    items: ImmutableList<SourceFeedUI>,
+    items: List<SourceFeedUI>,
     paddingValues: PaddingValues,
     getMangaState: @Composable ((Manga) -> State<Manga>),
     onClickBrowse: () -> Unit,
@@ -336,7 +334,7 @@ fun SourceFeedToolbar(
         // KMK -->
         actions = {
             AppBarActions(
-                actions = persistentListOf<AppBar.AppBarAction>().builder().apply {
+                actions = buildList {
                     add(bulkSelectionButton(isRunning, toggleSelectionMode))
 
                     onWebViewClick?.let { func ->
@@ -375,8 +373,7 @@ fun SourceFeedToolbar(
                             ),
                         )
                     }
-                }
-                    .build(),
+                },
             )
         },
         // KMK <--

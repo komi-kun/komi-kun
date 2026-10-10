@@ -45,7 +45,6 @@ import eu.kanade.presentation.util.Screen
 import eu.kanade.presentation.util.animateItemFastScroll
 import eu.kanade.tachiyomi.ui.manga.MangaScreen
 import eu.kanade.tachiyomi.util.system.toast
-import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
@@ -265,7 +264,7 @@ data class MigrateMangaScreen(
             actions = {
                 if (itemCnt > 0) {
                     AppBarActions(
-                        persistentListOf(
+                        listOf(
                             AppBar.Action(
                                 title = stringResource(MR.strings.action_select_all),
                                 icon = MaterialSymbols.Rounded.SelectAll,
@@ -279,7 +278,7 @@ data class MigrateMangaScreen(
             onCancelActionMode = onClickUnselectAll,
             actionModeActions = {
                 AppBarActions(
-                    persistentListOf(
+                    listOf(
                         AppBar.Action(
                             title = stringResource(MR.strings.action_select_all),
                             icon = MaterialSymbols.Rounded.SelectAll,

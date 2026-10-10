@@ -24,7 +24,6 @@ import eu.kanade.tachiyomi.ui.browse.source.browse.BrowseSourceViewModel.Listing
 import eu.kanade.tachiyomi.ui.browse.source.feed.SourceFeedScreen
 import eu.kanade.tachiyomi.ui.browse.source.globalsearch.GlobalSearchScreen
 import exh.ui.smartsearch.SmartSearchScreen
-import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import mihon.icons.materialsymbols.MaterialSymbols
@@ -50,7 +49,7 @@ fun Screen.sourcesTab(
             true -> MR.strings.label_sources
             false -> SYMR.strings.find_in_another_source
         },
-        actions = persistentListOf(
+        actions = listOf(
             AppBar.Action(
                 title = stringResource(MR.strings.action_global_search),
                 icon = MaterialSymbols.Rounded.TravelExplore,
@@ -67,12 +66,10 @@ fun Screen.sourcesTab(
         ).let {
             when (smartSearchConfig) {
                 null -> {
-                    it.add(
-                        AppBar.Action(
-                            title = stringResource(MR.strings.action_filter),
-                            icon = MaterialSymbols.Rounded.FilterList,
-                            onClick = { navigator.push(SourcesFilterScreen()) },
-                        ),
+                    it + AppBar.Action(
+                        title = stringResource(MR.strings.action_filter),
+                        icon = MaterialSymbols.Rounded.FilterList,
+                        onClick = { navigator.push(SourcesFilterScreen()) },
                     )
                 }
                 // Merge: find in another source

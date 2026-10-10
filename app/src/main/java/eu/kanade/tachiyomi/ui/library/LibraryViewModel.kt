@@ -56,12 +56,6 @@ import exh.source.nHentaiSourceIds
 import exh.util.cancellable
 import exh.util.isLewd
 import exh.util.nullIfBlank
-import kotlinx.collections.immutable.ImmutableList
-import kotlinx.collections.immutable.ImmutableSet
-import kotlinx.collections.immutable.PersistentList
-import kotlinx.collections.immutable.persistentSetOf
-import kotlinx.collections.immutable.toImmutableList
-import kotlinx.collections.immutable.toImmutableSet
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -196,8 +190,8 @@ class LibraryViewModel(
 
     // KMK -->
     private val filterCategory = MutableStateFlow(false)
-    private val includedCategories = MutableStateFlow(persistentSetOf<Long>())
-    private val excludedCategories = MutableStateFlow(persistentSetOf<Long>())
+    private val includedCategories = MutableStateFlow(setOf<Long>())
+    private val excludedCategories = MutableStateFlow(setOf<Long>())
     // KMK <--
 
     private val displayPreferences = combine(
@@ -416,8 +410,8 @@ class LibraryViewModel(
         trackingFilter: Map<Long, TriState>,
         preferences: ItemPreferences,
         // KMK -->
-        includedCategories: ImmutableSet<Long>,
-        excludedCategories: ImmutableSet<Long>,
+        includedCategories: Set<Long>,
+        excludedCategories: Set<Long>,
         // KMK <--
     ): List<LibraryItem> {
         val downloadedOnly = preferences.globalFilterDownloaded
@@ -1469,7 +1463,7 @@ class LibraryViewModel(
                         else -> CheckboxState.State.None(it)
                     }
                 }
-                .toImmutableList()
+                .toList()
 
             dialog.update { Dialog.ChangeCategory(mangaList, preselected) }
         }
@@ -1487,7 +1481,7 @@ class LibraryViewModel(
         data object SettingsSheet : Dialog
         data class ChangeCategory(
             val manga: List<Manga>,
-            val initialSelection: ImmutableList<CheckboxState<Category>>,
+            val initialSelection: List<CheckboxState<Category>>,
         ) : Dialog
         data class DeleteManga(val manga: List<Manga>) : Dialog
 
@@ -1638,7 +1632,7 @@ class LibraryViewModel(
      * Will get first merged manga in the list as target merging.
      * If there is no merged manga, then it will use the first one in list to create a new target.
      */
-    suspend fun smartSearchMerge(selectedMangas: PersistentList<Manga>): Long? {
+    suspend fun smartSearchMerge(selectedMangas: List<Manga>): Long? {
         val mergedManga = selectedMangas.firstOrNull { it.source == MERGED_SOURCE_ID }?.let { listOf(it) }
             ?: emptyList()
         val mergingMangas = selectedMangas.fastFilterNot { it.source == MERGED_SOURCE_ID }
@@ -1715,8 +1709,8 @@ class LibraryViewModel(
         // SY <--
         // KMK -->
         val filterCategory: Boolean = false,
-        val includedCategories: ImmutableSet<Long> = persistentSetOf(),
-        val excludedCategories: ImmutableSet<Long> = persistentSetOf(),
+        val includedCategories: Set<Long> = setOf(),
+        val excludedCategories: Set<Long> = setOf(),
         // KMK <--
     ) {
         /**

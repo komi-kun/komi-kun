@@ -33,7 +33,6 @@ import eu.kanade.presentation.theme.TachiyomiPreviewTheme
 import eu.kanade.tachiyomi.data.database.models.toDomainChapter
 import eu.kanade.tachiyomi.ui.reader.model.ChapterTransition
 import eu.kanade.tachiyomi.ui.reader.model.ReaderChapter
-import kotlinx.collections.immutable.persistentMapOf
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.Info
 import mihon.icons.materialsymbols.roundedfilled.CheckCircle
@@ -235,7 +234,7 @@ private fun ChapterText(
             maxLines = 5,
             overflow = TextOverflow.Ellipsis,
             style = MaterialTheme.typography.titleLarge,
-            inlineContent = persistentMapOf(
+            inlineContent = mapOf(
                 DOWNLOADED_ICON_ID to InlineTextContent(
                     Placeholder(
                         width = 22.sp,

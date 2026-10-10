@@ -20,7 +20,6 @@ import androidx.compose.ui.Modifier
 import eu.kanade.presentation.components.TabbedDialog
 import eu.kanade.presentation.components.TabbedDialogPaddings
 import eu.kanade.tachiyomi.ui.history.HistorySettingsViewModel
-import kotlinx.collections.immutable.persistentListOf
 import tachiyomi.domain.history.service.HistoryPreferences
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
@@ -37,7 +36,7 @@ fun HistoryFilterDialog(
 ) {
     TabbedDialog(
         onDismissRequest = onDismissRequest,
-        tabTitles = persistentListOf(
+        tabTitles = listOf(
             stringResource(MR.strings.action_filter),
         ),
     ) {

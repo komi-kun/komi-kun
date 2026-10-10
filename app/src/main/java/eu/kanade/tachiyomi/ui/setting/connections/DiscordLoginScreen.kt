@@ -48,7 +48,6 @@ import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.util.system.isDebugBuildType
 import eu.kanade.tachiyomi.util.system.setDefaultSettings
 import eu.kanade.tachiyomi.util.system.toast
-import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -192,7 +191,7 @@ class DiscordLoginScreen : Screen() {
                             navigateUp = { navigator.pop() },
                             actions = {
                                 AppBarActions(
-                                    persistentListOf(
+                                    listOf(
                                         AppBar.OverflowAction(
                                             title = stringResource(MR.strings.action_webview_refresh),
                                             onClick = { webViewNavigator.reload() },

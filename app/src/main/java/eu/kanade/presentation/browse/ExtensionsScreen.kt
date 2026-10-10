@@ -64,7 +64,6 @@ import eu.kanade.tachiyomi.ui.browse.extension.ExtensionsViewModel
 import eu.kanade.tachiyomi.util.system.LocaleHelper
 import eu.kanade.tachiyomi.util.system.copyToClipboard
 import eu.kanade.tachiyomi.util.system.launchRequestPackageInstallsPermission
-import kotlinx.collections.immutable.persistentListOf
 import mihon.domain.extension.model.ContentWarning
 import mihon.domain.extension.model.ExtensionStore
 import mihon.domain.extension.model.KOMIKKU_SIGNATURE
@@ -126,7 +125,7 @@ fun ExtensionScreen(
                 EmptyScreen(
                     msg,
                     modifier = Modifier.padding(contentPadding),
-                    actions = persistentListOf(
+                    actions = listOf(
                         EmptyScreenAction(
                             stringRes = MR.strings.extensionStores,
                             icon = MaterialSymbols.Rounded.Settings,
