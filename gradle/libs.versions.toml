@@ -14,6 +14,9 @@ flexibleAdapter = "5.1.0"
 markdown = "0.39.2"
 junit = "6.1.3"
 materialKolor = "5.0.0-alpha07"
+# KMK -->
+metro = "1.4.5"
+# KMK <--
 androidx-webkit = "1.16.0"
 image-decoder = "16"
 webgpuviewer = "52"
@@ -127,6 +130,12 @@ stringSimilarity = { module = "com.aallam.similarity:string-similarity-kotlin", 
 
 materialKolor = { module = "com.materialkolor:material-kolor", version.ref = "materialKolor" }
 
+# KMK -->
+metro-runtime = { module = "dev.zacsweers.metro:runtime", version.ref = "metro" }
+metrox-viewmodel = { module = "dev.zacsweers.metro:metrox-viewmodel", version.ref = "metro" }
+metrox-viewmodel-compose = { module = "dev.zacsweers.metro:metrox-viewmodel-compose", version.ref = "metro" }
+# KMK <--
+
 [plugins]
 google-services = { id = "com.google.gms.google-services", version = "4.5.0" }
 aboutLibraries = { id = "com.mikepenz.aboutlibraries.plugin.android", version.ref = "aboutlib_version" }
@@ -136,6 +145,7 @@ moko = { id = "dev.icerock.mobile.multiplatform-resources", version.ref = "moko"
 firebase-crashlytics = { id = "com.google.firebase.crashlytics", version = "3.0.8" }
 # KMK -->
 valkyrie = { id = "io.github.composegears.valkyrie", version.ref = "valkyrie" }
+metro = { id = "dev.zacsweers.metro", version.ref = "metro" }
 # KMK <--
 
 [bundles]

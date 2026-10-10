@@ -11,6 +11,9 @@ plugins {
     kotlin("plugin.serialization")
     alias(libs.plugins.aboutLibraries)
     alias(libs.plugins.apollo)
+    // KMK -->
+    alias(libs.plugins.metro)
+    // KMK <--
     id("com.github.ben-manes.versions")
 }
 
@@ -217,6 +220,9 @@ dependencies {
     implementation(projects.icons.simpleIcons)
     implementation(projects.core.archive)
     implementation(projects.core.common)
+    // KMK -->
+    implementation(projects.core.metro)
+    // KMK <--
     implementation(projects.coreMetadata)
     implementation(projects.sourceApi)
     implementation(projects.sourceLocal)
@@ -292,6 +298,11 @@ dependencies {
 
     // Dependency injection
     implementation(libs.injekt)
+    // KMK -->
+    implementation(libs.metro.runtime)
+    implementation(libs.metrox.viewmodel)
+    implementation(libs.metrox.viewmodel.compose)
+    // KMK <--
 
     // Image loading
     implementation(platform(libs.coil.bom))

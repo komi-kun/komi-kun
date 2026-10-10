@@ -49,6 +49,9 @@ include(":app")
 include(":core-metadata")
 include(":core:archive")
 include(":core:common")
+// KMK -->
+include(":core:metro")
+// KMK <--
 include(":data")
 include(":domain")
 include(":i18n")

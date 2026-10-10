@@ -2,6 +2,9 @@ plugins {
     id("mihon.library")
     kotlin("android")
     kotlin("plugin.serialization")
+    // KMK -->
+    alias(libs.plugins.metro)
+    // KMK <--
 }
 
 android {
@@ -26,6 +29,10 @@ dependencies {
     implementation(platform(kotlinx.coroutines.bom))
     implementation(kotlinx.bundles.coroutines)
     implementation(kotlinx.bundles.serialization)
+
+    // KMK -->
+    implementation(libs.metro.runtime)
+    // KMK <--
 
     implementation(libs.unifile)
 
