@@ -355,7 +355,7 @@ class PagerPageHolder(
             createBitmap(res.width, res.height).also { bitmap ->
                 res.image.rewind()
                 bitmap.copyPixelsFromBuffer(res.image)
-            }
+            }.also { res.close() }
             // KMK <--
         } catch (e: Exception) {
             logcat(LogPriority.ERROR, e) { "Cannot decode image" }

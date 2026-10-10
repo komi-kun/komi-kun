@@ -1286,13 +1286,13 @@ class ReaderViewModel @JvmOverloads constructor(
             createBitmap(res.width, res.height).also { bitmap ->
                 res.image.rewind()
                 bitmap.copyPixelsFromBuffer(res.image)
-            }
+            }.also { res.close() }
         }
         val imageBitmap2 = ImageDecoder.open(stream2()).use { it.decodeNext() }.let { res ->
             createBitmap(res.width, res.height).also { bitmap ->
                 res.image.rewind()
                 bitmap.copyPixelsFromBuffer(res.image)
-            }
+            }.also { res.close() }
         }
         // KMK <--
 

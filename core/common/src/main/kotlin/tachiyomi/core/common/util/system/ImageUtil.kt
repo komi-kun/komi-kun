@@ -210,7 +210,7 @@ object ImageUtil {
                 createBitmap(decoded.width, decoded.height).also {
                     decoded.image.rewind()
                     it.copyPixelsFromBuffer(decoded.image)
-                }
+                }.also { decoded.close() }
             }
         // KMK <--
         val height = imageBitmap.height
