@@ -2,8 +2,14 @@ package mihon.app.di.injekt
 
 import android.app.Application
 import android.content.Context
+import eu.kanade.domain.source.service.SourcePreferences
+import eu.kanade.tachiyomi.data.cache.CoverCache
+import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.network.JavaScriptEngine
 import eu.kanade.tachiyomi.network.NetworkHelper
+import eu.kanade.tachiyomi.network.NetworkPreferences
+import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
+import exh.pref.DelegateSourcePreferences
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.protobuf.ProtoBuf
 import mihon.app.di.AppGraph
@@ -45,6 +51,15 @@ class MetroInjektRegistrar(
 
         NetworkHelper::class.java to { graph.networkHelper },
         JavaScriptEngine::class.java to { graph.javaScriptEngine },
+
+        // Source-api/source-local and a few residual app consumers resolve these through Injekt while
+        // sources are being constructed, which can happen before the interop modules are imported.
+        NetworkPreferences::class.java to { graph.networkPreferences },
+        SourcePreferences::class.java to { graph.sourcePreferences },
+        DelegateSourcePreferences::class.java to { graph.delegateSourcePreferences },
+        ReaderPreferences::class.java to { graph.readerPreferences },
+        ExtensionManager::class.java to { graph.extensionManager },
+        CoverCache::class.java to { graph.coverCache },
     )
 
     private object NoKey

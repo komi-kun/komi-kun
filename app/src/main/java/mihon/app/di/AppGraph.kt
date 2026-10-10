@@ -25,6 +25,7 @@ import eu.kanade.tachiyomi.data.SyncStatus
 import eu.kanade.tachiyomi.data.backup.create.BackupCreateJob
 import eu.kanade.tachiyomi.data.backup.restore.BackupRestoreJob
 import eu.kanade.tachiyomi.data.cache.ChapterCache
+import eu.kanade.tachiyomi.data.cache.CoverCache
 import eu.kanade.tachiyomi.data.cache.PagePreviewCache
 import eu.kanade.tachiyomi.data.connections.ConnectionsManager
 import eu.kanade.tachiyomi.data.download.DownloadCache
@@ -148,6 +149,7 @@ interface AppGraph : ViewModelGraph {
     val syncPreferences: SyncPreferences
     val exhPreferences: ExhPreferences
     val delegateSourcePreferences: DelegateSourcePreferences
+    val coverCache: CoverCache
     val pagePreviewCache: PagePreviewCache
     val googleDriveService: GoogleDriveService
     val toggleIncognito: ToggleIncognito

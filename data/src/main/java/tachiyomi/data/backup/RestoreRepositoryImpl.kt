@@ -302,7 +302,7 @@ class RestoreRepositoryImpl(
                     version = chapter.version,
                     isSyncing = syncingFlag,
                     // SY <--
-                ).awaitAsOne()
+                ).awaitAsOneOrNull()
             }
         }
     }

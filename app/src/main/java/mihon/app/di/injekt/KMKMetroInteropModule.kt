@@ -50,6 +50,7 @@ class KMKMetroInteropModule(
     private val database: Database,
 
     private val uiPreferences: eu.kanade.domain.ui.UiPreferences,
+    private val networkPreferences: eu.kanade.tachiyomi.network.NetworkPreferences,
     private val sourcePreferences: SourcePreferences,
     private val libraryPreferences: LibraryPreferences,
     private val readerPreferences: ReaderPreferences,
@@ -94,6 +95,7 @@ class KMKMetroInteropModule(
         addSingleton(database)
 
         addSingleton(uiPreferences)
+        addSingleton(networkPreferences)
         addSingleton(sourcePreferences)
         addSingleton(libraryPreferences)
         addSingleton(readerPreferences)
