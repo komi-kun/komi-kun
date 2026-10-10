@@ -10,6 +10,10 @@ class GetTracksPerManga(
     private val isTrackUnfollowed: IsTrackUnfollowed,
 ) {
 
+    suspend fun await(): Map<Long, List<Track>> {
+        return trackRepository.getTracks().groupBy { it.mangaId }
+    }
+
     fun subscribe(): Flow<Map<Long, List<Track>>> {
         return trackRepository.getTracksAsFlow().map { tracks ->
             tracks.groupBy { it.mangaId }
