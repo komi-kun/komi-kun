@@ -12,20 +12,17 @@ import eu.kanade.tachiyomi.data.notification.Notifications
 import eu.kanade.tachiyomi.util.system.cancelNotification
 import eu.kanade.tachiyomi.util.system.notificationBuilder
 import eu.kanade.tachiyomi.util.system.notify
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
-import uy.kohesive.injekt.injectLazy
 import mihon.icons.materialsymbols.R as MaterialSymbolsR
 import tachiyomi.i18n.R as I18nR
 import tachiyomi.i18n.sy.R as SyR
 
-class SyncNotifier(private val context: Context) {
-
-    private val preferences: SecurityPreferences by injectLazy()
-
+class SyncNotifier(
+    private val context: Context,
+    private val preferences: SecurityPreferences,
     // KMK -->
-    private val syncStatus: SyncStatus = Injekt.get()
+    private val syncStatus: SyncStatus,
     // KMK <--
+) {
 
     private val progressNotificationBuilder = context.notificationBuilder(
         Notifications.CHANNEL_SYNC_LIBRARY,

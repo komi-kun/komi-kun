@@ -26,6 +26,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.protobuf.ProtoBuf
 import logcat.LogPriority
 import logcat.logcat
+import mihon.app.di.appGraph
 import okio.buffer
 import okio.gzip
 import okio.sink
@@ -35,8 +36,6 @@ import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.sy.SYMR
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 import java.io.IOException
 import java.io.PipedInputStream
 import java.io.PipedOutputStream
@@ -52,7 +51,7 @@ class GoogleDriveSyncService(context: Context, json: Json, syncPreferences: Sync
             encodeDefaults = true
             ignoreUnknownKeys = true
         },
-        Injekt.get<SyncPreferences>(),
+        context.appGraph.syncPreferences,
     )
 
     enum class DeleteSyncDataStatus {
@@ -66,9 +65,9 @@ class GoogleDriveSyncService(context: Context, json: Json, syncPreferences: Sync
 
     private val remoteFileName = "${appName}_sync.proto.gz"
 
-    private val googleDriveService = GoogleDriveService(context)
+    private val googleDriveService = GoogleDriveService(context, syncPreferences)
 
-    private val protoBuf: ProtoBuf = Injekt.get()
+    private val protoBuf: ProtoBuf = ProtoBuf
 
     override suspend fun doSync(syncData: SyncData, full: Boolean): SyncResult {
         beforeSync()
@@ -253,12 +252,14 @@ class GoogleDriveSyncService(context: Context, json: Json, syncPreferences: Sync
 
 @Inject
 @SingleIn(AppScope::class)
-class GoogleDriveService(private val context: Context) {
+class GoogleDriveService(
+    private val context: Context,
+    private val syncPreferences: SyncPreferences,
+) {
     var driveService: Drive? = null
     companion object {
         const val REDIRECT_URI = "eu.kanade.google.oauth:/oauth2redirect"
     }
-    private val syncPreferences = Injekt.get<SyncPreferences>()
 
     init {
         initGoogleDriveService()

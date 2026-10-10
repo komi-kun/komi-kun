@@ -30,8 +30,6 @@ import tachiyomi.data.Database
 import tachiyomi.data.manga.MangaMapper.mapManga
 import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.domain.manga.model.Manga
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 import java.io.File
 import java.io.IOException
 import java.util.Date
@@ -46,17 +44,19 @@ import kotlin.time.Clock
  */
 class SyncManager(
     private val context: Context,
-    private val database: Database = Injekt.get(),
-    private val syncPreferences: SyncPreferences = Injekt.get(),
+    private val database: Database,
+    private val syncPreferences: SyncPreferences,
+    private val getCategories: GetCategories,
+    private val backupCreatorFactory: BackupCreator.Factory,
+    private val notifier: SyncNotifier,
+    restorer: MangaRestorer,
     private var json: Json = Json {
         encodeDefaults = true
         ignoreUnknownKeys = true
     },
-    private val getCategories: GetCategories = Injekt.get(),
 ) {
-    private val backupCreator: BackupCreator = Injekt.get<BackupCreator.Factory>().create(isAutoBackup = false)
-    private val notifier: SyncNotifier = SyncNotifier(context)
-    private val mangaRestorer: MangaRestorer = Injekt.get<MangaRestorer>().also { it.isSync = true }
+    private val backupCreator: BackupCreator = backupCreatorFactory.create(isAutoBackup = false)
+    private val mangaRestorer: MangaRestorer = restorer.also { it.isSync = true }
 
     enum class SyncService(val value: Int) {
         NONE(0),

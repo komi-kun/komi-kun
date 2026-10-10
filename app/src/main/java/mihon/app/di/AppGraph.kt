@@ -21,6 +21,7 @@ import eu.kanade.tachiyomi.core.security.PrivacyPreferences
 import eu.kanade.tachiyomi.core.security.SecurityPreferences
 import eu.kanade.tachiyomi.data.BackupRestoreStatus
 import eu.kanade.tachiyomi.data.LibraryUpdateStatus
+import eu.kanade.tachiyomi.data.SyncStatus
 import eu.kanade.tachiyomi.data.backup.create.BackupCreateJob
 import eu.kanade.tachiyomi.data.backup.restore.BackupRestoreJob
 import eu.kanade.tachiyomi.data.cache.ChapterCache
@@ -32,6 +33,7 @@ import eu.kanade.tachiyomi.data.download.DownloadManager
 import eu.kanade.tachiyomi.data.library.LibraryUpdateJob
 import eu.kanade.tachiyomi.data.library.MetadataUpdateJob
 import eu.kanade.tachiyomi.data.notification.NotificationReceiver
+import eu.kanade.tachiyomi.data.sync.SyncDataJob
 import eu.kanade.tachiyomi.data.sync.service.GoogleDriveService
 import eu.kanade.tachiyomi.data.track.TrackerManager
 import eu.kanade.tachiyomi.data.updater.AppUpdateChecker
@@ -90,6 +92,7 @@ interface AppGraph : ViewModelGraph {
     fun inject(downloadJob: DownloadJob)
     // KMK -->
     fun inject(appUpdateDownloadJob: AppUpdateDownloadJob)
+    fun inject(syncDataJob: SyncDataJob)
     // KMK <--
     fun inject(notificationReceiver: NotificationReceiver)
     fun inject(notificationReceiver: SecureActivityDelegateImpl)
@@ -148,6 +151,7 @@ interface AppGraph : ViewModelGraph {
     val getExtensionStores: GetExtensionStores
     val backupRestoreStatus: BackupRestoreStatus
     val libraryUpdateStatus: LibraryUpdateStatus
+    val syncStatus: SyncStatus
     // KMK <--
 
     val json: Json
