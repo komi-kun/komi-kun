@@ -2,6 +2,7 @@ package exh
 
 import android.content.Context
 import androidx.core.net.toUri
+import dev.zacsweers.metro.Inject
 import eu.kanade.domain.manga.interactor.UpdateManga
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.tachiyomi.source.online.UrlImportableSource
@@ -17,18 +18,18 @@ import tachiyomi.domain.manga.interactor.NetworkToLocalManga
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.i18n.sy.SYMR
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 
+@Inject
 class GalleryAdder(
-    private val updateManga: UpdateManga = Injekt.get(),
-    private val updateMangaFromRemote: UpdateMangaFromRemote = Injekt.get(),
-    private val networkToLocalManga: NetworkToLocalManga = Injekt.get(),
-    private val getChapter: GetChapter = Injekt.get(),
-    private val sourceManager: SourceManager = Injekt.get(),
+    private val updateManga: UpdateManga,
+    private val updateMangaFromRemote: UpdateMangaFromRemote,
+    private val networkToLocalManga: NetworkToLocalManga,
+    private val getChapter: GetChapter,
+    private val sourceManager: SourceManager,
+    sourcePreferences: SourcePreferences,
 ) {
 
-    private val filters: Pair<Set<String>, Set<Long>> = Injekt.get<SourcePreferences>().run {
+    private val filters: Pair<Set<String>, Set<Long>> = sourcePreferences.run {
         enabledLanguages.get() to disabledSources.get().map { it.toLong() }.toSet()
     }
 

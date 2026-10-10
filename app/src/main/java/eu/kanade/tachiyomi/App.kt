@@ -44,6 +44,7 @@ import eu.kanade.tachiyomi.core.security.PrivacyPreferences
 import eu.kanade.tachiyomi.crash.CrashActivity
 import eu.kanade.tachiyomi.crash.GlobalExceptionHandler
 import eu.kanade.tachiyomi.data.cache.CoverCache
+import eu.kanade.tachiyomi.data.cache.PagePreviewCache
 import eu.kanade.tachiyomi.data.coil.BufferedSourceFetcher
 import eu.kanade.tachiyomi.data.coil.CoverRequestInterceptor
 import eu.kanade.tachiyomi.data.coil.ImageDecoder
@@ -124,6 +125,10 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
     @Inject private lateinit var networkHelper: NetworkHelper
 
     @Inject private lateinit var sourceManager: SourceManager
+
+    // KMK -->
+    @Inject private lateinit var pagePreviewCache: PagePreviewCache
+    // KMK <--
 
     @Inject private lateinit var widgetManager: WidgetManager
 
@@ -297,7 +302,7 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
                 add(MangaKeyer())
                 // SY -->
                 add(PagePreviewKeyer())
-                add(PagePreviewFetcher.Factory(callFactoryLazy))
+                add(PagePreviewFetcher.Factory(callFactoryLazy, pagePreviewCache, sourceManager))
                 // SY <--
                 // Interceptor
                 add(CoverRequestInterceptor())

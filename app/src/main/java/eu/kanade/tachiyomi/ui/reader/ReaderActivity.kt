@@ -142,8 +142,6 @@ import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
 import tachiyomi.i18n.sy.SYMR
 import tachiyomi.presentation.core.util.collectAsState
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 import java.io.ByteArrayOutputStream
 import kotlin.time.Duration.Companion.seconds
 import androidx.compose.ui.graphics.Color as ComposeColor
@@ -171,11 +169,12 @@ class ReaderActivity : BaseActivity() {
     @Inject private lateinit var preferences: BasePreferences
 
     // KMK -->
-    val themeCoverBased = Injekt.get<UiPreferences>().themeCoverBased.get()
+    @Inject private lateinit var uiPreferences: UiPreferences
+    val themeCoverBased get() = uiPreferences.themeCoverBased.get()
     // KMK <--
 
     // AM (CONNECTIONS) -->
-    private val connectionsPreferences: ConnectionsPreferences = Injekt.get()
+    @Inject private lateinit var connectionsPreferences: ConnectionsPreferences
     // <-- AM (CONNECTIONS)
 
     lateinit var binding: ReaderActivityBinding
@@ -184,7 +183,7 @@ class ReaderActivity : BaseActivity() {
     private var assistUrl: String? = null
 
     // SY -->
-    private val sourceManager = Injekt.get<SourceManager>()
+    @Inject private lateinit var sourceManager: SourceManager
     // SY <--
 
     /**

@@ -30,11 +30,11 @@ import tachiyomi.i18n.sy.SYMR
 @ContributesIntoMap(AppScope::class)
 class BatchAddViewModel(
     private val exhPreferences: ExhPreferences,
+    private val galleryAdder: GalleryAdder,
 ) : ViewModel() {
 
     val state: StateFlow<BatchAddState>
         field = MutableStateFlow<BatchAddState>(BatchAddState())
-    private val galleryAdder by lazy { GalleryAdder() }
 
     // KMK -->
     val isHentaiEnabled by exhPreferences.isHentaiEnabled.asState(viewModelScope)

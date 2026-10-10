@@ -16,7 +16,6 @@ import eu.kanade.tachiyomi.data.LibraryUpdateStatus
 import eu.kanade.tachiyomi.data.SyncStatus
 import eu.kanade.tachiyomi.data.backup.create.BackupCreator
 import eu.kanade.tachiyomi.data.backup.restore.restorers.MangaRestorer
-import eu.kanade.tachiyomi.data.cache.PagePreviewCache
 import eu.kanade.tachiyomi.data.connections.ConnectionsManager
 import eu.kanade.tachiyomi.data.download.DownloadCache
 import eu.kanade.tachiyomi.data.download.DownloadManager
@@ -31,26 +30,19 @@ import mihon.domain.chapter.interactor.FilterChaptersForDownload
 import mihon.domain.extension.interactor.GetExtensionStores
 import mihon.domain.source.interactor.UpdateMangaFromRemote
 import tachiyomi.data.Database
-import tachiyomi.domain.category.interactor.CreateCategoryWithName
 import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.domain.category.interactor.SetMangaCategories
-import tachiyomi.domain.category.interactor.UpdateCategory
-import tachiyomi.domain.chapter.interactor.GetChapter
 import tachiyomi.domain.chapter.interactor.SetMangaDefaultChapterFlags
 import tachiyomi.domain.library.service.LibraryPreferences
-import tachiyomi.domain.manga.interactor.DeleteFavoriteEntries
 import tachiyomi.domain.manga.interactor.GetAllManga
 import tachiyomi.domain.manga.interactor.GetCustomMangaInfo
 import tachiyomi.domain.manga.interactor.GetDuplicateLibraryManga
 import tachiyomi.domain.manga.interactor.GetExhFavoriteMangaWithMetadata
-import tachiyomi.domain.manga.interactor.GetFavoriteEntries
 import tachiyomi.domain.manga.interactor.GetFavorites
 import tachiyomi.domain.manga.interactor.GetFlatMetadataById
-import tachiyomi.domain.manga.interactor.GetLibraryManga
 import tachiyomi.domain.manga.interactor.GetManga
 import tachiyomi.domain.manga.interactor.GetMergedReferencesById
 import tachiyomi.domain.manga.interactor.GetSearchMetadata
-import tachiyomi.domain.manga.interactor.InsertFavoriteEntries
 import tachiyomi.domain.manga.interactor.InsertFlatMetadata
 import tachiyomi.domain.manga.interactor.NetworkToLocalManga
 import tachiyomi.domain.release.interactor.GetApplicationRelease
@@ -87,7 +79,6 @@ class KMKMetroInteropModule(
     private val downloadManager: DownloadManager,
     private val downloadCache: DownloadCache,
     private val trackerManager: TrackerManager,
-    private val pagePreviewCache: PagePreviewCache,
     private val ehEntaiUpdateHelper: EHentaiUpdateHelper,
     private val connectionsManager: ConnectionsManager,
     private val googleDriveService: GoogleDriveService,
@@ -104,7 +95,6 @@ class KMKMetroInteropModule(
     private val insertFlatMetadata: InsertFlatMetadata,
     private val getAllManga: GetAllManga,
     private val getMergedReferencesById: GetMergedReferencesById,
-    private val getLibraryManga: GetLibraryManga,
     private val networkToLocalManga: NetworkToLocalManga,
     private val updateManga: UpdateManga,
     private val updateMangaFromRemote: UpdateMangaFromRemote,
@@ -116,18 +106,12 @@ class KMKMetroInteropModule(
     private val getFavorites: GetFavorites,
     private val getApplicationRelease: GetApplicationRelease,
     private val filterChaptersForDownload: FilterChaptersForDownload,
-    private val updateCategory: UpdateCategory,
-    private val createCategoryWithName: CreateCategoryWithName,
     private val addTracks: AddTracks,
     private val getTracks: GetTracks,
     private val getCustomMangaInfo: GetCustomMangaInfo,
-    private val deleteFavoriteEntries: DeleteFavoriteEntries,
     private val deleteSavedSearchById: DeleteSavedSearchById,
-    private val getChapter: GetChapter,
     private val getDuplicateLibraryManga: GetDuplicateLibraryManga,
-    private val getFavoriteEntries: GetFavoriteEntries,
     private val getRemoteManga: GetRemoteManga,
-    private val insertFavoriteEntries: InsertFavoriteEntries,
     private val insertSavedSearch: InsertSavedSearch,
     private val setMangaDefaultChapterFlags: SetMangaDefaultChapterFlags,
     private val getExhSavedSearch: GetExhSavedSearch,
@@ -153,7 +137,6 @@ class KMKMetroInteropModule(
         addSingleton(downloadManager)
         addSingleton(downloadCache)
         addSingleton(trackerManager)
-        addSingleton(pagePreviewCache)
         addSingleton(ehEntaiUpdateHelper)
         addSingleton(connectionsManager)
         addSingleton(googleDriveService)
@@ -170,7 +153,6 @@ class KMKMetroInteropModule(
         addSingleton(insertFlatMetadata)
         addSingleton(getAllManga)
         addSingleton(getMergedReferencesById)
-        addSingleton(getLibraryManga)
         addSingleton(networkToLocalManga)
         addSingleton(updateManga)
         addSingleton(updateMangaFromRemote)
@@ -182,18 +164,12 @@ class KMKMetroInteropModule(
         addSingleton(getFavorites)
         addSingleton(getApplicationRelease)
         addSingleton(filterChaptersForDownload)
-        addSingleton(updateCategory)
-        addSingleton(createCategoryWithName)
         addSingleton(addTracks)
         addSingleton(getTracks)
         addSingleton(getCustomMangaInfo)
-        addSingleton(deleteFavoriteEntries)
         addSingleton(deleteSavedSearchById)
-        addSingleton(getChapter)
         addSingleton(getDuplicateLibraryManga)
-        addSingleton(getFavoriteEntries)
         addSingleton(getRemoteManga)
-        addSingleton(insertFavoriteEntries)
         addSingleton(insertSavedSearch)
         addSingleton(setMangaDefaultChapterFlags)
         addSingleton(getExhSavedSearch)

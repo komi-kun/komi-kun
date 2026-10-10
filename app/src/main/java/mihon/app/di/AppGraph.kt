@@ -44,6 +44,7 @@ import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.ui.setting.track.BaseOAuthLoginActivity
 import eu.kanade.tachiyomi.ui.webview.WebViewActivity
 import eu.kanade.tachiyomi.util.CrashLogUtil
+import exh.GalleryAdder
 import exh.eh.EHentaiUpdateWorker
 import exh.pref.DelegateSourcePreferences
 import exh.source.ExhPreferences
@@ -64,6 +65,7 @@ import tachiyomi.domain.manga.interactor.GetFlatMetadataById
 import tachiyomi.domain.manga.interactor.ResetViewerFlags
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.domain.storage.service.StoragePreferences
+import tachiyomi.domain.track.interactor.GetTracks
 import tachiyomi.domain.track.interactor.UpsertTrack
 
 @DependencyGraph(
@@ -134,6 +136,8 @@ interface AppGraph : ViewModelGraph {
     val getFlatMetadataById: GetFlatMetadataById
     val deleteFavoriteEntries: DeleteFavoriteEntries
     val getExhFavoriteMangaWithMetadata: GetExhFavoriteMangaWithMetadata
+    val getTracks: GetTracks
+    val galleryAdder: GalleryAdder
     // KMK <--
 
     val json: Json

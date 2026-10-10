@@ -163,6 +163,8 @@ class LibraryViewModel(
     private val setCustomMangaInfo: SetCustomMangaInfo,
     private val getMergedChaptersByMangaId: GetMergedChaptersByMangaId,
     syncPreferences: SyncPreferences,
+    val favoritesSync: FavoritesSyncHelper,
+    val recommendationSearch: RecommendationSearchHelper,
     // SY <--
     // KMK -->
     private val smartSearchMerge: SmartSearchMerge,
@@ -170,9 +172,6 @@ class LibraryViewModel(
 ) : ViewModel() {
 
     // SY -->
-    val favoritesSync = FavoritesSyncHelper(preferences.context)
-    val recommendationSearch = RecommendationSearchHelper(preferences.context)
-
     private var recommendationSearchJob: Job? = null
     // SY <--
 
