@@ -17,8 +17,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
-import androidx.lifecycle.viewmodel.CreationExtras
-import androidx.lifecycle.viewmodel.compose.viewModel
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import dev.zacsweers.metrox.viewmodel.assistedMetroViewModel
@@ -74,13 +72,14 @@ data class MigrateSourceSearchScreen(
         val navigator = LocalNavigator.currentOrThrow
         val scope = rememberCoroutineScope()
 
-        val viewModel = viewModel<BrowseSourceViewModel>(
-            factory = BrowseSourceViewModel.Factory,
-            extras = CreationExtras {
-                set(BrowseSourceViewModel.SOURCE_ID_KEY, sourceId)
-                set(BrowseSourceViewModel.LISTING_QUERY_KEY, query)
-            },
-        )
+        val viewModel = assistedMetroViewModel<BrowseSourceViewModel, BrowseSourceViewModel.Factory> {
+            create(
+                sourceId = sourceId,
+                listingQuery = query,
+                filtersJson = null,
+                savedSearch = null,
+            )
+        }
         val state by viewModel.state.collectAsState()
 
         val snackbarHostState = remember { SnackbarHostState() }

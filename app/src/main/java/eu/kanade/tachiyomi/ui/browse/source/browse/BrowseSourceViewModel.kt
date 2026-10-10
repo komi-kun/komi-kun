@@ -9,9 +9,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.CreationExtras
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.cachedIn
@@ -92,74 +89,62 @@ import tachiyomi.domain.source.repository.SourcePagingSource
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.i18n.sy.SYMR
 import tachiyomi.source.local.isLocal
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 import xyz.nulldev.ts.api.http.serializer.FilterSerializer
 import java.time.Instant
 import eu.kanade.tachiyomi.source.model.Filter as SourceModelFilter
 
+@AssistedInject
 open class BrowseSourceViewModel(
     /* KMK --> */
-    protected /* KMK <-- */ val sourceId: Long,
-    listingQuery: String?,
+    @Assisted protected /* KMK <-- */ val sourceId: Long,
+    @Assisted listingQuery: String?,
     // SY -->
-    filtersJson: String? = null,
-    savedSearch: Long? = null,
+    @Assisted filtersJson: String?,
+    @Assisted savedSearch: Long?,
     // SY <--
-    sourceManager: SourceManager = Injekt.get(),
-    sourcePreferences: SourcePreferences = Injekt.get(),
-    private val libraryPreferences: LibraryPreferences = Injekt.get(),
-    private val coverCache: CoverCache = Injekt.get(),
-    private val getRemoteManga: GetRemoteManga = Injekt.get(),
-    private val getDuplicateLibraryManga: GetDuplicateLibraryManga = Injekt.get(),
-    private val getCategories: GetCategories = Injekt.get(),
-    private val setMangaCategories: SetMangaCategories = Injekt.get(),
-    private val setMangaDefaultChapterFlags: SetMangaDefaultChapterFlags = Injekt.get(),
-    private val getManga: GetManga = Injekt.get(),
-    private val updateManga: UpdateManga = Injekt.get(),
-    private val addTracks: AddTracks = Injekt.get(),
-    getIncognitoState: GetIncognitoState = Injekt.get(),
+    private val sourceManager: SourceManager,
+    sourcePreferences: SourcePreferences,
+    private val libraryPreferences: LibraryPreferences,
+    private val coverCache: CoverCache,
+    private val getRemoteManga: GetRemoteManga,
+    private val getDuplicateLibraryManga: GetDuplicateLibraryManga,
+    private val getCategories: GetCategories,
+    private val setMangaCategories: SetMangaCategories,
+    private val setMangaDefaultChapterFlags: SetMangaDefaultChapterFlags,
+    private val getManga: GetManga,
+    private val updateManga: UpdateManga,
+    private val addTracks: AddTracks,
+    getIncognitoState: GetIncognitoState,
     // KMK -->
-    private val updateMangaFromRemote: UpdateMangaFromRemote = Injekt.get(),
-    private val toggleIncognito: ToggleIncognito = Injekt.get(),
-    private val extensionManager: ExtensionManager = Injekt.get(),
+    private val updateMangaFromRemote: UpdateMangaFromRemote,
+    private val toggleIncognito: ToggleIncognito,
+    private val extensionManager: ExtensionManager,
     // KMK <--
 
     // SY -->
-    exhPreferences: ExhPreferences = Injekt.get(),
-    uiPreferences: UiPreferences = Injekt.get(),
-    private val getFlatMetadataById: GetFlatMetadataById = Injekt.get(),
-    private val deleteSavedSearchById: DeleteSavedSearchById = Injekt.get(),
-    private val insertSavedSearch: InsertSavedSearch = Injekt.get(),
-    private val getExhSavedSearch: GetExhSavedSearch = Injekt.get(),
+    exhPreferences: ExhPreferences,
+    uiPreferences: UiPreferences,
+    private val getFlatMetadataById: GetFlatMetadataById,
+    private val deleteSavedSearchById: DeleteSavedSearchById,
+    private val insertSavedSearch: InsertSavedSearch,
+    private val getExhSavedSearch: GetExhSavedSearch,
     // SY <--
 ) : ViewModel() {
 
+    @AssistedFactory
+    @ManualViewModelAssistedFactoryKey
+    @ContributesIntoMap(AppScope::class)
+    interface Factory : ManualViewModelAssistedFactory {
+        fun create(
+            sourceId: Long,
+            listingQuery: String?,
+            filtersJson: String?,
+            savedSearch: Long?,
+        ): BrowseSourceViewModel
+    }
+
     val state: StateFlow<BrowseSourceViewModel.State>
         field = MutableStateFlow<BrowseSourceViewModel.State>(State(Listing.valueOf(listingQuery)))
-
-    companion object {
-        val SOURCE_ID_KEY = CreationExtras.Key<Long>()
-        val LISTING_QUERY_KEY = CreationExtras.Key<String?>()
-
-        // SY -->
-        val FILTERS_JSON_KEY = CreationExtras.Key<String?>()
-        val SAVED_SEARCH_KEY = CreationExtras.Key<Long?>()
-        // SY <--
-
-        val Factory = viewModelFactory {
-            initializer {
-                BrowseSourceViewModel(
-                    sourceId = get(SOURCE_ID_KEY)!!,
-                    listingQuery = get(LISTING_QUERY_KEY),
-                    // SY -->
-                    filtersJson = get(FILTERS_JSON_KEY),
-                    savedSearch = get(SAVED_SEARCH_KEY),
-                    // SY <--
-                )
-            }
-        }
-    }
 
     // KMK -->
     /** Updates [state] from subclasses, which cannot access the backing field directly. */

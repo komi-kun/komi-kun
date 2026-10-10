@@ -10,9 +10,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.lifecycle.viewmodel.compose.viewModel
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import dev.zacsweers.metrox.viewmodel.assistedMetroViewModel
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 import eu.kanade.core.util.ifSourcesLoaded
 import eu.kanade.presentation.browse.BrowseSourceContent
@@ -55,7 +55,9 @@ class BrowseRecommendsScreen(
         val context = LocalContext.current
         val navigator = LocalNavigator.currentOrThrow
 
-        val viewModel = viewModel { BrowseRecommendsViewModel(args) }
+        val viewModel = assistedMetroViewModel<BrowseRecommendsViewModel, BrowseRecommendsViewModel.Factory> {
+            create(args = args)
+        }
 
         // KMK -->
         val bulkFavoriteViewModel = metroViewModel<BulkFavoriteViewModel>()
