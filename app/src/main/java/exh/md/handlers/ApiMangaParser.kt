@@ -1,5 +1,6 @@
 package exh.md.handlers
 
+import android.content.Context
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import exh.log.xLogE
@@ -25,6 +26,7 @@ class ApiMangaParser(
     private val getManga: GetManga,
     private val insertFlatMetadata: InsertFlatMetadata,
     private val getFlatMetadataById: GetFlatMetadataById,
+    private val context: Context,
 ) {
     val metaClass = MangaDexSearchMetadata::class
 
@@ -118,13 +120,14 @@ class ApiMangaParser(
                 ).orEmpty()
 
                 description = MdUtil.cleanDescription(rawDesc)
-                    .let { if (altTitlesInDesc) MdUtil.addAltTitleToDesc(it, altTitles) else it }
+                    .let { if (altTitlesInDesc) MdUtil.addAltTitleToDesc(it, altTitles, context) else it }
                     .let {
                         if (finalChapterInDesc) {
                             MdUtil.addFinalChapterToDesc(
                                 it,
                                 mangaAttributesDto.lastVolume,
                                 mangaAttributesDto.lastChapter,
+                                context,
                             )
                         } else {
                             it

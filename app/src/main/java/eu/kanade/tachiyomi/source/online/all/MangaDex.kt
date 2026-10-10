@@ -103,6 +103,7 @@ class MangaDex(delegate: HttpSource, val context: Context) :
             context.appGraph.getManga,
             context.appGraph.insertFlatMetadata,
             context.appGraph.getFlatMetadataById,
+            context,
         )
     }
     private val followsHandler by lazy {

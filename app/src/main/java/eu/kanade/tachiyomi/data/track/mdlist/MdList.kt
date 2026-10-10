@@ -27,7 +27,7 @@ class MdList(id: Long) : BaseTracker(id, "MDList") {
             .toList()
     }
 
-    private val mdex by lazy { MdUtil.getEnabledMangaDex() }
+    private val mdex by lazy { MdUtil.getEnabledMangaDex(appGraph.sourcePreferences, appGraph.sourceManager) }
 
     val interceptor = MangaDexAuthInterceptor(trackPreferences, this)
 

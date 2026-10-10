@@ -64,14 +64,17 @@ object SettingsMangadexScreen : SearchableSettings {
     @Composable
     override fun getTitleRes() = SYMR.strings.pref_category_mangadex
 
-    override fun isEnabled(): Boolean = MdUtil.getEnabledMangaDexs(Injekt.get<Context>().appGraph.sourcePreferences).isNotEmpty()
+    override fun isEnabled(): Boolean {
+        val graph = Injekt.get<Context>().appGraph
+        return MdUtil.getEnabledMangaDexs(graph.sourcePreferences, graph.sourceManager).isNotEmpty()
+    }
 
     @Composable
     override fun getPreferences(): List<Preference> {
         val context = LocalContext.current
         val sourcePreferences: SourcePreferences = remember { context.appGraph.sourcePreferences }
         val trackPreferences: TrackPreferences = remember { context.appGraph.trackPreferences }
-        val mdex = remember { MdUtil.getEnabledMangaDex(sourcePreferences) } ?: return emptyList()
+        val mdex = remember { MdUtil.getEnabledMangaDex(sourcePreferences, context.appGraph.sourceManager) } ?: return emptyList()
 
         return listOf(
             loginPreference(mdex, trackPreferences),
@@ -180,9 +183,10 @@ object SettingsMangadexScreen : SearchableSettings {
     fun preferredMangaDexId(
         sourcePreferences: SourcePreferences,
     ): Preference.PreferenceItem.ListPreference<String> {
+        val sourceManager = LocalContext.current.appGraph.sourceManager
         return Preference.PreferenceItem.ListPreference(
             preference = sourcePreferences.preferredMangaDexId,
-            entries = MdUtil.getEnabledMangaDexs(sourcePreferences)
+            entries = MdUtil.getEnabledMangaDexs(sourcePreferences, sourceManager)
                 .associate { it.id.toString() to it.toString() }
                 .toMap(),
             title = stringResource(SYMR.strings.mangadex_preffered_source),
