@@ -7,7 +7,6 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.content.pm.PackageInfoCompat
 import eu.kanade.domain.extension.interactor.TrustExtension
-import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.tachiyomi.extension.model.Extension
 import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.source.SourceFactory
@@ -18,12 +17,10 @@ import kotlinx.coroutines.awaitAll
 import logcat.LogPriority
 import mihon.app.di.appGraph
 import mihon.data.dalvik.DelegateLastClassLoaderCompat
-import mihon.domain.extension.interactor.GetExtensionStores
 import mihon.domain.extension.model.ContentWarning
 import mihon.domain.extension.model.ExtensionStore
 import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.core.common.util.system.logcat
-import uy.kohesive.injekt.injectLazy
 import java.io.File
 
 /**
@@ -42,11 +39,6 @@ import java.io.File
  */
 internal object ExtensionLoader {
 
-    private val preferences: SourcePreferences by injectLazy()
-    private val trustExtension: TrustExtension by injectLazy()
-    // KMK -->
-    private val getExtensionStores: GetExtensionStores by injectLazy()
-    // KMK <--
     private const val EXTENSION_FEATURE = "tachiyomi.extension"
     private const val METADATA_SOURCE_CLASS = "tachiyomi.extension.class"
     private const val METADATA_SOURCE_FACTORY = "tachiyomi.extension.factory"
@@ -120,9 +112,11 @@ internal object ExtensionLoader {
         context: Context,
         alreadyLoaded: Map<String, Extension.Loaded> = emptyMap(),
     ): List<Extension.Installed> {
-        val stores = getExtensionStores.get()
-        val enabledContentWarnings = preferences.enabledContentWarnings.get()
-        val applyContentWarningsToInstalled = preferences.applyContentWarningsToInstalled.get()
+        val stores = context.appGraph.getExtensionStores.get()
+        val trustExtension = context.appGraph.trustExtension
+        val sourcePreferences = context.appGraph.sourcePreferences
+        val enabledContentWarnings = sourcePreferences.enabledContentWarnings.get()
+        val applyContentWarningsToInstalled = sourcePreferences.applyContentWarningsToInstalled.get()
 
         val pkgManager = context.packageManager
 
@@ -199,12 +193,12 @@ internal object ExtensionLoader {
             return null
         }
 
-        val sourcePreferences = preferences
+        val sourcePreferences = context.appGraph.sourcePreferences
         return loadExtensionCatching(
             context = context,
             extensionInfo = extensionPackage,
-            trustExtension = trustExtension,
-            stores = getExtensionStores.get(),
+            trustExtension = context.appGraph.trustExtension,
+            stores = context.appGraph.getExtensionStores.get(),
             enabledContentWarnings = sourcePreferences.enabledContentWarnings.get(),
             applyContentWarningsToInstalled = sourcePreferences.applyContentWarningsToInstalled.get(),
         )

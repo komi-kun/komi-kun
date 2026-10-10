@@ -27,7 +27,6 @@ import eu.kanade.presentation.more.settings.widget.TextPreferenceWidget
 import eu.kanade.presentation.util.LocalBackPress
 import eu.kanade.presentation.util.Screen
 import eu.kanade.tachiyomi.BuildConfig
-import eu.kanade.tachiyomi.data.updater.AppUpdateChecker
 import eu.kanade.tachiyomi.data.updater.RELEASE_URL
 import eu.kanade.tachiyomi.ui.more.ComingUpdatesScreen
 import eu.kanade.tachiyomi.ui.more.NewUpdateScreen
@@ -306,14 +305,10 @@ class AboutScreen : Screen() {
         peekIntoPreview: Boolean = false,
         // KMK <--
     ) {
-        val updateChecker = AppUpdateChecker(
-            // KMK -->
-            peekIntoPreview = peekIntoPreview,
-            // KMK <--
-        )
+        val updateChecker = context.appGraph.updateChecker
         withUIContext {
             try {
-                when (val result = withIOContext { updateChecker.checkForUpdate(context, forceCheck = true) }) {
+                when (val result = withIOContext { updateChecker.checkForUpdate(context, forceCheck = true, peekIntoPreview = peekIntoPreview) }) {
                     is GetApplicationRelease.Result.NewUpdate -> {
                         onAvailableUpdate(result)
                     }
@@ -340,7 +335,7 @@ class AboutScreen : Screen() {
             onAvailableUpdate: (GetApplicationRelease.Result.NewUpdate) -> Unit,
             onFinish: () -> Unit,
         ) {
-            val updateChecker = AppUpdateChecker()
+            val updateChecker = context.appGraph.updateChecker
             withUIContext {
                 try {
                     when (val result = withIOContext { updateChecker.getReleaseNotes() }) {

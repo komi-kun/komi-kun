@@ -26,6 +26,7 @@ import eu.kanade.domain.manga.interactor.UpdateManga
 import eu.kanade.domain.manga.model.readerOrientation
 import eu.kanade.domain.manga.model.readingMode
 import eu.kanade.domain.source.interactor.GetIncognitoState
+import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.domain.sync.SyncPreferences
 import eu.kanade.domain.track.interactor.TrackChapter
 import eu.kanade.domain.track.service.TrackPreferences
@@ -148,6 +149,7 @@ class ReaderViewModel(
     // SY -->
     private val syncPreferences: SyncPreferences,
     private val uiPreferences: UiPreferences,
+    private val sourcePreferences: SourcePreferences,
     private val getFlatMetadataById: GetFlatMetadataById,
     private val getMergedMangaById: GetMergedMangaById,
     private val getMergedReferencesById: GetMergedReferencesById,
@@ -378,7 +380,7 @@ class ReaderViewModel(
             }
             .run {
                 if (basePreferences.downloadedOnly.get()) {
-                    filterDownloaded(manga, mangaMap)
+                    filterDownloaded(manga, downloadCache, mangaMap)
                 } else {
                     this
                 }
@@ -513,6 +515,7 @@ class ReaderViewModel(
                     // SY -->
                     sourceManager = sourceManager,
                     readerPrefs = readerPreferences,
+                    sourcePreferences = sourcePreferences,
                     mergedReferences = mergedReferences,
                     mergedManga = mergedManga,
                     // SY <--

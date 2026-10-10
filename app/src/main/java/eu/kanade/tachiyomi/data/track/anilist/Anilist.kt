@@ -37,7 +37,7 @@ class Anilist(id: Long) : BaseTracker(id, "AniList"), DeletableTracker {
 
     private val interceptor by lazy { AnilistInterceptor(this, getPassword()) }
 
-    private val api by lazy { AnilistApi(id, client, interceptor) }
+    private val api by lazy { AnilistApi(id, client, interceptor, json) }
 
     override val supportsReadingDates: Boolean = true
 

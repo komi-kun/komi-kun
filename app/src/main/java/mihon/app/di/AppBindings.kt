@@ -19,7 +19,6 @@ import dev.zacsweers.metro.Provides
 import dev.zacsweers.metro.SingleIn
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.tachiyomi.core.security.SecurityPreferences
-import eu.kanade.tachiyomi.data.updater.AppUpdateChecker
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.protobuf.ProtoBuf
 import mihon.core.archive.CbzCrypto
@@ -122,10 +121,6 @@ object AppBindings {
     @SingleIn(AppScope::class)
     fun providesAllowHiddenFiles(sourcePreferences: SourcePreferences): Boolean =
         sourcePreferences.allowLocalSourceHiddenFolders.get()
-
-    @Provides
-    @SingleIn(AppScope::class)
-    fun providesAppUpdateChecker(): AppUpdateChecker = AppUpdateChecker()
 
     @Provides
     @SingleIn(AppScope::class)

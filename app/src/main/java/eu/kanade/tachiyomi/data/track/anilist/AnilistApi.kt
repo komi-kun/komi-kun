@@ -40,7 +40,6 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.core.common.util.system.logcat
-import uy.kohesive.injekt.injectLazy
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
 import tachiyomi.domain.track.model.Track as DomainTrack
@@ -49,9 +48,8 @@ class AnilistApi(
     val trackerId: Long,
     val client: OkHttpClient,
     interceptor: AnilistInterceptor,
+    private val json: Json,
 ) {
-
-    private val json: Json by injectLazy()
 
     private val authClient = client.newBuilder()
         .addInterceptor(interceptor)

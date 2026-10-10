@@ -1,6 +1,6 @@
 package eu.kanade.tachiyomi.data.coil
 
-import android.app.Application
+import android.content.Context
 import android.graphics.Bitmap
 import androidx.core.graphics.createBitmap
 import androidx.core.graphics.scale
@@ -21,19 +21,19 @@ import mihon.core.archive.CbzCrypto.getCoverStream
 import mihon.core.archive.archiveReader
 import okio.BufferedSource
 import tachiyomi.core.common.util.system.ImageUtil
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 import java.io.BufferedInputStream
 
 /**
  * A [Decoder] that uses [ImageDecoder] to decode image formats not supported
  * by the Android system decoder (AVIF, JXL, HEIF, etc.).
  */
-class ImageDecoder(private val resources: ImageSource, private val options: Options) : Decoder {
+class ImageDecoder(
+    private val resources: ImageSource,
+    private val options: Options,
     // KMK -->
-    private val context = Injekt.get<Application>()
+    private val context: Context,
     // KMK <--
-
+) : Decoder {
     /**
      * Wraps a raw [ImageDecoder.Frame] as a Coil [Image] for callers that want
      * direct access to the RGBA [java.nio.ByteBuffer] (e.g. the new-decoder path).
@@ -130,10 +130,14 @@ class ImageDecoder(private val resources: ImageSource, private val options: Opti
         )
     }
 
-    class Factory : Decoder.Factory {
+    class Factory(
+        // KMK -->
+        private val context: Context,
+        // KMK <--
+    ) : Decoder.Factory {
         override fun create(result: SourceFetchResult, options: Options, imageLoader: ImageLoader): Decoder? {
             return if (options.newDecoder || options.customDecoder || isApplicable(result.source.source())) {
-                ImageDecoder(result.source, options)
+                ImageDecoder(result.source, options, context)
             } else {
                 null
             }

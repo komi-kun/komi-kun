@@ -229,19 +229,19 @@ class PagerConfig(
 
     override fun defaultNavigation(): ViewerNavigation {
         return when (viewer) {
-            is VerticalPagerViewer -> LNavigation()
-            else -> RightAndLeftNavigation()
+            is VerticalPagerViewer -> LNavigation(readerPreferences)
+            else -> RightAndLeftNavigation(readerPreferences)
         }
     }
 
     override fun updateNavigation(navigationMode: Int) {
         navigator = when (navigationMode) {
             0 -> defaultNavigation()
-            1 -> LNavigation()
-            2 -> KindlishNavigation()
-            3 -> EdgeNavigation()
-            4 -> RightAndLeftNavigation()
-            5 -> DisabledNavigation()
+            1 -> LNavigation(readerPreferences)
+            2 -> KindlishNavigation(readerPreferences)
+            3 -> EdgeNavigation(readerPreferences)
+            4 -> RightAndLeftNavigation(readerPreferences)
+            5 -> DisabledNavigation(readerPreferences)
             else -> defaultNavigation()
         }
         navigationModeChangedListener?.invoke()

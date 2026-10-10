@@ -82,7 +82,6 @@ import eu.kanade.tachiyomi.data.connections.discord.DiscordRPCService
 import eu.kanade.tachiyomi.data.download.DownloadCache
 import eu.kanade.tachiyomi.data.library.LibraryUpdateJob
 import eu.kanade.tachiyomi.data.notification.NotificationReceiver
-import eu.kanade.tachiyomi.data.updater.AppUpdateChecker
 import eu.kanade.tachiyomi.data.updater.AppUpdateJob
 import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.ui.base.activity.BaseActivity
@@ -578,7 +577,7 @@ class MainActivity : BaseActivity() {
                     // KMK -->
                     AppUpdateJob.setupTask(context)
                     // KMK <--
-                    val result = AppUpdateChecker().checkForUpdate(context)
+                    val result = context.appGraph.updateChecker.checkForUpdate(context)
                     if (result is GetApplicationRelease.Result.NewUpdate) {
                         val updateScreen = NewUpdateScreen(
                             versionName = result.release.version,

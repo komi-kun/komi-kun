@@ -22,8 +22,6 @@ import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.i18n.MR
 import tachiyomi.source.local.LocalSource
 import tachiyomi.source.local.io.Format
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 
 /**
  * Loader used to retrieve the [PageLoader] for a given chapter.
@@ -38,13 +36,11 @@ class ChapterLoader(
     // SY -->
     private val sourceManager: SourceManager,
     private val readerPrefs: ReaderPreferences,
+    private val sourcePreferences: SourcePreferences,
     private val mergedReferences: List<MergedMangaReference>,
     private val mergedManga: Map<Long, Manga>?,
     // SY <--
 ) {
-    // SY -->
-    private val sourcePreferences: SourcePreferences = Injekt.get()
-    // SY <--
 
     /**
      * Assigns the chapter's page loader and loads the its pages. Returns immediately if the chapter
@@ -139,7 +135,7 @@ class ChapterLoader(
                     source is LocalSource -> source.getFormat(chapter.chapter).let { format ->
                         when (format) {
                             is Format.Directory -> DirectoryPageLoader(format.file)
-                            is Format.Archive -> ArchivePageLoader(format.file.archiveReader(context))
+                            is Format.Archive -> ArchivePageLoader(format.file.archiveReader(context), context, readerPrefs)
                             is Format.Epub -> EpubPageLoader(format.file.epubReader(context))
                         }
                     }
@@ -157,7 +153,7 @@ class ChapterLoader(
             source is LocalSource -> source.getFormat(chapter.chapter).let { format ->
                 when (format) {
                     is Format.Directory -> DirectoryPageLoader(format.file)
-                    is Format.Archive -> ArchivePageLoader(format.file.archiveReader(context))
+                    is Format.Archive -> ArchivePageLoader(format.file.archiveReader(context), context, readerPrefs)
                     is Format.Epub -> EpubPageLoader(format.file.epubReader(context))
                 }
             }

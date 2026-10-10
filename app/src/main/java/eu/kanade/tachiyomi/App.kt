@@ -92,6 +92,7 @@ import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.core.common.util.system.logcat
+import tachiyomi.domain.manga.interactor.GetCustomMangaInfo
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.domain.storage.service.StorageManager
 import tachiyomi.i18n.MR
@@ -128,6 +129,8 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
 
     // KMK -->
     @Inject private lateinit var pagePreviewCache: PagePreviewCache
+
+    @Inject private lateinit var getCustomMangaInfo: GetCustomMangaInfo
     // KMK <--
 
     @Inject private lateinit var widgetManager: WidgetManager
@@ -156,6 +159,9 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
         }
 
         graph.inject(this)
+        // KMK -->
+        GetCustomMangaInfo.setInstance(getCustomMangaInfo)
+        // KMK <--
         setupInjekt()
 
         TelemetryConfig.init(
@@ -292,11 +298,11 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
                 // NetworkFetcher.Factory
                 add(OkHttpNetworkFetcherFactory(callFactoryLazy::value))
                 // Decoder.Factory
-                add(ImageDecoder.Factory())
+                add(ImageDecoder.Factory(context))
                 // Fetcher.Factory
                 add(BufferedSourceFetcher.Factory())
-                add(MangaCoverFetcher.MangaCoverFactory(callFactoryLazy, coverCache, sourceManager))
-                add(MangaCoverFetcher.MangaFactory(callFactoryLazy, coverCache, sourceManager))
+                add(MangaCoverFetcher.MangaCoverFactory(callFactoryLazy, coverCache, sourceManager, uiPreferences))
+                add(MangaCoverFetcher.MangaFactory(callFactoryLazy, coverCache, sourceManager, uiPreferences))
                 // Keyer
                 add(MangaCoverKeyer(coverCache))
                 add(MangaKeyer())

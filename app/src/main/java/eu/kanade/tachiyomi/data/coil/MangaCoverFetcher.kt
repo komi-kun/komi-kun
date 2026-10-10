@@ -37,9 +37,6 @@ import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.manga.model.MangaCover
 import tachiyomi.domain.manga.model.asMangaCover
 import tachiyomi.domain.source.service.SourceManager
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
-import uy.kohesive.injekt.injectLazy
 import java.io.File
 import java.io.IOException
 
@@ -67,11 +64,13 @@ class MangaCoverFetcher(
     private val sourceLazy: Lazy<HttpSource?>,
     private val callFactoryLazy: Lazy<Call.Factory>,
     private val imageLoader: ImageLoader,
+    // KMK -->
+    private val uiPreferences: UiPreferences,
+    // KMK <--
 ) : Fetcher {
 
     // KMK -->
     private val scope by lazy { CoroutineScope(Dispatchers.IO) }
-    private val uiPreferences = Injekt.get<UiPreferences>()
     private val themeCoverBased = uiPreferences.themeCoverBased.get()
     private val preloadLibraryColor = uiPreferences.preloadLibraryColor.get()
     // KMK <--
@@ -368,6 +367,7 @@ class MangaCoverFetcher(
         private val callFactoryLazy: Lazy<Call.Factory>,
         private val coverCache: CoverCache,
         private val sourceManager: SourceManager,
+        private val uiPreferences: UiPreferences,
     ) : Fetcher.Factory<Manga> {
 
         override fun create(data: Manga, options: Options, imageLoader: ImageLoader): Fetcher {
@@ -384,6 +384,7 @@ class MangaCoverFetcher(
                 sourceLazy = lazy { sourceManager.get(data.source) as? HttpSource },
                 callFactoryLazy = callFactoryLazy,
                 imageLoader = imageLoader,
+                uiPreferences = uiPreferences,
             )
         }
     }
@@ -392,6 +393,7 @@ class MangaCoverFetcher(
         private val callFactoryLazy: Lazy<Call.Factory>,
         private val coverCache: CoverCache,
         private val sourceManager: SourceManager,
+        private val uiPreferences: UiPreferences,
     ) : Fetcher.Factory<MangaCover> {
 
         override fun create(data: MangaCover, options: Options, imageLoader: ImageLoader): Fetcher {
@@ -408,6 +410,7 @@ class MangaCoverFetcher(
                 sourceLazy = lazy { sourceManager.get(data.sourceId) as? HttpSource },
                 callFactoryLazy = callFactoryLazy,
                 imageLoader = imageLoader,
+                uiPreferences = uiPreferences,
             )
         }
     }

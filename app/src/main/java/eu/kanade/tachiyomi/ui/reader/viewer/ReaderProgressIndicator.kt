@@ -13,14 +13,13 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.AbstractComposeView
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.core.view.isVisible
 import com.google.android.material.progressindicator.CircularProgressIndicator
-import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.presentation.theme.TachiyomiTheme
+import mihon.app.di.appGraph
 import tachiyomi.presentation.core.components.CombinedCircularProgressIndicator
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 
 /**
  * A wrapper for [CircularProgressIndicator] that always rotates.
@@ -46,7 +45,7 @@ class ReaderProgressIndicator @JvmOverloads constructor(
     @Composable
     override fun Content() {
         // KMK -->
-        val uiPreferences = Injekt.get<UiPreferences>()
+        val uiPreferences = LocalContext.current.appGraph.uiPreferences
         val themeCoverBased = uiPreferences.themeCoverBased.get()
         // KMK <--
         TachiyomiTheme(
