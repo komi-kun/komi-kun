@@ -42,7 +42,7 @@ class CategoriesRestorer(
                     }
 
                     if (dbCategory != null) {
-                        database.categoriesQueries.update(
+                        database.categoryQueries.update(
                             name = backupCategory.name,
                             order = backupCategory.order,
                             flags = backupCategory.flags,
@@ -64,7 +64,7 @@ class CategoriesRestorer(
                     // reorders never converge across devices.
                     val order = if (isSync) backupCategory.order else nextOrder++
                     // SY <--
-                    database.categoriesQueries.insert(
+                    database.categoryQueries.insert(
                         name = backupCategory.name,
                         order = order,
                         flags = backupCategory.flags,
@@ -82,7 +82,7 @@ class CategoriesRestorer(
             // SY <--
 
             // SY -->
-            database.categoriesQueries.resetIsSyncing()
+            database.categoryQueries.resetIsSyncing()
             // SY <--
 
             libraryPreferences.categorizedDisplaySettings.set(

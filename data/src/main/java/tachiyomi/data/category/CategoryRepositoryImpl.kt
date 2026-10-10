@@ -21,38 +21,38 @@ class CategoryRepositoryImpl(
 ) : CategoryRepository {
 
     override suspend fun get(id: Long): Category? {
-        return database.categoriesQueries
+        return database.categoryQueries
             .getCategory(id, CategoryMapper::mapCategory)
             .awaitAsOneOrNull()
     }
 
     override suspend fun getAll(): List<Category> {
-        return database.categoriesQueries
+        return database.categoryQueries
             .getCategories(CategoryMapper::mapCategory)
             .awaitAsList()
     }
 
     override fun getAllAsFlow(): Flow<List<Category>> {
-        return database.categoriesQueries
+        return database.categoryQueries
             .getCategories(CategoryMapper::mapCategory)
             .subscribeToList()
     }
 
     override suspend fun getCategoriesByMangaId(mangaId: Long): List<Category> {
-        return database.categoriesQueries
+        return database.categoryQueries
             .getCategoriesByMangaId(mangaId, CategoryMapper::mapCategory)
             .awaitAsList()
     }
 
     override fun getCategoriesByMangaIdAsFlow(mangaId: Long): Flow<List<Category>> {
-        return database.categoriesQueries
+        return database.categoryQueries
             .getCategoriesByMangaId(mangaId, CategoryMapper::mapCategory)
             .subscribeToList()
     }
 
     // SY -->
     override suspend fun insert(category: Category): Long? {
-        return database.categoriesQueries.insertWithNextOrder(
+        return database.categoryQueries.insertWithNextOrder(
             name = category.name,
             flags = category.flags,
             // KMK -->
@@ -68,26 +68,26 @@ class CategoryRepositoryImpl(
     // SY <--
 
     override suspend fun updateName(categoryId: Long, name: String) {
-        database.categoriesQueries.updateName(name = name, categoryId = categoryId)
+        database.categoryQueries.updateName(name = name, categoryId = categoryId)
     }
 
     override suspend fun updateFlags(categoryId: Long, flags: Long) {
-        database.categoriesQueries.updateFlags(flags = flags, categoryId = categoryId)
+        database.categoryQueries.updateFlags(flags = flags, categoryId = categoryId)
     }
 
     override suspend fun updateAllFlags(flags: Long?) {
-        database.categoriesQueries.updateAllFlags(flags)
+        database.categoryQueries.updateAllFlags(flags)
     }
 
     override suspend fun updateAllOrders(orderedIds: List<Long>) {
         database.transaction {
-            val current = database.categoriesQueries.getUserCategoryIds().awaitAsList()
+            val current = database.categoryQueries.getUserCategoryIds().awaitAsList()
             val ids = orderedIds.filter { it in current } + current.filterNot { it in orderedIds }
             ids.forEachIndexed { index, categoryId ->
-                database.categoriesQueries.updateOrder(order = -index - 2L, categoryId = categoryId)
+                database.categoryQueries.updateOrder(order = -index - 2L, categoryId = categoryId)
             }
             ids.forEachIndexed { index, categoryId ->
-                database.categoriesQueries.updateOrder(order = index.toLong(), categoryId = categoryId)
+                database.categoryQueries.updateOrder(order = index.toLong(), categoryId = categoryId)
             }
         }
     }
@@ -104,7 +104,7 @@ class CategoryRepositoryImpl(
     }
 
     private suspend fun Database.updatePartialBlocking(update: CategoryUpdate) {
-        categoriesQueries.update(
+        categoryQueries.update(
             name = update.name,
             order = update.order,
             flags = update.flags,
@@ -123,6 +123,6 @@ class CategoryRepositoryImpl(
     // KMK <--
 
     override suspend fun delete(categoryId: Long) {
-        database.categoriesQueries.delete(categoryId = categoryId)
+        database.categoryQueries.delete(categoryId = categoryId)
     }
 }

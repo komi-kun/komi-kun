@@ -33,37 +33,37 @@ class MangaRepositoryImpl(
 ) : MangaRepository {
 
     override suspend fun getMangaById(id: Long): Manga {
-        return database.mangasQueries
+        return database.mangaQueries
             .getMangaById(id, MangaMapper::mapManga)
             .awaitAsOne()
     }
 
     override fun getMangaByIdAsFlow(id: Long): Flow<Manga> {
-        return database.mangasQueries
+        return database.mangaQueries
             .getMangaById(id, MangaMapper::mapManga)
             .subscribeToOne()
     }
 
     override suspend fun getMangaByUrlAndSourceId(url: String, sourceId: Long): Manga? {
-        return database.mangasQueries
-            .getMangaByUrlAndSource(url, sourceId, MangaMapper::mapManga)
+        return database.mangaQueries
+            .getMangaByUrlAndSource(sourceId, url, MangaMapper::mapManga)
             .awaitAsOneOrNull()
     }
 
     override fun getMangaByUrlAndSourceIdAsFlow(url: String, sourceId: Long): Flow<Manga?> {
-        return database.mangasQueries
-            .getMangaByUrlAndSource(url, sourceId, MangaMapper::mapManga)
+        return database.mangaQueries
+            .getMangaByUrlAndSource(sourceId, url, MangaMapper::mapManga)
             .subscribeToOneOrNull()
     }
 
     override suspend fun getFavorites(): List<Manga> {
-        return database.mangasQueries
+        return database.mangaQueries
             .getFavorites(MangaMapper::mapManga)
             .awaitAsList()
     }
 
     override suspend fun getReadMangaNotInLibrary(): List<Manga> {
-        return database.mangasQueries
+        return database.mangaQueries
             .getReadMangaNotInLibrary(MangaMapper::mapManga)
             .awaitAsList()
     }
@@ -81,13 +81,13 @@ class MangaRepositoryImpl(
     }
 
     override fun getFavoritesBySourceId(sourceId: Long): Flow<List<Manga>> {
-        return database.mangasQueries
+        return database.mangaQueries
             .getFavoriteBySourceId(sourceId, MangaMapper::mapManga)
             .subscribeToList()
     }
 
     override suspend fun getDuplicateLibraryManga(id: Long, title: String): List<MangaWithChapterCount> {
-        return database.mangasQueries
+        return database.mangaQueries
             .getDuplicateLibraryManga(id, title, MangaMapper::mapMangaWithChapterCount)
             .awaitAsList()
     }
@@ -98,7 +98,7 @@ class MangaRepositoryImpl(
         includedCategories: List<Long>,
     ): Flow<List<Manga>> {
         val epochMillis = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toEpochSecond() * 1000
-        return database.mangasQueries
+        return database.mangaQueries
             .getUpcomingManga(
                 startOfDay = epochMillis,
                 statuses = statuses,
@@ -113,7 +113,7 @@ class MangaRepositoryImpl(
 
     override suspend fun resetViewerFlags(): Boolean {
         return try {
-            database.mangasQueries.resetViewerFlags()
+            database.mangaQueries.resetViewerFlags()
             true
         } catch (e: Exception) {
             logcat(LogPriority.ERROR, e)
@@ -123,9 +123,9 @@ class MangaRepositoryImpl(
 
     override suspend fun setMangaCategories(mangaId: Long, categoryIds: List<Long>) {
         database.transaction {
-            database.mangas_categoriesQueries.deleteMangaCategoryByMangaId(mangaId)
+            database.manga_categoryQueries.deleteMangaCategoryByMangaId(mangaId)
             categoryIds.forEach { categoryId ->
-                database.mangas_categoriesQueries.insert(mangaId, categoryId)
+                database.manga_categoryQueries.insert(mangaId, categoryId)
             }
         }
     }
@@ -158,30 +158,28 @@ class MangaRepositoryImpl(
     ): List<Manga> {
         return database.transactionWithResult {
             manga.map {
-                database.mangasQueries.insertNetworkManga(
-                    source = it.source,
-                    url = it.url,
+                database.mangaQueries.insertNetworkManga(
+                    sourceId = it.source,
+                    remoteUrl = it.url,
                     // SY -->
-                    title = it.ogTitle,
-                    artist = it.ogArtist,
-                    author = it.ogAuthor,
-                    thumbnailUrl = it.ogThumbnailUrl,
-                    description = it.ogDescription,
-                    genre = it.ogGenre,
-                    status = it.ogStatus,
+                    remoteTitle = it.ogTitle,
+                    remoteArtist = it.ogArtist,
+                    remoteAuthor = it.ogAuthor,
+                    remoteCover = it.ogThumbnailUrl,
+                    remoteDescription = it.ogDescription,
+                    remoteGenre = it.ogGenre,
+                    remoteStatus = it.ogStatus,
                     // SY <--
-                    favorite = it.favorite,
-                    lastUpdate = it.lastUpdate,
-                    nextUpdate = it.nextUpdate,
-                    calculateInterval = it.fetchInterval.toLong(),
-                    initialized = it.initialized,
-                    viewerFlags = it.viewerFlags,
-                    chapterFlags = it.chapterFlags,
-                    coverLastModified = it.coverLastModified,
-                    dateAdded = it.dateAdded,
-                    updateStrategy = it.updateStrategy,
-                    version = it.version,
-                    memo = it.memo,
+                    userFavoriteAt = if (it.favorite) it.dateAdded else null,
+                    stateChapterLastUpdate = it.lastUpdate,
+                    stateChapterNextUpdate = it.nextUpdate,
+                    stateChapterFetchInterval = it.fetchInterval.toLong(),
+                    stateInitialized = it.initialized,
+                    userReaderFlags = it.viewerFlags,
+                    userChapterFlags = it.chapterFlags,
+                    stateCoverLastModified = it.coverLastModified,
+                    remoteUpdateStrategy = it.updateStrategy,
+                    remoteMemo = it.memo,
                     // SY -->
                     updateTitle = it.ogTitle.isNotBlank(),
                     updateCover = !it.ogThumbnailUrl.isNullOrBlank(),
@@ -200,7 +198,7 @@ class MangaRepositoryImpl(
     private suspend fun partialUpdate(vararg mangaUpdates: MangaUpdate) {
         database.transaction {
             mangaUpdates.forEach { value ->
-                database.mangasQueries.update(
+                database.mangaQueries.update(
                     source = value.source,
                     url = value.url,
                     artist = value.artist,
@@ -210,7 +208,8 @@ class MangaRepositoryImpl(
                     title = value.title,
                     status = value.status,
                     thumbnailUrl = value.thumbnailUrl,
-                    favorite = value.favorite,
+                    userFavoriteAtSet = value.favorite != null,
+                    userFavoriteAt = if (value.favorite == true) (value.dateAdded ?: 0L) else null,
                     lastUpdate = value.lastUpdate,
                     nextUpdate = value.nextUpdate,
                     calculateInterval = value.fetchInterval?.toLong(),
@@ -218,7 +217,6 @@ class MangaRepositoryImpl(
                     viewer = value.viewerFlags,
                     chapterFlags = value.chapterFlags,
                     coverLastModified = value.coverLastModified,
-                    dateAdded = value.dateAdded,
                     mangaId = value.id,
                     updateStrategy = value.updateStrategy?.let(UpdateStrategyColumnAdapter::encode),
                     version = value.version,
@@ -235,19 +233,19 @@ class MangaRepositoryImpl(
 
     // SY -->
     override suspend fun getMangaBySourceId(sourceId: Long): List<Manga> {
-        return database.mangasQueries
+        return database.mangaQueries
             .getBySource(sourceId, MangaMapper::mapManga)
             .awaitAsList()
     }
 
     override suspend fun getAll(): List<Manga> {
-        return database.mangasQueries
+        return database.mangaQueries
             .getAll(MangaMapper::mapManga)
             .awaitAsList()
     }
 
     override suspend fun deleteManga(mangaId: Long) {
-        database.mangasQueries.deleteById(mangaId)
+        database.mangaQueries.deleteById(mangaId)
     }
 
     override suspend fun getReadMangaNotInLibraryView(): List<LibraryManga> {

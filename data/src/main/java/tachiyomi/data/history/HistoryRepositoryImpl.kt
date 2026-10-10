@@ -102,9 +102,9 @@ class HistoryRepositoryImpl(
     override suspend fun upsertHistory(historyUpdate: HistoryUpdate) {
         try {
             database.historyQueries.upsert(
-                historyUpdate.chapterId,
-                historyUpdate.readAt,
-                historyUpdate.sessionReadDuration,
+                chapterId = historyUpdate.chapterId,
+                readAt = historyUpdate.readAt,
+                readDuration = historyUpdate.sessionReadDuration,
             )
         } catch (e: Exception) {
             logcat(LogPriority.ERROR, throwable = e)
@@ -119,7 +119,7 @@ class HistoryRepositoryImpl(
                     database.historyQueries.upsert(
                         chapterId = historyUpdate.chapterId,
                         readAt = historyUpdate.readAt,
-                        time_read = historyUpdate.sessionReadDuration,
+                        readDuration = historyUpdate.sessionReadDuration,
                     )
                 }
             }

@@ -25,7 +25,7 @@ import logcat.logcat
 import okio.buffer
 import okio.sink
 import tachiyomi.core.common.util.system.logcat
-import tachiyomi.data.Chapters
+import tachiyomi.data.Chapter
 import tachiyomi.data.Database
 import tachiyomi.data.manga.MangaMapper.mapManga
 import tachiyomi.domain.category.interactor.GetCategories
@@ -86,10 +86,10 @@ class SyncManager(
 
         // Reset isSyncing in case it was left over or failed syncing during restore.
         database.transaction {
-            database.mangasQueries.resetIsSyncing()
-            database.chaptersQueries.resetIsSyncing()
+            database.mangaQueries.resetIsSyncing()
+            database.chapterQueries.resetIsSyncing()
             // SY -->
-            database.categoriesQueries.resetIsSyncing()
+            database.categoryQueries.resetIsSyncing()
             // SY <--
         }
 
@@ -225,7 +225,7 @@ class SyncManager(
         updateNonFavorites(nonFavorites)
         // SY -->
         // the restore below may not run, so its reset of the sync flag cannot be relied on
-        database.transaction { database.mangasQueries.resetIsSyncing() }
+        database.transaction { database.mangaQueries.resetIsSyncing() }
         // SY <--
 
         val newSyncData = backup.copy(
@@ -283,7 +283,7 @@ class SyncManager(
             if (categoriesToDelete.isNotEmpty()) {
                 database.transaction {
                     categoriesToDelete.forEach {
-                        database.categoriesQueries.delete(it.id)
+                        database.categoryQueries.delete(it.id)
                     }
                 }
                 categoriesToDelete.forEach { syncPreferences.rememberDeletedCategory(it.uid) }
@@ -378,27 +378,27 @@ class SyncManager(
      * @return a list of all manga stored in the database
      */
     private suspend fun getAllMangaFromDB(): List<Manga> {
-        return database.mangasQueries
+        return database.mangaQueries
             .getAllManga(::mapManga)
             .awaitAsList()
     }
 
     private suspend fun getAllMangaThatNeedsSync(): List<Manga> {
-        return database.mangasQueries
+        return database.mangaQueries
             .getMangasWithFavoriteTimestamp(::mapManga)
             .awaitAsList()
     }
 
     // SY -->
     private suspend fun getMangasModifiedSince(since: Long): List<Manga> {
-        return database.mangasQueries
+        return database.mangaQueries
             .getMangasModifiedSince(since, ::mapManga)
             .awaitAsList()
     }
     // SY <--
 
     private suspend fun isMangaDifferent(localManga: Manga, remoteManga: BackupManga): Boolean {
-        val localChapters = database.chaptersQueries
+        val localChapters = database.chapterQueries
             .getChaptersByMangaId(
                 localManga.id,
                 0,
@@ -425,8 +425,8 @@ class SyncManager(
         return false
     }
 
-    private fun areChaptersDifferent(localChapters: List<Chapters>, remoteChapters: List<BackupChapter>): Boolean {
-        val localChapterMap = localChapters.associateBy { it.url }
+    private fun areChaptersDifferent(localChapters: List<Chapter>, remoteChapters: List<BackupChapter>): Boolean {
+        val localChapterMap = localChapters.associateBy { it.remote_url }
         val remoteChapterMap = remoteChapters.associateBy { it.url }
 
         if (localChapterMap.size != remoteChapterMap.size) {
