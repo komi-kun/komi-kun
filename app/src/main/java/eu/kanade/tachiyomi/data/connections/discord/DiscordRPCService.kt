@@ -19,22 +19,18 @@ import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.connections.ConnectionsManager
 import eu.kanade.tachiyomi.data.notification.NotificationReceiver
 import eu.kanade.tachiyomi.data.notification.Notifications
-import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.util.system.notificationBuilder
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.serialization.json.Json
+import mihon.app.di.appGraph
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.core.common.util.lang.withIOContext
-import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.domain.category.model.Category.Companion.UNCATEGORIZED_ID
 import tachiyomi.i18n.MR
 import timber.log.Timber
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
-import uy.kohesive.injekt.injectLazy
 import kotlin.math.ceil
 import kotlin.math.floor
 import mihon.icons.materialsymbols.R as MaterialSymbolsR
@@ -44,7 +40,8 @@ import tachiyomi.i18n.sy.R as SyR
 
 class DiscordRPCService : Service() {
 
-    private val connectionsManager: ConnectionsManager by injectLazy()
+    private val connectionsManager: ConnectionsManager by lazy { appGraph.connectionsManager }
+    private val connectionsPreferences get() = appGraph.connectionsPreferences
 
     override fun onCreate() {
         super.onCreate()
@@ -169,7 +166,8 @@ class DiscordRPCService : Service() {
 
     companion object {
 
-        private val connectionsPreferences: ConnectionsPreferences by injectLazy()
+        private fun connectionsPreferences(context: Context): ConnectionsPreferences =
+            context.appGraph.connectionsPreferences
 
         private var rpc: DiscordRPC? = null
         private val handler = Handler(Looper.getMainLooper())
@@ -179,13 +177,14 @@ class DiscordRPCService : Service() {
         private const val ACTION_RESTART = "eu.kanade.tachiyomi.DISCORD_RPC_RESTART"
         private const val STOP_SERVICE = "eu.kanade.tachiyomi.DISCORD_RPC_STOP"
 
-        fun start(context: Context, connectionsManager: ConnectionsManager = Injekt.get()) {
+        fun start(context: Context, connectionsManager: ConnectionsManager = context.appGraph.connectionsManager) {
             handler.removeCallbacksAndMessages(null)
-            val token = connectionsPreferences.connectionsToken(connectionsManager.discord).get()
-            if (connectionsPreferences.enableDiscordRPC.get()) {
+            val preferences = connectionsPreferences(context)
+            val token = preferences.connectionsToken(connectionsManager.discord).get()
+            if (preferences.enableDiscordRPC.get()) {
                 if (token.isBlank()) {
                     Timber.tag(TAG).w("Discord RPC not started due to missing token")
-                    connectionsPreferences.enableDiscordRPC.set(false)
+                    preferences.enableDiscordRPC.set(false)
                 } else if (rpc == null) {
                     since = System.currentTimeMillis()
                     context.startForegroundService(Intent(context, DiscordRPCService::class.java))
@@ -218,9 +217,10 @@ class DiscordRPCService : Service() {
             }
         }
 
-        fun restart(context: Context, connectionsManager: ConnectionsManager = Injekt.get()) {
-            val token = connectionsPreferences.connectionsToken(connectionsManager.discord).get()
-            if (connectionsPreferences.enableDiscordRPC.get() && token.isNotBlank()) {
+        fun restart(context: Context, connectionsManager: ConnectionsManager = context.appGraph.connectionsManager) {
+            val preferences = connectionsPreferences(context)
+            val token = preferences.connectionsToken(connectionsManager.discord).get()
+            if (preferences.enableDiscordRPC.get() && token.isNotBlank()) {
                 val restartIntent = Intent(context, DiscordRPCService::class.java).apply {
                     action = ACTION_RESTART
                 }
@@ -234,7 +234,7 @@ class DiscordRPCService : Service() {
                 }
             } else if (token.isBlank()) {
                 Timber.tag(TAG).w("Discord RPC not started due to missing token")
-                connectionsPreferences.enableDiscordRPC.set(false)
+                preferences.enableDiscordRPC.set(false)
             }
         }
 
@@ -270,8 +270,9 @@ class DiscordRPCService : Service() {
             lastUsedScreen = discordScreen
 
             // KMK -->
-            val showProgress = connectionsPreferences.discordShowProgress.get()
-            val showTimestamp = connectionsPreferences.discordShowTimestamp.get()
+            val preferences = connectionsPreferences(context)
+            val showProgress = preferences.discordShowProgress.get()
+            val showTimestamp = preferences.discordShowTimestamp.get()
 
             val (title, state, imageUrl) = when (discordScreen) {
                 DiscordScreen.MANGA -> Triple(
@@ -322,10 +323,11 @@ class DiscordRPCService : Service() {
             appName: String = context.getString(I18nR.string.app_name),
             // KMK <--
         ) {
-            val customMessage = connectionsPreferences.discordCustomMessage.get()
-            val showButtons = connectionsPreferences.discordShowButtons.get()
-            val showDownloadButton = connectionsPreferences.discordShowDownloadButton.get()
-            val showDiscordButton = connectionsPreferences.discordShowDiscordButton.get()
+            val preferences = connectionsPreferences(context)
+            val customMessage = preferences.discordCustomMessage.get()
+            val showButtons = preferences.discordShowButtons.get()
+            val showDownloadButton = preferences.discordShowDownloadButton.get()
+            val showDiscordButton = preferences.discordShowDiscordButton.get()
 
             val name = title ?: appName
             val details = customMessage.takeIf { it.isNotBlank() }
@@ -393,15 +395,15 @@ class DiscordRPCService : Service() {
             }
 
             try {
-                val categories = getCategories(readerData.mangaId)
-                val discordIncognito = isIncognito(categories, readerData.incognitoMode)
+                val categories = getCategories(context, readerData.mangaId)
+                val discordIncognito = isIncognito(context, categories, readerData.incognitoMode)
 
                 val mangaTitle = readerData.mangaTitle.takeUnless { discordIncognito }
                 val chapterNumber = getFormattedChapterNumber(context, readerData, discordIncognito)
                 val (startTime, _) = getTimestamps(readerData)
 
                 withIOContext {
-                    val rpcExternalAsset = getRPCExternalAsset()
+                    val rpcExternalAsset = getRPCExternalAsset(context)
                     val mangaThumbnail =
                         getDiscordThumbnail(rpcExternalAsset, readerData.thumbnailUrl, discordIncognito)
 
@@ -424,15 +426,16 @@ class DiscordRPCService : Service() {
         }
 
         // Helper functions
-        private suspend fun getCategories(id: Long): List<String> =
-            Injekt.get<GetCategories>()
+        private suspend fun getCategories(context: Context, id: Long): List<String> =
+            context.appGraph.getCategories
                 .await(id)
                 .map { it.id.toString() }
                 .ifEmpty { listOf(UNCATEGORIZED_ID.toString()) }
 
-        private fun isIncognito(categories: List<String>, incognitoMode: Boolean): Boolean {
-            val discordIncognitoMode = connectionsPreferences.discordRPCIncognito.get()
-            val incognitoCategories = connectionsPreferences.discordRPCIncognitoCategories.get()
+        private fun isIncognito(context: Context, categories: List<String>, incognitoMode: Boolean): Boolean {
+            val preferences = connectionsPreferences(context)
+            val discordIncognitoMode = preferences.discordRPCIncognito.get()
+            val incognitoCategories = preferences.discordRPCIncognitoCategories.get()
             val incognitoCategory = categories.fastAny { it in incognitoCategories }
             return discordIncognitoMode || incognitoMode || incognitoCategory
         }
@@ -442,7 +445,7 @@ class DiscordRPCService : Service() {
 
             val chapterNumber = readerData.chapterNumber ?: return null
             val chapterNumberDouble = chapterNumber.toDoubleOrNull()
-            val useChapterTitles = connectionsPreferences.useChapterTitles.get()
+            val useChapterTitles = connectionsPreferences(context).useChapterTitles.get()
 
             return when {
                 useChapterTitles || chapterNumberDouble == null -> chapterNumber
@@ -459,14 +462,11 @@ class DiscordRPCService : Service() {
                 null,
             )
 
-        private fun getRPCExternalAsset(): RPCExternalAsset {
-            val connectionsManager: ConnectionsManager by injectLazy()
-            val networkService: NetworkHelper by injectLazy()
-
+        private fun getRPCExternalAsset(context: Context): RPCExternalAsset {
             return RPCExternalAsset(
                 applicationId = RICH_PRESENCE_APPLICATION_ID,
-                token = connectionsPreferences.connectionsToken(connectionsManager.discord).get(),
-                client = networkService.client,
+                token = connectionsPreferences(context).connectionsToken(context.appGraph.connectionsManager.discord).get(),
+                client = context.appGraph.networkHelper.client,
                 json = json,
             )
         }
