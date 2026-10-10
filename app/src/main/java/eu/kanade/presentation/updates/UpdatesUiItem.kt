@@ -447,7 +447,7 @@ fun CollapseButton(
     modifier: Modifier = Modifier,
 ) {
     val painter = rememberAnimatedVectorPainter(
-        AnimatedImageVector.animatedVectorResource(R.drawable.anim_caret_down),
+        AnimatedImageVector.animatedVectorResource(R.drawable.animated_caret_flip),
         !expanded,
     )
 

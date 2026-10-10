@@ -37,6 +37,7 @@ import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
 import kotlin.math.ceil
 import kotlin.math.floor
+import mihon.icons.materialsymbols.R as MaterialSymbolsR
 
 class DiscordRPCService : Service() {
 
@@ -153,7 +154,7 @@ class DiscordRPCService : Service() {
             setContentText(context.getString(R.string.pref_discord_rpc))
             // KMK -->
             setContentTitle(context.getString(R.string.app_name))
-            addAction(R.drawable.ic_close_24dp, context.getString(R.string.action_stop), stopIntent)
+            addAction(MaterialSymbolsR.drawable.rounded_close, context.getString(R.string.action_stop), stopIntent)
             // KMK <--
             setAutoCancel(false)
             setOngoing(true)

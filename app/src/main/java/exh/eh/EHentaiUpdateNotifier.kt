@@ -20,6 +20,7 @@ import tachiyomi.i18n.MR
 import uy.kohesive.injekt.injectLazy
 import java.math.RoundingMode
 import java.text.NumberFormat
+import mihon.icons.materialsymbols.R as MaterialSymbolsR
 
 class EHentaiUpdateNotifier(private val context: Context) {
 
@@ -43,7 +44,7 @@ class EHentaiUpdateNotifier(private val context: Context) {
     val progressNotificationBuilder by lazy {
         context.notificationBuilder(Notifications.CHANNEL_LIBRARY_EHENTAI) {
             setContentTitle(context.stringResource(MR.strings.app_name))
-            setSmallIcon(R.drawable.ic_refresh_24dp)
+            setSmallIcon(MaterialSymbolsR.drawable.rounded_refresh)
             setColor(ContextCompat.getColor(context, R.color.ic_launcher))
             setLargeIcon(notificationBitmap)
             setOngoing(true)

@@ -41,7 +41,7 @@ import exh.md.utils.MdUtil
 import kotlinx.collections.immutable.toImmutableMap
 import logcat.LogPriority
 import mihon.icons.materialsymbols.MaterialSymbols
-import mihon.icons.materialsymbols.rounded.PeopleAlt
+import mihon.icons.materialsymbols.rounded.Group
 import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.core.common.util.lang.withUIContext
 import tachiyomi.core.common.util.system.logcat
@@ -143,7 +143,7 @@ object SettingsMangadexScreen : SearchableSettings {
                     title = mdex.name + " Login",
                     widget = {
                         Icon(
-                            imageVector = MaterialSymbols.Rounded.PeopleAlt,
+                            imageVector = MaterialSymbols.Rounded.Group,
                             contentDescription = null,
                             modifier = Modifier
                                 .padding(start = 12.dp, end = PrefsHorizontalPadding)

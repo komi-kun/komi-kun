@@ -211,6 +211,7 @@ dependencies {
     // SY -->
     implementation(projects.i18nSy)
     // SY <--
+    implementation(projects.icons.customMaterialSymbols)
     implementation(projects.icons.materialSymbols)
     implementation(projects.icons.simpleIcons)
     implementation(projects.core.archive)

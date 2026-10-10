@@ -52,10 +52,10 @@ import kotlinx.collections.immutable.persistentListOf
 import mihon.feature.migration.list.models.MigratingManga
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.automirroredrounded.ArrowForward
+import mihon.icons.materialsymbols.rounded.Check
 import mihon.icons.materialsymbols.rounded.Close
 import mihon.icons.materialsymbols.rounded.ContentCopy
 import mihon.icons.materialsymbols.rounded.CopyAll
-import mihon.icons.materialsymbols.rounded.Done
 import mihon.icons.materialsymbols.rounded.DoneAll
 import mihon.icons.materialsymbols.rounded.MoreVert
 import mihon.icons.materialsymbols.rounded.Settings
@@ -121,7 +121,7 @@ fun MigrationListScreenContent(
                                 icon = if (items.size ==
                                     1
                                 ) {
-                                    MaterialSymbols.Rounded.Done
+                                    MaterialSymbols.Rounded.Check
                                 } else {
                                     MaterialSymbols.Rounded.DoneAll
                                 },

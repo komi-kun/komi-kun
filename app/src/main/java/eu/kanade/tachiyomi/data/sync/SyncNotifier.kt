@@ -15,6 +15,7 @@ import eu.kanade.tachiyomi.util.system.notify
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
+import mihon.icons.materialsymbols.R as MaterialSymbolsR
 
 class SyncNotifier(private val context: Context) {
 
@@ -68,7 +69,7 @@ class SyncNotifier(private val context: Context) {
 
             clearActions()
             addAction(
-                R.drawable.ic_close_24dp,
+                MaterialSymbolsR.drawable.rounded_close,
                 context.getString(R.string.action_cancel),
                 NotificationReceiver.cancelSyncPendingBroadcast(context, Notifications.ID_SYNC_PROGRESS),
             )

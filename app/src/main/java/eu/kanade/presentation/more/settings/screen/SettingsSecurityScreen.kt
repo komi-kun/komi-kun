@@ -53,8 +53,8 @@ import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableMap
 import mihon.core.archive.CbzCrypto
 import mihon.icons.materialsymbols.MaterialSymbols
-import mihon.icons.materialsymbols.rounded.Visibility
-import mihon.icons.materialsymbols.rounded.VisibilityOff
+import mihon.icons.materialsymbols.roundedfilled.Visibility
+import mihon.icons.materialsymbols.roundedfilled.VisibilityOff
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.sy.SYMR
@@ -359,9 +359,9 @@ object SettingsSecurityScreen : SearchableSettings {
                         ) {
                             Icon(
                                 imageVector = if (passwordVisibility) {
-                                    MaterialSymbols.Rounded.Visibility
+                                    MaterialSymbols.RoundedFilled.Visibility
                                 } else {
-                                    MaterialSymbols.Rounded.VisibilityOff
+                                    MaterialSymbols.RoundedFilled.VisibilityOff
                                 },
                                 contentDescription = null,
                             )

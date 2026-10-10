@@ -61,7 +61,7 @@ import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.automirroredrounded.ArrowForward
 import mihon.icons.materialsymbols.rounded.Deselect
 import mihon.icons.materialsymbols.rounded.DragHandle
-import mihon.icons.materialsymbols.rounded.PushPin
+import mihon.icons.materialsymbols.rounded.Keep
 import sh.calvin.reorderable.ReorderableCollectionItemScope
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.ReorderableLazyListState
@@ -167,7 +167,7 @@ class MigrationConfigScreen(private val mangaIds: Collection<Long>) : Screen() {
                             persistentListOf(
                                 AppBar.Action(
                                     title = stringResource(MR.strings.migrationConfigScreen_selectPinnedLabel),
-                                    icon = MaterialSymbols.Rounded.PushPin,
+                                    icon = MaterialSymbols.Rounded.Keep,
                                     onClick = { screenModel.toggleSelection(ScreenModel.SelectionConfig.Pinned) },
                                 ),
                                 AppBar.Action(

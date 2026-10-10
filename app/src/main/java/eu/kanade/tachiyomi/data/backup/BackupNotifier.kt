@@ -23,6 +23,7 @@ import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
 import java.io.File
 import java.util.concurrent.TimeUnit
+import mihon.icons.materialsymbols.R as MaterialSymbolsR
 
 class BackupNotifier(private val context: Context) {
 
@@ -92,7 +93,7 @@ class BackupNotifier(private val context: Context) {
 
             clearActions()
             addAction(
-                R.drawable.ic_share_24dp,
+                MaterialSymbolsR.drawable.rounded_share,
                 context.stringResource(MR.strings.action_share),
                 NotificationReceiver.shareBackupPendingActivity(context, file.uri),
             )
@@ -132,7 +133,7 @@ class BackupNotifier(private val context: Context) {
 
             clearActions()
             addAction(
-                R.drawable.ic_close_24dp,
+                MaterialSymbolsR.drawable.rounded_close,
                 context.stringResource(MR.strings.action_cancel),
                 NotificationReceiver.cancelRestorePendingBroadcast(context, Notifications.ID_RESTORE_PROGRESS),
             )
@@ -200,7 +201,7 @@ class BackupNotifier(private val context: Context) {
                 val errorLogIntent = NotificationReceiver.openErrorLogPendingActivity(context, uri)
                 setContentIntent(errorLogIntent)
                 addAction(
-                    R.drawable.ic_folder_24dp,
+                    MaterialSymbolsR.drawable.rounded_filled_folder,
                     context.stringResource(MR.strings.action_show_errors),
                     errorLogIntent,
                 )

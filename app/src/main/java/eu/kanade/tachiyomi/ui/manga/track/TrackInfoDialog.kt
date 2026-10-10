@@ -76,7 +76,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import logcat.LogPriority
 import mihon.icons.materialsymbols.MaterialSymbols
-import mihon.icons.materialsymbols.rounded.Delete
+import mihon.icons.materialsymbols.roundedfilled.Delete
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.util.QuerySanitizer.sanitize
 import tachiyomi.core.common.util.lang.launchNonCancellable
@@ -720,7 +720,7 @@ private data class TrackDateRemoverScreen(
             modifier = Modifier.windowInsetsPadding(WindowInsets.systemBars),
             icon = {
                 Icon(
-                    imageVector = MaterialSymbols.Rounded.Delete,
+                    imageVector = MaterialSymbols.RoundedFilled.Delete,
                     contentDescription = null,
                 )
             },
@@ -900,7 +900,7 @@ private data class TrackerRemoveScreen(
             modifier = Modifier.windowInsetsPadding(WindowInsets.systemBars),
             icon = {
                 Icon(
-                    imageVector = MaterialSymbols.Rounded.Delete,
+                    imageVector = MaterialSymbols.RoundedFilled.Delete,
                     contentDescription = null,
                 )
             },

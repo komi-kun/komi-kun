@@ -22,7 +22,7 @@ import eu.kanade.presentation.more.settings.LocalPreferenceHighlighted
 import eu.kanade.presentation.more.settings.LocalPreferenceMinHeight
 import eu.kanade.tachiyomi.data.connections.ConnectionsService
 import mihon.icons.materialsymbols.MaterialSymbols
-import mihon.icons.materialsymbols.rounded.Done
+import mihon.icons.materialsymbols.rounded.Check
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.secondaryItemAlpha
@@ -71,7 +71,7 @@ fun ConnectionPreferenceWidget(
             }
             if (checked) {
                 Icon(
-                    imageVector = MaterialSymbols.Rounded.Done,
+                    imageVector = MaterialSymbols.Rounded.Check,
                     modifier = Modifier
                         .padding(4.dp)
                         .size(32.dp),

@@ -30,7 +30,7 @@ import kotlinx.collections.immutable.persistentListOf
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.DoneAll
 import mihon.icons.materialsymbols.rounded.FilterList
-import mihon.icons.materialsymbols.rounded.PushPin
+import mihon.icons.materialsymbols.rounded.Keep
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.material.padding
 import tachiyomi.presentation.core.i18n.stringResource
@@ -101,7 +101,7 @@ fun GlobalSearchToolbar(
                         onClick = { onChangeSearchFilter(SourceFilter.PinnedOnly) },
                         leadingIcon = {
                             Icon(
-                                imageVector = MaterialSymbols.Rounded.PushPin,
+                                imageVector = MaterialSymbols.Rounded.Keep,
                                 contentDescription = null,
                                 modifier = Modifier
                                     .size(FilterChipDefaults.IconSize),

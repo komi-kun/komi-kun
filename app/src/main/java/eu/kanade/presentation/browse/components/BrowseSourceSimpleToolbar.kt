@@ -13,8 +13,8 @@ import eu.kanade.presentation.components.DropdownMenu
 import eu.kanade.presentation.components.RadioMenuItem
 import kotlinx.collections.immutable.persistentListOf
 import mihon.icons.materialsymbols.MaterialSymbols
-import mihon.icons.materialsymbols.automirroredrounded.ViewList
-import mihon.icons.materialsymbols.rounded.ViewModule
+import mihon.icons.materialsymbols.automirroredroundedfilled.ViewList
+import mihon.icons.materialsymbols.roundedfilled.ViewModule
 import tachiyomi.domain.library.model.LibraryDisplayMode
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
@@ -45,9 +45,9 @@ fun BrowseSourceSimpleToolbar(
                             AppBar.Action(
                                 title = stringResource(MR.strings.action_display_mode),
                                 icon = if (mode == LibraryDisplayMode.List) {
-                                    MaterialSymbols.AutoMirroredRounded.ViewList
+                                    MaterialSymbols.AutoMirroredRoundedFilled.ViewList
                                 } else {
-                                    MaterialSymbols.Rounded.ViewModule
+                                    MaterialSymbols.RoundedFilled.ViewModule
                                 },
                                 onClick = { selectingDisplayMode = true },
                             ),

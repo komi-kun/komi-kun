@@ -45,8 +45,8 @@ import eu.kanade.tachiyomi.util.system.toast
 import kotlinx.collections.immutable.persistentListOf
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.Close
-import mihon.icons.materialsymbols.rounded.Visibility
-import mihon.icons.materialsymbols.rounded.VisibilityOff
+import mihon.icons.materialsymbols.roundedfilled.Visibility
+import mihon.icons.materialsymbols.roundedfilled.VisibilityOff
 import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.core.common.util.lang.withUIContext
 import tachiyomi.i18n.MR
@@ -160,9 +160,9 @@ object SettingsConnectionScreen : SearchableSettings {
                             IconButton(onClick = { hidePassword = !hidePassword }) {
                                 Icon(
                                     imageVector = if (hidePassword) {
-                                        MaterialSymbols.Rounded.Visibility
+                                        MaterialSymbols.RoundedFilled.Visibility
                                     } else {
-                                        MaterialSymbols.Rounded.VisibilityOff
+                                        MaterialSymbols.RoundedFilled.VisibilityOff
                                     },
                                     contentDescription = null,
                                 )

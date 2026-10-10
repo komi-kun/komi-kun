@@ -39,10 +39,10 @@ import mihon.icons.materialsymbols.rounded.CloudOff
 import mihon.icons.materialsymbols.rounded.Download
 import mihon.icons.materialsymbols.rounded.History
 import mihon.icons.materialsymbols.rounded.Info
-import mihon.icons.materialsymbols.rounded.NewReleases
 import mihon.icons.materialsymbols.rounded.QueryStats
 import mihon.icons.materialsymbols.rounded.Settings
 import mihon.icons.materialsymbols.rounded.Storage
+import mihon.icons.materialsymbols.rounded.Verified
 import mihon.icons.materialsymbols.roundedfilled.Favorite
 import tachiyomi.core.common.Constants
 import tachiyomi.i18n.MR
@@ -126,7 +126,7 @@ fun MoreScreen(
                 item {
                     TextPreferenceWidget(
                         title = stringResource(MR.strings.label_recent_updates),
-                        icon = MaterialSymbols.Rounded.NewReleases,
+                        icon = MaterialSymbols.Rounded.Verified,
                         onPreferenceClick = onClickUpdates,
                     )
                 }
@@ -189,7 +189,7 @@ fun MoreScreen(
             item {
                 TextPreferenceWidget(
                     title = stringResource(KMR.strings.option_label_library_update_errors),
-                    icon = MaterialSymbols.Rounded.NewReleases,
+                    icon = MaterialSymbols.Rounded.Verified,
                     onPreferenceClick = onClickLibraryUpdateErrors,
                 )
             }

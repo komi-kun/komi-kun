@@ -17,7 +17,7 @@ import eu.kanade.tachiyomi.R
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.Folder
 import mihon.icons.materialsymbols.rounded.LocalLibrary
-import mihon.icons.materialsymbols.rounded.Warning
+import mihon.icons.materialsymbols.roundedfilled.Warning
 import tachiyomi.domain.source.model.Source
 import tachiyomi.presentation.core.components.Badge
 import tachiyomi.presentation.core.components.BadgeGroup
@@ -82,7 +82,7 @@ fun SourceIconBadge(
     when {
         source.isStub && icon == null -> {
             Badge(
-                imageVector = MaterialSymbols.Rounded.Warning,
+                imageVector = MaterialSymbols.RoundedFilled.Warning,
                 iconColor = MaterialTheme.colorScheme.error,
                 color = MaterialTheme.colorScheme.errorContainer,
             )

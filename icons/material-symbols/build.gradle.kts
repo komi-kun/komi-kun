@@ -1,3 +1,5 @@
+import mihon.buildlogic.tasks.GenerateVectorDrawablesTask
+
 plugins {
     id("mihon.library")
     id("mihon.library.compose")
@@ -48,6 +50,43 @@ valkyrie {
             sourceFolder = "autoMirroredRounded"
             autoMirror = true
         }
+
+        nested {
+            name = "AutoMirroredRoundedFilled"
+            sourceFolder = "autoMirroredRoundedFilled"
+            autoMirror = true
+        }
+    }
+}
+
+androidComponents {
+    onVariants { variant ->
+        val resSource = variant.sources.res ?: return@onVariants
+
+        val variantName = variant.name.replaceFirstChar { it.uppercase() }
+        val task = tasks.register<GenerateVectorDrawablesTask>("generate${variantName}VectorDrawables") {
+            svgFiles.from(
+                listOf(
+                    "rounded/book",
+                    "rounded/check",
+                    "rounded/close",
+                    "rounded/drag_handle",
+                    "rounded/eyeglasses_2",
+                    "rounded/info",
+                    "rounded/more_vert",
+                    "rounded/refresh",
+                    "rounded/share",
+                    "rounded/system_update_alt",
+                    "roundedFilled/extension",
+                    "roundedFilled/folder",
+                    "roundedFilled/pause",
+                    "roundedFilled/photo",
+                    "roundedFilled/play_arrow",
+                    "roundedFilled/warning",
+                ).map { layout.projectDirectory.file("src/main/valkyrieResources/$it.svg") },
+            )
+        }
+        resSource.addGeneratedSourceDirectory(task) { it.outputDir }
     }
 }
 

@@ -18,7 +18,7 @@ import eu.kanade.presentation.theme.TachiyomiPreviewTheme
 import eu.kanade.tachiyomi.ui.more.NewUpdateScreenModel
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.automirroredrounded.OpenInNew
-import mihon.icons.materialsymbols.rounded.NewReleases
+import mihon.icons.materialsymbols.rounded.Verified
 import org.intellij.markdown.flavours.gfm.GFMFlavourDescriptor
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.sy.SYMR
@@ -37,7 +37,7 @@ fun NewUpdateScreen(
     onRejectUpdate: () -> Unit,
 ) {
     InfoScreen(
-        icon = MaterialSymbols.Rounded.NewReleases,
+        icon = MaterialSymbols.Rounded.Verified,
         headingText = stringResource(MR.strings.update_check_notification_update_available),
         subtitleText = stringResource(SYMR.strings.latest_, versionName),
         acceptText = when (stage) {

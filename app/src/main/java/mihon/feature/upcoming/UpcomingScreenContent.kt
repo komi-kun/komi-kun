@@ -34,7 +34,7 @@ import mihon.feature.upcoming.components.calendar.Calendar
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.automirroredrounded.Help
 import mihon.icons.materialsymbols.rounded.FilterList
-import mihon.icons.materialsymbols.rounded.NewReleases
+import mihon.icons.materialsymbols.rounded.Verified
 import tachiyomi.core.common.Constants
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.i18n.MR
@@ -168,7 +168,7 @@ private fun UpcomingToolbar(
                     },
                 ) {
                     Icon(
-                        imageVector = MaterialSymbols.Rounded.NewReleases,
+                        imageVector = MaterialSymbols.Rounded.Verified,
                         contentDescription = stringResource(MR.strings.pref_library_update_smart_update),
                         tint = if (isShowingUpdatingMangas) MaterialTheme.colorScheme.primary else LocalContentColor.current,
                     )

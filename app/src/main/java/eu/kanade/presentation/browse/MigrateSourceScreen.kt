@@ -41,9 +41,9 @@ import kotlinx.collections.immutable.ImmutableList
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.ArrowDownward
 import mihon.icons.materialsymbols.rounded.ArrowUpward
-import mihon.icons.materialsymbols.rounded.NewReleases
 import mihon.icons.materialsymbols.rounded.Numbers
 import mihon.icons.materialsymbols.rounded.SortByAlpha
+import mihon.icons.materialsymbols.rounded.Verified
 import tachiyomi.domain.source.model.Source
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
@@ -145,7 +145,7 @@ private fun MigrateSourceList(
             // KMK -->
             IconButton(onClick = { filterObsoleteSource = !filterObsoleteSource }) {
                 Icon(
-                    MaterialSymbols.Rounded.NewReleases,
+                    MaterialSymbols.Rounded.Verified,
                     contentDescription = stringResource(MR.strings.ext_obsolete),
                     tint = MaterialTheme.colorScheme.error
                         .takeIf { filterObsoleteSource } ?: LocalContentColor.current,

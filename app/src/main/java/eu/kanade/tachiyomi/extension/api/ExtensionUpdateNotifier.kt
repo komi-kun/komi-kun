@@ -14,6 +14,7 @@ import tachiyomi.core.common.i18n.pluralStringResource
 import tachiyomi.i18n.MR
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import mihon.icons.materialsymbols.R as MaterialSymbolsR
 
 class ExtensionUpdateNotifier(
     private val context: Context,
@@ -36,7 +37,7 @@ class ExtensionUpdateNotifier(
                 setContentText(extNames)
                 setStyle(NotificationCompat.BigTextStyle().bigText(extNames))
             }
-            setSmallIcon(R.drawable.ic_extension_24dp)
+            setSmallIcon(MaterialSymbolsR.drawable.rounded_filled_extension)
             setColor(ContextCompat.getColor(context, R.color.ic_launcher))
             setLargeIcon(BitmapFactory.decodeResource(context.resources, R.drawable.komikku))
             setContentIntent(NotificationReceiver.openExtensionsPendingActivity(context))

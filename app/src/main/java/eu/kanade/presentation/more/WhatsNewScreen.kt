@@ -16,7 +16,7 @@ import eu.kanade.presentation.manga.components.MarkdownRender
 import eu.kanade.presentation.theme.TachiyomiPreviewTheme
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.automirroredrounded.OpenInNew
-import mihon.icons.materialsymbols.rounded.NewReleases
+import mihon.icons.materialsymbols.rounded.Verified
 import org.intellij.markdown.flavours.gfm.GFMFlavourDescriptor
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
@@ -34,7 +34,7 @@ fun WhatsNewScreen(
     onAcceptUpdate: () -> Unit,
 ) {
     InfoScreen(
-        icon = MaterialSymbols.Rounded.NewReleases,
+        icon = MaterialSymbols.Rounded.Verified,
         headingText = stringResource(MR.strings.whats_new),
         subtitleText = stringResource(SYMR.strings.latest_, versionName) +
             " - " + stringResource(KMR.strings.current_, currentVersion),
