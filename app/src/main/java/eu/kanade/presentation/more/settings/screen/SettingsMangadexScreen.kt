@@ -41,6 +41,7 @@ import eu.kanade.tachiyomi.util.system.toast
 import eu.kanade.tachiyomi.util.system.workManager
 import exh.md.utils.MdConstants
 import exh.md.utils.MdUtil
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import logcat.LogPriority
 import mihon.app.di.appGraph
@@ -270,6 +271,7 @@ object SettingsMangadexScreen : SearchableSettings {
     @Composable
     fun syncMangaDexIntoThis(sourcePreferences: SourcePreferences): Preference.PreferenceItem.TextPreference {
         val context = LocalContext.current
+        val scope = rememberCoroutineScope()
         var dialogOpen by remember { mutableStateOf(false) }
         if (dialogOpen) {
             SyncMangaDexDialog(
@@ -279,10 +281,12 @@ object SettingsMangadexScreen : SearchableSettings {
                     sourcePreferences.mangadexSyncToLibraryIndexes.set(
                         List(items.size) { index -> (index + 1).toString() }.toSet(),
                     )
-                    LibraryUpdateJob.startNow(
-                        context,
-                        target = LibraryUpdateJob.Target.SYNC_FOLLOWS,
-                    )
+                    scope.launch {
+                        LibraryUpdateJob.startNow(
+                            context,
+                            target = LibraryUpdateJob.Target.SYNC_FOLLOWS,
+                        )
+                    }
                 },
             )
         }
@@ -296,14 +300,17 @@ object SettingsMangadexScreen : SearchableSettings {
     @Composable
     fun syncLibraryToMangaDex(): Preference.PreferenceItem.TextPreference {
         val context = LocalContext.current
+        val scope = rememberCoroutineScope()
         return Preference.PreferenceItem.TextPreference(
             title = stringResource(SYMR.strings.mangadex_push_favorites_to_mangadex),
             subtitle = stringResource(SYMR.strings.mangadex_push_favorites_to_mangadex_summary),
             onClick = {
-                LibraryUpdateJob.startNow(
-                    context,
-                    target = LibraryUpdateJob.Target.PUSH_FAVORITES,
-                )
+                scope.launch {
+                    LibraryUpdateJob.startNow(
+                        context,
+                        target = LibraryUpdateJob.Target.PUSH_FAVORITES,
+                    )
+                }
             },
         )
     }

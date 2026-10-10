@@ -23,9 +23,11 @@ import eu.kanade.tachiyomi.ui.browse.source.browse.BrowseSourceViewModel
 import exh.metadata.metadata.RaisedSearchMetadata
 import exh.source.ExhPreferences
 import exh.source.getMainSource
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
+import mihon.core.metro.AppCoroutineScope
 import mihon.domain.source.interactor.UpdateMangaFromRemote
 import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.domain.category.interactor.SetMangaCategories
@@ -66,11 +68,13 @@ class MangaDexFollowsViewModel(
     deleteSavedSearchById: DeleteSavedSearchById,
     insertSavedSearch: InsertSavedSearch,
     getExhSavedSearch: GetExhSavedSearch,
+    @AppCoroutineScope private val appScope: CoroutineScope,
 ) : BrowseSourceViewModel(
     sourceId = sourceId,
     listingQuery = null,
     filtersJson = null,
     savedSearch = null,
+    appScope = appScope,
     sourceManager = sourceManager,
     sourcePreferences = sourcePreferences,
     libraryPreferences = libraryPreferences,

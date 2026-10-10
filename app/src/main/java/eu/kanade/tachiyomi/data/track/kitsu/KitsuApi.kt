@@ -17,6 +17,7 @@ import eu.kanade.tachiyomi.network.jsonMime
 import eu.kanade.tachiyomi.network.parseAs
 import eu.kanade.tachiyomi.util.lang.htmlDecode
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -192,7 +193,7 @@ class KitsuApi(
     }
 
     suspend fun login(username: String, password: String): KitsuOAuth {
-        return withIOContext {
+        return withContext(Dispatchers.IO) {
             val formBody: RequestBody = FormBody.Builder()
                 .add("username", username)
                 .add("password", password)

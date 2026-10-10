@@ -107,7 +107,7 @@ internal class SyncSettingsSelectorModel(
         }
     }
 
-    fun syncNow(context: Context) {
+    suspend fun syncNow(context: Context) {
         SyncDataJob.startNow(context)
     }
 

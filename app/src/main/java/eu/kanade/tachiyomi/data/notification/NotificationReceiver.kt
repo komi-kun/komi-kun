@@ -18,12 +18,10 @@ import eu.kanade.tachiyomi.util.system.cancelNotification
 import eu.kanade.tachiyomi.util.system.getParcelableExtraCompat
 import eu.kanade.tachiyomi.util.system.notificationManager
 import eu.kanade.tachiyomi.util.system.toShareIntent
-import eu.kanade.tachiyomi.util.system.toast
 import eu.kanade.tachiyomi.util.system.workManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import mihon.app.di.appGraph
 import mihon.core.metro.AppCoroutineScope
 import tachiyomi.core.common.Constants
@@ -35,7 +33,6 @@ import tachiyomi.domain.download.service.DownloadPreferences
 import tachiyomi.domain.manga.interactor.GetManga
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.source.service.SourceManager
-import tachiyomi.i18n.MR
 import eu.kanade.tachiyomi.BuildConfig.APPLICATION_ID as ID
 
 /**
@@ -70,9 +67,9 @@ class NotificationReceiver : BroadcastReceiver() {
             // Resume the download service
             ACTION_RESUME_DOWNLOADS -> downloadManager.startDownloads()
             // Pause the download service
-            ACTION_PAUSE_DOWNLOADS -> downloadManager.pauseDownloads()
+            ACTION_PAUSE_DOWNLOADS -> launchAsync { downloadManager.pauseDownloads() }
             // Clear the download queue
-            ACTION_CLEAR_DOWNLOADS -> downloadManager.clearQueue()
+            ACTION_CLEAR_DOWNLOADS -> launchAsync { downloadManager.clearQueue() }
             // Launch share activity and dismiss notification
             ACTION_SHARE_IMAGE ->
                 shareImage(
@@ -101,14 +98,6 @@ class NotificationReceiver : BroadcastReceiver() {
             ACTION_STOP_DISCORD_RPC -> stopDiscordRPC(context)
             // <-- KMK
 
-            // Open reader activity
-            ACTION_OPEN_CHAPTER -> {
-                openChapter(
-                    context,
-                    intent.getLongExtra(EXTRA_MANGA_ID, -1),
-                    intent.getLongExtra(EXTRA_CHAPTER_ID, -1),
-                )
-            }
             // Mark updated manga chapters as read
             ACTION_MARK_AS_READ -> {
                 val notificationId = intent.getIntExtra(EXTRA_NOTIFICATION_ID, -1)
@@ -166,26 +155,6 @@ class NotificationReceiver : BroadcastReceiver() {
     }
 
     /**
-     * Starts reader activity
-     *
-     * @param context context of application
-     * @param mangaId id of manga
-     * @param chapterId id of chapter
-     */
-    private fun openChapter(context: Context, mangaId: Long, chapterId: Long) {
-        val manga = runBlocking { getManga.await(mangaId) }
-        val chapter = runBlocking { getChapter.await(chapterId) }
-        if (manga != null && chapter != null) {
-            val intent = ReaderActivity.newIntent(context, manga.id, chapter.id).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            }
-            context.startActivity(intent)
-        } else {
-            context.toast(MR.strings.chapter_error)
-        }
-    }
-
-    /**
      * Method called when user wants to stop a backup restore job.
      *
      * @param context context of application
@@ -200,7 +169,9 @@ class NotificationReceiver : BroadcastReceiver() {
      * @param context context of application
      */
     private fun cancelLibraryUpdate(context: Context) {
-        LibraryUpdateJob.stop(context)
+        launchAsync {
+            LibraryUpdateJob.stop(context)
+        }
     }
 
     private fun startDownloadAppUpdate(context: Context, intent: Intent) {
@@ -306,7 +277,6 @@ class NotificationReceiver : BroadcastReceiver() {
         private const val ACTION_CANCEL_APP_UPDATE_DOWNLOAD = "$ID.$NAME.CANCEL_APP_UPDATE_DOWNLOAD"
 
         private const val ACTION_MARK_AS_READ = "$ID.$NAME.MARK_AS_READ"
-        private const val ACTION_OPEN_CHAPTER = "$ID.$NAME.ACTION_OPEN_CHAPTER"
         private const val ACTION_DOWNLOAD_CHAPTER = "$ID.$NAME.ACTION_DOWNLOAD_CHAPTER"
 
         private const val ACTION_RESUME_DOWNLOADS = "$ID.$NAME.ACTION_RESUME_DOWNLOADS"
@@ -323,7 +293,6 @@ class NotificationReceiver : BroadcastReceiver() {
         private const val EXTRA_NOTIFICATION_ID = "$ID.$NAME.NOTIFICATION_ID"
         private const val EXTRA_GROUP_ID = "$ID.$NAME.EXTRA_GROUP_ID"
         private const val EXTRA_MANGA_ID = "$ID.$NAME.EXTRA_MANGA_ID"
-        private const val EXTRA_CHAPTER_ID = "$ID.$NAME.EXTRA_CHAPTER_ID"
         private const val EXTRA_CHAPTER_URL = "$ID.$NAME.EXTRA_CHAPTER_URL"
 
         /**

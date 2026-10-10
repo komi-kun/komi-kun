@@ -23,8 +23,10 @@ import eu.kanade.tachiyomi.util.system.isRunning
 import eu.kanade.tachiyomi.util.system.setForegroundSafely
 import eu.kanade.tachiyomi.util.system.workManager
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import logcat.LogPriority
 import mihon.app.di.AppGraph
 import mihon.core.metro.metroGraph
@@ -64,7 +66,9 @@ class BackupRestoreJob(private val context: Context, workerParams: WorkerParamet
         setForegroundSafely()
 
         return try {
-            backupRestorerFactory.create(notifier = notifier, isSync = isSync).restore(uri, options)
+            withContext(Dispatchers.IO) {
+                backupRestorerFactory.create(notifier = notifier, isSync = isSync).restore(uri, options)
+            }
             Result.success()
         } catch (e: Exception) {
             if (e is CancellationException) {
@@ -96,7 +100,7 @@ class BackupRestoreJob(private val context: Context, workerParams: WorkerParamet
     }
 
     companion object {
-        fun isRunning(workManager: WorkManager): Boolean {
+        suspend fun isRunning(workManager: WorkManager): Boolean {
             return workManager.isRunning(TAG)
         }
 

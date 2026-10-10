@@ -93,11 +93,13 @@ import exh.ui.smartsearch.SmartSearchScreen
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import logcat.LogPriority
 import mihon.app.di.appGraph
 import mihon.feature.migration.config.MigrationConfigScreen
@@ -228,7 +230,7 @@ class MangaScreen(
         LaunchedEffect(successState.manga, viewModel.source) {
             if (isHttpSource) {
                 try {
-                    withIOContext {
+                    withContext(Dispatchers.IO) {
                         assistUrl = getMangaUrl(viewModel.manga, viewModel.source)
                     }
                 } catch (e: Exception) {

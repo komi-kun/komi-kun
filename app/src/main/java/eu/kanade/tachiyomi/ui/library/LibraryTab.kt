@@ -116,7 +116,7 @@ data object LibraryTab : Tab {
 
         val snackbarHostState = remember { SnackbarHostState() }
 
-        val onClickRefresh: (Category?) -> Boolean = { category ->
+        val onClickRefresh: suspend (Category?) -> Boolean = { category ->
             // SY -->
             val started = LibraryUpdateJob.startNow(
                 context = context,
@@ -156,8 +156,8 @@ data object LibraryTab : Tab {
                     onClickSelectAll = viewModel::selectAll,
                     onClickInvertSelection = viewModel::invertSelection,
                     onClickFilter = viewModel::showSettingsDialog,
-                    onClickRefresh = { onClickRefresh(state.activeCategory) },
-                    onClickGlobalUpdate = { onClickRefresh(null) },
+                    onClickRefresh = { scope.launch { onClickRefresh(state.activeCategory) } },
+                    onClickGlobalUpdate = { scope.launch { onClickRefresh(null) } },
                     onClickOpenRandomManga = {
                         scope.launch {
                             val randomItem = viewModel.getRandomLibraryItemForCurrentCategory()
@@ -171,10 +171,12 @@ data object LibraryTab : Tab {
                         }
                     },
                     onClickSyncNow = {
-                        if (!SyncDataJob.isRunning(context)) {
-                            SyncDataJob.startNow(context, manual = true)
-                        } else {
-                            context.toast(SYMR.strings.sync_in_progress)
+                        scope.launch {
+                            if (!SyncDataJob.isRunning(context)) {
+                                SyncDataJob.startNow(context, manual = true)
+                            } else {
+                                context.toast(SYMR.strings.sync_in_progress)
+                            }
                         }
                     },
                     // SY -->
@@ -256,8 +258,8 @@ data object LibraryTab : Tab {
                         }
                     },
                     onSelectionUpdateClicked = {
-                        val started = viewModel.updateSelectedManga()
                         scope.launch {
+                            val started = viewModel.updateSelectedManga()
                             val msgRes = if (started) {
                                 KMR.strings.updating
                             } else {
@@ -313,7 +315,7 @@ data object LibraryTab : Tab {
                         onChangeCurrentPage = viewModel::updateActiveCategoryIndex,
                         onClickManga = { navigator.push(MangaScreen(it)) },
                         onContinueReadingClicked = { it: LibraryManga ->
-                            scope.launchIO {
+                            scope.launch {
                                 val chapter = viewModel.getNextUnreadChapter(it.manga)
                                 if (chapter != null) {
                                     context.startActivity(

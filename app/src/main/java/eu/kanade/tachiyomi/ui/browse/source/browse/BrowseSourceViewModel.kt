@@ -43,6 +43,8 @@ import exh.source.ExhPreferences
 import exh.source.LOCAL_SOURCE_PACKAGE
 import exh.source.getMainSource
 import exh.source.isEhBasedSource
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -63,6 +65,7 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import logcat.LogPriority
+import mihon.core.metro.AppCoroutineScope
 import mihon.domain.source.interactor.UpdateMangaFromRemote
 import tachiyomi.core.common.preference.CheckboxState
 import tachiyomi.core.common.preference.mapAsCheckboxState
@@ -105,6 +108,7 @@ open class BrowseSourceViewModel(
     @Assisted filtersJson: String?,
     @Assisted savedSearch: Long?,
     // SY <--
+    @AppCoroutineScope private val appScope: CoroutineScope,
     private val sourceManager: SourceManager,
     sourcePreferences: SourcePreferences,
     private val libraryPreferences: LibraryPreferences,
@@ -173,7 +177,7 @@ open class BrowseSourceViewModel(
     // KMK <--
 
     init {
-        viewModelScope.launchIO {
+        viewModelScope.launch(Dispatchers.IO) {
             val source = sourceManager.getOrStub(sourceId)
 
             state.update {
@@ -413,7 +417,7 @@ open class BrowseSourceViewModel(
      * @param manga the manga to update.
      */
     fun changeMangaFavorite(manga: Manga) {
-        viewModelScope.launch {
+        appScope.launch {
             val source = source ?: return@launch
             var new = manga.copy(
                 favorite = !manga.favorite,
@@ -513,7 +517,7 @@ open class BrowseSourceViewModel(
     }
 
     fun moveMangaToCategories(manga: Manga, categoryIds: List<Long>) {
-        viewModelScope.launchIO {
+        viewModelScope.launch(Dispatchers.IO) {
             setMangaCategories.await(
                 mangaId = manga.id,
                 categoryIds = categoryIds.toList(),

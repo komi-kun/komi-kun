@@ -122,12 +122,12 @@ class SyncDataJob(private val context: Context, workerParams: WorkerParameters) 
         private const val TAG_AUTO = "$TAG_JOB:auto"
         const val TAG_MANUAL = "$TAG_JOB:manual"
 
-        fun isRunning(context: Context): Boolean {
+        suspend fun isRunning(context: Context): Boolean {
             return context.workManager.isRunning(TAG_JOB)
         }
 
         // SY -->
-        fun isRunning(workManager: WorkManager): Boolean {
+        suspend fun isRunning(workManager: WorkManager): Boolean {
             return workManager.isRunning(TAG_JOB)
         }
         // SY <--
@@ -153,7 +153,7 @@ class SyncDataJob(private val context: Context, workerParams: WorkerParameters) 
             }
         }
 
-        fun startNow(context: Context, manual: Boolean = false) {
+        suspend fun startNow(context: Context, manual: Boolean = false) {
             val wm = context.workManager
             if (wm.isRunning(TAG_JOB)) {
                 // Already running either as a scheduled or manual job

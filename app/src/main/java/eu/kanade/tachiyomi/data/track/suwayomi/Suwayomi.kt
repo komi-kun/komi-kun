@@ -114,7 +114,7 @@ class Suwayomi(id: Long) : BaseTracker(id, "Suwayomi"), EnhancedTracker {
         return normalized.substringAfterLast('/').toLong()
     }
 
-    private fun getPrefTrackerDelete(): Boolean {
+    private suspend fun getPrefTrackerDelete(): Boolean {
         val preferences = api.sourcePreferences()
         return preferences.getBoolean(TRACKER_DELETE_KEY, TRACKER_DELETE_DEFAULT)
     }

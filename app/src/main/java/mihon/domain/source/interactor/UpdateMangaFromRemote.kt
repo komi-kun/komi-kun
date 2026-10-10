@@ -11,9 +11,10 @@ import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.all.EHentai
 import eu.kanade.tachiyomi.source.online.all.MergedSource
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import logcat.LogPriority
 import mihon.domain.source.models.RemoteMangaUpdate
-import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.chapter.model.Chapter
 import tachiyomi.domain.chapter.repository.ChapterRepository
@@ -88,53 +89,44 @@ class UpdateMangaFromRemote(
         // SY -->
         throttleFunc: suspend () -> Unit = {},
         // SY <--
-    ): Result<RemoteMangaUpdate> {
-        return try {
+    ): Result<RemoteMangaUpdate> = withContext(Dispatchers.IO) {
+        try {
             val chapters = chapterRepository.getChapterByMangaId(manga.id)
                 .sortedBy { it.sourceOrder }
-            val update = withIOContext {
-                // SY -->
-                if (source is EHentai) {
-                    source.getMangaUpdate(
-                        manga = manga.toSManga(),
-                        chapters = chapters.map(Chapter::toSChapter),
-                        fetchDetails = fetchDetails,
-                        fetchChapters = fetchChapters,
-                        throttleFunc = throttleFunc,
-                    )
-                } else {
-                    // SY <--
-                    source.getMangaUpdate(
-                        manga = manga.toSManga(),
-                        chapters = chapters.map(Chapter::toSChapter),
-                        fetchDetails = fetchDetails,
-                        fetchChapters = fetchChapters,
-                    )
-                }
+            // SY -->
+            val update = if (source is EHentai) {
+                source.getMangaUpdate(
+                    manga = manga.toSManga(),
+                    chapters = chapters.map(Chapter::toSChapter),
+                    fetchDetails = fetchDetails,
+                    fetchChapters = fetchChapters,
+                    throttleFunc = throttleFunc,
+                )
+            } else {
+                // SY <--
+                source.getMangaUpdate(
+                    manga = manga.toSManga(),
+                    chapters = chapters.map(Chapter::toSChapter),
+                    fetchDetails = fetchDetails,
+                    fetchChapters = fetchChapters,
+                )
             }
-            // KMK -->
-            val updateResult = withIOContext {
-                // KMK <--
-                awaitUpdateFromSource(manga, update.manga, fetchDetails, manualFetch)
-                // SY -->
-                val newChapters = if (source is MergedSource) {
-                    source.fetchChaptersAndSync(manga, downloadChapters = manualFetch)
-                } else {
-                    // SY <--
-                    syncChaptersWithSource.await(
-                        rawSourceChapters = update.chapters,
-                        manga = manga,
-                        source = source,
-                        manualFetch = manualFetch,
-                        fetchWindow = fetchWindow,
-                    )
-                }
-                val updatedManga = mangaRepository.getMangaById(manga.id)
-                // KMK -->
-                RemoteMangaUpdate(manga = updatedManga, newChapters = newChapters)
+            awaitUpdateFromSource(manga, update.manga, fetchDetails, manualFetch)
+            // SY -->
+            val newChapters = if (source is MergedSource) {
+                source.fetchChaptersAndSync(manga, downloadChapters = manualFetch)
+            } else {
+                // SY <--
+                syncChaptersWithSource.await(
+                    rawSourceChapters = update.chapters,
+                    manga = manga,
+                    source = source,
+                    manualFetch = manualFetch,
+                    fetchWindow = fetchWindow,
+                )
             }
-            Result.success(updateResult)
-            // KMK <--
+            val updatedManga = mangaRepository.getMangaById(manga.id)
+            Result.success(RemoteMangaUpdate(manga = updatedManga, newChapters = newChapters))
         } catch (e: Exception) {
             logcat(LogPriority.ERROR, e)
             Result.failure(e)

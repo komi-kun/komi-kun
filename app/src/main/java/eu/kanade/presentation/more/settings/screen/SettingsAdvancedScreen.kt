@@ -70,8 +70,10 @@ import eu.kanade.tachiyomi.util.system.workManager
 import exh.debug.SettingsDebugScreen
 import exh.log.EHLogLevel
 import exh.util.toAnnotatedString
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import logcat.LogPriority
 import mihon.app.di.appGraph
 import okhttp3.Headers
@@ -258,6 +260,7 @@ object SettingsAdvancedScreen : SearchableSettings {
     ): Preference.PreferenceGroup {
         val context = LocalContext.current
         val networkHelper = remember { context.appGraph.networkHelper }
+        val scope = rememberCoroutineScope()
 
         val userAgentPref = networkPreferences.defaultUserAgent
         val userAgent by userAgentPref.collectAsState()
@@ -284,10 +287,10 @@ object SettingsAdvancedScreen : SearchableSettings {
                                 clearSslPreferences()
                             }
                             WebStorage.getInstance().deleteAllData()
-                            context.applicationInfo?.dataDir?.let {
-                                File("$it/app_webview/").deleteRecursively()
+                            scope.launch(Dispatchers.IO) {
+                                context.applicationInfo?.dataDir?.let { File("$it/app_webview/").deleteRecursively() }
+                                withContext(Dispatchers.Main) { context.toast(MR.strings.webview_data_deleted) }
                             }
-                            context.toast(MR.strings.webview_data_deleted)
                         } catch (e: Throwable) {
                             logcat(LogPriority.ERROR, e)
                             context.toast(MR.strings.cache_delete_error)
@@ -359,7 +362,7 @@ object SettingsAdvancedScreen : SearchableSettings {
             preferenceItems = listOf(
                 Preference.PreferenceItem.TextPreference(
                     title = stringResource(MR.strings.pref_refresh_library_covers),
-                    onClick = { MetadataUpdateJob.startNow(context.workManager) },
+                    onClick = { scope.launch { MetadataUpdateJob.startNow(context.workManager) } },
                 ),
                 // KMK -->
                 Preference.PreferenceItem.SwitchPreference(
@@ -371,16 +374,14 @@ object SettingsAdvancedScreen : SearchableSettings {
                     title = stringResource(MR.strings.pref_reset_viewer_flags),
                     subtitle = stringResource(MR.strings.pref_reset_viewer_flags_summary),
                     onClick = {
-                        scope.launchNonCancellable {
+                        scope.launch {
                             val success = context.appGraph.resetViewerFlags.await()
-                            withUIContext {
-                                val message = if (success) {
-                                    MR.strings.pref_reset_viewer_flags_success
-                                } else {
-                                    MR.strings.pref_reset_viewer_flags_error
-                                }
-                                context.toast(message)
+                            val message = if (success) {
+                                MR.strings.pref_reset_viewer_flags_success
+                            } else {
+                                MR.strings.pref_reset_viewer_flags_error
                             }
+                            context.toast(message)
                         }
                     },
                 ),

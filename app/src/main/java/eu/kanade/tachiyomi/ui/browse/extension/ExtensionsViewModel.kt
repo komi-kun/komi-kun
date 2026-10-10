@@ -35,8 +35,8 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import mihon.domain.extension.model.ContentWarning
-import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
 import kotlin.time.Duration.Companion.seconds
@@ -134,7 +134,7 @@ class ExtensionsViewModel(
             // KMK <--
         }
     }
-        .flowOn(Dispatchers.IO)
+        .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5.seconds), null)
 
     private data class PartialState(
@@ -185,7 +185,7 @@ class ExtensionsViewModel(
 
     init {
 
-        viewModelScope.launchIO { findAvailableExtensions() }
+        viewModelScope.launch(Dispatchers.IO) { findAvailableExtensions() }
     }
 
     fun searchQueryPredicate(query: String): (Extension) -> Boolean {
@@ -223,7 +223,7 @@ class ExtensionsViewModel(
     }
 
     fun updateAllExtensions() {
-        viewModelScope.launchIO {
+        viewModelScope.launch(Dispatchers.IO) {
             state.value.items.values.flatten()
                 .map { it.extension }
                 .filterIsInstance<Extension.Installed>()
@@ -233,13 +233,13 @@ class ExtensionsViewModel(
     }
 
     fun installExtension(extension: Extension.Available) {
-        viewModelScope.launchIO {
+        viewModelScope.launch(Dispatchers.IO) {
             extensionManager.installExtension(extension).collectToInstallUpdate(extension)
         }
     }
 
     fun updateExtension(extension: Extension.Installed) {
-        viewModelScope.launchIO {
+        viewModelScope.launch(Dispatchers.IO) {
             extensionManager.updateExtension(extension).collectToInstallUpdate(extension)
         }
     }
@@ -276,7 +276,7 @@ class ExtensionsViewModel(
     }
 
     fun findAvailableExtensions() {
-        viewModelScope.launchIO {
+        viewModelScope.launch(Dispatchers.IO) {
             isRefreshing.update { true }
 
             extensionManager.findAvailableExtensions()

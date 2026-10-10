@@ -9,7 +9,8 @@ import eu.kanade.tachiyomi.BuildConfig
 import eu.kanade.tachiyomi.util.system.isFossBuildType
 import eu.kanade.tachiyomi.util.system.isPreviewBuildType
 import exh.source.ExhPreferences
-import tachiyomi.core.common.util.lang.withIOContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import tachiyomi.domain.release.interactor.GetApplicationRelease
 import tachiyomi.domain.release.service.AppUpdatePolicy
 
@@ -30,7 +31,7 @@ class AppUpdateChecker(
         autoUpdate: Boolean = AppUpdatePolicy.DISABLE_AUTO_DOWNLOAD !in exhPreferences.appShouldAutoUpdate.get(),
         // KMK <--
     ): GetApplicationRelease.Result {
-        return withIOContext {
+        return withContext(Dispatchers.IO) {
             val result = getApplicationRelease.await(
                 GetApplicationRelease.Arguments(
                     isFoss = isFossBuildType,
@@ -65,7 +66,7 @@ class AppUpdateChecker(
 
     // KMK -->
     suspend fun getReleaseNotes(peekIntoPreview: Boolean = false): GetApplicationRelease.Result {
-        return withIOContext {
+        return withContext(Dispatchers.IO) {
             getApplicationRelease.awaitReleaseNotes(
                 GetApplicationRelease.Arguments(
                     isFoss = isFossBuildType,

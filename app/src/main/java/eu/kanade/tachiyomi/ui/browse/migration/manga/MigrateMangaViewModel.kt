@@ -83,7 +83,7 @@ class MigrateMangaViewModel(
         // KMK <--
         State(source = source.await(), selection = prunedSelection, titleList = titleList)
     }
-        .flowOn(Dispatchers.IO)
+        .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5.seconds), State())
 
     fun toggleSelection(

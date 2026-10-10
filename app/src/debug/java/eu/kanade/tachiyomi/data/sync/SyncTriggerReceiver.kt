@@ -3,6 +3,7 @@ package eu.kanade.tachiyomi.data.sync
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import kotlinx.coroutines.runBlocking
 
 /**
  * Debug-only hook so automated tests can trigger a sync without UI:
@@ -12,6 +13,6 @@ import android.content.Intent
  */
 class SyncTriggerReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        SyncDataJob.startNow(context, manual = true)
+        runBlocking { SyncDataJob.startNow(context, manual = true) }
     }
 }

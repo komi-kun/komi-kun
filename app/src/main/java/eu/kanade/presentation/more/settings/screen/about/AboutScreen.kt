@@ -39,7 +39,9 @@ import eu.kanade.tachiyomi.util.system.isPreviewBuildType
 import eu.kanade.tachiyomi.util.system.isReleaseBuildType
 import eu.kanade.tachiyomi.util.system.toast
 import eu.kanade.tachiyomi.util.system.updaterEnabled
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import logcat.LogPriority
@@ -306,9 +308,9 @@ class AboutScreen : Screen() {
         // KMK <--
     ) {
         val updateChecker = context.appGraph.updateChecker
-        withUIContext {
+        withContext(Dispatchers.Main) {
             try {
-                when (val result = withIOContext { updateChecker.checkForUpdate(context, forceCheck = true, peekIntoPreview = peekIntoPreview) }) {
+                when (val result = updateChecker.checkForUpdate(context, forceCheck = true, peekIntoPreview = peekIntoPreview)) {
                     is GetApplicationRelease.Result.NewUpdate -> {
                         onAvailableUpdate(result)
                     }

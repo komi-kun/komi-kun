@@ -14,6 +14,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
+import androidx.preference.PreferenceManager
 import androidx.work.Configuration
 import androidx.work.WorkManager
 import coil3.ImageLoader
@@ -80,6 +81,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.launch
 import logcat.AndroidLogcatLogger
 import logcat.LogPriority
 import logcat.LogcatLogger
@@ -109,6 +111,7 @@ import uy.kohesive.injekt.api.get
 import java.security.Security
 import java.text.SimpleDateFormat
 import java.util.Locale
+import kotlin.concurrent.thread
 
 class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factory, GraphProvider<AppGraph> {
 
@@ -126,11 +129,12 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
 
     @Inject private lateinit var uiPreferences: UiPreferences
 
-    @Inject private lateinit var coverCache: CoverCache
+    // Lazy: only the image loader uses these, and process starts without UI (workers, receivers) never build it
+    @Inject private lateinit var coverCache: Lazy<CoverCache>
 
-    @Inject private lateinit var networkHelper: NetworkHelper
+    @Inject private lateinit var networkHelper: Lazy<NetworkHelper>
 
-    @Inject private lateinit var sourceManager: SourceManager
+    @Inject private lateinit var sourceManager: Lazy<SourceManager>
 
     // KMK -->
     @Inject private lateinit var pagePreviewCache: PagePreviewCache
@@ -167,6 +171,12 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
             val process = getProcessName()
             if (packageName != process) WebView.setDataDirectorySuffix(process)
         }
+
+        // The graph and the code after it read the default preferences straight away. Loading them takes a disk
+        // read, so start it on another thread while the graph is built; the first read then waits less or not at all
+        thread(name = "PreferencesPreload") { PreferenceManager.getDefaultSharedPreferences(this) }
+        // The first use of Dispatchers.Main finds its factory with a ServiceLoader, which reads the APK
+        thread(name = "MainDispatcherPreload") { Dispatchers.Main }
 
         // Must be installed before member injection: injecting this constructs TrackerManager, whose
         // BaseTracker resolves Context through Injekt during construction.
@@ -272,7 +282,7 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
         val syncPreferences: SyncPreferences = Injekt.get()
         val syncTriggerOpt = syncPreferences.getSyncTriggerOptions()
         if (syncPreferences.isSyncEnabled() && syncTriggerOpt.syncOnAppStart) {
-            SyncDataJob.startNow(this@App)
+            scope.launch { SyncDataJob.startNow(this@App) }
         }
 
         initializeMigrator()
@@ -298,7 +308,9 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
 
     override fun newImageLoader(context: Context): ImageLoader {
         return ImageLoader.Builder(this).apply {
-            val callFactoryLazy = lazy { networkHelper.client }
+            val callFactoryLazy = lazy { networkHelper.value.client }
+            val coverCache = coverCache.value
+            val sourceManager = sourceManager.value
             components {
                 // NetworkFetcher.Factory
                 add(OkHttpNetworkFetcherFactory(callFactoryLazy::value))
@@ -355,7 +367,7 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
         val syncPreferences: SyncPreferences = Injekt.get()
         val syncTriggerOpt = syncPreferences.getSyncTriggerOptions()
         if (syncPreferences.isSyncEnabled() && syncTriggerOpt.syncOnAppResume) {
-            SyncDataJob.startNow(this@App)
+            scope.launch { SyncDataJob.startNow(this@App) }
         }
 
         // AM (DISCORD) -->

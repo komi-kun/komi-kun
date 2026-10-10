@@ -11,15 +11,19 @@ import eu.kanade.tachiyomi.extension.installer.Installer
 import eu.kanade.tachiyomi.extension.model.Extension
 import eu.kanade.tachiyomi.extension.model.InstallStep
 import eu.kanade.tachiyomi.network.NetworkHelper
+import eu.kanade.tachiyomi.network.await
 import eu.kanade.tachiyomi.util.storage.getUriCompat
 import eu.kanade.tachiyomi.util.system.isPackageInstalled
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runInterruptible
 import logcat.LogPriority
 import mihon.core.metro.AppCoroutineScope
 import okhttp3.OkHttpClient
@@ -47,7 +51,7 @@ class ExtensionInstaller(
     // KMK <--
     private val extensionInstaller = basePreferences.extensionInstaller
 
-    private val httpClient: OkHttpClient = networkHelper.client
+    private val httpClient: OkHttpClient by lazy { networkHelper.client }
 
     /**
      * Adds the given extension to the downloads queue and returns an observable containing its
@@ -74,21 +78,19 @@ class ExtensionInstaller(
             try {
                 step.value = InstallStep.Downloading
                 val request = Request.Builder().url(extension.apkUrl).build()
-                httpClient.newCall(request).execute()
-                    // KMK -->
-                    .use { response ->
-                        // KMK <--
-                        if (!response.isSuccessful) {
-                            throw Exception("Failed to download extension")
-                        }
-                        // KMK -->
-                        tmpFile.outputStream().use { output ->
-                            response.body.byteStream().use { input ->
-                                // KMK <--
+                httpClient.newCall(request).await().use { response ->
+                    if (!response.isSuccessful) {
+                        throw Exception("Failed to download extension")
+                    }
+                    // Interruptible so cancelInstall stops the body read too
+                    runInterruptible {
+                        response.body.byteStream().use { input ->
+                            tmpFile.outputStream().use { output ->
                                 input.copyTo(output)
                             }
                         }
                     }
+                }
 
                 // The store's index names the apk, but nothing ties what's served there to the store's key
                 val packageInfo = ExtensionLoader.getArchivePackageInfo(context, tmpFile)
@@ -98,15 +100,13 @@ class ExtensionInstaller(
                     throw Exception("Extension isn't signed with the key of ${extension.store.name}")
                 }
 
+                ensureActive()
                 step.value = InstallStep.Installing
                 installApk(downloadId, tmpFile, packageInfo, isUpdateForPrivatelyInstalled)
             } catch (e: Exception) {
-                if (e is InterruptedException) {
-                    // Canceled
-                } else {
-                    logcat(LogPriority.INFO, e)
-                    step.value = InstallStep.Error
-                }
+                if (e is CancellationException) throw e
+                logcat(LogPriority.INFO, e)
+                step.value = InstallStep.Error
                 // KMK -->
                 tmpFile.delete()
                 // KMK <--

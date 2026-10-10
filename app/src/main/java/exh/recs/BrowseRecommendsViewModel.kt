@@ -26,12 +26,14 @@ import exh.recs.sources.RecommendationPagingSource
 import exh.recs.sources.RecommendationSource
 import exh.recs.sources.StaticResultPagingSource
 import exh.source.ExhPreferences
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.runBlocking
+import mihon.core.metro.AppCoroutineScope
 import mihon.domain.source.interactor.UpdateMangaFromRemote
 import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.domain.category.interactor.GetCategories
@@ -72,6 +74,7 @@ class BrowseRecommendsViewModel(
     deleteSavedSearchById: DeleteSavedSearchById,
     insertSavedSearch: InsertSavedSearch,
     getExhSavedSearch: GetExhSavedSearch,
+    @AppCoroutineScope private val appScope: CoroutineScope,
 ) : BrowseSourceViewModel(
     sourceId = when (args) {
         is BrowseRecommendsScreen.Args.SingleSourceManga -> args.sourceId
@@ -80,6 +83,7 @@ class BrowseRecommendsViewModel(
     listingQuery = null,
     filtersJson = null,
     savedSearch = null,
+    appScope = appScope,
     sourceManager = sourceManager,
     sourcePreferences = sourcePreferences,
     libraryPreferences = libraryPreferences,

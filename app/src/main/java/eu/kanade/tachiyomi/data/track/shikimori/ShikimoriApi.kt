@@ -20,6 +20,7 @@ import eu.kanade.tachiyomi.network.dataOrElse
 import eu.kanade.tachiyomi.network.jsonMime
 import eu.kanade.tachiyomi.network.parseAs
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -56,7 +57,7 @@ class ShikimoriApi(
     }
 
     suspend fun addLibManga(track: Track, userId: String): Track {
-        return withIOContext {
+        return withContext(Dispatchers.IO) {
             with(json) {
                 val payload = buildJsonObject {
                     putJsonObject("user_rate") {
@@ -85,7 +86,7 @@ class ShikimoriApi(
     }
 
     suspend fun updateLibManga(track: Track): Track {
-        return withIOContext {
+        return withContext(Dispatchers.IO) {
             val payload = buildJsonObject {
                 putJsonObject("user_rate") {
                     put("chapters", track.last_chapter_read.toInt())
@@ -112,10 +113,10 @@ class ShikimoriApi(
     }
 
     suspend fun deleteLibManga(track: DomainTrack) {
-        withIOContext {
+        withContext(Dispatchers.IO) {
             authClient
                 .newCall(DELETE("$API_URL/v2/user_rates/${track.libraryId}"))
-                .awaitSuccess()
+                .awaitSuccess().close()
         }
     }
 
@@ -256,7 +257,7 @@ class ShikimoriApi(
     }
 
     suspend fun accessToken(code: String): SMOAuth {
-        return withIOContext {
+        return withContext(Dispatchers.IO) {
             with(json) {
                 client.newCall(accessTokenRequest(code))
                     .awaitSuccess()

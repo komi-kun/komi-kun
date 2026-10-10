@@ -5,10 +5,11 @@ import dev.zacsweers.metro.ContributesIntoSet
 import dev.zacsweers.metro.Inject
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.ui.reader.setting.ReadingMode
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import mihon.core.migration.Migration
 import mihon.core.migration.MigrationContext
 import tachiyomi.core.common.preference.PreferenceStore
-import tachiyomi.core.common.util.lang.withIOContext
 
 @Inject
 @ContributesIntoSet(AppScope::class)
@@ -18,7 +19,7 @@ class VerticalNavigatorMigration(
 ) : Migration {
     override val version: Float = 83f
 
-    override suspend fun invoke(migrationContext: MigrationContext): Boolean = withIOContext {
+    override suspend fun invoke(migrationContext: MigrationContext): Boolean = withContext(Dispatchers.IO) {
         // KMK --> Only migrate the legacy boolean when it was actually persisted. The old
         // preference was introduced together with the new set-based preference in the same
         // unreleased batch, so it is normally absent.
@@ -37,6 +38,6 @@ class VerticalNavigatorMigration(
             oldVerticalNavigatorOnLeft.delete()
         }
 
-        return@withIOContext true
+        return@withContext true
     }
 }

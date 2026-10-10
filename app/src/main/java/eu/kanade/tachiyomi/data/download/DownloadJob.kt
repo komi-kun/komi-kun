@@ -19,10 +19,12 @@ import eu.kanade.tachiyomi.data.notification.Notifications
 import eu.kanade.tachiyomi.util.system.activeNetworkState
 import eu.kanade.tachiyomi.util.system.notificationBuilder
 import eu.kanade.tachiyomi.util.system.setForegroundSafely
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.withContext
 import mihon.app.di.AppGraph
 import mihon.core.metro.metroGraph
 import tachiyomi.domain.download.service.DownloadPreferences
@@ -80,8 +82,9 @@ class DownloadJob(private val context: Context, workerParams: WorkerParameters) 
                 networkIssue = networkIssue()
             }
         } finally {
+            // Stopped by WorkManager means already canceled, and taking the lock would then throw instead of stopping
             if (downloadManager.isRunning && (networkIssue != null || isStopped)) {
-                downloadManager.downloaderStop(networkIssue)
+                withContext(NonCancellable) { downloadManager.downloaderStop(networkIssue) }
             }
         }
 

@@ -331,6 +331,6 @@ object DebugFunctions {
 
     fun killLibraryJobs() {
         val context = Injekt.get<Application>()
-        LibraryUpdateJob.stop(context)
+        runBlocking { LibraryUpdateJob.stop(context) }
     }
 }

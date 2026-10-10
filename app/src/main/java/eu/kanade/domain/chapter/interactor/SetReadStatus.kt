@@ -57,7 +57,7 @@ class SetReadStatus(
         // KMK -->
         manually: Boolean = true,
         // KMK <--
-    ): Result = withNonCancellableContext {
+    ): Result {
         val chaptersToUpdate = chapters.filter {
             when (read) {
                 true -> !it.read
@@ -65,7 +65,7 @@ class SetReadStatus(
             }
         }
         if (chaptersToUpdate.isEmpty()) {
-            return@withNonCancellableContext Result.NoChapters
+            return Result.NoChapters
         }
 
         try {
@@ -74,7 +74,7 @@ class SetReadStatus(
             )
         } catch (e: Exception) {
             logcat(LogPriority.ERROR, e)
-            return@withNonCancellableContext Result.InternalError(e)
+            return Result.InternalError(e)
         }
 
         if (
@@ -99,17 +99,16 @@ class SetReadStatus(
                 }
         }
 
-        Result.Success
+        return Result.Success
     }
 
-    suspend fun await(mangaId: Long, read: Boolean): Result = withNonCancellableContext {
+    suspend fun await(mangaId: Long, read: Boolean): Result =
         await(
             read = read,
             chapters = chapterRepository
                 .getChapterByMangaId(mangaId)
                 .toTypedArray(),
         )
-    }
 
     // SY -->
     private suspend fun awaitMerged(mangaId: Long, read: Boolean) = withNonCancellableContext f@{

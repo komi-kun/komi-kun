@@ -62,9 +62,11 @@ import exh.source.anyIs
 import exh.source.isEhBasedSource
 import exh.source.isMdBasedSource
 import exh.ui.smartsearch.SmartSearchScreen
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.launch
 import mihon.app.di.appGraph
 import mihon.feature.migration.dialog.MigrateMangaDialog
 import mihon.icons.materialsymbols.MaterialSymbols
@@ -73,7 +75,6 @@ import mihon.icons.materialsymbols.rounded.Verified
 import mihon.icons.materialsymbols.roundedfilled.Favorite
 import mihon.presentation.core.util.collectAsLazyPagingItems
 import tachiyomi.core.common.Constants
-import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.domain.source.model.StubSource
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
@@ -374,7 +375,7 @@ data class BrowseSourceScreen(
                         navigator.push(MangaScreen(manga.id, true))
                     } else {
                         // KMK <--
-                        scope.launchIO {
+                        scope.launch(Dispatchers.IO) {
                             val duplicates = viewModel.getDuplicateLibraryManga(manga)
                             when {
                                 manga.favorite -> viewModel.setDialog(BrowseSourceViewModel.Dialog.RemoveManga(manga))

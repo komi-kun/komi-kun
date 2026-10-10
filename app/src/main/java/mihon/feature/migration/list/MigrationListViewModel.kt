@@ -16,6 +16,7 @@ import eu.kanade.tachiyomi.source.getNameForMangaInfo
 import exh.source.MERGED_SOURCE_ID
 import exh.util.ThrottleManager
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -28,16 +29,16 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
 import logcat.LogPriority
 import mihon.domain.migration.usecases.MigrateMangaUseCase
 import mihon.domain.source.interactor.UpdateMangaFromRemote
 import mihon.feature.migration.list.models.MigratingManga
 import mihon.feature.migration.list.models.MigratingManga.SearchResult
 import mihon.feature.migration.list.search.SmartSourceSearchEngine
-import tachiyomi.core.common.util.lang.launchIO
-import tachiyomi.core.common.util.lang.withUIContext
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.chapter.interactor.GetChaptersByMangaId
 import tachiyomi.domain.manga.interactor.GetManga
@@ -93,7 +94,7 @@ class MigrationListViewModel(
     private var migrateJob: Job? = null
 
     init {
-        viewModelScope.launchIO {
+        viewModelScope.launch(Dispatchers.IO) {
             val manga = mangaIds
                 .map {
                     async {
@@ -124,7 +125,7 @@ class MigrationListViewModel(
                 .filterNotNull()
             state.update { it.copy(items = manga.toList()) }
             // KMK -->
-            if (runManually) return@launchIO
+            if (runManually) return@launch
             // KMK <--
             runMigrations(manga)
         }
@@ -281,7 +282,7 @@ class MigrationListViewModel(
     fun useMangaForMigration(current: Long, target: Long, onMissingChapters: () -> Unit) {
         val migratingManga = items.find { it.manga.id == current } ?: return
         migratingManga.searchResult.value = SearchResult.Searching
-        viewModelScope.launchIO {
+        viewModelScope.launch(Dispatchers.IO) {
             val result = migratingManga.migrationScope.async {
                 val manga = getManga.await(target) ?: return@async null
                 try {
@@ -302,8 +303,8 @@ class MigrationListViewModel(
 
             if (result == null) {
                 migratingManga.searchResult.value = SearchResult.NotFound
-                withUIContext { onMissingChapters() }
-                return@launchIO
+                withContext(Dispatchers.Main) { onMissingChapters() }
+                return@launch
             }
 
             migratingManga.searchResult.value = result.toSuccessSearchResult()
@@ -320,7 +321,7 @@ class MigrationListViewModel(
     }
 
     private fun migrateMangas(replace: Boolean) {
-        migrateJob = viewModelScope.launchIO {
+        migrateJob = viewModelScope.launch(Dispatchers.IO) {
             state.update { it.copy(dialog = Dialog.Progress(0f)) }
             val items = items
             try {
@@ -371,9 +372,9 @@ class MigrationListViewModel(
     }
 
     fun migrateNow(mangaId: Long, replace: Boolean) {
-        viewModelScope.launchIO {
-            val manga = items.find { it.manga.id == mangaId } ?: return@launchIO
-            val target = (manga.searchResult.value as? SearchResult.Success)?.manga ?: return@launchIO
+        viewModelScope.launch(Dispatchers.IO) {
+            val manga = items.find { it.manga.id == mangaId } ?: return@launch
+            val target = (manga.searchResult.value as? SearchResult.Success)?.manga ?: return@launch
             migrateManga(current = manga.manga, target = target, replace = replace)
 
             removeManga(mangaId)
@@ -383,8 +384,8 @@ class MigrationListViewModel(
     // KMK -->
     /** Cancel searching without remove it from list so user can perform manual search */
     fun cancelManga(mangaId: Long) {
-        viewModelScope.launchIO {
-            val item = items.find { it.manga.id == mangaId } ?: return@launchIO
+        viewModelScope.launch(Dispatchers.IO) {
+            val item = items.find { it.manga.id == mangaId } ?: return@launch
             item.searchingJob?.cancel()
             item.searchingJob = null
             item.searchResult.value = SearchResult.NotFound
@@ -394,8 +395,8 @@ class MigrationListViewModel(
     // KMK <--
 
     fun removeManga(mangaId: Long) {
-        viewModelScope.launchIO {
-            val item = items.find { it.manga.id == mangaId } ?: return@launchIO
+        viewModelScope.launch(Dispatchers.IO) {
+            val item = items.find { it.manga.id == mangaId } ?: return@launch
             removeManga(item)
             item.migrationScope.cancel()
             updateMigrationProgress()

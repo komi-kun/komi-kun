@@ -11,8 +11,8 @@ import eu.kanade.tachiyomi.data.track.mdlist.MdList
 import exh.md.utils.FollowStatus
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import logcat.LogPriority
-import tachiyomi.core.common.util.lang.withNonCancellableContext
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.track.interactor.GetTracks
 import tachiyomi.domain.track.interactor.UpsertTrack
@@ -31,9 +31,9 @@ class TrackChapter(
      * This does not update local chapters' read status.
      */
     suspend fun await(context: Context, mangaId: Long, chapterNumber: Double, setupJobOnFailure: Boolean = true) {
-        withNonCancellableContext {
+        coroutineScope {
             val tracks = getTracks.await(mangaId)
-            if (tracks.isEmpty()) return@withNonCancellableContext
+            if (tracks.isEmpty()) return@coroutineScope
 
             tracks.mapNotNull { track ->
                 val service = trackerManager.get(track.trackerId)

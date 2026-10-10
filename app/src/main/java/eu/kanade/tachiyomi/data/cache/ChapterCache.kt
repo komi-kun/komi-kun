@@ -49,7 +49,15 @@ class ChapterCache(
     private val scope = CoroutineScope(Job() + Dispatchers.Main)
 
     /** Cache class used for cache management.  */
-    private var diskCache = setupDiskCache(readerPreferences.cacheSize.get().toLong())
+    private var diskCacheDelegate: Lazy<DiskLruCache> =
+        lazy { setupDiskCache(readerPreferences.cacheSize.get().toLong()) }
+
+    // Lazy so opening the cache is deferred to first use; the delegate also lets the size change rebuild it.
+    private var diskCache: DiskLruCache
+        get() = diskCacheDelegate.value
+        set(value) {
+            diskCacheDelegate = lazyOf(value)
+        }
 
     init {
         readerPreferences.cacheSize.changes()
@@ -67,7 +75,8 @@ class ChapterCache(
     /**
      * Returns directory of cache.
      */
-    private val cacheDir: File = diskCache.directory
+    private val cacheDir: File
+        get() = diskCache.directory
 
     /**
      * Returns real size of directory.

@@ -21,6 +21,8 @@ import eu.kanade.tachiyomi.network.awaitSuccess
 import eu.kanade.tachiyomi.network.parseAs
 import eu.kanade.tachiyomi.util.PkceUtil
 import eu.kanade.tachiyomi.util.lang.toLocalDate
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.atStartOfDayIn
@@ -31,7 +33,6 @@ import okhttp3.FormBody
 import okhttp3.Headers.Companion.headersOf
 import okhttp3.OkHttpClient
 import okhttp3.RequestBody.Companion.toRequestBody
-import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.i18n.MR
 import uy.kohesive.injekt.injectLazy
 import java.math.RoundingMode
@@ -67,7 +68,7 @@ class MangaBakaApi(
     private val authClient = client.newBuilder().addInterceptor(interceptor).build()
 
     suspend fun addLibManga(track: Track): Track {
-        return withIOContext {
+        return withContext(Dispatchers.IO) {
             val url = "$LIBRARY_API_URL/${track.remote_id}"
             val body = buildJsonObject {
                 put("is_private", track.private)
@@ -90,7 +91,7 @@ class MangaBakaApi(
 
             authClient
                 .newCall(POST(url, body = body, headers = headersOf("Content-Type", APP_JSON)))
-                .awaitSuccess()
+                .awaitSuccess().close()
 
             // only returns 201 with the body { "status": 201, "data": true }, so no library ID for us
             track
@@ -98,17 +99,17 @@ class MangaBakaApi(
     }
 
     suspend fun deleteLibManga(track: DomainTrack) {
-        withIOContext {
+        withContext(Dispatchers.IO) {
             val url = "$LIBRARY_API_URL/${track.remoteId}"
 
             authClient
                 .newCall(DELETE(url))
-                .awaitSuccess()
+                .awaitSuccess().close()
         }
     }
 
     suspend fun findLibManga(track: Track): Track? {
-        return withIOContext {
+        return withContext(Dispatchers.IO) {
             with(json) {
                 try {
                     val url = "$LIBRARY_API_URL/${track.remote_id}"
@@ -144,7 +145,7 @@ class MangaBakaApi(
     }
 
     suspend fun updateLibManga(track: Track): Track {
-        return withIOContext {
+        return withContext(Dispatchers.IO) {
             val url = "$LIBRARY_API_URL/${track.remote_id}"
             val body = buildJsonObject {
                 put("state", track.toApiStatus())
@@ -175,14 +176,14 @@ class MangaBakaApi(
 
             authClient
                 .newCall(PUT(url, body = body, headers = headersOf("Content-Type", APP_JSON)))
-                .awaitSuccess()
+                .awaitSuccess().close()
 
             track
         }
     }
 
     suspend fun search(search: String): List<TrackSearch> {
-        return withIOContext {
+        return withContext(Dispatchers.IO) {
             val url = "$API_BASE_URL/v1/series/search".toUri().buildUpon()
                 .appendQueryParameter("q", search)
                 .appendQueryParameter("type_not", "novel")
@@ -216,7 +217,7 @@ class MangaBakaApi(
     }
 
     suspend fun getMangaDetails(id: Int): TrackSearch? {
-        return withIOContext {
+        return withContext(Dispatchers.IO) {
             val url = "$API_BASE_URL/v1/series".toUri().buildUpon()
                 .appendPath(id.toString())
                 .build()
@@ -238,7 +239,7 @@ class MangaBakaApi(
     }
 
     suspend fun getCurrentUser(): MangaBakaUserProfile {
-        return withIOContext {
+        return withContext(Dispatchers.IO) {
             with(json) {
                 authClient.newCall(GET("$API_BASE_URL/v1/my/profile"))
                     .awaitSuccess()
@@ -249,7 +250,7 @@ class MangaBakaApi(
     }
 
     suspend fun getAccessToken(code: String): MangaBakaOAuth {
-        return withIOContext {
+        return withContext(Dispatchers.IO) {
             val formBody = FormBody.Builder()
                 .add("client_id", CLIENT_ID)
                 .add("code", code)
