@@ -74,7 +74,7 @@ internal fun Project.configureCompose(commonExtension: CommonExtension<*, *, *, 
         val enableMetrics = project.providers.gradleProperty("enableComposeCompilerMetrics").orNull.toBoolean()
         val enableReports = project.providers.gradleProperty("enableComposeCompilerReports").orNull.toBoolean()
 
-        val rootBuildDir = rootProject.layout.buildDirectory.asFile.get()
+        val rootBuildDir = rootDir.resolve("build")
         val relativePath = projectDir.relativeTo(rootDir)
 
         if (enableMetrics) {
