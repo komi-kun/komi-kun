@@ -75,9 +75,43 @@ class CategoryRepositoryImpl(
         val dbCategoriesByName = dbCategories.associateBy { it.name }
         val dbCategoriesByUid = dbCategories.associateBy { it.uid } // Map by UID
 
-        // SY --> `order` is UNIQUE, so a server position already taken by another category must fall back
-        val usedOrders = dbCategories.mapTo(mutableSetOf()) { it.order }
+        // SY -->
+        // `order` is UNIQUE, so a reorder would trip it mid-swap. Free the positions of every category
+        // we are about to reorder first, then assign the server's positions.
+        val reordered = if (isSync) {
+            categories.mapNotNull { category ->
+                (if (category.uid != 0L) dbCategoriesByUid[category.uid] else null)
+                    ?: dbCategoriesByName[category.name]
+            }
+        } else {
+            emptyList()
+        }
+        if (reordered.isNotEmpty()) {
+            database.transaction {
+                reordered.forEachIndexed { index, db ->
+                    database.categoryQueries.update(
+                        name = db.name,
+                        order = -(index + 1L) - 1_000_000L,
+                        flags = db.flags,
+                        hidden = if (db.hidden) 1L else 0L,
+                        version = db.version,
+                        uid = db.uid,
+                        lastModifiedAt = db.lastModifiedAt,
+                        isSyncing = 1L,
+                        categoryId = db.id,
+                    )
+                }
+            }
+        }
+        val reorderedIds = reordered.mapTo(mutableSetOf()) { it.id }
+        val usedOrders = dbCategories
+            .filterNot { it.id in reorderedIds }
+            .mapTo(mutableSetOf()) { it.order }
         var nextOrder = (dbCategories.maxOfOrNull { it.order } ?: -1L) + 1
+        fun freeOrder(): Long {
+            while (nextOrder in usedOrders) nextOrder++
+            return nextOrder++
+        }
         // SY <--
 
         val restored = categories
@@ -94,9 +128,11 @@ class CategoryRepositoryImpl(
                 }
 
                 if (dbCategory != null) {
+                    val order = if (isSync && category.order !in usedOrders) category.order else freeOrder()
+                    usedOrders.add(order)
                     database.categoryQueries.update(
                         name = category.name,
-                        order = category.order,
+                        order = order,
                         flags = category.flags,
                         // KMK -->
                         hidden = if (category.hidden) 1L else null,
@@ -113,12 +149,7 @@ class CategoryRepositoryImpl(
                 // A sync delta is a converging replica, not an import: new
                 // categories must land at the position the server holds or
                 // reorders never converge across devices.
-                val order = if (isSync && category.order !in usedOrders) {
-                    category.order
-                } else {
-                    while (nextOrder in usedOrders) nextOrder++
-                    nextOrder++
-                }
+                val order = if (isSync && category.order !in usedOrders) category.order else freeOrder()
                 usedOrders.add(order)
                 database.categoryQueries.insert(
                     name = category.name,
