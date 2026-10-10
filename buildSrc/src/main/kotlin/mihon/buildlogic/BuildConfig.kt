@@ -4,6 +4,7 @@ import org.gradle.api.Project
 
 interface BuildConfig {
     val includeTelemetry: Boolean
+    val uploadCrashlyticsMapping: Boolean
     val enableUpdater: Boolean
     val enableCodeShrink: Boolean
     val includeDependencyInfo: Boolean
@@ -26,6 +27,8 @@ val Project.Config: BuildConfig get() = object : BuildConfig {
 
     override val includeTelemetry: Boolean = project.flag("include-telemetry")
         ?: (distribution == Distribution.CI || distribution == Distribution.GITHUB)
+
+    override val uploadCrashlyticsMapping: Boolean = includeTelemetry && (distribution == Distribution.GITHUB)
 
     override val enableUpdater: Boolean = project.flag("enable-updater")
         ?: (distribution != Distribution.LOCAL)

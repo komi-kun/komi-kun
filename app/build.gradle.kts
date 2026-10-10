@@ -98,6 +98,14 @@ android {
 
             matchingFallbacks.addAll(commonMatchingFallbacks)
         }
+
+        if (Config.includeTelemetry) {
+            configureEach {
+                configure<com.google.firebase.crashlytics.buildtools.gradle.CrashlyticsExtension> {
+                    mappingFileUploadEnabled = Config.uploadCrashlyticsMapping
+                }
+            }
+        }
     }
 
     sourceSets {
