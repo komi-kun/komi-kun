@@ -12,9 +12,6 @@ plugins {
     alias(libs.plugins.google.services) apply false
     alias(libs.plugins.moko) apply false
     alias(libs.plugins.sqldelight) apply false
-    // KMK -->
-    alias(libs.plugins.metro) apply false
-    // KMK <--
 }
 
 tasks.register<Delete>("clean") {

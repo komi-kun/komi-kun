@@ -2,9 +2,6 @@ plugins {
     id("mihon.library")
     id("mihon.library.compose")
     kotlin("android")
-    // KMK -->
-    alias(libs.plugins.metro)
-    // KMK <--
 }
 
 android {
@@ -18,9 +15,6 @@ android {
 
 dependencies {
     implementation(projects.core.common)
-    // KMK -->
-    implementation(projects.core.metro)
-    // KMK <--
     implementation(projects.domain)
     implementation(projects.presentationCore)
     api(projects.i18n)
@@ -33,8 +27,5 @@ dependencies {
     implementation(platform(libs.coil.bom))
     implementation(libs.coil.core)
 
-    // KMK -->
-    implementation(libs.metro.runtime)
-    // KMK <--
     api(libs.injekt)
 }

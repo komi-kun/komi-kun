@@ -2,9 +2,6 @@ plugins {
     id("mihon.library")
     kotlin("android")
     kotlin("plugin.serialization")
-    // KMK -->
-    alias(libs.plugins.metro)
-    // KMK <--
     id("com.github.ben-manes.versions")
 }
 
@@ -26,11 +23,6 @@ dependencies {
     // SY -->
     implementation(projects.i18nSy)
     // SY <--
-
-    // KMK -->
-    implementation(projects.core.metro)
-    implementation(libs.metro.runtime)
-    // KMK <--
 
     api(libs.logcat)
 

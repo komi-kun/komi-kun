@@ -3,9 +3,6 @@ import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 plugins {
     id("mihon.library")
     kotlin("multiplatform")
-    // KMK -->
-    alias(libs.plugins.metro)
-    // KMK <--
 }
 
 kotlin {
@@ -33,10 +30,6 @@ kotlin {
 
                 implementation(kotlinx.bundles.serialization)
                 implementation(kotlinx.datetime)
-
-                // KMK -->
-                implementation(libs.metro.runtime)
-                // KMK <--
             }
         }
     }

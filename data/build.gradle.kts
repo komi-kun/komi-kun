@@ -3,9 +3,6 @@ plugins {
     kotlin("android")
     kotlin("plugin.serialization")
     alias(libs.plugins.sqldelight)
-    // KMK -->
-    alias(libs.plugins.metro)
-    // KMK <--
 }
 
 android {
@@ -36,10 +33,6 @@ dependencies {
     implementation(projects.sourceApi)
     implementation(projects.domain)
     implementation(projects.core.common)
-
-    // KMK -->
-    implementation(libs.metro.runtime)
-    // KMK <--
 
     implementation(kotlinx.serialization.json)
     implementation(kotlinx.serialization.json.okio)
