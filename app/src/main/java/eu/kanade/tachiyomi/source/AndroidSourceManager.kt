@@ -45,7 +45,6 @@ import tachiyomi.domain.source.model.StubSource
 import tachiyomi.domain.source.repository.StubSourceRepository
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.source.local.LocalSource
-import uy.kohesive.injekt.injectLazy
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.reflect.KClass
 
@@ -58,6 +57,13 @@ class AndroidSourceManager(
     private val sourceRepository: StubSourceRepository,
     private val localSource: LocalSource,
     private val downloadManager: Lazy<DownloadManager>,
+    // SY -->
+    private val exhPreferences: ExhPreferences,
+    private val sourcePreferences: SourcePreferences,
+    // SY <--
+    // KMK -->
+    private val getMergedReferencesById: GetMergedReferencesById,
+    // KMK <--
 ) : SourceManager {
 
     private val _isInitialized = MutableStateFlow(false)
@@ -70,14 +76,6 @@ class AndroidSourceManager(
     private val stubSourcesMap = ConcurrentHashMap<Long, StubSource>()
 
     override val sources: Flow<List<Source>> = sourcesMapFlow.map { it.values.toList() }
-
-    // SY -->
-    private val exhPreferences: ExhPreferences by injectLazy()
-    private val sourcePreferences: SourcePreferences by injectLazy()
-    // SY <--
-    // KMK -->
-    private val getMergedReferencesById: GetMergedReferencesById by injectLazy()
-    // KMK <--
 
     init {
         scope.launch {

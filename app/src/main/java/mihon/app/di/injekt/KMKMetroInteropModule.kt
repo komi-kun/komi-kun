@@ -20,7 +20,6 @@ import eu.kanade.tachiyomi.data.cache.PagePreviewCache
 import eu.kanade.tachiyomi.data.connections.ConnectionsManager
 import eu.kanade.tachiyomi.data.download.DownloadCache
 import eu.kanade.tachiyomi.data.download.DownloadManager
-import eu.kanade.tachiyomi.data.library.LibraryUpdateNotifier
 import eu.kanade.tachiyomi.data.sync.service.GoogleDriveService
 import eu.kanade.tachiyomi.data.track.TrackerManager
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
@@ -32,21 +31,14 @@ import mihon.domain.chapter.interactor.FilterChaptersForDownload
 import mihon.domain.extension.interactor.GetExtensionStores
 import mihon.domain.source.interactor.UpdateMangaFromRemote
 import tachiyomi.data.Database
-import tachiyomi.domain.backup.service.BackupPreferences
 import tachiyomi.domain.category.interactor.CreateCategoryWithName
 import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.domain.category.interactor.SetMangaCategories
 import tachiyomi.domain.category.interactor.UpdateCategory
 import tachiyomi.domain.chapter.interactor.GetChapter
-import tachiyomi.domain.chapter.interactor.GetChaptersByMangaId
 import tachiyomi.domain.chapter.interactor.SetMangaDefaultChapterFlags
 import tachiyomi.domain.library.service.LibraryPreferences
-import tachiyomi.domain.libraryUpdateError.interactor.DeleteLibraryUpdateErrors
-import tachiyomi.domain.libraryUpdateError.interactor.InsertLibraryUpdateErrors
-import tachiyomi.domain.libraryUpdateErrorMessage.interactor.InsertLibraryUpdateErrorMessages
-import tachiyomi.domain.manga.interactor.DeleteByMergeId
 import tachiyomi.domain.manga.interactor.DeleteFavoriteEntries
-import tachiyomi.domain.manga.interactor.DeleteMangaById
 import tachiyomi.domain.manga.interactor.GetAllManga
 import tachiyomi.domain.manga.interactor.GetCustomMangaInfo
 import tachiyomi.domain.manga.interactor.GetDuplicateLibraryManga
@@ -56,12 +48,10 @@ import tachiyomi.domain.manga.interactor.GetFavorites
 import tachiyomi.domain.manga.interactor.GetFlatMetadataById
 import tachiyomi.domain.manga.interactor.GetLibraryManga
 import tachiyomi.domain.manga.interactor.GetManga
-import tachiyomi.domain.manga.interactor.GetMergedMangaForDownloading
 import tachiyomi.domain.manga.interactor.GetMergedReferencesById
 import tachiyomi.domain.manga.interactor.GetSearchMetadata
 import tachiyomi.domain.manga.interactor.InsertFavoriteEntries
 import tachiyomi.domain.manga.interactor.InsertFlatMetadata
-import tachiyomi.domain.manga.interactor.InsertMergedReference
 import tachiyomi.domain.manga.interactor.NetworkToLocalManga
 import tachiyomi.domain.release.interactor.GetApplicationRelease
 import tachiyomi.domain.source.interactor.DeleteSavedSearchById
@@ -69,7 +59,6 @@ import tachiyomi.domain.source.interactor.GetRemoteManga
 import tachiyomi.domain.source.interactor.InsertSavedSearch
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.domain.track.interactor.GetTracks
-import tachiyomi.domain.track.interactor.UpsertTrack
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.InjektModule
 import uy.kohesive.injekt.api.InjektRegistrar
@@ -87,7 +76,6 @@ class KMKMetroInteropModule(
     private val sourcePreferences: SourcePreferences,
     private val libraryPreferences: LibraryPreferences,
     private val readerPreferences: ReaderPreferences,
-    private val backupPreferences: BackupPreferences,
     private val securityPreferences: SecurityPreferences,
     private val basePreferences: BasePreferences,
     private val connectionsPreferences: ConnectionsPreferences,
@@ -109,7 +97,6 @@ class KMKMetroInteropModule(
 
     private val backupCreatorFactory: BackupCreator.Factory,
     private val mangaRestorer: MangaRestorer,
-    private val libraryUpdateNotifier: LibraryUpdateNotifier,
 
     private val getCategories: GetCategories,
     private val getManga: GetManga,
@@ -117,7 +104,6 @@ class KMKMetroInteropModule(
     private val insertFlatMetadata: InsertFlatMetadata,
     private val getAllManga: GetAllManga,
     private val getMergedReferencesById: GetMergedReferencesById,
-    private val getChaptersByMangaId: GetChaptersByMangaId,
     private val getLibraryManga: GetLibraryManga,
     private val networkToLocalManga: NetworkToLocalManga,
     private val updateManga: UpdateManga,
@@ -130,26 +116,18 @@ class KMKMetroInteropModule(
     private val getFavorites: GetFavorites,
     private val getApplicationRelease: GetApplicationRelease,
     private val filterChaptersForDownload: FilterChaptersForDownload,
-    private val upsertTrack: UpsertTrack,
     private val updateCategory: UpdateCategory,
     private val createCategoryWithName: CreateCategoryWithName,
     private val addTracks: AddTracks,
     private val getTracks: GetTracks,
     private val getCustomMangaInfo: GetCustomMangaInfo,
-    private val deleteByMergeId: DeleteByMergeId,
     private val deleteFavoriteEntries: DeleteFavoriteEntries,
-    private val deleteLibraryUpdateErrors: DeleteLibraryUpdateErrors,
-    private val deleteMangaById: DeleteMangaById,
     private val deleteSavedSearchById: DeleteSavedSearchById,
     private val getChapter: GetChapter,
     private val getDuplicateLibraryManga: GetDuplicateLibraryManga,
     private val getFavoriteEntries: GetFavoriteEntries,
-    private val getMergedMangaForDownloading: GetMergedMangaForDownloading,
     private val getRemoteManga: GetRemoteManga,
     private val insertFavoriteEntries: InsertFavoriteEntries,
-    private val insertLibraryUpdateErrorMessages: InsertLibraryUpdateErrorMessages,
-    private val insertLibraryUpdateErrors: InsertLibraryUpdateErrors,
-    private val insertMergedReference: InsertMergedReference,
     private val insertSavedSearch: InsertSavedSearch,
     private val setMangaDefaultChapterFlags: SetMangaDefaultChapterFlags,
     private val getExhSavedSearch: GetExhSavedSearch,
@@ -164,7 +142,6 @@ class KMKMetroInteropModule(
         addSingleton(sourcePreferences)
         addSingleton(libraryPreferences)
         addSingleton(readerPreferences)
-        addSingleton(backupPreferences)
         addSingleton(securityPreferences)
         addSingleton(basePreferences)
         addSingleton(connectionsPreferences)
@@ -186,7 +163,6 @@ class KMKMetroInteropModule(
 
         addSingleton(backupCreatorFactory)
         addSingleton(mangaRestorer)
-        addSingleton(libraryUpdateNotifier)
 
         addSingleton(getCategories)
         addSingleton(getManga)
@@ -194,7 +170,6 @@ class KMKMetroInteropModule(
         addSingleton(insertFlatMetadata)
         addSingleton(getAllManga)
         addSingleton(getMergedReferencesById)
-        addSingleton(getChaptersByMangaId)
         addSingleton(getLibraryManga)
         addSingleton(networkToLocalManga)
         addSingleton(updateManga)
@@ -207,26 +182,18 @@ class KMKMetroInteropModule(
         addSingleton(getFavorites)
         addSingleton(getApplicationRelease)
         addSingleton(filterChaptersForDownload)
-        addSingleton(upsertTrack)
         addSingleton(updateCategory)
         addSingleton(createCategoryWithName)
         addSingleton(addTracks)
         addSingleton(getTracks)
         addSingleton(getCustomMangaInfo)
-        addSingleton(deleteByMergeId)
         addSingleton(deleteFavoriteEntries)
-        addSingleton(deleteLibraryUpdateErrors)
-        addSingleton(deleteMangaById)
         addSingleton(deleteSavedSearchById)
         addSingleton(getChapter)
         addSingleton(getDuplicateLibraryManga)
         addSingleton(getFavoriteEntries)
-        addSingleton(getMergedMangaForDownloading)
         addSingleton(getRemoteManga)
         addSingleton(insertFavoriteEntries)
-        addSingleton(insertLibraryUpdateErrorMessages)
-        addSingleton(insertLibraryUpdateErrors)
-        addSingleton(insertMergedReference)
         addSingleton(insertSavedSearch)
         addSingleton(setMangaDefaultChapterFlags)
         addSingleton(getExhSavedSearch)
