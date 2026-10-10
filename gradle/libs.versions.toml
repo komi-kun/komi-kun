@@ -131,6 +131,7 @@ apollo = { id = "com.apollographql.apollo", version.ref = "apollo" }
 sqldelight = { id = "app.cash.sqldelight", version.ref = "sqldelight" }
 moko = { id = "dev.icerock.mobile.multiplatform-resources", version.ref = "moko" }
 firebase-crashlytics = { id = "com.google.firebase.crashlytics", version = "3.0.8" }
+androidx-baselineProfile = { id = "androidx.baselineprofile", version = "1.4.1" }
 # KMK -->
 valkyrie = { id = "io.github.composegears.valkyrie", version.ref = "valkyrie" }
 # KMK <--

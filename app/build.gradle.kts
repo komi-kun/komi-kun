@@ -14,6 +14,7 @@ plugins {
     kotlin("plugin.serialization")
     alias(libs.plugins.aboutLibraries)
     alias(libs.plugins.apollo)
+    alias(libs.plugins.androidx.baselineProfile)
     id("com.github.ben-manes.versions")
 }
 
@@ -83,6 +84,8 @@ android {
 
             signingConfig = debug.signingConfig
 
+            isProfileable = true
+
             proguardFiles("proguard-android-optimize.txt", "proguard-rules.pro")
 
             buildConfigField("String", "BUILD_TIME", "\"${getBuildTime(useLastCommitTime = true)}\"")
@@ -120,8 +123,6 @@ android {
         create("benchmark") {
             initWith(release)
 
-            isDebuggable = false
-            isProfileable = true
             versionNameSuffix = "${debug.versionNameSuffix}-benchmark"
             applicationIdSuffix = ".benchmark"
 
@@ -241,7 +242,14 @@ configurations.configureEach {
 }
 // KMK <--
 
+baselineProfile {
+    baselineProfileOutputDir = "baselineProfiles"
+    mergeIntoMain = true
+}
+
 dependencies {
+    baselineProfile(projects.baselineProfile)
+
     implementation(projects.i18n)
     // KMK -->
     implementation(projects.i18nKmk)
