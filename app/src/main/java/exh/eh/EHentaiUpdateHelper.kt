@@ -28,30 +28,31 @@ import tachiyomi.domain.manga.interactor.InsertFavoriteEntryAlternative
 import tachiyomi.domain.manga.model.FavoriteEntryAlternative
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.manga.model.MangaUpdate
-import uy.kohesive.injekt.injectLazy
 import java.io.File
 
 data class ChapterChain(val manga: Manga, val chapters: List<Chapter>, val history: List<History>)
 
 @Inject
 @SingleIn(AppScope::class)
-class EHentaiUpdateHelper(context: Context) {
+class EHentaiUpdateHelper(
+    context: Context,
+    private val getChapterByUrl: GetChapterByUrl,
+    private val getChaptersByMangaId: GetChaptersByMangaId,
+    private val getManga: GetManga,
+    private val updateManga: UpdateManga,
+    private val setMangaCategories: SetMangaCategories,
+    private val getCategories: GetCategories,
+    private val chapterRepository: ChapterRepository,
+    private val upsertHistory: UpsertHistory,
+    private val removeHistory: RemoveHistory,
+    private val getHistory: GetHistory,
+    private val insertFavoriteEntryAlternative: InsertFavoriteEntryAlternative,
+) {
     val parentLookupTable =
         MemAutoFlushingLookupTable(
             File(context.filesDir, "exh-plt.maftable"),
             GalleryEntry.Serializer(),
         )
-    private val getChapterByUrl: GetChapterByUrl by injectLazy()
-    private val getChaptersByMangaId: GetChaptersByMangaId by injectLazy()
-    private val getManga: GetManga by injectLazy()
-    private val updateManga: UpdateManga by injectLazy()
-    private val setMangaCategories: SetMangaCategories by injectLazy()
-    private val getCategories: GetCategories by injectLazy()
-    private val chapterRepository: ChapterRepository by injectLazy()
-    private val upsertHistory: UpsertHistory by injectLazy()
-    private val removeHistory: RemoveHistory by injectLazy()
-    private val getHistory: GetHistory by injectLazy()
-    private val insertFavoriteEntryAlternative: InsertFavoriteEntryAlternative by injectLazy()
 
     /**
      * @param chapters Cannot be an empty list!

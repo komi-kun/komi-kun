@@ -49,9 +49,6 @@ import tachiyomi.core.common.util.lang.withUIContext
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.source.model.StubSource
 import tachiyomi.i18n.MR
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
-import uy.kohesive.injekt.injectLazy
 import java.util.Locale
 
 /**
@@ -69,14 +66,16 @@ class ExtensionManager(
     private val trustExtension: TrustExtension,
     private val installer: ExtensionInstaller,
     private val extensionUpdateNotifier: ExtensionUpdateNotifier,
+    private val extensionStoreRepository: ExtensionStoreRepository,
+    private val updateExtensionStores: UpdateExtensionStores,
+    // KMK -->
+    private val exhPreferences: ExhPreferences,
+    // KMK <--
 ) {
 
     val scope = CoroutineScope(SupervisorJob())
 
     private val isInitialized = MutableStateFlow(false)
-
-    private val extensionStoreRepository: ExtensionStoreRepository by injectLazy()
-    private val updateExtensionStores: UpdateExtensionStores by injectLazy()
 
     private val iconMap = mutableMapOf<String, Drawable>()
 
@@ -240,7 +239,7 @@ class ExtensionManager(
     private fun Extension.isBlacklisted(
         blacklistEnabled: Boolean = preferences.enableSourceBlacklist.get(),
         // KMK -->
-        isHentaiEnabled: Boolean = Injekt.get<ExhPreferences>().isHentaiEnabled.get(),
+        isHentaiEnabled: Boolean = exhPreferences.isHentaiEnabled.get(),
         // KMK <--
     ): Boolean {
         return pkgName in BlacklistedSources.BLACKLISTED_EXTENSIONS &&

@@ -72,13 +72,12 @@ class DownloadCache(
     private val sourceManager: SourceManager,
     private val extensionManager: ExtensionManager,
     private val storageManager: StorageManager,
+    // KMK -->
+    private val downloadPreferences: DownloadPreferences,
+    // KMK <--
 ) {
 
     private val scope = CoroutineScope(Dispatchers.IO)
-
-    // KMK -->
-    private val downloadPreferences: DownloadPreferences = Injekt.get()
-    // KMK <--
 
     private val _changes: Channel<Unit> = Channel(Channel.UNLIMITED)
     val changes = _changes.receiveAsFlow()
