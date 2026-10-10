@@ -38,6 +38,10 @@ object TelemetryConfig {
             .getCertificateFingerprints()
             .any { it == MIHON_CERTIFICATE_FINGERPRINT }
     }
+
+    fun recordException(throwable: Throwable) {
+        crashlytics?.recordException(throwable)
+    }
 }
 
 private val MIHON_PACKAGES = hashSetOf("app.komikku", "app.komikku.beta")
