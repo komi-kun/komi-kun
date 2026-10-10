@@ -119,6 +119,11 @@ jobs:
 
       - name: Build app
         run: ./gradlew assembleRelease -Pdist=github
+        env:
+          storeFileBase64: ${{ secrets.SIGNING_KEY }}
+          storePassword: ${{ secrets.KEY_STORE_PASSWORD }}
+          keyAlias: ${{ secrets.ALIAS }}
+          keyPassword: ${{ secrets.KEY_PASSWORD }}
 
       - name: Run unit tests
         run: ./gradlew testReleaseUnitTest
@@ -146,27 +151,16 @@ jobs:
         with:
           merge-multiple: true
 
-      - name: Sign APK
-        uses: r0adkll/sign-android-release@f30bdd30588842ac76044ecdbd4b6d0e3e813478
-        with:
-          releaseDirectory: app/build/outputs/apk/release
-          signingKeyBase64: ${{ secrets.SIGNING_KEY }}
-          alias: ${{ secrets.ALIAS }}
-          keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
-          keyPassword: ${{ secrets.KEY_PASSWORD }}
-        env:
-          BUILD_TOOLS_VERSION: '35.0.1'
-
       - name: Get SHA & clean up build artifacts
         id: get_sha
         run: |
           set -e
 
-          mv app/build/outputs/apk/release/app-universal-release-unsigned-signed.apk Komikku-${{ needs.prepare-build.outputs.VERSION_TAG }}.apk
-          mv app/build/outputs/apk/release/app-arm64-v8a-release-unsigned-signed.apk Komikku-arm64-v8a-${{ needs.prepare-build.outputs.VERSION_TAG }}.apk
-          mv app/build/outputs/apk/release/app-armeabi-v7a-release-unsigned-signed.apk Komikku-armeabi-v7a-${{ needs.prepare-build.outputs.VERSION_TAG }}.apk
-          mv app/build/outputs/apk/release/app-x86-release-unsigned-signed.apk Komikku-x86-${{ needs.prepare-build.outputs.VERSION_TAG }}.apk
-          mv app/build/outputs/apk/release/app-x86_64-release-unsigned-signed.apk Komikku-x86_64-${{ needs.prepare-build.outputs.VERSION_TAG }}.apk
+          mv app/build/outputs/apk/release/app-universal-release.apk Komikku-${{ needs.prepare-build.outputs.VERSION_TAG }}.apk
+          mv app/build/outputs/apk/release/app-arm64-v8a-release.apk Komikku-arm64-v8a-${{ needs.prepare-build.outputs.VERSION_TAG }}.apk
+          mv app/build/outputs/apk/release/app-armeabi-v7a-release.apk Komikku-armeabi-v7a-${{ needs.prepare-build.outputs.VERSION_TAG }}.apk
+          mv app/build/outputs/apk/release/app-x86-release.apk Komikku-x86-${{ needs.prepare-build.outputs.VERSION_TAG }}.apk
+          mv app/build/outputs/apk/release/app-x86_64-release.apk Komikku-x86_64-${{ needs.prepare-build.outputs.VERSION_TAG }}.apk
 
       - name: Create release
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
