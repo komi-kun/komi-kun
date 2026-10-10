@@ -30,6 +30,11 @@ class ReaderPreferences(
     val pageTransitionsWebtoon = preferenceStore.getBoolean("pref_enable_transitions_webtoon_key", true)
     // SY <--
 
+    val loadAheadOnlyOverWifi: Preference<Boolean> = preferenceStore.getBoolean(
+        "pref_reader_load_ahead_only_over_wifi",
+        true,
+    )
+
     val flashOnPageChange = preferenceStore.getBoolean("pref_reader_flash", false)
 
     val flashDurationMillis = preferenceStore.getInt("pref_reader_flash_duration", MILLI_CONVERSION)
