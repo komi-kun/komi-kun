@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.di
 
+import android.app.ActivityManager
 import android.app.Application
 import android.content.Context
 import android.os.Build
@@ -81,6 +82,10 @@ class AppModule(val app: Application) : InjektModule {
             }
 
             // SY <--
+            // KMK -->
+            // Configure connections like Room: WAL unless the device is low on RAM.
+            val isWal = (app.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager)?.isLowRamDevice != true
+            // KMK <--
             AndroidSqliteDriver(
                 schema = Database.Schema,
                 context = app,
@@ -103,8 +108,13 @@ class AppModule(val app: Application) : InjektModule {
                     override fun onOpen(db: SupportSQLiteDatabase) {
                         super.onOpen(db)
                         setPragma(db, "foreign_keys = ON")
-                        setPragma(db, "journal_mode = WAL")
+                        // KMK -->
+                        setPragma(db, "journal_mode = ${if (isWal) "WAL" else "TRUNCATE"}")
+                        // KMK <--
                         setPragma(db, "synchronous = NORMAL")
+                        // KMK -->
+                        setPragma(db, "busy_timeout = 3000")
+                        // KMK <--
                     }
                     private fun setPragma(db: SupportSQLiteDatabase, pragma: String) {
                         val cursor = db.query("PRAGMA $pragma")
