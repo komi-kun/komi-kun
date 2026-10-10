@@ -1,22 +1,16 @@
 package eu.kanade.domain.source.model
 
-import android.content.Context
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.core.graphics.drawable.toBitmap
 import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.extension.model.Extension
-import mihon.app.di.appGraph
-import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.domain.source.model.Source
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
-suspend fun Source.icon(): ImageBitmap? = withIOContext {
-    Injekt.get<Context>().appGraph.extensionManager.getAppIconForSource(id)
-        ?.toBitmap()
-        ?.asImageBitmap()
-}
+// KMK -->
+// Mihon b15af71b94 moved installed-extension/source icon loading to Coil
+// (`eu.kanade.tachiyomi.data.coil.InstalledSourceIcon`), so the old `Source.icon()` helper is gone.
+// Komikku keeps this module for its own `installedExtension` accessor.
+// KMK <--
 
 // AM (BROWSE) -->
 // Add an extra property to Source for it to get access to ExtensionManager

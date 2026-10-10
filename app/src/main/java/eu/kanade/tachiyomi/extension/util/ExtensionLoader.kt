@@ -440,7 +440,6 @@ internal object ExtensionLoader {
             contentWarning = contentWarning,
             sources = sources,
             pkgFactory = metaData.getString(METADATA_SOURCE_FACTORY),
-            icon = runCatching { appInfo.loadIcon(pkgManager) }.getOrNull(),
             isShared = extensionInfo.isShared,
             signatures = signatures,
             store = store,

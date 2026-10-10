@@ -76,8 +76,6 @@ class ExtensionManager(
 
     private val isInitialized = MutableStateFlow(false)
 
-    private val iconMap = mutableMapOf<String, Drawable>()
-
     @Volatile
     private var stores = emptyList<ExtensionStore>()
 
@@ -162,26 +160,16 @@ class ExtensionManager(
         }
     }
 
-    suspend fun getAppIconForSource(sourceId: Long): Drawable? {
-        val pkgName = getExtensionPackage(sourceId)
-        if (pkgName != null) {
-            return iconMap[pkgName] ?: iconMap.getOrPut(pkgName) {
-                ExtensionLoader.getExtensionPackageInfoFromPkgName(context, pkgName)!!.applicationInfo!!
-                    .loadIcon(context.packageManager)
-            }
-        }
-
-        // SY -->
-        return when (sourceId) {
-            // KMK -->
-            in EHENTAI_EXT_SOURCES -> ContextCompat.getDrawable(context, R.mipmap.ic_ehentai_source)
-            in EXHENTAI_EXT_SOURCES -> ContextCompat.getDrawable(context, R.mipmap.ic_exhentai_source)
-            // KMK <--
-            MERGED_SOURCE_ID -> ContextCompat.getDrawable(context, R.mipmap.ic_merged_source)
-            else -> null
-        }
-        // SY <--
+    // KMK -->
+    // Mihon b15af71b94 moved installed-extension icon loading to Coil; only the fork's non-extension
+    // delegated sources (E-Hentai/ExH/Merged) still need a drawable supplied by the app.
+    fun getSpecificSourceIcon(sourceId: Long): Drawable? = when (sourceId) {
+        in EHENTAI_EXT_SOURCES -> ContextCompat.getDrawable(context, R.mipmap.ic_ehentai_source)
+        in EXHENTAI_EXT_SOURCES -> ContextCompat.getDrawable(context, R.mipmap.ic_exhentai_source)
+        MERGED_SOURCE_ID -> ContextCompat.getDrawable(context, R.mipmap.ic_merged_source)
+        else -> null
     }
+    // KMK <--
 
     private var availableExtensionsSourcesData: Map<Long, StubSource> = emptyMap()
 

@@ -45,7 +45,10 @@ import eu.kanade.tachiyomi.data.cache.CoverCache
 import eu.kanade.tachiyomi.data.cache.PagePreviewCache
 import eu.kanade.tachiyomi.data.coil.BufferedSourceFetcher
 import eu.kanade.tachiyomi.data.coil.CoverRequestInterceptor
+import eu.kanade.tachiyomi.data.coil.ExtensionIconFetcher
 import eu.kanade.tachiyomi.data.coil.ImageDecoder
+import eu.kanade.tachiyomi.data.coil.InstalledExtensionIconKeyer
+import eu.kanade.tachiyomi.data.coil.InstalledSourceIconKeyer
 import eu.kanade.tachiyomi.data.coil.MangaCoverFetcher
 import eu.kanade.tachiyomi.data.coil.MangaCoverKeyer
 import eu.kanade.tachiyomi.data.coil.MangaCoverMetadata
@@ -55,6 +58,7 @@ import eu.kanade.tachiyomi.data.coil.PagePreviewKeyer
 import eu.kanade.tachiyomi.data.connections.discord.DiscordRPCService
 import eu.kanade.tachiyomi.data.notification.Notifications
 import eu.kanade.tachiyomi.data.sync.SyncDataJob
+import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.network.NetworkPreferences
 import eu.kanade.tachiyomi.ui.base.delegate.SecureActivityDelegate
@@ -133,6 +137,8 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
 
     @Inject private lateinit var getCustomMangaInfo: GetCustomMangaInfo
     // KMK <--
+
+    @Inject private lateinit var extensionManager: Lazy<ExtensionManager>
 
     @Inject private lateinit var widgetManager: WidgetManager
 
@@ -302,9 +308,13 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
                 add(BufferedSourceFetcher.Factory())
                 add(MangaCoverFetcher.MangaCoverFactory(callFactoryLazy, coverCache, sourceManager, uiPreferences))
                 add(MangaCoverFetcher.MangaFactory(callFactoryLazy, coverCache, sourceManager, uiPreferences))
+                add(ExtensionIconFetcher.ExtensionFactory(context))
+                add(ExtensionIconFetcher.SourceFactory(context, extensionManager))
                 // Keyer
                 add(MangaCoverKeyer(coverCache))
                 add(MangaKeyer())
+                add(InstalledExtensionIconKeyer())
+                add(InstalledSourceIconKeyer())
                 // SY -->
                 add(PagePreviewKeyer())
                 add(PagePreviewFetcher.Factory(callFactoryLazy, pagePreviewCache, sourceManager))

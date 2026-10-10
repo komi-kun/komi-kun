@@ -717,7 +717,6 @@ private fun ExtensionItemContentPreview() {
         sources = emptyList(),
         store = ExtensionStore("https://komikku", "Komikku", "", KOMIKKU_SIGNATURE, ExtensionStore.Contact("", ""), false, null),
         pkgFactory = null,
-        icon = null,
         hasUpdate = false,
         isObsolete = false,
         isShared = false,
