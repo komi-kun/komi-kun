@@ -13,12 +13,12 @@ import java.io.InputStream
 private const val DEFAULT_COVER_NAME = "cover.jpg"
 private const val COVER_ARCHIVE_NAME = "cover.cbi"
 
-actual class LocalCoverManager(
+class LocalCoverManager(
     private val context: Context,
     private val fileSystem: LocalSourceFileSystem,
 ) {
 
-    actual fun find(mangaUrl: String): UniFile? {
+    fun find(mangaUrl: String): UniFile? {
         return fileSystem.getFilesInMangaDirectory(mangaUrl)
             // Get all file whose names start with "cover"
             .filter { it.isFile && it.nameWithoutExtension.equals("cover", ignoreCase = true) }
@@ -28,11 +28,14 @@ actual class LocalCoverManager(
             }
     }
 
-    actual fun update(
+    fun update(
         manga: SManga,
         inputStream: InputStream,
         // SY -->
-        encrypted: Boolean,
+        // KMK -->
+        // Default kept from the old `expect` declaration now that the source sets are merged.
+        encrypted: Boolean = false,
+        // KMK <--
         // SY <--
     ): UniFile? {
         val directory = fileSystem.getMangaDirectory(manga.url)
