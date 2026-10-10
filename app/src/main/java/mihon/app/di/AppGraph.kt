@@ -50,13 +50,16 @@ import eu.kanade.tachiyomi.ui.setting.track.BaseOAuthLoginActivity
 import eu.kanade.tachiyomi.ui.webview.WebViewActivity
 import eu.kanade.tachiyomi.util.CrashLogUtil
 import exh.GalleryAdder
+import exh.eh.EHentaiUpdateHelper
 import exh.eh.EHentaiUpdateWorker
 import exh.pref.DelegateSourcePreferences
 import exh.source.ExhPreferences
 import kotlinx.serialization.json.Json
 import mihon.core.metro.IsDebugBuild
+import mihon.domain.chapter.interactor.FilterChaptersForDownload
 import mihon.domain.extension.interactor.GetExtensionStoreCountAsFlow
 import mihon.domain.extension.interactor.GetExtensionStores
+import mihon.domain.source.interactor.UpdateMangaFromRemote
 import tachiyomi.domain.backup.service.BackupPreferences
 import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.domain.category.interactor.ResetCategoryFlags
@@ -68,6 +71,10 @@ import tachiyomi.domain.manga.interactor.GetAllManga
 import tachiyomi.domain.manga.interactor.GetExhFavoriteMangaWithMetadata
 import tachiyomi.domain.manga.interactor.GetFavorites
 import tachiyomi.domain.manga.interactor.GetFlatMetadataById
+import tachiyomi.domain.manga.interactor.GetManga
+import tachiyomi.domain.manga.interactor.GetMergedReferencesById
+import tachiyomi.domain.manga.interactor.InsertFlatMetadata
+import tachiyomi.domain.manga.interactor.NetworkToLocalManga
 import tachiyomi.domain.manga.interactor.ResetViewerFlags
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.domain.storage.service.StoragePreferences
@@ -152,6 +159,13 @@ interface AppGraph : ViewModelGraph {
     val backupRestoreStatus: BackupRestoreStatus
     val libraryUpdateStatus: LibraryUpdateStatus
     val syncStatus: SyncStatus
+    val ehEntaiUpdateHelper: EHentaiUpdateHelper
+    val getManga: GetManga
+    val insertFlatMetadata: InsertFlatMetadata
+    val getMergedReferencesById: GetMergedReferencesById
+    val networkToLocalManga: NetworkToLocalManga
+    val updateMangaFromRemote: UpdateMangaFromRemote
+    val filterChaptersForDownload: FilterChaptersForDownload
     // KMK <--
 
     val json: Json

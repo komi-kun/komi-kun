@@ -107,7 +107,7 @@ class AndroidSourceManager(
                         }
                         // KMK <--
                         // SY -->
-                        put(MERGED_SOURCE_ID, MergedSource())
+                        put(MERGED_SOURCE_ID, MergedSource(context))
                         // SY <--
                     }
                     extensions.forEach { extension ->

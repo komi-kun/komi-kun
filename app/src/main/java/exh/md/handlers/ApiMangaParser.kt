@@ -18,16 +18,14 @@ import exh.util.nullIfEmpty
 import tachiyomi.domain.manga.interactor.GetFlatMetadataById
 import tachiyomi.domain.manga.interactor.GetManga
 import tachiyomi.domain.manga.interactor.InsertFlatMetadata
-import uy.kohesive.injekt.injectLazy
 import java.util.Locale
 
 class ApiMangaParser(
     private val lang: String,
+    private val getManga: GetManga,
+    private val insertFlatMetadata: InsertFlatMetadata,
+    private val getFlatMetadataById: GetFlatMetadataById,
 ) {
-    private val getManga: GetManga by injectLazy()
-    private val insertFlatMetadata: InsertFlatMetadata by injectLazy()
-    private val getFlatMetadataById: GetFlatMetadataById by injectLazy()
-
     val metaClass = MangaDexSearchMetadata::class
 
     /**
