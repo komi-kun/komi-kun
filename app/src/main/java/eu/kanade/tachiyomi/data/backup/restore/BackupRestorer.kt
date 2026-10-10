@@ -32,7 +32,6 @@ import kotlinx.coroutines.launch
 import logcat.LogPriority
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.util.system.logcat
-import tachiyomi.data.Database
 import tachiyomi.domain.source.repository.StubSourceRepository
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.i18n.MR
@@ -52,7 +51,6 @@ class BackupRestorer(
     @Assisted private val notifier: BackupNotifier,
     @Assisted private val isSync: Boolean,
     private val context: Context,
-    private val database: Database,
     private val downloadCache: DownloadCache,
     private val categoriesRestorer: CategoriesRestorer,
     private val preferenceRestorer: PreferenceRestorer,
@@ -265,12 +263,8 @@ class BackupRestorer(
             .chunked(100)
             .forEach { chunk ->
                 val restoredAsBatch = try {
-                    database.transaction {
-                        chunk.forEach {
-                            ensureActive()
-                            mangaRestorer.restore(it, backupCategories)
-                        }
-                    }
+                    ensureActive()
+                    mangaRestorer.restore(chunk, backupCategories)
                     true
                 } catch (e: Exception) {
                     ensureActive()
@@ -285,7 +279,7 @@ class BackupRestorer(
                         ensureActive()
 
                         try {
-                            mangaRestorer.restore(it, backupCategories)
+                            mangaRestorer.restore(listOf(it), backupCategories)
                         } catch (e: Exception) {
                             ensureActive()
                             val sourceName = sourceMapping[it.source] ?: it.source.toString()

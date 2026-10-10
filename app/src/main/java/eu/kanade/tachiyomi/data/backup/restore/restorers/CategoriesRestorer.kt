@@ -1,15 +1,14 @@
 package eu.kanade.tachiyomi.data.backup.restore.restorers
 
-import app.cash.sqldelight.async.coroutines.awaitAsOne
 import dev.zacsweers.metro.Inject
 import eu.kanade.tachiyomi.data.backup.models.BackupCategory
-import tachiyomi.data.Database
 import tachiyomi.domain.category.interactor.GetCategories
+import tachiyomi.domain.category.repository.CategoryRepository
 import tachiyomi.domain.library.service.LibraryPreferences
 
 @Inject
 class CategoriesRestorer(
-    private val database: Database,
+    private val categoryRepository: CategoryRepository,
     private val getCategories: GetCategories,
     private val libraryPreferences: LibraryPreferences,
 ) {
@@ -18,78 +17,20 @@ class CategoriesRestorer(
     // SY <--
 
     suspend operator fun invoke(backupCategories: List<BackupCategory>) {
-        if (backupCategories.isNotEmpty()) {
-            val dbCategories = getCategories.await()
-            val dbCategoriesByName = dbCategories.associateBy { it.name }
-            // SY -->
-            val dbCategoriesByUid = dbCategories.associateBy { it.uid } // Map by UID
-            // SY <--
+        if (backupCategories.isEmpty()) return
 
-            var nextOrder = dbCategories.maxOfOrNull { it.order }?.plus(1) ?: 0
-
-            val categories = backupCategories
+        val dbCategories = getCategories.await()
+        val categories = categoryRepository.restoreCategories(
+            categories = backupCategories
                 .sortedBy { it.order }
-                // SY -->
-                .map { backupCategory ->
-                    var dbCategory = if (backupCategory.uid != 0L) {
-                        dbCategoriesByUid[backupCategory.uid]
-                    } else {
-                        null
-                    }
+                .map { it.toCategory(id = 0) },
+            isSync = isSync,
+        )
 
-                    if (dbCategory == null) {
-                        dbCategory = dbCategoriesByName[backupCategory.name]
-                    }
-
-                    if (dbCategory != null) {
-                        database.categoryQueries.update(
-                            name = backupCategory.name,
-                            order = backupCategory.order,
-                            flags = backupCategory.flags,
-                            // KMK -->
-                            hidden = if (backupCategory.hidden) 1L else null,
-                            // KMK <--
-                            version = backupCategory.version,
-                            uid = if (backupCategory.uid != 0L) backupCategory.uid else dbCategory.uid,
-                            lastModifiedAt = backupCategory.lastModifiedAt,
-                            isSyncing = 1,
-                            categoryId = dbCategory.id,
-                        )
-                        return@map dbCategory
-                    }
-
-                    // SY -->
-                    // A sync delta is a converging replica, not an import: new
-                    // categories must land at the position the server holds or
-                    // reorders never converge across devices.
-                    val order = if (isSync) backupCategory.order else nextOrder++
-                    // SY <--
-                    database.categoryQueries.insert(
-                        name = backupCategory.name,
-                        order = order,
-                        flags = backupCategory.flags,
-                        // KMK -->
-                        hidden = if (backupCategory.hidden) 1L else 0L,
-                        // KMK <--
-                        // SY -->
-                        version = backupCategory.version,
-                        uid = backupCategory.uid,
-                        lastModifiedAt = backupCategory.lastModifiedAt,
-                        // SY <--
-                    ).awaitAsOne()
-                        .let { id -> backupCategory.toCategory(id).copy(order = order) }
-                }
-            // SY <--
-
-            // SY -->
-            database.categoryQueries.resetIsSyncing()
-            // SY <--
-
-            libraryPreferences.categorizedDisplaySettings.set(
-                (dbCategories + categories)
-                    .distinctBy { it.flags }
-                    .size > 1,
-            )
-        }
+        libraryPreferences.categorizedDisplaySettings.set(
+            (dbCategories + categories)
+                .distinctBy { it.flags }
+                .size > 1,
+        )
     }
 }

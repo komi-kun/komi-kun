@@ -1,10 +1,10 @@
 package eu.kanade.tachiyomi.data.backup.models
 
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.protobuf.ProtoNumber
 import mihon.core.common.extensions.JsonObjectEmptyBytes
-import tachiyomi.data.MemoColumnAdapter
+import mihon.core.common.extensions.toByteArray
+import mihon.core.common.extensions.toJsonObject
 import tachiyomi.domain.chapter.model.Chapter
 
 @Serializable
@@ -43,42 +43,23 @@ class BackupChapter(
             sourceOrder = this@BackupChapter.sourceOrder,
             lastModifiedAt = this@BackupChapter.lastModifiedAt,
             version = this@BackupChapter.version,
-            memo = MemoColumnAdapter.decode(this@BackupChapter.memo),
+            memo = this@BackupChapter.memo.toJsonObject(),
         )
     }
 }
 
-val backupChapterMapper = {
-        _: Long,
-        _: Long,
-        url: String,
-        name: String,
-        scanlator: String?,
-        chapterNumber: Double,
-        dateUpload: Long,
-        sourceOrder: Long,
-        memo: JsonObject,
-        read: Boolean,
-        bookmark: Boolean,
-        lastPageRead: Long,
-        dateFetch: Long,
-        lastModifiedAt: Long,
-        version: Long,
-        _: Long,
-    ->
-    BackupChapter(
-        url = url,
-        name = name,
-        chapterNumber = chapterNumber.toFloat(),
-        scanlator = scanlator,
-        read = read,
-        bookmark = bookmark,
-        lastPageRead = lastPageRead,
-        dateFetch = dateFetch,
-        dateUpload = dateUpload,
-        sourceOrder = sourceOrder,
-        lastModifiedAt = lastModifiedAt,
-        version = version,
-        memo = MemoColumnAdapter.encode(memo),
-    )
-}
+fun Chapter.toBackupChapter() = BackupChapter(
+    url = url,
+    name = name,
+    chapterNumber = chapterNumber.toFloat(),
+    scanlator = scanlator,
+    read = read,
+    bookmark = bookmark,
+    lastPageRead = lastPageRead,
+    dateFetch = dateFetch,
+    dateUpload = dateUpload,
+    sourceOrder = sourceOrder,
+    lastModifiedAt = lastModifiedAt,
+    version = version,
+    memo = memo.toByteArray(),
+)

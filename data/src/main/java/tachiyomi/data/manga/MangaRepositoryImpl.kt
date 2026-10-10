@@ -8,7 +8,9 @@ import dev.zacsweers.metro.ContributesBinding
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import logcat.LogPriority
+import tachiyomi.core.common.util.lang.toLong
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.data.Database
 import tachiyomi.data.MemoColumnAdapter
@@ -121,12 +123,45 @@ class MangaRepositoryImpl(
         }
     }
 
+    override suspend fun deleteNonLibraryManga(sourceIds: List<Long>, keepReadManga: Boolean) {
+        database.mangaQueries.deleteNonLibraryManga(sourceIds, keepReadManga.toLong())
+    }
+
     override suspend fun setMangaCategories(mangaId: Long, categoryIds: List<Long>) {
         database.transaction {
             database.manga_categoryQueries.deleteMangaCategoryByMangaId(mangaId)
             categoryIds.forEach { categoryId ->
                 database.manga_categoryQueries.insert(mangaId, categoryId)
             }
+        }
+    }
+
+    override suspend fun getExcludedScanlators(mangaId: Long): Set<String> {
+        return database.excluded_scanlatorQueries
+            .getExcludedScanlatorsByMangaId(mangaId)
+            .awaitAsList()
+            .toSet()
+    }
+
+    override fun getExcludedScanlatorsAsFlow(mangaId: Long): Flow<Set<String>> {
+        return database.excluded_scanlatorQueries
+            .getExcludedScanlatorsByMangaId(mangaId)
+            .subscribeToList()
+            .map { it.toSet() }
+    }
+
+    override suspend fun setExcludedScanlators(mangaId: Long, excludedScanlators: Set<String>) {
+        database.transaction {
+            val currentExcluded = database.excluded_scanlatorQueries
+                .getExcludedScanlatorsByMangaId(mangaId)
+                .awaitAsList()
+                .toSet()
+            val toAdd = excludedScanlators.minus(currentExcluded)
+            for (scanlator in toAdd) {
+                database.excluded_scanlatorQueries.insert(mangaId, scanlator)
+            }
+            val toRemove = currentExcluded.minus(excludedScanlators)
+            database.excluded_scanlatorQueries.remove(mangaId, toRemove)
         }
     }
 

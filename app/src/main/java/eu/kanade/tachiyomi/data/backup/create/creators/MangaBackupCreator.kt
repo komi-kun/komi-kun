@@ -1,36 +1,39 @@
 package eu.kanade.tachiyomi.data.backup.create.creators
 
-import app.cash.sqldelight.async.coroutines.awaitAsList
-import app.cash.sqldelight.async.coroutines.awaitAsOne
 import dev.zacsweers.metro.Inject
 import eu.kanade.tachiyomi.data.backup.create.BackupOptions
-import eu.kanade.tachiyomi.data.backup.models.BackupChapter
 import eu.kanade.tachiyomi.data.backup.models.BackupFlatMetadata
 import eu.kanade.tachiyomi.data.backup.models.BackupHistory
 import eu.kanade.tachiyomi.data.backup.models.BackupManga
-import eu.kanade.tachiyomi.data.backup.models.backupChapterMapper
-import eu.kanade.tachiyomi.data.backup.models.backupMergedMangaReferenceMapper
-import eu.kanade.tachiyomi.data.backup.models.backupTrackMapper
+import eu.kanade.tachiyomi.data.backup.models.toBackupChapter
+import eu.kanade.tachiyomi.data.backup.models.toBackupMergedMangaReference
+import eu.kanade.tachiyomi.data.backup.models.toBackupTracking
 import eu.kanade.tachiyomi.source.online.MetadataSource
 import eu.kanade.tachiyomi.ui.reader.setting.ReadingMode
 import exh.source.MERGED_SOURCE_ID
 import exh.source.getMainSource
-import tachiyomi.data.Database
-import tachiyomi.data.MemoColumnAdapter
+import mihon.core.common.extensions.toByteArray
 import tachiyomi.domain.category.interactor.GetCategories
+import tachiyomi.domain.chapter.repository.ChapterRepository
 import tachiyomi.domain.history.interactor.GetHistory
 import tachiyomi.domain.manga.interactor.GetCustomMangaInfo
 import tachiyomi.domain.manga.interactor.GetFlatMetadataById
 import tachiyomi.domain.manga.model.CustomMangaInfo
 import tachiyomi.domain.manga.model.Manga
+import tachiyomi.domain.manga.repository.MangaMergeRepository
+import tachiyomi.domain.manga.repository.MangaRepository
 import tachiyomi.domain.source.service.SourceManager
+import tachiyomi.domain.track.repository.TrackRepository
 
 @Inject
 class MangaBackupCreator(
-    private val database: Database,
+    private val mangaRepository: MangaRepository,
+    private val chapterRepository: ChapterRepository,
+    private val trackRepository: TrackRepository,
     private val getCategories: GetCategories,
     private val getHistory: GetHistory,
     // SY -->
+    private val mangaMergeRepository: MangaMergeRepository,
     private val sourceManager: SourceManager,
     private val getCustomMangaInfo: GetCustomMangaInfo,
     private val getFlatMetadataById: GetFlatMetadataById,
@@ -57,9 +60,9 @@ class MangaBackupCreator(
 
         // SY -->
         if (manga.source == MERGED_SOURCE_ID) {
-            mangaObject.mergedMangaReferences = database.mergedQueries
-                .selectByMergeId(manga.id, backupMergedMangaReferenceMapper)
-                .awaitAsList()
+            mangaObject.mergedMangaReferences = mangaMergeRepository
+                .getReferencesById(manga.id)
+                .map { it.toBackupMergedMangaReference() }
         }
 
         val source = sourceManager.get(manga.source)?.getMainSource<MetadataSource<*, *>>()
@@ -70,24 +73,13 @@ class MangaBackupCreator(
         }
         // SY <--
 
-        mangaObject.excludedScanlators = database.excluded_scanlatorQueries
-            .getExcludedScanlatorsByMangaId(manga.id)
-            .awaitAsList()
+        mangaObject.excludedScanlators = mangaRepository.getExcludedScanlators(manga.id).toList()
 
         if (options.chapters) {
             // Backup all the chapters
-            database.chapterQueries
-                .getChaptersByMangaId(
-                    mangaId = manga.id,
-                    applyFilter = 0, // false
-                    // KMK -->
-                    Manga.CHAPTER_SHOW_NOT_BOOKMARKED,
-                    Manga.CHAPTER_SHOW_BOOKMARKED,
-                    // KMK <--
-                    mapper = backupChapterMapper,
-                )
-                .awaitAsList()
-                .takeUnless(List<BackupChapter>::isEmpty)
+            chapterRepository.getChapterByMangaId(manga.id, applyFilter = false)
+                .map { it.toBackupChapter() }
+                .takeUnless { it.isEmpty() }
                 ?.let { mangaObject.chapters = it }
         }
 
@@ -100,9 +92,7 @@ class MangaBackupCreator(
         }
 
         if (options.tracking) {
-            val tracks = database.manga_trackQueries
-                .getTracksByMangaId(manga.id, backupTrackMapper)
-                .awaitAsList()
+            val tracks = trackRepository.getTracksByMangaId(manga.id).map { it.toBackupTracking() }
             if (tracks.isNotEmpty()) {
                 mangaObject.tracking = tracks
             }
@@ -112,10 +102,8 @@ class MangaBackupCreator(
             val historyByMangaId = getHistory.await(manga.id)
             if (historyByMangaId.isNotEmpty()) {
                 val history = historyByMangaId.map { history ->
-                    val chapter = database.chapterQueries
-                        .getChapterById(history.chapterId)
-                        .awaitAsOne()
-                    BackupHistory(chapter.remote_url, history.readAt?.time ?: 0L, history.readDuration)
+                    val chapter = checkNotNull(chapterRepository.getChapterById(history.chapterId))
+                    BackupHistory(chapter.url, history.readAt?.time ?: 0L, history.readDuration)
                 }
                 if (history.isNotEmpty()) {
                     mangaObject.history = history
@@ -151,7 +139,7 @@ private fun Manga.toBackupManga(/* SY --> */customMangaInfo: CustomMangaInfo?/* 
         version = this.version,
         notes = this.notes,
         initialized = this.initialized,
-        memo = MemoColumnAdapter.encode(this.memo),
+        memo = this.memo.toByteArray(),
         // SY -->
     ).also { backupManga ->
         customMangaInfo?.let {

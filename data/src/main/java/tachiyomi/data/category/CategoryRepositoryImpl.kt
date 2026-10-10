@@ -1,6 +1,7 @@
 package tachiyomi.data.category
 
 import app.cash.sqldelight.async.coroutines.awaitAsList
+import app.cash.sqldelight.async.coroutines.awaitAsOne
 import app.cash.sqldelight.async.coroutines.awaitAsOneOrNull
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
@@ -64,6 +65,68 @@ class CategoryRepositoryImpl(
             lastModifiedAt = category.lastModifiedAt,
             // SY <--
         ).awaitAsOneOrNull()
+    }
+
+    override suspend fun restoreCategories(categories: List<Category>, isSync: Boolean): List<Category> {
+        val dbCategories = database.categoryQueries
+            .getCategories(CategoryMapper::mapCategory)
+            .awaitAsList()
+        val dbCategoriesByName = dbCategories.associateBy { it.name }
+        val dbCategoriesByUid = dbCategories.associateBy { it.uid } // Map by UID
+
+        var nextOrder = dbCategories.maxOfOrNull { it.order }?.plus(1) ?: 0
+
+        val restored = categories
+            .sortedBy { it.order }
+            .map { category ->
+                var dbCategory = if (category.uid != 0L) {
+                    dbCategoriesByUid[category.uid]
+                } else {
+                    null
+                }
+
+                if (dbCategory == null) {
+                    dbCategory = dbCategoriesByName[category.name]
+                }
+
+                if (dbCategory != null) {
+                    database.categoryQueries.update(
+                        name = category.name,
+                        order = category.order,
+                        flags = category.flags,
+                        // KMK -->
+                        hidden = if (category.hidden) 1L else null,
+                        // KMK <--
+                        version = category.version,
+                        uid = if (category.uid != 0L) category.uid else dbCategory.uid,
+                        lastModifiedAt = category.lastModifiedAt,
+                        isSyncing = 1,
+                        categoryId = dbCategory.id,
+                    )
+                    return@map dbCategory
+                }
+
+                // A sync delta is a converging replica, not an import: new
+                // categories must land at the position the server holds or
+                // reorders never converge across devices.
+                val order = if (isSync) category.order else nextOrder++
+                database.categoryQueries.insert(
+                    name = category.name,
+                    order = order,
+                    flags = category.flags,
+                    // KMK -->
+                    hidden = if (category.hidden) 1L else 0L,
+                    // KMK <--
+                    version = category.version,
+                    uid = category.uid,
+                    lastModifiedAt = category.lastModifiedAt,
+                ).awaitAsOne()
+                    .let { id -> category.copy(id = id, order = order) }
+            }
+
+        database.categoryQueries.resetIsSyncing()
+
+        return restored
     }
     // SY <--
 

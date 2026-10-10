@@ -27,14 +27,7 @@ import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
 import nl.adaptivity.xmlutil.XmlDeclMode
 import nl.adaptivity.xmlutil.core.XmlVersion
 import nl.adaptivity.xmlutil.serialization.XML
-import tachiyomi.data.Chapter
 import tachiyomi.data.Database
-import tachiyomi.data.DateColumnAdapter
-import tachiyomi.data.History
-import tachiyomi.data.Manga
-import tachiyomi.data.MemoColumnAdapter
-import tachiyomi.data.StringListColumnAdapter
-import tachiyomi.data.UpdateStrategyColumnAdapter
 
 @BindingContainer
 object AppBindings {
@@ -98,25 +91,6 @@ object AppBindings {
                 executePragma("busy_timeout = 3000")
             },
             // KMK <--
-        )
-    }
-
-    @Provides
-    @SingleIn(AppScope::class)
-    fun providesDatabase(driver: SqlDriver): Database {
-        return Database(
-            driver = driver,
-            chapterAdapter = Chapter.Adapter(
-                remote_memoAdapter = MemoColumnAdapter,
-            ),
-            historyAdapter = History.Adapter(
-                read_atAdapter = DateColumnAdapter,
-            ),
-            mangaAdapter = Manga.Adapter(
-                remote_genreAdapter = StringListColumnAdapter,
-                remote_update_strategyAdapter = UpdateStrategyColumnAdapter,
-                remote_memoAdapter = MemoColumnAdapter,
-            ),
         )
     }
 
