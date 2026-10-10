@@ -38,6 +38,9 @@ import uy.kohesive.injekt.injectLazy
 import kotlin.math.ceil
 import kotlin.math.floor
 import mihon.icons.materialsymbols.R as MaterialSymbolsR
+import tachiyomi.i18n.R as I18nR
+import tachiyomi.i18n.kmk.R as KmrR
+import tachiyomi.i18n.sy.R as SyR
 
 class DiscordRPCService : Service() {
 
@@ -151,10 +154,10 @@ class DiscordRPCService : Service() {
             setSmallIcon(R.drawable.ic_discord_24dp)
             setColor(ContextCompat.getColor(context, R.color.ic_launcher))
             setLargeIcon(BitmapFactory.decodeResource(context.resources, R.drawable.komikku))
-            setContentText(context.getString(R.string.pref_discord_rpc))
+            setContentText(context.getString(KmrR.string.pref_discord_rpc))
             // KMK -->
-            setContentTitle(context.getString(R.string.app_name))
-            addAction(MaterialSymbolsR.drawable.rounded_close, context.getString(R.string.action_stop), stopIntent)
+            setContentTitle(context.getString(I18nR.string.app_name))
+            addAction(MaterialSymbolsR.drawable.rounded_close, context.getString(SyR.string.action_stop), stopIntent)
             // KMK <--
             setAutoCancel(false)
             setOngoing(true)
@@ -316,7 +319,7 @@ class DiscordRPCService : Service() {
             imageUrl: String,
             timestamps: Activity.Timestamps?,
             sinceTime: Long = since,
-            appName: String = context.getString(R.string.app_name),
+            appName: String = context.getString(I18nR.string.app_name),
             // KMK <--
         ) {
             val customMessage = connectionsPreferences.discordCustomMessage().get()
@@ -361,11 +364,11 @@ class DiscordRPCService : Service() {
                         largeImage = "$MP_PREFIX$imageUrl",
                         smallImage = "$MP_PREFIX${DiscordScreen.APP.imageUrl}",
                         largeText = context.getString(
-                            R.string.discord_status_description,
+                            KmrR.string.discord_status_description,
                             context.getString(discordScreen.details),
                             title ?: context.getString(discordScreen.text),
                         ),
-                        smallText = context.getString(R.string.discord_app_description),
+                        smallText = context.getString(KmrR.string.discord_app_description),
                     ),
                     buttons = buttonLabels.takeIf { it.isNotEmpty() },
                     metadata = metadata,

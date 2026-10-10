@@ -25,6 +25,7 @@ import tachiyomi.domain.download.service.DownloadPreferences
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import kotlin.time.Duration.Companion.seconds
+import tachiyomi.i18n.R as I18nR
 
 /**
  * This worker owns the lifecycle of the downloader: it starts the downloader and stops it when the
@@ -37,7 +38,7 @@ class DownloadJob(private val context: Context, workerParams: WorkerParameters) 
 
     override suspend fun getForegroundInfo(): ForegroundInfo {
         val notification = applicationContext.notificationBuilder(Notifications.CHANNEL_DOWNLOADER_PROGRESS) {
-            setContentTitle(applicationContext.getString(R.string.download_notifier_downloader_title))
+            setContentTitle(applicationContext.getString(I18nR.string.download_notifier_downloader_title))
             setSmallIcon(android.R.drawable.stat_sys_download)
             setColor(ContextCompat.getColor(applicationContext, R.color.ic_launcher))
             setLargeIcon(BitmapFactory.decodeResource(context.resources, R.drawable.komikku))
@@ -81,9 +82,9 @@ class DownloadJob(private val context: Context, workerParams: WorkerParameters) 
     private fun networkIssue(): String? {
         val state = applicationContext.activeNetworkState()
         return when {
-            !state.isOnline -> applicationContext.getString(R.string.download_notifier_no_network)
+            !state.isOnline -> applicationContext.getString(I18nR.string.download_notifier_no_network)
             downloadPreferences.downloadOnlyOverWifi().get() && !state.isWifi ->
-                applicationContext.getString(R.string.download_notifier_text_only_wifi)
+                applicationContext.getString(I18nR.string.download_notifier_text_only_wifi)
             else -> null
         }
     }
