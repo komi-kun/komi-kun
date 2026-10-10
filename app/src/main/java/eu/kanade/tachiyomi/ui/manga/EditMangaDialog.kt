@@ -75,7 +75,6 @@ import tachiyomi.i18n.MR
 import tachiyomi.i18n.sy.SYMR
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.source.local.isLocal
-import uy.kohesive.injekt.api.get
 
 @Composable
 fun EditMangaDialog(

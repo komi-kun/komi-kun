@@ -22,7 +22,6 @@ import mihon.icons.custommaterialsymbols.rounded.ReaderVertical
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.MobileGear
 import tachiyomi.i18n.MR
-import uy.kohesive.injekt.api.get
 
 enum class ReadingMode(
     val stringRes: StringResource,

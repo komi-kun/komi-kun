@@ -26,7 +26,6 @@ import kotlinx.coroutines.CoroutineScope
 import mihon.app.di.appGraph
 import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.presentation.core.components.material.Scaffold
-import uy.kohesive.injekt.api.get
 
 @Composable
 fun RelatedMangasScreen(

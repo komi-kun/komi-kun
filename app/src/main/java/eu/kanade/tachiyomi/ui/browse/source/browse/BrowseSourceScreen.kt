@@ -85,7 +85,6 @@ import tachiyomi.presentation.core.components.material.padding
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.screens.LoadingScreen
 import tachiyomi.source.local.LocalSource
-import uy.kohesive.injekt.api.get
 
 data class BrowseSourceScreen(
     val sourceId: Long,

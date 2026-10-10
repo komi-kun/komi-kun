@@ -137,7 +137,6 @@ import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
 import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.util.collectAsState
-import uy.kohesive.injekt.api.get
 import java.util.LinkedList
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.days

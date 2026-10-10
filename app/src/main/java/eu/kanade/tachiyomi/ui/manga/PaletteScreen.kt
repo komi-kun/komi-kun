@@ -23,7 +23,6 @@ import tachiyomi.presentation.core.components.ScrollbarLazyColumn
 import tachiyomi.presentation.core.components.material.Button
 import tachiyomi.presentation.core.components.material.ButtonDefaults
 import tachiyomi.presentation.core.components.material.Scaffold
-import uy.kohesive.injekt.api.get
 
 /**
  * A screen that displays a colors palette of current theme.

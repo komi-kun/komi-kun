@@ -48,7 +48,6 @@ import tachiyomi.domain.source.model.StubSource
 import tachiyomi.i18n.kmk.KMR
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.screens.LoadingScreen
-import uy.kohesive.injekt.api.get
 
 class SourceFeedScreen(val sourceId: Long) : Screen() {
 

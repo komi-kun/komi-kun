@@ -46,7 +46,6 @@ import tachiyomi.domain.chapter.model.Chapter
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsState
-import uy.kohesive.injekt.api.get
 
 data object HistoryTab : Tab {
     @Suppress("unused")
