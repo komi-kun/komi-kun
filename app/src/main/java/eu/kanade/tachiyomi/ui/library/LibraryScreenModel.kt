@@ -171,6 +171,15 @@ class LibraryScreenModel(
     private var recommendationSearchJob: Job? = null
     // SY <--
 
+    // Tracks are only used by tracker filters and the tracker score sort, and loading every track is slow on
+    // large libraries
+    private val tracks = combine(getCategories.subscribe(), getTrackingFiltersFlow()) { categories, trackingFilters ->
+        trackingFilters.values.any { it != TriState.DISABLED } ||
+            categories.any { it.sort.type == LibrarySort.Type.TrackerMean }
+    }
+        .distinctUntilChanged()
+        .flatMapLatest { needsTracks -> if (needsTracks) getTracksPerManga.subscribe() else flowOf(emptyMap()) }
+
     init {
         mutableState.update { state ->
             state.copy(activeCategoryIndex = libraryPreferences.lastUsedCategory().get())
@@ -183,7 +192,7 @@ class LibraryScreenModel(
                     getFavoritesFlow(),
                     ::Triple,
                 ),
-                combine(getTracksPerManga.subscribe(), getTrackingFiltersFlow(), ::Pair),
+                combine(tracks, getTrackingFiltersFlow(), ::Pair),
                 // KMK -->
                 combine(
                     state.map { it.includedCategories }.distinctUntilChanged(),
