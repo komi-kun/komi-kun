@@ -44,6 +44,7 @@ import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.ui.setting.track.BaseOAuthLoginActivity
 import eu.kanade.tachiyomi.ui.webview.WebViewActivity
 import eu.kanade.tachiyomi.util.CrashLogUtil
+import exh.eh.EHentaiUpdateWorker
 import exh.pref.DelegateSourcePreferences
 import exh.source.ExhPreferences
 import kotlinx.serialization.json.Json
@@ -84,6 +85,9 @@ interface AppGraph : ViewModelGraph {
     fun inject(notificationReceiver: NotificationReceiver)
     fun inject(notificationReceiver: SecureActivityDelegateImpl)
     fun inject(extensionInstallActivity: ExtensionInstallActivity)
+    // KMK -->
+    fun inject(eHentaiUpdateWorker: EHentaiUpdateWorker)
+    // KMK <--
 
     val context: Context
 

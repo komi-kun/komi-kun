@@ -133,22 +133,34 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
     @Inject private lateinit var notifier: LibraryUpdateNotifier
 
     // SY -->
-    private val updateManga: UpdateManga = Injekt.get()
-    private val getFavorites: GetFavorites = Injekt.get()
-    private val insertFlatMetadata: InsertFlatMetadata = Injekt.get()
-    private val networkToLocalManga: NetworkToLocalManga = Injekt.get()
-    private val getMergedMangaForDownloading: GetMergedMangaForDownloading = Injekt.get()
-    private val getTracks: GetTracks = Injekt.get()
-    private val upsertTrack: UpsertTrack = Injekt.get()
-    private val trackerManager: TrackerManager = Injekt.get()
-    private val mdList = trackerManager.mdList
+    @Inject private lateinit var updateManga: UpdateManga
+
+    @Inject private lateinit var getFavorites: GetFavorites
+
+    @Inject private lateinit var insertFlatMetadata: InsertFlatMetadata
+
+    @Inject private lateinit var networkToLocalManga: NetworkToLocalManga
+
+    @Inject private lateinit var getMergedMangaForDownloading: GetMergedMangaForDownloading
+
+    @Inject private lateinit var getTracks: GetTracks
+
+    @Inject private lateinit var upsertTrack: UpsertTrack
+
+    @Inject private lateinit var trackerManager: TrackerManager
+    private val mdList get() = trackerManager.mdList
+
+    @Inject private lateinit var sourcePreferences: SourcePreferences
     // SY <--
 
     // KMK -->
-    private val libraryUpdateStatus: LibraryUpdateStatus = Injekt.get()
-    private val deleteLibraryUpdateErrors: DeleteLibraryUpdateErrors = Injekt.get()
-    private val insertLibraryUpdateErrors: InsertLibraryUpdateErrors = Injekt.get()
-    private val insertLibraryUpdateErrorMessages: InsertLibraryUpdateErrorMessages = Injekt.get()
+    @Inject private lateinit var libraryUpdateStatus: LibraryUpdateStatus
+
+    @Inject private lateinit var deleteLibraryUpdateErrors: DeleteLibraryUpdateErrors
+
+    @Inject private lateinit var insertLibraryUpdateErrors: InsertLibraryUpdateErrors
+
+    @Inject private lateinit var insertLibraryUpdateErrorMessages: InsertLibraryUpdateErrorMessages
     // KMK <--
 
     private var mangaToUpdate: List<LibraryManga> = mutableListOf()
@@ -564,7 +576,7 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
      * filter all follows from Mangadex and only add reading or rereading manga to library
      */
     private suspend fun syncFollows() = coroutineScope {
-        val preferences = Injekt.get<SourcePreferences>()
+        val preferences = sourcePreferences
         var count = 0
         val mangaDex = MdUtil.getEnabledMangaDex(preferences, sourceManager = sourceManager)
             ?: return@coroutineScope

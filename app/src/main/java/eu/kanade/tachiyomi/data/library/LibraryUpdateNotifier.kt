@@ -40,8 +40,6 @@ import tachiyomi.domain.library.model.LibraryManga
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.i18n.MR
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 import java.math.RoundingMode
 import java.text.NumberFormat
 import mihon.icons.materialsymbols.R as MaterialSymbolsR
@@ -51,10 +49,10 @@ class LibraryUpdateNotifier(
     private val context: Context,
     private val securityPreferences: SecurityPreferences,
     private val sourceManager: SourceManager,
-) {
     // KMK -->
-    private val libraryUpdateStatus: LibraryUpdateStatus = Injekt.get()
+    private val libraryUpdateStatus: LibraryUpdateStatus,
     // KMK <--
+) {
 
     private val percentFormatter = NumberFormat.getPercentInstance().apply {
         roundingMode = RoundingMode.DOWN

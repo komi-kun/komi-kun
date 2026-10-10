@@ -17,14 +17,14 @@ import tachiyomi.core.common.i18n.pluralStringResource
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.i18n.MR
-import uy.kohesive.injekt.injectLazy
 import java.math.RoundingMode
 import java.text.NumberFormat
 import mihon.icons.materialsymbols.R as MaterialSymbolsR
 
-class EHentaiUpdateNotifier(private val context: Context) {
-
-    private val securityPreferences: SecurityPreferences by injectLazy()
+class EHentaiUpdateNotifier(
+    private val context: Context,
+    private val securityPreferences: SecurityPreferences,
+) {
 
     private val percentFormatter = NumberFormat.getPercentInstance().apply {
         roundingMode = RoundingMode.DOWN

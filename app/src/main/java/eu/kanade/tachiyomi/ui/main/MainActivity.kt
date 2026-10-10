@@ -137,9 +137,7 @@ import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
 import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.util.collectAsState
-import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-import uy.kohesive.injekt.injectLazy
 import java.util.LinkedList
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.days
@@ -151,15 +149,19 @@ class MainActivity : BaseActivity() {
     private val graph: AppGraph by lazy { metroGraph() }
 
     // SY -->
-    private val exhPreferences: ExhPreferences by injectLazy()
+    @Inject private lateinit var exhPreferences: ExhPreferences
     // SY <--
 
     // KMK -->
-    private val backupPreferences: BackupPreferences by injectLazy()
-    private val syncPreferences: SyncPreferences by injectLazy()
-    private val backupRestoreStatus: BackupRestoreStatus by injectLazy()
-    private val syncStatus: SyncStatus by injectLazy()
-    private val libraryUpdateStatus: LibraryUpdateStatus by injectLazy()
+    @Inject private lateinit var backupPreferences: BackupPreferences
+
+    @Inject private lateinit var syncPreferences: SyncPreferences
+
+    @Inject private lateinit var backupRestoreStatus: BackupRestoreStatus
+
+    @Inject private lateinit var syncStatus: SyncStatus
+
+    @Inject private lateinit var libraryUpdateStatus: LibraryUpdateStatus
     // KMK <--
 
     @Inject private lateinit var libraryPreferences: LibraryPreferences
@@ -173,7 +175,9 @@ class MainActivity : BaseActivity() {
     @Inject private lateinit var getIncognitoState: GetIncognitoState
 
     // KMK -->
-    private val extensionManager: ExtensionManager by injectLazy()
+    @Inject private lateinit var extensionManager: ExtensionManager
+
+    @Inject private lateinit var preferenceStore: PreferenceStore
     // KMK <--
 
     // To be checked by splash screen. If true then splash screen will be removed.
@@ -182,7 +186,7 @@ class MainActivity : BaseActivity() {
     private var navigator: Navigator? = null
 
     // AM (CONNECTIONS) -->
-    private val connectionsPreferences: ConnectionsPreferences by injectLazy()
+    @Inject private lateinit var connectionsPreferences: ConnectionsPreferences
     // <-- AM (CONNECTIONS)
 
     init {
@@ -424,7 +428,7 @@ class MainActivity : BaseActivity() {
             // SY <--
 
             // KMK -->
-            val previewLastVersion = Injekt.get<PreferenceStore>().getInt(
+            val previewLastVersion = preferenceStore.getInt(
                 Preference.appStateKey("preview_last_version_code"),
                 0,
             )

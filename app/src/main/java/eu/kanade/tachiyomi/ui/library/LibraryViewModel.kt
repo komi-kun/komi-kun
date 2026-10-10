@@ -1,6 +1,5 @@
 package eu.kanade.tachiyomi.ui.library
 
-import android.app.Application
 import android.content.Context
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.util.fastAll
@@ -128,8 +127,6 @@ import tachiyomi.i18n.MR
 import tachiyomi.i18n.sy.SYMR
 import tachiyomi.source.local.LocalSource
 import tachiyomi.source.local.isLocal
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 import kotlin.random.Random
 import kotlin.time.Duration.Companion.seconds
 import tachiyomi.domain.source.model.Source as DomainSource
@@ -1258,7 +1255,7 @@ class LibraryViewModel(
         val manga = libraryManga.manga
         val sourceIdString = manga.source.takeUnless { it == LocalSource.ID }?.toString()
         val genre = if (checkGenre) manga.genre.orEmpty() else emptyList()
-        val context = Injekt.get<Application>()
+        val context = preferences.context
         return queries.all { queryComponent ->
             when (queryComponent.excluded) {
                 false -> when (queryComponent) {
