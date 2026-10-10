@@ -3,6 +3,7 @@ package mihon.app.di.injekt
 import dev.zacsweers.metro.Inject
 import eu.kanade.domain.manga.interactor.UpdateManga
 import eu.kanade.domain.source.interactor.GetExhSavedSearch
+import eu.kanade.domain.source.interactor.GetIncognitoState
 import eu.kanade.domain.source.interactor.ToggleIncognito
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.domain.sync.SyncPreferences
@@ -84,6 +85,7 @@ class KMKMetroInteropModule(
     private val insertSavedSearch: InsertSavedSearch,
     private val setMangaDefaultChapterFlags: SetMangaDefaultChapterFlags,
     private val getExhSavedSearch: GetExhSavedSearch,
+    private val getIncognitoState: GetIncognitoState,
     private val toggleIncognito: ToggleIncognito,
     private val migrations: Set<Migration>,
 ) : InjektModule {
@@ -127,6 +129,7 @@ class KMKMetroInteropModule(
         addSingleton(insertSavedSearch)
         addSingleton(setMangaDefaultChapterFlags)
         addSingleton(getExhSavedSearch)
+        addSingleton(getIncognitoState)
         addSingleton(toggleIncognito)
         addSingleton<Set<Migration>>(migrations)
 
