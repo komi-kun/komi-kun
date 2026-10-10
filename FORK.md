@@ -64,11 +64,13 @@ Markers are how we can still diff our tree against an upstream later. Rules (ext
 
 ## Followed Mihon re-architectures
 
-The fork now follows Mihon on most of its internal re-architectures (adopted Oct 2026). When
-porting, assume these are the current state, not divergences:
+The fork now follows Mihon on its internal re-architectures (adopted Oct 2026). When porting,
+assume these are the current state, not divergences:
 
-- **Jetpack AndroidX ViewModel** — screens use `ViewModel`/`StateViewModel`; Voyager is kept for
-  navigation only.
+- **Metro DI** (`dev.zacsweers.metro` + `metrox-viewmodel`) replacing Injekt, with the `AppGraph`
+  dependency graph and `AppBindings`/`DatabaseBindings` binding containers.
+- **Preference getters are properties** (`val`, not `fun`) — ported from Mihon #3091 / SY #3091.
+- **Jetpack AndroidX ViewModel** — screens use `ViewModel`; Voyager is kept for navigation only.
 - **`WebGPU` renderer (`ca.mpreg:webgpuviewer`)** plus the **mpreg `ca.mpreg:imagedecoder`** and
   progressive rendering; SSIV remains for the non-high-quality modes.
 - **Material Symbols + Valkyrie** generated icons (`icons/material-symbols`, …);
@@ -77,24 +79,31 @@ porting, assume these are the current state, not divergences:
 - **`com.eygraber:sqldelight-androidx-driver`** with SQLDelight `generateAsync`; the old
   `AndroidDatabaseHandler`/`DatabaseHandler` transaction helpers are gone — use
   `Database.transaction`/`transactionWithResult` + `await*`.
+- **Database schema rework** — singular table/column names (`manga`, `chapter`, `category`,
+  `manga_track`, `remote_*`, `user_*`), `favorite` merged into `favorite_at`, rebuilt views. The
+  migrations live from `49.sqm` and **preserve the SyncYomi columns/triggers and Komikku's extra
+  tables**; there is a migration test (`data/src/test/.../MigrationTest.kt`) and
+  `:data:verifyDebugDatabaseMigration` gates it.
+- **Raw database access is restricted to `:data`** (`RestoreRepositoryImpl`, `DatabaseBindings`).
+- **`:source-api`/`:source-local` are Android library modules** (no longer KMP).
+- **Gradle isolated projects** (`org.gradle.isolated-projects=true`).
 - **Mihon's extension-store model** (`Extension.Loaded`/`NotLoaded`, `signatures`, `store`).
 - **`kotlinx-collections-immutable` is dropped** — use stdlib collections.
-- compileSdk 37, aboutLibraries v15, Gradle configuration cache.
+- `MangaViewModel` collects the entry only while subscribed.
+- compileSdk 37, aboutLibraries v15.
 
-## Still deferred (do not port blindly)
+## Still divergent (do not port blindly)
 
-- **Metro DI** — Komikku still uses Injekt. The migration is a multi-session redesign (it is
-  entangled with the ViewModel layer, the KMP `:source-local` module and 250+ Komikku/SY/KMK
-  bindings); it was attempted and reverted rather than left half-done.
-- **DB table-rebuild schema rework** (`93cc075116`, `2d1d2e4cab`, `986f46c09a`, `a4abb6292b`,
-  `f8fff318ba`, `5df78e305e`) — the migrations rebuild every table and must preserve the SyncYomi
-  columns/triggers and Komikku's extra tables. Needs a dedicated PR **with an old-DB → new-DB
-  upgrade test** before it can land safely.
-- **`:source-api`/`:source-local` converted to Android library modules** — would change the
-  extension ABI.
-- **Gradle isolated projects** — blocked on reworking `buildSrc` for cross-project access.
-- `MangaViewModel` "collect only while subscribed" (`7ff97761b9`) — needs a dedicated state-graph
-  redesign for that screen.
+- **Injekt is not fully removed.** Mihon keeps Injekt in ~32 files; this fork keeps it in ~90
+  Komikku/SY/KMK files (extension-facing sources, the SyncYomi/connections stacks, abstract
+  services, static objects, and `open` ViewModels with fork subclasses) bridged from the Metro graph
+  via `mihon/app/di/injekt/KMKMetroInteropModule.kt`. Converting those is a redesign, not a
+  mechanical move. New code should prefer Metro constructor injection.
+- **Metro interop follow-ups** (`1c43addeca` "Resolve Injekt dependencies directly from the Metro
+  graph", `d435dd9217` "Switch to upstream Injekt") are not ported: the fork keeps the
+  `com.github.mihonapp:injekt` fork (with `patchInjekt`) and its own interop registrar.
+- `c67a33f3d4` ("Remove unused sync scaffold") is not ported — SyncYomi v2 uses
+  `version`/`is_syncing`/`last_modified_at`.
 
 When a Mihon commit exists only as part of one of these, mark it `X` (won't pick) with a note, or
 leave it for the maintainer.
@@ -106,8 +115,8 @@ The branch that introduced this file ports:
 - **TachiyomiSY PR #1648** — SyncYomi protocol v2 with v1 fallback — plus its related fixes
   (PRs #1641/#1650 assessed) and the SY category-uid prerequisite (SY #1559).
 - **Mihon backlog 2026-06 → 2026-10**: the portable fixes/features (TachiyomiSY's copies used where
-  available), **and** the re-architectures listed under "Followed Mihon re-architectures" above
-  (AndroidX ViewModel, WebGPU + mpreg decoder, Material Symbols, Apollo trackers, the SQLDelight
-  driver swap, the extension-store model, dropping `kotlinx-collections-immutable`, build infra).
+  available), **and** the re-architectures listed under "Followed Mihon re-architectures" above,
+  including the backfilled prerequisites (preference properties #3091, `:source-api`/`:source-local`
+  Android modules, Metro DI, the database schema rework, Gradle isolated projects).
 
-The items under "Still deferred" remain in `cherrypick_log.md` for dedicated follow-ups.
+The items under "Still divergent" remain in `cherrypick_log.md` for dedicated follow-ups.
