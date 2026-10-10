@@ -188,9 +188,9 @@ open class FeedViewModel(
     }
 
     private fun getEnabledSources(): List<Source> {
-        val languages = sourcePreferences.enabledLanguages().get()
-        val pinnedSources = sourcePreferences.pinnedSources().get()
-        val disabledSources = sourcePreferences.disabledSources().get()
+        val languages = sourcePreferences.enabledLanguages.get()
+        val pinnedSources = sourcePreferences.pinnedSources.get()
+        val disabledSources = sourcePreferences.disabledSources.get()
             .mapNotNull { it.toLongOrNull() }
 
         val list = sourceManager.getVisibleSources()
@@ -264,7 +264,7 @@ open class FeedViewModel(
     }
 
     // KMK -->
-    private val hideInLibraryFeedItems = sourcePreferences.hideInLibraryFeedItems()
+    private val hideInLibraryFeedItems = sourcePreferences.hideInLibraryFeedItems
     // KMK <--
 
     /**

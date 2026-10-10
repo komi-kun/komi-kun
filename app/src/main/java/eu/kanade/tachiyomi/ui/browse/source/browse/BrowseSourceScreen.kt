@@ -179,7 +179,7 @@ data class BrowseSourceScreen(
         // KMK -->
         val mangaList = viewModel.mangaPagerFlowFlow.collectAsLazyPagingItems()
 
-        val isHentaiEnabled: Boolean = Injekt.get<ExhPreferences>().isHentaiEnabled().get()
+        val isHentaiEnabled: Boolean = Injekt.get<ExhPreferences>().isHentaiEnabled.get()
         val isConfigurableSource = viewModel.source.anyIs<ConfigurableSource>() ||
             (viewModel.source.isEhBasedSource() && isHentaiEnabled)
         // KMK <--

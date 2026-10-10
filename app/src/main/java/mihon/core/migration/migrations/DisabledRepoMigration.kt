@@ -16,14 +16,14 @@ class DisabledRepoMigration : Migration {
         val sourcePreferences = migrationContext.get<SourcePreferences>() ?: return@withIOContext false
         val prefs = PreferenceManager.getDefaultSharedPreferences(context)
         prefs.edit {
-            val disabledRepos = prefs.getStringSet(sourcePreferences.disabledRepos().key(), emptySet()) ?: return@edit
+            val disabledRepos = prefs.getStringSet(sourcePreferences.disabledRepos.key(), emptySet()) ?: return@edit
             disabledRepos
                 .map {
                     it.removeSuffix("/index.min.json").removeSuffix("/index.json")
                         .removeSuffix("/repo.json") + "/repo.json"
                 }.toSet()
                 .let {
-                    putStringSet(sourcePreferences.disabledRepos().key(), it)
+                    putStringSet(sourcePreferences.disabledRepos.key(), it)
                 }
         }
         return@withIOContext true

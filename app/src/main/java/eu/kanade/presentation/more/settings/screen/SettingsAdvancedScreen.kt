@@ -161,7 +161,7 @@ object SettingsAdvancedScreen : SearchableSettings {
             ),
             // KMK -->
             Preference.PreferenceItem.MultiSelectListPreference(
-                preference = exhPreferences.appShouldAutoUpdate(),
+                preference = exhPreferences.appShouldAutoUpdate,
                 entries = mapOf(
                     AppUpdatePolicy.DEVICE_ONLY_ON_WIFI to stringResource(MR.strings.connected_to_wifi),
                     AppUpdatePolicy.DEVICE_NETWORK_NOT_METERED to stringResource(MR.strings.network_not_metered),
@@ -265,7 +265,7 @@ object SettingsAdvancedScreen : SearchableSettings {
         val context = LocalContext.current
         val networkHelper = remember { Injekt.get<NetworkHelper>() }
 
-        val userAgentPref = networkPreferences.defaultUserAgent()
+        val userAgentPref = networkPreferences.defaultUserAgent
         val userAgent by userAgentPref.collectAsState()
 
         return Preference.PreferenceGroup(
@@ -301,7 +301,7 @@ object SettingsAdvancedScreen : SearchableSettings {
                     },
                 ),
                 Preference.PreferenceItem.ListPreference(
-                    preference = networkPreferences.dohProvider(),
+                    preference = networkPreferences.dohProvider,
                     entries = mapOf(
                         -1 to stringResource(MR.strings.disabled),
                         PREF_DOH_CLOUDFLARE to "Cloudflare",
@@ -369,7 +369,7 @@ object SettingsAdvancedScreen : SearchableSettings {
                 ),
                 // KMK -->
                 Preference.PreferenceItem.SwitchPreference(
-                    preference = uiPreferences.preloadLibraryColor(),
+                    preference = uiPreferences.preloadLibraryColor,
                     title = stringResource(KMR.strings.preload_library_cover_color),
                 ),
                 // KMK <--
@@ -391,12 +391,12 @@ object SettingsAdvancedScreen : SearchableSettings {
                     },
                 ),
                 Preference.PreferenceItem.SwitchPreference(
-                    preference = libraryPreferences.updateMangaTitles(),
+                    preference = libraryPreferences.updateMangaTitles,
                     title = stringResource(MR.strings.pref_update_library_manga_titles),
                     subtitle = stringResource(MR.strings.pref_update_library_manga_titles_summary),
                 ),
                 Preference.PreferenceItem.SwitchPreference(
-                    preference = libraryPreferences.disallowNonAsciiFilenames(),
+                    preference = libraryPreferences.disallowNonAsciiFilenames,
                     title = stringResource(MR.strings.pref_disallow_non_ascii_filenames),
                     subtitle = stringResource(MR.strings.pref_disallow_non_ascii_filenames_details),
                 ),
@@ -413,7 +413,7 @@ object SettingsAdvancedScreen : SearchableSettings {
             title = stringResource(MR.strings.pref_category_downloads),
             preferenceItems = listOf(
                 Preference.PreferenceItem.SwitchPreference(
-                    preference = downloadPreferences.includeChapterUrlHash(),
+                    preference = downloadPreferences.includeChapterUrlHash,
                     title = stringResource(SYMR.strings.pref_include_chapter_url_hash),
                     subtitle = stringResource(SYMR.strings.pref_include_chapter_url_hash_desc),
                 ),
@@ -434,7 +434,7 @@ object SettingsAdvancedScreen : SearchableSettings {
             uri?.let {
                 val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
                 context.contentResolver.takePersistableUriPermission(uri, flags)
-                basePreferences.displayProfile().set(uri.toString())
+                basePreferences.displayProfile.set(uri.toString())
             }
         }
         // KMK <--
@@ -442,13 +442,13 @@ object SettingsAdvancedScreen : SearchableSettings {
             title = stringResource(MR.strings.pref_category_reader),
             preferenceItems = listOf(
                 Preference.PreferenceItem.SwitchPreference(
-                    preference = basePreferences.highQualityRenderer(),
+                    preference = basePreferences.highQualityRenderer,
                     title = stringResource(MR.strings.pref_high_quality_renderer),
                 ),
                 // KMK -->
                 Preference.PreferenceItem.TextPreference(
                     title = stringResource(MR.strings.pref_display_profile),
-                    subtitle = basePreferences.displayProfile().get(),
+                    subtitle = basePreferences.displayProfile.get(),
                     onClick = {
                         chooseColorProfile.launch(arrayOf("*/*"))
                     },
@@ -464,7 +464,7 @@ object SettingsAdvancedScreen : SearchableSettings {
     ): Preference.PreferenceGroup {
         val context = LocalContext.current
         val uriHandler = LocalUriHandler.current
-        val extensionInstallerPref = basePreferences.extensionInstaller()
+        val extensionInstallerPref = basePreferences.extensionInstaller
         var shizukuMissing by rememberSaveable { mutableStateOf(false) }
         val trustExtension = remember { Injekt.get<TrustExtension>() }
 
@@ -664,12 +664,12 @@ object SettingsAdvancedScreen : SearchableSettings {
     @Composable
     private fun getDataSaverGroup(): Preference.PreferenceGroup {
         val sourcePreferences = remember { Injekt.get<SourcePreferences>() }
-        val dataSaver by sourcePreferences.dataSaver().collectAsState()
+        val dataSaver by sourcePreferences.dataSaver.collectAsState()
         return Preference.PreferenceGroup(
             title = stringResource(SYMR.strings.data_saver),
             preferenceItems = listOf(
                 Preference.PreferenceItem.ListPreference(
-                    preference = sourcePreferences.dataSaver(),
+                    preference = sourcePreferences.dataSaver,
                     entries = mapOf(
                         DataSaver.NONE to stringResource(MR.strings.disabled),
                         DataSaver.BANDWIDTH_HERO to stringResource(SYMR.strings.bandwidth_hero),
@@ -679,28 +679,28 @@ object SettingsAdvancedScreen : SearchableSettings {
                     subtitle = stringResource(SYMR.strings.data_saver_summary),
                 ),
                 Preference.PreferenceItem.EditTextPreference(
-                    preference = sourcePreferences.dataSaverServer(),
+                    preference = sourcePreferences.dataSaverServer,
                     title = stringResource(SYMR.strings.bandwidth_data_saver_server),
                     subtitle = stringResource(SYMR.strings.data_saver_server_summary),
                     enabled = dataSaver == DataSaver.BANDWIDTH_HERO,
                 ),
                 Preference.PreferenceItem.SwitchPreference(
-                    preference = sourcePreferences.dataSaverDownloader(),
+                    preference = sourcePreferences.dataSaverDownloader,
                     title = stringResource(SYMR.strings.data_saver_downloader),
                     enabled = dataSaver != DataSaver.NONE,
                 ),
                 Preference.PreferenceItem.SwitchPreference(
-                    preference = sourcePreferences.dataSaverIgnoreJpeg(),
+                    preference = sourcePreferences.dataSaverIgnoreJpeg,
                     title = stringResource(SYMR.strings.data_saver_ignore_jpeg),
                     enabled = dataSaver != DataSaver.NONE,
                 ),
                 Preference.PreferenceItem.SwitchPreference(
-                    preference = sourcePreferences.dataSaverIgnoreGif(),
+                    preference = sourcePreferences.dataSaverIgnoreGif,
                     title = stringResource(SYMR.strings.data_saver_ignore_gif),
                     enabled = dataSaver != DataSaver.NONE,
                 ),
                 Preference.PreferenceItem.ListPreference(
-                    preference = sourcePreferences.dataSaverImageQuality(),
+                    preference = sourcePreferences.dataSaverImageQuality,
                     entries = listOf(
                         "10%",
                         "20%",
@@ -716,10 +716,10 @@ object SettingsAdvancedScreen : SearchableSettings {
                     enabled = dataSaver != DataSaver.NONE,
                 ),
                 run {
-                    val dataSaverImageFormatJpeg by sourcePreferences.dataSaverImageFormatJpeg()
+                    val dataSaverImageFormatJpeg by sourcePreferences.dataSaverImageFormatJpeg
                         .collectAsState()
                     Preference.PreferenceItem.SwitchPreference(
-                        preference = sourcePreferences.dataSaverImageFormatJpeg(),
+                        preference = sourcePreferences.dataSaverImageFormatJpeg,
                         title = stringResource(SYMR.strings.data_saver_image_format),
                         subtitle = if (dataSaverImageFormatJpeg) {
                             stringResource(SYMR.strings.data_saver_image_format_summary_on)
@@ -730,7 +730,7 @@ object SettingsAdvancedScreen : SearchableSettings {
                     )
                 },
                 Preference.PreferenceItem.SwitchPreference(
-                    preference = sourcePreferences.dataSaverColorBW(),
+                    preference = sourcePreferences.dataSaverColorBW,
                     title = stringResource(SYMR.strings.data_saver_color_bw),
                     enabled = dataSaver == DataSaver.BANDWIDTH_HERO,
                 ),
@@ -750,7 +750,7 @@ object SettingsAdvancedScreen : SearchableSettings {
             title = stringResource(SYMR.strings.developer_tools),
             preferenceItems = listOf(
                 Preference.PreferenceItem.SwitchPreference(
-                    preference = exhPreferences.isHentaiEnabled(),
+                    preference = exhPreferences.isHentaiEnabled,
                     title = stringResource(SYMR.strings.toggle_hentai_features),
                     subtitle = stringResource(SYMR.strings.toggle_hentai_features_summary),
                     onValueChanged = {
@@ -758,7 +758,7 @@ object SettingsAdvancedScreen : SearchableSettings {
                     },
                 ),
                 Preference.PreferenceItem.SwitchPreference(
-                    preference = sourcePreferences.enableSourceBlacklist(),
+                    preference = sourcePreferences.enableSourceBlacklist,
                     title = stringResource(SYMR.strings.enable_source_blacklist),
                     subtitle = stringResource(
                         SYMR.strings.enable_source_blacklist_summary,
@@ -766,7 +766,7 @@ object SettingsAdvancedScreen : SearchableSettings {
                     ),
                 ),
                 Preference.PreferenceItem.SwitchPreference(
-                    preference = delegateSourcePreferences.delegateSources(),
+                    preference = delegateSourcePreferences.delegateSources,
                     title = stringResource(SYMR.strings.toggle_delegated_sources),
                     subtitle = stringResource(
                         SYMR.strings.toggle_delegated_sources_summary,
@@ -814,7 +814,7 @@ object SettingsAdvancedScreen : SearchableSettings {
                                 TextButton(
                                     onClick = {
                                         dismiss()
-                                        securityPreferences.encryptDatabase().set(true)
+                                        securityPreferences.encryptDatabase.set(true)
                                     },
                                 ) {
                                     Text(text = stringResource(MR.strings.action_ok))
@@ -823,7 +823,7 @@ object SettingsAdvancedScreen : SearchableSettings {
                         )
                     }
                     Preference.PreferenceItem.SwitchPreference(
-                        preference = securityPreferences.encryptDatabase(),
+                        preference = securityPreferences.encryptDatabase,
                         title = stringResource(SYMR.strings.encrypt_database),
                         subtitle = stringResource(SYMR.strings.encrypt_database_subtitle),
                         onValueChanged = {

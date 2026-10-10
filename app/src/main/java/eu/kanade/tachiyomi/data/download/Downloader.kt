@@ -218,7 +218,7 @@ class Downloader(
 
             val activeDownloadsFlow = combine(
                 queueState,
-                downloadPreferences.parallelSourceLimit().changes(),
+                downloadPreferences.parallelSourceLimit.changes(),
             ) { a, b -> a to b }.transformLatest { (queue, parallelCount) ->
                 while (true) {
                     val activeDownloads = queue.asSequence()
@@ -279,7 +279,7 @@ class Downloader(
         source: HttpSource,
         downloadJobs: MutableMap<Download, Job>,
     ) = launchIO {
-        val slots = Semaphore(downloadPreferences.parallelPageLimit().get())
+        val slots = Semaphore(downloadPreferences.parallelPageLimit.get())
         while (true) {
             // A canceled job can mark a chapter as downloading after it's been reset, so that counts as waiting too
             val download = queueState
@@ -446,7 +446,7 @@ class Downloader(
                 reIndexedPages
             }
 
-            val dataSaver = if (sourcePreferences.dataSaverDownloader().get()) {
+            val dataSaver = if (sourcePreferences.dataSaverDownloader.get()) {
                 DataSaver(download.source, sourcePreferences)
             } else {
                 DataSaver.NoOp
@@ -492,7 +492,7 @@ class Downloader(
             )
 
             // Only rename the directory if it's downloaded
-            if (downloadPreferences.saveChaptersAsCBZ().get()) {
+            if (downloadPreferences.saveChaptersAsCBZ.get()) {
                 archiveChapter(mangaDir, chapterDirname, tmpDir)
             } else {
                 tmpDir.renameTo(chapterDirname)
@@ -646,7 +646,7 @@ class Downloader(
     }
 
     private fun splitTallImageIfNeeded(page: Page, tmpDir: UniFile) {
-        if (!downloadPreferences.splitTallImages().get()) return
+        if (!downloadPreferences.splitTallImages.get()) return
 
         try {
             val filenamePrefix = "%03d".format(Locale.ENGLISH, page.number)

@@ -114,7 +114,7 @@ class SyncManager(
         )
 
         // Handle sync based on the selected service
-        val syncService = when (val syncService = SyncService.fromInt(syncPreferences.syncService().get())) {
+        val syncService = when (val syncService = SyncService.fromInt(syncPreferences.syncService.get())) {
             SyncService.SYNCYOMI -> {
                 SyncYomiSyncService(
                     context,
@@ -153,14 +153,14 @@ class SyncManager(
         val databaseManga = if (full) {
             getAllMangaThatNeedsSync()
         } else {
-            getMangasModifiedSince(syncPreferences.lastPushedAt().get())
+            getMangasModifiedSince(syncPreferences.lastPushedAt.get())
         }
         // SY <--
 
         logcat(LogPriority.DEBUG) { "Begin create backup (full=$full)" }
         val backupManga = backupCreator.backupMangas(databaseManga, backupOptions)
             // SY -->
-            .let { if (full) it else changedSince(it, syncPreferences.lastPushedAt().get()) }
+            .let { if (full) it else changedSince(it, syncPreferences.lastPushedAt.get()) }
         // SY <--
         val backup = Backup(
             backupManga = backupManga,
@@ -213,7 +213,7 @@ class SyncManager(
             }
 
             // Check if it's first sync based on lastSyncTimestamp
-            if (syncPreferences.lastSyncTimestamp().get() == 0L && databaseManga.isNotEmpty()) {
+            if (syncPreferences.lastSyncTimestamp.get() == 0L && databaseManga.isNotEmpty()) {
                 // It's first sync no need to restore data. (just update remote data)
                 finishWithSuccess(syncStart, "Updated remote data successfully")
                 return
@@ -319,15 +319,15 @@ class SyncManager(
             // SY <--
             if (applied) {
                 // update the sync timestamp
-                syncPreferences.lastSyncTimestamp().set(Date().time)
+                syncPreferences.lastSyncTimestamp.set(Date().time)
                 // SY -->
-                syncPreferences.lastPushedAt().set(syncStart)
+                syncPreferences.lastPushedAt.set(syncStart)
                 // SY <--
             } else {
                 // SY -->
                 // The cursor already advanced past the data that failed to apply, so
                 // ask the server for everything on the next run to self-heal.
-                syncPreferences.fullSyncRequested().set(true)
+                syncPreferences.fullSyncRequested.set(true)
                 notifier.showSyncError("Failed to apply synced data; will retry with a full sync")
                 logcat(LogPriority.ERROR) { "Sync restore failed; requesting full sync on next run" }
                 // SY <--
@@ -339,9 +339,9 @@ class SyncManager(
 
     // SY -->
     private fun finishWithSuccess(syncStart: Long, message: String) {
-        syncPreferences.lastSyncTimestamp().set(Date().time)
+        syncPreferences.lastSyncTimestamp.set(Date().time)
         // everything modified before this instant reached the server; the next delta starts here
-        syncPreferences.lastPushedAt().set(syncStart)
+        syncPreferences.lastPushedAt.set(syncStart)
         notifier.showSyncSuccess(message)
     }
     // SY <--

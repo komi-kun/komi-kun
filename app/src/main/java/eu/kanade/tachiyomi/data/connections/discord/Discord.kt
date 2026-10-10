@@ -42,7 +42,7 @@ class Discord(id: Long) : ConnectionsService(id) {
     private val json = Injekt.get<Json>()
 
     fun getAccounts(): List<DiscordAccount> {
-        val accountsJson = connectionsPreferences.discordAccounts().get()
+        val accountsJson = connectionsPreferences.discordAccounts.get()
         return try {
             if (accountsJson.isNotBlank()) {
                 json.decodeFromString<List<DiscordAccount>>(accountsJson)
@@ -97,7 +97,7 @@ class Discord(id: Long) : ConnectionsService(id) {
     private fun saveAccounts(accounts: List<DiscordAccount>) {
         try {
             val accountsJson = json.encodeToString(accounts)
-            connectionsPreferences.discordAccounts().set(accountsJson)
+            connectionsPreferences.discordAccounts.set(accountsJson)
         } catch (e: Exception) {
             xLogE("Failed to save Discord accounts", e)
         }

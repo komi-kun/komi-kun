@@ -56,7 +56,7 @@ class DiscordRPCService : Service() {
         // Create RPC client only if token is valid
         if (token.isBlank()) {
             Timber.tag(TAG).w("Discord RPC disabled due to missing token")
-            connectionsPreferences.enableDiscordRPC().set(false)
+            connectionsPreferences.enableDiscordRPC.set(false)
             stopSelf()
             return
         }
@@ -65,7 +65,7 @@ class DiscordRPCService : Service() {
         notification(this)
         // KMK <--
 
-        val status = when (connectionsPreferences.discordRPCStatus().get()) {
+        val status = when (connectionsPreferences.discordRPCStatus.get()) {
             -1 -> "dnd"
             0 -> "idle"
             else -> "online"
@@ -83,7 +83,7 @@ class DiscordRPCService : Service() {
             }
         } catch (e: Exception) {
             Timber.tag(TAG).e(e, "Failed to initialize Discord RPC: ${e.message}")
-            connectionsPreferences.enableDiscordRPC().set(false)
+            connectionsPreferences.enableDiscordRPC.set(false)
             stopSelf()
         }
         // KMK <--
@@ -127,7 +127,7 @@ class DiscordRPCService : Service() {
                 return
             }
 
-            val status = when (connectionsPreferences.discordRPCStatus().get()) {
+            val status = when (connectionsPreferences.discordRPCStatus.get()) {
                 -1 -> "dnd"
                 0 -> "idle"
                 else -> "online"
@@ -182,10 +182,10 @@ class DiscordRPCService : Service() {
         fun start(context: Context, connectionsManager: ConnectionsManager = Injekt.get()) {
             handler.removeCallbacksAndMessages(null)
             val token = connectionsPreferences.connectionsToken(connectionsManager.discord).get()
-            if (connectionsPreferences.enableDiscordRPC().get()) {
+            if (connectionsPreferences.enableDiscordRPC.get()) {
                 if (token.isBlank()) {
                     Timber.tag(TAG).w("Discord RPC not started due to missing token")
-                    connectionsPreferences.enableDiscordRPC().set(false)
+                    connectionsPreferences.enableDiscordRPC.set(false)
                 } else if (rpc == null) {
                     since = System.currentTimeMillis()
                     context.startForegroundService(Intent(context, DiscordRPCService::class.java))
@@ -220,7 +220,7 @@ class DiscordRPCService : Service() {
 
         fun restart(context: Context, connectionsManager: ConnectionsManager = Injekt.get()) {
             val token = connectionsPreferences.connectionsToken(connectionsManager.discord).get()
-            if (connectionsPreferences.enableDiscordRPC().get() && token.isNotBlank()) {
+            if (connectionsPreferences.enableDiscordRPC.get() && token.isNotBlank()) {
                 val restartIntent = Intent(context, DiscordRPCService::class.java).apply {
                     action = ACTION_RESTART
                 }
@@ -234,7 +234,7 @@ class DiscordRPCService : Service() {
                 }
             } else if (token.isBlank()) {
                 Timber.tag(TAG).w("Discord RPC not started due to missing token")
-                connectionsPreferences.enableDiscordRPC().set(false)
+                connectionsPreferences.enableDiscordRPC.set(false)
             }
         }
 
@@ -270,8 +270,8 @@ class DiscordRPCService : Service() {
             lastUsedScreen = discordScreen
 
             // KMK -->
-            val showProgress = connectionsPreferences.discordShowProgress().get()
-            val showTimestamp = connectionsPreferences.discordShowTimestamp().get()
+            val showProgress = connectionsPreferences.discordShowProgress.get()
+            val showTimestamp = connectionsPreferences.discordShowTimestamp.get()
 
             val (title, state, imageUrl) = when (discordScreen) {
                 DiscordScreen.MANGA -> Triple(
@@ -322,10 +322,10 @@ class DiscordRPCService : Service() {
             appName: String = context.getString(I18nR.string.app_name),
             // KMK <--
         ) {
-            val customMessage = connectionsPreferences.discordCustomMessage().get()
-            val showButtons = connectionsPreferences.discordShowButtons().get()
-            val showDownloadButton = connectionsPreferences.discordShowDownloadButton().get()
-            val showDiscordButton = connectionsPreferences.discordShowDiscordButton().get()
+            val customMessage = connectionsPreferences.discordCustomMessage.get()
+            val showButtons = connectionsPreferences.discordShowButtons.get()
+            val showDownloadButton = connectionsPreferences.discordShowDownloadButton.get()
+            val showDiscordButton = connectionsPreferences.discordShowDiscordButton.get()
 
             val name = title ?: appName
             val details = customMessage.takeIf { it.isNotBlank() }
@@ -431,8 +431,8 @@ class DiscordRPCService : Service() {
                 .ifEmpty { listOf(UNCATEGORIZED_ID.toString()) }
 
         private fun isIncognito(categories: List<String>, incognitoMode: Boolean): Boolean {
-            val discordIncognitoMode = connectionsPreferences.discordRPCIncognito().get()
-            val incognitoCategories = connectionsPreferences.discordRPCIncognitoCategories().get()
+            val discordIncognitoMode = connectionsPreferences.discordRPCIncognito.get()
+            val incognitoCategories = connectionsPreferences.discordRPCIncognitoCategories.get()
             val incognitoCategory = categories.fastAny { it in incognitoCategories }
             return discordIncognitoMode || incognitoMode || incognitoCategory
         }
@@ -442,7 +442,7 @@ class DiscordRPCService : Service() {
 
             val chapterNumber = readerData.chapterNumber ?: return null
             val chapterNumberDouble = chapterNumber.toDoubleOrNull()
-            val useChapterTitles = connectionsPreferences.useChapterTitles().get()
+            val useChapterTitles = connectionsPreferences.useChapterTitles.get()
 
             return when {
                 useChapterTitles || chapterNumberDouble == null -> chapterNumber

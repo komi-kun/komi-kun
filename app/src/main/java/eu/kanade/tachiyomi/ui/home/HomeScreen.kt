@@ -87,7 +87,7 @@ object HomeScreen : Screen() {
         // SY -->
         val scope = rememberCoroutineScope()
         val alwaysShowLabel by remember {
-            Injekt.get<UiPreferences>().bottomBarLabels().asState(scope)
+            Injekt.get<UiPreferences>().bottomBarLabels.asState(scope)
         }
         // SY <--
 
@@ -257,14 +257,14 @@ object HomeScreen : Screen() {
                 is UpdatesTab -> {
                     val pref = Injekt.get<LibraryPreferences>()
                     combine(
-                        pref.newShowUpdatesCount().changes(),
-                        pref.newUpdatesCount().changes(),
+                        pref.newShowUpdatesCount.changes(),
+                        pref.newUpdatesCount.changes(),
                     ) { show, count -> if (show) count else 0 }
                         .collectLatest { value = it }
                 }
 
                 is BrowseTab -> {
-                    Injekt.get<SourcePreferences>().extensionUpdatesCount().changes()
+                    Injekt.get<SourcePreferences>().extensionUpdatesCount.changes()
                         .collectLatest { value = it }
                 }
 

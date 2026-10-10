@@ -258,7 +258,7 @@ class HistoryViewModel(
         viewModelScope.launchIO {
             // Move to default category if applicable
             val categories = getCategories()
-            val defaultCategoryId = libraryPreferences.defaultCategory().get().toLong()
+            val defaultCategoryId = libraryPreferences.defaultCategory.get().toLong()
             val defaultCategory = categories.find { it.id == defaultCategoryId }
 
             when {
@@ -406,9 +406,9 @@ class HistoryViewModel(
 
     private fun getHistoryItemPreferenceFlow(): Flow<ItemPreferences> {
         return combine(
-            historyPreferences.filterUnfinishedManga().changes(),
-            historyPreferences.filterUnfinishedChapter().changes(),
-            historyPreferences.filterNonLibraryManga().changes(),
+            historyPreferences.filterUnfinishedManga.changes(),
+            historyPreferences.filterUnfinishedChapter.changes(),
+            historyPreferences.filterNonLibraryManga.changes(),
         ) { unfinishedManga, unfinishedChapter, nonLibraryManga ->
             ItemPreferences(
                 filterUnfinishedManga = unfinishedManga,

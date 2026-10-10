@@ -11,16 +11,16 @@ class BasePreferences(
     private val preferenceStore: PreferenceStore,
 ) {
 
-    fun downloadedOnly() = preferenceStore.getBoolean(
+    val downloadedOnly = preferenceStore.getBoolean(
         Preference.appStateKey("pref_downloaded_only"),
         false,
     )
 
-    fun incognitoMode() = preferenceStore.getBoolean(Preference.appStateKey("incognito_mode"), false)
+    val incognitoMode = preferenceStore.getBoolean(Preference.appStateKey("incognito_mode"), false)
 
-    fun extensionInstaller() = ExtensionInstallerPreference(context, preferenceStore)
+    val extensionInstaller = ExtensionInstallerPreference(context, preferenceStore)
 
-    fun shownOnboardingFlow() = preferenceStore.getBoolean(Preference.appStateKey("onboarding_complete"), false)
+    val shownOnboardingFlow = preferenceStore.getBoolean(Preference.appStateKey("onboarding_complete"), false)
 
     enum class ExtensionInstaller(val titleRes: StringResource, val requiresSystemPermission: Boolean) {
         LEGACY(MR.strings.ext_installer_legacy, true),
@@ -29,11 +29,11 @@ class BasePreferences(
         PRIVATE(MR.strings.ext_installer_private, false),
     }
 
-    fun highQualityRenderer() = preferenceStore.getBoolean("pref_high_quality_renderer_key", false)
+    val highQualityRenderer: Preference<Boolean> = preferenceStore.getBoolean("pref_high_quality_renderer_key", false)
 
     // KMK -->
-    fun displayProfile() = preferenceStore.getString("pref_display_profile_key", "")
+    val displayProfile: Preference<String> = preferenceStore.getString("pref_display_profile_key", "")
     // KMK <--
 
-    fun installationId() = preferenceStore.getString(Preference.appStateKey("installation_id"), "")
+    val installationId: Preference<String> = preferenceStore.getString(Preference.appStateKey("installation_id"), "")
 }

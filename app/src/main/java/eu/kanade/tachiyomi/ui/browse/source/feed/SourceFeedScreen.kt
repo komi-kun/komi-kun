@@ -84,7 +84,7 @@ class SourceFeedScreen(val sourceId: Long) : Screen() {
         val bulkFavoriteState by bulkFavoriteViewModel.state.collectAsState()
         val showingFeedOrderScreen = rememberSaveable { mutableStateOf(false) }
 
-        val isHentaiEnabled: Boolean = Injekt.get<ExhPreferences>().isHentaiEnabled().get()
+        val isHentaiEnabled: Boolean = Injekt.get<ExhPreferences>().isHentaiEnabled.get()
         val isConfigurableSource = viewModel.source.anyIs<ConfigurableSource>() ||
             (viewModel.source.isEhBasedSource() && isHentaiEnabled)
 

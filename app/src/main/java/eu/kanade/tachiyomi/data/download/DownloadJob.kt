@@ -83,7 +83,7 @@ class DownloadJob(private val context: Context, workerParams: WorkerParameters) 
         val state = applicationContext.activeNetworkState()
         return when {
             !state.isOnline -> applicationContext.getString(I18nR.string.download_notifier_no_network)
-            downloadPreferences.downloadOnlyOverWifi().get() && !state.isWifi ->
+            downloadPreferences.downloadOnlyOverWifi.get() && !state.isWifi ->
                 applicationContext.getString(I18nR.string.download_notifier_text_only_wifi)
             else -> null
         }

@@ -78,10 +78,10 @@ class UpdatesViewModel(
     private val _events: Channel<Event> = Channel(Int.MAX_VALUE)
     val events: Flow<Event> = _events.receiveAsFlow()
 
-    val lastUpdated by libraryPreferences.lastUpdatedTimestamp().asState(viewModelScope)
+    val lastUpdated by libraryPreferences.lastUpdatedTimestamp.asState(viewModelScope)
 
     // SY -->
-    val preserveReadingPosition by readerPreferences.preserveReadingPosition().asState(viewModelScope)
+    val preserveReadingPosition by readerPreferences.preserveReadingPosition.asState(viewModelScope)
     // SY <--
 
     // First and last selected index in list
@@ -507,7 +507,7 @@ class UpdatesViewModel(
     }
 
     fun resetNewUpdatesCount() {
-        libraryPreferences.newUpdatesCount().set(0)
+        libraryPreferences.newUpdatesCount.set(0)
     }
 
     // KMK -->
@@ -519,8 +519,8 @@ class UpdatesViewModel(
         }
     }
 
-    val chapterSwipeStartAction by libraryPreferences.swipeToEndAction().asState(viewModelScope)
-    val chapterSwipeEndAction by libraryPreferences.swipeToStartAction().asState(viewModelScope)
+    val chapterSwipeStartAction by libraryPreferences.swipeToEndAction.asState(viewModelScope)
+    val chapterSwipeEndAction by libraryPreferences.swipeToStartAction.asState(viewModelScope)
 
     /**
      * @throws IllegalStateException if the swipe action is [LibraryPreferences.ChapterSwipeAction.Disabled]
@@ -568,11 +568,11 @@ class UpdatesViewModel(
 
     private fun getUpdatesItemPreferenceFlow(): Flow<ItemPreferences> {
         return combine(
-            updatesPreferences.filterDownloaded().changes(),
-            updatesPreferences.filterUnread().changes(),
-            updatesPreferences.filterStarted().changes(),
-            updatesPreferences.filterBookmarked().changes(),
-            updatesPreferences.filterExcludedScanlators().changes(),
+            updatesPreferences.filterDownloaded.changes(),
+            updatesPreferences.filterUnread.changes(),
+            updatesPreferences.filterStarted.changes(),
+            updatesPreferences.filterBookmarked.changes(),
+            updatesPreferences.filterExcludedScanlators.changes(),
             updatesPreferences.filterIncludedCategories.changes(),
             updatesPreferences.filterExcludedCategories.changes(),
         ) {

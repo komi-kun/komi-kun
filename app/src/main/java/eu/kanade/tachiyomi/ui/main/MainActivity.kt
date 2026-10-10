@@ -227,15 +227,15 @@ class MainActivity : BaseActivity() {
             val context = LocalContext.current
 
             var incognito by remember { mutableStateOf(getIncognitoState.await(null)) }
-            val downloadOnly by preferences.downloadedOnly().collectAsState()
+            val downloadOnly by preferences.downloadedOnly.collectAsState()
             val indexing by downloadCache.isInitializing.collectAsState()
             // KMK -->
             val restoringState by backupRestoreStatus.isRunning.collectAsState()
             val syncingState by syncStatus.isRunning.collectAsState()
             val updatingState by libraryUpdateStatus.isRunning.collectAsState()
-            val restoringProgressBanner by backupPreferences.showRestoringProgressBanner().collectAsState()
-            val syncingProgressBanner by syncPreferences.showSyncingProgressBanner().collectAsState()
-            val updatingProgressBanner by libraryPreferences.showUpdatingProgressBanner().collectAsState()
+            val restoringProgressBanner by backupPreferences.showRestoringProgressBanner.collectAsState()
+            val syncingProgressBanner by syncPreferences.showSyncingProgressBanner.collectAsState()
+            val updatingProgressBanner by libraryPreferences.showUpdatingProgressBanner.collectAsState()
             val restoring = restoringState && restoringProgressBanner
             val syncing = syncingState && syncingProgressBanner
             val updating = updatingState && updatingProgressBanner
@@ -278,13 +278,13 @@ class MainActivity : BaseActivity() {
                         handleIntentAction(intent, navigator)
 
                         // Reset Incognito Mode on relaunch
-                        preferences.incognitoMode().set(false)
+                        preferences.incognitoMode.set(false)
 
                         // SY -->
                         initWhenIdle {
                             // Upload settings
-                            if (exhPreferences.enableExhentai().get() &&
-                                exhPreferences.exhShowSettingsUploadWarning().get()
+                            if (exhPreferences.enableExhentai.get() &&
+                                exhPreferences.exhShowSettingsUploadWarning.get()
                             ) {
                                 runExhConfigureDialog = true
                             }
@@ -352,7 +352,7 @@ class MainActivity : BaseActivity() {
 
                 // Pop source-related screens when incognito mode is turned off
                 LaunchedEffect(Unit) {
-                    preferences.incognitoMode().changes()
+                    preferences.incognitoMode.changes()
                         .drop(1)
                         .filter { !it }
                         .onEach {
@@ -366,7 +366,7 @@ class MainActivity : BaseActivity() {
                         .launchIn(this)
 
                     // AM (DISCORD) -->
-                    connectionsPreferences.enableDiscordRPC().changes()
+                    connectionsPreferences.enableDiscordRPC.changes()
                         .drop(1)
                         .onEach {
                             if (it) {
@@ -376,7 +376,7 @@ class MainActivity : BaseActivity() {
                             }
                         }.launchIn(this)
 
-                    connectionsPreferences.discordRPCStatus().changes()
+                    connectionsPreferences.discordRPCStatus.changes()
                         .drop(1)
                         .onEach {
                             with(DiscordRPCService) {
@@ -474,7 +474,7 @@ class MainActivity : BaseActivity() {
         }
         setSplashScreenExitAnimation(splashScreen)
 
-        if (isLaunch && libraryPreferences.autoClearChapterCache().get()) {
+        if (isLaunch && libraryPreferences.autoClearChapterCache.get()) {
             lifecycleScope.launchIO {
                 chapterCache.clear()
             }
@@ -593,7 +593,7 @@ class MainActivity : BaseActivity() {
         val navigator = LocalNavigator.currentOrThrow
 
         LaunchedEffect(Unit) {
-            if (!preferences.shownOnboardingFlow().get() && navigator.lastItem !is OnboardingScreen) {
+            if (!preferences.shownOnboardingFlow.get() && navigator.lastItem !is OnboardingScreen) {
                 navigator.push(OnboardingScreen())
             }
         }

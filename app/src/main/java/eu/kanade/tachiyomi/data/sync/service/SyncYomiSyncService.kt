@@ -119,12 +119,12 @@ class SyncYomiSyncService(
      */
     private suspend fun doSyncV2(syncData: SyncData, full: Boolean): SyncResult {
         val backup = syncData.backup ?: return SyncResult(null, changed = false, protocolV2 = true)
-        val host = syncPreferences.clientHost().get()
-        val apiKey = syncPreferences.clientAPIKey().get()
+        val host = syncPreferences.clientHost.get()
+        val apiKey = syncPreferences.clientAPIKey.get()
 
-        val pendingDeleted = syncPreferences.pendingDeletedCategoryUids().get()
+        val pendingDeleted = syncPreferences.pendingDeletedCategoryUids.get()
         val headersBuilder = baseHeaders(apiKey)
-            .add("X-Sync-Cursor", syncPreferences.syncCursor().get().toString())
+            .add("X-Sync-Cursor", syncPreferences.syncCursor.get().toString())
             .add("X-Sync-Full", full.toString())
             .add("Content-Encoding", "gzip")
         if (pendingDeleted.isNotEmpty()) {
@@ -154,12 +154,12 @@ class SyncYomiSyncService(
         val changed = response.headers["X-Sync-Changed"]?.toBoolean() ?: true
         val fullRequested = response.headers["X-Sync-Full-Requested"]?.toBoolean() ?: false
 
-        syncPreferences.syncCursor().set(cursor)
-        syncPreferences.fullSyncRequested().set(fullRequested)
+        syncPreferences.syncCursor.set(cursor)
+        syncPreferences.fullSyncRequested.set(fullRequested)
         // Only drop the uids we actually sent; a category deleted during the request stays pending.
-        syncPreferences.pendingDeletedCategoryUids().set(syncPreferences.pendingDeletedCategoryUids().get() - pendingDeleted)
+        syncPreferences.pendingDeletedCategoryUids.set(syncPreferences.pendingDeletedCategoryUids.get() - pendingDeleted)
         if (full) {
-            syncPreferences.lastFullSync().set(Clock.System.now().toEpochMilliseconds())
+            syncPreferences.lastFullSync.set(Clock.System.now().toEpochMilliseconds())
         }
         logcat(LogPriority.DEBUG) { "SyncYomi v2 merge done: cursor=$cursor changed=$changed fullRequested=$fullRequested" }
 
@@ -172,8 +172,8 @@ class SyncYomiSyncService(
      */
     override suspend fun needsFullSync(): Boolean {
         if (!supportsV2()) return true
-        if (syncPreferences.syncCursor().get() == 0L || syncPreferences.fullSyncRequested().get()) return true
-        val lastFull = syncPreferences.lastFullSync().get()
+        if (syncPreferences.syncCursor.get() == 0L || syncPreferences.fullSyncRequested.get()) return true
+        val lastFull = syncPreferences.lastFullSync.get()
         return lastFull == 0L || Clock.System.now() - Instant.fromEpochMilliseconds(lastFull) > FULL_SYNC_INTERVAL
     }
 
@@ -182,14 +182,14 @@ class SyncYomiSyncService(
      * 200 means v2, 404 means an old server; anything else is a transient failure and is not cached.
      */
     suspend fun supportsV2(): Boolean {
-        val host = syncPreferences.clientHost().get()
-        if (syncPreferences.v2ProbedHost().get() == host) {
-            return syncPreferences.serverSupportsV2().get()
+        val host = syncPreferences.clientHost.get()
+        if (syncPreferences.v2ProbedHost.get() == host) {
+            return syncPreferences.serverSupportsV2.get()
         }
 
         val request = GET(
             url = "$host/api/sync/v2/capabilities",
-            headers = baseHeaders(syncPreferences.clientAPIKey().get()).build(),
+            headers = baseHeaders(syncPreferences.clientAPIKey.get()).build(),
         )
         val response = syncClient().newCall(request).await()
         response.close()
@@ -198,8 +198,8 @@ class SyncYomiSyncService(
             HttpStatus.SC_NOT_FOUND -> false
             else -> throw SyncYomiException("Failed to probe server capabilities: ${response.code}")
         }
-        syncPreferences.v2ProbedHost().set(host)
-        syncPreferences.serverSupportsV2().set(supported)
+        syncPreferences.v2ProbedHost.set(host)
+        syncPreferences.serverSupportsV2.set(supported)
         logcat(LogPriority.INFO) { "SyncYomi server supports protocol v2: $supported" }
         return supported
     }
@@ -249,12 +249,12 @@ class SyncYomiSyncService(
     // SY <--
 
     private suspend fun pullSyncData(): Pair<SyncData?, String> {
-        val host = syncPreferences.clientHost().get()
-        val apiKey = syncPreferences.clientAPIKey().get()
+        val host = syncPreferences.clientHost.get()
+        val apiKey = syncPreferences.clientAPIKey.get()
         val downloadUrl = "$host/api/sync/content"
 
         val headersBuilder = baseHeaders(apiKey)
-        val lastETag = syncPreferences.lastSyncEtag().get()
+        val lastETag = syncPreferences.lastSyncEtag.get()
         if (lastETag != "") {
             headersBuilder.add("If-None-Match", lastETag)
         }
@@ -310,8 +310,8 @@ class SyncYomiSyncService(
     private suspend fun pushSyncData(syncData: SyncData, eTag: String): Boolean {
         val backup = syncData.backup ?: return true
 
-        val host = syncPreferences.clientHost().get()
-        val apiKey = syncPreferences.clientAPIKey().get()
+        val host = syncPreferences.clientHost.get()
+        val apiKey = syncPreferences.clientAPIKey.get()
         val uploadUrl = "$host/api/sync/content"
 
         val headersBuilder = baseHeaders(apiKey).add("Content-Encoding", "gzip")
@@ -340,7 +340,7 @@ class SyncYomiSyncService(
                 if (response.isSuccessful) {
                     val newETag = response.headers["ETag"]
                         .takeIf { it?.isNotEmpty() == true } ?: throw SyncYomiException("Missing ETag")
-                    syncPreferences.lastSyncEtag().set(newETag)
+                    syncPreferences.lastSyncEtag.set(newETag)
                     logcat(LogPriority.DEBUG) { "SyncYomi sync completed" }
                     return true
                 } else if (response.code == HttpStatus.SC_PRECONDITION_FAILED) {
@@ -359,8 +359,8 @@ class SyncYomiSyncService(
     private suspend fun reportSyncEvent(event: SyncEventStatus, message: String? = null) {
         withContext(NonCancellable) {
             try {
-                val host = syncPreferences.clientHost().get()
-                val apiKey = syncPreferences.clientAPIKey().get()
+                val host = syncPreferences.clientHost.get()
+                val apiKey = syncPreferences.clientAPIKey.get()
                 val url = "$host/api/sync/event"
 
                 val headers = baseHeaders(apiKey).build()

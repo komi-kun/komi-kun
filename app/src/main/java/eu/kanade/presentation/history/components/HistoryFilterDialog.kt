@@ -54,21 +54,21 @@ fun HistoryFilterDialog(
 private fun ColumnScope.FilterSheet(
     viewModel: HistorySettingsViewModel,
 ) {
-    val filterUnfinishedManga by viewModel.historyPreferences.filterUnfinishedManga().collectAsState()
+    val filterUnfinishedManga by viewModel.historyPreferences.filterUnfinishedManga.collectAsState()
     TriStateItem(
         label = stringResource(KMR.strings.action_filter_unfinished_manga),
         state = filterUnfinishedManga,
         onClick = { viewModel.toggleFilter(HistoryPreferences::filterUnfinishedManga) },
     )
 
-    val filterUnfinishedChapter by viewModel.historyPreferences.filterUnfinishedChapter().collectAsState()
+    val filterUnfinishedChapter by viewModel.historyPreferences.filterUnfinishedChapter.collectAsState()
     TriStateItem(
         label = stringResource(KMR.strings.action_filter_unfinished_chapter),
         state = filterUnfinishedChapter,
         onClick = { viewModel.toggleFilter(HistoryPreferences::filterUnfinishedChapter) },
     )
 
-    val filterNonLibraryManga by viewModel.historyPreferences.filterNonLibraryManga().collectAsState()
+    val filterNonLibraryManga by viewModel.historyPreferences.filterNonLibraryManga.collectAsState()
     TriStateItem(
         label = stringResource(KMR.strings.action_filter_non_library_entries),
         state = filterNonLibraryManga,
@@ -77,7 +77,7 @@ private fun ColumnScope.FilterSheet(
 
     HorizontalDivider(modifier = Modifier.padding(MaterialTheme.padding.small))
 
-    val panoramaCover by viewModel.historyPreferences.usePanoramaCover().collectAsState()
+    val panoramaCover by viewModel.historyPreferences.usePanoramaCover.collectAsState()
 
     Row(
         modifier = Modifier

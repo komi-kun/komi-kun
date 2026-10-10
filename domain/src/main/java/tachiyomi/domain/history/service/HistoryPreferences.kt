@@ -9,22 +9,22 @@ class HistoryPreferences(
     private val preferenceStore: PreferenceStore,
 ) {
 
-    fun filterUnfinishedManga() = preferenceStore.getEnum(
+    val filterUnfinishedManga = preferenceStore.getEnum(
         "pref_filter_history_unfinished_manga",
         TriState.DISABLED,
     )
 
-    fun filterUnfinishedChapter() = preferenceStore.getEnum(
+    val filterUnfinishedChapter = preferenceStore.getEnum(
         "pref_filter_history_unfinished_chapter",
         TriState.DISABLED,
     )
 
-    fun filterNonLibraryManga() = preferenceStore.getEnum(
+    val filterNonLibraryManga = preferenceStore.getEnum(
         "pref_filter_history_non_library_manga",
         TriState.DISABLED,
     )
 
-    fun usePanoramaCover() = preferenceStore.getBoolean(
+    val usePanoramaCover = preferenceStore.getBoolean(
         USE_PANORAMA_COVER_PREF,
         false,
     )

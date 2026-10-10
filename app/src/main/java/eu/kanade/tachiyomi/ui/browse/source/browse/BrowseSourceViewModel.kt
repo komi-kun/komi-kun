@@ -161,14 +161,14 @@ open class BrowseSourceViewModel(
     }
     // KMK <--
 
-    var displayMode by sourcePreferences.sourceDisplayMode().asState(viewModelScope)
+    var displayMode by sourcePreferences.sourceDisplayMode.asState(viewModelScope)
 
     var source = sourceManager.getOrStub(sourceId)
 
     // SY -->
-    val ehentaiBrowseDisplayMode by exhPreferences.enhancedEHentaiView().asState(viewModelScope)
+    val ehentaiBrowseDisplayMode by exhPreferences.enhancedEHentaiView.asState(viewModelScope)
 
-    val startExpanded by uiPreferences.expandFilters().asState(viewModelScope)
+    val startExpanded by uiPreferences.expandFilters.asState(viewModelScope)
 
     private val filterSerializer = FilterSerializer()
     // SY <--
@@ -228,7 +228,7 @@ open class BrowseSourceViewModel(
         // KMK-->
         getIncognitoState.subscribe(sourceId)
             .onEach {
-                if (!it) sourcePreferences.lastUsedSource().set(source.id)
+                if (!it) sourcePreferences.lastUsedSource.set(source.id)
                 incognitoMode.value = it
             }
             .launchIn(viewModelScope)
@@ -252,7 +252,7 @@ open class BrowseSourceViewModel(
     /**
      * Flow of Pager flow tied to [State.listing]
      */
-    private val hideInLibraryItems = sourcePreferences.hideInLibraryItems().get()
+    private val hideInLibraryItems = sourcePreferences.hideInLibraryItems.get()
     val mangaPagerFlowFlow = state.map { it.listing }
         .distinctUntilChanged()
         .map { listing ->
@@ -278,9 +278,9 @@ open class BrowseSourceViewModel(
     fun getColumnsPreference(orientation: Int): GridCells {
         val isLandscape = orientation == Configuration.ORIENTATION_LANDSCAPE
         val columns = if (isLandscape) {
-            libraryPreferences.landscapeColumns()
+            libraryPreferences.landscapeColumns
         } else {
-            libraryPreferences.portraitColumns()
+            libraryPreferences.portraitColumns
         }.get()
         return if (columns == 0) GridCells.Adaptive(128.dp) else GridCells.Fixed(columns)
     }
@@ -418,8 +418,8 @@ open class BrowseSourceViewModel(
 
             updateManga.await(new.toMangaUpdate())
             // KMK -->
-            val fetchMetadataOnAdd = libraryPreferences.fetchMetadataOnAdd().get()
-            val fetchChaptersOnAdd = libraryPreferences.fetchChaptersOnAdd().get()
+            val fetchMetadataOnAdd = libraryPreferences.fetchMetadataOnAdd.get()
+            val fetchChaptersOnAdd = libraryPreferences.fetchChaptersOnAdd.get()
             if (new.favorite && (fetchMetadataOnAdd || fetchChaptersOnAdd)) {
                 try {
                     // Use `manga` instead of `new` so its title got updated with source's `getMangaDetails`
@@ -440,7 +440,7 @@ open class BrowseSourceViewModel(
     fun addFavorite(manga: Manga) {
         viewModelScope.launch {
             val categories = getCategories()
-            val defaultCategoryId = libraryPreferences.defaultCategory().get()
+            val defaultCategoryId = libraryPreferences.defaultCategory.get()
             val defaultCategory = categories.find { it.id == defaultCategoryId.toLong() }
 
             when {

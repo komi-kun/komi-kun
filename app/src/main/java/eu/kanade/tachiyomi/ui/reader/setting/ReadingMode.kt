@@ -86,7 +86,7 @@ enum class ReadingMode(
             @ColorInt seedColor: Int?,
             // KMK <--
         ): Viewer {
-            if (Injekt.get<BasePreferences>().highQualityRenderer().get()) {
+            if (Injekt.get<BasePreferences>().highQualityRenderer.get()) {
                 return when (fromPreference(preference)) {
                     LEFT_TO_RIGHT -> WebGpuViewer(activity, isReversed = false, isVertical = false)
                     RIGHT_TO_LEFT -> WebGpuViewer(activity, isReversed = true, isVertical = false)

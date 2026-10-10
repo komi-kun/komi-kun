@@ -88,7 +88,7 @@ fun MangaCoverDialog(
     val dropdownBgColor = MaterialTheme.colorScheme.surfaceVariant
     // KMK <--
 
-    val useNewRenderer = Injekt.get<BasePreferences>().highQualityRenderer().get()
+    val useNewRenderer = Injekt.get<BasePreferences>().highQualityRenderer.get()
     val view = LocalView.current
 
     Dialog(

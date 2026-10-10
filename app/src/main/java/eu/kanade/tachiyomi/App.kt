@@ -167,7 +167,7 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
         val scope = ProcessLifecycleOwner.get().lifecycleScope
 
         // Show notification to disable Incognito Mode when it's enabled
-        basePreferences.incognitoMode().changes()
+        basePreferences.incognitoMode.changes()
             .onEach { enabled ->
                 if (enabled) {
                     disableIncognitoReceiver.register()
@@ -197,17 +197,17 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
             }
             .launchIn(scope)
 
-        privacyPreferences.analytics()
+        privacyPreferences.analytics
             .changes()
             .onEach(TelemetryConfig::setAnalyticsEnabled)
             .launchIn(scope)
 
-        privacyPreferences.crashlytics()
+        privacyPreferences.crashlytics
             .changes()
             .onEach(TelemetryConfig::setCrashlyticsEnabled)
             .launchIn(scope)
 
-        setAppCompatDelegateThemeMode(Injekt.get<UiPreferences>().themeMode().get())
+        setAppCompatDelegateThemeMode(Injekt.get<UiPreferences>().themeMode.get())
 
         // KMK -->
         MangaCoverMetadata.load()
@@ -409,7 +409,7 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
         private var registered = false
 
         override fun onReceive(context: Context, intent: Intent) {
-            basePreferences.incognitoMode().set(false)
+            basePreferences.incognitoMode.set(false)
         }
 
         fun register() {

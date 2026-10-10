@@ -97,7 +97,7 @@ open class SourceFeedViewModel(
 
     private val coroutineDispatcher = Executors.newFixedThreadPool(5).asCoroutineDispatcher()
 
-    val startExpanded by uiPreferences.expandFilters().asState(viewModelScope)
+    val startExpanded by uiPreferences.expandFilters.asState(viewModelScope)
 
     // KMK -->
     var incognitoMode = mutableStateOf(getIncognitoState.await(source.id))
@@ -111,7 +111,7 @@ open class SourceFeedViewModel(
 
         getIncognitoState.subscribe(sourceId)
             .onEach {
-                if (!it) sourcePreferences.lastUsedSource().set(source.id)
+                if (!it) sourcePreferences.lastUsedSource.set(source.id)
                 incognitoMode.value = it
             }
             .launchIn(viewModelScope)
@@ -204,7 +204,7 @@ open class SourceFeedViewModel(
     }
 
     // KMK -->
-    private val hideInLibraryFeedItems = sourcePreferences.hideInLibraryFeedItems().get()
+    private val hideInLibraryFeedItems = sourcePreferences.hideInLibraryFeedItems.get()
     // KMK <--
 
     /**

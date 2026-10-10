@@ -41,29 +41,29 @@ class TrackPreferences(
 
     fun trackToken(tracker: Tracker) = preferenceStore.getString(Preference.privateKey("track_token_${tracker.id}"), "")
 
-    fun anilistScoreType() = preferenceStore.getString("anilist_score_type", Anilist.POINT_10)
+    val anilistScoreType = preferenceStore.getString("anilist_score_type", Anilist.POINT_10)
 
     val kitsuScoreType: Preference<String> = preferenceStore.getString("kitsu_score_type", Kitsu.RATING_ADVANCED)
 
     val mangabakaScoreType: Preference<String> = preferenceStore.getString("mangabaka_score_type", MangaBaka.STEP_1)
 
-    fun autoUpdateTrack() = preferenceStore.getBoolean("pref_auto_update_manga_sync_key", true)
+    val autoUpdateTrack = preferenceStore.getBoolean("pref_auto_update_manga_sync_key", true)
 
-    fun trackOnAddingToLibrary() = preferenceStore.getBoolean("track_on_adding_to_library", true)
+    val trackOnAddingToLibrary = preferenceStore.getBoolean("track_on_adding_to_library", true)
 
-    fun autoUpdateTrackOnMarkRead() = preferenceStore.getEnum(
+    val autoUpdateTrackOnMarkRead = preferenceStore.getEnum(
         "pref_auto_update_manga_on_mark_read",
         AutoTrackState.ALWAYS,
     )
 
     // SY -->
-    fun resolveUsingSourceMetadata() = preferenceStore.getBoolean(
+    val resolveUsingSourceMetadata = preferenceStore.getBoolean(
         "pref_resolve_using_source_metadata_key",
         true,
     )
     // SY <--
 
     // KMK -->
-    fun autoSyncProgressFromTrackers() = preferenceStore.getBoolean("pref_auto_sync_progress_from_trackers_key", true)
+    val autoSyncProgressFromTrackers = preferenceStore.getBoolean("pref_auto_sync_progress_from_trackers_key", true)
     // KMK <--
 }

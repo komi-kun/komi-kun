@@ -115,12 +115,12 @@ class MoreViewModel(
     // SY <--
 ) : ViewModel() {
 
-    var downloadedOnly by preferences.downloadedOnly().asState(viewModelScope)
-    var incognitoMode by preferences.incognitoMode().asState(viewModelScope)
+    var downloadedOnly by preferences.downloadedOnly.asState(viewModelScope)
+    var incognitoMode by preferences.incognitoMode.asState(viewModelScope)
 
     // SY -->
-    val showNavUpdates by uiPreferences.showNavUpdates().asState(viewModelScope)
-    val showNavHistory by uiPreferences.showNavHistory().asState(viewModelScope)
+    val showNavUpdates by uiPreferences.showNavUpdates.asState(viewModelScope)
+    val showNavHistory by uiPreferences.showNavHistory.asState(viewModelScope)
     // SY <--
 
     private var _downloadQueueState: MutableStateFlow<DownloadQueueState> = MutableStateFlow(DownloadQueueState.Stopped)

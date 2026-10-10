@@ -31,7 +31,7 @@ import kotlin.random.Random
     /* SY --> */ open /* SY <-- */val cookieJar = AndroidCookieJar()
 
     // KMK -->
-    private val delegatedSourcesEnabled = delegateSourcePreferences.delegateSources().get()
+    private val delegatedSourcesEnabled = delegateSourcePreferences.delegateSources.get()
     // KMK <--
 
     /**
@@ -69,7 +69,7 @@ import kotlin.random.Random
             builder.addNetworkInterceptor(httpLoggingInterceptor)
         }
 
-        when (preferences.dohProvider().get()) {
+        when (preferences.dohProvider.get()) {
             PREF_DOH_CLOUDFLARE -> builder.dohCloudflare()
             PREF_DOH_GOOGLE -> builder.dohGoogle()
             PREF_DOH_ADGUARD -> builder.dohAdGuard()
@@ -227,7 +227,7 @@ import kotlin.random.Random
     open /* SY <-- */val cloudflareClient: OkHttpClient
         get() = client
 
-    fun defaultUserAgentProvider() = preferences.defaultUserAgent().get().trim()
+    fun defaultUserAgentProvider() = preferences.defaultUserAgent.get().trim()
 
     companion object {
         // KMK -->

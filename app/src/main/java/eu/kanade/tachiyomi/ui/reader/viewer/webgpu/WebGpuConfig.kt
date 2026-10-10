@@ -25,7 +25,7 @@ class WebGpuConfig(
     readerPreferences: ReaderPreferences = Injekt.get(),
 ) : ViewerConfig(readerPreferences, scope) {
 
-    var theme = readerPreferences.readerTheme().get()
+    var theme = readerPreferences.readerTheme.get()
         private set
 
     var automaticBackground = false
@@ -76,7 +76,7 @@ class WebGpuConfig(
         private set
 
     init {
-        readerPreferences.readerTheme()
+        readerPreferences.readerTheme
             .register(
                 {
                     theme = it
@@ -85,38 +85,38 @@ class WebGpuConfig(
                 { imagePropertyChangedListener?.invoke() },
             )
 
-        readerPreferences.imageScaleType()
+        readerPreferences.imageScaleType
             .register({ imageScaleType = it }, { imagePropertyChangedListener?.invoke() })
 
-        readerPreferences.zoomStart()
+        readerPreferences.zoomStart
             .register({ zoomTypeFromPreference(it) }, { imagePropertyChangedListener?.invoke() })
 
-        readerPreferences.cropBorders()
+        readerPreferences.cropBorders
             .register({ imageCropBorders = it }, { imagePropertyChangedListener?.invoke() })
 
-        readerPreferences.cropBordersWebtoon()
+        readerPreferences.cropBordersWebtoon
             .register(
                 { imageCropBordersWebtoon = it },
                 { imagePropertyChangedListener?.invoke() },
             )
 
-        readerPreferences.navigateToPan()
+        readerPreferences.navigateToPan
             .register({ navigateToPan = it })
 
-        readerPreferences.landscapeZoom()
+        readerPreferences.landscapeZoom
             .register({ landscapeZoom = it }, { imagePropertyChangedListener?.invoke() })
 
-        readerPreferences.navigationModePager()
+        readerPreferences.navigationModePager
             .register({ navigationMode = it }, { updateNavigation(navigationMode) })
 
-        readerPreferences.pagerNavInverted()
+        readerPreferences.pagerNavInverted
             .register({ tappingInverted = it }, { navigator.invertMode = it })
-        readerPreferences.pagerNavInverted().changes()
+        readerPreferences.pagerNavInverted.changes()
             .drop(1)
             .onEach { navigationModeChangedListener?.invoke() }
             .launchIn(scope)
 
-        readerPreferences.dualPageSplitPaged()
+        readerPreferences.dualPageSplitPaged
             .register(
                 { dualPageSplit = it },
                 {
@@ -125,16 +125,16 @@ class WebGpuConfig(
                 },
             )
 
-        readerPreferences.dualPageInvertPaged()
+        readerPreferences.dualPageInvertPaged
             .register({ dualPageInvert = it }, { imagePropertyChangedListener?.invoke() })
 
-        readerPreferences.dualPageRotateToFit()
+        readerPreferences.dualPageRotateToFit
             .register(
                 { dualPageRotateToFit = it },
                 { imagePropertyChangedListener?.invoke() },
             )
 
-        readerPreferences.dualPageRotateToFitInvert()
+        readerPreferences.dualPageRotateToFitInvert
             .register(
                 { dualPageRotateToFitInvert = it },
                 { imagePropertyChangedListener?.invoke() },
@@ -170,7 +170,7 @@ class WebGpuConfig(
             { imagePropertyChangedListener?.invoke() },
         )
 
-        readerPreferences.webtoonDisableZoomOut().register(
+        readerPreferences.webtoonDisableZoomOut.register(
             { zoomOutDisabled = it },
             { imagePropertyChangedListener?.invoke() },
         )

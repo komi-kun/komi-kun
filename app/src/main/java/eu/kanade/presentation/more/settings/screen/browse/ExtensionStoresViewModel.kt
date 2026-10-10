@@ -41,7 +41,7 @@ class ExtensionStoresViewModel(
         getExtensionStores.subscribe(),
         dialog,
         // KMK -->
-        sourcePreferences.disabledRepos().changes(),
+        sourcePreferences.disabledRepos.changes(),
         // KMK <--
     ) { stores, dialog, disabledRepos ->
         ExtensionStoreScreenState.Success(
@@ -119,18 +119,18 @@ class ExtensionStoresViewModel(
 
     // KMK -->
     fun enableStore(indexUrl: String) {
-        val disabledRepos = sourcePreferences.disabledRepos().get()
+        val disabledRepos = sourcePreferences.disabledRepos.get()
         if (indexUrl in disabledRepos) {
-            sourcePreferences.disabledRepos().set(
+            sourcePreferences.disabledRepos.set(
                 disabledRepos.filterNot { it == indexUrl }.toSet(),
             )
         }
     }
 
     fun disableStore(indexUrl: String) {
-        val disabledRepos = sourcePreferences.disabledRepos().get()
+        val disabledRepos = sourcePreferences.disabledRepos.get()
         if (indexUrl !in disabledRepos) {
-            sourcePreferences.disabledRepos().set(
+            sourcePreferences.disabledRepos.set(
                 disabledRepos + indexUrl,
             )
         }

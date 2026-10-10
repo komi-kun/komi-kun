@@ -67,7 +67,7 @@ class ExtensionDetailsViewModel(
             if (extension == null) return@flatMapLatest flowOf(State.Uninstalled)
             combine(
                 subscribeToSources(extension),
-                preferences.incognitoExtensions().changes().map { pkgName in it }.distinctUntilChanged(),
+                preferences.incognitoExtensions.changes().map { pkgName in it }.distinctUntilChanged(),
             ) { sources, isIncognito ->
                 State.Success(extension = extension, isIncognito = isIncognito, sources = sources.toList())
             }

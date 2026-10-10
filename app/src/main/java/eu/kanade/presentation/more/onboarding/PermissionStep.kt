@@ -185,7 +185,7 @@ internal class PermissionStep : OnboardingStep {
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
             )
 
-            val crashlyticsPref = privacyPreferences.crashlytics()
+            val crashlyticsPref = privacyPreferences.crashlytics
             val crashlytics by crashlyticsPref.collectAsState()
             PermissionSwitch(
                 title = stringResource(MR.strings.onboarding_permission_crashlytics),

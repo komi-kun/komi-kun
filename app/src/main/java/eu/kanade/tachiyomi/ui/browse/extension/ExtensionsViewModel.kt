@@ -60,7 +60,7 @@ class ExtensionsViewModel(
     // KMK <--
 
     // Public so the tab badge can observe it without subscribing to the whole state.
-    val updatesCount = preferences.extensionUpdatesCount().changes()
+    val updatesCount = preferences.extensionUpdatesCount.changes()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5.seconds), 0)
 
     private val isRefreshing = MutableStateFlow(false)
@@ -161,8 +161,8 @@ class ExtensionsViewModel(
 
     val state: StateFlow<State> = combine(
         partialState,
-        preferences.extensionUpdatesCount().changes(),
-        basePreferences.extensionInstaller().changes(),
+        preferences.extensionUpdatesCount.changes(),
+        basePreferences.extensionInstaller.changes(),
     ) { partial, updates, installer ->
         State(
             isLoading = partial.items == null,

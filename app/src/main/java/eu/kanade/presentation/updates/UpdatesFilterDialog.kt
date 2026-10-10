@@ -66,28 +66,28 @@ fun UpdatesFilterDialog(
 private fun ColumnScope.FilterSheet(
     viewModel: UpdatesSettingsViewModel,
 ) {
-    val filterDownloaded by viewModel.updatesPreferences.filterDownloaded().collectAsState()
+    val filterDownloaded by viewModel.updatesPreferences.filterDownloaded.collectAsState()
     TriStateItem(
         label = stringResource(MR.strings.label_downloaded),
         state = filterDownloaded,
         onClick = { viewModel.toggleFilter(UpdatesPreferences::filterDownloaded) },
     )
 
-    val filterUnread by viewModel.updatesPreferences.filterUnread().collectAsState()
+    val filterUnread by viewModel.updatesPreferences.filterUnread.collectAsState()
     TriStateItem(
         label = stringResource(MR.strings.action_filter_unread),
         state = filterUnread,
         onClick = { viewModel.toggleFilter(UpdatesPreferences::filterUnread) },
     )
 
-    val filterStarted by viewModel.updatesPreferences.filterStarted().collectAsState()
+    val filterStarted by viewModel.updatesPreferences.filterStarted.collectAsState()
     TriStateItem(
         label = stringResource(MR.strings.label_started),
         state = filterStarted,
         onClick = { viewModel.toggleFilter(UpdatesPreferences::filterStarted) },
     )
 
-    val filterBookmarked by viewModel.updatesPreferences.filterBookmarked().collectAsState()
+    val filterBookmarked by viewModel.updatesPreferences.filterBookmarked.collectAsState()
     TriStateItem(
         label = stringResource(MR.strings.action_filter_bookmarked),
         state = filterBookmarked,
@@ -96,7 +96,7 @@ private fun ColumnScope.FilterSheet(
 
     HorizontalDivider(modifier = Modifier.padding(MaterialTheme.padding.small))
 
-    val filterExcludedScanlators by viewModel.updatesPreferences.filterExcludedScanlators().collectAsState()
+    val filterExcludedScanlators by viewModel.updatesPreferences.filterExcludedScanlators.collectAsState()
 
     Row(
         modifier = Modifier
@@ -125,7 +125,7 @@ private fun ColumnScope.FilterSheet(
     // KMK -->
     HorizontalDivider(modifier = Modifier.padding(MaterialTheme.padding.small))
 
-    val panoramaCover by viewModel.updatesPreferences.usePanoramaCover().collectAsState()
+    val panoramaCover by viewModel.updatesPreferences.usePanoramaCover.collectAsState()
 
     Row(
         modifier = Modifier

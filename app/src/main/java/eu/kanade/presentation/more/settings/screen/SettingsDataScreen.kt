@@ -122,7 +122,7 @@ object SettingsDataScreen : SearchableSettings {
         val storagePreferences = Injekt.get<StoragePreferences>()
 
         val syncPreferences = remember { Injekt.get<SyncPreferences>() }
-        val syncService by syncPreferences.syncService().collectAsState()
+        val syncService by syncPreferences.syncService.collectAsState()
 
         return listOf(
             getStorageLocationPref(storagePreferences = storagePreferences),
@@ -205,10 +205,10 @@ object SettingsDataScreen : SearchableSettings {
         storagePreferences: StoragePreferences,
     ): Preference.PreferenceItem.TextPreference {
         val context = LocalContext.current
-        val pickStorageLocation = storageLocationPicker(storagePreferences.baseStorageDirectory())
+        val pickStorageLocation = storageLocationPicker(storagePreferences.baseStorageDirectory)
 
         // KMK -->
-        val storagePref = storagePreferences.baseStorageDirectory()
+        val storagePref = storagePreferences.baseStorageDirectory
         // KMK <--
 
         return Preference.PreferenceItem.TextPreference(
@@ -233,7 +233,7 @@ object SettingsDataScreen : SearchableSettings {
         val context = LocalContext.current
         val navigator = LocalNavigator.currentOrThrow
 
-        val lastAutoBackup by backupPreferences.lastAutoBackupTimestamp().collectAsState()
+        val lastAutoBackup by backupPreferences.lastAutoBackupTimestamp.collectAsState()
 
         val chooseBackup = rememberLauncherForActivityResult(
             ActivityResultContracts.OpenDocument(),
@@ -302,7 +302,7 @@ object SettingsDataScreen : SearchableSettings {
 
                 // Automatic backups
                 Preference.PreferenceItem.ListPreference(
-                    preference = backupPreferences.backupInterval(),
+                    preference = backupPreferences.backupInterval,
                     entries = mapOf(
                         0 to stringResource(MR.strings.off),
                         1 to stringResource(MR.strings.update_1hour),
@@ -325,7 +325,7 @@ object SettingsDataScreen : SearchableSettings {
                 ),
                 // KMK -->
                 Preference.PreferenceItem.SwitchPreference(
-                    preference = backupPreferences.showRestoringProgressBanner(),
+                    preference = backupPreferences.showRestoringProgressBanner,
                     title = stringResource(KMR.strings.pref_show_restoring_progress_banner),
                 ),
                 // KMK <--
@@ -403,7 +403,7 @@ object SettingsDataScreen : SearchableSettings {
                 ),
                 // SY <--
                 Preference.PreferenceItem.SwitchPreference(
-                    preference = libraryPreferences.autoClearChapterCache(),
+                    preference = libraryPreferences.autoClearChapterCache,
                     title = stringResource(MR.strings.pref_auto_clear_chapter_cache),
                 ),
             ),
@@ -556,7 +556,7 @@ object SettingsDataScreen : SearchableSettings {
                 title = stringResource(SYMR.strings.pref_sync_service_category),
                 preferenceItems = listOf(
                     Preference.PreferenceItem.ListPreference(
-                        preference = syncPreferences.syncService(),
+                        preference = syncPreferences.syncService,
                         entries = mapOf(
                             SyncManager.SyncService.NONE.value to stringResource(MR.strings.off),
                             SyncManager.SyncService.SYNCYOMI.value to stringResource(SYMR.strings.syncyomi),
@@ -629,7 +629,7 @@ object SettingsDataScreen : SearchableSettings {
             getAutomaticSyncGroup(syncPreferences),
             // KMK -->
             Preference.PreferenceItem.SwitchPreference(
-                preference = syncPreferences.showSyncingProgressBanner(),
+                preference = syncPreferences.showSyncingProgressBanner,
                 title = stringResource(KMR.strings.pref_show_syncing_progress_banner),
             ),
             // KMK <--
@@ -723,7 +723,7 @@ object SettingsDataScreen : SearchableSettings {
 
         val qrScanLauncher = rememberLauncherForActivityResult(ScanContract()) {
             if (it.contents != null && it.contents.isNotEmpty()) {
-                syncPreferences.clientAPIKey().set(it.contents)
+                syncPreferences.clientAPIKey.set(it.contents)
             }
         }
         val context = LocalContext.current
@@ -738,7 +738,7 @@ object SettingsDataScreen : SearchableSettings {
 
         return listOf(
             Preference.PreferenceItem.EditTextPreference(
-                preference = syncPreferences.clientHost(),
+                preference = syncPreferences.clientHost,
                 title = stringResource(SYMR.strings.pref_sync_host),
                 subtitle = stringResource(SYMR.strings.pref_sync_host_summ),
                 onValueChanged = { newValue ->
@@ -746,7 +746,7 @@ object SettingsDataScreen : SearchableSettings {
                         // Trim spaces at the beginning and end, then remove trailing slash if present
                         val trimmedValue = newValue.trim()
                         val modifiedValue = trimmedValue.trimEnd { it == '/' }
-                        syncPreferences.clientHost().set(modifiedValue)
+                        syncPreferences.clientHost.set(modifiedValue)
                     }
                     true
                 },
@@ -754,13 +754,13 @@ object SettingsDataScreen : SearchableSettings {
             Preference.PreferenceItem.CustomPreference(
                 title = stringResource(SYMR.strings.pref_sync_api_key),
             ) {
-                val values by syncPreferences.clientAPIKey().collectAsState()
+                val values by syncPreferences.clientAPIKey.collectAsState()
                 EditTextPreferenceWidget(
                     title = stringResource(SYMR.strings.pref_sync_api_key),
                     subtitle = stringResource(SYMR.strings.pref_sync_api_key_summ),
                     onConfirm = {
                         scope.launch {
-                            syncPreferences.clientAPIKey().set(it)
+                            syncPreferences.clientAPIKey.set(it)
                         }
                         true
                     },
@@ -789,23 +789,23 @@ object SettingsDataScreen : SearchableSettings {
 
         return listOf(
             Preference.PreferenceItem.EditTextPreference(
-                preference = syncPreferences.webDavUrl(),
+                preference = syncPreferences.webDavUrl,
                 title = stringResource(KMR.strings.pref_webdav_url),
                 subtitle = stringResource(KMR.strings.pref_webdav_url_summ),
                 onValueChanged = { newValue ->
                     scope.launch {
-                        syncPreferences.webDavUrl().set(newValue.trim())
+                        syncPreferences.webDavUrl.set(newValue.trim())
                     }
                     true
                 },
             ),
             Preference.PreferenceItem.EditTextPreference(
-                preference = syncPreferences.webDavUsername(),
+                preference = syncPreferences.webDavUsername,
                 title = stringResource(KMR.strings.pref_webdav_username),
                 subtitle = stringResource(KMR.strings.pref_webdav_username_summ),
                 onValueChanged = { newValue ->
                     scope.launch {
-                        syncPreferences.webDavUsername().set(newValue.trim())
+                        syncPreferences.webDavUsername.set(newValue.trim())
                     }
                     true
                 },
@@ -818,7 +818,7 @@ object SettingsDataScreen : SearchableSettings {
                         onReturnPassword = { password ->
                             dialogOpen = false
                             scope.launch {
-                                syncPreferences.webDavPassword().set(password.replace("\n", ""))
+                                syncPreferences.webDavPassword.set(password.replace("\n", ""))
                             }
                         },
                         title = KMR.strings.pref_webdav_password,
@@ -833,12 +833,12 @@ object SettingsDataScreen : SearchableSettings {
                 )
             },
             Preference.PreferenceItem.EditTextPreference(
-                preference = syncPreferences.webDavFolder(),
+                preference = syncPreferences.webDavFolder,
                 title = stringResource(KMR.strings.pref_webdav_folder),
                 subtitle = stringResource(KMR.strings.pref_webdav_folder_summ),
                 onValueChanged = { newValue ->
                     scope.launch {
-                        syncPreferences.webDavFolder().set(newValue.trim())
+                        syncPreferences.webDavFolder.set(newValue.trim())
                     }
                     true
                 },
@@ -882,8 +882,8 @@ object SettingsDataScreen : SearchableSettings {
     @Composable
     private fun getAutomaticSyncGroup(syncPreferences: SyncPreferences): Preference.PreferenceGroup {
         val context = LocalContext.current
-        val syncIntervalPref = syncPreferences.syncInterval()
-        val lastSync by syncPreferences.lastSyncTimestamp().collectAsState()
+        val syncIntervalPref = syncPreferences.syncInterval
+        val lastSync by syncPreferences.lastSyncTimestamp.collectAsState()
 
         return Preference.PreferenceGroup(
             title = stringResource(SYMR.strings.pref_sync_automatic_category),

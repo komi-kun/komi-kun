@@ -18,7 +18,7 @@ class ChapterUrlHashMigration : Migration {
     override suspend fun invoke(migrationContext: MigrationContext): Boolean = withIOContext {
         val downloadPreferences = migrationContext.get<DownloadPreferences>() ?: return@withIOContext false
 
-        val includeChapterUrlHash = downloadPreferences.includeChapterUrlHash()
+        val includeChapterUrlHash = downloadPreferences.includeChapterUrlHash
         if (!includeChapterUrlHash.isSet()) {
             includeChapterUrlHash.set(true)
         }

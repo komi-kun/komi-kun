@@ -32,7 +32,7 @@ class BiometricTimesViewModel(
     init {
         viewModelScope.launchIO {
             // todo usecase
-            preferences.authenticatorTimeRanges().changes()
+            preferences.authenticatorTimeRanges.changes()
                 .collectLatest { times ->
                     val context = Injekt.get<Application>()
                     state.update {
@@ -61,7 +61,7 @@ class BiometricTimesViewModel(
                 return@launchIO
             }
 
-            preferences.authenticatorTimeRanges() += timeRange.toPreferenceString()
+            preferences.authenticatorTimeRanges += timeRange.toPreferenceString()
         }
     }
 
@@ -74,7 +74,7 @@ class BiometricTimesViewModel(
         // todo usecase
         viewModelScope.launchIO {
             val state = state.value as? BiometricTimesScreenState.Success ?: return@launchIO
-            preferences.authenticatorTimeRanges().set(
+            preferences.authenticatorTimeRanges.set(
                 state.timeRanges.filterNot { it == timeRange }.map { it.timeRange.toPreferenceString() }.toSet(),
             )
         }

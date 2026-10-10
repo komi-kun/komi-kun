@@ -55,9 +55,9 @@ abstract class SearchViewModel(
     private val coroutineDispatcher = Executors.newFixedThreadPool(5).asCoroutineDispatcher()
     private var searchJob: Job? = null
 
-    private val enabledLanguages = sourcePreferences.enabledLanguages().get()
-    private val disabledSources = sourcePreferences.disabledSources().get()
-    protected val pinnedSources = sourcePreferences.pinnedSources().get()
+    private val enabledLanguages = sourcePreferences.enabledLanguages.get()
+    private val disabledSources = sourcePreferences.disabledSources.get()
+    protected val pinnedSources = sourcePreferences.pinnedSources.get()
 
     private var lastQuery: String? = null
     private var lastSourceFilter: SourceFilter? = null
@@ -74,13 +74,13 @@ abstract class SearchViewModel(
 
     init {
         viewModelScope.launch {
-            preferences.globalSearchFilterState().changes().collectLatest { filterState ->
+            preferences.globalSearchFilterState.changes().collectLatest { filterState ->
                 state.update { it.copy(onlyShowHasResults = filterState) }
             }
         }
         // KMK -->
         viewModelScope.launch {
-            preferences.globalSearchPinnedState().changes().collectLatest { pinnedState ->
+            preferences.globalSearchPinnedState.changes().collectLatest { pinnedState ->
                 state.update { it.copy(sourceFilter = pinnedState) }
             }
         }
@@ -114,7 +114,7 @@ abstract class SearchViewModel(
 
     fun shouldPinnedSourcesHidden() {
         if (!hasPinnedSources()) {
-            preferences.globalSearchPinnedState().set(SourceFilter.All)
+            preferences.globalSearchPinnedState.set(SourceFilter.All)
         }
     }
     // KMK <--
@@ -141,12 +141,12 @@ abstract class SearchViewModel(
     }
 
     fun setSourceFilter(filter: SourceFilter) {
-        preferences.globalSearchPinnedState().set(filter)
+        preferences.globalSearchPinnedState.set(filter)
         search()
     }
 
     fun toggleFilterResults() {
-        preferences.globalSearchFilterState().toggle()
+        preferences.globalSearchFilterState.toggle()
     }
 
     fun search() {

@@ -66,15 +66,15 @@ object SettingsDiscordScreen : SearchableSettings {
         val navigator = LocalNavigator.currentOrThrow
         val connectionsPreferences = remember { Injekt.get<ConnectionsPreferences>() }
         val connectionsManager = remember { Injekt.get<ConnectionsManager>() }
-        val enableDRPCPref = connectionsPreferences.enableDiscordRPC()
-        val useChapterTitlesPref = connectionsPreferences.useChapterTitles()
-        val discordRPCStatus = connectionsPreferences.discordRPCStatus()
-        val customMessagePref = connectionsPreferences.discordCustomMessage()
-        val showProgressPref = connectionsPreferences.discordShowProgress()
-        val showTimestampPref = connectionsPreferences.discordShowTimestamp()
-        val showButtonsPref = connectionsPreferences.discordShowButtons()
-        val showDownloadButtonPref = connectionsPreferences.discordShowDownloadButton()
-        val showDiscordButtonPref = connectionsPreferences.discordShowDiscordButton()
+        val enableDRPCPref = connectionsPreferences.enableDiscordRPC
+        val useChapterTitlesPref = connectionsPreferences.useChapterTitles
+        val discordRPCStatus = connectionsPreferences.discordRPCStatus
+        val customMessagePref = connectionsPreferences.discordCustomMessage
+        val showProgressPref = connectionsPreferences.discordShowProgress
+        val showTimestampPref = connectionsPreferences.discordShowTimestamp
+        val showButtonsPref = connectionsPreferences.discordShowButtons
+        val showDownloadButtonPref = connectionsPreferences.discordShowDownloadButton
+        val showDiscordButtonPref = connectionsPreferences.discordShowDiscordButton
         val showProgressEnabled by showProgressPref.collectAsState()
 
         val enableDRPC by enableDRPCPref.collectAsState()
@@ -252,8 +252,8 @@ object SettingsDiscordScreen : SearchableSettings {
         val getCategories = remember { Injekt.get<GetCategories>() }
         val allCategories by getCategories.subscribe().collectAsState(initial = emptyList())
 
-        val discordRPCIncognitoPref = connectionsPreferences.discordRPCIncognito()
-        val discordRPCIncognitoCategoriesPref = connectionsPreferences.discordRPCIncognitoCategories()
+        val discordRPCIncognitoPref = connectionsPreferences.discordRPCIncognito
+        val discordRPCIncognitoCategoriesPref = connectionsPreferences.discordRPCIncognitoCategories
 
         return Preference.PreferenceGroup(
             title = stringResource(MR.strings.categories),

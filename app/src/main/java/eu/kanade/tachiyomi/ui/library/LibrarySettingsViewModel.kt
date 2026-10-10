@@ -38,7 +38,7 @@ class LibrarySettingsViewModel(
         )
 
     // SY -->
-    val grouping by libraryPreferences.groupLibraryBy().asState(viewModelScope)
+    val grouping by libraryPreferences.groupLibraryBy.asState(viewModelScope)
 
     // SY <--
     fun toggleFilter(preference: (LibraryPreferences) -> Preference<TriState>) {
@@ -64,7 +64,7 @@ class LibrarySettingsViewModel(
     // SY -->
     fun setGrouping(grouping: Int) {
         viewModelScope.launchIO {
-            libraryPreferences.groupLibraryBy().set(grouping)
+            libraryPreferences.groupLibraryBy.set(grouping)
         }
     }
     // SY <--

@@ -176,14 +176,14 @@ class LibraryViewModel(
 
     private val dialog = MutableStateFlow<Dialog?>(null)
 
-    private val activeCategoryIndex = MutableStateFlow(libraryPreferences.lastUsedCategory().get())
+    private val activeCategoryIndex = MutableStateFlow(libraryPreferences.lastUsedCategory.get())
 
     // KMK -->
     private val activeCategoryId = MutableStateFlow<Long?>(null)
     // KMK <--
 
     // SY -->
-    private val groupType = MutableStateFlow(libraryPreferences.groupLibraryBy().get())
+    private val groupType = MutableStateFlow(libraryPreferences.groupLibraryBy.get())
     private val showSyncExh = MutableStateFlow(false)
     private val isSyncEnabled = MutableStateFlow(false)
     // SY <--
@@ -195,9 +195,9 @@ class LibraryViewModel(
     // KMK <--
 
     private val displayPreferences = combine(
-        libraryPreferences.categoryTabs().changes(),
-        libraryPreferences.categoryNumberOfItems().changes(),
-        libraryPreferences.showContinueReadingButton().changes(),
+        libraryPreferences.categoryTabs.changes(),
+        libraryPreferences.categoryNumberOfItems.changes(),
+        libraryPreferences.showContinueReadingButton.changes(),
         ::DisplayPreferences,
     )
 
@@ -288,9 +288,9 @@ class LibraryViewModel(
             ::Triple,
         ),
         combine(
-            libraryPreferences.sortingMode().changes(),
-            libraryPreferences.showHiddenCategories().changes(),
-            libraryPreferences.showEmptyCategoriesSearch().changes(),
+            libraryPreferences.sortingMode.changes(),
+            libraryPreferences.showHiddenCategories.changes(),
+            libraryPreferences.showEmptyCategoriesSearch.changes(),
             ::Triple,
         ),
         combine(searchQuery, hasActiveFilters, ::Pair),
@@ -588,7 +588,7 @@ class LibraryViewModel(
     ): Map<Category, List</* LibraryItem */ Long>> {
         // SY -->
         val listOfTags by lazy {
-            libraryPreferences.sortTagsForLibrary().get()
+            libraryPreferences.sortTagsForLibrary.get()
                 .asSequence()
                 .mapNotNull {
                     val list = it.split("|")
@@ -681,7 +681,7 @@ class LibraryViewModel(
             val sort = groupSort ?: key.sort
             if (sort.type == LibrarySort.Type.Random) {
                 // SY <--
-                return@mapValues value.shuffled(Random(libraryPreferences.randomSortSeed().get()))
+                return@mapValues value.shuffled(Random(libraryPreferences.randomSortSeed.get()))
             }
 
             val manga = value.mapNotNull { favoritesById[it] }
@@ -698,26 +698,26 @@ class LibraryViewModel(
 
     private fun getLibraryItemPreferencesFlow(): Flow<ItemPreferences> {
         return combine(
-            libraryPreferences.downloadBadge().changes(),
-            libraryPreferences.unreadBadge().changes(),
-            libraryPreferences.localBadge().changes(),
-            libraryPreferences.languageBadge().changes(),
-            libraryPreferences.autoUpdateMangaRestrictions().changes(),
+            libraryPreferences.downloadBadge.changes(),
+            libraryPreferences.unreadBadge.changes(),
+            libraryPreferences.localBadge.changes(),
+            libraryPreferences.languageBadge.changes(),
+            libraryPreferences.autoUpdateMangaRestrictions.changes(),
 
-            preferences.downloadedOnly().changes(),
-            libraryPreferences.filterDownloaded().changes(),
-            libraryPreferences.filterUnread().changes(),
-            libraryPreferences.filterStarted().changes(),
-            libraryPreferences.filterBookmarked().changes(),
-            libraryPreferences.filterCompleted().changes(),
-            libraryPreferences.filterIntervalCustom().changes(),
+            preferences.downloadedOnly.changes(),
+            libraryPreferences.filterDownloaded.changes(),
+            libraryPreferences.filterUnread.changes(),
+            libraryPreferences.filterStarted.changes(),
+            libraryPreferences.filterBookmarked.changes(),
+            libraryPreferences.filterCompleted.changes(),
+            libraryPreferences.filterIntervalCustom.changes(),
             // SY -->
-            libraryPreferences.filterLewd().changes(),
+            libraryPreferences.filterLewd.changes(),
             // SY <--
             // KMK -->
-            libraryPreferences.sourceBadge().changes(),
-            libraryPreferences.useLangIcon().changes(),
-            libraryPreferences.filterCategories().changes(),
+            libraryPreferences.sourceBadge.changes(),
+            libraryPreferences.useLangIcon.changes(),
+            libraryPreferences.filterCategories.changes(),
             // KMK <--
         ) {
             ItemPreferences(
@@ -1147,11 +1147,11 @@ class LibraryViewModel(
     }
 
     fun getDisplayMode(): PreferenceMutableState<LibraryDisplayMode> {
-        return libraryPreferences.displayMode().asState(viewModelScope)
+        return libraryPreferences.displayMode.asState(viewModelScope)
     }
 
     fun getColumnsForOrientation(isLandscape: Boolean): PreferenceMutableState<Int> {
-        return (if (isLandscape) libraryPreferences.landscapeColumns() else libraryPreferences.portraitColumns())
+        return (if (isLandscape) libraryPreferences.landscapeColumns else libraryPreferences.portraitColumns)
             .asState(viewModelScope)
     }
 
@@ -1438,7 +1438,7 @@ class LibraryViewModel(
         // Coerce here rather than reading it back off [state], which is derived asynchronously
         // and would still hold the previous index at this point.
         val lastIndex = state.value.displayedCategories.lastIndex.coerceAtLeast(0)
-        libraryPreferences.lastUsedCategory().set(index.coerceIn(0, lastIndex))
+        libraryPreferences.lastUsedCategory.set(index.coerceIn(0, lastIndex))
     }
 
     fun openChangeCategoryDialog() {
@@ -1613,12 +1613,12 @@ class LibraryViewModel(
     }
 
     fun onAcceptSyncWarning() {
-        exhPreferences.exhShowSyncIntro().set(false)
+        exhPreferences.exhShowSyncIntro.set(false)
     }
 
     fun openFavoritesSyncDialog() {
         dialog.update {
-            if (exhPreferences.exhShowSyncIntro().get()) {
+            if (exhPreferences.exhShowSyncIntro.get()) {
                 Dialog.SyncFavoritesWarning
             } else {
                 Dialog.SyncFavoritesConfirm

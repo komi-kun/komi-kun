@@ -28,8 +28,8 @@ class SourcesFilterViewModel(
 
     val state: StateFlow<State> = combine(
         getLanguagesWithSources.subscribe(),
-        preferences.enabledLanguages().changes(),
-        preferences.disabledSources().changes(),
+        preferences.enabledLanguages.changes(),
+        preferences.disabledSources.changes(),
     ) { languagesWithSources, enabledLanguages, disabledSources ->
         State.Success(
             items = languagesWithSources,

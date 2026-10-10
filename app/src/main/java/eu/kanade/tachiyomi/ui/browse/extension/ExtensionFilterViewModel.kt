@@ -32,7 +32,7 @@ class ExtensionFilterViewModel(
 
     val state: StateFlow<ExtensionFilterState> = combine(
         getExtensionLanguages.subscribe(),
-        preferences.enabledLanguages().changes(),
+        preferences.enabledLanguages.changes(),
     ) { extensionLanguages, enabledLanguages ->
         ExtensionFilterState.Success(
             languages = extensionLanguages.toList(),

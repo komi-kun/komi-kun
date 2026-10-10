@@ -10,27 +10,27 @@ class UpdatesPreferences(
     private val preferenceStore: PreferenceStore,
 ) {
 
-    fun filterDownloaded() = preferenceStore.getEnum(
+    val filterDownloaded = preferenceStore.getEnum(
         "pref_filter_updates_downloaded",
         TriState.DISABLED,
     )
 
-    fun filterUnread() = preferenceStore.getEnum(
+    val filterUnread = preferenceStore.getEnum(
         "pref_filter_updates_unread",
         TriState.DISABLED,
     )
 
-    fun filterStarted() = preferenceStore.getEnum(
+    val filterStarted = preferenceStore.getEnum(
         "pref_filter_updates_started",
         TriState.DISABLED,
     )
 
-    fun filterBookmarked() = preferenceStore.getEnum(
+    val filterBookmarked = preferenceStore.getEnum(
         "pref_filter_updates_bookmarked",
         TriState.DISABLED,
     )
 
-    fun filterExcludedScanlators() = preferenceStore.getBoolean(
+    val filterExcludedScanlators = preferenceStore.getBoolean(
         "pref_filter_updates_hide_excluded_scanlators",
         false,
     )
@@ -46,7 +46,7 @@ class UpdatesPreferences(
     )
 
     // KMK -->
-    fun usePanoramaCover() = preferenceStore.getBoolean(
+    val usePanoramaCover = preferenceStore.getBoolean(
         USE_PANORAMA_COVER_PREF,
         false,
     )

@@ -132,7 +132,7 @@ internal fun Track.toApiStatus(): MediaListStatus = when (status) {
 
 private val preferences: TrackPreferences by injectLazy()
 
-internal fun DomainTrack.toApiScore(): String = when (preferences.anilistScoreType().get()) {
+internal fun DomainTrack.toApiScore(): String = when (preferences.anilistScoreType.get()) {
     // 10 point
     "POINT_10" -> (score.toInt() / 10).toString()
     // 100 point

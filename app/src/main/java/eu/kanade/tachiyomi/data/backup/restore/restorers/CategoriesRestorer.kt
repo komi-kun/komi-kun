@@ -85,7 +85,7 @@ class CategoriesRestorer(
             database.categoriesQueries.resetIsSyncing()
             // SY <--
 
-            libraryPreferences.categorizedDisplaySettings().set(
+            libraryPreferences.categorizedDisplaySettings.set(
                 (dbCategories + categories)
                     .distinctBy { it.flags }
                     .size > 1,

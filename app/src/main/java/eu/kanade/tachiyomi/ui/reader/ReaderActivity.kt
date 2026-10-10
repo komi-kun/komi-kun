@@ -165,7 +165,7 @@ class ReaderActivity : BaseActivity() {
     private val preferences = Injekt.get<BasePreferences>()
 
     // KMK -->
-    val themeCoverBased = Injekt.get<UiPreferences>().themeCoverBased().get()
+    val themeCoverBased = Injekt.get<UiPreferences>().themeCoverBased.get()
     // KMK <--
 
     // AM (CONNECTIONS) -->
@@ -244,7 +244,7 @@ class ReaderActivity : BaseActivity() {
         // EXH <--
 
         // Finish when incognito mode is disabled
-        preferences.incognitoMode().changes()
+        preferences.incognitoMode.changes()
             .drop(1)
             .onEach { if (!it) finish() }
             .launchIn(lifecycleScope)
@@ -316,7 +316,7 @@ class ReaderActivity : BaseActivity() {
             val context = LocalContext.current
             // KMK <--
             val state by viewModel.state.collectAsState()
-            val showPageNumber by readerPreferences.showPageNumber().collectAsState()
+            val showPageNumber by readerPreferences.showPageNumber.collectAsState()
             val settingsViewModel = remember {
                 ReaderSettingsViewModel(
                     readerState = viewModel.state,
@@ -392,7 +392,7 @@ class ReaderActivity : BaseActivity() {
                         viewModel = settingsViewModel,
                         onChange = { stringRes ->
                             menuToggleToast?.cancel()
-                            if (!readerPreferences.showReadingMode().get()) {
+                            if (!readerPreferences.showReadingMode.get()) {
                                 menuToggleToast = toast(stringRes)
                             }
                         },
@@ -611,11 +611,11 @@ class ReaderActivity : BaseActivity() {
 
     @Composable
     private fun ContentOverlay(state: ReaderViewModel.State) {
-        val flashOnPageChange by readerPreferences.flashOnPageChange().collectAsState()
+        val flashOnPageChange by readerPreferences.flashOnPageChange.collectAsState()
 
-        val colorOverlayEnabled by readerPreferences.colorFilter().collectAsState()
-        val colorOverlay by readerPreferences.colorFilterValue().collectAsState()
-        val colorOverlayMode by readerPreferences.colorFilterMode().collectAsState()
+        val colorOverlayEnabled by readerPreferences.colorFilter.collectAsState()
+        val colorOverlay by readerPreferences.colorFilterValue.collectAsState()
+        val colorOverlayMode by readerPreferences.colorFilterMode.collectAsState()
         val colorOverlayBlendMode = remember(colorOverlayMode) {
             ReaderPreferences.ColorFilterMode.getOrNull(colorOverlayMode)?.second
         }
@@ -639,13 +639,13 @@ class ReaderActivity : BaseActivity() {
 
         val isHttpSource = viewModel.getSource() is HttpSource
 
-        val cropBorderPaged by readerPreferences.cropBorders().collectAsState()
-        val cropBorderWebtoon by readerPreferences.cropBordersWebtoon().collectAsState()
+        val cropBorderPaged by readerPreferences.cropBorders.collectAsState()
+        val cropBorderWebtoon by readerPreferences.cropBordersWebtoon.collectAsState()
         // SY -->
         val readingMode = viewModel.getMangaReadingMode()
         val isPagerType = ReadingMode.isPagerType(readingMode)
         val isWebtoon = ReadingMode.WEBTOON.flagValue == readingMode
-        val cropBorderContinuousVertical by readerPreferences.cropBordersContinuousVertical().collectAsState()
+        val cropBorderContinuousVertical by readerPreferences.cropBordersContinuousVertical.collectAsState()
         val cropEnabled = if (isPagerType) {
             cropBorderPaged
         } else if (isWebtoon) {
@@ -656,7 +656,7 @@ class ReaderActivity : BaseActivity() {
         val readerBottomButtons by remember {
             readerPreferences.readerBottomButtons.changes().map { it.toSet() }
         }.collectAsState(setOf())
-        val dualPageSplitPaged by readerPreferences.dualPageSplitPaged().collectAsState()
+        val dualPageSplitPaged by readerPreferences.dualPageSplitPaged.collectAsState()
         // SY <--
 
         val verticalNavigatorModes by readerPreferences.verticalNavigator.collectAsState()
@@ -744,13 +744,13 @@ class ReaderActivity : BaseActivity() {
             doublePages = state.doublePages,
             onClickChapterList = viewModel::openChapterListDialog,
             onClickPageLayout = {
-                if (readerPreferences.pageLayout().get() == PagerConfig.PageLayout.AUTOMATIC) {
+                if (readerPreferences.pageLayout.get() == PagerConfig.PageLayout.AUTOMATIC) {
                     (viewModel.state.value.viewer as? PagerViewer)?.config?.let { config ->
                         config.doublePages = !config.doublePages
                         reloadChapters(config.doublePages, true)
                     }
                 } else {
-                    readerPreferences.pageLayout().set(1 - readerPreferences.pageLayout().get())
+                    readerPreferences.pageLayout.set(1 - readerPreferences.pageLayout.get())
                 }
             },
             onClickShiftPage = ::shiftDoublePages,
@@ -776,7 +776,7 @@ class ReaderActivity : BaseActivity() {
 
     // EXH -->
     private fun enableExhAutoScroll() {
-        readerPreferences.autoscrollInterval().changes()
+        readerPreferences.autoscrollInterval.changes()
             .combine(viewModel.state.map { it.autoScroll }.distinctUntilChanged()) { interval, enabled ->
                 interval.toDouble() to enabled
             }.mapLatest { (intervalFloat, enabled) ->
@@ -789,7 +789,7 @@ class ReaderActivity : BaseActivity() {
                                     when (v) {
                                         is PagerViewer -> v.moveToNext()
                                         is WebtoonViewer -> {
-                                            if (readerPreferences.smoothAutoScroll().get()) {
+                                            if (readerPreferences.smoothAutoScroll.get()) {
                                                 v.linearScroll(interval)
                                             } else {
                                                 v.scrollDown()
@@ -928,7 +928,7 @@ class ReaderActivity : BaseActivity() {
         viewModel.showMenus(visible)
         if (visible) {
             windowInsetsController.show(WindowInsetsCompat.Type.systemBars())
-        } else if (readerPreferences.fullscreen().get()) {
+        } else if (readerPreferences.fullscreen.get()) {
             windowInsetsController.hide(WindowInsetsCompat.Type.systemBars())
         }
     }
@@ -961,12 +961,12 @@ class ReaderActivity : BaseActivity() {
             binding.viewerContainer.removeAllViews()
         }
         viewModel.onViewerLoaded(newViewer)
-        updateViewerInset(readerPreferences.fullscreen().get(), readerPreferences.drawUnderCutout().get())
+        updateViewerInset(readerPreferences.fullscreen.get(), readerPreferences.drawUnderCutout.get())
         binding.viewerContainer.addView(newViewer.getView())
 
         // SY -->
         if (newViewer is PagerViewer) {
-            if (readerPreferences.pageLayout().get() == PagerConfig.PageLayout.AUTOMATIC) {
+            if (readerPreferences.pageLayout.get() == PagerConfig.PageLayout.AUTOMATIC) {
                 setDoublePageMode(newViewer)
             }
             viewModel.state.value.lastShiftDoubleState?.let { newViewer.config.shiftDoublePage = it }
@@ -977,14 +977,14 @@ class ReaderActivity : BaseActivity() {
             manga.mangaType(sourceName = sourceManager.get(manga.source)?.name),
         )
         if (
-            readerPreferences.useAutoWebtoon().get() &&
+            readerPreferences.useAutoWebtoon.get() &&
             (manga?.readingMode?.toInt() ?: ReadingMode.DEFAULT.flagValue) == ReadingMode.DEFAULT.flagValue &&
             defaultReaderType != null &&
             defaultReaderType == ReadingMode.WEBTOON.flagValue
         ) {
             readingModeToast?.cancel()
             readingModeToast = toast(SYMR.strings.eh_auto_webtoon_snack)
-        } else if (readerPreferences.showReadingMode().get()) {
+        } else if (readerPreferences.showReadingMode.get()) {
             // SY <--
             showReadingModeToast(viewModel.getMangaReadingMode())
         }
@@ -1346,27 +1346,27 @@ class ReaderActivity : BaseActivity() {
          * Initializes the reader subscriptions.
          */
         init {
-            readerPreferences.readerTheme().changes()
+            readerPreferences.readerTheme.changes()
                 .onEach { theme ->
                     binding.readerContainer.setBackgroundColor(baseContext.readerBackgroundColor(theme))
                 }
                 .launchIn(lifecycleScope)
 
-            preferences.displayProfile().changes()
+            preferences.displayProfile.changes()
                 .onEach { setDisplayProfile(it) }
                 .launchIn(lifecycleScope)
 
-            readerPreferences.keepScreenOn().changes()
+            readerPreferences.keepScreenOn.changes()
                 .onEach(::setKeepScreenOn)
                 .launchIn(lifecycleScope)
 
-            readerPreferences.customBrightness().changes()
+            readerPreferences.customBrightness.changes()
                 .onEach(::setCustomBrightness)
                 .launchIn(lifecycleScope)
 
             combine(
-                readerPreferences.grayscale().changes(),
-                readerPreferences.invertedColors().changes(),
+                readerPreferences.grayscale.changes(),
+                readerPreferences.invertedColors.changes(),
             ) { grayscale, invertedColors -> grayscale to invertedColors }
                 .onEach { (grayscale, invertedColors) ->
                     setLayerPaint(grayscale, invertedColors)
@@ -1374,8 +1374,8 @@ class ReaderActivity : BaseActivity() {
                 .launchIn(lifecycleScope)
 
             combine(
-                readerPreferences.fullscreen().changes(),
-                readerPreferences.drawUnderCutout().changes(),
+                readerPreferences.fullscreen.changes(),
+                readerPreferences.drawUnderCutout.changes(),
             ) { fullscreen, drawUnderCutout -> fullscreen to drawUnderCutout }
                 .onEach { (fullscreen, drawUnderCutout) ->
                     updateViewerInset(fullscreen, drawUnderCutout)
@@ -1383,7 +1383,7 @@ class ReaderActivity : BaseActivity() {
                 .launchIn(lifecycleScope)
 
             // SY -->
-            readerPreferences.pageLayout().changes()
+            readerPreferences.pageLayout.changes()
                 .drop(1)
                 .onEach {
                     viewModel.setDoublePages(
@@ -1395,13 +1395,13 @@ class ReaderActivity : BaseActivity() {
                 }
                 .launchIn(lifecycleScope)
 
-            readerPreferences.dualPageSplitPaged().changes()
+            readerPreferences.dualPageSplitPaged.changes()
                 .drop(1)
                 .onEach {
                     if (viewModel.state.value.viewer !is PagerViewer) return@onEach
                     reloadChapters(
                         !it &&
-                            when (readerPreferences.pageLayout().get()) {
+                            when (readerPreferences.pageLayout.get()) {
                                 PagerConfig.PageLayout.DOUBLE_PAGES -> true
                                 PagerConfig.PageLayout.AUTOMATIC ->
                                     resources.configuration.orientation ==
@@ -1451,7 +1451,7 @@ class ReaderActivity : BaseActivity() {
          */
         private fun setCustomBrightness(enabled: Boolean) {
             if (enabled) {
-                readerPreferences.customBrightnessValue().changes()
+                readerPreferences.customBrightnessValue.changes()
                     .sample(0.1.seconds)
                     .onEach(::setCustomBrightnessValue)
                     .launchIn(lifecycleScope)
@@ -1496,7 +1496,7 @@ class ReaderActivity : BaseActivity() {
      * If false, the Discord RPC status is set to the current reader activity, displaying details such as the manga title, chapter number, and chapter title.
      */
     private fun updateDiscordRPC(exitingReader: Boolean) {
-        if (!connectionsPreferences.enableDiscordRPC().get()) return
+        if (!connectionsPreferences.enableDiscordRPC.get()) return
 
         DiscordRPCService.discordScope.launchIO {
             try {
@@ -1511,7 +1511,7 @@ class ReaderActivity : BaseActivity() {
                             mangaId = manga.id,
                             mangaTitle = manga.ogTitle,
                             thumbnailUrl = manga.thumbnailUrl.takeIf { UrlUtils.isOnlineUrl(it) } ?: manga.ogThumbnailUrl,
-                            chapterNumber = if (connectionsPreferences.useChapterTitles().get()) {
+                            chapterNumber = if (connectionsPreferences.useChapterTitles.get()) {
                                 chapter.name
                             } else {
                                 chapter.chapterNumber.toString()

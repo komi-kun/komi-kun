@@ -78,12 +78,12 @@ class AndroidSourceManager(
         scope.launch {
             extensionManager.loadedExtensionsFlow
                 // SY -->
-                .combine(exhPreferences.enableExhentai().changes()) { extensions, enableExhentai ->
+                .combine(exhPreferences.enableExhentai.changes()) { extensions, enableExhentai ->
                     extensions to enableExhentai
                 }
                 // KMK -->
                 .combine(
-                    exhPreferences.isHentaiEnabled().changes(),
+                    exhPreferences.isHentaiEnabled.changes(),
                 ) { (a, b), c -> Triple(a, b, c) }
                 // KMK <--
                 // SY <--
@@ -95,7 +95,7 @@ class AndroidSourceManager(
                                 Injekt.get(),
                                 Injekt.get(),
                                 // SY -->
-                                sourcePreferences.allowLocalSourceHiddenFolders()::get,
+                                sourcePreferences.allowLocalSourceHiddenFolders::get,
                                 // SY <--
                             ),
                         ),

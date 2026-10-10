@@ -157,7 +157,7 @@ class MigrateDialogViewModel(
                 if (applicable) add(it)
             }
         }
-        val selectedFlags = sourcePreference.migrationFlags().get()
+        val selectedFlags = sourcePreference.migrationFlags.get()
         state.update {
             State(
                 current = current,

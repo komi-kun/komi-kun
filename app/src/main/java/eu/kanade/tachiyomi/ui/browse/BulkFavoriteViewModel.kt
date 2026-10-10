@@ -152,7 +152,7 @@ class BulkFavoriteViewModel(
                 return@launch
             }
             val categories = getCategories()
-            val defaultCategoryId = libraryPreferences.defaultCategory().get()
+            val defaultCategoryId = libraryPreferences.defaultCategory.get()
             val defaultCategory = categories.find { it.id == defaultCategoryId.toLong() }
 
             when {
@@ -250,8 +250,8 @@ class BulkFavoriteViewModel(
                 setMangaDefaultChapterFlags.await(manga)
                 addTracks.bindEnhancedTrackers(manga, source)
                 updateManga.awaitUpdateFavorite(manga.id, true)
-                val fetchMetadataOnAdd = libraryPreferences.fetchMetadataOnAdd().get()
-                val fetchChaptersOnAdd = libraryPreferences.fetchChaptersOnAdd().get()
+                val fetchMetadataOnAdd = libraryPreferences.fetchMetadataOnAdd.get()
+                val fetchChaptersOnAdd = libraryPreferences.fetchChaptersOnAdd.get()
                 if (fetchMetadataOnAdd || fetchChaptersOnAdd) {
                     try {
                         updateMangaFromRemote(
@@ -351,8 +351,8 @@ class BulkFavoriteViewModel(
             }
 
             updateManga.await(new.toMangaUpdate())
-            val fetchMetadataOnAdd = libraryPreferences.fetchMetadataOnAdd().get()
-            val fetchChaptersOnAdd = libraryPreferences.fetchChaptersOnAdd().get()
+            val fetchMetadataOnAdd = libraryPreferences.fetchMetadataOnAdd.get()
+            val fetchChaptersOnAdd = libraryPreferences.fetchChaptersOnAdd.get()
             if (new.favorite && (fetchMetadataOnAdd || fetchChaptersOnAdd)) {
                 try {
                     // Use `manga` instead of `new` so its title got updated with source's `getMangaDetails`
@@ -373,7 +373,7 @@ class BulkFavoriteViewModel(
     internal fun addFavorite(manga: Manga) {
         viewModelScope.launch {
             val categories = getCategories()
-            val defaultCategoryId = libraryPreferences.defaultCategory().get()
+            val defaultCategoryId = libraryPreferences.defaultCategory.get()
             val defaultCategory = categories.find { it.id == defaultCategoryId.toLong() }
 
             when {

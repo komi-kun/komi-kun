@@ -122,9 +122,9 @@ private fun ColumnScope.FilterPage(
     viewModel: LibrarySettingsViewModel,
     categories: List<Category>,
 ) {
-    val filterDownloaded by viewModel.libraryPreferences.filterDownloaded().collectAsState()
-    val downloadedOnly by viewModel.preferences.downloadedOnly().collectAsState()
-    val autoUpdateMangaRestrictions by viewModel.libraryPreferences.autoUpdateMangaRestrictions().collectAsState()
+    val filterDownloaded by viewModel.libraryPreferences.filterDownloaded.collectAsState()
+    val downloadedOnly by viewModel.preferences.downloadedOnly.collectAsState()
+    val autoUpdateMangaRestrictions by viewModel.libraryPreferences.autoUpdateMangaRestrictions.collectAsState()
 
     TriStateItem(
         label = stringResource(MR.strings.label_downloaded),
@@ -136,25 +136,25 @@ private fun ColumnScope.FilterPage(
         enabled = !downloadedOnly,
         onClick = { viewModel.toggleFilter(LibraryPreferences::filterDownloaded) },
     )
-    val filterUnread by viewModel.libraryPreferences.filterUnread().collectAsState()
+    val filterUnread by viewModel.libraryPreferences.filterUnread.collectAsState()
     TriStateItem(
         label = stringResource(MR.strings.action_filter_unread),
         state = filterUnread,
         onClick = { viewModel.toggleFilter(LibraryPreferences::filterUnread) },
     )
-    val filterStarted by viewModel.libraryPreferences.filterStarted().collectAsState()
+    val filterStarted by viewModel.libraryPreferences.filterStarted.collectAsState()
     TriStateItem(
         label = stringResource(MR.strings.label_started),
         state = filterStarted,
         onClick = { viewModel.toggleFilter(LibraryPreferences::filterStarted) },
     )
-    val filterBookmarked by viewModel.libraryPreferences.filterBookmarked().collectAsState()
+    val filterBookmarked by viewModel.libraryPreferences.filterBookmarked.collectAsState()
     TriStateItem(
         label = stringResource(MR.strings.action_filter_bookmarked),
         state = filterBookmarked,
         onClick = { viewModel.toggleFilter(LibraryPreferences::filterBookmarked) },
     )
-    val filterCompleted by viewModel.libraryPreferences.filterCompleted().collectAsState()
+    val filterCompleted by viewModel.libraryPreferences.filterCompleted.collectAsState()
     TriStateItem(
         label = stringResource(MR.strings.completed),
         state = filterCompleted,
@@ -162,7 +162,7 @@ private fun ColumnScope.FilterPage(
     )
     // TODO: re-enable when custom intervals are ready for stable
     if ((!isReleaseBuildType) && LibraryPreferences.MANGA_OUTSIDE_RELEASE_PERIOD in autoUpdateMangaRestrictions) {
-        val filterIntervalCustom by viewModel.libraryPreferences.filterIntervalCustom().collectAsState()
+        val filterIntervalCustom by viewModel.libraryPreferences.filterIntervalCustom.collectAsState()
         TriStateItem(
             label = stringResource(MR.strings.action_filter_interval_custom),
             state = filterIntervalCustom,
@@ -170,7 +170,7 @@ private fun ColumnScope.FilterPage(
         )
     }
     // SY -->
-    val filterLewd by viewModel.libraryPreferences.filterLewd().collectAsState()
+    val filterLewd by viewModel.libraryPreferences.filterLewd.collectAsState()
     TriStateItem(
         label = stringResource(SYMR.strings.lewd),
         state = filterLewd,
@@ -221,7 +221,7 @@ private fun ColumnScope.SortPage(
 ) {
     val trackers by viewModel.trackersFlow.collectAsState()
     // SY -->
-    val globalSortMode by viewModel.libraryPreferences.sortingMode().collectAsState()
+    val globalSortMode by viewModel.libraryPreferences.sortingMode.collectAsState()
     val sortingMode = if (viewModel.grouping == LibraryGroup.BY_DEFAULT) {
         category.sort.type
     } else {
@@ -233,9 +233,9 @@ private fun ColumnScope.SortPage(
         !globalSortMode.isAscending
     }
     val hasSortTags by remember {
-        viewModel.libraryPreferences.sortTagsForLibrary().changes()
+        viewModel.libraryPreferences.sortTagsForLibrary.changes()
             .map { it.isNotEmpty() }
-    }.collectAsState(initial = viewModel.libraryPreferences.sortTagsForLibrary().get().isNotEmpty())
+    }.collectAsState(initial = viewModel.libraryPreferences.sortTagsForLibrary.get().isNotEmpty())
     // SY <--
 
     val options = remember(trackers.isEmpty()/* SY --> */, hasSortTags/* SY <-- */) {
@@ -318,7 +318,7 @@ private val displayModes = listOf(
 private fun ColumnScope.DisplayPage(
     viewModel: LibrarySettingsViewModel,
 ) {
-    val displayMode by viewModel.libraryPreferences.displayMode().collectAsState()
+    val displayMode by viewModel.libraryPreferences.displayMode.collectAsState()
     SettingsChipRow(MR.strings.action_display_mode) {
         displayModes.map { (titleRes, mode) ->
             FilterChip(
@@ -333,9 +333,9 @@ private fun ColumnScope.DisplayPage(
         val configuration = LocalConfiguration.current
         val columnPreference = remember {
             if (configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) {
-                viewModel.libraryPreferences.landscapeColumns()
+                viewModel.libraryPreferences.landscapeColumns
             } else {
-                viewModel.libraryPreferences.portraitColumns()
+                viewModel.libraryPreferences.portraitColumns
             }
         }
 
@@ -357,52 +357,52 @@ private fun ColumnScope.DisplayPage(
     HeadingItem(MR.strings.overlay_header)
     CheckboxItem(
         label = stringResource(MR.strings.action_display_download_badge),
-        pref = viewModel.libraryPreferences.downloadBadge(),
+        pref = viewModel.libraryPreferences.downloadBadge,
     )
     CheckboxItem(
         label = stringResource(MR.strings.action_display_unread_badge),
-        pref = viewModel.libraryPreferences.unreadBadge(),
+        pref = viewModel.libraryPreferences.unreadBadge,
     )
     CheckboxItem(
         label = stringResource(MR.strings.action_display_local_badge),
-        pref = viewModel.libraryPreferences.localBadge(),
+        pref = viewModel.libraryPreferences.localBadge,
     )
     CheckboxItem(
         label = stringResource(MR.strings.action_display_language_badge),
-        pref = viewModel.libraryPreferences.languageBadge(),
+        pref = viewModel.libraryPreferences.languageBadge,
     )
     // KMK -->
-    val showLang by viewModel.libraryPreferences.languageBadge().collectAsState()
+    val showLang by viewModel.libraryPreferences.languageBadge.collectAsState()
     if (showLang) {
         CheckboxItem(
             label = stringResource(KMR.strings.action_display_language_icon),
-            pref = viewModel.libraryPreferences.useLangIcon(),
+            pref = viewModel.libraryPreferences.useLangIcon,
         )
     }
     CheckboxItem(
         label = stringResource(KMR.strings.action_display_source_badge),
-        pref = viewModel.libraryPreferences.sourceBadge(),
+        pref = viewModel.libraryPreferences.sourceBadge,
     )
     // KMK <--
     CheckboxItem(
         label = stringResource(MR.strings.action_display_show_continue_reading_button),
-        pref = viewModel.libraryPreferences.showContinueReadingButton(),
+        pref = viewModel.libraryPreferences.showContinueReadingButton,
     )
 
     HeadingItem(MR.strings.tabs_header)
     CheckboxItem(
         label = stringResource(MR.strings.action_display_show_tabs),
-        pref = viewModel.libraryPreferences.categoryTabs(),
+        pref = viewModel.libraryPreferences.categoryTabs,
     )
     // KMK -->
     CheckboxItem(
         label = stringResource(KMR.strings.action_show_hidden_categories),
-        pref = viewModel.libraryPreferences.showHiddenCategories(),
+        pref = viewModel.libraryPreferences.showHiddenCategories,
     )
     // KMK <--
     CheckboxItem(
         label = stringResource(MR.strings.action_display_show_number_of_items),
-        pref = viewModel.libraryPreferences.categoryNumberOfItems(),
+        pref = viewModel.libraryPreferences.categoryNumberOfItems,
     )
 }
 
@@ -469,10 +469,10 @@ private fun CategoriesFilter(
     libraryPreferences: LibraryPreferences,
     categories: List<Category>,
 ) {
-    val filterCategories by libraryPreferences.filterCategories().collectAsState()
+    val filterCategories by libraryPreferences.filterCategories.collectAsState()
 
-    val filterCategoriesInclude = libraryPreferences.filterCategoriesInclude()
-    val filterCategoriesExclude = libraryPreferences.filterCategoriesExclude()
+    val filterCategoriesInclude = libraryPreferences.filterCategoriesInclude
+    val filterCategoriesExclude = libraryPreferences.filterCategoriesExclude
     val included by filterCategoriesInclude.collectAsState()
     val excluded by filterCategoriesExclude.collectAsState()
 
@@ -496,7 +496,7 @@ private fun CategoriesFilter(
 
     Row(
         modifier = Modifier
-            .clickable(onClick = { libraryPreferences.filterCategories().toggle() })
+            .clickable(onClick = { libraryPreferences.filterCategories.toggle() })
             .fillMaxWidth()
             .padding(horizontal = SettingsItemsPaddings.Horizontal),
         verticalAlignment = Alignment.CenterVertically,

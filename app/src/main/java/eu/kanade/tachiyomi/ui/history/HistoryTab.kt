@@ -77,7 +77,7 @@ data object HistoryTab : Tab {
     override fun isEnabled(): Boolean {
         val scope = rememberCoroutineScope()
         return remember {
-            Injekt.get<UiPreferences>().showNavHistory().asState(scope)
+            Injekt.get<UiPreferences>().showNavHistory.asState(scope)
         }.value
     }
     // SY <--
@@ -90,7 +90,7 @@ data object HistoryTab : Tab {
         val state by viewModel.state.collectAsState()
         // KMK -->
         val settingsViewModel = viewModel<HistorySettingsViewModel>()
-        val usePanoramaCover by settingsViewModel.historyPreferences.usePanoramaCover().collectAsState()
+        val usePanoramaCover by settingsViewModel.historyPreferences.usePanoramaCover.collectAsState()
         // KMK <--
 
         HistoryScreen(

@@ -209,7 +209,7 @@ class EnhancedHttpSource(
     override fun getFilterList() = source().getFilterList()
 
     fun source(): HttpSource {
-        return if (Injekt.get<DelegateSourcePreferences>().delegateSources().get()) {
+        return if (Injekt.get<DelegateSourcePreferences>().delegateSources.get()) {
             enhancedSource
         } else {
             originalSource

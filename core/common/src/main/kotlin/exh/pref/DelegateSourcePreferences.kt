@@ -6,7 +6,7 @@ class DelegateSourcePreferences(
     private val preferenceStore: PreferenceStore,
 ) {
 
-    fun delegateSources() = preferenceStore.getBoolean("eh_delegate_sources", true)
+    val delegateSources = preferenceStore.getBoolean("eh_delegate_sources", true)
 
-    fun useJapaneseTitle() = preferenceStore.getBoolean("use_jp_title", false)
+    val useJapaneseTitle = preferenceStore.getBoolean("use_jp_title", false)
 }

@@ -58,7 +58,7 @@ class SourcesViewModel(
     private val _events = Channel<Event>(Int.MAX_VALUE)
     val events = _events.receiveAsFlow()
 
-    val useNewSourceNavigation by uiPreferences.useNewSourceNavigation().asState(viewModelScope)
+    val useNewSourceNavigation by uiPreferences.useNewSourceNavigation.asState(viewModelScope)
 
     private val dialog = MutableStateFlow<Dialog?>(null)
 
@@ -112,7 +112,7 @@ class SourcesViewModel(
         dialog,
         getSourceCategories.subscribe(),
         getShowLatest.subscribe(smartSearchConfig != null),
-        sourcePreferences.dataSaver().changes(),
+        sourcePreferences.dataSaver.changes(),
     ) { items, dialog, categories, showLatest, dataSaver ->
         PartialState(
             items = items,

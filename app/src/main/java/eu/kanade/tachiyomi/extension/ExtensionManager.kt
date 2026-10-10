@@ -134,7 +134,7 @@ class ExtensionManager(
         }
     }
 
-    private var subLanguagesEnabledOnFirstRun = preferences.enabledLanguages().isSet()
+    private var subLanguagesEnabledOnFirstRun = preferences.enabledLanguages.isSet()
 
     suspend fun getLoadedExtensions(): List<Extension.Loaded> {
         isInitialized.first { it }
@@ -226,7 +226,7 @@ class ExtensionManager(
 
     // EXH -->
     private fun <T : Extension> Map<String, T>.filterNotBlacklisted(): Map<String, T> {
-        val blacklistEnabled = preferences.enableSourceBlacklist().get()
+        val blacklistEnabled = preferences.enableSourceBlacklist.get()
         return filterNot { (_, extension) ->
             extension.isBlacklisted(blacklistEnabled)
                 .also {
@@ -236,9 +236,9 @@ class ExtensionManager(
     }
 
     private fun Extension.isBlacklisted(
-        blacklistEnabled: Boolean = preferences.enableSourceBlacklist().get(),
+        blacklistEnabled: Boolean = preferences.enableSourceBlacklist.get(),
         // KMK -->
-        isHentaiEnabled: Boolean = Injekt.get<ExhPreferences>().isHentaiEnabled().get(),
+        isHentaiEnabled: Boolean = Injekt.get<ExhPreferences>().isHentaiEnabled.get(),
         // KMK <--
     ): Boolean {
         return pkgName in BlacklistedSources.BLACKLISTED_EXTENSIONS &&
@@ -293,7 +293,7 @@ class ExtensionManager(
 
     private suspend fun fetchExtensions(): List<Extension.Available> {
         // KMK -->
-        val disabledRepos = preferences.disabledRepos().get()
+        val disabledRepos = preferences.disabledRepos.get()
         return withIOContext { extensionStoreRepository.fetchExtensions(disabledRepos) }
         // KMK <--
     }
@@ -327,12 +327,12 @@ class ExtensionManager(
             .map(Extension.Available.Source::lang)
 
         val deviceLanguage = Locale.getDefault().language
-        val defaultLanguages = preferences.enabledLanguages().defaultValue()
+        val defaultLanguages = preferences.enabledLanguages.defaultValue()
         val languagesToEnable = availableLanguages.filter {
             it != deviceLanguage && it.startsWith(deviceLanguage)
         }
 
-        preferences.enabledLanguages().set(defaultLanguages + languagesToEnable)
+        preferences.enabledLanguages.set(defaultLanguages + languagesToEnable)
         subLanguagesEnabledOnFirstRun = true
     }
 
@@ -504,7 +504,7 @@ class ExtensionManager(
     private fun updatePendingUpdatesCount() {
         val pendingUpdateCount = (loadedExtensionMapFlow.value.values + notLoadedExtensionMapFlow.value.values)
             .count { it.hasUpdate }
-        preferences.extensionUpdatesCount().set(pendingUpdateCount)
+        preferences.extensionUpdatesCount.set(pendingUpdateCount)
         if (pendingUpdateCount == 0) {
             ExtensionUpdateNotifier(context).dismiss()
         }

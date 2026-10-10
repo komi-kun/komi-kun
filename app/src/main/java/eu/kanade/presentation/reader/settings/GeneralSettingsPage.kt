@@ -34,24 +34,24 @@ private val flashColors = listOf(
 
 @Composable
 internal fun GeneralPage(viewModel: ReaderSettingsViewModel) {
-    val readerTheme by viewModel.preferences.readerTheme().collectAsState()
+    val readerTheme by viewModel.preferences.readerTheme.collectAsState()
 
-    val flashPageState by viewModel.preferences.flashOnPageChange().collectAsState()
+    val flashPageState by viewModel.preferences.flashOnPageChange.collectAsState()
 
-    val flashMillisPref = viewModel.preferences.flashDurationMillis()
+    val flashMillisPref = viewModel.preferences.flashDurationMillis
     val flashMillis by flashMillisPref.collectAsState()
 
-    val flashIntervalPref = viewModel.preferences.flashPageInterval()
+    val flashIntervalPref = viewModel.preferences.flashPageInterval
     val flashInterval by flashIntervalPref.collectAsState()
 
-    val flashColorPref = viewModel.preferences.flashColor()
+    val flashColorPref = viewModel.preferences.flashColor
     val flashColor by flashColorPref.collectAsState()
 
     SettingsChipRow(MR.strings.pref_reader_theme) {
         themes.map { (labelRes, value) ->
             FilterChip(
                 selected = readerTheme == value,
-                onClick = { viewModel.preferences.readerTheme().set(value) },
+                onClick = { viewModel.preferences.readerTheme.set(value) },
                 label = { Text(stringResource(labelRes)) },
             )
         }
@@ -59,7 +59,7 @@ internal fun GeneralPage(viewModel: ReaderSettingsViewModel) {
 
     CheckboxItem(
         label = stringResource(MR.strings.pref_show_page_number),
-        pref = viewModel.preferences.showPageNumber(),
+        pref = viewModel.preferences.showPageNumber,
     )
 
     val verticalNavigatorModes by viewModel.preferences.verticalNavigator.collectAsState()
@@ -101,30 +101,30 @@ internal fun GeneralPage(viewModel: ReaderSettingsViewModel) {
 
     CheckboxItem(
         label = stringResource(MR.strings.pref_fullscreen),
-        pref = viewModel.preferences.fullscreen(),
+        pref = viewModel.preferences.fullscreen,
     )
 
-    val isFullscreen by viewModel.preferences.fullscreen().collectAsState()
+    val isFullscreen by viewModel.preferences.fullscreen.collectAsState()
     if (LocalActivity.current?.hasDisplayCutout() == true && isFullscreen) {
         CheckboxItem(
             label = stringResource(MR.strings.pref_cutout_short),
-            pref = viewModel.preferences.drawUnderCutout(),
+            pref = viewModel.preferences.drawUnderCutout,
         )
     }
 
     CheckboxItem(
         label = stringResource(MR.strings.pref_keep_screen_on),
-        pref = viewModel.preferences.keepScreenOn(),
+        pref = viewModel.preferences.keepScreenOn,
     )
 
     CheckboxItem(
         label = stringResource(MR.strings.pref_read_with_long_tap),
-        pref = viewModel.preferences.readWithLongTap(),
+        pref = viewModel.preferences.readWithLongTap,
     )
 
     CheckboxItem(
         label = stringResource(MR.strings.pref_always_show_chapter_transition),
-        pref = viewModel.preferences.alwaysShowChapterTransition(),
+        pref = viewModel.preferences.alwaysShowChapterTransition,
     )
 
     // SY -->
@@ -135,7 +135,7 @@ internal fun GeneralPage(viewModel: ReaderSettingsViewModel) {
 
     CheckboxItem(
         label = stringResource(MR.strings.pref_flash_page),
-        pref = viewModel.preferences.flashOnPageChange(),
+        pref = viewModel.preferences.flashOnPageChange,
     )
 
     if (flashPageState) {
@@ -171,7 +171,7 @@ internal fun GeneralPage(viewModel: ReaderSettingsViewModel) {
     // SY -->
     CheckboxItem(
         label = stringResource(SYMR.strings.auto_webtoon_mode),
-        pref = viewModel.preferences.useAutoWebtoon(),
+        pref = viewModel.preferences.useAutoWebtoon,
     )
     // SY <--
 }

@@ -263,8 +263,8 @@ class MangaViewModel(
         get() = state.value as? State.Success
 
     // KMK -->
-    val useNewSourceNavigation by uiPreferences.useNewSourceNavigation().asState(viewModelScope)
-    val themeCoverBased = uiPreferences.themeCoverBased().get()
+    val useNewSourceNavigation by uiPreferences.useNewSourceNavigation.asState(viewModelScope)
+    val themeCoverBased = uiPreferences.themeCoverBased.get()
     // KMK <--
 
     val manga: Manga?
@@ -282,14 +282,14 @@ class MangaViewModel(
     private val filteredChapters: List<ChapterList.Item>?
         get() = successState?.processedChapters
 
-    val chapterSwipeStartAction = libraryPreferences.swipeToEndAction().get()
-    val chapterSwipeEndAction = libraryPreferences.swipeToStartAction().get()
-    private var autoTrackState = trackPreferences.autoUpdateTrackOnMarkRead().get()
+    val chapterSwipeStartAction = libraryPreferences.swipeToEndAction.get()
+    val chapterSwipeEndAction = libraryPreferences.swipeToStartAction.get()
+    private var autoTrackState = trackPreferences.autoUpdateTrackOnMarkRead.get()
 
-    private val skipFiltered by readerPreferences.skipFiltered().asState(viewModelScope)
+    private val skipFiltered by readerPreferences.skipFiltered.asState(viewModelScope)
 
     val isUpdateIntervalEnabled =
-        LibraryPreferences.MANGA_OUTSIDE_RELEASE_PERIOD in libraryPreferences.autoUpdateMangaRestrictions().get()
+        LibraryPreferences.MANGA_OUTSIDE_RELEASE_PERIOD in libraryPreferences.autoUpdateMangaRestrictions.get()
 
     private val selectedPositions: Array<Int> = arrayOf(-1, -1) // first and last selected index in list
     private val selectedChapterIds: HashSet<Long> = HashSet()
@@ -297,7 +297,7 @@ class MangaViewModel(
     internal var showTrackDialogAfterCategorySelection: Boolean = false
 
     internal val autoOpenTrack: Boolean
-        get() = successState?.hasLoggedInTrackers == true && trackPreferences.trackOnAddingToLibrary().get()
+        get() = successState?.hasLoggedInTrackers == true && trackPreferences.trackOnAddingToLibrary.get()
 
     // EXH -->
     private val updateHelper: EHentaiUpdateHelper by injectLazy()
@@ -499,10 +499,10 @@ class MangaViewModel(
                     excludedScanlators = getExcludedScanlators.await(mangaId).toSet(),
                     isRefreshingData = needRefreshInfo || needRefreshChapter,
                     dialog = null,
-                    hideMissingChapters = libraryPreferences.hideMissingChapters().get(),
+                    hideMissingChapters = libraryPreferences.hideMissingChapters.get(),
                     // SY -->
-                    showRecommendationsInOverflow = uiPreferences.recommendsInOverflow().get(),
-                    showMergeInOverflow = uiPreferences.mergeInOverflow().get(),
+                    showRecommendationsInOverflow = uiPreferences.recommendsInOverflow.get(),
+                    showMergeInOverflow = uiPreferences.mergeInOverflow.get(),
                     showMergeWithAnother = smartSearched,
                     mergedData = mergedData,
                     meta = raiseMetadata(meta, source),
@@ -513,8 +513,8 @@ class MangaViewModel(
                         PagePreviewState.Unused
                     },
                     alwaysShowReadingProgress =
-                    readerPreferences.preserveReadingPosition().get() && manga.isEhBasedManga(),
-                    previewsRowCount = uiPreferences.previewsRowCount().get(),
+                    readerPreferences.preserveReadingPosition.get() && manga.isEhBasedManga(),
+                    previewsRowCount = uiPreferences.previewsRowCount.get(),
                     // SY <--
                 )
             }
@@ -602,7 +602,7 @@ class MangaViewModel(
     }
 
     private suspend fun syncTrackers() {
-        if (!trackPreferences.autoSyncProgressFromTrackers().get()) return
+        if (!trackPreferences.autoSyncProgressFromTrackers.get()) return
         refreshTrackers(enhancedTrackersOnly = false)
     }
     // KMK <--
@@ -858,7 +858,7 @@ class MangaViewModel(
 
                 // Now check if user previously set categories, when available
                 val categories = getCategories()
-                val defaultCategoryId = libraryPreferences.defaultCategory().get().toLong()
+                val defaultCategoryId = libraryPreferences.defaultCategory.get().toLong()
                 val defaultCategory = categories.find { it.id == defaultCategoryId }
                 when {
                     // Default category set
@@ -1173,7 +1173,7 @@ class MangaViewModel(
      * Requests an list of related mangas from the source.
      */
     internal suspend fun fetchRelatedMangasFromSource(onDemand: Boolean = false, onFinish: (() -> Unit)? = null) {
-        val expandRelatedMangas = uiPreferences.expandRelatedMangas().get()
+        val expandRelatedMangas = uiPreferences.expandRelatedMangas.get()
         if ((!onDemand && !expandRelatedMangas) || manga?.source == MERGED_SOURCE_ID) return
 
         // start fetching related mangas
@@ -1188,7 +1188,7 @@ class MangaViewModel(
             }
         }
         val state = successState ?: return
-        val relatedMangasEnabled = sourcePreferences.relatedMangas().get()
+        val relatedMangasEnabled = sourcePreferences.relatedMangas.get()
 
         try {
             if (state.source !is StubSource && relatedMangasEnabled) {

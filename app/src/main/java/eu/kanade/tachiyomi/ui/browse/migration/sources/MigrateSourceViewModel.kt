@@ -68,8 +68,8 @@ class MigrateSourceViewModel(
 
     val state: StateFlow<State> = combine(
         sourcesWithCount,
-        preferences.migrationSortingMode().changes(),
-        preferences.migrationSortingDirection().changes(),
+        preferences.migrationSortingMode.changes(),
+        preferences.migrationSortingDirection.changes(),
         // KMK -->
         searchQuery,
         // KMK <--
@@ -88,7 +88,7 @@ class MigrateSourceViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5.seconds), State())
 
     fun toggleSortingMode() {
-        preferences.migrationSortingMode().getAndSet { mode ->
+        preferences.migrationSortingMode.getAndSet { mode ->
             when (mode) {
                 SetMigrateSorting.Mode.ALPHABETICAL -> SetMigrateSorting.Mode.TOTAL
                 SetMigrateSorting.Mode.TOTAL -> SetMigrateSorting.Mode.ALPHABETICAL
@@ -97,7 +97,7 @@ class MigrateSourceViewModel(
     }
 
     fun toggleSortingDirection() {
-        preferences.migrationSortingDirection().getAndSet { direction ->
+        preferences.migrationSortingDirection.getAndSet { direction ->
             when (direction) {
                 SetMigrateSorting.Direction.ASCENDING -> SetMigrateSorting.Direction.DESCENDING
                 SetMigrateSorting.Direction.DESCENDING -> SetMigrateSorting.Direction.ASCENDING

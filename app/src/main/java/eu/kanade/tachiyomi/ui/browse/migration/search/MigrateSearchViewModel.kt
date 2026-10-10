@@ -33,7 +33,7 @@ class MigrateSearchViewModel(
         }
     }
 
-    private val migrationSources by lazy { sourcePreferences.migrationSources().get() }
+    private val migrationSources by lazy { sourcePreferences.migrationSources.get() }
 
     override val sortComparator = { map: Map<Source, SearchItemResult> ->
         compareBy<Source>(

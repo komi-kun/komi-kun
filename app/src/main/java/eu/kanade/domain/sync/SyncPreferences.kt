@@ -10,52 +10,52 @@ import java.util.UUID
 class SyncPreferences(
     private val preferenceStore: PreferenceStore,
 ) {
-    fun clientHost() = preferenceStore.getString("connection_sync_client_host", "https://sync.tachiyomi.org")
-    fun clientAPIKey() = preferenceStore.getString("connection_sync_client_api_key", "")
-    fun lastSyncTimestamp() = preferenceStore.getLong(Preference.appStateKey("last_sync_timestamp"), 0L)
+    val clientHost = preferenceStore.getString("connection_sync_client_host", "https://sync.tachiyomi.org")
+    val clientAPIKey = preferenceStore.getString("connection_sync_client_api_key", "")
+    val lastSyncTimestamp = preferenceStore.getLong(Preference.appStateKey("last_sync_timestamp"), 0L)
 
-    fun lastSyncEtag() = preferenceStore.getString(Preference.appStateKey("sync_etag"), "")
+    val lastSyncEtag = preferenceStore.getString(Preference.appStateKey("sync_etag"), "")
 
     // SY -->
     // SyncYomi protocol v2 state
-    fun syncCursor() = preferenceStore.getLong(Preference.appStateKey("sync_cursor"), 0L)
+    val syncCursor = preferenceStore.getLong(Preference.appStateKey("sync_cursor"), 0L)
 
     /** Epoch seconds of the start of the last successful sync; the next delta starts here. */
-    fun lastPushedAt() = preferenceStore.getLong(Preference.appStateKey("sync_last_pushed_at"), 0L)
+    val lastPushedAt = preferenceStore.getLong(Preference.appStateKey("sync_last_pushed_at"), 0L)
 
     /** Epoch millis of the last sync that carried the complete library. */
-    fun lastFullSync() = preferenceStore.getLong(Preference.appStateKey("sync_last_full_sync"), 0L)
-    fun fullSyncRequested() = preferenceStore.getBoolean(
+    val lastFullSync = preferenceStore.getLong(Preference.appStateKey("sync_last_full_sync"), 0L)
+    val fullSyncRequested = preferenceStore.getBoolean(
         Preference.appStateKey("sync_full_requested"),
         false,
     )
-    fun serverSupportsV2() = preferenceStore.getBoolean(
+    val serverSupportsV2 = preferenceStore.getBoolean(
         Preference.appStateKey("sync_server_supports_v2"),
         false,
     )
-    fun v2ProbedHost() = preferenceStore.getString(Preference.appStateKey("sync_v2_probed_host"), "")
-    fun pendingDeletedCategoryUids() = preferenceStore.getStringSet(
+    val v2ProbedHost = preferenceStore.getString(Preference.appStateKey("sync_v2_probed_host"), "")
+    val pendingDeletedCategoryUids = preferenceStore.getStringSet(
         Preference.appStateKey("sync_pending_deleted_category_uids"),
         emptySet(),
     )
     // SY <--
 
-    fun syncInterval() = preferenceStore.getInt("sync_interval", 0)
-    fun syncService() = preferenceStore.getInt("sync_service", 0)
+    val syncInterval = preferenceStore.getInt("sync_interval", 0)
+    val syncService = preferenceStore.getInt("sync_service", 0)
 
     // KMK -->
-    fun webDavUrl() = preferenceStore.getString("connection_webdav_url", "")
-    fun webDavUsername() = preferenceStore.getString("connection_webdav_username", "")
-    fun webDavPassword() = preferenceStore.getString("connection_webdav_password", "")
-    fun webDavFolder() = preferenceStore.getString("connection_webdav_folder", "komikku")
+    val webDavUrl = preferenceStore.getString("connection_webdav_url", "")
+    val webDavUsername = preferenceStore.getString("connection_webdav_username", "")
+    val webDavPassword = preferenceStore.getString("connection_webdav_password", "")
+    val webDavFolder = preferenceStore.getString("connection_webdav_folder", "komikku")
     // KMK <--
 
-    fun googleDriveAccessToken() = preferenceStore.getString(
+    val googleDriveAccessToken = preferenceStore.getString(
         Preference.appStateKey("connection_google_drive_access_token"),
         "",
     )
 
-    fun googleDriveRefreshToken() = preferenceStore.getString(
+    val googleDriveRefreshToken = preferenceStore.getString(
         Preference.appStateKey("connection_google_drive_refresh_token"),
         "",
     )
@@ -74,7 +74,7 @@ class SyncPreferences(
     }
 
     fun isSyncEnabled(): Boolean {
-        return syncService().get() != SyncManager.SyncService.NONE.value
+        return syncService.get() != SyncManager.SyncService.NONE.value
     }
 
     // SY -->
@@ -83,7 +83,7 @@ class SyncPreferences(
      */
     fun rememberDeletedCategory(uid: Long) {
         if (uid == 0L || !isSyncEnabled()) return
-        pendingDeletedCategoryUids().set(pendingDeletedCategoryUids().get() + uid.toString())
+        pendingDeletedCategoryUids.set(pendingDeletedCategoryUids.get() + uid.toString())
     }
     // SY <--
 
@@ -146,7 +146,7 @@ class SyncPreferences(
     }
 
     // KMK -->
-    fun showSyncingProgressBanner() = preferenceStore.getBoolean(
+    val showSyncingProgressBanner = preferenceStore.getBoolean(
         Preference.appStateKey("pref_show_syncing_progress_banner_key"),
         true,
     )

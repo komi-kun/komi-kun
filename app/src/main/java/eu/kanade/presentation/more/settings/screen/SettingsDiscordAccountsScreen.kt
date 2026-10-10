@@ -157,7 +157,7 @@ class DiscordAccountsViewModel : ViewModel() {
 
     init {
         viewModelScope.launch {
-            connectionsPreferences.discordAccounts().changes()
+            connectionsPreferences.discordAccounts.changes()
                 .collect { loadAccounts() }
         }
         loadAccounts()

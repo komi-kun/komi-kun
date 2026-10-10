@@ -16,7 +16,7 @@ class GetExtensionsByType(
         val enabledContentWarnings = preferences.enabledContentWarnings.get()
 
         return combine(
-            preferences.enabledLanguages().changes(),
+            preferences.enabledLanguages.changes(),
             extensionManager.loadedExtensionsFlow,
             extensionManager.notLoadedExtensionsFlow,
             extensionManager.availableExtensionsFlow,
