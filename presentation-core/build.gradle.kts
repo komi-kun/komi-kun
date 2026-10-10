@@ -33,12 +33,12 @@ dependencies {
     // SY -->
     api(projects.i18nSy)
     // SY <--
+    implementation(projects.icons.materialSymbols)
 
     // Compose
     implementation(compose.activity)
     implementation(compose.foundation)
     implementation(compose.material3.core)
-    implementation(compose.material.icons)
     implementation(compose.animation)
     implementation(compose.animation.graphics)
     debugImplementation(compose.ui.tooling)

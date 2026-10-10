@@ -7,8 +7,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -43,6 +41,11 @@ import eu.kanade.tachiyomi.util.system.toast
 import eu.kanade.tachiyomi.util.system.updaterEnabled
 import kotlinx.coroutines.launch
 import logcat.LogPriority
+import mihon.icons.materialsymbols.MaterialSymbols
+import mihon.icons.materialsymbols.rounded.Public
+import mihon.icons.simpleicons.Discord
+import mihon.icons.simpleicons.Github
+import mihon.icons.simpleicons.SimpleIcons
 import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.core.common.util.lang.withUIContext
 import tachiyomi.core.common.util.system.logcat
@@ -53,9 +56,6 @@ import tachiyomi.presentation.core.components.LinkIcon
 import tachiyomi.presentation.core.components.ScrollbarLazyColumn
 import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.i18n.stringResource
-import tachiyomi.presentation.core.icons.CustomIcons
-import tachiyomi.presentation.core.icons.Discord
-import tachiyomi.presentation.core.icons.Github
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.time.Instant
@@ -257,32 +257,32 @@ class AboutScreen : Screen() {
                     ) {
                         LinkIcon(
                             label = stringResource(MR.strings.website),
-                            icon = Icons.Outlined.Public,
+                            icon = MaterialSymbols.Rounded.Public,
                             url = "https://komikku-app.github.io",
                         )
                         LinkIcon(
                             label = "Discord",
-                            icon = CustomIcons.Discord,
+                            icon = SimpleIcons.Discord,
                             url = "https://discord.gg/85jB7V5AJR",
                         )
                         // LinkIcon(
                         //     label = "X",
-                        //     icon = CustomIcons.X,
+                        //     icon = SimpleIcons.X,
                         //     url = "https://x.com/mihonapp",
                         // )
                         // LinkIcon(
                         //     label = "Facebook",
-                        //     icon = CustomIcons.Facebook,
+                        //     icon = SimpleIcons.Facebook,
                         //     url = "https://facebook.com/mihonapp",
                         // )
                         // LinkIcon(
                         //     label = "Reddit",
-                        //     icon = CustomIcons.Reddit,
+                        //     icon = SimpleIcons.Reddit,
                         //     url = "https://www.reddit.com/r/mihonapp",
                         // )
                         LinkIcon(
                             label = "GitHub",
-                            icon = CustomIcons.Github,
+                            icon = SimpleIcons.Github,
                             url = "https://github.com/komikku-app",
                         )
                     }

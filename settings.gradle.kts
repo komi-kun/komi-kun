@@ -59,6 +59,8 @@ include(":flagkit")
 // SY -->
 include(":i18n-sy")
 // SY <--
+include(":icons:material-symbols")
+include(":icons:simple-icons")
 include(":macrobenchmark")
 include(":presentation-core")
 include(":presentation-widget")
