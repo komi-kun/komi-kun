@@ -25,7 +25,6 @@ valkyrie = "0.5.2"
 
 [libraries]
 desugar = "com.android.tools:desugar_jdk_libs:2.1.5"
-android-shortcut-gradle = "com.github.komikku-app:android-shortcut-gradle-plugin:0.2.0"
 
 apollo = { module = "com.apollographql.apollo:apollo-runtime", version.ref = "apollo" }
 apollo-adapters = { module = "com.apollographql.adapters:apollo-adapters-core", version.ref = "apollo-adapters" }
