@@ -245,7 +245,7 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
         setAppCompatDelegateThemeMode(uiPreferences.themeMode.get())
 
         // KMK -->
-        MangaCoverMetadata.load()
+        MangaCoverMetadata.load(graph.libraryPreferences)
         // KMK <--
 
         // Updates widget update

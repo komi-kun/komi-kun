@@ -7,10 +7,8 @@ import coil3.transform.RoundedCornersTransformation
 import eu.davidea.viewholders.FlexibleViewHolder
 import eu.kanade.tachiyomi.databinding.EditMergedSettingsItemBinding
 import eu.kanade.tachiyomi.util.system.dpToPx
+import mihon.app.di.appGraph
 import tachiyomi.domain.manga.model.MergedMangaReference
-import tachiyomi.domain.source.service.SourceManager
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 
 class EditMergedMangaHolder(view: View, val adapter: EditMergedMangaAdapter) : FlexibleViewHolder(view, adapter) {
 
@@ -49,7 +47,7 @@ class EditMergedMangaHolder(view: View, val adapter: EditMergedMangaAdapter) : F
             }
         }
 
-        binding.title.text = Injekt.get<SourceManager>().getOrStub(item.mergedMangaReference.mangaSourceId).toString()
+        binding.title.text = itemView.context.appGraph.sourceManager.getOrStub(item.mergedMangaReference.mangaSourceId).toString()
         binding.subtitle.text = item.mergedManga?.title
         updateDownloadChaptersIcon(item.mergedMangaReference.downloadChapters)
         updateChapterUpdatesIcon(item.mergedMangaReference.getChapterUpdates)

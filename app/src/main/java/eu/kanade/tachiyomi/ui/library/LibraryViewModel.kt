@@ -469,7 +469,7 @@ class LibraryViewModel(
 
         // SY -->
         val filterFnLewd: (LibraryItem) -> Boolean = {
-            applyFilter(filterLewd) { it.libraryManga.manga.isLewd() }
+            applyFilter(filterLewd) { it.libraryManga.manga.isLewd(sourceManager) }
         }
         // SY <--
 

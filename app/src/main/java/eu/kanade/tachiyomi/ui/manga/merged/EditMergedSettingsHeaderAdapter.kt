@@ -12,11 +12,10 @@ import eu.kanade.presentation.components.SpinnerAdapter
 import eu.kanade.presentation.theme.colorscheme.AndroidViewColorScheme
 import eu.kanade.tachiyomi.databinding.EditMergedSettingsHeaderBinding
 import exh.log.xLogD
+import mihon.app.di.appGraph
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.domain.manga.model.MergedMangaReference
-import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.i18n.sy.SYMR
-import uy.kohesive.injekt.injectLazy
 
 class EditMergedSettingsHeaderAdapter(
     private val state: EditMergedSettingsState,
@@ -25,8 +24,6 @@ class EditMergedSettingsHeaderAdapter(
     private val colorScheme: AndroidViewColorScheme,
     // KMK <--
 ) : RecyclerView.Adapter<EditMergedSettingsHeaderAdapter.HeaderViewHolder>() {
-
-    private val sourceManager: SourceManager by injectLazy()
 
     private lateinit var binding: EditMergedSettingsHeaderBinding
 
@@ -114,7 +111,7 @@ class EditMergedSettingsHeaderAdapter(
                 android.R.layout.simple_spinner_dropdown_item,
                 // KMK <--
                 mergedMangas.map {
-                    sourceManager.getOrStub(it.second.mangaSourceId).toString() + " " + it.first?.title
+                    view.context.appGraph.sourceManager.getOrStub(it.second.mangaSourceId).toString() + " " + it.first?.title
                 },
                 // KMK -->
                 colorScheme,

@@ -499,7 +499,7 @@ class MainActivity : BaseActivity() {
     // KMK -->
     override fun onPause() {
         super.onPause()
-        MangaCoverMetadata.savePrefs()
+        MangaCoverMetadata.savePrefs(libraryPreferences)
     }
     // KMK <--
 

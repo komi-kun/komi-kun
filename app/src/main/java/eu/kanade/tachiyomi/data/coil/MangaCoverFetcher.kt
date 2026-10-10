@@ -66,6 +66,7 @@ class MangaCoverFetcher(
     private val imageLoader: ImageLoader,
     // KMK -->
     private val uiPreferences: UiPreferences,
+    private val coverCache: CoverCache,
     // KMK <--
 ) : Fetcher {
 
@@ -352,7 +353,7 @@ class MangaCoverFetcher(
     ) {
         if (!preloadLibraryColor) return
         scope.launch {
-            MangaCoverMetadata.setRatioAndColors(mangaCover, bufferedSource, ogFile, onlyFavorite, force)
+            MangaCoverMetadata.setRatioAndColors(mangaCover, coverCache, bufferedSource, ogFile, onlyFavorite, force)
         }
     }
     // KMK <--
@@ -385,6 +386,7 @@ class MangaCoverFetcher(
                 callFactoryLazy = callFactoryLazy,
                 imageLoader = imageLoader,
                 uiPreferences = uiPreferences,
+                coverCache = coverCache,
             )
         }
     }
@@ -411,6 +413,7 @@ class MangaCoverFetcher(
                 callFactoryLazy = callFactoryLazy,
                 imageLoader = imageLoader,
                 uiPreferences = uiPreferences,
+                coverCache = coverCache,
             )
         }
     }

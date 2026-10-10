@@ -8,7 +8,6 @@ import eu.kanade.tachiyomi.ui.manga.MangaViewModel
 import okio.BufferedSource
 import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.domain.manga.model.MangaCover
-import uy.kohesive.injekt.injectLazy
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 
@@ -17,10 +16,7 @@ import java.util.concurrent.ConcurrentHashMap
  * @author Jays2Kings
  */
 object MangaCoverMetadata {
-    private val preferences by injectLazy<LibraryPreferences>()
-    private val coverCache by injectLazy<CoverCache>()
-
-    fun load() {
+    fun load(preferences: LibraryPreferences) {
         val ratios = preferences.coverRatios.get()
         MangaCover.coverRatioMap = ConcurrentHashMap(
             ratios.mapNotNull {
@@ -76,6 +72,7 @@ object MangaCoverMetadata {
      */
     fun setRatioAndColors(
         mangaCover: MangaCover,
+        coverCache: CoverCache,
         bufferedSource: BufferedSource? = null,
         ogFile: File? = null,
         onlyDominantColor: Boolean = true,
@@ -153,7 +150,7 @@ object MangaCoverMetadata {
         MangaCover.dominantCoverColorMap.remove(mangaId)
     }
 
-    fun savePrefs() {
+    fun savePrefs(preferences: LibraryPreferences) {
         val mapCopy = MangaCover.coverRatioMap.toMap()
         preferences.coverRatios.set(mapCopy.map { "${it.key}|${it.value}" }.toSet())
         val mapColorCopy = MangaCover.dominantCoverColorMap.toMap()
