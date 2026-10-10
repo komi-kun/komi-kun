@@ -5,6 +5,13 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.produceState
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import dev.zacsweers.metro.AppScope
+import dev.zacsweers.metro.Assisted
+import dev.zacsweers.metro.AssistedFactory
+import dev.zacsweers.metro.AssistedInject
+import dev.zacsweers.metro.ContributesIntoMap
+import dev.zacsweers.metrox.viewmodel.ManualViewModelAssistedFactory
+import dev.zacsweers.metrox.viewmodel.ManualViewModelAssistedFactoryKey
 import exh.recs.sources.RECOMMENDS_SOURCE
 import exh.recs.sources.RecommendationPagingSource
 import exh.recs.sources.RecommendationSource
@@ -24,14 +31,20 @@ import mihon.domain.manga.model.toDomainManga
 import tachiyomi.domain.manga.interactor.GetManga
 import tachiyomi.domain.manga.interactor.NetworkToLocalManga
 import tachiyomi.domain.manga.model.Manga
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 
-open class RecommendsViewModel(
-    private val args: RecommendsScreen.Args,
-    private val getManga: GetManga = Injekt.get(),
-    protected val networkToLocalManga: NetworkToLocalManga = Injekt.get(),
+@AssistedInject
+class RecommendsViewModel(
+    @Assisted private val args: RecommendsScreen.Args,
+    private val getManga: GetManga,
+    private val networkToLocalManga: NetworkToLocalManga,
 ) : ViewModel() {
+
+    @AssistedFactory
+    @ManualViewModelAssistedFactoryKey
+    @ContributesIntoMap(AppScope::class)
+    interface Factory : ManualViewModelAssistedFactory {
+        fun create(args: RecommendsScreen.Args): RecommendsViewModel
+    }
 
     val state: StateFlow<RecommendsViewModel.State>
         field = MutableStateFlow<RecommendsViewModel.State>(State())

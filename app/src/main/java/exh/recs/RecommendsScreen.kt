@@ -6,9 +6,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.lifecycle.viewmodel.compose.viewModel
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import dev.zacsweers.metrox.viewmodel.assistedMetroViewModel
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 import eu.kanade.core.util.ifSourcesLoaded
 import eu.kanade.presentation.browse.components.BulkFavoriteDialogs
@@ -46,7 +46,9 @@ class RecommendsScreen(private val args: Args) : Screen() {
         val context = LocalContext.current
         val navigator = LocalNavigator.currentOrThrow
 
-        val viewModel = viewModel { RecommendsViewModel(args) }
+        val viewModel = assistedMetroViewModel<RecommendsViewModel, RecommendsViewModel.Factory> {
+            create(args = args)
+        }
         val state by viewModel.state.collectAsState()
 
         // KMK -->

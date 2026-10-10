@@ -174,7 +174,6 @@ import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
 import tachiyomi.source.local.LocalSource
 import tachiyomi.source.local.isLocal
-import uy.kohesive.injekt.injectLazy
 import kotlin.math.floor
 import kotlin.time.Duration.Companion.seconds
 import androidx.compose.runtime.State as RuntimeState
@@ -218,6 +217,7 @@ class MangaViewModel(
     // KMK -->
     private val sourcePreferences: SourcePreferences,
     private val downloadProvider: DownloadProvider,
+    private val updateHelper: EHentaiUpdateHelper,
     // KMK <--
     private val getManga: GetManga,
     private val getMergedChaptersByMangaId: GetMergedChaptersByMangaId,
@@ -287,8 +287,6 @@ class MangaViewModel(
         get() = successState?.hasLoggedInTrackers == true && trackPreferences.trackOnAddingToLibrary.get()
 
     // EXH -->
-    private val updateHelper: EHentaiUpdateHelper by injectLazy()
-
     val redirectFlow: MutableSharedFlow<EXHRedirect> = MutableSharedFlow()
 
     data class EXHRedirect(val mangaId: Long)

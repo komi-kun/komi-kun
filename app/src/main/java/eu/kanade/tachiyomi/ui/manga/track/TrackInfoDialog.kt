@@ -102,9 +102,6 @@ import tachiyomi.presentation.core.components.LabeledCheckbox
 import tachiyomi.presentation.core.components.material.AlertDialogContent
 import tachiyomi.presentation.core.components.material.padding
 import tachiyomi.presentation.core.i18n.stringResource
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
-import uy.kohesive.injekt.injectLazy
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -245,6 +242,9 @@ data class TrackInfoDialogHomeScreen(
         // SY <--
         // KMK -->
         private val sourceManager: SourceManager,
+        private val getFlatMetadataById: GetFlatMetadataById,
+        private val getMangaById: GetManga,
+        private val getMergedReferencesById: GetMergedReferencesById,
         // KMK <--
         private val refreshTracks: RefreshTracks,
     ) : ViewModel() {
@@ -258,12 +258,6 @@ data class TrackInfoDialogHomeScreen(
         interface Factory : ManualViewModelAssistedFactory {
             fun create(mangaId: Long, sourceId: Long): Model
         }
-
-        // KMK -->
-        private val getFlatMetadataById: GetFlatMetadataById by injectLazy()
-        private val getMangaById: GetManga by injectLazy()
-        private val getMergedReferencesById: GetMergedReferencesById by injectLazy()
-        // KMK <--
 
         init {
             viewModelScope.launch {

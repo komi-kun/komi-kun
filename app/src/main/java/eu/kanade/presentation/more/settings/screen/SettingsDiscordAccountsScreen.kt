@@ -44,6 +44,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import logcat.logcat
+import mihon.app.di.appGraph
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.Add
 import mihon.icons.materialsymbols.rounded.Delete
@@ -51,8 +52,6 @@ import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
 import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.i18n.stringResource
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 
 object DiscordAccountsScreen : Screen {
     @Suppress("unused")
@@ -74,7 +73,13 @@ data class DiscordAccountsScreenState(
 @Composable
 private fun DiscordAccountsScreenContent() {
     val navigator = LocalNavigator.currentOrThrow
-    val viewModel = remember { DiscordAccountsViewModel() }
+    val context = LocalContext.current
+    val viewModel = remember {
+        DiscordAccountsViewModel(
+            connectionsManager = context.appGraph.connectionsManager,
+            connectionsPreferences = context.appGraph.connectionsPreferences,
+        )
+    }
     val state by viewModel.state.collectAsState()
 
     val noAccountsFoundString = stringResource(KMR.strings.no_accounts_found)
@@ -105,7 +110,6 @@ private fun DiscordAccountsScreenContent() {
                 .padding(paddingValues),
         ) {
             val (isLoading, error, accounts) = state.let { Triple(it.isLoading, it.error, it.accounts) }
-            val context = LocalContext.current
 
             when {
                 isLoading -> {
@@ -147,12 +151,14 @@ private fun DiscordAccountsScreenContent() {
     }
 }
 
-class DiscordAccountsViewModel : ViewModel() {
+class DiscordAccountsViewModel(
+    connectionsManager: ConnectionsManager,
+    private val connectionsPreferences: ConnectionsPreferences,
+) : ViewModel() {
 
     val state: StateFlow<DiscordAccountsScreenState>
         field = MutableStateFlow<DiscordAccountsScreenState>(DiscordAccountsScreenState())
-    private val discord = Injekt.get<ConnectionsManager>().discord
-    private val connectionsPreferences = Injekt.get<ConnectionsPreferences>()
+    private val discord = connectionsManager.discord
     private var noAccountsFoundString: String = ""
 
     init {

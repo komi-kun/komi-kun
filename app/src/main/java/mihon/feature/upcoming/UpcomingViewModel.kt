@@ -32,8 +32,6 @@ import tachiyomi.domain.category.model.Category
 import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.upcoming.service.UpcomingPreferences
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 import java.time.LocalDate
 import java.time.YearMonth
 import kotlin.time.Clock
@@ -46,10 +44,10 @@ class UpcomingViewModel(
     private val getUpcomingManga: GetUpcomingManga,
     val getCategories: GetCategories,
     val upcomingPreferences: UpcomingPreferences,
-) : ViewModel() {
     // KMK -->
-    private val libraryPreferences: LibraryPreferences = Injekt.get()
+    private val libraryPreferences: LibraryPreferences,
     // KMK <--
+) : ViewModel() {
 
     val excludedCategories = upcomingPreferences.filterExcludedCategories
     val includedCategories = upcomingPreferences.filterIncludedCategories
