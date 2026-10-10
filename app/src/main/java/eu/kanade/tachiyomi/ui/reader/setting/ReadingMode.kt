@@ -3,7 +3,6 @@ package eu.kanade.tachiyomi.ui.reader.setting
 import androidx.annotation.ColorInt
 import androidx.compose.ui.graphics.vector.ImageVector
 import dev.icerock.moko.resources.StringResource
-import eu.kanade.domain.base.BasePreferences
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.ui.reader.ReaderActivity
 import eu.kanade.tachiyomi.ui.reader.viewer.Viewer
@@ -23,7 +22,6 @@ import mihon.icons.custommaterialsymbols.rounded.ReaderVertical
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.MobileGear
 import tachiyomi.i18n.MR
-import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
 enum class ReadingMode(
@@ -88,7 +86,7 @@ enum class ReadingMode(
             @ColorInt seedColor: Int?,
             // KMK <--
         ): Viewer {
-            if (Injekt.get<BasePreferences>().highQualityRenderer.get()) {
+            if (activity.appGraph.basePreferences.highQualityRenderer.get()) {
                 return when (fromPreference(preference)) {
                     LEFT_TO_RIGHT -> WebGpuViewer(activity, isReversed = false, isVertical = false)
                     RIGHT_TO_LEFT -> WebGpuViewer(activity, isReversed = true, isVertical = false)

@@ -1,6 +1,6 @@
 package eu.kanade.domain.track.interactor
 
-import android.app.Application
+import android.content.Context
 import dev.zacsweers.metro.Inject
 import eu.kanade.domain.track.model.toDbTrack
 import eu.kanade.domain.track.model.toDomainTrack
@@ -16,8 +16,6 @@ import tachiyomi.core.common.util.lang.withUIContext
 import tachiyomi.domain.track.interactor.GetTracks
 import tachiyomi.domain.track.interactor.UpsertTrack
 import tachiyomi.i18n.kmk.KMR
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 
 @Inject
 class RefreshTracks(
@@ -25,6 +23,7 @@ class RefreshTracks(
     private val trackerManager: TrackerManager,
     private val upsertTrack: UpsertTrack,
     private val syncChapterProgressWithTrack: SyncChapterProgressWithTrack,
+    private val context: Context,
 ) {
 
     /**
@@ -57,7 +56,6 @@ class RefreshTracks(
                             }
                                 // KMK -->
                                 ?.let {
-                                    val context = Injekt.get<Application>()
                                     withUIContext {
                                         context.toast(context.stringResource(KMR.strings.sync_progress_from_trackers_up_to_chapter, it))
                                     }

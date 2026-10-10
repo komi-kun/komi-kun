@@ -1,7 +1,6 @@
 package mihon.app.di.injekt
 
 import dev.zacsweers.metro.Inject
-import eu.kanade.domain.base.BasePreferences
 import eu.kanade.domain.connections.service.ConnectionsPreferences
 import eu.kanade.domain.extension.interactor.TrustExtension
 import eu.kanade.domain.manga.interactor.UpdateManga
@@ -69,7 +68,6 @@ class KMKMetroInteropModule(
     private val libraryPreferences: LibraryPreferences,
     private val readerPreferences: ReaderPreferences,
     private val securityPreferences: SecurityPreferences,
-    private val basePreferences: BasePreferences,
     private val connectionsPreferences: ConnectionsPreferences,
     private val syncPreferences: SyncPreferences,
     private val exhPreferences: ExhPreferences,
@@ -127,7 +125,6 @@ class KMKMetroInteropModule(
         addSingleton(libraryPreferences)
         addSingleton(readerPreferences)
         addSingleton(securityPreferences)
-        addSingleton(basePreferences)
         addSingleton(connectionsPreferences)
         addSingleton(syncPreferences)
         addSingleton(exhPreferences)

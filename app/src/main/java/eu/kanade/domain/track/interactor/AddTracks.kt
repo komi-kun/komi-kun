@@ -1,6 +1,6 @@
 package eu.kanade.domain.track.interactor
 
-import android.app.Application
+import android.content.Context
 import dev.zacsweers.metro.Inject
 import eu.kanade.domain.track.model.toDbTrack
 import eu.kanade.domain.track.model.toDomainTrack
@@ -22,8 +22,6 @@ import tachiyomi.domain.history.interactor.GetHistory
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.track.interactor.UpsertTrack
 import tachiyomi.i18n.kmk.KMR
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 import java.time.ZoneOffset
 
 @Inject
@@ -33,6 +31,7 @@ class AddTracks(
     private val getChaptersByMangaId: GetChaptersByMangaId,
     private val trackerManager: TrackerManager,
     private val getHistory: GetHistory,
+    private val context: Context,
 ) {
 
     // TODO: update all trackers based on common data
@@ -90,7 +89,6 @@ class AddTracks(
             syncChapterProgressWithTrack.await(mangaId, track, tracker)
                 // KMK -->
                 ?.let {
-                    val context = Injekt.get<Application>()
                     withUIContext {
                         context.toast(context.stringResource(KMR.strings.sync_progress_from_trackers_up_to_chapter, it))
                     }
@@ -118,7 +116,6 @@ class AddTracks(
                             )
                                 // KMK -->
                                 ?.let {
-                                    val context = Injekt.get<Application>()
                                     withUIContext {
                                         context.toast(context.stringResource(KMR.strings.sync_progress_from_trackers_up_to_chapter, it))
                                     }
