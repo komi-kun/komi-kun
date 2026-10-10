@@ -166,7 +166,12 @@ class SyncManager(
             backupManga = backupManga,
             backupCategories = backupCreator.backupCategories(backupOptions),
             backupSources = backupCreator.backupSources(backupManga),
-            backupPreferences = backupCreator.backupAppPreferences(backupOptions),
+            // SY -->
+            // `categorized_display` is derived from the categories; a sync restore sets it, which would
+            // otherwise make the next delta echo it back to the server.
+            backupPreferences = backupCreator.backupAppPreferences(backupOptions)
+                .filterNot { it.key == "categorized_display" },
+            // SY <--
             backupSourcePreferences = backupCreator.backupSourcePreferences(backupOptions),
             backupExtensionStores = backupCreator.backupExtensionStores(backupOptions),
 

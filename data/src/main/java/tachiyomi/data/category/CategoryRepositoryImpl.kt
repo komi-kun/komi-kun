@@ -63,6 +63,7 @@ class CategoryRepositoryImpl(
             version = category.version,
             uid = category.uid,
             lastModifiedAt = category.lastModifiedAt,
+            isSyncing = 0L,
             // SY <--
         ).awaitAsOneOrNull()
     }
@@ -120,6 +121,9 @@ class CategoryRepositoryImpl(
                     version = category.version,
                     uid = category.uid,
                     lastModifiedAt = category.lastModifiedAt,
+                    // SY --> a sync restore must not stamp last_modified_at, or the next delta echoes it back
+                    isSyncing = if (isSync) 1L else 0L,
+                    // SY <--
                 ).awaitAsOne()
                     .let { id -> category.copy(id = id, order = order) }
             }

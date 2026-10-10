@@ -46,6 +46,9 @@ BEGIN
 END;
 
 CREATE TRIGGER insert_category_uid AFTER INSERT ON category
+-- KMK --> a sync restore inserts with is_syncing = 1; it must keep the backup's last_modified_at
+WHEN new.is_syncing = 0
+-- KMK <--
 BEGIN
     UPDATE category
     SET uid = CASE WHEN uid = 0 THEN abs(random()) ELSE uid END,
@@ -94,15 +97,15 @@ WHERE MC.manga_id = :mangaId
 ORDER BY C.`order`;
 
 insert {
-    INSERT INTO category(name, `order`, flags, hidden, version, uid, last_modified_at)
-    VALUES (:name, :order, :flags, :hidden, :version, :uid, :lastModifiedAt);
+    INSERT INTO category(name, `order`, flags, hidden, version, uid, last_modified_at, is_syncing)
+    VALUES (:name, :order, :flags, :hidden, :version, :uid, :lastModifiedAt, :isSyncing);
 
     SELECT last_insert_rowid();
 }
 
 insertWithNextOrder {
-    INSERT INTO category(name, `order`, flags, hidden, version, uid, last_modified_at)
-    SELECT :name, coalesce(max(`order`), -1) + 1, :flags, :hidden, :version, :uid, :lastModifiedAt
+    INSERT INTO category(name, `order`, flags, hidden, version, uid, last_modified_at, is_syncing)
+    SELECT :name, coalesce(max(`order`), -1) + 1, :flags, :hidden, :version, :uid, :lastModifiedAt, :isSyncing
     FROM category;
 
     SELECT last_insert_rowid();

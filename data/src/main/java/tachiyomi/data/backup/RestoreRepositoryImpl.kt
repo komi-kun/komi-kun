@@ -88,9 +88,11 @@ class RestoreRepositoryImpl(
             restoreExistingManga(entry.manga, dbManga, isSync, syncingFlag)
         }
 
-        if (entry.categoryIds.isNotEmpty()) {
-            mangaRepository.setMangaCategories(manga.id, entry.categoryIds)
-        }
+        // SY -->
+        // An empty list must clear the assignment, or removing a manga's only category never reaches
+        // the other devices (the stale assignment stays forever).
+        mangaRepository.setMangaCategories(manga.id, entry.categoryIds)
+        // SY <--
         restoreChapters(manga, entry.chapters, isSync, syncingFlag)
         restoreTracking(manga, entry.tracks)
         restoreHistory(manga, entry.history)
