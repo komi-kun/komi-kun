@@ -186,7 +186,7 @@ class NotificationReceiver : BroadcastReceiver() {
      * @param context context of application
      */
     private fun cancelRestore(context: Context) {
-        BackupRestoreJob.stop(context.workManager)
+        BackupRestoreJob.stop(context)
     }
 
     /**

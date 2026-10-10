@@ -265,7 +265,7 @@ object SettingsMangadexScreen : SearchableSettings {
                         List(items.size) { index -> (index + 1).toString() }.toSet(),
                     )
                     LibraryUpdateJob.startNow(
-                        context.workManager,
+                        context,
                         target = LibraryUpdateJob.Target.SYNC_FOLLOWS,
                     )
                 },
@@ -286,7 +286,7 @@ object SettingsMangadexScreen : SearchableSettings {
             subtitle = stringResource(SYMR.strings.mangadex_push_favorites_to_mangadex_summary),
             onClick = {
                 LibraryUpdateJob.startNow(
-                    context.workManager,
+                    context,
                     target = LibraryUpdateJob.Target.PUSH_FAVORITES,
                 )
             },

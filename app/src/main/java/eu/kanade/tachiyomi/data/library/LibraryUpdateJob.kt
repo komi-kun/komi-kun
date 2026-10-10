@@ -96,8 +96,6 @@ import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.domain.track.interactor.GetTracks
 import tachiyomi.domain.track.interactor.UpsertTrack
 import tachiyomi.i18n.MR
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 import java.io.File
 import java.time.Instant
 import java.time.ZonedDateTime
@@ -824,7 +822,7 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
         }
 
         fun startNow(
-            workManager: WorkManager,
+            context: Context,
             category: Category? = null,
             target: Target = Target.CHAPTERS,
             // SY -->
@@ -835,6 +833,7 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
             mangaIds: List<Long>? = null,
             // KMK <--
         ): Boolean {
+            val workManager = context.workManager
             // Check if the LibraryUpdateJob is already running
             if (workManager.isRunning(TAG)) {
                 // Already running either as a scheduled or manual job
@@ -853,7 +852,7 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
                 // KMK <--
             )
 
-            val syncPreferences: SyncPreferences = Injekt.get()
+            val syncPreferences: SyncPreferences = context.appGraph.syncPreferences
 
             // Always sync the data before library update if syncing is enabled.
             if (syncPreferences.isSyncEnabled()) {
@@ -901,7 +900,7 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
                 .forEach {
                     workManager.cancelWorkById(it.id)
                     // KMK -->
-                    val libraryUpdateStatus: LibraryUpdateStatus = Injekt.get()
+                    val libraryUpdateStatus: LibraryUpdateStatus = context.appGraph.libraryUpdateStatus
                     runBlocking { libraryUpdateStatus.stop() }
                     // KMK <--
 

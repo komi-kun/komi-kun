@@ -1062,7 +1062,7 @@ class LibraryViewModel(
     fun updateSelectedManga(): Boolean {
         val mangaIds = state.value.selection.toList()
         return LibraryUpdateJob.startNow(
-            workManager = preferences.context.workManager,
+            context = preferences.context,
             mangaIds = mangaIds,
             target = LibraryUpdateJob.Target.CHAPTERS,
         )

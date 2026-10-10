@@ -19,6 +19,8 @@ import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.tachiyomi.App
 import eu.kanade.tachiyomi.core.security.PrivacyPreferences
 import eu.kanade.tachiyomi.core.security.SecurityPreferences
+import eu.kanade.tachiyomi.data.BackupRestoreStatus
+import eu.kanade.tachiyomi.data.LibraryUpdateStatus
 import eu.kanade.tachiyomi.data.backup.create.BackupCreateJob
 import eu.kanade.tachiyomi.data.backup.restore.BackupRestoreJob
 import eu.kanade.tachiyomi.data.cache.ChapterCache
@@ -33,6 +35,7 @@ import eu.kanade.tachiyomi.data.notification.NotificationReceiver
 import eu.kanade.tachiyomi.data.sync.service.GoogleDriveService
 import eu.kanade.tachiyomi.data.track.TrackerManager
 import eu.kanade.tachiyomi.data.updater.AppUpdateChecker
+import eu.kanade.tachiyomi.data.updater.AppUpdateDownloadJob
 import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.extension.util.ExtensionInstallActivity
 import eu.kanade.tachiyomi.network.NetworkHelper
@@ -85,6 +88,9 @@ interface AppGraph : ViewModelGraph {
     fun inject(backupCreateJob: BackupCreateJob)
     fun inject(delayedTrackingUpdateJob: DelayedTrackingUpdateJob)
     fun inject(downloadJob: DownloadJob)
+    // KMK -->
+    fun inject(appUpdateDownloadJob: AppUpdateDownloadJob)
+    // KMK <--
     fun inject(notificationReceiver: NotificationReceiver)
     fun inject(notificationReceiver: SecureActivityDelegateImpl)
     fun inject(extensionInstallActivity: ExtensionInstallActivity)
@@ -140,6 +146,8 @@ interface AppGraph : ViewModelGraph {
     val getTracks: GetTracks
     val galleryAdder: GalleryAdder
     val getExtensionStores: GetExtensionStores
+    val backupRestoreStatus: BackupRestoreStatus
+    val libraryUpdateStatus: LibraryUpdateStatus
     // KMK <--
 
     val json: Json

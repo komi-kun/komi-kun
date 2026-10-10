@@ -31,8 +31,6 @@ import mihon.core.metro.metroGraph
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.i18n.MR
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 
 class BackupRestoreJob(private val context: Context, workerParams: WorkerParameters) :
     CoroutineWorker(context, workerParams) {
@@ -44,7 +42,7 @@ class BackupRestoreJob(private val context: Context, workerParams: WorkerParamet
     @Inject private lateinit var notifier: BackupNotifier
 
     // KMK -->
-    private val backupRestoreStatus: BackupRestoreStatus = Injekt.get()
+    @Inject private lateinit var backupRestoreStatus: BackupRestoreStatus
     // KMK <--
 
     override suspend fun doWork(): Result {
@@ -158,10 +156,10 @@ class BackupRestoreJob(private val context: Context, workerParams: WorkerParamet
         }
         // SY <--
 
-        fun stop(workManager: WorkManager) {
-            workManager.cancelUniqueWork(TAG)
+        fun stop(context: Context) {
+            context.workManager.cancelUniqueWork(TAG)
             // KMK -->
-            val backupRestoreStatus: BackupRestoreStatus = Injekt.get()
+            val backupRestoreStatus: BackupRestoreStatus = context.metroGraph<AppGraph>().backupRestoreStatus
             runBlocking { backupRestoreStatus.stop() }
             // KMK <--
         }

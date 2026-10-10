@@ -278,7 +278,7 @@ class UpdatesViewModel(
     }
 
     fun updateLibrary(): Boolean {
-        val started = LibraryUpdateJob.startNow(context.workManager)
+        val started = LibraryUpdateJob.startNow(context)
         viewModelScope.launch {
             _events.send(Event.LibraryUpdateTriggered(started))
         }

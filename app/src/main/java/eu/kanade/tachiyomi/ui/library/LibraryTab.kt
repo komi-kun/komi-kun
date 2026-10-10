@@ -120,7 +120,7 @@ data object LibraryTab : Tab {
         val onClickRefresh: (Category?) -> Boolean = { category ->
             // SY -->
             val started = LibraryUpdateJob.startNow(
-                workManager = context.workManager,
+                context = context,
                 category = if (state.groupType == LibraryGroup.BY_DEFAULT) category else null,
                 group = state.groupType,
                 groupExtra = when (state.groupType) {

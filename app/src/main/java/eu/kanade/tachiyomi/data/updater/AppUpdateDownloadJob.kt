@@ -20,6 +20,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.OutOfQuotaPolicy
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
+import dev.zacsweers.metro.Inject
 import eu.kanade.tachiyomi.BuildConfig
 import eu.kanade.tachiyomi.data.notification.Notifications
 import eu.kanade.tachiyomi.network.NetworkHelper
@@ -39,6 +40,9 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import mihon.app.di.AppGraph
+import mihon.app.di.appGraph
+import mihon.core.metro.metroGraph
 import okhttp3.internal.http2.ErrorCode
 import okhttp3.internal.http2.StreamResetException
 import tachiyomi.core.common.i18n.stringResource
@@ -46,9 +50,6 @@ import tachiyomi.core.common.util.lang.launchUI
 import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.domain.release.service.AppUpdatePolicy
 import tachiyomi.i18n.MR
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
-import uy.kohesive.injekt.injectLazy
 import java.io.File
 import java.lang.ref.WeakReference
 import java.util.concurrent.TimeUnit
@@ -57,17 +58,20 @@ import kotlin.coroutines.cancellation.CancellationException
 class AppUpdateDownloadJob(private val context: Context, workerParams: WorkerParameters) :
     CoroutineWorker(context, workerParams) {
 
-    private val network: NetworkHelper by injectLazy()
+    private val graph: AppGraph = context.metroGraph()
+
+    @Inject private lateinit var network: NetworkHelper
 
     // KMK -->
     private val notifier = AppUpdateNotifier(context)
     // KMK <--
 
     // KMK -->
-    private val exhPreferences = Injekt.get<ExhPreferences>()
+    @Inject private lateinit var exhPreferences: ExhPreferences
     // KMK <--
 
     override suspend fun doWork(): Result {
+        graph.inject(this)
         // KMK -->
         val idleRun = inputData.getBoolean(SCHEDULED_RUN, false)
         if (idleRun) {
@@ -315,7 +319,7 @@ class AppUpdateDownloadJob(private val context: Context, workerParams: WorkerPar
                     // KMK -->
                     if (scheduled) {
                         data.putBoolean(SCHEDULED_RUN, true)
-                        val restrictions = Injekt.get<ExhPreferences>().appShouldAutoUpdate.get()
+                        val restrictions = context.appGraph.exhPreferences.appShouldAutoUpdate.get()
                         val networkType = if (AppUpdatePolicy.DEVICE_NETWORK_NOT_METERED in restrictions) {
                             NetworkType.UNMETERED
                         } else {
