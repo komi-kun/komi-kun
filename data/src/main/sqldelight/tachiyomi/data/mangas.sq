@@ -237,11 +237,14 @@ AND (
      SELECT DISTINCT manga_id FROM merged WHERE manga_id != merge_id
 );
 
-insert:
-INSERT INTO mangas(source, url, artist, author, description, genre, title, status, thumbnail_url, favorite, last_update, next_update, initialized, viewer, chapter_flags, cover_last_modified, date_added, update_strategy, calculate_interval, last_modified_at, version, is_syncing, notes, memo)
--- SY -->
-VALUES (:source, :url, :artist, :author, :description, :genre, :title, :status, :thumbnailUrl, :favorite, :lastUpdate, :nextUpdate, :initialized, :viewerFlags, :chapterFlags, :coverLastModified, :dateAdded, :updateStrategy, :calculateInterval, :lastModifiedAt, :version, :isSyncing, :notes, :memo);
--- SY <--
+insert {
+    INSERT INTO mangas(source, url, artist, author, description, genre, title, status, thumbnail_url, favorite, last_update, next_update, initialized, viewer, chapter_flags, cover_last_modified, date_added, update_strategy, calculate_interval, last_modified_at, version, is_syncing, notes, memo)
+    -- SY -->
+    VALUES (:source, :url, :artist, :author, :description, :genre, :title, :status, :thumbnailUrl, :favorite, :lastUpdate, :nextUpdate, :initialized, :viewerFlags, :chapterFlags, :coverLastModified, :dateAdded, :updateStrategy, :calculateInterval, :lastModifiedAt, :version, :isSyncing, :notes, :memo);
+    -- SY <--
+
+    SELECT last_insert_rowid();
+}
 
 update:
 UPDATE mangas SET
@@ -272,9 +275,6 @@ UPDATE mangas SET
     notes = coalesce(:notes, notes),
     memo = coalesce(:memo, memo)
 WHERE _id = :mangaId;
-
-selectLastInsertedRowId:
-SELECT last_insert_rowid();
 
 insertNetworkManga {
     -- Insert the manga if it doesn't exist already
@@ -337,11 +337,6 @@ SELECT * FROM mangas;
 
 deleteById:
 DELETE FROM mangas WHERE _id = :id;
-
-selectLastInsertRow:
-SELECT *
-FROM mangas
-WHERE _id = last_insert_rowid();
 
 getIdByUrlAndSource:
 SELECT _id

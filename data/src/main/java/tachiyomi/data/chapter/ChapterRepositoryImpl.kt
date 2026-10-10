@@ -1,25 +1,30 @@
 package tachiyomi.data.chapter
 
+import app.cash.sqldelight.async.coroutines.awaitAsList
+import app.cash.sqldelight.async.coroutines.awaitAsOne
+import app.cash.sqldelight.async.coroutines.awaitAsOneOrNull
 import kotlinx.coroutines.flow.Flow
 import logcat.LogPriority
 import tachiyomi.core.common.util.lang.toLong
 import tachiyomi.core.common.util.system.logcat
-import tachiyomi.data.DatabaseHandler
+import tachiyomi.data.Database
 import tachiyomi.data.MemoColumnAdapter
+import tachiyomi.data.chapter.ChapterMapper.mapChapter
+import tachiyomi.data.subscribeToList
 import tachiyomi.domain.chapter.model.Chapter
 import tachiyomi.domain.chapter.model.ChapterUpdate
 import tachiyomi.domain.chapter.repository.ChapterRepository
 import tachiyomi.domain.manga.model.Manga
 
 class ChapterRepositoryImpl(
-    private val handler: DatabaseHandler,
+    private val database: Database,
 ) : ChapterRepository {
 
     override suspend fun addAll(chapters: List<Chapter>): List<Chapter> {
         return try {
-            handler.await(inTransaction = true) {
+            database.transactionWithResult {
                 chapters.map { chapter ->
-                    chaptersQueries.insert(
+                    val lastInsertId = database.chaptersQueries.insert(
                         chapter.mangaId,
                         chapter.url,
                         chapter.name,
@@ -37,8 +42,7 @@ class ChapterRepositoryImpl(
                         0L,
                         // SY <--
                         chapter.memo,
-                    )
-                    val lastInsertId = chaptersQueries.selectLastInsertedRowId().executeAsOne()
+                    ).awaitAsOne()
                     chapter.copy(id = lastInsertId)
                 }
             }
@@ -62,22 +66,22 @@ class ChapterRepositoryImpl(
         added: List<Chapter>,
         updated: List<ChapterUpdate>,
     ): List<Chapter> {
-        return handler.await(inTransaction = true) {
+        return database.transactionWithResult {
             if (removedIds.isNotEmpty()) {
-                chaptersQueries.removeChaptersWithIds(removedIds)
+                database.chaptersQueries.removeChaptersWithIds(removedIds)
             }
 
             val existing = added.map { it.mangaId }
                 .distinct()
                 .flatMap { mangaId ->
-                    chaptersQueries.getChaptersByMangaId(
+                    database.chaptersQueries.getChaptersByMangaId(
                         mangaId,
                         false.toLong(),
                         Manga.CHAPTER_SHOW_NOT_BOOKMARKED,
                         Manga.CHAPTER_SHOW_BOOKMARKED,
                         ChapterMapper::mapChapter,
                     )
-                        .executeAsList()
+                        .awaitAsList()
                         .map { mangaId to it.url }
                 }
                 .toMutableSet()
@@ -85,7 +89,7 @@ class ChapterRepositoryImpl(
             val stored = added
                 .filter { existing.add(it.mangaId to it.url) }
                 .map { chapter ->
-                    chaptersQueries.insert(
+                    database.chaptersQueries.insert(
                         chapter.mangaId,
                         chapter.url,
                         chapter.name,
@@ -101,13 +105,12 @@ class ChapterRepositoryImpl(
                         chapter.lastModifiedAt,
                         0L,
                         chapter.memo,
-                    )
-                    val lastInsertId = chaptersQueries.selectLastInsertedRowId().executeAsOne()
-                    chapter.copy(id = lastInsertId)
+                    ).awaitAsOne()
+                        .let { lastInsertId -> chapter.copy(id = lastInsertId) }
                 }
 
             updated.forEach { chapterUpdate ->
-                chaptersQueries.update(
+                database.chaptersQueries.update(
                     mangaId = chapterUpdate.mangaId,
                     url = chapterUpdate.url,
                     name = chapterUpdate.name,
@@ -133,9 +136,9 @@ class ChapterRepositoryImpl(
     // KMK <--
 
     private suspend fun partialUpdate(vararg chapterUpdates: ChapterUpdate) {
-        handler.await(inTransaction = true) {
+        database.transaction {
             chapterUpdates.forEach { chapterUpdate ->
-                chaptersQueries.update(
+                database.chaptersQueries.update(
                     mangaId = chapterUpdate.mangaId,
                     url = chapterUpdate.url,
                     name = chapterUpdate.name,
@@ -161,15 +164,15 @@ class ChapterRepositoryImpl(
 
     override suspend fun removeChaptersWithIds(chapterIds: List<Long>) {
         try {
-            handler.await { chaptersQueries.removeChaptersWithIds(chapterIds) }
+            database.chaptersQueries.removeChaptersWithIds(chapterIds)
         } catch (e: Exception) {
             logcat(LogPriority.ERROR, e)
         }
     }
 
     override suspend fun getChapterByMangaId(mangaId: Long, applyFilter: Boolean): List<Chapter> {
-        return handler.awaitList {
-            chaptersQueries.getChaptersByMangaId(
+        return database.chaptersQueries
+            .getChaptersByMangaId(
                 mangaId,
                 applyFilter.toLong(),
                 // KMK -->
@@ -178,37 +181,36 @@ class ChapterRepositoryImpl(
                 // KMK <--
                 ChapterMapper::mapChapter,
             )
-        }
+            .awaitAsList()
     }
 
     override suspend fun getScanlatorsByMangaId(mangaId: Long): List<String> {
-        return handler.awaitList {
-            chaptersQueries.getScanlatorsByMangaId(mangaId) { it.orEmpty() }
-        }
+        return database.chaptersQueries
+            .getScanlatorsByMangaId(mangaId) { it.orEmpty() }
+            .awaitAsList()
     }
 
     override fun getScanlatorsByMangaIdAsFlow(mangaId: Long): Flow<List<String>> {
-        return handler.subscribeToList {
-            chaptersQueries.getScanlatorsByMangaId(mangaId) { it.orEmpty() }
-        }
+        return database.chaptersQueries
+            .getScanlatorsByMangaId(mangaId) { it.orEmpty() }
+            .subscribeToList()
     }
 
     override suspend fun getBookmarkedChaptersByMangaId(mangaId: Long): List<Chapter> {
-        return handler.awaitList {
-            chaptersQueries.getBookmarkedChaptersByMangaId(
-                mangaId,
-                ChapterMapper::mapChapter,
-            )
-        }
+        return database.chaptersQueries
+            .getBookmarkedChaptersByMangaId(mangaId, ::mapChapter)
+            .awaitAsList()
     }
 
     override suspend fun getChapterById(id: Long): Chapter? {
-        return handler.awaitOneOrNull { chaptersQueries.getChapterById(id, ChapterMapper::mapChapter) }
+        return database.chaptersQueries
+            .getChapterById(id, ::mapChapter)
+            .awaitAsOneOrNull()
     }
 
     override suspend fun getChapterByMangaIdAsFlow(mangaId: Long, applyFilter: Boolean): Flow<List<Chapter>> {
-        return handler.subscribeToList {
-            chaptersQueries.getChaptersByMangaId(
+        return database.chaptersQueries
+            .getChaptersByMangaId(
                 mangaId,
                 applyFilter.toLong(),
                 // KMK -->
@@ -217,27 +219,25 @@ class ChapterRepositoryImpl(
                 // KMK <--
                 ChapterMapper::mapChapter,
             )
-        }
+            .subscribeToList()
     }
 
     override suspend fun getChapterByUrlAndMangaId(url: String, mangaId: Long): Chapter? {
-        return handler.awaitOneOrNull {
-            chaptersQueries.getChapterByUrlAndMangaId(
-                url,
-                mangaId,
-                ChapterMapper::mapChapter,
-            )
-        }
+        return database.chaptersQueries
+            .getChapterByUrlAndMangaId(url, mangaId, ::mapChapter)
+            .awaitAsOneOrNull()
     }
 
     // SY -->
     override suspend fun getChapterByUrl(url: String): List<Chapter> {
-        return handler.awaitList { chaptersQueries.getChapterByUrl(url, ChapterMapper::mapChapter) }
+        return database.chaptersQueries
+            .getChapterByUrl(url, ::mapChapter)
+            .awaitAsList()
     }
 
     override suspend fun getMergedChapterByMangaId(mangaId: Long, applyFilter: Boolean): List<Chapter> {
-        return handler.awaitList {
-            chaptersQueries.getMergedChaptersByMangaId(
+        return database.chaptersQueries
+            .getMergedChaptersByMangaId(
                 mangaId,
                 applyFilter.toLong(),
                 // KMK -->
@@ -246,15 +246,15 @@ class ChapterRepositoryImpl(
                 // KMK <--
                 ChapterMapper::mapChapter,
             )
-        }
+            .awaitAsList()
     }
 
     override suspend fun getMergedChapterByMangaIdAsFlow(
         mangaId: Long,
         applyFilter: Boolean,
     ): Flow<List<Chapter>> {
-        return handler.subscribeToList {
-            chaptersQueries.getMergedChaptersByMangaId(
+        return database.chaptersQueries
+            .getMergedChaptersByMangaId(
                 mangaId,
                 applyFilter.toLong(),
                 // KMK -->
@@ -263,19 +263,19 @@ class ChapterRepositoryImpl(
                 // KMK <--
                 ChapterMapper::mapChapter,
             )
-        }
+            .subscribeToList()
     }
 
     override suspend fun getScanlatorsByMergeId(mangaId: Long): List<String> {
-        return handler.awaitList {
-            chaptersQueries.getScanlatorsByMergeId(mangaId) { it.orEmpty() }
-        }
+        return database.chaptersQueries
+            .getScanlatorsByMergeId(mangaId) { it.orEmpty() }
+            .awaitAsList()
     }
 
     override fun getScanlatorsByMergeIdAsFlow(mangaId: Long): Flow<List<String>> {
-        return handler.subscribeToList {
-            chaptersQueries.getScanlatorsByMergeId(mangaId) { it.orEmpty() }
-        }
+        return database.chaptersQueries
+            .getScanlatorsByMergeId(mangaId) { it.orEmpty() }
+            .subscribeToList()
     }
     // SY <--
 }

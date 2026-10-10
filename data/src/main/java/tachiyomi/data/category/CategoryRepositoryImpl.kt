@@ -1,107 +1,102 @@
 package tachiyomi.data.category
 
+import app.cash.sqldelight.async.coroutines.awaitAsList
+import app.cash.sqldelight.async.coroutines.awaitAsOneOrNull
 import kotlinx.coroutines.flow.Flow
 import tachiyomi.data.Database
-import tachiyomi.data.DatabaseHandler
+import tachiyomi.data.subscribeToList
 import tachiyomi.domain.category.model.Category
 import tachiyomi.domain.category.model.CategoryUpdate
 import tachiyomi.domain.category.repository.CategoryRepository
 
 class CategoryRepositoryImpl(
-    private val handler: DatabaseHandler,
+    private val database: Database,
 ) : CategoryRepository {
 
     override suspend fun get(id: Long): Category? {
-        return handler.awaitOneOrNull { categoriesQueries.getCategory(id, CategoryMapper::mapCategory) }
+        return database.categoriesQueries
+            .getCategory(id, CategoryMapper::mapCategory)
+            .awaitAsOneOrNull()
     }
 
     override suspend fun getAll(): List<Category> {
-        return handler.awaitList { categoriesQueries.getCategories(CategoryMapper::mapCategory) }
+        return database.categoriesQueries
+            .getCategories(CategoryMapper::mapCategory)
+            .awaitAsList()
     }
 
     override fun getAllAsFlow(): Flow<List<Category>> {
-        return handler.subscribeToList { categoriesQueries.getCategories(CategoryMapper::mapCategory) }
+        return database.categoriesQueries
+            .getCategories(CategoryMapper::mapCategory)
+            .subscribeToList()
     }
 
     override suspend fun getCategoriesByMangaId(mangaId: Long): List<Category> {
-        return handler.awaitList {
-            categoriesQueries.getCategoriesByMangaId(mangaId, CategoryMapper::mapCategory)
-        }
+        return database.categoriesQueries
+            .getCategoriesByMangaId(mangaId, CategoryMapper::mapCategory)
+            .awaitAsList()
     }
 
     override fun getCategoriesByMangaIdAsFlow(mangaId: Long): Flow<List<Category>> {
-        return handler.subscribeToList {
-            categoriesQueries.getCategoriesByMangaId(mangaId, CategoryMapper::mapCategory)
-        }
+        return database.categoriesQueries
+            .getCategoriesByMangaId(mangaId, CategoryMapper::mapCategory)
+            .subscribeToList()
     }
 
     // SY -->
-    override suspend fun insert(category: Category): Long {
-        return handler.awaitOneExecutable(true) {
-            categoriesQueries.insertWithNextOrder(
-                name = category.name,
-                flags = category.flags,
-                // KMK -->
-                hidden = if (category.hidden) 1L else 0L,
-                // KMK <--
-                // SY -->
-                version = category.version,
-                uid = category.uid,
-                lastModifiedAt = category.lastModifiedAt,
-                // SY <--
-            )
-            categoriesQueries.selectLastInsertedRowId()
-        }
+    override suspend fun insert(category: Category): Long? {
+        return database.categoriesQueries.insertWithNextOrder(
+            name = category.name,
+            flags = category.flags,
+            // KMK -->
+            hidden = if (category.hidden) 1L else 0L,
+            // KMK <--
+            // SY -->
+            version = category.version,
+            uid = category.uid,
+            lastModifiedAt = category.lastModifiedAt,
+            // SY <--
+        ).awaitAsOneOrNull()
     }
     // SY <--
 
     override suspend fun updateName(categoryId: Long, name: String) {
-        handler.await {
-            categoriesQueries.updateName(name = name, categoryId = categoryId)
-        }
+        database.categoriesQueries.updateName(name = name, categoryId = categoryId)
     }
 
     override suspend fun updateFlags(categoryId: Long, flags: Long) {
-        handler.await {
-            categoriesQueries.updateFlags(flags = flags, categoryId = categoryId)
-        }
+        database.categoriesQueries.updateFlags(flags = flags, categoryId = categoryId)
     }
 
     override suspend fun updateAllFlags(flags: Long?) {
-        handler.await {
-            categoriesQueries.updateAllFlags(flags)
-        }
+        database.categoriesQueries.updateAllFlags(flags)
     }
 
     override suspend fun updateAllOrders(orderedIds: List<Long>) {
-        handler.await(inTransaction = true) {
-            val current = categoriesQueries.getUserCategoryIds().executeAsList()
+        database.transaction {
+            val current = database.categoriesQueries.getUserCategoryIds().awaitAsList()
             val ids = orderedIds.filter { it in current } + current.filterNot { it in orderedIds }
             ids.forEachIndexed { index, categoryId ->
-                categoriesQueries.updateOrder(order = -index - 2L, categoryId = categoryId)
+                database.categoriesQueries.updateOrder(order = -index - 2L, categoryId = categoryId)
             }
             ids.forEachIndexed { index, categoryId ->
-                categoriesQueries.updateOrder(order = index.toLong(), categoryId = categoryId)
+                database.categoriesQueries.updateOrder(order = index.toLong(), categoryId = categoryId)
             }
         }
     }
 
     // KMK -->
     override suspend fun updatePartial(update: CategoryUpdate) {
-        handler.await {
-            updatePartialBlocking(update)
-        }
+        database.updatePartialBlocking(update)
     }
 
     override suspend fun updatePartial(updates: List<CategoryUpdate>) {
-        handler.await(inTransaction = true) {
-            for (update in updates) {
-                updatePartialBlocking(update)
-            }
+        database.transaction {
+            updates.forEach { database.updatePartialBlocking(it) }
         }
     }
 
-    private fun Database.updatePartialBlocking(update: CategoryUpdate) {
+    private suspend fun Database.updatePartialBlocking(update: CategoryUpdate) {
         categoriesQueries.update(
             name = update.name,
             order = update.order,
@@ -121,10 +116,6 @@ class CategoryRepositoryImpl(
     // KMK <--
 
     override suspend fun delete(categoryId: Long) {
-        handler.await {
-            categoriesQueries.delete(
-                categoryId = categoryId,
-            )
-        }
+        database.categoriesQueries.delete(categoryId = categoryId)
     }
 }

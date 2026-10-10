@@ -241,7 +241,7 @@ dependencies {
     implementation(androidx.paging.runtime)
     implementation(androidx.paging.compose)
 
-    implementation(libs.bundles.sqlite)
+    implementation(androidx.sqlite.bundled)
     // SY -->
     implementation(sylibs.sqlcipher)
     // SY <--
@@ -251,6 +251,10 @@ dependencies {
 
     implementation(platform(kotlinx.coroutines.bom))
     implementation(kotlinx.bundles.coroutines)
+
+    implementation(libs.sqldelight.async)
+
+    implementation(libs.sqldelight.async)
 
     // AndroidX libraries
     implementation(androidx.annotation)

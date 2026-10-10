@@ -1,7 +1,8 @@
 package eu.kanade.tachiyomi.data.backup.restore.restorers
 
+import app.cash.sqldelight.async.coroutines.awaitAsOne
 import eu.kanade.tachiyomi.data.backup.models.BackupCategory
-import tachiyomi.data.DatabaseHandler
+import tachiyomi.data.Database
 import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.domain.library.service.LibraryPreferences
 import uy.kohesive.injekt.Injekt
@@ -11,7 +12,7 @@ class CategoriesRestorer(
     // SY -->
     private val isSync: Boolean = false,
     // SY <--
-    private val handler: DatabaseHandler = Injekt.get(),
+    private val database: Database = Injekt.get(),
     private val getCategories: GetCategories = Injekt.get(),
     private val libraryPreferences: LibraryPreferences = Injekt.get(),
 ) {
@@ -41,21 +42,19 @@ class CategoriesRestorer(
                     }
 
                     if (dbCategory != null) {
-                        handler.await {
-                            categoriesQueries.update(
-                                name = backupCategory.name,
-                                order = backupCategory.order,
-                                flags = backupCategory.flags,
-                                // KMK -->
-                                hidden = if (backupCategory.hidden) 1L else null,
-                                // KMK <--
-                                version = backupCategory.version,
-                                uid = if (backupCategory.uid != 0L) backupCategory.uid else dbCategory.uid,
-                                lastModifiedAt = backupCategory.lastModifiedAt,
-                                isSyncing = 1,
-                                categoryId = dbCategory.id,
-                            )
-                        }
+                        database.categoriesQueries.update(
+                            name = backupCategory.name,
+                            order = backupCategory.order,
+                            flags = backupCategory.flags,
+                            // KMK -->
+                            hidden = if (backupCategory.hidden) 1L else null,
+                            // KMK <--
+                            version = backupCategory.version,
+                            uid = if (backupCategory.uid != 0L) backupCategory.uid else dbCategory.uid,
+                            lastModifiedAt = backupCategory.lastModifiedAt,
+                            isSyncing = 1,
+                            categoryId = dbCategory.id,
+                        )
                         return@map dbCategory
                     }
 
@@ -65,30 +64,25 @@ class CategoriesRestorer(
                     // reorders never converge across devices.
                     val order = if (isSync) backupCategory.order else nextOrder++
                     // SY <--
-                    handler.awaitOneExecutable {
-                        categoriesQueries.insert(
-                            backupCategory.name,
-                            order,
-                            backupCategory.flags,
-                            // KMK -->
-                            hidden = if (backupCategory.hidden) 1L else 0L,
-                            // KMK <--
-                            // SY -->
-                            version = backupCategory.version,
-                            uid = backupCategory.uid,
-                            lastModifiedAt = backupCategory.lastModifiedAt,
-                            // SY <--
-                        )
-                        categoriesQueries.selectLastInsertedRowId()
-                    }
+                    database.categoriesQueries.insert(
+                        name = backupCategory.name,
+                        order = order,
+                        flags = backupCategory.flags,
+                        // KMK -->
+                        hidden = if (backupCategory.hidden) 1L else 0L,
+                        // KMK <--
+                        // SY -->
+                        version = backupCategory.version,
+                        uid = backupCategory.uid,
+                        lastModifiedAt = backupCategory.lastModifiedAt,
+                        // SY <--
+                    ).awaitAsOne()
                         .let { id -> backupCategory.toCategory(id).copy(order = order) }
                 }
             // SY <--
 
             // SY -->
-            handler.await {
-                categoriesQueries.resetIsSyncing()
-            }
+            database.categoriesQueries.resetIsSyncing()
             // SY <--
 
             libraryPreferences.categorizedDisplaySettings().set(

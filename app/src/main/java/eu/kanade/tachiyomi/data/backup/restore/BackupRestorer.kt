@@ -29,7 +29,7 @@ import kotlinx.coroutines.launch
 import logcat.LogPriority
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.util.system.logcat
-import tachiyomi.data.DatabaseHandler
+import tachiyomi.data.Database
 import tachiyomi.domain.source.repository.StubSourceRepository
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.i18n.MR
@@ -52,7 +52,7 @@ class BackupRestorer(
     private val isSync: Boolean,
 
     // KMK -->
-    private val handler: DatabaseHandler = Injekt.get(),
+    private val database: Database = Injekt.get(),
     private val sourceManager: SourceManager = Injekt.get(),
     private val stubSourceRepository: StubSourceRepository = Injekt.get(),
     // KMK <--
@@ -255,7 +255,7 @@ class BackupRestorer(
             .chunked(100)
             .forEach { chunk ->
                 val restoredAsBatch = try {
-                    handler.await(inTransaction = true) {
+                    database.transaction {
                         chunk.forEach {
                             ensureActive()
                             mangaRestorer.restore(it, backupCategories)

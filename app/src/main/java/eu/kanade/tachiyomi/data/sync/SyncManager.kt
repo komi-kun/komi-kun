@@ -2,6 +2,7 @@ package eu.kanade.tachiyomi.data.sync
 
 import android.content.Context
 import android.net.Uri
+import app.cash.sqldelight.async.coroutines.awaitAsList
 import eu.kanade.domain.sync.SyncPreferences
 import eu.kanade.tachiyomi.data.backup.create.BackupCreator
 import eu.kanade.tachiyomi.data.backup.create.BackupOptions
@@ -25,7 +26,7 @@ import okio.buffer
 import okio.sink
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.data.Chapters
-import tachiyomi.data.DatabaseHandler
+import tachiyomi.data.Database
 import tachiyomi.data.manga.MangaMapper.mapManga
 import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.domain.manga.model.Manga
@@ -45,7 +46,7 @@ import kotlin.time.Clock
  */
 class SyncManager(
     private val context: Context,
-    private val handler: DatabaseHandler = Injekt.get(),
+    private val database: Database = Injekt.get(),
     private val syncPreferences: SyncPreferences = Injekt.get(),
     private var json: Json = Json {
         encodeDefaults = true
@@ -84,11 +85,11 @@ class SyncManager(
         // SY <--
 
         // Reset isSyncing in case it was left over or failed syncing during restore.
-        handler.await(inTransaction = true) {
-            mangasQueries.resetIsSyncing()
-            chaptersQueries.resetIsSyncing()
+        database.transaction {
+            database.mangasQueries.resetIsSyncing()
+            database.chaptersQueries.resetIsSyncing()
             // SY -->
-            categoriesQueries.resetIsSyncing()
+            database.categoriesQueries.resetIsSyncing()
             // SY <--
         }
 
@@ -224,7 +225,7 @@ class SyncManager(
         updateNonFavorites(nonFavorites)
         // SY -->
         // the restore below may not run, so its reset of the sync flag cannot be relied on
-        handler.await(inTransaction = true) { mangasQueries.resetIsSyncing() }
+        database.transaction { database.mangasQueries.resetIsSyncing() }
         // SY <--
 
         val newSyncData = backup.copy(
@@ -280,9 +281,9 @@ class SyncManager(
                 it.uid !in mergedUids && it.name !in mergedNames
             }
             if (categoriesToDelete.isNotEmpty()) {
-                handler.await(inTransaction = true) {
+                database.transaction {
                     categoriesToDelete.forEach {
-                        categoriesQueries.delete(it.id)
+                        database.categoriesQueries.delete(it.id)
                     }
                 }
                 categoriesToDelete.forEach { syncPreferences.rememberDeletedCategory(it.uid) }
@@ -377,30 +378,36 @@ class SyncManager(
      * @return a list of all manga stored in the database
      */
     private suspend fun getAllMangaFromDB(): List<Manga> {
-        return handler.awaitList { mangasQueries.getAllManga(::mapManga) }
+        return database.mangasQueries
+            .getAllManga(::mapManga)
+            .awaitAsList()
     }
 
     private suspend fun getAllMangaThatNeedsSync(): List<Manga> {
-        return handler.awaitList { mangasQueries.getMangasWithFavoriteTimestamp(::mapManga) }
+        return database.mangasQueries
+            .getMangasWithFavoriteTimestamp(::mapManga)
+            .awaitAsList()
     }
 
     // SY -->
     private suspend fun getMangasModifiedSince(since: Long): List<Manga> {
-        return handler.awaitList { mangasQueries.getMangasModifiedSince(since, ::mapManga) }
+        return database.mangasQueries
+            .getMangasModifiedSince(since, ::mapManga)
+            .awaitAsList()
     }
     // SY <--
 
     private suspend fun isMangaDifferent(localManga: Manga, remoteManga: BackupManga): Boolean {
-        val localChapters = handler.await {
-            chaptersQueries.getChaptersByMangaId(
+        val localChapters = database.chaptersQueries
+            .getChaptersByMangaId(
                 localManga.id,
                 0,
                 // KMK -->
                 Manga.CHAPTER_SHOW_NOT_BOOKMARKED,
                 Manga.CHAPTER_SHOW_BOOKMARKED,
                 // KMK <--
-            ).executeAsList()
-        }
+            )
+            .awaitAsList()
         val localCategories = getCategories.await(localManga.id).map { it.order }
 
         if (areChaptersDifferent(localChapters, remoteManga.chapters)) {
