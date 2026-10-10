@@ -114,7 +114,7 @@ class HistoryviewModelStateProvider : PreviewParameterProvider<HistoryViewModel.
                     chapterNumber = Random.nextDouble(),
                     // KMK -->
                     read = Random.nextBoolean(),
-                    lastPageRead = Random.nextLong(1, 10),
+                    lastPageRead = Random.nextInt(1, 10),
                     totalCountCalculated = Random.nextLong(1, 100),
                     readCountCalculated = 1,
                     readAt = readAt,

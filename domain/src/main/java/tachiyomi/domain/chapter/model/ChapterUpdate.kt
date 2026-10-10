@@ -8,7 +8,7 @@ data class ChapterUpdate(
     val mangaId: Long? = null,
     val read: Boolean? = null,
     val bookmark: Boolean? = null,
-    val lastPageRead: Long? = null,
+    val lastPageRead: Int? = null,
     val dateFetch: Instant? = null,
     val sourceOrder: Long? = null,
     val url: String? = null,

@@ -1,4 +1,6 @@
 -- NOTE: must update MERGED_SOURCE_ID (6969) here
+import kotlin.Int;
+
 CREATE VIEW updatesView AS
 SELECT
     manga.id AS mangaId,

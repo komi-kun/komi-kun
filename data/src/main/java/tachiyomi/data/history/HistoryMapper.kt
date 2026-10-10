@@ -30,7 +30,7 @@ object HistoryMapper {
         chapterNumber: Double,
         // KMK -->
         read: Boolean,
-        lastPageRead: Long,
+        lastPageRead: Int,
         totalCount: Double,
         readCount: Double,
         // KMK <--

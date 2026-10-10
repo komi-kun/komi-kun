@@ -294,7 +294,7 @@ class RestoreRepositoryImpl(
                 .let {
                     when {
                         dbChapter.read && !it.read -> it.copy(read = true, lastPageRead = dbChapter.lastPageRead)
-                        it.lastPageRead == 0L && dbChapter.lastPageRead != 0L -> it.copy(
+                        it.lastPageRead == 0 && dbChapter.lastPageRead != 0 -> it.copy(
                             lastPageRead = dbChapter.lastPageRead,
                         )
                         else -> it
