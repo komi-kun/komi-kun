@@ -94,7 +94,7 @@ import tachiyomi.domain.source.repository.StubSourceRepository
 import tachiyomi.domain.track.interactor.DeleteTrack
 import tachiyomi.domain.track.interactor.GetTracks
 import tachiyomi.domain.track.interactor.GetTracksPerManga
-import tachiyomi.domain.track.interactor.InsertTrack
+import tachiyomi.domain.track.interactor.UpsertTrack
 import tachiyomi.domain.track.repository.TrackRepository
 import tachiyomi.domain.updates.interactor.GetUpdates
 import tachiyomi.domain.updates.repository.UpdatesRepository
@@ -163,7 +163,7 @@ class DomainModule : InjektModule {
         addFactory { DeleteTrack(get()) }
         addFactory { GetTracksPerManga(get(), get()) }
         addFactory { GetTracks(get()) }
-        addFactory { InsertTrack(get()) }
+        addFactory { UpsertTrack(get()) }
         addFactory { SyncChapterProgressWithTrack(get(), get(), get()) }
 
         addSingletonFactory<ChapterRepository> { ChapterRepositoryImpl(get()) }

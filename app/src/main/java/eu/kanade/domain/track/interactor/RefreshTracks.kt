@@ -13,7 +13,7 @@ import kotlinx.coroutines.supervisorScope
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.util.lang.withUIContext
 import tachiyomi.domain.track.interactor.GetTracks
-import tachiyomi.domain.track.interactor.InsertTrack
+import tachiyomi.domain.track.interactor.UpsertTrack
 import tachiyomi.i18n.kmk.KMR
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
@@ -21,7 +21,7 @@ import uy.kohesive.injekt.api.get
 class RefreshTracks(
     private val getTracks: GetTracks,
     private val trackerManager: TrackerManager,
-    private val insertTrack: InsertTrack,
+    private val upsertTrack: UpsertTrack,
     private val syncChapterProgressWithTrack: SyncChapterProgressWithTrack,
 ) {
 
@@ -45,7 +45,7 @@ class RefreshTracks(
                     async {
                         return@async try {
                             val updatedTrack = service!!.refresh(track.toDbTrack()).toDomainTrack()!!
-                            insertTrack.await(updatedTrack)
+                            upsertTrack.await(updatedTrack)
                             // KMK -->
                             if (!enhancedTrackersOnly) {
                                 syncChapterProgressWithTrack.sync(mangaId, updatedTrack, service)

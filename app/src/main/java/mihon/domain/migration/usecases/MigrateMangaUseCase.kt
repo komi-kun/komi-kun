@@ -22,7 +22,7 @@ import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.manga.model.MangaUpdate
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.domain.track.interactor.GetTracks
-import tachiyomi.domain.track.interactor.InsertTrack
+import tachiyomi.domain.track.interactor.UpsertTrack
 import java.time.Instant
 
 class MigrateMangaUseCase(
@@ -36,7 +36,7 @@ class MigrateMangaUseCase(
     private val getCategories: GetCategories,
     private val setMangaCategories: SetMangaCategories,
     private val getTracks: GetTracks,
-    private val insertTrack: InsertTrack,
+    private val upsertTrack: UpsertTrack,
     private val coverCache: CoverCache,
     private val updateMangaFromRemote: UpdateMangaFromRemote,
     // KMK -->
@@ -155,7 +155,7 @@ class MigrateMangaUseCase(
                     }
                 }
                     .takeIf { it.isNotEmpty() }
-                    ?.let { insertTrack.awaitAll(it) }
+                    ?.let { upsertTrack.awaitAll(it) }
             }
 
             // Delete downloaded

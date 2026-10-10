@@ -162,7 +162,7 @@ import tachiyomi.domain.manga.repository.MangaRepository
 import tachiyomi.domain.source.model.StubSource
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.domain.track.interactor.GetTracks
-import tachiyomi.domain.track.interactor.InsertTrack
+import tachiyomi.domain.track.interactor.UpsertTrack
 import tachiyomi.domain.track.model.Track
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
@@ -209,7 +209,7 @@ class MangaViewModel(
     private val deleteMergeById: DeleteMergeById = Injekt.get(),
     private val getFlatMetadata: GetFlatMetadataById = Injekt.get(),
     private val getPagePreviews: GetPagePreviews = Injekt.get(),
-    private val insertTrack: InsertTrack = Injekt.get(),
+    private val upsertTrack: UpsertTrack = Injekt.get(),
     private val setCustomMangaInfo: SetCustomMangaInfo = Injekt.get(),
     // SY <--
     private val getDuplicateLibraryManga: GetDuplicateLibraryManga = Injekt.get(),
@@ -1892,7 +1892,7 @@ class MangaViewModel(
             val track = trackerManager.mdList.createInitialTracker(state.manga, mdManga)
                 .toDomainTrack(false)
                 ?: throw IllegalStateException("Could not create initial track")
-            insertTrack.await(track)
+            upsertTrack.await(track)
             /* KMK -->
             return TrackItem(
                 getTracks.await(mangaId).first { it.trackerId == trackerManager.mdList.id },

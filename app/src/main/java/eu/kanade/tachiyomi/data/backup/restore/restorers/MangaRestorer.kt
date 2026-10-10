@@ -29,7 +29,7 @@ import tachiyomi.domain.manga.interactor.SetCustomMangaInfo
 import tachiyomi.domain.manga.model.CustomMangaInfo
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.track.interactor.GetTracks
-import tachiyomi.domain.track.interactor.InsertTrack
+import tachiyomi.domain.track.interactor.UpsertTrack
 import tachiyomi.domain.track.model.Track
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
@@ -47,7 +47,7 @@ class MangaRestorer(
     private val getChaptersByMangaId: GetChaptersByMangaId = Injekt.get(),
     private val updateManga: UpdateManga = Injekt.get(),
     private val getTracks: GetTracks = Injekt.get(),
-    private val insertTrack: InsertTrack = Injekt.get(),
+    private val upsertTrack: UpsertTrack = Injekt.get(),
     fetchInterval: FetchInterval = Injekt.get(),
     // SY -->
     private val setCustomMangaInfo: SetCustomMangaInfo = Injekt.get(),
@@ -499,7 +499,7 @@ class MangaRestorer(
             .partition { it.id > 0 }
 
         if (newTracks.isNotEmpty()) {
-            insertTrack.awaitAll(newTracks)
+            upsertTrack.awaitAll(newTracks)
         }
 
         if (existingTracks.isEmpty()) return

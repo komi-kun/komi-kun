@@ -8,13 +8,13 @@ import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.chapter.interactor.GetChaptersByMangaId
 import tachiyomi.domain.chapter.interactor.UpdateChapter
 import tachiyomi.domain.chapter.model.toChapterUpdate
-import tachiyomi.domain.track.interactor.InsertTrack
+import tachiyomi.domain.track.interactor.UpsertTrack
 import tachiyomi.domain.track.model.Track
 import kotlin.math.max
 
 class SyncChapterProgressWithTrack(
     private val updateChapter: UpdateChapter,
-    private val insertTrack: InsertTrack,
+    private val upsertTrack: UpsertTrack,
     private val getChaptersByMangaId: GetChaptersByMangaId,
 ) {
     /**
@@ -82,7 +82,7 @@ class SyncChapterProgressWithTrack(
             if (lastRead > remoteTrack.lastChapterRead) {
                 tracker.update(updatedTrack.toDbTrack())
                 // update Track in database
-                insertTrack.await(updatedTrack)
+                upsertTrack.await(updatedTrack)
             }
             // KMK -->
             // Always update local chapters following Tracker even past chapters
