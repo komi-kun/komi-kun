@@ -29,7 +29,6 @@ import eu.kanade.tachiyomi.util.view.setComposeContent
 import exh.GalleryAddEvent
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import mihon.app.di.appGraph
@@ -111,8 +110,6 @@ class InterceptActivity : BaseActivity() {
     private fun processLink() {
         if (Intent.ACTION_VIEW == intent.action) {
             lifecycleScope.launchIO {
-                // wait for sources to load
-                appGraph.sourceManager.isInitialized.first { it }
                 loadGallery(intent.dataString!!)
             }
         }

@@ -10,7 +10,6 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import dev.zacsweers.metrox.viewmodel.assistedMetroViewModel
 import dev.zacsweers.metrox.viewmodel.metroViewModel
-import eu.kanade.core.util.ifSourcesLoaded
 import eu.kanade.presentation.browse.components.BulkFavoriteDialogs
 import eu.kanade.presentation.util.Screen
 import eu.kanade.tachiyomi.ui.browse.BulkFavoriteViewModel
@@ -26,7 +25,6 @@ import exh.recs.sources.StaticResultPagingSource
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.i18n.sy.SYMR
 import tachiyomi.presentation.core.i18n.stringResource
-import tachiyomi.presentation.core.screens.LoadingScreen
 import java.io.Serializable
 
 class RecommendsScreen(private val args: Args) : Screen() {
@@ -38,11 +36,6 @@ class RecommendsScreen(private val args: Args) : Screen() {
 
     @Composable
     override fun Content() {
-        if (!ifSourcesLoaded()) {
-            LoadingScreen()
-            return
-        }
-
         val context = LocalContext.current
         val navigator = LocalNavigator.currentOrThrow
 

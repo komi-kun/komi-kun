@@ -146,7 +146,7 @@ class DownloadManager(
      * @param chapters the list of chapters to enqueue.
      * @param autoStart whether to start the downloader after enqueing the chapters.
      */
-    fun downloadChapters(manga: Manga, chapters: List<Chapter>, autoStart: Boolean = true) {
+    suspend fun downloadChapters(manga: Manga, chapters: List<Chapter>, autoStart: Boolean = true) {
         if (downloader.queueChapters(manga, chapters, autoStart)) {
             startDownloads()
         }
@@ -214,7 +214,6 @@ class DownloadManager(
      * @param chapterScanlator scanlator of the chapter to query
      * @param mangaTitle the title of the manga to query.
      * @param sourceId the id of the source of the chapter.
-     * @param skipCache whether to skip the directory cache and check in the filesystem.
      */
     fun isChapterDownloaded(
         chapterName: String,
@@ -222,9 +221,26 @@ class DownloadManager(
         chapterUrl: String,
         mangaTitle: String,
         sourceId: Long,
-        skipCache: Boolean = false,
     ): Boolean {
-        return cache.isChapterDownloaded(chapterName, chapterScanlator, chapterUrl, mangaTitle, sourceId, skipCache)
+        return cache.isChapterDownloaded(chapterName, chapterScanlator, chapterUrl, mangaTitle, sourceId)
+    }
+
+    /**
+     * Returns true if the chapter is present on disk, bypassing the directory cache.
+     *
+     * @param chapterName the name of the chapter to query.
+     * @param chapterScanlator scanlator of the chapter to query
+     * @param mangaTitle the title of the manga to query.
+     * @param source the source of the chapter.
+     */
+    fun isChapterDownloadedOnDisk(
+        chapterName: String,
+        chapterScanlator: String?,
+        chapterUrl: String,
+        mangaTitle: String,
+        source: Source,
+    ): Boolean {
+        return provider.findChapterDir(chapterName, chapterScanlator, chapterUrl, mangaTitle, source) != null
     }
 
     /**
@@ -410,7 +426,7 @@ class DownloadManager(
     /**
      * Triggers the execution of the deletion of pending chapters.
      */
-    fun deletePendingChapters() {
+    suspend fun deletePendingChapters() {
         val pendingChapters = pendingDeleter.getPendingChapters()
         for ((manga, chapters) in pendingChapters) {
             val source = sourceManager.get(manga.source) ?: continue

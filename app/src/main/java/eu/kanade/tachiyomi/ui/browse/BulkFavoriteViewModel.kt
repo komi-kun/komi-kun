@@ -336,9 +336,8 @@ class BulkFavoriteViewModel(
      * @param manga the manga to update.
      */
     internal fun changeMangaFavorite(manga: Manga) {
-        val source = sourceManager.getOrStub(manga.source)
-
         viewModelScope.launch {
+            val source = sourceManager.getOrStub(manga.source)
             var new = manga.copy(
                 favorite = !manga.favorite,
                 dateAdded = when (manga.favorite) {

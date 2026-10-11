@@ -21,7 +21,6 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import dev.zacsweers.metrox.viewmodel.assistedMetroViewModel
 import dev.zacsweers.metrox.viewmodel.metroViewModel
-import eu.kanade.core.util.ifSourcesLoaded
 import eu.kanade.presentation.browse.BrowseSourceContent
 import eu.kanade.presentation.browse.components.BulkFavoriteDialogs
 import eu.kanade.presentation.browse.components.bulkSelectionButton
@@ -63,11 +62,6 @@ data class MigrateSourceSearchScreen(
 
     @Composable
     override fun Content() {
-        if (!ifSourcesLoaded()) {
-            LoadingScreen()
-            return
-        }
-
         val uriHandler = LocalUriHandler.current
         val navigator = LocalNavigator.currentOrThrow
         val scope = rememberCoroutineScope()
@@ -81,6 +75,12 @@ data class MigrateSourceSearchScreen(
             )
         }
         val state by viewModel.state.collectAsState()
+
+        val source = state.source
+        if (source == null) {
+            LoadingScreen()
+            return
+        }
 
         val snackbarHostState = remember { SnackbarHostState() }
 
@@ -166,7 +166,7 @@ data class MigrateSourceSearchScreen(
                 }
             }
             BrowseSourceContent(
-                source = viewModel.source,
+                source = source,
                 mangaList = mangaList,
                 columns = viewModel.getColumnsPreference(LocalConfiguration.current.orientation),
                 // SY -->
@@ -176,12 +176,12 @@ data class MigrateSourceSearchScreen(
                 snackbarHostState = snackbarHostState,
                 contentPadding = paddingValues,
                 onWebViewClick = {
-                    val source = viewModel.source as? HttpSource ?: return@BrowseSourceContent
+                    val httpSource = source as? HttpSource ?: return@BrowseSourceContent
                     navigator.push(
                         WebViewScreen(
-                            url = source.getHomeUrl(),
-                            initialTitle = source.name,
-                            sourceId = source.id,
+                            url = httpSource.getHomeUrl(),
+                            initialTitle = httpSource.name,
+                            sourceId = httpSource.id,
                         ),
                     )
                 },

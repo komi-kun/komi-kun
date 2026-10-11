@@ -41,7 +41,6 @@ import dev.chrisbanes.haze.hazeEffect
 import dev.icerock.moko.resources.StringResource
 import dev.zacsweers.metrox.viewmodel.assistedMetroViewModel
 import dev.zacsweers.metrox.viewmodel.metroViewModel
-import eu.kanade.core.util.ifSourcesLoaded
 import eu.kanade.domain.manga.model.hasCustomCover
 import eu.kanade.domain.manga.model.toSManga
 import eu.kanade.presentation.browse.components.BulkFavoriteDialogs
@@ -98,6 +97,7 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import logcat.LogPriority
 import mihon.app.di.appGraph
 import mihon.feature.migration.config.MigrationConfigScreen
@@ -135,11 +135,6 @@ class MangaScreen(
 
     @Composable
     override fun Content() {
-        if (!ifSourcesLoaded()) {
-            LoadingScreen()
-            return
-        }
-
         val navigator = LocalNavigator.currentOrThrow
         val context = LocalContext.current
         val scope = rememberCoroutineScope()
@@ -822,9 +817,12 @@ class MangaScreen(
     ) {
         val sourceManager: SourceManager = context.appGraph.sourceManager
         // KMK -->
-        val mergedMangaAndSources = mergedMangaData.manga.values
-            .filterNot { it.source == MERGED_SOURCE_ID }
-            .map { manga -> manga to sourceManager.getOrStub(manga.source) }
+        // Compose callback with no coroutine scope; sources are loaded when the manga screen is open.
+        val mergedMangaAndSources = runBlocking {
+            mergedMangaData.manga.values
+                .filterNot { it.source == MERGED_SOURCE_ID }
+                .map { manga -> manga to sourceManager.getOrStub(manga.source) }
+        }
         // KMK <--
         MaterialAlertDialogBuilder(context)
             .setTitle(titleRes.getString(context))

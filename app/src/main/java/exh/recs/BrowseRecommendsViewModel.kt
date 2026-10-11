@@ -17,6 +17,7 @@ import eu.kanade.domain.track.interactor.AddTracks
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.tachiyomi.data.cache.CoverCache
 import eu.kanade.tachiyomi.extension.ExtensionManager
+import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.ui.browse.source.browse.BrowseSourceViewModel
 import exh.metadata.metadata.RaisedSearchMetadata
@@ -134,7 +135,7 @@ class BrowseRecommendsViewModel(
             }
         }
 
-    override fun createSourcePagingSource(query: String, filters: FilterList) = recommendationPagingSource
+    override fun createSourcePagingSource(source: Source, query: String, filters: FilterList) = recommendationPagingSource
 
     override fun Flow<Manga>.combineMetadata(metadata: RaisedSearchMetadata?): Flow<Pair<Manga, RaisedSearchMetadata?>> {
         // Overridden to prevent our custom metadata from being replaced from a cache

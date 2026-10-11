@@ -75,7 +75,7 @@ import tachiyomi.domain.manga.model.Manga as DomainManga
 class SourceFeedViewModel(
     @Assisted val sourceId: Long,
     uiPreferences: UiPreferences,
-    sourceManager: SourceManager,
+    private val sourceManager: SourceManager,
     private val getManga: GetManga,
     private val networkToLocalManga: NetworkToLocalManga,
     getFeedSavedSearchBySourceId: GetFeedSavedSearchBySourceId,
@@ -103,7 +103,7 @@ class SourceFeedViewModel(
     val state: StateFlow<SourceFeedState>
         field = MutableStateFlow<SourceFeedState>(SourceFeedState())
 
-    var source = sourceManager.getOrStub(sourceId)
+    private val source: Source? get() = state.value.source
 
     val sourceIsMangaDex = sourceId in mangaDexSourceIds
 
@@ -114,51 +114,60 @@ class SourceFeedViewModel(
     val startExpanded by uiPreferences.expandFilters.asState(viewModelScope)
 
     // KMK -->
-    var incognitoMode = mutableStateOf(getIncognitoState.await(source.id))
+    var incognitoMode = mutableStateOf(false)
     // KMK <--
 
     init {
-        setFilters(source.getFilterList())
+        viewModelScope.launchIO {
+            val source = sourceManager.getOrStub(sourceId)
+            state.update { it.copy(source = source) }
+
+            setFilters(source.getFilterList())
+
+            // KMK -->
+            reloadSavedSearches()
+
+            getFeedSavedSearchBySourceId.subscribe(source.id)
+                .onEach {
+                    val items = getSourcesToGetFeed(it)
+                    state.update { state ->
+                        state.copy(
+                            items = items,
+                        )
+                    }
+                    getFeed(items)
+                }
+                .launchIn(viewModelScope)
+            // KMK <--
+        }
 
         // KMK -->
-        reloadSavedSearches()
-
         getIncognitoState.subscribe(sourceId)
             .onEach {
-                if (!it) sourcePreferences.lastUsedSource.set(source.id)
+                if (!it) sourcePreferences.lastUsedSource.set(sourceId)
                 incognitoMode.value = it
             }
             .launchIn(viewModelScope)
         // KMK <--
-
-        getFeedSavedSearchBySourceId.subscribe(source.id)
-            .onEach {
-                val items = getSourcesToGetFeed(it)
-                state.update { state ->
-                    state.copy(
-                        items = items,
-                    )
-                }
-                getFeed(items)
-            }
-            .launchIn(viewModelScope)
     }
 
     // KMK-->
     fun toggleIncognitoMode() {
-        val packageName = when {
-            source is StubSource -> null
-            source.isLocal() -> LOCAL_SOURCE_PACKAGE
-            source.isEhBasedSource() -> EH_PACKAGE
-            else -> extensionManager.getExtensionPackage(sourceId)
-        }
-        packageName?.let {
-            toggleIncognito.await(it, !incognitoMode.value)
+        viewModelScope.launchIO {
+            val packageName = when {
+                source is StubSource -> null
+                source?.isLocal() == true -> LOCAL_SOURCE_PACKAGE
+                source?.isEhBasedSource() == true -> EH_PACKAGE
+                else -> extensionManager.getExtensionPackage(sourceId)
+            }
+            packageName?.let {
+                toggleIncognito.await(it, !incognitoMode.value)
+            }
         }
     }
 
     fun resetFilters() {
-        setFilters(source.getFilterList())
+        setFilters(source?.getFilterList() ?: FilterList())
         reloadSavedSearches()
     }
     // KMK <--
@@ -168,11 +177,13 @@ class SourceFeedViewModel(
     }
 
     private suspend fun hasTooManyFeeds(): Boolean {
+        val source = source ?: return false
         return countFeedSavedSearchBySourceId.await(source.id) > MaxFeedItems
     }
 
     fun createFeed(savedSearchId: Long) {
         viewModelScope.launchNonCancellable {
+            val source = source ?: return@launchNonCancellable
             insertFeedSavedSearch.await(
                 FeedSavedSearch(
                     id = -1,
@@ -200,6 +211,7 @@ class SourceFeedViewModel(
     // KMK <--
 
     private suspend fun getSourcesToGetFeed(feedSavedSearch: List<FeedSavedSearch>): List<SourceFeedUI> {
+        val source = source ?: return emptyList()
         val savedSearches = getSavedSearchBySourceIdFeed.await(source.id)
             .associateBy { it.id }
 
@@ -226,6 +238,7 @@ class SourceFeedViewModel(
      */
     private fun getFeed(feedSavedSearch: List<SourceFeedUI>) {
         viewModelScope.launch {
+            val source = source ?: return@launch
             feedSavedSearch.map { sourceFeed ->
                 async {
                     val page = try {
@@ -299,13 +312,16 @@ class SourceFeedViewModel(
     }
     // KMK <--
 
-    private suspend fun loadSearches() =
-        getExhSavedSearch.await(source.id, source::getFilterList)
+    private suspend fun loadSearches(): List<EXHSavedSearch> {
+        val source = source ?: return emptyList()
+        return getExhSavedSearch.await(source.id, source::getFilterList)
             .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER, EXHSavedSearch::name))
             .toList()
+    }
 
     fun onFilter(onBrowseClick: (query: String?, filters: String?) -> Unit) {
         viewModelScope.launchIO {
+            val source = source ?: return@launchIO
             val allDefault = state.value.filters == source.getFilterList()
             dismissDialog()
             if (allDefault) {
@@ -332,6 +348,7 @@ class SourceFeedViewModel(
     ) {
         viewModelScope.launchIO {
             // KMK -->
+            val source = source ?: return@launchIO
             val search = getExhSavedSearch.awaitOne(loadedSearch.id, source::getFilterList) ?: loadedSearch
             // KMK <--
 
@@ -371,6 +388,7 @@ class SourceFeedViewModel(
 
     fun onMangaDexRandom(onRandomFound: (String) -> Unit) {
         viewModelScope.launchIO {
+            val source = source ?: return@launchIO
             val random = source.getMainSource<MangaDex>()?.fetchRandomMangaUrl()
                 ?: return@launchIO
             onRandomFound(random)
@@ -441,6 +459,7 @@ class SourceFeedViewModel(
 @Immutable
 data class SourceFeedState(
     val searchQuery: String? = null,
+    val source: Source? = null,
     val items: List<SourceFeedUI> = listOf(),
     val filters: FilterList = FilterList(),
     val savedSearches: List<EXHSavedSearch> = listOf(),

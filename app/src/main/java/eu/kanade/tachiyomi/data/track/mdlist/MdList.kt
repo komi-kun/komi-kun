@@ -27,7 +27,7 @@ class MdList(id: Long) : BaseTracker(id, "MDList") {
             .toList()
     }
 
-    private val mdex by lazy { MdUtil.getEnabledMangaDex(appGraph.sourcePreferences, appGraph.sourceManager) }
+    private suspend fun mdex() = MdUtil.getEnabledMangaDex(appGraph.sourcePreferences, appGraph.sourceManager)
 
     val interceptor = MangaDexAuthInterceptor(trackPreferences, this)
 
@@ -54,7 +54,7 @@ class MdList(id: Long) : BaseTracker(id, "MDList") {
 
     override suspend fun update(track: Track, didReadChapter: Boolean): Track {
         return withIOContext {
-            val mdex = mdex ?: throw MangaDexNotFoundException()
+            val mdex = mdex() ?: throw MangaDexNotFoundException()
 
             val remoteTrack = mdex.fetchTrackingInfo(track.tracking_url)
             val followStatus = FollowStatus.fromLong(track.status)
@@ -116,7 +116,7 @@ class MdList(id: Long) : BaseTracker(id, "MDList") {
 
     override suspend fun refresh(track: Track): Track {
         return withIOContext {
-            val mdex = mdex ?: throw MangaDexNotFoundException()
+            val mdex = mdex() ?: throw MangaDexNotFoundException()
             val remoteTrack = mdex.fetchTrackingInfo(track.tracking_url)
             track.copyPersonalFrom(remoteTrack)
             /*if (track.total_chapters == 0 && mangaMetadata.status == SManga.COMPLETED) {
@@ -137,7 +137,7 @@ class MdList(id: Long) : BaseTracker(id, "MDList") {
 
     override suspend fun search(query: String): List<TrackSearch> {
         return withIOContext {
-            val mdex = mdex ?: throw MangaDexNotFoundException()
+            val mdex = mdex() ?: throw MangaDexNotFoundException()
             mdex.getSearchManga(1, query, mdex.getFilterList())
                 .mangas
                 .map {
@@ -163,7 +163,7 @@ class MdList(id: Long) : BaseTracker(id, "MDList") {
 
     override suspend fun getMangaMetadata(track: DomainTrack): TrackMangaMetadata {
         return withIOContext {
-            val mdex = mdex ?: throw MangaDexNotFoundException()
+            val mdex = mdex() ?: throw MangaDexNotFoundException()
             val manga = mdex.getMangaMetadata(track.toDbTrack())
             TrackMangaMetadata(
                 remoteId = 0,

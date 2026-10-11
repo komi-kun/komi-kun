@@ -8,7 +8,7 @@ import tachiyomi.domain.manga.model.Manga
 import tachiyomi.i18n.sy.SYMR
 import java.util.Locale
 
-fun Manga.mangaType(context: Context): String {
+suspend fun Manga.mangaType(context: Context): String {
     return context.stringResource(
         when (mangaType(sourceName = context.appGraph.sourceManager.get(source)?.name)) {
             MangaType.TYPE_WEBTOON -> SYMR.strings.entry_type_webtoon

@@ -2,6 +2,8 @@ package eu.kanade.tachiyomi.ui.webview
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
@@ -12,6 +14,7 @@ import eu.kanade.presentation.webview.WebViewScreenContent
 import eu.kanade.tachiyomi.data.connections.discord.DiscordRPCService
 import eu.kanade.tachiyomi.data.connections.discord.DiscordScreen
 import tachiyomi.core.common.util.lang.launchIO
+import tachiyomi.presentation.core.screens.LoadingScreen
 
 class WebViewScreen(
     private val url: String,
@@ -30,11 +33,17 @@ class WebViewScreen(
         val viewModel =
             assistedMetroViewModel<WebViewViewModel, WebViewViewModel.Factory> { create(sourceId = sourceId) }
 
+        val headers by viewModel.headers.collectAsState()
+        if (headers == null) {
+            LoadingScreen()
+            return
+        }
+
         WebViewScreenContent(
             onNavigateUp = { navigator.pop() },
             initialTitle = initialTitle,
             url = url,
-            headers = viewModel.headers,
+            headers = headers.orEmpty(),
             defaultUserAgentProvider = viewModel::defaultUserAgentProvider,
             onUrlChange = { assistUrl = it },
             onShare = { viewModel.shareWebpage(context, it) },

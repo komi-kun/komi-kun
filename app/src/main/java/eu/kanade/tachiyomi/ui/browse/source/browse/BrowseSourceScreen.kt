@@ -34,7 +34,6 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import dev.zacsweers.metrox.viewmodel.assistedMetroViewModel
 import dev.zacsweers.metrox.viewmodel.metroViewModel
-import eu.kanade.core.util.ifSourcesLoaded
 import eu.kanade.presentation.browse.BrowseSourceContent
 import eu.kanade.presentation.browse.MissingSourceScreen
 import eu.kanade.presentation.browse.components.BrowseSourceToolbar
@@ -102,11 +101,6 @@ data class BrowseSourceScreen(
 
     @Composable
     override fun Content() {
-        if (!ifSourcesLoaded()) {
-            LoadingScreen()
-            return
-        }
-
         val viewModel = assistedMetroViewModel<BrowseSourceViewModel, BrowseSourceViewModel.Factory> {
             create(
                 sourceId = sourceId,
@@ -131,16 +125,18 @@ data class BrowseSourceScreen(
         val context = LocalContext.current
         // SY <--
 
-        // KMK -->
-        viewModel.source.let {
-            // KMK <--
-            if (it is StubSource) {
-                MissingSourceScreen(
-                    source = it,
-                    navigateUp = navigateUp,
-                )
-                return
-            }
+        val source = state.source
+        if (source == null) {
+            LoadingScreen()
+            return
+        }
+
+        if (source is StubSource) {
+            MissingSourceScreen(
+                source = source,
+                navigateUp = navigateUp,
+            )
+            return
         }
 
         val scope = rememberCoroutineScope()
@@ -150,12 +146,12 @@ data class BrowseSourceScreen(
 
         val onHelpClick = { uriHandler.openUri(LocalSource.HELP_URL) }
         val onWebViewClick = f@{
-            val source = viewModel.source as? HttpSource ?: return@f
+            val httpSource = source as? HttpSource ?: return@f
             navigator.push(
                 WebViewScreen(
-                    url = source.getHomeUrl(),
-                    initialTitle = source.name,
-                    sourceId = source.id,
+                    url = httpSource.getHomeUrl(),
+                    initialTitle = httpSource.name,
+                    sourceId = httpSource.id,
                 ),
             )
         }
@@ -169,16 +165,16 @@ data class BrowseSourceScreen(
         }
         // KMK <--
 
-        LaunchedEffect(viewModel.source) {
-            assistUrl = (viewModel.source as? HttpSource)?.getHomeUrl()
+        LaunchedEffect(source) {
+            assistUrl = (source as? HttpSource)?.getHomeUrl()
         }
 
         // KMK -->
         val mangaList = viewModel.mangaPagerFlowFlow.collectAsLazyPagingItems()
 
         val isHentaiEnabled: Boolean = LocalContext.current.appGraph.exhPreferences.isHentaiEnabled.get()
-        val isConfigurableSource = viewModel.source.anyIs<ConfigurableSource>() ||
-            (viewModel.source.isEhBasedSource() && isHentaiEnabled)
+        val isConfigurableSource = source.anyIs<ConfigurableSource>() ||
+            (source.isEhBasedSource() && isHentaiEnabled)
         // KMK <--
 
         Scaffold(
@@ -211,11 +207,11 @@ data class BrowseSourceScreen(
                         BrowseSourceToolbar(
                             searchQuery = state.toolbarQuery,
                             onSearchQueryChange = viewModel::setToolbarQuery,
-                            source = viewModel.source,
+                            source = source,
                             displayMode = viewModel.displayMode
                                 // KMK -->
                                 .takeIf {
-                                    !viewModel.source.isEhBasedSource() || !viewModel.ehentaiBrowseDisplayMode
+                                    !source.isEhBasedSource() || !viewModel.ehentaiBrowseDisplayMode
                                 },
                             // KMK <--
                             onDisplayModeChange = { viewModel.displayMode = it },
@@ -226,9 +222,9 @@ data class BrowseSourceScreen(
                             onToggleIncognito = viewModel::toggleIncognitoMode,
                             onSettingsClick = {
                                 when {
-                                    viewModel.source.isEhBasedSource() && isHentaiEnabled ->
+                                    source.isEhBasedSource() && isHentaiEnabled ->
                                         navigator.push(SettingsEhScreen)
-                                    viewModel.source.anyIs<ConfigurableSource>() ->
+                                    source.anyIs<ConfigurableSource>() ->
                                         navigator.push(SourcePreferencesScreen(sourceId))
                                     else -> {}
                                 }
@@ -266,7 +262,7 @@ data class BrowseSourceScreen(
                                 Text(text = stringResource(MR.strings.popular))
                             },
                         )
-                        if (viewModel.source.supportsLatest) {
+                        if (source.supportsLatest) {
                             FilterChip(
                                 selected = state.listing == Listing.Latest,
                                 onClick = {
@@ -340,7 +336,7 @@ data class BrowseSourceScreen(
             snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         ) { paddingValues ->
             BrowseSourceContent(
-                source = viewModel.source,
+                source = source,
                 mangaList = mangaList,
                 columns = viewModel.getColumnsPreference(LocalConfiguration.current.orientation),
                 // SY -->
@@ -418,7 +414,7 @@ data class BrowseSourceScreen(
                     // KMK -->
                     onSavedSearchPressDesc = stringResource(KMR.strings.saved_searches_delete),
                     // KMK <--
-                    openMangaDexRandom = if (viewModel.source.isMdBasedSource()) {
+                    openMangaDexRandom = if (source.isMdBasedSource()) {
                         {
                             viewModel.onMangaDexRandom {
                                 navigator.replace(
@@ -432,7 +428,7 @@ data class BrowseSourceScreen(
                     } else {
                         null
                     },
-                    openMangaDexFollows = if (viewModel.source.isMdBasedSource()) {
+                    openMangaDexFollows = if (source.isMdBasedSource()) {
                         {
                             // KMK -->
                             // navigator.replace(MangaDexFollowsScreen(sourceId))

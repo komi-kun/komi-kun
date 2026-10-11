@@ -794,8 +794,9 @@ class MangaViewModel(
                 ogStatus = status ?: 0,
                 lastUpdate = manga.lastUpdate + 1,
             )
-            (sourceManager.get(LocalSource.ID) as LocalSource).updateMangaInfo(manga.toSManga())
             viewModelScope.launchNonCancellable {
+                val localSource = sourceManager.get(LocalSource.ID) as LocalSource
+                localSource.updateMangaInfo(manga.toSManga())
                 updateManga.await(
                     MangaUpdate(
                         manga.id,
@@ -1004,7 +1005,7 @@ class MangaViewModel(
     /**
      * Deletes all the downloads for the manga.
      */
-    private fun deleteDownloads() {
+    private suspend fun deleteDownloads() {
         val state = successState ?: return
         // SY -->
         if (state.source is MergedSource) {
@@ -1464,7 +1465,7 @@ class MangaViewModel(
      * Downloads the given list of chapters with the manager.
      * @param chapters the list of chapters to download.
      */
-    private fun downloadChapters(chapters: List<Chapter>) {
+    private suspend fun downloadChapters(chapters: List<Chapter>) {
         // SY -->
         val state = successState ?: return
         if (state.source is MergedSource) {

@@ -335,7 +335,7 @@ class Downloader(
      * @param autoStart whether to start the downloader after enqueing the chapters.
      * @return true if the downloader should be started.
      */
-    fun queueChapters(manga: Manga, chapters: List<Chapter>, autoStart: Boolean): Boolean {
+    suspend fun queueChapters(manga: Manga, chapters: List<Chapter>, autoStart: Boolean): Boolean {
         if (chapters.isEmpty()) return false
 
         val source = sourceManager.get(manga.source) as? HttpSource ?: return false

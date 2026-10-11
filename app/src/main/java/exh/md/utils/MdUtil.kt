@@ -191,7 +191,7 @@ class MdUtil {
             return codeVerifier ?: PkceUtil.generateCodeVerifier().also { codeVerifier = it }
         }
 
-        fun getEnabledMangaDex(
+        suspend fun getEnabledMangaDex(
             sourcePreferences: SourcePreferences,
             sourceManager: SourceManager,
         ): MangaDex? {
@@ -204,7 +204,7 @@ class MdUtil {
             }
         }
 
-        fun getEnabledMangaDexs(
+        suspend fun getEnabledMangaDexs(
             preferences: SourcePreferences,
             sourceManager: SourceManager,
         ): List<MangaDex> {

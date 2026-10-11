@@ -12,6 +12,7 @@ import dev.zacsweers.metrox.viewmodel.ManualViewModelAssistedFactory
 import dev.zacsweers.metrox.viewmodel.ManualViewModelAssistedFactoryKey
 import eu.kanade.tachiyomi.source.Source
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -55,7 +56,7 @@ class MigrateMangaViewModel(
     private val selectedPositions: Array<Int> = arrayOf(-1, -1)
     // KMK <--
 
-    private val source by lazy { sourceManager.getOrStub(sourceId) }
+    private val source = viewModelScope.async { sourceManager.getOrStub(sourceId) }
 
     private val selection = MutableStateFlow(emptySet<Long>())
 
@@ -80,7 +81,7 @@ class MigrateMangaViewModel(
         val prunedSelection = selection.intersect(titleIds)
         updateSelectedPositions(titleList, prunedSelection)
         // KMK <--
-        State(source = source, selection = prunedSelection, titleList = titleList)
+        State(source = source.await(), selection = prunedSelection, titleList = titleList)
     }
         .flowOn(Dispatchers.IO)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5.seconds), State())

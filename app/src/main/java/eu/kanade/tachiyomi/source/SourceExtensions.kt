@@ -85,7 +85,7 @@ private fun getMergedSourcesString(
 fun Source.isLocalOrStub(): Boolean = isLocal() || this is StubSource
 
 // KMK -->
-fun Source.isIncognitoModeEnabled(incognitoExtensions: Set<String>? = null): Boolean {
+suspend fun Source.isIncognitoModeEnabled(incognitoExtensions: Set<String>? = null): Boolean {
     val extensionPackage = when {
         isLocal() -> LOCAL_SOURCE_PACKAGE
         isEhBasedSource() -> EH_PACKAGE

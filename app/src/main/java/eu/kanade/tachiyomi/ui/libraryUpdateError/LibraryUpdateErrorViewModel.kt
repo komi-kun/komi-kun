@@ -57,7 +57,7 @@ class LibraryUpdateErrorViewModel(
         }
     }
 
-    private fun List<LibraryUpdateErrorWithRelations>.toLibraryUpdateErrorItems(): List<LibraryUpdateErrorItem> {
+    private suspend fun List<LibraryUpdateErrorWithRelations>.toLibraryUpdateErrorItems(): List<LibraryUpdateErrorItem> {
         return map { error ->
             LibraryUpdateErrorItem(
                 error = error,

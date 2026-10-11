@@ -437,6 +437,7 @@ class LibraryViewModel(
 
         // SY -->
         val filterLewd = preferences.filterLewd
+        val sourceNames = sourceManager.getAll().associate { it.id to it.name }
         // SY <--
 
         val filterFnDownloaded: (LibraryItem) -> Boolean = {
@@ -469,7 +470,7 @@ class LibraryViewModel(
 
         // SY -->
         val filterFnLewd: (LibraryItem) -> Boolean = {
-            applyFilter(filterLewd) { it.libraryManga.manga.isLewd(sourceManager) }
+            applyFilter(filterLewd) { it.libraryManga.manga.isLewd(sourceNames[it.libraryManga.manga.source]) }
         }
         // SY <--
 
@@ -521,7 +522,7 @@ class LibraryViewModel(
         }
     }
 
-    private fun List<LibraryItem>.applyGrouping(
+    private suspend fun List<LibraryItem>.applyGrouping(
         categories: List<Category>,
         // KMK -->
         groupType: Int,
@@ -1490,7 +1491,7 @@ class LibraryViewModel(
     }
 
     // SY -->
-    private fun List<LibraryItem>.getGroupedMangaItems(
+    private suspend fun List<LibraryItem>.getGroupedMangaItems(
         groupType: Int,
     ): Map<Category, List</* LibraryItem */ Long>> {
         val context = preferences.context

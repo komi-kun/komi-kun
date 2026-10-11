@@ -3,11 +3,8 @@ package exh.util
 import exh.source.isEhBasedManga
 import exh.source.nHentaiSourceIds
 import tachiyomi.domain.manga.model.Manga
-import tachiyomi.domain.source.service.SourceManager
 
-fun Manga.isLewd(sourceManager: SourceManager): Boolean {
-    val sourceName = sourceManager.get(source)?.name
-
+fun Manga.isLewd(sourceName: String?): Boolean {
     if (isEhBasedManga() || source in nHentaiSourceIds) {
         return genre.orEmpty().none { tag -> isNonHentaiTag(tag) }
     }

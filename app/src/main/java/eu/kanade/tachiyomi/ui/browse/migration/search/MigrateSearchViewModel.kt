@@ -61,14 +61,14 @@ class MigrateSearchViewModel(
                 )
             }
             search()
-        }
 
-        // KMK -->
-        shouldPinnedSourcesHidden()
-        // KMK <--
+            // KMK -->
+            shouldPinnedSourcesHidden()
+            // KMK <--
+        }
     }
 
-    override fun getEnabledSources(): List<Source> {
+    override suspend fun getEnabledSources(): List<Source> {
         return migrationSources.mapNotNull { sourceManager.get(it) }
     }
 }

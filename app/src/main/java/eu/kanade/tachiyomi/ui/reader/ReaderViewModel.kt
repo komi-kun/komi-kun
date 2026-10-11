@@ -43,6 +43,7 @@ import eu.kanade.tachiyomi.data.saver.Image
 import eu.kanade.tachiyomi.data.saver.ImageSaver
 import eu.kanade.tachiyomi.data.saver.Location
 import eu.kanade.tachiyomi.data.sync.SyncDataJob
+import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.source.online.MetadataSource
@@ -81,7 +82,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filterNotNull
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
@@ -195,6 +195,12 @@ class ReaderViewModel(
      */
     val manga: Manga?
         get() = state.value.manga
+
+    /**
+     * The source of the manga loaded in the reader. Null until it has been resolved.
+     */
+    val source: Source?
+        get() = state.value.source
 
     val currentChapter: Chapter?
         get() = state.value.currentChapter?.chapter?.toDomainChapter()
@@ -401,7 +407,7 @@ class ReaderViewModel(
             .map(::ReaderChapter)
     }
 
-    val incognitoMode: Boolean by lazy { getIncognitoState.await(manga?.source) }
+    var incognitoMode: Boolean = false
     private val downloadAheadAmount = downloadPreferences.autoDownloadWhileReading.get()
 
     init {
@@ -474,8 +480,8 @@ class ReaderViewModel(
             try {
                 val manga = getManga.await(mangaId) ?: error("Requested manga of id $mangaId not found")
                 // SY -->
-                sourceManager.isInitialized.first { it }
                 val source = sourceManager.getOrStub(manga.source)
+                incognitoMode = getIncognitoState.await(manga.source)
                 val metadataSource = source.getMainSource<MetadataSource<*, *>>()
                 val metadata = if (metadataSource != null) {
                     getFlatMetadataById.await(mangaId)?.raise(metadataSource.metaClass)
@@ -502,6 +508,7 @@ class ReaderViewModel(
                 mutableState.update {
                     it.copy(
                         manga = manga,
+                        source = source,
                         // SY -->
                         meta = metadata,
                         mergedManga = mergedManga,
@@ -677,15 +684,15 @@ class ReaderViewModel(
         if (chapter.pageLoader?.isLocal == false) {
             val manga = state.value.mergedManga?.get(chapter.chapter.manga_id) ?: manga ?: return
             val dbChapter = chapter.chapter
-            val isDownloaded = downloadManager.isChapterDownloaded(
+            val source = sourceManager.getOrStub(manga.source)
+            val isDownloaded = downloadManager.isChapterDownloadedOnDisk(
                 dbChapter.name,
                 dbChapter.scanlator,
                 dbChapter.url,
                 // SY -->
                 manga.ogTitle,
                 // SY <--
-                manga.source,
-                skipCache = true,
+                source,
             )
             if (isDownloaded) {
                 chapter.state = ReaderChapter.State.Wait
@@ -986,9 +993,9 @@ class ReaderViewModel(
         return state.value.currentChapter
     }
 
-    fun getSource() = manga?.source?.let { sourceManager.getOrStub(it) } as? HttpSource
+    fun getSource() = state.value.source as? HttpSource
 
-    fun getChapterUrl(): String? {
+    suspend fun getChapterUrl(): String? {
         val sChapter = getCurrentChapter()?.chapter ?: return null
         val source = if (manga?.source == MERGED_SOURCE_ID) {
             state.value.mergedManga?.get(sChapter.manga_id)?.source?.let { sourceId ->
@@ -1055,7 +1062,7 @@ class ReaderViewModel(
         // SY -->
         return when {
             resolveDefault && readingMode == ReadingMode.DEFAULT && readerPreferences.useAutoWebtoon.get() -> {
-                manga.defaultReaderType(manga.mangaType(sourceName = sourceManager.get(manga.source)?.name))
+                manga.defaultReaderType(manga.mangaType(sourceName = source?.name))
                     ?: default
             }
             resolveDefault && readingMode == ReadingMode.DEFAULT -> default
@@ -1525,6 +1532,7 @@ class ReaderViewModel(
     @Immutable
     data class State(
         val manga: Manga? = null,
+        val source: Source? = null,
         val initError: Throwable? = null,
         val viewerChapters: ViewerChapters? = null,
         val bookmarked: Boolean = false,

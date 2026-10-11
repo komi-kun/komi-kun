@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import dev.zacsweers.metrox.viewmodel.assistedMetroViewModel
@@ -67,7 +68,7 @@ class MigrateSearchScreen(private val mangaId: Long) : Screen() {
             onLongClickItem = { navigator.push(MangaScreen(it.id, true)) },
             // KMK -->
             bulkFavoriteViewModel = bulkFavoriteViewModel,
-            hasPinnedSources = viewModel.hasPinnedSources(),
+            hasPinnedSources = produceState(initialValue = false) { value = viewModel.hasPinnedSources() }.value,
             // KMK <--
         )
 

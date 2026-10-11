@@ -12,6 +12,7 @@ import eu.kanade.tachiyomi.source.model.SMangaUpdate
 import exh.md.similar.MangaDexSimilarPagingSource
 import exh.source.COMICK_IDS
 import exh.source.MANGADEX_IDS
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import logcat.LogPriority
 import tachiyomi.core.common.util.system.logcat
@@ -31,9 +32,9 @@ import uy.kohesive.injekt.injectLazy
 abstract class RecommendationPagingSource(
     protected val manga: Manga,
     // KMK -->
-    source: RecommendationSource = RecommendationSource(),
+    private val source: RecommendationSource = RecommendationSource(),
     // KMK <--
-) : BaseSourcePagingSource(source, Injekt.get()) {
+) : BaseSourcePagingSource({ source }, Injekt.get()) {
     // Display name
     abstract val name: String
 
@@ -47,6 +48,11 @@ abstract class RecommendationPagingSource(
      * If null, the user will be prompted to choose a source via SmartSearch when clicking on a recommendation.
      */
     open val associatedSourceId: Long? = null
+
+    /**
+     * Convenience overload for callers that fetch recommendations outside of [load].
+     */
+    suspend fun requestNextPage(currentPage: Int): MangasPage = requestNextPage(source, currentPage)
 
     companion object {
         internal fun createSources(
@@ -122,7 +128,7 @@ abstract class TrackerRecommendationPagingSource(
     abstract suspend fun getRecsBySearch(search: String): List<SManga>
     abstract suspend fun getRecsById(id: String): List<SManga>
 
-    override suspend fun requestNextPage(currentPage: Int): MangasPage {
+    override suspend fun requestNextPage(source: Source, currentPage: Int): MangasPage {
         val tracks = getTracks.await(manga.id)
 
         val recs = try {
@@ -153,7 +159,9 @@ class RecommendationSource(
     sourceManager: SourceManager = Injekt.get(),
 ) : Source {
     private val delegate by lazy {
-        sourceManager.get(id)
+        // Source exposes synchronous properties (name/lang/getFilterList), so the delegate must be
+        // resolved without suspending. This is an in-app source, not an installed extension.
+        runBlocking { sourceManager.get(id) }
     }
 
     fun isComickSource(): Boolean = id in COMICK_IDS

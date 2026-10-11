@@ -4,7 +4,6 @@ import android.net.Uri
 import androidx.lifecycle.lifecycleScope
 import eu.kanade.tachiyomi.ui.setting.track.BaseOAuthLoginActivity
 import exh.md.utils.MdUtil
-import kotlinx.coroutines.flow.first
 import mihon.app.di.appGraph
 import tachiyomi.core.common.util.lang.launchIO
 
@@ -15,14 +14,12 @@ class MangaDexLoginActivity : BaseOAuthLoginActivity() {
         if (code != null) {
             lifecycleScope.launchIO {
                 val sourceManager = appGraph.sourceManager
-                sourceManager.isInitialized.first { it }
                 MdUtil.getEnabledMangaDex(appGraph.sourcePreferences, sourceManager)?.login(code)
                 returnToSettings()
             }
         } else {
             lifecycleScope.launchIO {
                 val sourceManager = appGraph.sourceManager
-                sourceManager.isInitialized.first { it }
                 MdUtil.getEnabledMangaDex(appGraph.sourcePreferences, sourceManager)?.logout()
                 returnToSettings()
             }

@@ -6,6 +6,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -14,7 +15,6 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import dev.zacsweers.metrox.viewmodel.assistedMetroViewModel
 import dev.zacsweers.metrox.viewmodel.metroViewModel
-import eu.kanade.core.util.ifSourcesLoaded
 import eu.kanade.presentation.browse.GlobalSearchScreen
 import eu.kanade.presentation.browse.components.BulkFavoriteDialogs
 import eu.kanade.presentation.util.Screen
@@ -30,11 +30,6 @@ class GlobalSearchScreen(
 
     @Composable
     override fun Content() {
-        if (!ifSourcesLoaded()) {
-            LoadingScreen()
-            return
-        }
-
         val navigator = LocalNavigator.currentOrThrow
 
         val viewModel =
@@ -107,7 +102,7 @@ class GlobalSearchScreen(
                 },
                 // KMK -->
                 bulkFavoriteViewModel = bulkFavoriteViewModel,
-                hasPinnedSources = viewModel.hasPinnedSources(),
+                hasPinnedSources = produceState(initialValue = false) { value = viewModel.hasPinnedSources() }.value,
                 // KMK <--
             )
         }

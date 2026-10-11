@@ -16,6 +16,7 @@ import eu.kanade.domain.track.interactor.AddTracks
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.tachiyomi.data.cache.CoverCache
 import eu.kanade.tachiyomi.extension.ExtensionManager
+import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.online.all.MangaDex
 import eu.kanade.tachiyomi.ui.browse.source.browse.BrowseSourceViewModel
@@ -101,7 +102,7 @@ class MangaDexFollowsViewModel(
         fun create(sourceId: Long): MangaDexFollowsViewModel
     }
 
-    override fun createSourcePagingSource(query: String, filters: FilterList): SourcePagingSource {
+    override fun createSourcePagingSource(source: Source, query: String, filters: FilterList): SourcePagingSource {
         return MangaDexFollowsPagingSource(source.getMainSource() as MangaDex)
     }
 

@@ -15,7 +15,6 @@ import cafe.adriel.voyager.navigator.Navigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import dev.zacsweers.metrox.viewmodel.assistedMetroViewModel
 import dev.zacsweers.metrox.viewmodel.metroViewModel
-import eu.kanade.core.util.ifSourcesLoaded
 import eu.kanade.presentation.browse.MissingSourceScreen
 import eu.kanade.presentation.browse.SourceFeedOrderScreen
 import eu.kanade.presentation.browse.SourceFeedScreen
@@ -53,11 +52,6 @@ class SourceFeedScreen(val sourceId: Long) : Screen() {
 
     @Composable
     override fun Content() {
-        if (!ifSourcesLoaded()) {
-            LoadingScreen()
-            return
-        }
-
         val viewModel = assistedMetroViewModel<SourceFeedViewModel, SourceFeedViewModel.Factory> {
             create(sourceId = sourceId)
         }
@@ -66,14 +60,18 @@ class SourceFeedScreen(val sourceId: Long) : Screen() {
         val context = LocalContext.current
 
         // KMK -->
-        viewModel.source.let {
-            if (it is StubSource) {
-                MissingSourceScreen(
-                    source = it,
-                    navigateUp = navigator::pop,
-                )
-                return
-            }
+        val source = state.source
+        if (source == null) {
+            LoadingScreen()
+            return
+        }
+
+        if (source is StubSource) {
+            MissingSourceScreen(
+                source = source,
+                navigateUp = navigator::pop,
+            )
+            return
         }
 
         LaunchedEffect(navigator.lastItem) {
@@ -86,8 +84,8 @@ class SourceFeedScreen(val sourceId: Long) : Screen() {
         val showingFeedOrderScreen = rememberSaveable { mutableStateOf(false) }
 
         val isHentaiEnabled: Boolean = LocalContext.current.appGraph.exhPreferences.isHentaiEnabled.get()
-        val isConfigurableSource = viewModel.source.anyIs<ConfigurableSource>() ||
-            (viewModel.source.isEhBasedSource() && isHentaiEnabled)
+        val isConfigurableSource = source.anyIs<ConfigurableSource>() ||
+            (source.isEhBasedSource() && isHentaiEnabled)
 
         val haptic = LocalHapticFeedback.current
 
@@ -111,14 +109,14 @@ class SourceFeedScreen(val sourceId: Long) : Screen() {
             } else {
                 // KMK <--
                 SourceFeedScreen(
-                    name = viewModel.source.name,
+                    name = source.name,
                     isLoading = state.isLoading,
                     items = state.items,
                     hasFilters = state.filters.isNotEmpty(),
                     onFabClick = viewModel::openFilterSheet,
-                    onClickBrowse = { onBrowseClick(navigator, viewModel.source) },
-                    onClickLatest = { onLatestClick(navigator, viewModel.source) },
-                    onClickSavedSearch = { onSavedSearchClick(navigator, viewModel.source, it) },
+                    onClickBrowse = { onBrowseClick(navigator, source) },
+                    onClickLatest = { onLatestClick(navigator, source) },
+                    onClickSavedSearch = { onSavedSearchClick(navigator, source, it) },
                     // KMK -->
                     // onClickDelete = viewModel::openDeleteFeed,
                     onLongClickFeed = viewModel::openActionsDialog,
@@ -132,29 +130,29 @@ class SourceFeedScreen(val sourceId: Long) : Screen() {
                             onMangaClick(navigator, manga)
                         }
                     },
-                    onClickSearch = { onSearchClick(navigator, viewModel.source, it) },
+                    onClickSearch = { onSearchClick(navigator, source, it) },
                     searchQuery = state.searchQuery,
                     onSearchQueryChange = viewModel::search,
                     getMangaState = { viewModel.getManga(initialManga = it) },
                     // KMK -->
                     navigateUp = { navigator.pop() },
                     onWebViewClick = {
-                        val source = viewModel.source as HttpSource
+                        val httpSource = source as HttpSource
                         navigator.push(
                             WebViewScreen(
-                                url = source.baseUrl,
-                                initialTitle = source.name,
-                                sourceId = source.id,
+                                url = httpSource.baseUrl,
+                                initialTitle = httpSource.name,
+                                sourceId = httpSource.id,
                             ),
                         )
-                    }.takeIf { viewModel.source is HttpSource },
+                    }.takeIf { source is HttpSource },
                     onToggleIncognito = viewModel::toggleIncognitoMode,
                     onSourceSettingClick = {
                         when {
-                            viewModel.source.isEhBasedSource() && isHentaiEnabled ->
+                            source.isEhBasedSource() && isHentaiEnabled ->
                                 navigator.push(SettingsEhScreen)
-                            viewModel.source.anyIs<ConfigurableSource>() ->
-                                navigator.push(SourcePreferencesScreen(viewModel.source.id))
+                            source.anyIs<ConfigurableSource>() ->
+                                navigator.push(SourcePreferencesScreen(source.id))
                             else -> {}
                         }
                     }.takeIf { isConfigurableSource },

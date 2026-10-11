@@ -46,6 +46,7 @@ class SmartSearchScreen(
         val navigator = LocalNavigator.currentOrThrow
         val context = LocalContext.current
         val state by viewModel.state.collectAsState()
+        val source by viewModel.source.collectAsState()
         LaunchedEffect(state) {
             val results = state
             if (results != null) {
@@ -69,7 +70,7 @@ class SmartSearchScreen(
                     }
                     navigator.replace(
                         BrowseSourceScreen(
-                            sourceId = viewModel.source.id,
+                            sourceId = sourceId,
                             listingQuery = smartSearchConfig.origTitle,
                             smartSearchConfig = smartSearchConfig,
                         ),
@@ -81,7 +82,7 @@ class SmartSearchScreen(
         Scaffold(
             topBar = { scrollBehavior ->
                 AppBar(
-                    title = viewModel.source.name,
+                    title = source?.name.orEmpty(),
                     navigateUp = navigator::pop,
                     scrollBehavior = scrollBehavior,
                 )

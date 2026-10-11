@@ -31,6 +31,7 @@ import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -288,7 +289,7 @@ fun DuplicateMangaDialog(
 @Composable
 private fun DuplicateMangaListItem(
     duplicate: MangaWithChapterCount,
-    getSource: () -> Source,
+    getSource: suspend () -> Source,
     onOpenManga: () -> Unit,
     onMigrate: () -> Unit,
 ) {
@@ -298,7 +299,7 @@ private fun DuplicateMangaListItem(
     val coverIsWide = coverRatio.floatValue <= RatioSwitchToPanorama
     // KMK <--
 
-    val source = getSource()
+    val source by produceState<Source?>(initialValue = null) { value = getSource() }
     val manga = duplicate.manga
     Column(
         modifier = Modifier
@@ -424,7 +425,7 @@ private fun DuplicateMangaListItem(
                 )
             }
             Text(
-                text = source.name,
+                text = source?.name.orEmpty(),
                 style = MaterialTheme.typography.labelSmall,
                 overflow = TextOverflow.Ellipsis,
                 maxLines = 1,

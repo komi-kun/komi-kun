@@ -7,6 +7,7 @@ import coil3.transform.RoundedCornersTransformation
 import eu.davidea.viewholders.FlexibleViewHolder
 import eu.kanade.tachiyomi.databinding.EditMergedSettingsItemBinding
 import eu.kanade.tachiyomi.util.system.dpToPx
+import kotlinx.coroutines.runBlocking
 import mihon.app.di.appGraph
 import tachiyomi.domain.manga.model.MergedMangaReference
 
@@ -47,7 +48,11 @@ class EditMergedMangaHolder(view: View, val adapter: EditMergedMangaAdapter) : F
             }
         }
 
-        binding.title.text = itemView.context.appGraph.sourceManager.getOrStub(item.mergedMangaReference.mangaSourceId).toString()
+        // This Android ViewHolder has no coroutine scope; sources are loaded by the time a manga is
+        // open, so the awaited lookup returns immediately.
+        binding.title.text = runBlocking {
+            itemView.context.appGraph.sourceManager.getOrStub(item.mergedMangaReference.mangaSourceId).toString()
+        }
         binding.subtitle.text = item.mergedManga?.title
         updateDownloadChaptersIcon(item.mergedMangaReference.downloadChapters)
         updateChapterUpdatesIcon(item.mergedMangaReference.getChapterUpdates)

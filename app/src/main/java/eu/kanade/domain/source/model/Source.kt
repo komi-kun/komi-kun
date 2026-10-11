@@ -7,16 +7,16 @@ import androidx.core.graphics.drawable.toBitmap
 import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.extension.model.Extension
 import mihon.app.di.appGraph
+import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.domain.source.model.Source
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
-val Source.icon: ImageBitmap?
-    get() {
-        return Injekt.get<Context>().appGraph.extensionManager.getAppIconForSource(id)
-            ?.toBitmap()
-            ?.asImageBitmap()
-    }
+suspend fun Source.icon(): ImageBitmap? = withIOContext {
+    Injekt.get<Context>().appGraph.extensionManager.getAppIconForSource(id)
+        ?.toBitmap()
+        ?.asImageBitmap()
+}
 
 // AM (BROWSE) -->
 // Add an extra property to Source for it to get access to ExtensionManager

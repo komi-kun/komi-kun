@@ -83,7 +83,7 @@ class ExtensionManager(
     private var stores = emptyList<ExtensionStore>()
 
     private val loadedExtensionMapFlow = MutableStateFlow(emptyMap<String, Extension.Loaded>())
-    val loadedExtensionsFlow = loadedExtensionMapFlow.mapExtensionsOnceInitialized()
+    val loadedExtensionsFlow = loadedExtensionMapFlow.mapExtensionsWhenInitialized()
 
     // KMK -->
     /** Synchronous snapshot of the currently loaded installed extensions. */
@@ -111,7 +111,7 @@ class ExtensionManager(
     // SY <--
 
     private val notLoadedExtensionMapFlow = MutableStateFlow(emptyMap<String, Extension.NotLoaded>())
-    val notLoadedExtensionsFlow = notLoadedExtensionMapFlow.mapExtensionsOnceInitialized()
+    val notLoadedExtensionsFlow = notLoadedExtensionMapFlow.mapExtensionsWhenInitialized()
 
     init {
         scope.launch(Dispatchers.IO) {
@@ -147,8 +147,8 @@ class ExtensionManager(
         return notLoadedExtensionMapFlow.value.values.toList()
     }
 
-    fun getExtensionPackage(sourceId: Long): String? {
-        return loadedExtensionMapFlow.value.values.find { extension ->
+    suspend fun getExtensionPackage(sourceId: Long): String? {
+        return getLoadedExtensions().find { extension ->
             extension.sources.any { it.id == sourceId }
         }
             ?.pkgName
@@ -163,7 +163,7 @@ class ExtensionManager(
         }
     }
 
-    fun getAppIconForSource(sourceId: Long): Drawable? {
+    suspend fun getAppIconForSource(sourceId: Long): Drawable? {
         val pkgName = getExtensionPackage(sourceId)
         if (pkgName != null) {
             return iconMap[pkgName] ?: iconMap.getOrPut(pkgName) {
@@ -525,7 +525,7 @@ class ExtensionManager(
      * Extensions are loaded in the background, and [stateIn] would replay the empty list it was
      * seeded with at construction, so this only starts emitting once that finished.
      */
-    private fun <T : Extension> StateFlow<Map<String, T>>.mapExtensionsOnceInitialized(): Flow<List<T>> {
+    private fun <T : Extension> StateFlow<Map<String, T>>.mapExtensionsWhenInitialized(): Flow<List<T>> {
         return onStart { isInitialized.first { it } }.map { it.values.toList() }
     }
 }

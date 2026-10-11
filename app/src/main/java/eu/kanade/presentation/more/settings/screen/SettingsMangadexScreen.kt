@@ -18,6 +18,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -40,6 +41,7 @@ import eu.kanade.tachiyomi.util.system.toast
 import eu.kanade.tachiyomi.util.system.workManager
 import exh.md.utils.MdConstants
 import exh.md.utils.MdUtil
+import kotlinx.coroutines.runBlocking
 import logcat.LogPriority
 import mihon.app.di.appGraph
 import mihon.icons.materialsymbols.MaterialSymbols
@@ -66,7 +68,10 @@ object SettingsMangadexScreen : SearchableSettings {
 
     override fun isEnabled(): Boolean {
         val graph = Injekt.get<Context>().appGraph
-        return MdUtil.getEnabledMangaDexs(graph.sourcePreferences, graph.sourceManager).isNotEmpty()
+        // SearchableSettings.isEnabled() is synchronous and is called during the settings list
+        // composition; the sources are already loaded by the time settings open, so this does not
+        // meaningfully block.
+        return runBlocking { MdUtil.getEnabledMangaDexs(graph.sourcePreferences, graph.sourceManager) }.isNotEmpty()
     }
 
     @Composable
@@ -74,10 +79,13 @@ object SettingsMangadexScreen : SearchableSettings {
         val context = LocalContext.current
         val sourcePreferences: SourcePreferences = remember { context.appGraph.sourcePreferences }
         val trackPreferences: TrackPreferences = remember { context.appGraph.trackPreferences }
-        val mdex = remember { MdUtil.getEnabledMangaDex(sourcePreferences, context.appGraph.sourceManager) } ?: return emptyList()
+        val mdex by produceState<MangaDex?>(initialValue = null) {
+            value = MdUtil.getEnabledMangaDex(sourcePreferences, context.appGraph.sourceManager)
+        }
+        if (mdex == null) return emptyList()
 
         return listOf(
-            loginPreference(mdex, trackPreferences),
+            loginPreference(mdex!!, trackPreferences),
             preferredMangaDexId(sourcePreferences),
             syncMangaDexIntoThis(sourcePreferences),
             syncLibraryToMangaDex(),
@@ -184,9 +192,12 @@ object SettingsMangadexScreen : SearchableSettings {
         sourcePreferences: SourcePreferences,
     ): Preference.PreferenceItem.ListPreference<String> {
         val sourceManager = LocalContext.current.appGraph.sourceManager
+        val enabledMangaDexs by produceState(initialValue = emptyList<MangaDex>()) {
+            value = MdUtil.getEnabledMangaDexs(sourcePreferences, sourceManager)
+        }
         return Preference.PreferenceItem.ListPreference(
             preference = sourcePreferences.preferredMangaDexId,
-            entries = MdUtil.getEnabledMangaDexs(sourcePreferences, sourceManager)
+            entries = enabledMangaDexs
                 .associate { it.id.toString() to it.toString() }
                 .toMap(),
             title = stringResource(SYMR.strings.mangadex_preffered_source),

@@ -40,6 +40,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -617,7 +618,7 @@ private fun MangaScreenSmallImpl(
                             sourceName = remember { state.source.getNameForMangaInfo(state.mergedData?.sources) },
                             isStubSource = remember { state.source is StubSource },
                             // KMK -->
-                            isSourceIncognito = remember { state.source.isIncognitoModeEnabled() },
+                            isSourceIncognito = produceState(initialValue = false, state.source) { value = state.source.isIncognitoModeEnabled() }.value,
                             // KMK <--
                             onCoverClick = onCoverClicked,
                             doSearch = onSearch,
@@ -1069,7 +1070,7 @@ private fun MangaScreenLargeImpl(
                             sourceName = remember { state.source.getNameForMangaInfo(state.mergedData?.sources) },
                             isStubSource = remember { state.source is StubSource },
                             // KMK -->
-                            isSourceIncognito = remember { state.source.isIncognitoModeEnabled() },
+                            isSourceIncognito = produceState(initialValue = false, state.source) { value = state.source.isIncognitoModeEnabled() }.value,
                             // KMK <--
                             onCoverClick = onCoverClicked,
                             doSearch = onSearch,

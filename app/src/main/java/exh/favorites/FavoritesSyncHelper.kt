@@ -63,9 +63,12 @@ class FavoritesSyncHelper(
     private val galleryAdder: GalleryAdder,
 ) {
 
-    private val exh by lazy {
-        sourceManager.get(EXH_SOURCE_ID) as? EHentai
-            ?: EHentai(0, true, context)
+    @Volatile
+    private var exhSource: EHentai? = null
+
+    private suspend fun exh(): EHentai {
+        exhSource?.let { return it }
+        return (sourceManager.get(EXH_SOURCE_ID) as? EHentai ?: EHentai(0, true, context)).also { exhSource = it }
     }
 
     private val throttleManager by lazy { ThrottleManager() }
@@ -119,7 +122,7 @@ class FavoritesSyncHelper(
         // Download remote favorites
         val favorites = try {
             status.value = FavoritesSyncStatus.Processing.DownloadingFavorites
-            exh.fetchFavorites()
+            exh().fetchFavorites()
         } catch (e: Exception) {
             status.value = FavoritesSyncStatus.SyncError.FailedToFetchFavorites
             logger()?.e(context.stringResource(SYMR.strings.favorites_sync_could_not_fetch), e)
@@ -222,7 +225,7 @@ class FavoritesSyncHelper(
     }
 
     private suspend fun addGalleryRemote(errorList: MutableList<FavoritesSyncStatus.SyncError.GallerySyncError>, gallery: FavoriteEntry) {
-        val url = "${exh.baseUrl}/gallerypopups.php?gid=${gallery.gid}&t=${gallery.token}&act=addfav"
+        val url = "${exh().baseUrl}/gallerypopups.php?gid=${gallery.gid}&t=${gallery.token}&act=addfav"
 
         val request = POST(
             url = url,
@@ -254,7 +257,7 @@ class FavoritesSyncHelper(
 
         for (i in 1..retryCount) {
             try {
-                val resp = withIOContext { exh.client.newCall(request).await() }
+                val resp = withIOContext { exh().client.newCall(request).await() }
 
                 if (resp.isSuccessful) {
                     success = true
@@ -368,9 +371,9 @@ class FavoritesSyncHelper(
             // Import using gallery adder
             val result = galleryAdder.addGallery(
                 context = context,
-                url = "${exh.baseUrl}${it.getUrl()}",
+                url = "${exh().baseUrl}${it.getUrl()}",
                 fav = true,
-                forceSource = exh,
+                forceSource = exh(),
                 throttleFunc = throttleManager::throttle,
                 retry = 3,
             )

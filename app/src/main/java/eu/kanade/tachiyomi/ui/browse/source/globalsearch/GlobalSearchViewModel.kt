@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.ui.browse.source.globalsearch
 
+import androidx.lifecycle.viewModelScope
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedFactory
@@ -10,6 +11,7 @@ import dev.zacsweers.metrox.viewmodel.ManualViewModelAssistedFactoryKey
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.source.Source
+import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.domain.manga.interactor.GetManga
 import tachiyomi.domain.manga.interactor.NetworkToLocalManga
 import tachiyomi.domain.source.service.SourceManager
@@ -52,11 +54,13 @@ class GlobalSearchViewModel(
         }
 
         // KMK -->
-        shouldPinnedSourcesHidden()
+        viewModelScope.launchIO {
+            shouldPinnedSourcesHidden()
+        }
         // KMK <--
     }
 
-    override fun getEnabledSources(): List<Source> {
+    override suspend fun getEnabledSources(): List<Source> {
         return super.getEnabledSources()
             .filter { state.value.sourceFilter != SourceFilter.PinnedOnly || "${it.id}" in pinnedSources }
     }

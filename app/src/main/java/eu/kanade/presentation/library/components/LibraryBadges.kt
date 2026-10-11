@@ -4,9 +4,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.unit.dp
@@ -77,7 +79,7 @@ fun SourceIconBadge(
     source: Source?,
 ) {
     if (source == null) return
-    val icon = source.icon
+    val icon = produceState<ImageBitmap?>(initialValue = null, source.id) { value = source.icon() }.value
 
     when {
         source.isStub && icon == null -> {

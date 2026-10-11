@@ -15,7 +15,7 @@ class GetIncognitoState(
     private val sourcePreferences: SourcePreferences,
     private val sourceManager: SourceManager,
 ) {
-    fun await(sourceId: Long?): Boolean {
+    suspend fun await(sourceId: Long?): Boolean {
         if (basePreferences.incognitoMode.get()) return true
         if (sourceId == null) return false
         // KMK -->

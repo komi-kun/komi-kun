@@ -94,17 +94,16 @@ class ChapterLoader(
     /**
      * Returns the page loader to use for this [chapter].
      */
-    private fun getPageLoader(chapter: ReaderChapter): PageLoader {
+    private suspend fun getPageLoader(chapter: ReaderChapter): PageLoader {
         val dbChapter = chapter.chapter
-        val isDownloaded = downloadManager.isChapterDownloaded(
+        val isDownloaded = downloadManager.isChapterDownloadedOnDisk(
             chapterName = dbChapter.name,
             chapterScanlator = dbChapter.scanlator,
             chapterUrl = dbChapter.url,
             // SY -->
             mangaTitle = manga.ogTitle,
             // SY <--
-            sourceId = manga.source,
-            skipCache = true,
+            source = source,
         )
         return when {
             // SY -->
@@ -115,13 +114,12 @@ class ChapterLoader(
                 val source = sourceManager.get(mangaReference.mangaSourceId)
                     ?: error("Source ${mangaReference.mangaSourceId} was null")
                 val manga = mergedManga?.get(chapter.chapter.manga_id) ?: error("Manga for merged chapter was null")
-                val isMergedMangaDownloaded = downloadManager.isChapterDownloaded(
+                val isMergedMangaDownloaded = downloadManager.isChapterDownloadedOnDisk(
                     chapterName = chapter.chapter.name,
                     chapterScanlator = chapter.chapter.scanlator,
                     chapterUrl = chapter.chapter.url,
                     mangaTitle = manga.ogTitle,
-                    sourceId = manga.source,
-                    skipCache = true,
+                    source = source,
                 )
                 when {
                     isMergedMangaDownloaded -> DownloadPageLoader(

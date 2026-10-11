@@ -61,7 +61,6 @@ import com.davemorrissey.labs.subscaleview.SubsamplingScaleImageView
 import com.google.android.material.transition.platform.MaterialContainerTransform
 import com.hippo.unifile.UniFile
 import dev.zacsweers.metro.Inject
-import eu.kanade.core.util.ifSourcesLoaded
 import eu.kanade.domain.base.BasePreferences
 import eu.kanade.domain.connections.service.ConnectionsPreferences
 import eu.kanade.domain.manga.model.readingMode
@@ -137,7 +136,6 @@ import tachiyomi.core.common.util.system.UrlUtils
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.manga.model.MangaCover
 import tachiyomi.domain.manga.model.asMangaCover
-import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
 import tachiyomi.i18n.sy.SYMR
@@ -181,10 +179,6 @@ class ReaderActivity : BaseActivity() {
 
     val viewModel by viewModels<ReaderViewModel> { graph.viewModelFactory }
     private var assistUrl: String? = null
-
-    // SY -->
-    @Inject private lateinit var sourceManager: SourceManager
-    // SY <--
 
     /**
      * Configuration at reader level, like background color or forced orientation.
@@ -640,11 +634,7 @@ class ReaderActivity : BaseActivity() {
 
     @Composable
     fun AppBars(state: ReaderViewModel.State) {
-        if (!ifSourcesLoaded()) {
-            return
-        }
-
-        val isHttpSource = viewModel.getSource() is HttpSource
+        val isHttpSource = state.source is HttpSource
 
         val cropBorderPaged by readerPreferences.cropBorders.collectAsState()
         val cropBorderWebtoon by readerPreferences.cropBordersWebtoon.collectAsState()
@@ -837,11 +827,8 @@ class ReaderActivity : BaseActivity() {
                 }
 
                 // If we are using EHentai/ExHentai, get a new image URL
-                viewModel.manga?.let { m ->
-                    val src = sourceManager.get(m.source)
-                    if (src?.isEhBasedSource() == true) {
-                        page.imageUrl = null
-                    }
+                if (viewModel.source?.isEhBasedSource() == true) {
+                    page.imageUrl = null
                 }
 
                 val loader = page.chapter.pageLoader
@@ -981,7 +968,7 @@ class ReaderActivity : BaseActivity() {
 
         val manga = viewModel.state.value.manga
         val defaultReaderType = manga?.defaultReaderType(
-            manga.mangaType(sourceName = sourceManager.get(manga.source)?.name),
+            manga.mangaType(sourceName = viewModel.source?.name),
         )
         if (
             readerPreferences.useAutoWebtoon.get() &&
