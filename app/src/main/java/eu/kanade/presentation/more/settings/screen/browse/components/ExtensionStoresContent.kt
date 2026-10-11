@@ -39,6 +39,7 @@ import mihon.icons.materialsymbols.roundedfilled.VisibilityOff
 import mihon.icons.simpleicons.Discord
 import mihon.icons.simpleicons.SimpleIcons
 import tachiyomi.i18n.MR
+import tachiyomi.i18n.kmk.KMR
 import tachiyomi.presentation.core.components.material.padding
 import tachiyomi.presentation.core.i18n.stringResource
 
@@ -170,7 +171,9 @@ private fun ExtensionStoresListItem(
                     IconButton(onClick = if (isDisabled) onEnable else onDisable) {
                         Icon(
                             imageVector = if (isDisabled) MaterialSymbols.RoundedFilled.Visibility else MaterialSymbols.RoundedFilled.VisibilityOff,
-                            contentDescription = stringResource(MR.strings.action_disable),
+                            contentDescription = stringResource(
+                                if (isDisabled) KMR.strings.action_enable else MR.strings.action_disable,
+                            ),
                         )
                     }
                     // KMK <--
