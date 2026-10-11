@@ -428,8 +428,8 @@ class ExtensionManager(
      * @param pkgName The package name of the uninstalled application.
      */
     private fun unregisterExtension(pkgName: String) {
-        loadedExtensionMapFlow.value -= pkgName
-        notLoadedExtensionMapFlow.value -= pkgName
+        loadedExtensionMapFlow.update { it - pkgName }
+        notLoadedExtensionMapFlow.update { it - pkgName }
     }
 
     /**
@@ -439,13 +439,13 @@ class ExtensionManager(
 
         override fun onExtensionLoaded(extension: Extension.Loaded) {
             registerExtension(extension)
-            notLoadedExtensionMapFlow.value -= extension.pkgName
+            notLoadedExtensionMapFlow.update { it - extension.pkgName }
             refreshStatuses()
         }
 
         override fun onExtensionNotLoaded(extension: Extension.NotLoaded) {
-            loadedExtensionMapFlow.value -= extension.pkgName
-            notLoadedExtensionMapFlow.value += extension
+            loadedExtensionMapFlow.update { it - extension.pkgName }
+            notLoadedExtensionMapFlow.update { it + extension }
             refreshStatuses()
         }
 
