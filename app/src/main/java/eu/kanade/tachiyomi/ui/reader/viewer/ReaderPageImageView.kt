@@ -40,6 +40,7 @@ import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences.LandscapeZoomScal
 import eu.kanade.tachiyomi.ui.reader.viewer.webtoon.WebtoonSubsamplingImageView
 import eu.kanade.tachiyomi.util.system.animatorDurationScale
 import eu.kanade.tachiyomi.util.view.isVisibleOnScreen
+import mihon.app.di.appGraph
 import okio.BufferedSource
 import tachiyomi.core.common.util.system.ImageUtil
 
@@ -58,6 +59,12 @@ open class ReaderPageImageView @JvmOverloads constructor(
     @StyleRes defStyleRes: Int = 0,
     private val isWebtoon: Boolean = false,
 ) : FrameLayout(context, attrs, defStyleAttrs, defStyleRes) {
+
+    // KMK -->
+    private val alwaysDecodeLongStripWithSSIV by lazy {
+        context.appGraph.readerPreferences.alwaysDecodeLongStripWithSSIV.get()
+    }
+    // KMK <--
 
     private var pageView: View? = null
 
@@ -337,6 +344,16 @@ open class ReaderPageImageView @JvmOverloads constructor(
                 isVisible = true
             }
             is BufferedSource -> {
+                // KMK -->
+                // Escape hatch for long strips: webtoon pages normally go through the mpreg Coil
+                // decoder, which decodes at full resolution and can blank/OOM on very tall images.
+                // When enabled, decode them with SSIV instead, matching the paged-viewer path.
+                if (isWebtoon && alwaysDecodeLongStripWithSSIV) {
+                    setImage(ImageSource.inputStream(data.inputStream()))
+                    isVisible = true
+                    return@apply
+                }
+                // KMK <--
                 if (!isWebtoon) {
                     setImage(ImageSource.inputStream(data.inputStream()))
                     isVisible = true

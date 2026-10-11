@@ -440,6 +440,11 @@ object SettingsAdvancedScreen : SearchableSettings {
                     title = stringResource(MR.strings.pref_high_quality_renderer),
                 ),
                 // KMK -->
+                Preference.PreferenceItem.SwitchPreference(
+                    preference = context.appGraph.readerPreferences.alwaysDecodeLongStripWithSSIV,
+                    title = stringResource(KMR.strings.pref_always_decode_long_strip_with_ssiv),
+                    subtitle = stringResource(KMR.strings.pref_always_decode_long_strip_with_ssiv_summary),
+                ),
                 Preference.PreferenceItem.TextPreference(
                     title = stringResource(MR.strings.pref_display_profile),
                     subtitle = basePreferences.displayProfile.get(),

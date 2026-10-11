@@ -11,6 +11,7 @@ import eu.kanade.tachiyomi.ui.reader.setting.ReaderSettingsViewModel
 import eu.kanade.tachiyomi.ui.reader.setting.ReadingMode
 import eu.kanade.tachiyomi.util.system.hasDisplayCutout
 import tachiyomi.i18n.MR
+import tachiyomi.i18n.kmk.KMR
 import tachiyomi.i18n.sy.SYMR
 import tachiyomi.presentation.core.components.CheckboxItem
 import tachiyomi.presentation.core.components.SettingsChipRow
@@ -167,6 +168,13 @@ internal fun GeneralPage(viewModel: ReaderSettingsViewModel) {
             }
         }
     }
+
+    // KMK -->
+    CheckboxItem(
+        label = stringResource(KMR.strings.pref_always_decode_long_strip_with_ssiv),
+        pref = viewModel.preferences.alwaysDecodeLongStripWithSSIV,
+    )
+    // KMK <--
 
     // SY -->
     CheckboxItem(

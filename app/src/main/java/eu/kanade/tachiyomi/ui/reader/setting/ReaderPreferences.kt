@@ -88,6 +88,16 @@ class ReaderPreferences(
     // KMK -->
     val webtoonScaleType = preferenceStore.getEnum("pref_webtoon_scale_type_key", WebtoonScaleType.FIT)
     val longStripGapSmartScale = preferenceStore.getBoolean("pref_webtoon_smart_scale_long_strip_gap", false)
+
+    /**
+     * Komikku: escape hatch for long-strip/webtoon pages. When enabled they are decoded with
+     * [SubsamplingScaleImageView] instead of the mpreg Coil decoder, which materialises the image at
+     * full resolution and can produce blank/OOM pages on very tall strips.
+     */
+    val alwaysDecodeLongStripWithSSIV: Preference<Boolean> = preferenceStore.getBoolean(
+        "pref_always_decode_long_strip_with_ssiv",
+        false,
+    )
     // KMK <--
 
     val zoomStart = preferenceStore.getInt("pref_zoom_start_key", 1)
