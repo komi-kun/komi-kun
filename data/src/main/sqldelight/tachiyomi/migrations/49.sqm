@@ -398,12 +398,17 @@ CREATE TABLE manga_category(
 
 -- KMK -->
 -- The pair is the row's identity now, so copies that only differ in their timestamp have to collapse
--- into one; the most recent timestamp wins, and the column stays populated for sync.
+-- into one; the most recent timestamp wins, and the column stays populated for sync. A survivor that
+-- is in the library only inherits memberships from copies that are themselves in the library, since a
+-- copy outside it can still hold the categories it had before it was removed (Mihon's 17.sqm filter).
 INSERT INTO manga_category(manga_id, category_id, last_modified_at)
 SELECT coalesce(D.keep_id, MC.manga_id), MC.category_id, max(MC.last_modified_at)
 FROM mangas_categories MC
 LEFT JOIN duplicate_mangas D
 ON D._id = MC.manga_id
+LEFT JOIN manga K
+ON K.id = D.keep_id
+WHERE D._id IS NULL OR D.favorite OR K.user_favorite_at IS NULL
 GROUP BY coalesce(D.keep_id, MC.manga_id), MC.category_id;
 -- KMK <--
 
