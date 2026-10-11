@@ -82,8 +82,8 @@ import tachiyomi.domain.manga.interactor.GetDuplicateLibraryManga
 import tachiyomi.domain.manga.interactor.GetFlatMetadataById
 import tachiyomi.domain.manga.interactor.GetManga
 import tachiyomi.domain.manga.model.Manga
+import tachiyomi.domain.manga.model.MangaUpdate
 import tachiyomi.domain.manga.model.MangaWithChapterCount
-import tachiyomi.domain.manga.model.toMangaUpdate
 import tachiyomi.domain.source.interactor.DeleteSavedSearchById
 import tachiyomi.domain.source.interactor.GetRemoteManga
 import tachiyomi.domain.source.interactor.InsertSavedSearch
@@ -419,26 +419,28 @@ open class BrowseSourceViewModel(
     fun changeMangaFavorite(manga: Manga) {
         appScope.launch {
             val source = source ?: return@launch
-            var new = manga.copy(
-                favorite = !manga.favorite,
-                dateAdded = when (manga.favorite) {
-                    true -> null
-                    false -> Clock.System.now()
-                },
-            )
-
-            if (!new.favorite) {
-                new = new.removeCovers(coverCache)
+            val favorite = !manga.favorite
+            val update = if (manga.favorite) {
+                val coverLastModified = manga.removeCovers(coverCache).coverLastModified
+                MangaUpdate(manga.id) {
+                    this.favorite = false
+                    dateAdded = null
+                    if (coverLastModified != manga.coverLastModified) this.coverLastModified = coverLastModified
+                }
             } else {
                 setMangaDefaultChapterFlags.await(manga)
                 addTracks.bindEnhancedTrackers(manga, sourceManager.getOrStub(manga.source))
+                MangaUpdate(manga.id) {
+                    this.favorite = true
+                    dateAdded = Clock.System.now()
+                }
             }
 
-            updateManga.await(new.toMangaUpdate())
+            updateManga.await(update)
             // KMK -->
             val fetchMetadataOnAdd = libraryPreferences.fetchMetadataOnAdd.get()
             val fetchChaptersOnAdd = libraryPreferences.fetchChaptersOnAdd.get()
-            if (new.favorite && (fetchMetadataOnAdd || fetchChaptersOnAdd)) {
+            if (favorite && (fetchMetadataOnAdd || fetchChaptersOnAdd)) {
                 try {
                     // Use `manga` instead of `new` so its title got updated with source's `getMangaDetails`
                     updateMangaFromRemote(

@@ -195,8 +195,7 @@ RETURNING id;
 
 update:
 UPDATE chapter
-SET manga_id = coalesce(:mangaId, manga_id),
-    remote_url = coalesce(:url, remote_url),
+SET remote_url = coalesce(:url, remote_url),
     remote_name = coalesce(:name, remote_name),
     remote_scanlator = coalesce(:scanlator, remote_scanlator),
     user_read = coalesce(:read, user_read),

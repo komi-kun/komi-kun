@@ -236,35 +236,37 @@ class MangaRepositoryImpl(
     private suspend fun partialUpdate(vararg mangaUpdates: MangaUpdate) {
         database.transaction {
             mangaUpdates.forEach { value ->
-                database.mangaQueries.update(
-                    source = value.source,
-                    url = value.url,
-                    artist = value.artist,
-                    author = value.author,
-                    description = value.description,
-                    genre = value.genre,
-                    title = value.title,
-                    status = value.status,
-                    thumbnailUrl = value.thumbnailUrl,
-                    userFavoriteAtSet = value.favorite != null,
-                    userFavoriteAt = if (value.favorite == true) value.dateAdded else null,
-                    lastUpdate = value.lastUpdate,
-                    nextUpdate = value.nextUpdate,
-                    calculateInterval = value.fetchInterval?.toLong(),
-                    initialized = value.initialized,
-                    viewer = value.viewerFlags,
-                    chapterFlags = value.chapterFlags,
-                    coverLastModified = value.coverLastModified,
-                    mangaId = value.id,
-                    updateStrategy = value.updateStrategy,
-                    version = value.version,
-                    // SY -->
-                    lastModifiedAt = null,
-                    isSyncing = null,
-                    // SY <--
-                    notes = value.notes,
-                    memo = value.memo,
-                )
+                with(value) {
+                    database.mangaQueries.update(
+                        source = source,
+                        url = url,
+                        artist = artist,
+                        author = author,
+                        description = description,
+                        genre = genre,
+                        title = title,
+                        status = status,
+                        thumbnailUrl = thumbnailUrl,
+                        userFavoriteAtSet = favorite != null,
+                        userFavoriteAt = if (favorite == true) dateAdded else null,
+                        lastUpdate = lastUpdate,
+                        nextUpdate = nextUpdate,
+                        calculateInterval = fetchInterval?.toLong(),
+                        initialized = initialized,
+                        viewer = viewerFlags,
+                        chapterFlags = chapterFlags,
+                        coverLastModified = coverLastModified,
+                        mangaId = id,
+                        updateStrategy = updateStrategy,
+                        version = version,
+                        // SY -->
+                        lastModifiedAt = null,
+                        isSyncing = null,
+                        // SY <--
+                        notes = notes,
+                        memo = memo,
+                    )
+                }
             }
         }
     }

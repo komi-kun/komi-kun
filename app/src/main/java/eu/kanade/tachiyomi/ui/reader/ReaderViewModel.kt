@@ -966,15 +966,12 @@ class ReaderViewModel(
                 if (onComplete) updateChapterProgressOnComplete(readerChapter)
 
                 val chapter = readerChapter.chapter
-                // KMK --> upstream builds this with a trailing lambda; this fork's ChapterUpdate takes named arguments
                 updateChapter.await(
-                    ChapterUpdate(
-                        id = chapter.id,
-                        read = chapter.read,
-                        lastPageRead = chapter.lastPageRead,
-                    ),
+                    ChapterUpdate(chapter.id) {
+                        read = chapter.read
+                        lastPageRead = chapter.lastPageRead
+                    },
                 )
-                // KMK <--
             }
         }
     }
@@ -986,7 +983,7 @@ class ReaderViewModel(
                 val chapterUpdates = unfilteredChapterList
                     .filter { it.sourceOrder > readerChapter.chapter.sourceOrder }
                     .map { chapter ->
-                        ChapterUpdate(id = chapter.id, read = true)
+                        ChapterUpdate(chapter.id) { read = true }
                     }
                 updateChapter.awaitAll(chapterUpdates)
             }
@@ -1007,7 +1004,7 @@ class ReaderViewModel(
                     chapter.isRecognizedNumber &&
                     chapter.chapterNumber == readerChapter.chapter.chapterNumber
                 ) {
-                    ChapterUpdate(id = chapter.id, read = true)
+                    ChapterUpdate(chapter.id) { read = true }
                         // KMK -->
                         .also { deleteDupChapterIfNeeded(ReaderChapter(chapter.copy(read = true))) }
                     // KMK <--
@@ -1101,10 +1098,9 @@ class ReaderViewModel(
         // On Main so quick toggles are saved in order
         viewModelScope.launch {
             updateChapter.await(
-                ChapterUpdate(
-                    id = readerChapter.chapter.id,
-                    bookmark = bookmarked,
-                ),
+                ChapterUpdate(readerChapter.chapter.id) {
+                    bookmark = bookmarked
+                },
             )
         }
 
@@ -1121,10 +1117,9 @@ class ReaderViewModel(
         readerChapter.update { it.copy(bookmark = bookmarked) }
         viewModelScope.launchNonCancellable {
             updateChapter.await(
-                ChapterUpdate(
-                    id = chapterId,
-                    bookmark = bookmarked,
-                ),
+                ChapterUpdate(chapterId) {
+                    bookmark = bookmarked
+                },
             )
         }
     }

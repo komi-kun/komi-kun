@@ -171,20 +171,19 @@ class UpdateMangaFromRemote(
         val thumbnailUrl = remoteManga.thumbnail_url?.takeIf { it.isNotEmpty() }
 
         val success = mangaRepository.update(
-            MangaUpdate(
-                id = localManga.id,
-                title = title,
-                coverLastModified = coverLastModified,
-                author = remoteManga.author,
-                artist = remoteManga.artist,
-                description = remoteManga.description,
-                genre = remoteManga.getGenres(),
-                thumbnailUrl = thumbnailUrl,
-                status = remoteManga.status.toLong(),
-                updateStrategy = remoteManga.update_strategy,
-                initialized = localManga.initialized || fetchDetails,
-                memo = remoteManga.memo,
-            ),
+            MangaUpdate(localManga.id) {
+                this.title = title
+                this.coverLastModified = coverLastModified
+                author = remoteManga.author
+                artist = remoteManga.artist
+                description = remoteManga.description
+                genre = remoteManga.getGenres()
+                this.thumbnailUrl = thumbnailUrl
+                status = remoteManga.status.toLong()
+                updateStrategy = remoteManga.update_strategy
+                initialized = localManga.initialized || fetchDetails
+                memo = remoteManga.memo
+            },
         )
         if (success && title != null) {
             downloadManager.renameManga(localManga, title)

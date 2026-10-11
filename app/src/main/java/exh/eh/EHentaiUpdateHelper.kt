@@ -105,18 +105,16 @@ class EHentaiUpdateHelper(
             val (chapterUpdates, newChapters, new) = getChapterList(accepted, toDiscard, chainsAsChapters)
 
             toDiscard.forEach {
-                mangaUpdates += MangaUpdate(
-                    id = it.manga.id,
-                    favorite = false,
-                    dateAdded = null,
-                )
+                mangaUpdates += MangaUpdate(it.manga.id) {
+                    favorite = false
+                    dateAdded = null
+                }
             }
             if (!accepted.manga.favorite) {
-                mangaUpdates += MangaUpdate(
-                    id = accepted.manga.id,
-                    favorite = true,
-                    dateAdded = Clock.System.now(),
-                )
+                mangaUpdates += MangaUpdate(accepted.manga.id) {
+                    favorite = true
+                    dateAdded = Clock.System.now()
+                }
             }
 
             val newAccepted = ChapterChain(accepted.manga, newChapters, emptyList())
@@ -286,12 +284,11 @@ class EHentaiUpdateHelper(
                             ),
                         )
                         else -> updates.add(
-                            ChapterUpdate(
-                                id = chapter.id,
-                                name = name.takeUnless { chapter.name == it },
-                                chapterNumber = chapterNumber.takeUnless { chapter.chapterNumber == it },
-                                sourceOrder = sourceOrder.takeUnless { chapter.sourceOrder == it },
-                            ),
+                            ChapterUpdate(chapter.id) {
+                                this.name = name.takeUnless { chapter.name == it }
+                                this.chapterNumber = chapterNumber.takeUnless { chapter.chapterNumber == it }
+                                this.sourceOrder = sourceOrder.takeUnless { chapter.sourceOrder == it }
+                            },
                         )
                     }
                 }

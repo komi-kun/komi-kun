@@ -1084,10 +1084,9 @@ class LibraryViewModel(
                     .distinctBy { it.id }
                     .map {
                         it.removeCovers(coverCache)
-                        MangaUpdate(
-                            favorite = false,
-                            id = it.id,
-                        )
+                        MangaUpdate(it.id) {
+                            favorite = false
+                        }
                     }
                 updateManga.awaitAll(toDelete)
             }

@@ -119,7 +119,6 @@ class ChapterRepositoryImpl(
 
             updated.forEach { chapterUpdate ->
                 database.chapterQueries.update(
-                    mangaId = chapterUpdate.mangaId,
                     url = chapterUpdate.url,
                     name = chapterUpdate.name,
                     scanlator = chapterUpdate.scanlator,
@@ -147,7 +146,6 @@ class ChapterRepositoryImpl(
         database.transaction {
             chapterUpdates.forEach { chapterUpdate ->
                 database.chapterQueries.update(
-                    mangaId = chapterUpdate.mangaId,
                     url = chapterUpdate.url,
                     name = chapterUpdate.name,
                     scanlator = chapterUpdate.scanlator,

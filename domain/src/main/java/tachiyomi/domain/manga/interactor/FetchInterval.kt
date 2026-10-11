@@ -32,7 +32,7 @@ class FetchInterval(
      *
      * @param foundRelease whether the check that led here found new chapters.
      */
-    suspend fun toMangaUpdate(
+    suspend fun withFetchInterval(
         manga: Manga,
         dateTime: LocalDateTime,
         timeZone: TimeZone,
@@ -63,11 +63,10 @@ class FetchInterval(
             else -> schedule.nextCheck(today).atStartOfDayIn(timeZone)
         }
 
-        return MangaUpdate(
-            id = manga.id,
-            nextUpdate = nextUpdate,
-            fetchInterval = if (manga.fetchInterval < 0) manga.fetchInterval else schedule.interval,
-        )
+        return MangaUpdate(manga.id) {
+            this.nextUpdate = nextUpdate
+            fetchInterval = if (manga.fetchInterval < 0) manga.fetchInterval else schedule.interval
+        }
     }
 
     fun getWindow(localDateTime: LocalDate, timeZone: TimeZone): ClosedRange<Instant> {

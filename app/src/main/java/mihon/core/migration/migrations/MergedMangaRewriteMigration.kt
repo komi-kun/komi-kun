@@ -45,7 +45,7 @@ class MergedMangaRewriteMigration : Migration {
                 mangaConfigs.onEach { mergedManga ->
                     val newFirst = mergedManga.second.children.firstOrNull()?.url?.let {
                         if (getManga.await(it, MERGED_SOURCE_ID) != null) return@onEach
-                        mangaToUpdate += MangaUpdate(id = mergedManga.first.id, url = it)
+                        mangaToUpdate += MangaUpdate(mergedManga.first.id) { url = it }
                         mergedManga.first.copy(url = it)
                     } ?: mergedManga.first
                     mergedMangaReferences += MergedMangaReference(
@@ -110,11 +110,10 @@ class MergedMangaRewriteMigration : Migration {
                             it.first.source.id == parsedChapter.second.source &&
                             it.first.manga.url == parsedChapter.second.mangaUrl
                     }?.let {
-                        chaptersToUpdate += ChapterUpdate(
-                            it.second.id,
-                            read = parsedChapter.first.read,
-                            lastPageRead = parsedChapter.first.lastPageRead,
-                        )
+                        chaptersToUpdate += ChapterUpdate(it.second.id) {
+                            read = parsedChapter.first.read
+                            lastPageRead = parsedChapter.first.lastPageRead
+                        }
                     }
                 }
 

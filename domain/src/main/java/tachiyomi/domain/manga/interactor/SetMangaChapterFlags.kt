@@ -12,37 +12,33 @@ class SetMangaChapterFlags(
 
     suspend fun awaitSetDownloadedFilter(manga: Manga, flag: Long): Boolean {
         return mangaRepository.update(
-            MangaUpdate(
-                id = manga.id,
-                chapterFlags = manga.chapterFlags.setFlag(flag, Manga.CHAPTER_DOWNLOADED_MASK),
-            ),
+            MangaUpdate(manga.id) {
+                chapterFlags = manga.chapterFlags.setFlag(flag, Manga.CHAPTER_DOWNLOADED_MASK)
+            },
         )
     }
 
     suspend fun awaitSetUnreadFilter(manga: Manga, flag: Long): Boolean {
         return mangaRepository.update(
-            MangaUpdate(
-                id = manga.id,
-                chapterFlags = manga.chapterFlags.setFlag(flag, Manga.CHAPTER_UNREAD_MASK),
-            ),
+            MangaUpdate(manga.id) {
+                chapterFlags = manga.chapterFlags.setFlag(flag, Manga.CHAPTER_UNREAD_MASK)
+            },
         )
     }
 
     suspend fun awaitSetBookmarkFilter(manga: Manga, flag: Long): Boolean {
         return mangaRepository.update(
-            MangaUpdate(
-                id = manga.id,
-                chapterFlags = manga.chapterFlags.setFlag(flag, Manga.CHAPTER_BOOKMARKED_MASK),
-            ),
+            MangaUpdate(manga.id) {
+                chapterFlags = manga.chapterFlags.setFlag(flag, Manga.CHAPTER_BOOKMARKED_MASK)
+            },
         )
     }
 
     suspend fun awaitSetDisplayMode(manga: Manga, flag: Long): Boolean {
         return mangaRepository.update(
-            MangaUpdate(
-                id = manga.id,
-                chapterFlags = manga.chapterFlags.setFlag(flag, Manga.CHAPTER_DISPLAY_MASK),
-            ),
+            MangaUpdate(manga.id) {
+                chapterFlags = manga.chapterFlags.setFlag(flag, Manga.CHAPTER_DISPLAY_MASK)
+            },
         )
     }
 
@@ -64,18 +60,15 @@ class SetMangaChapterFlags(
             }
         }
         return mangaRepository.update(
-            MangaUpdate(
-                id = manga.id,
-                chapterFlags = newFlags,
-            ),
+            MangaUpdate(manga.id) {
+                chapterFlags = newFlags
+            },
         )
     }
 
     // KMK -->
     // Ported from Mihon 2d1d2e4cab ("Rework database queries for the new schema"):
     // one transaction through updateAll instead of one update per manga.
-    // MangaUpdate is built with the fork's nullable-field data class (Mihon's lambda form
-    // comes from f8fff318ba, which is not ported).
     // KMK <--
     suspend fun awaitSetAllFlags(
         mangaIds: List<Long>,
@@ -92,7 +85,7 @@ class SetMangaChapterFlags(
             .setFlag(sortingMode, Manga.CHAPTER_SORTING_MASK)
             .setFlag(sortingDirection, Manga.CHAPTER_SORT_DIR_MASK)
             .setFlag(displayMode, Manga.CHAPTER_DISPLAY_MASK)
-        return mangaRepository.updateAll(mangaIds.map { MangaUpdate(id = it, chapterFlags = flags) })
+        return mangaRepository.updateAll(mangaIds.map { MangaUpdate(it) { chapterFlags = flags } })
     }
 
     private fun Long.setFlag(flag: Long, mask: Long): Long {

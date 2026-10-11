@@ -831,16 +831,15 @@ class MangaViewModel(
                 val localSource = sourceManager.get(LocalSource.ID) as LocalSource
                 localSource.updateMangaInfo(manga.toSManga())
                 updateManga.await(
-                    MangaUpdate(
-                        manga.id,
-                        title = newTitle,
-                        author = newAuthor,
-                        artist = newArtist,
-                        thumbnailUrl = newThumbnailUrl,
-                        description = newDesc,
-                        genre = tags,
-                        status = status,
-                    ),
+                    MangaUpdate(manga.id) {
+                        this.title = newTitle
+                        this.author = newAuthor
+                        this.artist = newArtist
+                        this.thumbnailUrl = newThumbnailUrl
+                        this.description = newDesc
+                        this.genre = tags
+                        this.status = status
+                    },
                 )
             }
         } else {
@@ -1542,7 +1541,7 @@ class MangaViewModel(
         viewModelScope.launch {
             chapters
                 .filterNot { it.bookmark == bookmarked }
-                .map { ChapterUpdate(id = it.id, bookmark = bookmarked) }
+                .map { ChapterUpdate(it.id) { bookmark = bookmarked } }
                 .let { updateChapter.awaitAll(it) }
         }
         toggleAllSelection(false)

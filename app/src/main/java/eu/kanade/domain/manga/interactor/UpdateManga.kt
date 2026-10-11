@@ -33,7 +33,7 @@ class UpdateManga(
         foundRelease: Boolean = false,
     ): Boolean {
         return mangaRepository.update(
-            fetchInterval.toMangaUpdate(manga, dateTime, timeZone, window, foundRelease),
+            fetchInterval.withFetchInterval(manga, dateTime, timeZone, window, foundRelease),
         )
     }
 
@@ -48,17 +48,16 @@ class UpdateManga(
         foundRelease: Boolean = false,
     ): Boolean {
         return mangaRepository.update(
-            fetchInterval.toMangaUpdate(manga, dateTime, timeZone, window, foundRelease)
-                .copy(lastUpdate = Clock.System.now()),
+            fetchInterval.withFetchInterval(manga, dateTime, timeZone, window, foundRelease)
+                .apply { lastUpdate = Clock.System.now() },
         )
     }
 
     suspend fun awaitUpdateCoverLastModified(mangaId: Long): Boolean {
         return mangaRepository.update(
-            MangaUpdate(
-                id = mangaId,
-                coverLastModified = Clock.System.now(),
-            ),
+            MangaUpdate(mangaId) {
+                coverLastModified = Clock.System.now()
+            },
         )
     }
 
@@ -68,7 +67,10 @@ class UpdateManga(
             false -> null
         }
         return mangaRepository.update(
-            MangaUpdate(id = mangaId, favorite = favorite, dateAdded = dateAdded),
+            MangaUpdate(mangaId) {
+                this.favorite = favorite
+                this.dateAdded = dateAdded
+            },
         )
     }
 }

@@ -350,7 +350,6 @@ class RestoreRepositoryImpl(
         database.transaction {
             chapters.forEach { chapter ->
                 database.chapterQueries.update(
-                    mangaId = null,
                     url = null,
                     name = null,
                     scanlator = null,

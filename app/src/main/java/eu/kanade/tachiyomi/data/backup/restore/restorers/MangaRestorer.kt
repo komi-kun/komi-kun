@@ -80,11 +80,11 @@ class MangaRestorer(
         }
 
         restoreRepository.restoreManga(entries, isSync) { manga ->
-            val update = fetchInterval.toMangaUpdate(manga, now, timeZone, currentFetchWindow)
+            val update = fetchInterval.withFetchInterval(manga, now, timeZone, currentFetchWindow)
             // A next update still ahead was worked out with the chapters the backup came from
             val preservedNextUpdate = manga.nextUpdate
                 ?.takeIf { it >= currentFetchWindow.start }
-            if (preservedNextUpdate != null) update.copy(nextUpdate = preservedNextUpdate) else update
+            if (preservedNextUpdate != null) update.apply { nextUpdate = preservedNextUpdate } else update
         }
     }
 

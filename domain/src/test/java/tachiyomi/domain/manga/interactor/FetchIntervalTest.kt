@@ -341,7 +341,7 @@ class FetchIntervalTest {
         coEvery { getChaptersByMangaId.await(any(), any()) } returns chapters
         val fetchInterval = FetchInterval(getChaptersByMangaId)
         val date = LocalDate.parse(today)
-        val update = fetchInterval.toMangaUpdate(
+        val update = fetchInterval.withFetchInterval(
             manga = manga,
             dateTime = date.atTime(10, 0),
             timeZone = testTimeZone,

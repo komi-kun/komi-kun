@@ -18,7 +18,7 @@ import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.domain.category.interactor.SetMangaCategories
 import tachiyomi.domain.chapter.interactor.GetChaptersByMangaId
 import tachiyomi.domain.chapter.interactor.UpdateChapter
-import tachiyomi.domain.chapter.model.toChapterUpdate
+import tachiyomi.domain.chapter.model.ChapterUpdate
 import tachiyomi.domain.history.interactor.GetHistory
 import tachiyomi.domain.history.interactor.UpsertHistory
 import tachiyomi.domain.history.model.HistoryUpdate
@@ -93,22 +93,13 @@ class MigrateMangaUseCase(
                     .associateBy { it.chapterId }
                 // KMK <--
 
-                val updatedMangaChapters = mangaChapters.map { mangaChapter ->
-                    var updatedChapter = mangaChapter
-                    if (updatedChapter.isRecognizedNumber) {
+                val chapterUpdates = mangaChapters
+                    .filter { it.isRecognizedNumber }
+                    .map { mangaChapter ->
                         val prevChapter = prevMangaChapters
-                            .find { it.isRecognizedNumber && it.chapterNumber == updatedChapter.chapterNumber }
+                            .find { it.isRecognizedNumber && it.chapterNumber == mangaChapter.chapterNumber }
 
                         if (prevChapter != null) {
-                            updatedChapter = updatedChapter.copy(
-                                // SY -->
-                                // If chapters match then mark new manga's chapters read/unread as old one
-                                read = prevChapter.read,
-                                // SY <--
-                                dateFetch = prevChapter.dateFetch,
-                                bookmark = prevChapter.bookmark,
-                                lastPageRead = prevChapter.lastPageRead,
-                            )
                             // SY -->
                             // KMK -->
                             prevHistoryList[prevChapter.id]?.let { prevHistory ->
@@ -121,17 +112,25 @@ class MigrateMangaUseCase(
                             }
                             // SY <--
                         }
-                        // KMK -->
-                        // If chapters which only present on new manga then mark read up to latest read chapter number
-                        else /* KMK <-- */ if (maxChapterRead != null && updatedChapter.chapterNumber <= maxChapterRead) {
-                            updatedChapter = updatedChapter.copy(read = true)
+
+                        ChapterUpdate(mangaChapter.id) {
+                            if (prevChapter != null) {
+                                // SY -->
+                                // If chapters match then mark new manga's chapters read/unread as old one
+                                read = prevChapter.read
+                                // SY <--
+                                dateFetch = prevChapter.dateFetch
+                                bookmark = prevChapter.bookmark
+                                lastPageRead = prevChapter.lastPageRead
+                            }
+                            // KMK -->
+                            // If chapters which only present on new manga then mark read up to latest read chapter number
+                            else if (maxChapterRead != null && mangaChapter.chapterNumber <= maxChapterRead) {
+                                read = true
+                            }
+                            // KMK <--
                         }
                     }
-
-                    updatedChapter
-                }
-
-                val chapterUpdates = updatedMangaChapters.map { it.toChapterUpdate() }
                 updateChapter.awaitAll(chapterUpdates)
                 // SY -->
                 upsertHistory.awaitAll(historyUpdates)
@@ -177,26 +176,24 @@ class MigrateMangaUseCase(
                 }
             }
 
-            val currentMangaUpdate = MangaUpdate(
-                id = current.id,
-                favorite = false,
-                dateAdded = null,
-            )
+            val currentMangaUpdate = MangaUpdate(current.id) {
+                favorite = false
+                dateAdded = null
+            }
                 .takeIf { replace }
-            val targetMangaUpdate = MangaUpdate(
-                id = target.id,
-                favorite = true,
+            val targetMangaUpdate = MangaUpdate(target.id) {
+                favorite = true
                 chapterFlags = current.chapterFlags
                     // KMK -->
-                    .takeIf { MigrationFlag.EXTRA in flags },
+                    .takeIf { MigrationFlag.EXTRA in flags }
                 // KMK <--
                 viewerFlags = current.viewerFlags
                     // KMK -->
-                    .takeIf { MigrationFlag.EXTRA in flags },
+                    .takeIf { MigrationFlag.EXTRA in flags }
                 // KMK <--
-                dateAdded = if (replace) current.dateAdded else Clock.System.now(),
-                notes = if (MigrationFlag.NOTES in flags) current.notes else null,
-            )
+                dateAdded = if (replace) current.dateAdded else Clock.System.now()
+                if (MigrationFlag.NOTES in flags) notes = current.notes
+            }
 
             updateManga.awaitAll(listOfNotNull(currentMangaUpdate, targetMangaUpdate))
         } catch (e: Throwable) {
