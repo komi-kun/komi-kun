@@ -30,9 +30,10 @@ class UpdateManga(
         timeZone: TimeZone = TimeZone.currentSystemDefault(),
         dateTime: LocalDateTime = Clock.System.now().toLocalDateTime(timeZone),
         window: ClosedRange<Instant>? = fetchInterval.getWindow(dateTime.date, timeZone),
+        foundRelease: Boolean = false,
     ): Boolean {
         return mangaRepository.update(
-            fetchInterval.toMangaUpdate(manga, dateTime, timeZone, window),
+            fetchInterval.toMangaUpdate(manga, dateTime, timeZone, window, foundRelease),
         )
     }
 
