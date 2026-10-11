@@ -3,9 +3,7 @@ package mihon.app.di.injekt
 import android.app.Application
 import android.content.Context
 import eu.kanade.domain.source.service.SourcePreferences
-// KMK -->
 import eu.kanade.tachiyomi.core.security.SecurityPreferences
-// KMK <--
 import eu.kanade.tachiyomi.data.cache.CoverCache
 import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.network.JavaScriptEngine
