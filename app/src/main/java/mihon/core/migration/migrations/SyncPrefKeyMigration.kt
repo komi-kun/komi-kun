@@ -36,6 +36,8 @@ class SyncPrefKeyMigration : Migration {
             // Google Drive tokens — appStateKey() prepends "__APP_STATE_"
             Preference.appStateKey("google_drive_access_token") to Preference.appStateKey("connection_google_drive_access_token"),
             Preference.appStateKey("google_drive_refresh_token") to Preference.appStateKey("connection_google_drive_refresh_token"),
+            // Sync ETag — appStateKey() prepends "__APP_STATE_"
+            "sync_etag" to Preference.appStateKey("sync_etag"),
         )
 
         val booleanRenames = listOf(
