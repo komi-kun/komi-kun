@@ -14,13 +14,13 @@ import tachiyomi.domain.manga.model.MergeMangaSettingsUpdate
 
 @Inject
 @ContributesIntoSet(AppScope::class)
-class MergedMangaDedupeModeMigration : Migration {
+class MergedMangaDedupeModeMigration(
+    private val database: Database,
+    private val updateMergedSettings: UpdateMergedSettings,
+) : Migration {
     override val version: Float = 77f
 
     override suspend fun invoke(migrationContext: MigrationContext): Boolean = withIOContext {
-        val database = migrationContext.get<Database>() ?: return@withIOContext false
-        val updateMergedSettings = migrationContext.get<UpdateMergedSettings>() ?: return@withIOContext false
-
         // Get merged manga references from db
         val dbMergedMangaReferences = database.mergedQueries
             .selectAll(MergedMangaMapper::map)

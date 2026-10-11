@@ -17,12 +17,12 @@ import tachiyomi.domain.download.service.DownloadPreferences
  */
 @Inject
 @ContributesIntoSet(AppScope::class)
-class ChapterUrlHashMigration : Migration {
+class ChapterUrlHashMigration(
+    private val downloadPreferences: DownloadPreferences,
+) : Migration {
     override val version: Float = 81f
 
     override suspend fun invoke(migrationContext: MigrationContext): Boolean = withIOContext {
-        val downloadPreferences = migrationContext.get<DownloadPreferences>() ?: return@withIOContext false
-
         val includeChapterUrlHash = downloadPreferences.includeChapterUrlHash
         if (!includeChapterUrlHash.isSet()) {
             includeChapterUrlHash.set(true)
