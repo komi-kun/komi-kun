@@ -248,6 +248,10 @@ class SyncChaptersWithSource(
         )
         // KMK -->
         syncPreferences.forgetDeletedChapters(added.map(tombstoneKey))
+        // New and re-added chapters are inserted with last_modified_at = 0, which changedSince
+        // filters out of the next delta; write them once so the upload carries them. Otherwise the
+        // server never sees the chapter is back and its tombstone stands until a full sync.
+        chapterRepository.updateAll(added.map { it.toChapterUpdate() })
         // KMK <--
         updateManga.awaitUpdateFetchInterval(manga, now, fetchWindow)
 
