@@ -4,14 +4,11 @@ import android.app.ActivityManager
 import android.content.Context
 import androidx.sqlite.SQLiteConnection
 import androidx.sqlite.SQLiteDriver
-import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import androidx.sqlite.execSQL
-import app.cash.sqldelight.async.coroutines.synchronous
 import app.cash.sqldelight.db.QueryResult
 import app.cash.sqldelight.db.SqlDriver
 import app.cash.sqldelight.db.SqlSchema
-import app.cash.sqldelight.driver.android.AndroidSqliteDriver
 import com.eygraber.sqldelight.androidx.driver.AndroidxSqliteConcurrencyModel.MultipleReadersSingleWriter
 import com.eygraber.sqldelight.androidx.driver.AndroidxSqliteConfiguration
 import com.eygraber.sqldelight.androidx.driver.AndroidxSqliteConnectionFactory
@@ -36,7 +33,7 @@ import mihon.core.metro.AppCoroutineScope
 import mihon.core.metro.IsDebugBuild
 import mihon.data.database.DatabaseRepositoryImpl
 import mihon.telemetry.TelemetryConfig
-import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
+import net.zetetic.database.sqlcipher.driver.SQLCipherDriver
 import nl.adaptivity.xmlutil.XmlDeclMode
 import nl.adaptivity.xmlutil.core.XmlVersion
 import nl.adaptivity.xmlutil.serialization.XML
@@ -68,42 +65,47 @@ object AppBindings {
         if (securityPreferences.encryptDatabase.get()) {
             System.loadLibrary("sqlcipher")
 
-            return AndroidSqliteDriver(
-                schema = schema.synchronous(),
-                context = context,
-                name = CbzCrypto.DATABASE_NAME,
-                factory = SupportOpenHelperFactory(CbzCrypto.getDecryptedPasswordSql(), null, false, 25),
-                callback = object : AndroidSqliteDriver.Callback(schema.synchronous()) {
-                    // KMK -->
-                    // Mihon fd4f73c908: show the migrating screen while the encrypted database upgrades.
-                    override fun onUpgrade(db: SupportSQLiteDatabase, oldVersion: Int, newVersion: Int) {
-                        databaseRepository.isMigrating.value = true
-                        super.onUpgrade(db, oldVersion, newVersion)
-                    }
-                    // KMK <--
+            return AndroidxSqliteDriver(
+                // KMK -->
+                // SY cd52aad08 ("Swap to Room3 Encrypted Driver"): use SQLCipher's androidx.sqlite
+                // driver instead of the legacy AndroidSqliteDriver + SupportOpenHelperFactory.
+                // Wrapped in a connection factory so the connection still gets the fork's
+                // busy_timeout, matching the unencrypted path below.
+                connectionFactory = object : AndroidxSqliteConnectionFactory {
+                    override val driver: SQLiteDriver = SQLCipherDriver(
+                        CbzCrypto.getDecryptedPasswordSql(),
+                        null,
+                        null,
+                    )
 
-                    override fun onOpen(db: SupportSQLiteDatabase) {
-                        super.onOpen(db)
-                        // KMK -->
-                        databaseRepository.isMigrating.value = false
-                        // KMK <--
-                        setPragma(db, "foreign_keys = ON")
-                        // KMK -->
-                        // Mihon 61cd786e7f: WAL on every device. SY hardcoded WAL here too.
-                        setPragma(db, "journal_mode = WAL")
-                        // KMK <--
-                        setPragma(db, "synchronous = NORMAL")
-                        // KMK -->
-                        setPragma(db, "busy_timeout = 3000")
-                        // KMK <--
-                    }
-
-                    private fun setPragma(db: SupportSQLiteDatabase, pragma: String) {
-                        val cursor = db.query("PRAGMA $pragma")
-                        cursor.moveToFirst()
-                        cursor.close()
+                    override fun createConnection(name: String): SQLiteConnection {
+                        return driver.open(name).apply {
+                            execSQL("PRAGMA busy_timeout = 3000")
+                        }
                     }
                 },
+                // KMK <--
+                databaseType = AndroidxSqliteDatabaseType.FileProvider(context, CbzCrypto.DATABASE_NAME),
+                schema = schema,
+                configuration = AndroidxSqliteConfiguration(
+                    isForeignKeyConstraintsEnabled = true,
+                    // KMK -->
+                    // Mihon 61cd786e7f: WAL on every device (the configuration default), one reader
+                    // on low-RAM devices, four otherwise. SQLCipher's driver reports its own
+                    // connection pool, so this is mostly informational on the encrypted path.
+                    concurrencyModel = MultipleReadersSingleWriter(isWal = true, walCount = if (isLowRam) 1 else 4),
+                    // KMK <--
+                ),
+                // KMK -->
+                // Mihon fd4f73c908: show the migrating screen while the encrypted database upgrades.
+                onConfigure = {
+                    val version = executePragmaQuery("user_version", { QueryResult.Value(it.apply { next() }.getLong(0)) })
+                    databaseRepository.isMigrating.value = version in 1..<schema.version
+                },
+                onOpen = {
+                    databaseRepository.isMigrating.value = false
+                },
+                // KMK <--
             )
         }
         // SY <--
