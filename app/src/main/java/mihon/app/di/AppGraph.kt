@@ -68,6 +68,7 @@ import tachiyomi.domain.backup.service.BackupPreferences
 import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.domain.category.interactor.ResetCategoryFlags
 import tachiyomi.domain.chapter.interactor.GetChaptersByMangaId
+import tachiyomi.domain.debug.repository.DebugRepository
 import tachiyomi.domain.download.service.DownloadPreferences
 import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.domain.manga.interactor.DeleteFavoriteEntries
@@ -80,6 +81,8 @@ import tachiyomi.domain.manga.interactor.GetMergedReferencesById
 import tachiyomi.domain.manga.interactor.InsertFlatMetadata
 import tachiyomi.domain.manga.interactor.NetworkToLocalManga
 import tachiyomi.domain.manga.interactor.ResetViewerFlags
+import tachiyomi.domain.source.repository.SavedSearchRepository
+import tachiyomi.domain.source.repository.SourceMigrationRepository
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.domain.storage.service.StoragePreferences
 import tachiyomi.domain.track.interactor.GetTracks
@@ -171,6 +174,9 @@ interface AppGraph : ViewModelGraph {
     val networkToLocalManga: NetworkToLocalManga
     val updateMangaFromRemote: UpdateMangaFromRemote
     val filterChaptersForDownload: FilterChaptersForDownload
+    val debugRepository: DebugRepository
+    val savedSearchRepository: SavedSearchRepository
+    val sourceMigrationRepository: SourceMigrationRepository
     // KMK <--
 
     val json: Json

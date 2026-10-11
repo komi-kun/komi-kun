@@ -2,7 +2,6 @@ package eu.kanade.tachiyomi.data.sync
 
 import android.content.Context
 import android.net.Uri
-import app.cash.sqldelight.async.coroutines.awaitAsList
 import eu.kanade.domain.sync.SyncPreferences
 import eu.kanade.tachiyomi.data.backup.create.BackupCreator
 import eu.kanade.tachiyomi.data.backup.create.BackupOptions
@@ -25,11 +24,12 @@ import logcat.logcat
 import okio.buffer
 import okio.sink
 import tachiyomi.core.common.util.system.logcat
-import tachiyomi.data.Chapter
-import tachiyomi.data.Database
-import tachiyomi.data.manga.MangaMapper.mapManga
 import tachiyomi.domain.category.interactor.GetCategories
+import tachiyomi.domain.category.repository.CategoryRepository
+import tachiyomi.domain.chapter.model.Chapter
+import tachiyomi.domain.chapter.repository.ChapterRepository
 import tachiyomi.domain.manga.model.Manga
+import tachiyomi.domain.sync.repository.SyncRepository
 import java.io.File
 import java.io.IOException
 import java.util.Date
@@ -44,7 +44,9 @@ import kotlin.time.Clock
  */
 class SyncManager(
     private val context: Context,
-    private val database: Database,
+    private val syncRepository: SyncRepository,
+    private val chapterRepository: ChapterRepository,
+    private val categoryRepository: CategoryRepository,
     private val syncPreferences: SyncPreferences,
     private val getCategories: GetCategories,
     private val backupCreatorFactory: BackupCreator.Factory,
@@ -85,13 +87,7 @@ class SyncManager(
         // SY <--
 
         // Reset isSyncing in case it was left over or failed syncing during restore.
-        database.transaction {
-            database.mangaQueries.resetIsSyncing()
-            database.chapterQueries.resetIsSyncing()
-            // SY -->
-            database.categoryQueries.resetIsSyncing()
-            // SY <--
-        }
+        syncRepository.resetSyncing()
 
         val syncOptions = syncPreferences.getSyncSettings()
 
@@ -109,7 +105,9 @@ class SyncManager(
             // SY -->
             customInfo = syncOptions.customInfo,
             readEntries = syncOptions.readEntries,
+            // KMK -->
             savedSearchesFeeds = syncOptions.savedSearchesFeeds,
+            // KMK <--
             // SY <--
         )
 
@@ -167,10 +165,12 @@ class SyncManager(
             backupCategories = backupCreator.backupCategories(backupOptions),
             backupSources = backupCreator.backupSources(backupManga),
             // SY -->
+            // KMK -->
             // `categorized_display` is derived from the categories; a sync restore sets it, which would
             // otherwise make the next delta echo it back to the server.
             backupPreferences = backupCreator.backupAppPreferences(backupOptions)
                 .filterNot { it.key == "categorized_display" },
+            // KMK <--
             // SY <--
             backupSourcePreferences = backupCreator.backupSourcePreferences(backupOptions),
             backupExtensionStores = backupCreator.backupExtensionStores(backupOptions),
@@ -230,7 +230,7 @@ class SyncManager(
         updateNonFavorites(nonFavorites)
         // SY -->
         // the restore below may not run, so its reset of the sync flag cannot be relied on
-        database.transaction { database.mangaQueries.resetIsSyncing() }
+        syncRepository.resetSyncing()
         // SY <--
 
         val newSyncData = backup.copy(
@@ -286,10 +286,8 @@ class SyncManager(
                 it.uid !in mergedUids && it.name !in mergedNames
             }
             if (categoriesToDelete.isNotEmpty()) {
-                database.transaction {
-                    categoriesToDelete.forEach {
-                        database.categoryQueries.delete(it.id)
-                    }
+                categoriesToDelete.forEach {
+                    categoryRepository.delete(it.id)
                 }
                 categoriesToDelete.forEach { syncPreferences.rememberDeletedCategory(it.uid) }
             }
@@ -314,12 +312,14 @@ class SyncManager(
                 context,
                 backupUri,
                 sync = true,
+                // KMK -->
                 options = RestoreOptions(
                     appSettings = true,
                     sourceSettings = true,
                     libraryEntries = true,
                     extensionStores = true,
                 ),
+                // KMK <--
             )
             // SY <--
             if (applied) {
@@ -383,36 +383,22 @@ class SyncManager(
      * @return a list of all manga stored in the database
      */
     private suspend fun getAllMangaFromDB(): List<Manga> {
-        return database.mangaQueries
-            .getAllManga(::mapManga)
-            .awaitAsList()
+        return syncRepository.getAllManga()
     }
 
     private suspend fun getAllMangaThatNeedsSync(): List<Manga> {
-        return database.mangaQueries
-            .getMangasWithFavoriteTimestamp(::mapManga)
-            .awaitAsList()
+        return syncRepository.getMangasWithFavoriteTimestamp()
     }
 
     // SY -->
     private suspend fun getMangasModifiedSince(since: Long): List<Manga> {
-        return database.mangaQueries
-            .getMangasModifiedSince(since, ::mapManga)
-            .awaitAsList()
+        return syncRepository.getMangasModifiedSince(since)
     }
     // SY <--
 
     private suspend fun isMangaDifferent(localManga: Manga, remoteManga: BackupManga): Boolean {
-        val localChapters = database.chapterQueries
-            .getChaptersByMangaId(
-                localManga.id,
-                0,
-                // KMK -->
-                Manga.CHAPTER_SHOW_NOT_BOOKMARKED,
-                Manga.CHAPTER_SHOW_BOOKMARKED,
-                // KMK <--
-            )
-            .awaitAsList()
+        val localChapters = chapterRepository
+            .getChapterByMangaId(localManga.id, applyFilter = false)
         val localCategories = getCategories.await(localManga.id).map { it.order }
 
         if (areChaptersDifferent(localChapters, remoteManga.chapters)) {
@@ -431,7 +417,7 @@ class SyncManager(
     }
 
     private fun areChaptersDifferent(localChapters: List<Chapter>, remoteChapters: List<BackupChapter>): Boolean {
-        val localChapterMap = localChapters.associateBy { it.remote_url }
+        val localChapterMap = localChapters.associateBy { it.url }
         val remoteChapterMap = remoteChapters.associateBy { it.url }
 
         if (localChapterMap.size != remoteChapterMap.size) {

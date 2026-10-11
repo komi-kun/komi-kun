@@ -64,6 +64,12 @@ class TrackRepositoryImpl(
         )
     }
 
+    // KMK -->
+    override suspend fun deleteByTrackerId(trackerId: Long) {
+        database.ehQueries.deleteBySyncId(trackerId)
+    }
+    // KMK <--
+
     override suspend fun upsert(track: Track) {
         upsertValues(track)
     }

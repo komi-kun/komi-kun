@@ -11,6 +11,7 @@ import tachiyomi.data.Database
 import tachiyomi.data.subscribeToList
 import tachiyomi.domain.source.model.FeedSavedSearch
 import tachiyomi.domain.source.model.FeedSavedSearchUpdate
+import tachiyomi.domain.source.model.FeedWithSavedSearch
 import tachiyomi.domain.source.model.SavedSearch
 import tachiyomi.domain.source.repository.FeedSavedSearchRepository
 
@@ -20,6 +21,25 @@ import tachiyomi.domain.source.repository.FeedSavedSearchRepository
 class FeedSavedSearchRepositoryImpl(
     private val database: Database,
 ) : FeedSavedSearchRepository {
+
+    // KMK -->
+    override suspend fun getAllWithSavedSearch(): List<FeedWithSavedSearch> {
+        val savedSearches = database.saved_searchQueries
+            .selectAll(SavedSearchMapper::map)
+            .awaitAsList()
+            .associateBy { it.id }
+
+        return database.feed_saved_searchQueries
+            .selectAll(FeedSavedSearchMapper::map)
+            .awaitAsList()
+            .map { feed ->
+                FeedWithSavedSearch(
+                    feed = feed,
+                    savedSearch = feed.savedSearch?.let(savedSearches::get),
+                )
+            }
+    }
+    // KMK <--
 
     override suspend fun getGlobal(): List<FeedSavedSearch> {
         return database.feed_saved_searchQueries

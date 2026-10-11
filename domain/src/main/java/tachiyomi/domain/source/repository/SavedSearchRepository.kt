@@ -7,6 +7,12 @@ interface SavedSearchRepository {
 
     suspend fun getById(savedSearchId: Long): SavedSearch?
 
+    // KMK -->
+    suspend fun getAll(): List<SavedSearch>
+
+    suspend fun deleteAll()
+    // KMK <--
+
     suspend fun getBySourceId(sourceId: Long): List<SavedSearch>
 
     fun getBySourceIdAsFlow(sourceId: Long): Flow<List<SavedSearch>>

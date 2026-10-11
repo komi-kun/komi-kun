@@ -2,17 +2,22 @@ package mihon.app.di
 
 import android.app.ActivityManager
 import android.content.Context
+import androidx.sqlite.SQLiteConnection
+import androidx.sqlite.SQLiteDriver
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
+import androidx.sqlite.execSQL
 import app.cash.sqldelight.async.coroutines.synchronous
+import app.cash.sqldelight.db.QueryResult
 import app.cash.sqldelight.db.SqlDriver
+import app.cash.sqldelight.db.SqlSchema
 import app.cash.sqldelight.driver.android.AndroidSqliteDriver
+import com.eygraber.sqldelight.androidx.driver.AndroidxSqliteConcurrencyModel.MultipleReadersSingleWriter
 import com.eygraber.sqldelight.androidx.driver.AndroidxSqliteConfiguration
+import com.eygraber.sqldelight.androidx.driver.AndroidxSqliteConnectionFactory
 import com.eygraber.sqldelight.androidx.driver.AndroidxSqliteDatabaseType
 import com.eygraber.sqldelight.androidx.driver.AndroidxSqliteDriver
 import com.eygraber.sqldelight.androidx.driver.FileProvider
-import com.eygraber.sqldelight.androidx.driver.SqliteJournalMode
-import com.eygraber.sqldelight.androidx.driver.SqliteSync
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.BindingContainer
 import dev.zacsweers.metro.Provides
@@ -26,7 +31,6 @@ import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
 import nl.adaptivity.xmlutil.XmlDeclMode
 import nl.adaptivity.xmlutil.core.XmlVersion
 import nl.adaptivity.xmlutil.serialization.XML
-import tachiyomi.data.Database
 import tachiyomi.source.local.AllowHiddenFiles
 
 @BindingContainer
@@ -37,10 +41,15 @@ object AppBindings {
     fun providesSqlDriver(
         context: Context,
         securityPreferences: SecurityPreferences,
+        // KMK -->
+        // Provided by :data's DatabaseBindings, so the app does not reference the generated Database.
+        schema: SqlSchema<QueryResult.AsyncValue<Unit>>,
+        // KMK <--
     ): SqlDriver {
         // KMK -->
-        // Configure connections like Room: WAL unless the device is low on RAM.
-        val isWal = (context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager)?.isLowRamDevice != true
+        // Ported from Mihon 38e93086c8 ("Configure database connections like Room") and
+        // 61cd786e7f ("Use WAL on every device"): WAL everywhere, one reader on low-RAM devices.
+        val isLowRam = (context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager)?.isLowRamDevice == true
         // KMK <--
 
         // SY -->
@@ -48,16 +57,17 @@ object AppBindings {
             System.loadLibrary("sqlcipher")
 
             return AndroidSqliteDriver(
-                schema = Database.Schema.synchronous(),
+                schema = schema.synchronous(),
                 context = context,
                 name = CbzCrypto.DATABASE_NAME,
                 factory = SupportOpenHelperFactory(CbzCrypto.getDecryptedPasswordSql(), null, false, 25),
-                callback = object : AndroidSqliteDriver.Callback(Database.Schema.synchronous()) {
+                callback = object : AndroidSqliteDriver.Callback(schema.synchronous()) {
                     override fun onOpen(db: SupportSQLiteDatabase) {
                         super.onOpen(db)
                         setPragma(db, "foreign_keys = ON")
                         // KMK -->
-                        setPragma(db, "journal_mode = ${if (isWal) "WAL" else "TRUNCATE"}")
+                        // Mihon 61cd786e7f: WAL on every device. SY hardcoded WAL here too.
+                        setPragma(db, "journal_mode = WAL")
                         // KMK <--
                         setPragma(db, "synchronous = NORMAL")
                         // KMK -->
@@ -76,21 +86,27 @@ object AppBindings {
         // SY <--
 
         return AndroidxSqliteDriver(
-            driver = BundledSQLiteDriver(),
+            // KMK -->
+            // Mihon 38e93086c8: set busy_timeout on every pooled connection, not once on open.
+            connectionFactory = object : AndroidxSqliteConnectionFactory {
+                override val driver: SQLiteDriver = BundledSQLiteDriver()
+
+                override fun createConnection(name: String): SQLiteConnection {
+                    return driver.open(name).apply {
+                        execSQL("PRAGMA busy_timeout = 3000")
+                    }
+                }
+            },
+            // KMK <--
             databaseType = AndroidxSqliteDatabaseType.FileProvider(context, "tachiyomi.db"),
-            schema = Database.Schema,
+            schema = schema,
             configuration = AndroidxSqliteConfiguration(
                 isForeignKeyConstraintsEnabled = true,
                 // KMK -->
-                journalMode = if (isWal) SqliteJournalMode.WAL else SqliteJournalMode.Truncate,
-                sync = SqliteSync.Normal,
+                // Mihon 61cd786e7f: WAL on every device; one reader on low-RAM, four otherwise.
+                concurrencyModel = MultipleReadersSingleWriter(isWal = true, walCount = if (isLowRam) 1 else 4),
                 // KMK <--
             ),
-            // KMK -->
-            onConfigure = {
-                executePragma("busy_timeout = 3000")
-            },
-            // KMK <--
         )
     }
 
@@ -130,6 +146,7 @@ object AppBindings {
     // KMK <--
 
     // SY -->
+    // KMK -->
     // Metro cannot bind a function type, so DeleteCategory's sync tombstone callback is wired here.
     @Provides
     @SingleIn(AppScope::class)
@@ -144,5 +161,6 @@ object AppBindings {
         downloadPreferences = downloadPreferences,
         onCategoryDeleted = syncPreferences::rememberDeletedCategory,
     )
+    // KMK <--
     // SY <--
 }

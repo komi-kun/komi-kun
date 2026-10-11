@@ -235,6 +235,14 @@ class ChapterRepositoryImpl(
             .awaitAsOneOrNull()
     }
 
+    // KMK -->
+    override suspend fun getChaptersByMangaIds(mangaIds: List<Long>): List<Chapter> {
+        return database.ehQueries
+            .getChaptersByMangaIds(mangaIds, ChapterMapper::mapChapter)
+            .awaitAsList()
+    }
+    // KMK <--
+
     // SY -->
     override suspend fun getChapterByUrl(url: String): List<Chapter> {
         return database.chapterQueries

@@ -17,7 +17,6 @@ import exh.pref.DelegateSourcePreferences
 import exh.source.ExhPreferences
 import mihon.core.migration.Migration
 import mihon.domain.source.interactor.UpdateMangaFromRemote
-import tachiyomi.data.Database
 import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.domain.category.interactor.SetMangaCategories
 import tachiyomi.domain.chapter.interactor.SetMangaDefaultChapterFlags
@@ -46,8 +45,6 @@ import uy.kohesive.injekt.api.addSingleton
  */
 @Inject
 class KMKMetroInteropModule(
-    private val database: Database,
-
     private val uiPreferences: eu.kanade.domain.ui.UiPreferences,
     private val networkPreferences: eu.kanade.tachiyomi.network.NetworkPreferences,
     private val sourcePreferences: SourcePreferences,
@@ -90,8 +87,6 @@ class KMKMetroInteropModule(
 ) : InjektModule {
 
     override fun InjektRegistrar.registerInjectables() {
-        addSingleton(database)
-
         addSingleton(uiPreferences)
         addSingleton(networkPreferences)
         addSingleton(sourcePreferences)

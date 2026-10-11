@@ -24,6 +24,10 @@ interface ChapterRepository {
 
     suspend fun getChapterByMangaId(mangaId: Long, applyFilter: Boolean = false): List<Chapter>
 
+    // KMK -->
+    suspend fun getChaptersByMangaIds(mangaIds: List<Long>): List<Chapter>
+    // KMK <--
+
     suspend fun getScanlatorsByMangaId(mangaId: Long): List<String>
 
     fun getScanlatorsByMangaIdAsFlow(mangaId: Long): Flow<List<String>>

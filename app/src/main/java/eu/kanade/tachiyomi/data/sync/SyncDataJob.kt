@@ -29,8 +29,10 @@ import mihon.app.di.AppGraph
 import mihon.app.di.appGraph
 import mihon.core.metro.metroGraph
 import tachiyomi.core.common.util.system.logcat
-import tachiyomi.data.Database
 import tachiyomi.domain.category.interactor.GetCategories
+import tachiyomi.domain.category.repository.CategoryRepository
+import tachiyomi.domain.chapter.repository.ChapterRepository
+import tachiyomi.domain.sync.repository.SyncRepository
 import java.util.concurrent.TimeUnit
 
 class SyncDataJob(private val context: Context, workerParams: WorkerParameters) :
@@ -38,7 +40,11 @@ class SyncDataJob(private val context: Context, workerParams: WorkerParameters) 
 
     private val graph: AppGraph = context.metroGraph()
 
-    @Inject private lateinit var database: Database
+    @Inject private lateinit var syncRepository: SyncRepository
+
+    @Inject private lateinit var chapterRepository: ChapterRepository
+
+    @Inject private lateinit var categoryRepository: CategoryRepository
 
     @Inject private lateinit var syncPreferences: SyncPreferences
 
@@ -71,7 +77,9 @@ class SyncDataJob(private val context: Context, workerParams: WorkerParameters) 
         return try {
             SyncManager(
                 context = context,
-                database = database,
+                syncRepository = syncRepository,
+                chapterRepository = chapterRepository,
+                categoryRepository = categoryRepository,
                 syncPreferences = syncPreferences,
                 getCategories = getCategories,
                 backupCreatorFactory = backupCreatorFactory,

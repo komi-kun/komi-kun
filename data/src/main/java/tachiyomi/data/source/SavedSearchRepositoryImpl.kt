@@ -26,6 +26,18 @@ class SavedSearchRepositoryImpl(
             .awaitAsOneOrNull()
     }
 
+    // KMK -->
+    override suspend fun getAll(): List<SavedSearch> {
+        return database.saved_searchQueries
+            .selectAll(SavedSearchMapper::map)
+            .awaitAsList()
+    }
+
+    override suspend fun deleteAll() {
+        database.saved_searchQueries.deleteAll()
+    }
+    // KMK <--
+
     override suspend fun getBySourceId(sourceId: Long): List<SavedSearch> {
         return database.saved_searchQueries
             .selectBySource(sourceId, SavedSearchMapper::map)
