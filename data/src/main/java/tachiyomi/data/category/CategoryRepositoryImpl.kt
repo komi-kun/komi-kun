@@ -135,7 +135,9 @@ class CategoryRepositoryImpl(
                         order = order,
                         flags = category.flags,
                         // KMK -->
-                        hidden = if (category.hidden) 1L else null,
+                        // `hidden = coalesce(:hidden, hidden)`, so null would keep the stored value and
+                        // a sync restore could never un-hide a category. Pass 0 like the insert path.
+                        hidden = if (category.hidden) 1L else 0L,
                         // KMK <--
                         version = category.version,
                         uid = if (category.uid != 0L) category.uid else dbCategory.uid,
