@@ -58,13 +58,6 @@ WHERE manga.user_favorite_at IS NOT NULL AND manga.source_id = 6969
 AND chapter.state_date_fetch > manga.user_favorite_at
 ORDER BY dateFetch DESC;
 
-getRecentUpdates:
-SELECT *
-FROM updatesView
-WHERE dateUpload > :after
-ORDER BY dateFetch DESC
-LIMIT :limit;
-
 getRecentUpdatesWithFilters:
 SELECT *
 FROM updatesView
@@ -110,10 +103,24 @@ AND (
 ORDER BY dateFetch DESC
 LIMIT :limit;
 
-getUpdatesByReadStatus:
-SELECT *
+getReadUpdates:
+SELECT
+    mangaId, mangaTitle, chapterId, chapterName, scanlator, chapterUrl, read, bookmark,
+    lastPageRead, sourceId, favorite, thumbnailUrl, coverLastModified, dateUpload, dateFetch,
+    excludedScanlator
 FROM updatesView
-WHERE read = :read
+WHERE read = 1
+AND dateUpload > :after
+ORDER BY dateFetch DESC
+LIMIT :limit;
+
+getUnreadUpdates:
+SELECT
+    mangaId, mangaTitle, chapterId, chapterName, scanlator, chapterUrl, read, bookmark,
+    lastPageRead, sourceId, favorite, thumbnailUrl, coverLastModified, dateUpload, dateFetch,
+    excludedScanlator
+FROM updatesView
+WHERE read = 0
 AND dateUpload > :after
 ORDER BY dateFetch DESC
 LIMIT :limit;
