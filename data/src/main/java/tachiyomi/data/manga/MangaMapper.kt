@@ -32,6 +32,7 @@ object MangaMapper {
         lastModifiedAt: Long,
         version: Long,
         isSyncing: Long,
+        favoriteModifiedAt: Long?,
     ): Manga = Manga(
         id = id,
         source = sourceId,
@@ -56,7 +57,7 @@ object MangaMapper {
         updateStrategy = remoteUpdateStrategy,
         initialized = stateInitialized,
         lastModifiedAt = lastModifiedAt,
-        favoriteModifiedAt = userFavoriteAt,
+        favoriteModifiedAt = favoriteModifiedAt,
         version = version,
         notes = userNotes,
         memo = remoteMemo,
@@ -87,6 +88,7 @@ object MangaMapper {
         lastModifiedAt: Long,
         version: Long,
         isSyncing: Long,
+        favoriteModifiedAt: Long?,
         totalCount: Long,
         readCount: Double,
         latestUpload: Long,
@@ -123,6 +125,7 @@ object MangaMapper {
             lastModifiedAt,
             version,
             isSyncing,
+            favoriteModifiedAt,
         ),
         categories = categories.split(",").map { it.toLong() },
         totalChapters = totalCount,
@@ -162,6 +165,7 @@ object MangaMapper {
         lastModifiedAt: Long,
         version: Long,
         isSyncing: Long,
+        favoriteModifiedAt: Long?,
         totalCount: Long,
     ): MangaWithChapterCount = MangaWithChapterCount(
         manga = mapManga(
@@ -189,6 +193,7 @@ object MangaMapper {
             lastModifiedAt,
             version,
             isSyncing,
+            favoriteModifiedAt,
         ),
         chapterCount = totalCount,
     )

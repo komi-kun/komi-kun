@@ -30,6 +30,10 @@ CREATE TABLE manga(
     last_modified_at INTEGER NOT NULL DEFAULT 0,
     version INTEGER NOT NULL DEFAULT 0,
     is_syncing INTEGER NOT NULL DEFAULT 0,
+    -- Epoch seconds of the last favorite add/remove; never reset, so it also marks
+    -- entries that were removed from the library ("ever favorited"). The sync upload
+    -- queries key on it, unlike user_favorite_at which goes NULL on removal.
+    favorite_modified_at INTEGER,
     -- SY <--
     UNIQUE(source_id, remote_url)
 );
@@ -44,6 +48,22 @@ WHEN new.is_syncing = 0 AND old.is_syncing = 0
 BEGIN
   UPDATE manga
   SET last_modified_at = strftime('%s', 'now')
+  WHERE id = new.id;
+END;
+
+-- Stamped whenever the favorite flag actually changes and never reset, so a removal stays
+-- visible to the sync upload queries. The extra `old.favorite_modified_at IS NULL` term also
+-- stamps a favorited row that was inserted with the flag already set (backup/sync restore),
+-- which the guard alone would skip because user_favorite_at does not change on the following
+-- update. Unrelated updates of an already-stamped entry (or of a never-favorited one) do not
+-- touch it, so the timestamp keeps meaning "the user favorited/unfavorited this".
+CREATE TRIGGER update_last_favorited_at_mangas
+AFTER UPDATE OF user_favorite_at ON manga
+WHEN new.user_favorite_at IS NOT old.user_favorite_at
+    OR (new.user_favorite_at IS NOT NULL AND old.favorite_modified_at IS NULL)
+BEGIN
+  UPDATE manga
+  SET favorite_modified_at = strftime('%s', 'now')
   WHERE id = new.id;
 END;
 
@@ -64,7 +84,8 @@ SELECT
     remote_genre, remote_status, remote_cover, remote_update_strategy, remote_memo,
     user_favorite_at, user_notes, user_reader_flags, user_chapter_flags,
     state_chapter_last_update, state_chapter_next_update, state_chapter_fetch_interval,
-    state_cover_last_modified, state_initialized, last_modified_at, version, is_syncing
+    state_cover_last_modified, state_initialized, last_modified_at, version, is_syncing,
+    favorite_modified_at
 FROM manga
 WHERE id = :id;
 
@@ -75,7 +96,8 @@ SELECT
     remote_genre, remote_status, remote_cover, remote_update_strategy, remote_memo,
     user_favorite_at, user_notes, user_reader_flags, user_chapter_flags,
     state_chapter_last_update, state_chapter_next_update, state_chapter_fetch_interval,
-    state_cover_last_modified, state_initialized, last_modified_at, version, is_syncing
+    state_cover_last_modified, state_initialized, last_modified_at, version, is_syncing,
+    favorite_modified_at
 FROM manga
 WHERE source_id = :sourceId
 AND remote_url = :remoteUrl
@@ -87,7 +109,8 @@ SELECT
     remote_genre, remote_status, remote_cover, remote_update_strategy, remote_memo,
     user_favorite_at, user_notes, user_reader_flags, user_chapter_flags,
     state_chapter_last_update, state_chapter_next_update, state_chapter_fetch_interval,
-    state_cover_last_modified, state_initialized, last_modified_at, version, is_syncing
+    state_cover_last_modified, state_initialized, last_modified_at, version, is_syncing,
+    favorite_modified_at
 FROM manga
 WHERE user_favorite_at IS NOT NULL;
 
@@ -97,7 +120,8 @@ SELECT
     remote_genre, remote_status, remote_cover, remote_update_strategy, remote_memo,
     user_favorite_at, user_notes, user_reader_flags, user_chapter_flags,
     state_chapter_last_update, state_chapter_next_update, state_chapter_fetch_interval,
-    state_cover_last_modified, state_initialized, last_modified_at, version, is_syncing
+    state_cover_last_modified, state_initialized, last_modified_at, version, is_syncing,
+    favorite_modified_at
 FROM manga
 WHERE user_favorite_at IS NULL
 AND EXISTS (
@@ -113,7 +137,8 @@ SELECT
     remote_genre, remote_status, remote_cover, remote_update_strategy, remote_memo,
     user_favorite_at, user_notes, user_reader_flags, user_chapter_flags,
     state_chapter_last_update, state_chapter_next_update, state_chapter_fetch_interval,
-    state_cover_last_modified, state_initialized, last_modified_at, version, is_syncing
+    state_cover_last_modified, state_initialized, last_modified_at, version, is_syncing,
+    favorite_modified_at
 FROM manga;
 
 getAllMangaSourceAndUrl:
@@ -127,14 +152,15 @@ SELECT
     remote_genre, remote_status, remote_cover, remote_update_strategy, remote_memo,
     user_favorite_at, user_notes, user_reader_flags, user_chapter_flags,
     state_chapter_last_update, state_chapter_next_update, state_chapter_fetch_interval,
-    state_cover_last_modified, state_initialized, last_modified_at, version, is_syncing
+    state_cover_last_modified, state_initialized, last_modified_at, version, is_syncing,
+    favorite_modified_at
 FROM manga
-WHERE user_favorite_at IS NOT NULL;
+WHERE favorite_modified_at IS NOT NULL;
 
 getMangasModifiedSince:
 SELECT M.*
 FROM manga M
-WHERE M.user_favorite_at IS NOT NULL
+WHERE M.favorite_modified_at IS NOT NULL
 AND (M.last_modified_at >= :since
 OR EXISTS (SELECT 1 FROM chapter C WHERE C.manga_id = M.id AND C.last_modified_at >= :since));
 -- SY <--
@@ -151,7 +177,8 @@ SELECT
     remote_genre, remote_status, remote_cover, remote_update_strategy, remote_memo,
     user_favorite_at, user_notes, user_reader_flags, user_chapter_flags,
     state_chapter_last_update, state_chapter_next_update, state_chapter_fetch_interval,
-    state_cover_last_modified, state_initialized, last_modified_at, version, is_syncing
+    state_cover_last_modified, state_initialized, last_modified_at, version, is_syncing,
+    favorite_modified_at
 FROM manga
 WHERE user_favorite_at IS NOT NULL
 AND source_id = :sourceId;
@@ -175,6 +202,7 @@ SELECT
     M.user_reader_flags, M.user_chapter_flags, M.state_chapter_last_update,
     M.state_chapter_next_update, M.state_chapter_fetch_interval,
     M.state_cover_last_modified, M.state_initialized, M.last_modified_at, M.version, M.is_syncing,
+    M.favorite_modified_at,
     (
         SELECT count(*)
         FROM chapter C
@@ -195,7 +223,8 @@ SELECT
     remote_genre, remote_status, remote_cover, remote_update_strategy, remote_memo,
     user_favorite_at, user_notes, user_reader_flags, user_chapter_flags,
     state_chapter_last_update, state_chapter_next_update, state_chapter_fetch_interval,
-    state_cover_last_modified, state_initialized, last_modified_at, version, is_syncing
+    state_cover_last_modified, state_initialized, last_modified_at, version, is_syncing,
+    favorite_modified_at
 FROM manga
 WHERE state_chapter_next_update >= :startOfDay
 AND user_favorite_at IS NOT NULL
@@ -356,7 +385,8 @@ insertNetworkManga {
         remote_genre, remote_status, remote_cover, remote_update_strategy, remote_memo,
         user_favorite_at, user_notes, user_reader_flags, user_chapter_flags,
         state_chapter_last_update, state_chapter_next_update, state_chapter_fetch_interval,
-        state_cover_last_modified, state_initialized, last_modified_at, version, is_syncing
+        state_cover_last_modified, state_initialized, last_modified_at, version, is_syncing,
+        favorite_modified_at
     FROM manga
     WHERE source_id = :sourceId
     AND remote_url = :remoteUrl;
