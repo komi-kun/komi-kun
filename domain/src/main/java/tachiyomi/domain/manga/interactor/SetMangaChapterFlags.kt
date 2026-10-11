@@ -71,8 +71,14 @@ class SetMangaChapterFlags(
         )
     }
 
+    // KMK -->
+    // Ported from Mihon 2d1d2e4cab ("Rework database queries for the new schema"):
+    // one transaction through updateAll instead of one update per manga.
+    // MangaUpdate is built with the fork's nullable-field data class (Mihon's lambda form
+    // comes from f8fff318ba, which is not ported).
+    // KMK <--
     suspend fun awaitSetAllFlags(
-        mangaId: Long,
+        mangaIds: List<Long>,
         unreadFilter: Long,
         downloadedFilter: Long,
         bookmarkedFilter: Long,
@@ -80,17 +86,13 @@ class SetMangaChapterFlags(
         sortingDirection: Long,
         displayMode: Long,
     ): Boolean {
-        return mangaRepository.update(
-            MangaUpdate(
-                id = mangaId,
-                chapterFlags = 0L.setFlag(unreadFilter, Manga.CHAPTER_UNREAD_MASK)
-                    .setFlag(downloadedFilter, Manga.CHAPTER_DOWNLOADED_MASK)
-                    .setFlag(bookmarkedFilter, Manga.CHAPTER_BOOKMARKED_MASK)
-                    .setFlag(sortingMode, Manga.CHAPTER_SORTING_MASK)
-                    .setFlag(sortingDirection, Manga.CHAPTER_SORT_DIR_MASK)
-                    .setFlag(displayMode, Manga.CHAPTER_DISPLAY_MASK),
-            ),
-        )
+        val flags = 0L.setFlag(unreadFilter, Manga.CHAPTER_UNREAD_MASK)
+            .setFlag(downloadedFilter, Manga.CHAPTER_DOWNLOADED_MASK)
+            .setFlag(bookmarkedFilter, Manga.CHAPTER_BOOKMARKED_MASK)
+            .setFlag(sortingMode, Manga.CHAPTER_SORTING_MASK)
+            .setFlag(sortingDirection, Manga.CHAPTER_SORT_DIR_MASK)
+            .setFlag(displayMode, Manga.CHAPTER_DISPLAY_MASK)
+        return mangaRepository.updateAll(mangaIds.map { MangaUpdate(id = it, chapterFlags = flags) })
     }
 
     private fun Long.setFlag(flag: Long, mask: Long): Long {

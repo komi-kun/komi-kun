@@ -16,23 +16,31 @@ class SetMangaDefaultChapterFlags(
 
     suspend fun await(manga: Manga) {
         withNonCancellableContext {
-            with(libraryPreferences) {
-                setMangaChapterFlags.awaitSetAllFlags(
-                    mangaId = manga.id,
-                    unreadFilter = filterChapterByRead.get(),
-                    downloadedFilter = filterChapterByDownloaded.get(),
-                    bookmarkedFilter = filterChapterByBookmarked.get(),
-                    sortingMode = sortChapterBySourceOrNumber.get(),
-                    sortingDirection = sortChapterByAscendingOrDescending.get(),
-                    displayMode = displayChapterByNameOrNumber.get(),
-                )
-            }
+            setDefaultFlags(listOf(manga.id))
         }
     }
 
     suspend fun awaitAll() {
         withNonCancellableContext {
-            getFavorites.await().forEach { await(it) }
+            setDefaultFlags(getFavorites.await().map { it.id })
+        }
+    }
+
+    // KMK -->
+    // Ported from Mihon 2d1d2e4cab ("Rework database queries for the new schema"):
+    // apply the default flags to every library entry in a single transaction.
+    // KMK <--
+    private suspend fun setDefaultFlags(mangaIds: List<Long>) {
+        with(libraryPreferences) {
+            setMangaChapterFlags.awaitSetAllFlags(
+                mangaIds = mangaIds,
+                unreadFilter = filterChapterByRead.get(),
+                downloadedFilter = filterChapterByDownloaded.get(),
+                bookmarkedFilter = filterChapterByBookmarked.get(),
+                sortingMode = sortChapterBySourceOrNumber.get(),
+                sortingDirection = sortChapterByAscendingOrDescending.get(),
+                displayMode = displayChapterByNameOrNumber.get(),
+            )
         }
     }
 }
