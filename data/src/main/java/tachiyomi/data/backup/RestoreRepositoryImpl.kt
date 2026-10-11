@@ -89,9 +89,16 @@ class RestoreRepositoryImpl(
         }
 
         // SY -->
-        // An empty list must clear the assignment, or removing a manga's only category never reaches
-        // the other devices (the stale assignment stays forever).
-        mangaRepository.setMangaCategories(manga.id, entry.categoryIds)
+        // For a sync restore an empty list must clear the assignment, or removing a manga's only
+        // category never reaches the other devices (the stale assignment stays forever).
+        // KMK -->
+        // But a normal (non-sync) restore may be run with the "Categories" option off, which makes
+        // `entry.categoryIds` empty for every entry; clearing unconditionally would then wipe every
+        // manga's category assignments. Only clear when the entry actually carries categories.
+        if (isSync || entry.categoryIds.isNotEmpty()) {
+            mangaRepository.setMangaCategories(manga.id, entry.categoryIds)
+        }
+        // KMK <--
         // SY <--
         restoreChapters(manga, entry.chapters, isSync, syncingFlag)
         restoreTracking(manga, entry.tracks)
