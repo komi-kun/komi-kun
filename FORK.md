@@ -86,7 +86,7 @@ assume these are the current state, not divergences:
   `:data:verifyDebugDatabaseMigration` gates it.
 - **Raw database access is restricted to `:data`** (`RestoreRepositoryImpl`, `DatabaseBindings`).
 - **`:source-api`/`:source-local` are Android library modules** (no longer KMP).
-- **Gradle isolated projects** (`org.gradle.isolated-projects=true`).
+- **Gradle isolated projects** (`org.gradle.unsafe.isolated-projects=true`).
 - **Mihon's extension-store model** (`Extension.Loaded`/`NotLoaded`, `signatures`, `store`).
 - **`kotlinx-collections-immutable` is dropped** — use stdlib collections.
 - `MangaViewModel` collects the entry only while subscribed.
