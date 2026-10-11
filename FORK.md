@@ -86,10 +86,11 @@ assume these are the current state, not divergences:
   `:data:verifyDebugDatabaseMigration` gates it.
 - **Raw database access is restricted to `:data`** (`RestoreRepositoryImpl`, `DatabaseBindings`).
 - **`:source-api`/`:source-local` are Android library modules** (no longer KMP).
-- **Gradle isolated projects** is **not enabled**: Gradle is pinned to 9.3.1 and the build is not
-  isolated-projects-clean yet (the moko-resources plugin and several scripts do cross-project
-  property lookups), so `org.gradle.unsafe.isolated-projects=true` fails the build. Revisit with a
-  toolchain bump.
+- **Gradle isolated projects** is **not enabled**: it needs Gradle ≥ 9.6 (where implicit
+  parent-project property lookups become a deprecation rather than a fatal isolated-projects error),
+  but AGP 8.13.2 rejects Gradle ≥ 9.6, so no version satisfies both. Enable it with the coherent
+  AGP 9.4.1 / Gradle 9.8.1 toolchain bump (the moko-resources plugin's `findProperty` lookup is the
+  other blocker on 9.3.1).
 - **Mihon's extension-store model** (`Extension.Loaded`/`NotLoaded`, `signatures`, `store`).
 - **`kotlinx-collections-immutable` is dropped** — use stdlib collections.
 - `MangaViewModel` collects the entry only while subscribed.
