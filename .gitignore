@@ -22,4 +22,5 @@ local.properties
 /app/google-services.json
 /app/src/main/assets/client_secrets.json
 *.jks
+*.keystore
 app/standard/preview/*
