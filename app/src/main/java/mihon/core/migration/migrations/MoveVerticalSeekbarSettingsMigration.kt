@@ -14,7 +14,7 @@ import tachiyomi.core.common.util.lang.withIOContext
 @Inject
 @ContributesIntoSet(AppScope::class)
 class MoveVerticalSeekbarSettingsMigration : Migration {
-    override val version: Float = 82f
+    override val version: Float = 83f
 
     override suspend fun invoke(migrationContext: MigrationContext): Boolean = withIOContext {
         val context = migrationContext.get<Application>() ?: return@withIOContext false

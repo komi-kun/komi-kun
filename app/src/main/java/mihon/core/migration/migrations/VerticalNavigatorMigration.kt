@@ -16,7 +16,7 @@ class VerticalNavigatorMigration(
     private val preferenceStore: PreferenceStore,
     private val readerPreferences: ReaderPreferences,
 ) : Migration {
-    override val version: Float = 82f
+    override val version: Float = 83f
 
     override suspend fun invoke(migrationContext: MigrationContext): Boolean = withIOContext {
         // KMK --> Only migrate the legacy boolean when it was actually persisted. The old
