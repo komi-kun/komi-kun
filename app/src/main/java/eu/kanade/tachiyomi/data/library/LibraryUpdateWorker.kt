@@ -111,7 +111,7 @@ import kotlin.time.Clock
 import kotlin.time.Instant
 
 @OptIn(ExperimentalAtomicApi::class)
-class LibraryUpdateJob(private val context: Context, workerParams: WorkerParameters) :
+class LibraryUpdateWorker(private val context: Context, workerParams: WorkerParameters) :
     CoroutineWorker(context, workerParams) {
 
     private val graph: AppGraph = context.metroGraph()
@@ -815,7 +815,7 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
                     .setRequiresBatteryNotLow(true)
                     .build()
 
-                val request = PeriodicWorkRequestBuilder<LibraryUpdateJob>(
+                val request = PeriodicWorkRequestBuilder<LibraryUpdateWorker>(
                     interval.toLong(),
                     TimeUnit.HOURS,
                     10,
@@ -850,7 +850,7 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
             // KMK <--
         ): Boolean {
             val workManager = context.workManager
-            // Check if the LibraryUpdateJob is already running
+            // Check if the LibraryUpdateWorker is already running
             if (workManager.isRunning(TAG)) {
                 // Already running either as a scheduled or manual job
                 return false
@@ -883,8 +883,8 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
                     .addTag(SyncDataJob.TAG_MANUAL)
                     .build()
 
-                // Chain SyncDataJob to run before LibraryUpdateJob
-                val libraryUpdateJob = OneTimeWorkRequestBuilder<LibraryUpdateJob>()
+                // Chain SyncDataJob to run before LibraryUpdateWorker
+                val libraryUpdateJob = OneTimeWorkRequestBuilder<LibraryUpdateWorker>()
                     .addTag(TAG)
                     .addTag(WORK_NAME_MANUAL)
                     .setInputData(inputData)
@@ -894,7 +894,7 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
                     .then(libraryUpdateJob)
                     .enqueue()
             } else {
-                val request = OneTimeWorkRequestBuilder<LibraryUpdateJob>()
+                val request = OneTimeWorkRequestBuilder<LibraryUpdateWorker>()
                     .addTag(TAG)
                     .addTag(WORK_NAME_MANUAL)
                     .setInputData(inputData)

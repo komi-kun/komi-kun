@@ -8,7 +8,7 @@ import eu.kanade.tachiyomi.data.backup.create.BackupOptions
 import eu.kanade.tachiyomi.data.backup.models.Backup
 import eu.kanade.tachiyomi.data.backup.models.BackupChapter
 import eu.kanade.tachiyomi.data.backup.models.BackupManga
-import eu.kanade.tachiyomi.data.backup.restore.BackupRestoreJob
+import eu.kanade.tachiyomi.data.backup.restore.BackupRestoreWorker
 import eu.kanade.tachiyomi.data.backup.restore.RestoreOptions
 import eu.kanade.tachiyomi.data.backup.restore.restorers.MangaRestorer
 import eu.kanade.tachiyomi.data.sync.service.BackupRequestBody
@@ -308,7 +308,7 @@ class SyncManager(
             // SY -->
             // Await the apply so a failed restore fails the sync instead of
             // silently reporting success with nothing written.
-            val applied = BackupRestoreJob.startAndAwaitSuccess(
+            val applied = BackupRestoreWorker.startAndAwaitSuccess(
                 context,
                 backupUri,
                 sync = true,

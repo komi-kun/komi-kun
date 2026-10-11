@@ -29,7 +29,7 @@ import eu.kanade.presentation.manga.DownloadAction
 import eu.kanade.tachiyomi.data.cache.CoverCache
 import eu.kanade.tachiyomi.data.download.DownloadCache
 import eu.kanade.tachiyomi.data.download.DownloadManager
-import eu.kanade.tachiyomi.data.library.LibraryUpdateJob
+import eu.kanade.tachiyomi.data.library.LibraryUpdateWorker
 import eu.kanade.tachiyomi.data.track.TrackStatus
 import eu.kanade.tachiyomi.data.track.TrackerManager
 import eu.kanade.tachiyomi.source.Source
@@ -1040,10 +1040,10 @@ class LibraryViewModel(
      */
     suspend fun updateSelectedManga(): Boolean {
         val mangaIds = state.value.selection.toList()
-        return LibraryUpdateJob.startNow(
+        return LibraryUpdateWorker.startNow(
             context = preferences.context,
             mangaIds = mangaIds,
-            target = LibraryUpdateJob.Target.CHAPTERS,
+            target = LibraryUpdateWorker.Target.CHAPTERS,
         )
     }
     // KMK <--

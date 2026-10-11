@@ -3,7 +3,7 @@ package exh.debug
 import android.app.Application
 import eu.kanade.tachiyomi.BuildConfig
 import eu.kanade.tachiyomi.data.backup.models.Backup
-import eu.kanade.tachiyomi.data.library.LibraryUpdateJob
+import eu.kanade.tachiyomi.data.library.LibraryUpdateWorker
 import eu.kanade.tachiyomi.data.sync.SyncDataJob
 import eu.kanade.tachiyomi.source.AndroidSourceManager
 import eu.kanade.tachiyomi.util.system.workManager
@@ -331,6 +331,6 @@ object DebugFunctions {
 
     fun killLibraryJobs() {
         val context = Injekt.get<Application>()
-        runBlocking { LibraryUpdateJob.stop(context) }
+        runBlocking { LibraryUpdateWorker.stop(context) }
     }
 }

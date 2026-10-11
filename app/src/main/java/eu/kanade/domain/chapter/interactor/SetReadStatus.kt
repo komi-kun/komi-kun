@@ -2,7 +2,7 @@ package eu.kanade.domain.chapter.interactor
 
 import dev.zacsweers.metro.Inject
 import eu.kanade.domain.download.interactor.DeleteDownload
-import eu.kanade.tachiyomi.data.library.LibraryUpdateJob
+import eu.kanade.tachiyomi.data.library.LibraryUpdateWorker
 import eu.kanade.tachiyomi.ui.library.LibraryViewModel
 import eu.kanade.tachiyomi.ui.manga.MangaViewModel
 import eu.kanade.tachiyomi.ui.reader.ReaderViewModel
@@ -44,7 +44,7 @@ class SetReadStatus(
      *  - [LibraryViewModel]: Manually select mangas & mark as read
      *  - [MangaViewModel.markChaptersRead]: Manually select chapters & mark as read or swipe chapter as read
      *  - [UpdatesViewModel.markUpdatesRead]: Manually select chapters & mark as read
-     *  - [LibraryUpdateJob.updateChapterList]: when a manga is updated and has new chapter but already read,
+     *  - [LibraryUpdateWorker.updateChapterList]: when a manga is updated and has new chapter but already read,
      *  it will mark that new **duplicated** chapter as read & delete downloading/downloaded -> should be treat as
      *  automatically ~ no auto delete
      *  - [ReaderViewModel.updateChapterProgress]: mark **duplicated** chapter as read after finish reading -> should be

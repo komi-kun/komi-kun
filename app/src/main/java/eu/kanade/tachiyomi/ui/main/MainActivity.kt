@@ -76,12 +76,12 @@ import eu.kanade.tachiyomi.BuildConfig
 import eu.kanade.tachiyomi.data.BackupRestoreStatus
 import eu.kanade.tachiyomi.data.LibraryUpdateStatus
 import eu.kanade.tachiyomi.data.SyncStatus
-import eu.kanade.tachiyomi.data.backup.create.BackupCreateJob
+import eu.kanade.tachiyomi.data.backup.create.BackupCreateWorker
 import eu.kanade.tachiyomi.data.cache.ChapterCache
 import eu.kanade.tachiyomi.data.coil.MangaCoverMetadata
 import eu.kanade.tachiyomi.data.connections.discord.DiscordRPCService
 import eu.kanade.tachiyomi.data.download.DownloadCache
-import eu.kanade.tachiyomi.data.library.LibraryUpdateJob
+import eu.kanade.tachiyomi.data.library.LibraryUpdateWorker
 import eu.kanade.tachiyomi.data.notification.NotificationReceiver
 import eu.kanade.tachiyomi.data.updater.AppUpdateJob
 import eu.kanade.tachiyomi.extension.ExtensionManager
@@ -573,8 +573,8 @@ class MainActivity : BaseActivity() {
         LaunchedEffect(Unit) {
             launchIO {
                 try {
-                    if (!LibraryUpdateJob.isPeriodicUpdateScheduled(context)) {
-                        LibraryUpdateJob.setupTask(context)
+                    if (!LibraryUpdateWorker.isPeriodicUpdateScheduled(context)) {
+                        LibraryUpdateWorker.setupTask(context)
                     }
                 } catch (e: Exception) {
                     logcat(LogPriority.ERROR, e)
@@ -587,8 +587,8 @@ class MainActivity : BaseActivity() {
                     }
                 }
                 try {
-                    if (!BackupCreateJob.isPeriodicBackupScheduled(context)) {
-                        BackupCreateJob.setupTask(context)
+                    if (!BackupCreateWorker.isPeriodicBackupScheduled(context)) {
+                        BackupCreateWorker.setupTask(context)
                     }
                 } catch (e: Exception) {
                     logcat(LogPriority.ERROR, e)

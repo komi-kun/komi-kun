@@ -13,7 +13,7 @@ import eu.kanade.domain.source.interactor.ToggleIncognito
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.domain.sync.SyncPreferences
 import eu.kanade.domain.track.interactor.AddTracks
-import eu.kanade.domain.track.service.DelayedTrackingUpdateJob
+import eu.kanade.domain.track.service.DelayedTrackingUpdateWorker
 import eu.kanade.domain.track.service.TrackPreferences
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.tachiyomi.App
@@ -22,17 +22,17 @@ import eu.kanade.tachiyomi.core.security.SecurityPreferences
 import eu.kanade.tachiyomi.data.BackupRestoreStatus
 import eu.kanade.tachiyomi.data.LibraryUpdateStatus
 import eu.kanade.tachiyomi.data.SyncStatus
-import eu.kanade.tachiyomi.data.backup.create.BackupCreateJob
-import eu.kanade.tachiyomi.data.backup.restore.BackupRestoreJob
+import eu.kanade.tachiyomi.data.backup.create.BackupCreateWorker
+import eu.kanade.tachiyomi.data.backup.restore.BackupRestoreWorker
 import eu.kanade.tachiyomi.data.cache.ChapterCache
 import eu.kanade.tachiyomi.data.cache.CoverCache
 import eu.kanade.tachiyomi.data.cache.PagePreviewCache
 import eu.kanade.tachiyomi.data.connections.ConnectionsManager
 import eu.kanade.tachiyomi.data.download.DownloadCache
-import eu.kanade.tachiyomi.data.download.DownloadJob
 import eu.kanade.tachiyomi.data.download.DownloadManager
-import eu.kanade.tachiyomi.data.library.LibraryUpdateJob
-import eu.kanade.tachiyomi.data.library.MetadataUpdateJob
+import eu.kanade.tachiyomi.data.download.DownloadWorker
+import eu.kanade.tachiyomi.data.library.LibraryUpdateWorker
+import eu.kanade.tachiyomi.data.library.MetadataUpdateWorker
 import eu.kanade.tachiyomi.data.notification.NotificationReceiver
 import eu.kanade.tachiyomi.data.sync.SyncDataJob
 import eu.kanade.tachiyomi.data.sync.service.GoogleDriveService
@@ -98,12 +98,12 @@ interface AppGraph : ViewModelGraph {
     fun inject(readerActivity: ReaderActivity)
     fun inject(webViewActivity: WebViewActivity)
     fun inject(baseOAuthLoginActivity: BaseOAuthLoginActivity)
-    fun inject(libraryUpdateJob: LibraryUpdateJob)
-    fun inject(metadataUpdateJob: MetadataUpdateJob)
-    fun inject(backupRestoreJob: BackupRestoreJob)
-    fun inject(backupCreateJob: BackupCreateJob)
-    fun inject(delayedTrackingUpdateJob: DelayedTrackingUpdateJob)
-    fun inject(downloadJob: DownloadJob)
+    fun inject(libraryUpdateWorker: LibraryUpdateWorker)
+    fun inject(metadataUpdateWorker: MetadataUpdateWorker)
+    fun inject(backupRestoreWorker: BackupRestoreWorker)
+    fun inject(backupCreateWorker: BackupCreateWorker)
+    fun inject(delayedTrackingUpdateWorker: DelayedTrackingUpdateWorker)
+    fun inject(downloadWorker: DownloadWorker)
     // KMK -->
     fun inject(appUpdateDownloadJob: AppUpdateDownloadJob)
     fun inject(syncDataJob: SyncDataJob)

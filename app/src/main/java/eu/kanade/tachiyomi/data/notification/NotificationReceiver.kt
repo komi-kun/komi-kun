@@ -7,9 +7,9 @@ import android.content.Intent
 import android.net.Uri
 import androidx.core.net.toUri
 import dev.zacsweers.metro.Inject
-import eu.kanade.tachiyomi.data.backup.restore.BackupRestoreJob
+import eu.kanade.tachiyomi.data.backup.restore.BackupRestoreWorker
 import eu.kanade.tachiyomi.data.download.DownloadManager
-import eu.kanade.tachiyomi.data.library.LibraryUpdateJob
+import eu.kanade.tachiyomi.data.library.LibraryUpdateWorker
 import eu.kanade.tachiyomi.data.sync.SyncDataJob
 import eu.kanade.tachiyomi.data.updater.AppUpdateDownloadJob
 import eu.kanade.tachiyomi.ui.main.MainActivity
@@ -160,7 +160,7 @@ class NotificationReceiver : BroadcastReceiver() {
      * @param context context of application
      */
     private fun cancelRestore(context: Context) {
-        BackupRestoreJob.stop(context)
+        BackupRestoreWorker.stop(context)
     }
 
     /**
@@ -170,7 +170,7 @@ class NotificationReceiver : BroadcastReceiver() {
      */
     private fun cancelLibraryUpdate(context: Context) {
         launchAsync {
-            LibraryUpdateJob.stop(context)
+            LibraryUpdateWorker.stop(context)
         }
     }
 

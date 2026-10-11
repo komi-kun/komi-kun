@@ -35,7 +35,7 @@ import tachiyomi.i18n.R as I18nR
  * This worker owns the lifecycle of the downloader: it starts the downloader and stops it when the
  * worker is stopped by the system or there's no suitable network available.
  */
-class DownloadJob(private val context: Context, workerParams: WorkerParameters) : CoroutineWorker(context, workerParams) {
+class DownloadWorker(private val context: Context, workerParams: WorkerParameters) : CoroutineWorker(context, workerParams) {
 
     private val graph: AppGraph = context.metroGraph()
 
@@ -105,7 +105,7 @@ class DownloadJob(private val context: Context, workerParams: WorkerParameters) 
         private const val TAG = "Downloader"
 
         fun start(context: Context) {
-            val request = OneTimeWorkRequestBuilder<DownloadJob>()
+            val request = OneTimeWorkRequestBuilder<DownloadWorker>()
                 .addTag(TAG)
                 .build()
             WorkManager.getInstance(context)

@@ -56,8 +56,8 @@ import eu.kanade.presentation.more.settings.widget.EditTextPreferenceWidget
 import eu.kanade.presentation.more.settings.widget.PrefsHorizontalPadding
 import eu.kanade.presentation.more.settings.widget.TrailingWidgetBuffer
 import eu.kanade.presentation.util.relativeTimeSpanString
-import eu.kanade.tachiyomi.data.backup.create.BackupCreateJob
-import eu.kanade.tachiyomi.data.backup.restore.BackupRestoreJob
+import eu.kanade.tachiyomi.data.backup.create.BackupCreateWorker
+import eu.kanade.tachiyomi.data.backup.restore.BackupRestoreWorker
 import eu.kanade.tachiyomi.data.cache.ChapterCache
 import eu.kanade.tachiyomi.data.export.LibraryExporter
 import eu.kanade.tachiyomi.data.export.LibraryExporter.ExportOptions
@@ -284,7 +284,7 @@ object SettingsDataScreen : SearchableSettings {
                                     checked = false,
                                     onCheckedChange = {
                                         scope.launch {
-                                            if (!BackupRestoreJob.isRunning(context.workManager)) {
+                                            if (!BackupRestoreWorker.isRunning(context.workManager)) {
                                                 if (DeviceUtil.isMiui && DeviceUtil.isMiuiOptimizationDisabled()) {
                                                     context.toast(MR.strings.restore_miui_warning)
                                                 }
@@ -318,7 +318,7 @@ object SettingsDataScreen : SearchableSettings {
                     ),
                     title = stringResource(MR.strings.pref_backup_interval),
                     onValueChanged = {
-                        BackupCreateJob.setupTask(context, it)
+                        BackupCreateWorker.setupTask(context, it)
                         true
                     },
                 ),

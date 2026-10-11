@@ -24,7 +24,7 @@ import dev.zacsweers.metrox.viewmodel.metroViewModel
 import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.components.WarningBanner
 import eu.kanade.presentation.util.Screen
-import eu.kanade.tachiyomi.data.backup.create.BackupCreateJob
+import eu.kanade.tachiyomi.data.backup.create.BackupCreateWorker
 import eu.kanade.tachiyomi.data.backup.create.BackupCreator
 import eu.kanade.tachiyomi.data.backup.create.BackupOptions
 import eu.kanade.tachiyomi.util.system.DeviceUtil
@@ -79,7 +79,7 @@ class CreateBackupScreen : Screen() {
                 actionEnabled = state.options.canCreate(),
                 onClickAction = {
                     scope.launch {
-                        if (!BackupCreateJob.isManualJobRunning(context)) {
+                        if (!BackupCreateWorker.isManualJobRunning(context)) {
                             try {
                                 chooseBackupDir.launch(BackupCreator.getFilename())
                             } catch (_: ActivityNotFoundException) {
@@ -148,7 +148,7 @@ class CreateBackupViewModel : ViewModel() {
     }
 
     fun createBackup(context: Context, uri: Uri) {
-        BackupCreateJob.startNow(context, uri, state.value.options)
+        BackupCreateWorker.startNow(context, uri, state.value.options)
     }
 
     @Immutable

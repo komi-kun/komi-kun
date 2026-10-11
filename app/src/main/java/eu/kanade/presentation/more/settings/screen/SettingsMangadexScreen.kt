@@ -34,7 +34,7 @@ import eu.kanade.presentation.more.settings.Preference
 import eu.kanade.presentation.more.settings.widget.BasePreferenceWidget
 import eu.kanade.presentation.more.settings.widget.PrefsHorizontalPadding
 import eu.kanade.tachiyomi.R
-import eu.kanade.tachiyomi.data.library.LibraryUpdateJob
+import eu.kanade.tachiyomi.data.library.LibraryUpdateWorker
 import eu.kanade.tachiyomi.source.online.all.MangaDex
 import eu.kanade.tachiyomi.util.system.openInBrowser
 import eu.kanade.tachiyomi.util.system.toast
@@ -282,9 +282,9 @@ object SettingsMangadexScreen : SearchableSettings {
                         List(items.size) { index -> (index + 1).toString() }.toSet(),
                     )
                     scope.launch {
-                        LibraryUpdateJob.startNow(
+                        LibraryUpdateWorker.startNow(
                             context,
-                            target = LibraryUpdateJob.Target.SYNC_FOLLOWS,
+                            target = LibraryUpdateWorker.Target.SYNC_FOLLOWS,
                         )
                     }
                 },
@@ -306,9 +306,9 @@ object SettingsMangadexScreen : SearchableSettings {
             subtitle = stringResource(SYMR.strings.mangadex_push_favorites_to_mangadex_summary),
             onClick = {
                 scope.launch {
-                    LibraryUpdateJob.startNow(
+                    LibraryUpdateWorker.startNow(
                         context,
-                        target = LibraryUpdateJob.Target.PUSH_FAVORITES,
+                        target = LibraryUpdateWorker.Target.PUSH_FAVORITES,
                     )
                 }
             },

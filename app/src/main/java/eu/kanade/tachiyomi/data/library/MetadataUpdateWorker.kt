@@ -37,7 +37,7 @@ import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import kotlin.concurrent.atomics.fetchAndIncrement
 
 @OptIn(ExperimentalAtomicApi::class)
-class MetadataUpdateJob(private val context: Context, workerParams: WorkerParameters) :
+class MetadataUpdateWorker(private val context: Context, workerParams: WorkerParameters) :
     CoroutineWorker(context, workerParams) {
 
     private val graph: AppGraph = context.metroGraph()
@@ -182,7 +182,7 @@ class MetadataUpdateJob(private val context: Context, workerParams: WorkerParame
                 // Already running either as a scheduled or manual job
                 return false
             }
-            val request = OneTimeWorkRequestBuilder<MetadataUpdateJob>()
+            val request = OneTimeWorkRequestBuilder<MetadataUpdateWorker>()
                 .addTag(TAG)
                 .addTag(WORK_NAME_MANUAL)
                 .build()
