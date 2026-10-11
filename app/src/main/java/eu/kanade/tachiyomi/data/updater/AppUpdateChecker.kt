@@ -7,7 +7,7 @@ import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import eu.kanade.tachiyomi.BuildConfig
 import eu.kanade.tachiyomi.util.system.isFossBuildType
-import eu.kanade.tachiyomi.util.system.isPreviewBuildType
+import eu.kanade.tachiyomi.util.system.isNightlyBuildType
 import exh.source.ExhPreferences
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -35,7 +35,7 @@ class AppUpdateChecker(
             val result = getApplicationRelease.await(
                 GetApplicationRelease.Arguments(
                     isFoss = isFossBuildType,
-                    isPreview = isPreviewBuildType || peekIntoPreview,
+                    isNightly = isNightlyBuildType || peekIntoPreview,
                     commitCount = BuildConfig.COMMIT_COUNT.toInt(),
                     versionName = BuildConfig.VERSION_NAME,
                     repository = getGithubRepo(peekIntoPreview),
@@ -70,7 +70,7 @@ class AppUpdateChecker(
             getApplicationRelease.awaitReleaseNotes(
                 GetApplicationRelease.Arguments(
                     isFoss = isFossBuildType,
-                    isPreview = isPreviewBuildType || peekIntoPreview,
+                    isNightly = isNightlyBuildType || peekIntoPreview,
                     commitCount = BuildConfig.COMMIT_COUNT.toInt(),
                     versionName = BuildConfig.VERSION_NAME,
                     repository = getGithubRepo(peekIntoPreview),
@@ -93,7 +93,7 @@ fun getGithubRepo(peekIntoPreview: Boolean = false): String = "komi-kun/komi-kun
 val RELEASE_TAG: String by lazy { getReleaseTag() }
 
 fun getReleaseTag(peekIntoPreview: Boolean = false): String =
-    if (isPreviewBuildType || peekIntoPreview) {
+    if (isNightlyBuildType || peekIntoPreview) {
         "r${BuildConfig.COMMIT_COUNT}"
     } else {
         "v${BuildConfig.VERSION_NAME}"

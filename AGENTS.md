@@ -164,7 +164,7 @@ Reference: `domain/src/main/java/tachiyomi/domain/category/interactor/HideCatego
 
 ## Build & CI
 
-Build types (`applicationIdSuffix`): `debug` (`.dev`), `release`, `releaseTest` (`.rt`), `foss` (`.foss`), `preview` (`.beta`, CI default), `benchmark` (`.benchmark`).
+Build types (`applicationIdSuffix`): `debug` (`.dev`), `release`, `releaseTest` (`.rt`), `foss` (`.foss`), `nightly` (`.beta`, CI default), `benchmark` (`.benchmark`).
 
 Gradle `-P` flags (`buildSrc/src/main/kotlin/mihon/buildlogic/BuildConfig.kt`):
 
@@ -180,8 +180,8 @@ Gradle `-P` flags (`buildSrc/src/main/kotlin/mihon/buildlogic/BuildConfig.kt`):
 ./gradlew spotlessCheck                    # CI gate
 ./gradlew :app:compileDebugKotlin          # compile-only check
 ./gradlew assembleDebug                    # debug APK
-./gradlew assemblePreview                  # preview (beta) APK, CI equivalent
-./gradlew assemblePreview -Pinclude-telemetry -Penable-updater  # full CI build
+./gradlew assembleNightly                  # nightly (beta) APK, CI equivalent
+./gradlew assembleNightly -Pinclude-telemetry -Penable-updater  # full CI build
 ./gradlew assembleRelease                  # release APK
 ./gradlew testDebugUnitTest              # CI unit tests
 ./gradlew test                             # all unit tests
@@ -190,10 +190,10 @@ Gradle `-P` flags (`buildSrc/src/main/kotlin/mihon/buildlogic/BuildConfig.kt`):
 ```
 
 **Workflows** (`.github/workflows/`):
-- `build_pull_request.yml` – PR validation: dependency review → wrapper validation → `spotlessCheck` → `assemblePreview` → `testDebugUnitTest` → APK signing (authorized forks)
+- `build_pull_request.yml` – PR validation: dependency review → wrapper validation → `spotlessCheck` → `assembleNightly` → `testDebugUnitTest` → APK signing (authorized forks)
 - `build_push.yml` – push to `master`: full build + signing
 - `build_release.yml` – release builds from `v*` tags
-- `build_preview.yml` – manual preview builder
+- `build_nightly.yml` – manual nightly builder
 - `build_benchmark.yml` – manual benchmark builder
 
 ---

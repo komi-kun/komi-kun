@@ -14,9 +14,9 @@ class GetApplicationRelease(
             .filter {
                 // Bleeding-edge fork: prereleases are the releases users get, so do
                 // not filter them out; only keep the tag family of this build.
-                isSameReleaseFamily(arguments.isPreview, it.version) &&
+                isSameReleaseFamily(arguments.isNightly, it.version) &&
                     isNewVersion(
-                        arguments.isPreview,
+                        arguments.isNightly,
                         arguments.commitCount,
                         arguments.versionName,
                         it.version,
@@ -28,7 +28,7 @@ class GetApplicationRelease(
 
         // Check if latest version is different from current version
         val isNewVersion = isNewVersion(
-            isPreview = arguments.isPreview,
+            isNightly = arguments.isNightly,
             commitCount = arguments.commitCount,
             versionName = arguments.versionName,
             versionTag = latest.version,
@@ -42,41 +42,41 @@ class GetApplicationRelease(
     // KMK -->
     suspend fun awaitReleaseNotes(arguments: Arguments): Result {
         val releases = service.releaseNotes(arguments)
-            .filter { isSameReleaseFamily(arguments.isPreview, it.version) }
+            .filter { isSameReleaseFamily(arguments.isNightly, it.version) }
 
         val latest = releases.getLatest() ?: return Result.NoNewUpdate
         return Result.NewUpdate(latest)
     }
 
     /**
-     * Bleeding-edge fork: there is a single repository, and preview (`r<count>`) and
+     * Bleeding-edge fork: there is a single repository, and nightly (`r<count>`) and
      * tagged (`v<semver>`) builds publish prereleases side by side, so only tags that
      * belong to the current build's family are eligible. This keeps a release build
-     * from offering a preview APK (a different application id) and vice versa.
+     * from offering a nightly APK (a different application id) and vice versa.
      */
-    private fun isSameReleaseFamily(isPreview: Boolean, versionTag: String): Boolean =
-        if (isPreview) versionTag.startsWith("r") else versionTag.startsWith("v")
+    private fun isSameReleaseFamily(isNightly: Boolean, versionTag: String): Boolean =
+        if (isNightly) versionTag.startsWith("r") else versionTag.startsWith("v")
     // KMK <--
 
     /**
-     * [isPreview] is if current version is Preview (beta) build
+     * [isNightly] is if current version is Nightly build
      *
      * [versionTag] is the version of new release
      *
      * Release (stable) version will compare with current's [versionName] ("v0.1.2")
      *
-     * Preview (beta) version will compare with current's [commitCount] ("r1234")
+     * Nightly version will compare with current's [commitCount] ("r1234")
      */
     private fun isNewVersion(
-        isPreview: Boolean,
+        isNightly: Boolean,
         commitCount: Int,
         versionName: String,
         versionTag: String,
     ): Boolean {
         // Removes prefixes like "r" or "v"
         val newVersion = versionTag.replace("[^\\d.]".toRegex(), "")
-        return if (isPreview) {
-            // Preview builds: based on releases in "komikku-app/komikku-preview" repo
+        return if (isNightly) {
+            // Nightly builds: based on releases in "komi-kun/komi-kun" repo
             // tagged as something like "r1234"
             newVersion.toInt() > commitCount
         } else {
@@ -100,8 +100,8 @@ class GetApplicationRelease(
 
     data class Arguments(
         val isFoss: Boolean,
-        /** If current version is Preview (beta) build */
-        val isPreview: Boolean,
+        /** If current version is Nightly build */
+        val isNightly: Boolean,
         /** Commit count of current version */
         val commitCount: Int,
         /** Current version name, could be version tag (v0.1.2) or commit count (r1234) */
