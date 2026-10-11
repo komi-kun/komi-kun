@@ -1,6 +1,6 @@
 # Komikku – AI Agent Guide
 
-Komikku is an Android manga reader (min SDK 26, target SDK 36, JVM target 17 / Kotlin) forked from **Mihon** + **TachiyomiSY**. `applicationId`: `app.komikku` (debug: `app.komikku.dev`).
+Komikku is an Android manga reader (min SDK 26, target SDK 36, JVM target 17 / Kotlin) forked from **Mihon** + **TachiyomiSY**. `applicationId`: `app.komikun` (debug: `app.komikun.dev`).
 
 Features: configurable reader, downloads/offline reading, trackers (MyAnimeList, AniList, Kitsu, MangaUpdates, Bangumi, Kavita, Komga, MangaDex, Shikimori, Suwayomi), recommendations, metadata editing, library categories/tags/filters, multi-source browsing and feed tabs.
 
@@ -183,14 +183,14 @@ Gradle `-P` flags (`buildSrc/src/main/kotlin/mihon/buildlogic/BuildConfig.kt`):
 ./gradlew assemblePreview                  # preview (beta) APK, CI equivalent
 ./gradlew assemblePreview -Pinclude-telemetry -Penable-updater  # full CI build
 ./gradlew assembleRelease                  # release APK
-./gradlew testReleaseUnitTest              # CI unit tests
+./gradlew testDebugUnitTest              # CI unit tests
 ./gradlew test                             # all unit tests
 ./gradlew installDebug                     # install to device/emulator
 ./gradlew :data:generateSqlDelightInterface  # after .sq / .sqm changes
 ```
 
 **Workflows** (`.github/workflows/`):
-- `build_pull_request.yml` – PR validation: dependency review → wrapper validation → `spotlessCheck` → `assemblePreview` → `testReleaseUnitTest` → APK signing (authorized forks)
+- `build_pull_request.yml` – PR validation: dependency review → wrapper validation → `spotlessCheck` → `assemblePreview` → `testDebugUnitTest` → APK signing (authorized forks)
 - `build_push.yml` – push to `master`: full build + signing
 - `build_release.yml` – release builds from `v*` tags
 - `build_preview.yml` – manual preview builder
@@ -202,7 +202,7 @@ Gradle `-P` flags (`buildSrc/src/main/kotlin/mihon/buildlogic/BuildConfig.kt`):
 
 - **Framework:** JUnit (Jupiter) + Kotest assertions + MockK
 - **Locations:** `domain/src/test/`, `app/src/test/` (e.g. `MigratorTest.kt`). No broad UI test suite — focus on domain and critical logic.
-- **Single class:** `./gradlew :domain:testReleaseUnitTest --tests "*.ClassName"`
+- **Single class:** `./gradlew :domain:testDebugUnitTest --tests "*.ClassName"`
 
 ---
 

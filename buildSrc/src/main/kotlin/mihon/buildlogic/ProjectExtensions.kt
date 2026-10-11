@@ -1,6 +1,11 @@
 package mihon.buildlogic
 
+import com.android.build.api.dsl.BuildFeatures
 import com.android.build.api.dsl.CommonExtension
+import com.android.build.api.dsl.CompileOptions
+import com.android.build.api.dsl.CompileSdkSpec
+import com.android.build.api.dsl.CompileSdkVersion
+import com.android.build.api.dsl.DefaultConfig
 import org.gradle.accessors.dm.LibrariesForAndroidx
 import org.gradle.accessors.dm.LibrariesForCompose
 import org.gradle.accessors.dm.LibrariesForKotlinx
@@ -10,7 +15,6 @@ import org.gradle.api.tasks.testing.Test
 import org.gradle.api.tasks.testing.logging.TestLogEvent
 import org.gradle.kotlin.dsl.configure
 import org.gradle.kotlin.dsl.dependencies
-import org.gradle.kotlin.dsl.provideDelegate
 import org.gradle.kotlin.dsl.the
 import org.gradle.kotlin.dsl.withType
 import org.jetbrains.kotlin.compose.compiler.gradle.ComposeCompilerGradlePluginExtension
@@ -22,9 +26,11 @@ val Project.compose get() = the<LibrariesForCompose>()
 val Project.kotlinx get() = the<LibrariesForKotlinx>()
 val Project.libs get() = the<LibrariesForLibs>()
 
-internal fun Project.configureAndroid(commonExtension: CommonExtension<*, *, *, *, *, *>) {
+internal fun Project.configureAndroid(commonExtension: CommonExtension) {
     commonExtension.apply {
-        compileSdk = AndroidConfig.COMPILE_SDK
+        compileSdk {
+            version = release(AndroidConfig.COMPILE_SDK)
+        }
 
         defaultConfig {
             minSdk = AndroidConfig.MIN_SDK
@@ -46,7 +52,7 @@ internal fun Project.configureAndroid(commonExtension: CommonExtension<*, *, *, 
 
             // Treat all Kotlin warnings as errors (disabled by default)
             // Override by setting warningsAsErrors=true in your ~/.gradle/gradle.properties
-            val warningsAsErrors: String? by project
+            val warningsAsErrors = providers.gradleProperty("warningsAsErrors").orNull
             allWarningsAsErrors.set(warningsAsErrors.toBoolean())
 
         }
@@ -57,7 +63,7 @@ internal fun Project.configureAndroid(commonExtension: CommonExtension<*, *, *, 
     }
 }
 
-internal fun Project.configureCompose(commonExtension: CommonExtension<*, *, *, *, *, *>) {
+internal fun Project.configureCompose(commonExtension: CommonExtension) {
     pluginManager.apply(kotlinx.plugins.compose.compiler.get().pluginId)
 
     commonExtension.apply {
@@ -88,6 +94,18 @@ internal fun Project.configureCompose(commonExtension: CommonExtension<*, *, *, 
 
 }
 
+private fun CommonExtension.defaultConfig(block: DefaultConfig.() -> Unit) {
+    defaultConfig.apply(block)
+}
+
+private fun CommonExtension.compileOptions(block: CompileOptions.() -> Unit) {
+    compileOptions.apply(block)
+}
+
+private fun CommonExtension.buildFeatures(block: BuildFeatures.() -> Unit) {
+    buildFeatures.apply(block)
+}
+
 internal fun Project.configureTest() {
     tasks.withType<Test> {
         useJUnitPlatform()
@@ -98,3 +116,10 @@ internal fun Project.configureTest() {
 }
 
 val Project.generatedBuildDir: File get() = project.layout.buildDirectory.asFile.get().resolve("generated/mihon")
+
+internal fun CompileSdkSpec.release(version: String): CompileSdkVersion {
+    val (major, minor) = version.split(".", limit = 2).let {
+        it[0].toInt() to it.getOrNull(1)?.toInt()
+    }
+    return release(major) { minorApiLevel = minor }
+}

@@ -33,7 +33,7 @@ val Project.Config: BuildConfig get() = object : BuildConfig {
     override val enableUpdater: Boolean = project.flag("enable-updater")
         ?: (distribution != Distribution.LOCAL)
 
-    override val enableCodeShrink: Boolean = !project.hasProperty("disable-code-shrink")
+    override val enableCodeShrink: Boolean = !project.providers.gradleProperty("disable-code-shrink").isPresent
     override val includeDependencyInfo: Boolean = project.flag("include-dependency-info") ?: false
 }
 

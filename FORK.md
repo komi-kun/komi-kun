@@ -53,7 +53,7 @@ Markers are how we can still diff our tree against an upstream later. Rules (ext
 5. **Prefer the TachiyomiSY copy of a Mihon commit** when one exists (the log shows them as a
    `↳ tachiyomiSY` row): Komikku descends from SY, so the SY-adapted version conflicts far less.
 6. After each batch: `./gradlew spotlessApply spotlessCheck :app:compileDebugKotlin`, then the unit
-   tests (`:app:testDebugUnitTest`, `:domain:testReleaseUnitTest`) where relevant.
+   tests (`:app:testDebugUnitTest`, `:domain:testDebugUnitTest`) where relevant.
 7. For SQL changes append a **new** migration at the next number
    (`data/src/main/sqldelight/tachiyomi/migrations/<n+1>.sqm`); never renumber or edit an existing
    migration. Reconcile the incoming triggers/columns with what Komikku already has — some may
@@ -86,15 +86,14 @@ assume these are the current state, not divergences:
   `:data:verifyDebugDatabaseMigration` gates it.
 - **Raw database access is restricted to `:data`** (`RestoreRepositoryImpl`, `DatabaseBindings`).
 - **`:source-api`/`:source-local` are Android library modules** (no longer KMP).
-- **Gradle isolated projects** is **not enabled**: it needs Gradle ≥ 9.6 (where implicit
-  parent-project property lookups become a deprecation rather than a fatal isolated-projects error),
-  but AGP 8.13.2 rejects Gradle ≥ 9.6, so no version satisfies both. Enable it with the coherent
-  AGP 9.4.1 / Gradle 9.8.1 toolchain bump (the moko-resources plugin's `findProperty` lookup is the
-  other blocker on 9.3.1).
+- **Gradle isolated projects is enabled** (`org.gradle.isolated-projects=true`) on the coherent
+  AGP 9.4.1 / Gradle 9.8.1 / Kotlin 2.4.21 toolchain, matching `mihon/main`. This is what removed the
+  moko-resources `findProperty` blocker, the compileSdk-37 AAR-metadata excludes and the
+  whole-configuration Compose force (they were only needed on AGP 8.13.2).
 - **Mihon's extension-store model** (`Extension.Loaded`/`NotLoaded`, `signatures`, `store`).
 - **`kotlinx-collections-immutable` is dropped** — use stdlib collections.
 - `MangaViewModel` collects the entry only while subscribed.
-- compileSdk 37, aboutLibraries v15.
+- compileSdk 37.2, aboutLibraries v15.
 
 ## Still divergent (do not port blindly)
 
@@ -113,6 +112,30 @@ assume these are the current state, not divergences:
 When a Mihon commit exists only as part of one of these, mark it `X` (won't pick) with a note, or
 leave it for the maintainer.
 
+### Source manager surface (Mihon `5fadea61e7`, #3869)
+
+Mihon `5fadea61e7` ("Make the source manager surface suspend") is **ported**. `SourceManager`
+`get`/`getOrStub`/`getAll`/`getOnlineSources`/`getStubSources` (and the fork's `getVisible*`) are
+`suspend`, `AndroidSourceManager` keeps `sourcesMapFlow` null until extensions load and awaits it in
+`get`/`getOrStub`/etc.; `ExtensionManager.getExtensionPackage`/`getAppIconForSource` and
+`Source.icon()` are `suspend`; `GetIncognitoState.await` is `suspend`; the
+`installed`/`uninstalled`-extension flows use `mapExtensionsWhenInitialized`; and `ifSourcesLoaded()`
+is deleted in favour of null-gated state.
+
+Residual fork-only divergence:
+
+- **`Source.installedExtension`** stays a synchronous accessor over the loaded-extensions snapshot.
+  Turning it into an awaited path would cascade into many Compose call sites with no clear benefit;
+  it is only read after the extensions/library have loaded.
+- **`runBlocking` at genuinely synchronous surfaces.** These have no coroutine scope and are
+  commented at their call sites: `SearchableSettings.isEnabled()` (called during settings
+  composition), the `MdList` tracker and the `SuwayomiApi`/`Kavita` OkHttp interceptor threads, the
+  `exh` debug helpers, and the merged-settings Android `ViewHolder`/`ArrayAdapter` bindings.
+- **`EHentaiPagingSource` was folded into `BaseSourcePagingSource`.** The base now takes Mihon's
+  `suspend () -> Source` factory and resolves the source inside `load()`, and its
+  `getPageLoadResult` handles `MetadataMangasPage` (using its explicit `nextKey` when present) so
+  the separate EHentai variants are no longer needed.
+
 ## Status of the first big upstream sync (Oct 2026)
 
 The branch that introduced this file ports:
@@ -125,3 +148,14 @@ The branch that introduced this file ports:
   Android modules, Metro DI, the database schema rework, Gradle isolated projects (deferred)).
 
 The items under "Still divergent" remain in `cherrypick_log.md` for dedicated follow-ups.
+
+### Provenance caveats (SyncYomi v2)
+
+- SyncYomi v2 (`ccaa248bd7`) was ported from the then-**unmerged** `tachiyomiSY/pr-1648`, together
+  with the `tachiyomiSY/pr-1658` chapter-tombstone branch (a `#1659` was not found in this repo's
+  refs). Before the next TachiyomiSY re-sync, re-diff it against SY `master` **once #1648 merges**,
+  then stop tracking the PR branch.
+- `3b88dd7ca9`'s `(cherry picked from commit 4496c9db1c…)` trailer points at a **non-existent
+  object** (the real SY source is `41574e8235`), and `cd3987a228` carries **no trailer** — so the
+  SyncYomi-v2 series stays unattributable to `update_cherrypick_log.py` until these are fixed.
+
