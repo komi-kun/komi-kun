@@ -273,6 +273,7 @@ class MangaScreen(
             navigateUp = navigator::pop,
             onChapterClicked = { openChapter(context, it) },
             onDownloadChapter = viewModel::runChapterDownloadActions.takeIf { !successState.source.isLocalOrStub() },
+            downloadProgressProvider = viewModel::getDownloadProgress,
             onAddToLibraryClicked = {
                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                 if (successState.manga.favorite) {

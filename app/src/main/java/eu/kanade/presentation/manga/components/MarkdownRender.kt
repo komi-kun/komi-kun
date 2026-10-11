@@ -77,11 +77,15 @@ fun MarkdownRender(
     loadImages: Boolean = true,
 ) {
     Markdown(
+        // KMK -->
+        // The fork pins multiplatform-markdown-renderer 0.39.2, which predates `parseMarkdown`, so keep
+        // the previous state helper instead of upstream's pre-parsed state.
         markdownState = rememberMarkdownState(
             content = content,
             flavour = flavour,
             immediate = true,
         ),
+        // KMK <--
         annotator = annotator,
         colors = getMarkdownColors(),
         typography = getMarkdownTypography(),

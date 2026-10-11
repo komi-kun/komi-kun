@@ -9,9 +9,12 @@ import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.util.fastAny
+import androidx.compose.ui.util.fastFilter
+import androidx.compose.ui.util.fastMap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.palette.graphics.Palette
@@ -109,7 +112,6 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
@@ -142,6 +144,7 @@ import tachiyomi.domain.chapter.model.ChapterUpdate
 import tachiyomi.domain.chapter.model.NoChaptersException
 import tachiyomi.domain.chapter.service.calculateChapterGap
 import tachiyomi.domain.chapter.service.getChapterSort
+import tachiyomi.domain.chapter.service.missingChaptersCount
 import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.domain.libraryUpdateError.interactor.DeleteLibraryUpdateErrors
 import tachiyomi.domain.libraryUpdateError.interactor.InsertLibraryUpdateErrors
@@ -302,7 +305,11 @@ class MangaViewModel(
 
     private val isRefreshingData = MutableStateFlow(false)
 
-    private val downloadStates = MutableStateFlow(emptyMap<Long, DownloadProgress>())
+    private val downloadStates = MutableStateFlow(emptyMap<Long, Download.State>())
+
+    // Progress ticks often, so only the download indicators that read it recompose instead of every tick rebuilding
+    // the chapter list
+    private val downloadProgress = mutableStateMapOf<Long, Int>()
 
     // A finished chapter leaves the queue, and its last status change can be lost with it, so its state is left to
     // the queried item once it's no longer queued
@@ -537,12 +544,11 @@ class MangaViewModel(
             source = mangaAndChapters.source,
             isFromSource = isFromSource,
             chapters = mangaAndChapters.chapters.map { item ->
-                val download = downloads[item.id]
+                val downloadState = downloads[item.id]
                 val selected = item.id in selectedIds
-                if (download == null && !selected) return@map item
+                if (downloadState == null && !selected) return@map item
                 item.copy(
-                    downloadState = download?.status ?: item.downloadState,
-                    downloadProgress = download?.progress ?: item.downloadProgress,
+                    downloadState = downloadState ?: item.downloadState,
                     selected = selected,
                 )
             },
@@ -571,23 +577,32 @@ class MangaViewModel(
             // KMK <--
         )
     }
-        // Composition would otherwise build these on first read, on the main thread, for every download progress tick
+        // Composition would otherwise build these on first read, on the main thread, for every new state
         .onEach {
             it.processedChapters
             it.chapterListItems
             it.isAnySelected
+            it.selectedChapters
+            it.hasUnreadChapters
+            it.hasReadChapters
+            it.missingChapterCount
         }
         .flowOn(Dispatchers.IO)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5.seconds), State.Loading)
 
     init {
-        // Progress ticks often, and each one copies the map of download states
         viewModelScope.launch(Dispatchers.Default) {
-            merge(downloadManager.statusFlow(), downloadManager.progressFlow())
+            downloadManager.statusFlow()
                 // SY: a merged entry's chapters span several mangas, so downloads aren't filtered by manga
                 // id here; the combined state maps them back by chapter id.
                 .catch { logcat(LogPriority.ERROR, it) }
                 .collect(::updateDownloadState)
+        }
+        viewModelScope.launch(Dispatchers.Default) {
+            downloadManager.progressFlow()
+                // SY: same as above, downloads aren't filtered by manga id for merged entries.
+                .catch { logcat(LogPriority.ERROR, it) }
+                .collect { downloadProgress[it.chapter.id] = it.progress }
         }
 
         // KMK -->
@@ -1122,9 +1137,18 @@ class MangaViewModel(
             if (download.status == Download.State.NOT_DOWNLOADED || download.status == Download.State.DOWNLOADED) {
                 it - chapterId
             } else {
-                it + (chapterId to DownloadProgress(download.status, download.progress))
+                it + (chapterId to download.status)
             }
         }
+        if (download.status == Download.State.DOWNLOADING) {
+            downloadProgress[chapterId] = download.progress
+        } else {
+            downloadProgress.remove(chapterId)
+        }
+    }
+
+    fun getDownloadProgress(chapterId: Long): Int {
+        return downloadProgress[chapterId] ?: 0
     }
 
     private fun List<Chapter>.toChapterListItems(
@@ -1172,7 +1196,6 @@ class MangaViewModel(
             ChapterList.Item(
                 chapter = chapter,
                 downloadState = downloadState,
-                downloadProgress = activeDownload?.progress ?: 0,
                 // SY -->
                 sourceName = source?.getNameForMangaInfo(),
                 showScanlator = !isExhManga,
@@ -1942,8 +1965,6 @@ class MangaViewModel(
         // SY <--
     )
 
-    private data class DownloadProgress(val status: Download.State, val progress: Int)
-
     // KMK/SY -->
     private data class UiExtras(
         val pagePreviewsState: PagePreviewState,
@@ -2027,6 +2048,23 @@ class MangaViewModel(
                 chapters.fastAny { it.selected }
             }
 
+            val selectedChapters by lazy {
+                processedChapters.fastFilter { it.selected }
+            }
+
+            val hasUnreadChapters by lazy {
+                processedChapters.fastAny { !it.chapter.read }
+            }
+
+            val hasReadChapters by lazy {
+                chapters.fastAny { it.chapter.read }
+            }
+
+            val missingChapterCount by lazy {
+                if (hideMissingChapters) return@lazy 0
+                processedChapters.fastMap { it.chapter.chapterNumber }.missingChaptersCount()
+            }
+
             val chapterListItems by lazy {
                 if (hideMissingChapters) {
                     return@lazy processedChapters
@@ -2104,7 +2142,6 @@ sealed class ChapterList {
     data class Item(
         val chapter: Chapter,
         val downloadState: Download.State,
-        val downloadProgress: Int,
         val selected: Boolean = false,
         // SY -->
         val sourceName: String?,
