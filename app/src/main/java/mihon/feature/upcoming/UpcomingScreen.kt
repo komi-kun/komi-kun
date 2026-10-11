@@ -97,7 +97,12 @@ private fun ColumnScope.CategoryFilterSheet(
     val excluded by viewModel.upcomingPreferences.filterExcludedCategories.collectAsState()
     val included by viewModel.upcomingPreferences.filterIncludedCategories.collectAsState()
 
-    val selected = remember {
+    // KMK -->
+    // Key the remembered tri-state list on the live category list so it is rebuilt (and stays the same
+    // size/order) when categories change while the dialog is open. Upstream origin: mihon a73271aefa
+    // ("Add category filters to Upcoming calendar", #3607) used a keyless remember, which could throw
+    // IndexOutOfBoundsException / misalign the tri-state when allCategories changed.
+    val selected = remember(allCategories) {
         allCategories.map { category ->
             when (category.id) {
                 in included -> TriState.ENABLED_IS
@@ -106,6 +111,7 @@ private fun ColumnScope.CategoryFilterSheet(
             }
         }.toMutableStateList()
     }
+    // KMK <--
 
     Column {
         allCategories.fastForEachIndexed { idx, category ->
