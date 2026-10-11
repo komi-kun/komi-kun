@@ -383,7 +383,9 @@ class MangaViewModel(
             ) {
                 // Check for gallery in library and accept manga with lowest id
                 // Find chapters sharing same root
-                launchIO {
+                // KMK -->
+                viewModelScope.launchIO {
+                    // KMK <--
                     try {
                         val (acceptedChain) = updateHelper.findAcceptedRootAndDiscardOthers(manga.source, chapters)
                         // Redirect if we are not the accepted root
