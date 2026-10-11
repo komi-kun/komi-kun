@@ -181,7 +181,6 @@
     <!-- Tracker settings -->
     <string name="pref_tracker_resolve_using_source_metadata">Select entries using source metadata</string>
     <string name="pref_tracker_resolve_using_source_metadata_summary">Automatically selects the matching title if the source provides links to trackers. Currently supported by MangaDex</string>
-    <string name="considering">Considering</string>
 
     <!-- Library settings -->
     <string name="pref_sorting_settings">Sorting Settings</string>
@@ -318,9 +317,6 @@
     <string name="tap_scroll_page_summary">Tapping will scroll by page instead of screen size when this option is enabled</string>
     <string name="reader_bottom_buttons">Reader Bottom Buttons</string>
     <string name="reader_bottom_buttons_summary">Customize what buttons appear at the bottom of the reader</string>
-    <string name="pref_vertical_navigator">Use vertical chapter navigator in</string>
-    <string name="pref_vertical_navigator_height">Vertical navigator height</string>
-    <string name="pref_webtoon_vertical_navigator_on_left">Place vertical navigator on the left side</string>
     <string name="pref_smooth_scroll">Smooth Auto Scroll</string>
 
     <!-- Reader -->

@@ -9,7 +9,6 @@ import eu.kanade.tachiyomi.data.track.mangabaka.dto.MangaBakaOAuth
 import eu.kanade.tachiyomi.data.track.model.TrackSearch
 import kotlinx.serialization.json.Json
 import tachiyomi.i18n.MR
-import tachiyomi.i18n.sy.SYMR
 import uy.kohesive.injekt.injectLazy
 import tachiyomi.domain.track.model.Track as DomainTrack
 
@@ -32,7 +31,7 @@ class MangaBaka(id: Long) : BaseTracker(id, "MangaBaka"), DeletableTracker {
     }
 
     override fun getStatus(status: Long): StringResource? = when (status) {
-        CONSIDERING -> SYMR.strings.considering
+        CONSIDERING -> MR.strings.considering
         COMPLETED -> MR.strings.completed
         DROPPED -> MR.strings.dropped
         PAUSED -> MR.strings.paused

@@ -64,7 +64,7 @@ internal fun GeneralPage(viewModel: ReaderSettingsViewModel) {
 
     val verticalNavigatorModes by viewModel.preferences.verticalNavigator.collectAsState()
 
-    SettingsChipRow(SYMR.strings.pref_vertical_navigator) {
+    SettingsChipRow(MR.strings.pref_vertical_navigator) {
         ReadingMode.entries.filter { it != ReadingMode.DEFAULT }.forEach { mode ->
             FilterChip(
                 selected = verticalNavigatorModes.contains(mode),
@@ -86,12 +86,12 @@ internal fun GeneralPage(viewModel: ReaderSettingsViewModel) {
         val verticalNavigatorHeight by verticalNavigatorHeightPref.collectAsState()
 
         CheckboxItem(
-            label = stringResource(SYMR.strings.pref_webtoon_vertical_navigator_on_left),
+            label = stringResource(MR.strings.pref_webtoon_vertical_navigator_on_left),
             pref = viewModel.preferences.verticalNavigatorOnLeft,
         )
 
         SliderItem(
-            label = stringResource(SYMR.strings.pref_vertical_navigator_height),
+            label = stringResource(MR.strings.pref_vertical_navigator_height),
             value = verticalNavigatorHeight,
             valueRange = 65..100,
             steps = 6,

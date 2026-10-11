@@ -516,18 +516,18 @@ object SettingsReaderScreen : SearchableSettings {
                     entries = ReadingMode.entries.filter { it != ReadingMode.DEFAULT }
                         .associate { it to stringResource(it.stringRes) }
                         .toMap(),
-                    title = stringResource(SYMR.strings.pref_vertical_navigator),
+                    title = stringResource(MR.strings.pref_vertical_navigator),
                 ),
                 Preference.PreferenceItem.SwitchPreference(
                     preference = readerPreferences.verticalNavigatorOnLeft,
-                    title = stringResource(SYMR.strings.pref_webtoon_vertical_navigator_on_left),
+                    title = stringResource(MR.strings.pref_webtoon_vertical_navigator_on_left),
                     enabled = verticalNavigator.isNotEmpty(),
                 ),
                 Preference.PreferenceItem.SliderPreference(
                     value = verticalNavigatorHeight,
                     valueRange = 65..100,
                     steps = 6,
-                    title = stringResource(SYMR.strings.pref_vertical_navigator_height),
+                    title = stringResource(MR.strings.pref_vertical_navigator_height),
                     onValueChanged = { verticalNavigatorHeightPref.set(it) },
                     enabled = verticalNavigator.isNotEmpty(),
                 ),
