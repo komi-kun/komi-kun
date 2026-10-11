@@ -14,7 +14,6 @@ import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.HttpException
 import eu.kanade.tachiyomi.network.POST
 import eu.kanade.tachiyomi.network.PUT
-import eu.kanade.tachiyomi.network.await
 import eu.kanade.tachiyomi.network.awaitSuccess
 import eu.kanade.tachiyomi.network.jsonMime
 import eu.kanade.tachiyomi.network.parseAs
@@ -105,16 +104,22 @@ class HikkaApi(
             val url = "$BASE_API_URL/manga/$slug"
 
             with(json) {
-                val response = authClient.newCall(GET(url))
-                    .await()
-
-                if (response.code == 404) {
-                    null
-                } else {
-                    response
+                // KMK -->
+                // Same pattern as the getRead fix (a2a15db3e2): awaitSuccess closes the response before
+                // throwing, so a 404 returns null without leaking the response.
+                try {
+                    authClient.newCall(GET(url))
+                        .awaitSuccess()
                         .parseAs<HKManga>()
                         .toTrack(trackerId)
+                } catch (e: HttpException) {
+                    if (e.code == 404) {
+                        null
+                    } else {
+                        throw e
+                    }
                 }
+                // KMK <--
             }
         }
     }
