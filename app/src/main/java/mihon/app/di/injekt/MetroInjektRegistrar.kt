@@ -3,6 +3,9 @@ package mihon.app.di.injekt
 import android.app.Application
 import android.content.Context
 import eu.kanade.domain.source.service.SourcePreferences
+// KMK -->
+import eu.kanade.tachiyomi.core.security.SecurityPreferences
+// KMK <--
 import eu.kanade.tachiyomi.data.cache.CoverCache
 import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.network.JavaScriptEngine
@@ -60,6 +63,13 @@ class MetroInjektRegistrar(
         ReaderPreferences::class.java to { graph.readerPreferences },
         ExtensionManager::class.java to { graph.extensionManager },
         CoverCache::class.java to { graph.coverCache },
+
+        // KMK -->
+        // ProvidesSqlDriver (AppBindings) builds the SqlDriver during graph.inject(this), before the
+        // interop modules are imported. On encrypted devices it calls CbzCrypto.getDecryptedPasswordSql(),
+        // which resolves SecurityPreferences through Injekt, so it must be available here.
+        SecurityPreferences::class.java to { graph.securityPreferences },
+        // KMK <--
     )
 
     private object NoKey
