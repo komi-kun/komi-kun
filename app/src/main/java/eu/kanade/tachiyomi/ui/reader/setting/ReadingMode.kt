@@ -2,6 +2,7 @@ package eu.kanade.tachiyomi.ui.reader.setting
 
 import androidx.annotation.ColorInt
 import androidx.compose.ui.graphics.vector.ImageVector
+import ca.mpreg.webgpuviewer.renderer.WebGpuRenderer
 import dev.icerock.moko.resources.StringResource
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.ui.reader.ReaderActivity
@@ -12,6 +13,7 @@ import eu.kanade.tachiyomi.ui.reader.viewer.pager.VerticalPagerViewer
 import eu.kanade.tachiyomi.ui.reader.viewer.webgpu.WebGpuViewer
 import eu.kanade.tachiyomi.ui.reader.viewer.webgpu.WebGpuViewerContinuous
 import eu.kanade.tachiyomi.ui.reader.viewer.webtoon.WebtoonViewer
+import logcat.LogPriority
 import mihon.app.di.appGraph
 import mihon.icons.custommaterialsymbols.CustomMaterialSymbols
 import mihon.icons.custommaterialsymbols.rounded.ReaderLeftToRight
@@ -21,6 +23,7 @@ import mihon.icons.custommaterialsymbols.rounded.ReaderRightToLeft
 import mihon.icons.custommaterialsymbols.rounded.ReaderVertical
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.MobileGear
+import tachiyomi.core.common.util.system.logcat
 import tachiyomi.i18n.MR
 
 enum class ReadingMode(
@@ -78,6 +81,23 @@ enum class ReadingMode(
             return mode.type is ViewerType.Pager
         }
 
+        // KMK -->
+        /**
+         * Whether the high quality WebGPU renderer is usable on this device.
+         *
+         * The library performs its GPU bring-up (native library, instance, adapter, device) in a
+         * static initializer that catches its own failures; [WebGpuRenderer.isAvailable] reports the
+         * outcome. Probing it lets an unsupported device fall back to the SSIV viewer rather than
+         * handing the reader a viewer whose renderer silently no-ops.
+         */
+        private fun isHighQualityRendererAvailable(): Boolean = runCatching {
+            WebGpuRenderer.isAvailable
+        }.getOrElse {
+            logcat(LogPriority.WARN, it) { "High quality renderer probe failed" }
+            false
+        }
+        // KMK <--
+
         fun toViewer(
             preference: Int?,
             activity: ReaderActivity,
@@ -85,7 +105,20 @@ enum class ReadingMode(
             @ColorInt seedColor: Int?,
             // KMK <--
         ): Viewer {
-            if (activity.appGraph.basePreferences.highQualityRenderer.get()) {
+            // KMK -->
+            // Capability gate: the renderer's static initializer runs the GPU bring-up and records
+            // any failure, so `isAvailable` tells us whether the high quality path can actually draw.
+            // Without this, an unsupported device would keep a WebGpuViewer whose renderer no-ops,
+            // i.e. a blank reader, instead of falling back to the SSIV viewer.
+            val preferHighQualityRenderer = activity.appGraph.basePreferences.highQualityRenderer.get()
+            val useHighQualityRenderer = preferHighQualityRenderer && isHighQualityRendererAvailable()
+            if (preferHighQualityRenderer && !useHighQualityRenderer) {
+                logcat(LogPriority.WARN) {
+                    "High quality renderer unavailable, falling back to the SSIV viewer: " +
+                        runCatching { WebGpuRenderer.unavailableReason }.getOrNull().orEmpty()
+                }
+            }
+            if (useHighQualityRenderer) {
                 return when (fromPreference(preference)) {
                     LEFT_TO_RIGHT -> WebGpuViewer(activity, isReversed = false, isVertical = false)
                     RIGHT_TO_LEFT -> WebGpuViewer(activity, isReversed = true, isVertical = false)
@@ -95,6 +128,7 @@ enum class ReadingMode(
                     DEFAULT -> throw IllegalStateException("Preference value must be resolved: $preference")
                 }
             }
+            // KMK <--
             return when (fromPreference(preference)) {
                 LEFT_TO_RIGHT -> L2RPagerViewer(
                     activity,
