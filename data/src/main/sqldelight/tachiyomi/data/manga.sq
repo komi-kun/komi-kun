@@ -322,6 +322,41 @@ update:
 UPDATE manga SET
     source_id = coalesce(:source, source_id),
     remote_url = coalesce(:url, remote_url),
+    -- NULL is a real value here (not in the library), which coalesce cannot write
+    user_favorite_at = CASE WHEN :userFavoriteAtSet THEN :userFavoriteAt ELSE user_favorite_at END,
+    state_chapter_last_update = coalesce(:lastUpdate, state_chapter_last_update),
+    state_chapter_next_update = coalesce(:nextUpdate, state_chapter_next_update),
+    user_reader_flags = coalesce(:viewer, user_reader_flags),
+    user_chapter_flags = coalesce(:chapterFlags, user_chapter_flags),
+    state_cover_last_modified = coalesce(:coverLastModified, state_cover_last_modified),
+    state_chapter_fetch_interval = coalesce(:calculateInterval, state_chapter_fetch_interval),
+    -- SY -->
+    version = coalesce(:version, version),
+    last_modified_at = coalesce(:lastModifiedAt, last_modified_at),
+    is_syncing = coalesce(:isSyncing, is_syncing),
+    -- SY <--
+    user_notes = coalesce(:notes, user_notes)
+WHERE id = :mangaId;
+
+updateRemote:
+UPDATE manga SET
+    remote_artist = coalesce(:artist, remote_artist),
+    remote_author = coalesce(:author, remote_author),
+    remote_description = coalesce(:description, remote_description),
+    remote_genre = coalesce(:genre, remote_genre),
+    remote_title = coalesce(:title, remote_title),
+    remote_status = :status,
+    remote_cover = coalesce(:thumbnailUrl, remote_cover),
+    state_initialized = :initialized,
+    state_cover_last_modified = coalesce(:coverLastModified, state_cover_last_modified),
+    remote_update_strategy = :updateStrategy,
+    remote_memo = :memo
+WHERE id = :mangaId;
+
+updateFromBackup:
+UPDATE manga SET
+    source_id = coalesce(:source, source_id),
+    remote_url = coalesce(:url, remote_url),
     remote_artist = coalesce(:artist, remote_artist),
     remote_author = coalesce(:author, remote_author),
     remote_description = coalesce(:description, remote_description),

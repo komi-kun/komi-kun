@@ -24,6 +24,7 @@ import tachiyomi.data.subscribeToOne
 import tachiyomi.data.subscribeToOneOrNull
 import tachiyomi.domain.library.model.LibraryManga
 import tachiyomi.domain.manga.model.Manga
+import tachiyomi.domain.manga.model.MangaRemoteUpdate
 import tachiyomi.domain.manga.model.MangaUpdate
 import tachiyomi.domain.manga.model.MangaWithChapterCount
 import tachiyomi.domain.manga.repository.MangaRepository
@@ -188,6 +189,29 @@ class MangaRepositoryImpl(
         }
     }
 
+    override suspend fun updateRemote(update: MangaRemoteUpdate): Boolean {
+        return try {
+            database.mangaQueries.updateRemote(
+                artist = update.artist,
+                author = update.author,
+                description = update.description,
+                genre = update.genre,
+                title = update.title,
+                status = update.status,
+                thumbnailUrl = update.thumbnailUrl,
+                initialized = update.initialized,
+                coverLastModified = update.coverLastModified,
+                updateStrategy = update.updateStrategy,
+                memo = update.memo,
+                mangaId = update.id,
+            )
+            true
+        } catch (e: Exception) {
+            logcat(LogPriority.ERROR, e)
+            false
+        }
+    }
+
     override suspend fun insertNetworkManga(
         manga: List<Manga>,
         // KMK -->
@@ -240,31 +264,21 @@ class MangaRepositoryImpl(
                     database.mangaQueries.update(
                         source = source,
                         url = url,
-                        artist = artist,
-                        author = author,
-                        description = description,
-                        genre = genre,
-                        title = title,
-                        status = status,
-                        thumbnailUrl = thumbnailUrl,
                         userFavoriteAtSet = favorite != null,
                         userFavoriteAt = if (favorite == true) dateAdded else null,
                         lastUpdate = lastUpdate,
                         nextUpdate = nextUpdate,
                         calculateInterval = fetchInterval?.toLong(),
-                        initialized = initialized,
                         viewer = viewerFlags,
                         chapterFlags = chapterFlags,
                         coverLastModified = coverLastModified,
                         mangaId = id,
-                        updateStrategy = updateStrategy,
                         version = version,
                         // SY -->
                         lastModifiedAt = null,
                         isSyncing = null,
                         // SY <--
                         notes = notes,
-                        memo = memo,
                     )
                 }
             }

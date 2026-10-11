@@ -155,7 +155,7 @@ class RestoreRepositoryImpl(
     }
 
     private suspend fun updateManga(manga: Manga, isSync: Boolean, syncingFlag: Long): Manga {
-        database.mangaQueries.update(
+        database.mangaQueries.updateFromBackup(
             source = manga.source,
             url = manga.url,
             // SY -->
@@ -349,15 +349,10 @@ class RestoreRepositoryImpl(
     ) {
         database.transaction {
             chapters.forEach { chapter ->
-                database.chapterQueries.update(
-                    url = null,
-                    name = null,
-                    scanlator = null,
+                database.chapterQueries.updateFromBackup(
                     read = chapter.read,
                     bookmark = chapter.bookmark,
                     lastPageRead = chapter.lastPageRead,
-                    chapterNumber = null,
-                    dateFetch = null,
                     // KMK -->
                     sourceOrder = chapter.sourceOrder,
                     dateUpload = chapter.dateUpload,

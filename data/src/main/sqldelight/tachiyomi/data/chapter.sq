@@ -195,20 +195,38 @@ RETURNING id;
 
 update:
 UPDATE chapter
-SET remote_url = coalesce(:url, remote_url),
-    remote_name = coalesce(:name, remote_name),
-    remote_scanlator = coalesce(:scanlator, remote_scanlator),
-    user_read = coalesce(:read, user_read),
+SET user_read = coalesce(:read, user_read),
     user_bookmark = coalesce(:bookmark, user_bookmark),
     user_last_page_read = coalesce(:lastPageRead, user_last_page_read),
-    remote_chapter_number = coalesce(:chapterNumber, remote_chapter_number),
-    remote_order = coalesce(:sourceOrder, remote_order),
     state_date_fetch = coalesce(:dateFetch, state_date_fetch),
-    remote_date_upload = coalesce(:dateUpload, remote_date_upload),
-    remote_memo = coalesce(:memo, remote_memo),
     -- SY -->
     version = coalesce(:version, version),
     last_modified_at = coalesce(:lastModifiedAt, last_modified_at),
     is_syncing = coalesce(:isSyncing, is_syncing)
     -- SY <--
+WHERE id = :chapterId;
+
+updateRemote:
+UPDATE chapter
+SET remote_name = :name,
+    remote_scanlator = coalesce(:scanlator, remote_scanlator),
+    remote_chapter_number = :chapterNumber,
+    remote_order = :sourceOrder,
+    remote_date_upload = coalesce(:dateUpload, remote_date_upload),
+    remote_memo = :memo
+WHERE id = :chapterId;
+
+updateFromBackup:
+UPDATE chapter
+SET user_read = coalesce(:read, user_read),
+    user_bookmark = coalesce(:bookmark, user_bookmark),
+    user_last_page_read = coalesce(:lastPageRead, user_last_page_read),
+    remote_order = coalesce(:sourceOrder, remote_order),
+    remote_date_upload = coalesce(:dateUpload, remote_date_upload),
+    -- SY -->
+    version = coalesce(:version, version),
+    last_modified_at = coalesce(:lastModifiedAt, last_modified_at),
+    is_syncing = coalesce(:isSyncing, is_syncing),
+    -- SY <--
+    remote_memo = coalesce(:memo, remote_memo)
 WHERE id = :chapterId;

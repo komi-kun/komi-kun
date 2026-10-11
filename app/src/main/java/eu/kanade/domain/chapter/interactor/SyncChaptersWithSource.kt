@@ -20,6 +20,7 @@ import kotlinx.datetime.toLocalDateTime
 import tachiyomi.data.chapter.ChapterSanitizer
 import tachiyomi.domain.chapter.interactor.ShouldUpdateDbChapter
 import tachiyomi.domain.chapter.model.Chapter
+import tachiyomi.domain.chapter.model.ChapterRemoteUpdate
 import tachiyomi.domain.chapter.model.NoChaptersException
 import tachiyomi.domain.chapter.model.toChapterUpdate
 import tachiyomi.domain.chapter.repository.ChapterRepository
@@ -82,7 +83,7 @@ class SyncChaptersWithSource(
         val dbChaptersByUrl = dbChapters.associateBy { it.url }
 
         val newChapters = mutableListOf<Chapter>()
-        val updatedChapters = mutableListOf<Chapter>()
+        val updatedChapters = mutableListOf<ChapterRemoteUpdate>()
         val sourceUrls = mutableSetOf<String>()
 
         // Used to not set upload date of older chapters
@@ -139,18 +140,17 @@ class SyncChaptersWithSource(
                         downloadManager.renameChapter(source, manga, dbChapter, chapter)
                     }
 
-                    var toChangeChapter = dbChapter.copy(
-                        name = chapter.name,
-                        chapterNumber = chapter.chapterNumber,
-                        scanlator = chapter.scanlator,
-                        sourceOrder = chapter.sourceOrder,
-                        memo = chapter.memo,
+                    updatedChapters.add(
+                        ChapterRemoteUpdate(
+                            id = dbChapter.id,
+                            name = chapter.name,
+                            chapterNumber = chapter.chapterNumber,
+                            scanlator = chapter.scanlator,
+                            sourceOrder = chapter.sourceOrder,
+                            dateUpload = chapter.dateUpload,
+                            memo = chapter.memo,
+                        ),
                     )
-
-                    if (chapter.dateUpload != null) {
-                        toChangeChapter = toChangeChapter.copy(dateUpload = chapter.dateUpload)
-                    }
-                    updatedChapters.add(toChangeChapter)
                 }
             }
         }
@@ -257,7 +257,7 @@ class SyncChaptersWithSource(
         val added = chapterRepository.updateFromRemote(
             removedIds = removedChapters.map { it.id },
             added = toAddWithProgress,
-            updated = updatedChapters.map { it.toChapterUpdate() },
+            updated = updatedChapters,
         )
         // KMK -->
         syncPreferences.forgetDeletedChapters(added.map(tombstoneKey))

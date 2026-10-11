@@ -167,7 +167,7 @@ import tachiyomi.domain.manga.interactor.UpdateMergedSettings
 import tachiyomi.domain.manga.model.CustomMangaInfo
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.manga.model.MangaCover
-import tachiyomi.domain.manga.model.MangaUpdate
+import tachiyomi.domain.manga.model.MangaRemoteUpdate
 import tachiyomi.domain.manga.model.MangaWithChapterCount
 import tachiyomi.domain.manga.model.MergeMangaSettingsUpdate
 import tachiyomi.domain.manga.model.MergedMangaReference
@@ -830,16 +830,21 @@ class MangaViewModel(
             viewModelScope.launchNonCancellable {
                 val localSource = sourceManager.get(LocalSource.ID) as LocalSource
                 localSource.updateMangaInfo(manga.toSManga())
-                updateManga.await(
-                    MangaUpdate(manga.id) {
-                        this.title = newTitle
-                        this.author = newAuthor
-                        this.artist = newArtist
-                        this.thumbnailUrl = newThumbnailUrl
-                        this.description = newDesc
-                        this.genre = tags
-                        this.status = status
-                    },
+                updateManga.awaitRemote(
+                    MangaRemoteUpdate(
+                        id = manga.id,
+                        title = newTitle,
+                        author = newAuthor,
+                        artist = newArtist,
+                        thumbnailUrl = newThumbnailUrl,
+                        description = newDesc,
+                        genre = tags,
+                        status = status ?: manga.ogStatus,
+                        updateStrategy = manga.updateStrategy,
+                        memo = manga.memo,
+                        initialized = manga.initialized,
+                        coverLastModified = null,
+                    ),
                 )
             }
         } else {

@@ -16,7 +16,7 @@ import tachiyomi.domain.category.interactor.SetMangaCategories
 import tachiyomi.domain.chapter.interactor.GetChapterByUrl
 import tachiyomi.domain.chapter.interactor.GetChaptersByMangaId
 import tachiyomi.domain.chapter.model.Chapter
-import tachiyomi.domain.chapter.model.ChapterUpdate
+import tachiyomi.domain.chapter.model.ChapterRemoteUpdate
 import tachiyomi.domain.chapter.repository.ChapterRepository
 import tachiyomi.domain.history.interactor.GetHistory
 import tachiyomi.domain.history.interactor.RemoveHistory
@@ -123,7 +123,7 @@ class EHentaiUpdateHelper(
             // Apply changes to all manga
             updateManga.awaitAll(mangaUpdates)
             // Insert new chapters for accepted manga
-            chapterRepository.updateAll(chapterUpdates)
+            chapterRepository.updateAllRemote(chapterUpdates)
             chapterRepository.addAll(newChapters)
 
             val (newHistory, deleteHistory) = getHistory(
@@ -215,7 +215,7 @@ class EHentaiUpdateHelper(
         accepted: ChapterChain,
         toDiscard: List<ChapterChain>,
         chainsAsChapters: List<Chapter>,
-    ): Triple<List<ChapterUpdate>, List<Chapter>, Boolean> {
+    ): Triple<List<ChapterRemoteUpdate>, List<Chapter>, Boolean> {
         var new = false
         return toDiscard
             .flatMap { chain ->
@@ -269,7 +269,7 @@ class EHentaiUpdateHelper(
             }
             .sortedBy { it.dateUpload }
             .let { chapters ->
-                val updates = mutableListOf<ChapterUpdate>()
+                val updates = mutableListOf<ChapterRemoteUpdate>()
                 val newChapters = mutableListOf<Chapter>()
                 chapters.mapIndexed { index, chapter ->
                     val name = "v${index + 1}: " + chapter.name.substringAfter(" ")
@@ -283,13 +283,26 @@ class EHentaiUpdateHelper(
                                 sourceOrder = sourceOrder,
                             ),
                         )
-                        else -> updates.add(
-                            ChapterUpdate(chapter.id) {
-                                this.name = name.takeUnless { chapter.name == it }
-                                this.chapterNumber = chapterNumber.takeUnless { chapter.chapterNumber == it }
-                                this.sourceOrder = sourceOrder.takeUnless { chapter.sourceOrder == it }
-                            },
-                        )
+                        else -> {
+                            val newName = name.takeUnless { chapter.name == it }
+                            val newChapterNumber = chapterNumber.takeUnless { chapter.chapterNumber == it }
+                            val newSourceOrder = sourceOrder.takeUnless { chapter.sourceOrder == it }
+                            // Only write when a field actually changed, so an unchanged chapter is not
+                            // stamped as locally modified (which would churn the sync delta).
+                            if (newName != null || newChapterNumber != null || newSourceOrder != null) {
+                                updates.add(
+                                    ChapterRemoteUpdate(
+                                        id = chapter.id,
+                                        name = newName ?: chapter.name,
+                                        scanlator = chapter.scanlator,
+                                        chapterNumber = newChapterNumber ?: chapter.chapterNumber,
+                                        dateUpload = chapter.dateUpload,
+                                        sourceOrder = newSourceOrder ?: chapter.sourceOrder,
+                                        memo = chapter.memo,
+                                    ),
+                                )
+                            }
+                        }
                     }
                 }
                 Triple(updates.toList(), newChapters.toList(), new)
