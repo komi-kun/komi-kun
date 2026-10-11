@@ -6,8 +6,10 @@ import eu.kanade.domain.chapter.model.toSChapter
 import eu.kanade.domain.manga.interactor.GetExcludedScanlators
 import eu.kanade.domain.manga.interactor.UpdateManga
 import eu.kanade.domain.manga.model.toSManga
+import eu.kanade.domain.sync.SyncPreferences
 import eu.kanade.tachiyomi.data.download.DownloadManager
 import eu.kanade.tachiyomi.data.download.DownloadProvider
+import eu.kanade.tachiyomi.data.sync.chapterTombstoneKey
 import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.online.HttpSource
@@ -35,6 +37,9 @@ class SyncChaptersWithSource(
     private val updateManga: UpdateManga,
     private val getExcludedScanlators: GetExcludedScanlators,
     private val libraryPreferences: LibraryPreferences,
+    // KMK -->
+    private val syncPreferences: SyncPreferences,
+    // KMK <--
 ) {
 
     /**
@@ -231,11 +236,19 @@ class SyncChaptersWithSource(
         }
         // <-- EXH
 
+        // KMK -->
+        val tombstoneKey = { chapter: Chapter -> chapterTombstoneKey(manga.source, manga.url, chapter.url) }
+        // A chapter the source dropped must be tombstoned on the server; one it re-added must not.
+        syncPreferences.rememberDeletedChapters(removedChapters.map(tombstoneKey))
+        // KMK <--
         val added = chapterRepository.updateFromRemote(
             removedIds = removedChapters.map { it.id },
             added = toAddWithProgress,
             updated = updatedChapters.map { it.toChapterUpdate() },
         )
+        // KMK -->
+        syncPreferences.forgetDeletedChapters(added.map(tombstoneKey))
+        // KMK <--
         updateManga.awaitUpdateFetchInterval(manga, now, fetchWindow)
 
         // Set this manga as updated since chapters were changed

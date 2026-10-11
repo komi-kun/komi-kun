@@ -74,6 +74,11 @@ class SyncYomiSyncService(
         SYNC_CANCELLED,
     }
 
+    // KMK -->
+    @Serializable
+    private data class DeletedChapters(val deletedChapters: List<String> = emptyList())
+    // KMK <--
+
     // SY -->
     /**
      * Protocol v1: download, merge locally, upload the merged library.
@@ -119,6 +124,10 @@ class SyncYomiSyncService(
         val backup = syncData.backup ?: return SyncResult(null, changed = false, protocolV2 = true)
         val host = syncPreferences.clientHost.get()
         val apiKey = syncPreferences.clientAPIKey.get()
+
+        // KMK -->
+        submitDeletedChapters(host, apiKey)
+        // KMK <--
 
         val pendingDeleted = syncPreferences.pendingDeletedCategoryUids.get()
         val headersBuilder = baseHeaders(apiKey)
@@ -387,4 +396,41 @@ class SyncYomiSyncService(
             }
         }
     }
+
+    // KMK -->
+    /**
+     * Reports the chapters a source dropped to the v2 deletions endpoint before the merge, so the
+     * server tombstones them. Keys are cleared only on a 2xx, so an older server without the route
+     * (404) loses nothing and they go out once it is upgraded.
+     */
+    private suspend fun submitDeletedChapters(host: String, apiKey: String) {
+        val sent = syncPreferences.pendingDeletedChapterKeys.get()
+        if (sent.isEmpty()) return
+
+        val request = POST(
+            url = "$host/api/sync/v2/deletions",
+            headers = baseHeaders(apiKey).build(),
+            body = json
+                .encodeToString(DeletedChapters.serializer(), DeletedChapters(sent.toList()))
+                .toRequestBody("application/json; charset=utf-8".toMediaType()),
+        )
+
+        val response = try {
+            syncClient().newCall(request).await()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logcat(LogPriority.WARN) { "SyncYomi v2 deletions not sent: ${e.message}" }
+            return
+        }
+        response.use { resp ->
+            if (!resp.isSuccessful) {
+                logcat(LogPriority.WARN) { "SyncYomi v2 deletions not applied: ${resp.code}" }
+                return
+            }
+        }
+        syncPreferences.forgetDeletedChapters(sent)
+        logcat(LogPriority.DEBUG) { "SyncYomi v2 deletions applied: ${sent.size} keys" }
+    }
+    // KMK <--
 }
