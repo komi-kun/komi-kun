@@ -16,7 +16,7 @@ DROP VIEW libraryUpdateErrorView;
 DROP TRIGGER IF EXISTS insert_manga_category_update_version;
 DROP TRIGGER IF EXISTS delete_manga_category_update_version;
 
-PRAGMA foreign_keys = OFF;
+PRAGMA foreign_keys = 0;
 
 -- ---------------------------------------------------------------------------------------------------------
 -- table - manga
@@ -228,7 +228,7 @@ UPDATE history
 SET read_at = NULL
 WHERE read_at = 0;
 
-PRAGMA foreign_keys = ON;
+PRAGMA foreign_keys = 1;
 
 -- ---------------------------------------------------------------------------------------------------------
 -- views
