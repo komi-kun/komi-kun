@@ -67,7 +67,10 @@ class GoogleDriveSyncService(context: Context, json: Json, syncPreferences: Sync
 
     private val googleDriveService = GoogleDriveService(context, syncPreferences)
 
+    // KMK -->
+    // Metro DI: the shared ProtoBuf singleton replaces the old `Injekt.get()` default.
     private val protoBuf: ProtoBuf = ProtoBuf
+    // KMK <--
 
     override suspend fun doSync(syncData: SyncData, full: Boolean): SyncResult {
         beforeSync()

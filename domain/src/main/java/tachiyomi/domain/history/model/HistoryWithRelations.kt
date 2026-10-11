@@ -23,11 +23,15 @@ data class HistoryWithRelations(
     val coverData: MangaCover,
 ) {
     // SY -->
+    // KMK -->
     val title: String = customMangaManager?.get(mangaId)?.title ?: ogTitle
+    // KMK <--
 
     companion object {
+        // KMK -->
         private val customMangaManager: GetCustomMangaInfo?
             get() = GetCustomMangaInfo.getInstanceOrNull()
+        // KMK <--
     }
     // SY <--
 

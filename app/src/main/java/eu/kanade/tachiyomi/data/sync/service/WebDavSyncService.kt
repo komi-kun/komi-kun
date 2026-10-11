@@ -29,7 +29,10 @@ class WebDavSyncService(
     json: Json,
     syncPreferences: SyncPreferences,
     private val notifier: SyncNotifier,
+    // KMK -->
+    // Metro DI: the shared ProtoBuf singleton replaces the old `Injekt.get()` default.
     private val protoBuf: ProtoBuf = ProtoBuf,
+    // KMK <--
 ) : SyncService(context, json, syncPreferences) {
 
     private class WebDavException(message: String?) : Exception(message)

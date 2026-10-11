@@ -76,6 +76,7 @@ class CategoryRepositoryImpl(
         val dbCategoriesByUid = dbCategories.associateBy { it.uid } // Map by UID
 
         // SY -->
+        // KMK -->
         // `order` is UNIQUE, so a reorder would trip it mid-swap. Free the positions of every category
         // we are about to reorder first, then assign the server's positions.
         val reordered = if (isSync) {
@@ -112,6 +113,7 @@ class CategoryRepositoryImpl(
             while (nextOrder in usedOrders) nextOrder++
             return nextOrder++
         }
+        // KMK <--
         // SY <--
 
         val restored = categories
@@ -128,8 +130,10 @@ class CategoryRepositoryImpl(
                 }
 
                 if (dbCategory != null) {
+                    // KMK -->
                     val order = if (isSync && category.order !in usedOrders) category.order else freeOrder()
                     usedOrders.add(order)
+                    // KMK <--
                     database.categoryQueries.update(
                         name = category.name,
                         order = order,
@@ -151,8 +155,10 @@ class CategoryRepositoryImpl(
                 // A sync delta is a converging replica, not an import: new
                 // categories must land at the position the server holds or
                 // reorders never converge across devices.
+                // KMK -->
                 val order = if (isSync && category.order !in usedOrders) category.order else freeOrder()
                 usedOrders.add(order)
+                // KMK <--
                 database.categoryQueries.insert(
                     name = category.name,
                     order = order,
