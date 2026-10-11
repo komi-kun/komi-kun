@@ -45,8 +45,9 @@ END;
 
 -- Entries sharing a source and url are merged into one, since the new table won't hold both.
 -- KMK -->
--- Scratch table, TEMP so it never becomes part of the persisted schema (matches Mihon's 17.sqm).
-CREATE TEMP TABLE duplicate_mangas AS
+-- Scratch table. Dropped before the migration finishes; DROP IF EXISTS keeps it re-runnable.
+DROP TABLE IF EXISTS duplicate_mangas;
+CREATE TABLE duplicate_mangas AS
 SELECT
     _id,
     first_value(_id) OVER (PARTITION BY source, url ORDER BY favorite_at IS NOT NULL DESC, _id ASC) AS keep_id,
@@ -222,8 +223,9 @@ UPDATE chapters
 SET manga_id = (SELECT keep_id FROM duplicate_mangas WHERE _id = chapters.manga_id)
 WHERE manga_id IN (SELECT _id FROM duplicate_mangas WHERE _id != keep_id);
 
--- Scratch table, TEMP so it never becomes part of the persisted schema.
-CREATE TEMP TABLE duplicate_chapters AS
+-- Scratch table. Dropped before the migration finishes; DROP IF EXISTS keeps it re-runnable.
+DROP TABLE IF EXISTS duplicate_chapters;
+CREATE TABLE duplicate_chapters AS
 SELECT
     _id,
     first_value(_id) OVER (PARTITION BY manga_id, url ORDER BY has_history DESC, _id ASC) AS keep_id
@@ -463,8 +465,9 @@ DROP TABLE excluded_scanlators;
 -- ---------------------------------------------------------------------------------------------------------
 
 -- KMK -->
--- Scratch table, TEMP so it never becomes part of the persisted schema.
-CREATE TEMP TABLE duplicate_tracks AS
+-- Scratch table. Dropped before the migration finishes; DROP IF EXISTS keeps it re-runnable.
+DROP TABLE IF EXISTS duplicate_tracks;
+CREATE TABLE duplicate_tracks AS
 SELECT
     T._id,
     first_value(T._id) OVER (
