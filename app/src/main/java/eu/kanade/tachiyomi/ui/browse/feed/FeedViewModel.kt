@@ -17,7 +17,7 @@ import eu.kanade.presentation.browse.FeedItemUI
 import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.util.system.LocaleHelper
-import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.channels.Channel
@@ -52,7 +52,6 @@ import tachiyomi.domain.source.model.FeedSavedSearch
 import tachiyomi.domain.source.model.SavedSearch
 import tachiyomi.domain.source.service.SourceManager
 import xyz.nulldev.ts.api.http.serializer.FilterSerializer
-import java.util.concurrent.Executors
 import tachiyomi.domain.manga.model.Manga as DomainManga
 
 /**
@@ -83,7 +82,9 @@ class FeedViewModel(
     private val _events = Channel<Event>(Int.MAX_VALUE)
     val events = _events.receiveAsFlow()
 
-    private val coroutineDispatcher = Executors.newFixedThreadPool(1).asCoroutineDispatcher()
+    // KMK -->
+    private val coroutineDispatcher = Dispatchers.IO.limitedParallelism(1)
+    // KMK <--
     var pushed: Boolean = false
 
     init {
@@ -356,10 +357,9 @@ class FeedViewModel(
                 }
         }
     }
-    override fun onCleared() {
-        super.onCleared()
-        coroutineDispatcher.close()
-    }
+    // KMK -->
+    // No onCleared() needed: Dispatchers.IO.limitedParallelism requires no explicit shutdown.
+    // KMK <--
 
     // KMK -->
     fun showDialog(dialog: Dialog) {

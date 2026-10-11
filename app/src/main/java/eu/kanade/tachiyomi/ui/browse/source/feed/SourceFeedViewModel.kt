@@ -34,7 +34,7 @@ import exh.source.getMainSource
 import exh.source.isEhBasedSource
 import exh.source.mangaDexSourceIds
 import exh.util.nullIfBlank
-import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -69,7 +69,6 @@ import tachiyomi.i18n.kmk.KMR
 import tachiyomi.i18n.sy.SYMR
 import tachiyomi.source.local.isLocal
 import xyz.nulldev.ts.api.http.serializer.FilterSerializer
-import java.util.concurrent.Executors
 import tachiyomi.domain.manga.model.Manga as DomainManga
 
 @AssistedInject
@@ -108,7 +107,9 @@ class SourceFeedViewModel(
 
     val sourceIsMangaDex = sourceId in mangaDexSourceIds
 
-    private val coroutineDispatcher = Executors.newFixedThreadPool(5).asCoroutineDispatcher()
+    // KMK -->
+    private val coroutineDispatcher = Dispatchers.IO.limitedParallelism(5)
+    // KMK <--
 
     val startExpanded by uiPreferences.expandFilters.asState(viewModelScope)
 
@@ -432,10 +433,9 @@ class SourceFeedViewModel(
         // KMK <--
     }
 
-    override fun onCleared() {
-        super.onCleared()
-        coroutineDispatcher.close()
-    }
+    // KMK -->
+    // No onCleared() needed: Dispatchers.IO.limitedParallelism requires no explicit shutdown.
+    // KMK <--
 }
 
 @Immutable
