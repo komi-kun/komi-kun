@@ -53,19 +53,21 @@ class CategoryRepositoryImpl(
 
     // SY -->
     override suspend fun insert(category: Category): Long? {
-        return database.categoryQueries.insertWithNextOrder(
-            name = category.name,
-            flags = category.flags,
-            // KMK -->
-            hidden = if (category.hidden) 1L else 0L,
-            // KMK <--
-            // SY -->
-            version = category.version,
-            uid = category.uid,
-            lastModifiedAt = category.lastModifiedAt,
-            isSyncing = 0L,
-            // SY <--
-        ).awaitAsOneOrNull()
+        return database.transactionWithResult {
+            database.categoryQueries.insertWithNextOrder(
+                name = category.name,
+                flags = category.flags,
+                // KMK -->
+                hidden = if (category.hidden) 1L else 0L,
+                // KMK <--
+                // SY -->
+                version = category.version,
+                uid = category.uid,
+                lastModifiedAt = category.lastModifiedAt,
+                isSyncing = 0L,
+                // SY <--
+            ).awaitAsOneOrNull()
+        }
     }
 
     override suspend fun restoreCategories(categories: List<Category>, isSync: Boolean): List<Category> {
