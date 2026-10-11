@@ -46,16 +46,6 @@ SET read_at = 0
 WHERE manga_id IN :mangaIds;
 -- KMK <--
 
-resetHistoryById:
-UPDATE history
-SET read_at = 0
-WHERE id = :id;
-
-resetHistoryByMangaId:
-UPDATE history
-SET read_at = 0
-WHERE manga_id = :mangaId;
-
 removeAllHistory:
 DELETE FROM history;
 
