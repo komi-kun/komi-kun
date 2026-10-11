@@ -89,30 +89,52 @@ class SyncPreferences(
         return syncService.get() != SyncManager.SyncService.NONE.value
     }
 
+    // KMK -->
+    /**
+     * Only the SyncYomi service consumes these tombstones. Recording them for Google Drive, WebDAV or
+     * an old v1 SyncYomi server would let the sets grow without bound and then flush a stale backlog
+     * once the user switches to a v2 server, potentially deleting chapters that were re-added.
+     */
+    private fun isSyncYomiService(): Boolean {
+        return syncService.get() == SyncManager.SyncService.SYNCYOMI.value
+    }
+
+    /** Serialises the read-modify-write of the tombstone sets so concurrent edits are not lost. */
+    private val tombstoneLock = Any()
+    // KMK <--
+
     // SY -->
     /**
      * Remembers a deleted category so the next SyncYomi v2 request can send it as a tombstone.
      */
     fun rememberDeletedCategory(uid: Long) {
-        if (uid == 0L || !isSyncEnabled()) return
-        pendingDeletedCategoryUids.set(pendingDeletedCategoryUids.get() + uid.toString())
+        // KMK -->
+        if (uid == 0L || !isSyncYomiService()) return
+        synchronized(tombstoneLock) {
+            pendingDeletedCategoryUids.set(pendingDeletedCategoryUids.get() + uid.toString())
+        }
+        // KMK <--
     }
     // KMK -->
     /**
      * Remembers the chapters a source dropped, so the next SyncYomi v2 request can tombstone them.
      */
     fun rememberDeletedChapters(keys: Collection<String>) {
-        if (keys.isEmpty() || !isSyncEnabled()) return
-        pendingDeletedChapterKeys.set(pendingDeletedChapterKeys.get() + keys)
+        if (keys.isEmpty() || !isSyncYomiService()) return
+        synchronized(tombstoneLock) {
+            pendingDeletedChapterKeys.set(pendingDeletedChapterKeys.get() + keys)
+        }
     }
 
     /**
      * Forgets chapters a source re-added before they were sent, so a live chapter is never tombstoned.
      */
     fun forgetDeletedChapters(keys: Collection<String>) {
-        val pending = pendingDeletedChapterKeys.get()
-        val remaining = pending - keys.toSet()
-        if (remaining.size != pending.size) pendingDeletedChapterKeys.set(remaining)
+        synchronized(tombstoneLock) {
+            val pending = pendingDeletedChapterKeys.get()
+            val remaining = pending - keys.toSet()
+            if (remaining.size != pending.size) pendingDeletedChapterKeys.set(remaining)
+        }
     }
     // KMK <--
     // SY <--
