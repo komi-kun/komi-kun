@@ -86,7 +86,10 @@ assume these are the current state, not divergences:
   `:data:verifyDebugDatabaseMigration` gates it.
 - **Raw database access is restricted to `:data`** (`RestoreRepositoryImpl`, `DatabaseBindings`).
 - **`:source-api`/`:source-local` are Android library modules** (no longer KMP).
-- **Gradle isolated projects** (`org.gradle.unsafe.isolated-projects=true`).
+- **Gradle isolated projects** is **not enabled**: Gradle is pinned to 9.3.1 and the build is not
+  isolated-projects-clean yet (the moko-resources plugin and several scripts do cross-project
+  property lookups), so `org.gradle.unsafe.isolated-projects=true` fails the build. Revisit with a
+  toolchain bump.
 - **Mihon's extension-store model** (`Extension.Loaded`/`NotLoaded`, `signatures`, `store`).
 - **`kotlinx-collections-immutable` is dropped** — use stdlib collections.
 - `MangaViewModel` collects the entry only while subscribed.
@@ -118,6 +121,6 @@ The branch that introduced this file ports:
 - **Mihon backlog 2026-06 → 2026-10**: the portable fixes/features (TachiyomiSY's copies used where
   available), **and** the re-architectures listed under "Followed Mihon re-architectures" above,
   including the backfilled prerequisites (preference properties #3091, `:source-api`/`:source-local`
-  Android modules, Metro DI, the database schema rework, Gradle isolated projects).
+  Android modules, Metro DI, the database schema rework, Gradle isolated projects (deferred)).
 
 The items under "Still divergent" remain in `cherrypick_log.md` for dedicated follow-ups.
