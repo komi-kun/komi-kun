@@ -981,6 +981,10 @@ class MangaViewModel(
         }
     }
 
+    fun showRemoveFromLibraryDialog() {
+        if (successState?.manga?.favorite == true) dialog.value = Dialog.RemoveFromLibrary
+    }
+
     fun showChangeCategoryDialog() {
         val manga = successState?.manga ?: return
         viewModelScope.launch {
@@ -1863,6 +1867,7 @@ class MangaViewModel(
         data class DuplicateManga(val manga: Manga, val duplicates: List<MangaWithChapterCount>) : Dialog
         data class Migrate(val target: Manga, val current: Manga) : Dialog
         data class SetFetchInterval(val manga: Manga) : Dialog
+        data object RemoveFromLibrary : Dialog
 
         // SY -->
         data class EditMangaInfo(val manga: Manga) : Dialog
