@@ -222,6 +222,9 @@ jobs:
             Komikku-armeabi-v7a-${{ needs.prepare-build.outputs.TAG_NAME }}.apk
             Komikku-x86-${{ needs.prepare-build.outputs.TAG_NAME }}.apk
             Komikku-x86_64-${{ needs.prepare-build.outputs.TAG_NAME }}.apk
-          draft: true
+          # Bleeding-edge fork: same semantics as build_release.yml — a published
+          # (non-draft) prerelease. `make_latest` cannot be set for a prerelease, so
+          # the in-app updater lists all releases and offers the newest one.
+          draft: false
           prerelease: true
           token: ${{ secrets.GITHUB_TOKEN }}

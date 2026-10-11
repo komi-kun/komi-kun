@@ -1,5 +1,7 @@
 name: Release Builder
-# Build a stable release on a tag v* newly pushed
+# Build a bleeding-edge release on a tag v* newly pushed.
+# This fork has no stable channel: every release is a prerelease and the newest
+# build is the one users get.
 
 on:
   push:
@@ -43,7 +45,9 @@ jobs:
         uses: InsonusK/get-latest-release@7a9ff16c8c6b7ead5d71c0f1cc61f2703170eade # v1.1.0
         with:
           myToken: ${{ github.token }}
-          exclude_types: "draft|prerelease"
+          # Only exclude drafts: every published release here is a prerelease, so
+          # excluding prereleases would find no "previous release" at all.
+          exclude_types: "draft"
           view_top: 1
 
       - name: Curren commit
@@ -195,6 +199,11 @@ jobs:
             Komikku-armeabi-v7a-${{ needs.prepare-build.outputs.VERSION_TAG }}.apk
             Komikku-x86-${{ needs.prepare-build.outputs.VERSION_TAG }}.apk
             Komikku-x86_64-${{ needs.prepare-build.outputs.VERSION_TAG }}.apk
-          draft: true
-          prerelease: false
+          # Bleeding-edge fork: publish (non-draft, so users actually see it and the
+          # updater can offer it) as a prerelease. GitHub forbids marking a prerelease
+          # as "latest" ("Latest release cannot be draft or prerelease"), so
+          # `make_latest: true` is intentionally omitted; the in-app updater lists
+          # all releases and offers the newest one instead.
+          draft: false
+          prerelease: true
           token: ${{ secrets.GITHUB_TOKEN }}
