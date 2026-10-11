@@ -9,6 +9,7 @@ import eu.kanade.tachiyomi.ui.reader.viewer.navigation.EdgeNavigation
 import eu.kanade.tachiyomi.ui.reader.viewer.navigation.KindlishNavigation
 import eu.kanade.tachiyomi.ui.reader.viewer.navigation.LNavigation
 import eu.kanade.tachiyomi.ui.reader.viewer.navigation.RightAndLeftNavigation
+import eu.kanade.tachiyomi.ui.reader.viewer.pager.PagerConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.launchIn
@@ -74,6 +75,18 @@ class WebGpuConfig(
         private set
 
     init {
+        // KMK -->
+        // First WebGPU use: adopt TachiyomiSY/Komikku's `pageLayout` dual page choice into
+        // `dualPageView`, which is what the WebGPU renderer reads and what its settings chip edits.
+        // Without this, enabling the high quality renderer silently reset a dual page layout to
+        // single pages (the new pref defaults to NEVER). Seeded once; the user's later `dualPageView`
+        // choice wins.
+        if (!readerPreferences.dualPageView.isSet()) {
+            readerPreferences.dualPageView.set(legacyDualPageView())
+        }
+        dualPageView = readerPreferences.dualPageView.get()
+        // KMK <--
+
         readerPreferences.readerTheme
             .register(
                 {
@@ -178,6 +191,30 @@ class WebGpuConfig(
             { imagePropertyChangedListener?.invoke() },
         )
     }
+
+    // KMK -->
+    /**
+     * TachiyomiSY/Komikku's pager dual page choice, as the SSIV viewers see it: `pageLayout` plus the
+     * "split wide pages" flag (`dualPageSplitPaged` disables pairing, matching [PagerConfig]).
+     *
+     * The WebGPU renderer never reads `pageLayout`; it reads the newer `dualPageView` pref. This maps
+     * the legacy choice onto that pref so a user's dual page layout survives enabling the high quality
+     * renderer. Long strip / webtoon layout prefs have no WebGPU counterpart upstream.
+     */
+    private fun legacyDualPageView(): ReaderPreferences.DualPageView {
+        return when (readerPreferences.pageLayout.get()) {
+            PagerConfig.PageLayout.DOUBLE_PAGES -> {
+                if (readerPreferences.dualPageSplitPaged.get()) {
+                    ReaderPreferences.DualPageView.NEVER
+                } else {
+                    ReaderPreferences.DualPageView.ALWAYS
+                }
+            }
+            PagerConfig.PageLayout.AUTOMATIC -> ReaderPreferences.DualPageView.WIDE
+            else -> ReaderPreferences.DualPageView.NEVER
+        }
+    }
+    // KMK <--
 
     private fun zoomTypeFromPreference(value: Int) {
         imageZoomType = when (value) {
