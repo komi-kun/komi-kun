@@ -94,14 +94,15 @@ assume these are the current state, not divergences:
 
 ## Still divergent (do not port blindly)
 
-- **Injekt is not fully removed.** Mihon keeps Injekt in ~32 files; this fork keeps it in ~90
+- **Injekt is not fully removed.** Mihon keeps Injekt in ~32 files; this fork keeps it in ~51
   Komikku/SY/KMK files (extension-facing sources, the SyncYomi/connections stacks, abstract
   services, static objects, and `open` ViewModels with fork subclasses) bridged from the Metro graph
   via `mihon/app/di/injekt/KMKMetroInteropModule.kt`. Converting those is a redesign, not a
   mechanical move. New code should prefer Metro constructor injection.
-- **Metro interop follow-ups** (`1c43addeca` "Resolve Injekt dependencies directly from the Metro
-  graph", `d435dd9217` "Switch to upstream Injekt") are not ported: the fork keeps the
-  `com.github.mihonapp:injekt` fork (with `patchInjekt`) and its own interop registrar.
+- **Metro interop follow-ups**: `1c43addeca` ("Resolve Injekt dependencies directly from the Metro
+  graph") is adapted locally in `0f0c72f0ef`, but `d435dd9217` ("Switch to upstream Injekt") is not
+  ported: the fork still depends on the `com.github.mihonapp:injekt` fork instead of upstream
+  `uy.kohesive.injekt:injekt-core`, alongside its own `KMKMetroInteropModule`.
 - `c67a33f3d4` ("Remove unused sync scaffold") is not ported — SyncYomi v2 uses
   `version`/`is_syncing`/`last_modified_at`.
 

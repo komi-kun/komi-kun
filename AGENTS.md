@@ -107,7 +107,7 @@ Version catalogs in `gradle/`: `libs.versions.toml`, `kotlinx.versions.toml`, `a
 | `i18n/` / `i18n-sy/` / `i18n-kmk/` | Strings → `MR` / `SYMR` / `KMR` (see [Internationalization](#internationalization-strings)) |
 | `flagkit/` | Country-flag drawables |
 | `telemetry/` | Firebase/Crashlytics (noop unless `-Pinclude-telemetry`) |
-| `macrobenchmark/` | Macrobenchmark tests (CI-only) |
+| `baseline-profile/` | Baseline profile and startup benchmark generation (CI-only) |
 | `buildSrc/` | Convention plugins and build logic |
 
 Dependency flow: `app` → `domain` → `source-api`; `data` implements `domain` repos.
