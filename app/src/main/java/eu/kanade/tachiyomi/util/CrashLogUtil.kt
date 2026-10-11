@@ -53,6 +53,7 @@ class CrashLogUtil(
             App version: ${BuildConfig.VERSION_NAME} (${BuildConfig.COMMIT_SHA}, ${BuildConfig.VERSION_CODE}, ${BuildConfig.BUILD_TIME})
             Build version: ${BuildConfig.COMMIT_COUNT}
             Installation ID: ${preferences.installationId.get()}
+            Skipped app update: ${preferences.skippedAppUpdate.get().ifEmpty { "None" }}
             Android version: ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT}; build ${Build.DISPLAY})
             Device brand: ${Build.BRAND}
             Device manufacturer: ${Build.MANUFACTURER}

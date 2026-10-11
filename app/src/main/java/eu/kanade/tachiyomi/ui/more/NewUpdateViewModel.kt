@@ -13,6 +13,7 @@ import dev.zacsweers.metro.AssistedInject
 import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metrox.viewmodel.ManualViewModelAssistedFactory
 import dev.zacsweers.metrox.viewmodel.ManualViewModelAssistedFactoryKey
+import eu.kanade.domain.base.BasePreferences
 import eu.kanade.tachiyomi.data.updater.AppUpdateDownloadJob
 import eu.kanade.tachiyomi.extension.util.ExtensionInstaller
 import eu.kanade.tachiyomi.util.storage.getUriCompat
@@ -31,6 +32,7 @@ class NewUpdateViewModel(
     @Assisted changelogInfo: String,
     @Assisted private val downloadLink: String,
     private val context: Context,
+    private val preferences: BasePreferences,
 ) : ViewModel() {
 
     @AssistedFactory
@@ -91,6 +93,15 @@ class NewUpdateViewModel(
     fun startDownload() {
         state.update { it.copy(downloadProgress = 0, stage = Stage.Downloading) }
         AppUpdateDownloadJob.start(context, downloadLink)
+    }
+
+    fun skipUpdate(versionName: String) {
+        // KMK -->
+        // The fork downloads app updates through [AppUpdateDownloadJob], so cancel that instead of
+        // a view model-owned download job.
+        AppUpdateDownloadJob.stop(context)
+        // KMK <--
+        preferences.skippedAppUpdate.set(versionName)
     }
 
     fun installUpdate() {

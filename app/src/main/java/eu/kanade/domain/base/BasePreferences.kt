@@ -41,4 +41,9 @@ class BasePreferences(
     // KMK <--
 
     val installationId: Preference<String> = preferenceStore.getString(Preference.appStateKey("installation_id"), "")
+
+    val skippedAppUpdate: Preference<String> = preferenceStore.getString(
+        Preference.appStateKey("skipped_app_update"),
+        "",
+    )
 }
