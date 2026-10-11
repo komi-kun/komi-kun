@@ -165,6 +165,11 @@ fun ReaderAppBars(
                                 contentAlignment = Alignment.BottomCenter,
                             ) {
                                 ChapterNavigator(
+                                    // KMK -->
+                                    // Apply the "Vertical navigator height" setting (SY #3531).
+                                    // Dropped when porting; matches Mihon's fix.
+                                    modifier = Modifier.fillMaxHeight(verticalNavigatorHeight),
+                                    // KMK <--
                                     type = chapterNavigatorType,
                                     onNextChapter = onNextChapter,
                                     enabledNext = enabledNext,
