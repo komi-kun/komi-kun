@@ -204,16 +204,20 @@ class ExtensionManager(
         try {
             val extensions = ExtensionLoader.loadExtensions(context, loadedExtensionMapFlow.value)
 
-            loadedExtensionMapFlow.value = extensions
-                .filterIsInstance<Extension.Loaded>()
-                .associateBy { it.pkgName }
+            loadedExtensionMapFlow.update {
+                extensions
+                    .filterIsInstance<Extension.Loaded>()
+                    .associateBy { it.pkgName }
+            }
 
-            notLoadedExtensionMapFlow.value = extensions
-                .filterIsInstance<Extension.NotLoaded>()
-                .associateBy { it.pkgName }
-                // SY -->
-                .filterNotBlacklisted()
-            // SY <--
+            notLoadedExtensionMapFlow.update {
+                extensions
+                    .filterIsInstance<Extension.NotLoaded>()
+                    .associateBy { it.pkgName }
+                    // SY -->
+                    .filterNotBlacklisted()
+                // SY <--
+            }
 
             // Newly loaded extensions have no status derived from the store index yet
             refreshStatuses()
@@ -414,7 +418,7 @@ class ExtensionManager(
         }
         // SY <--
 
-        loadedExtensionMapFlow.value += extension
+        loadedExtensionMapFlow.update { it + extension }
     }
 
     /**
@@ -459,22 +463,26 @@ class ExtensionManager(
     private fun refreshStatuses() {
         val available = availableExtensionListFlow.value
         if (available.isNotEmpty()) {
-            loadedExtensionMapFlow.value = loadedExtensionMapFlow.value.mapValues { (_, extension) ->
-                val listing = extension.findListing(available)
-                extension.copy(
-                    hasUpdate = extension.findUpdate(available) != null,
-                    isObsolete = listing == null,
-                    store = if (stores.isEmpty()) extension.store else extension.pickStore(),
-                    // SY -->
-                    isRedundant = extension.isRedundant || extension.isBlacklisted(),
-                    // SY <--
-                )
+            loadedExtensionMapFlow.update { extensions ->
+                extensions.mapValues { (_, extension) ->
+                    val listing = extension.findListing(available)
+                    extension.copy(
+                        hasUpdate = extension.findUpdate(available) != null,
+                        isObsolete = listing == null,
+                        store = if (stores.isEmpty()) extension.store else extension.pickStore(),
+                        // SY -->
+                        isRedundant = extension.isRedundant || extension.isBlacklisted(),
+                        // SY <--
+                    )
+                }
             }
-            notLoadedExtensionMapFlow.value = notLoadedExtensionMapFlow.value.mapValues { (_, extension) ->
-                extension.copy(
-                    hasUpdate = extension.findUpdate(available) != null,
-                    store = if (stores.isEmpty()) extension.store else extension.pickStore(),
-                )
+            notLoadedExtensionMapFlow.update { extensions ->
+                extensions.mapValues { (_, extension) ->
+                    extension.copy(
+                        hasUpdate = extension.findUpdate(available) != null,
+                        store = if (stores.isEmpty()) extension.store else extension.pickStore(),
+                    )
+                }
             }
         }
         updatePendingUpdatesCount()
