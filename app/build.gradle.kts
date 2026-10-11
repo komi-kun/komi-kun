@@ -161,7 +161,6 @@ android {
                 "libconscrypt_jni",
                 "libimagedecoder",
                 "libquickjs",
-                "libsqlite3x",
             )
                 .map { "**/$it.so" }
         }
@@ -301,8 +300,6 @@ dependencies {
 
     implementation(platform(kotlinx.coroutines.bom))
     implementation(kotlinx.bundles.coroutines)
-
-    implementation(libs.sqldelight.async)
 
     implementation(libs.sqldelight.async)
 
