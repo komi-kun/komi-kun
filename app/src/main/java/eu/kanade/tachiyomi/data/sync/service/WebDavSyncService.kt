@@ -16,13 +16,12 @@ import kotlinx.serialization.protobuf.ProtoBuf
 import okhttp3.ConnectionPool
 import okhttp3.Credentials
 import okhttp3.Headers
-import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
 import org.apache.http.HttpStatus
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.i18n.MR
+import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 class WebDavSyncService(
@@ -163,10 +162,19 @@ class WebDavSyncService(
 
         if (!validateSettings()) return
 
-        val byteArray = protoBuf.encodeToByteArray(Backup.serializer(), backup)
-        if (byteArray.isEmpty()) throw IllegalStateException(context.stringResource(MR.strings.empty_backup_error))
-
-        val body = byteArray.toRequestBody("application/octet-stream".toMediaType())
+        // KMK -->
+        // Stream the backup instead of materialising the whole library in one byte array, like the
+        // other sync services. BackupRequestBody keeps WebDAV's raw (non-gzip) protobuf encoding and
+        // turns an OutOfMemoryError while writing into an IOException.
+        val body = try {
+            BackupRequestBody(backup, protoBuf)
+        } catch (e: OutOfMemoryError) {
+            throw IOException("Not enough memory to sync this library", e)
+        }
+        if (body.metaBytes.isEmpty() && backup.backupManga.isEmpty()) {
+            throw IllegalStateException(context.stringResource(MR.strings.empty_backup_error))
+        }
+        // KMK <--
         val headersBuilder = Headers.Builder().add("Authorization", credentials)
         if (eTag.isNotEmpty()) headersBuilder.add("If-Match", eTag)
 
