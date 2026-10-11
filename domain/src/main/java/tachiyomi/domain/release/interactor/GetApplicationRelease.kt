@@ -12,7 +12,9 @@ class GetApplicationRelease(
         // KMK -->
         val releases = service.releaseNotes(arguments)
             .filter {
-                !it.preRelease &&
+                // Bleeding-edge fork: prereleases are the releases users get, so do
+                // not filter them out; only keep the tag family of this build.
+                isSameReleaseFamily(arguments.isPreview, it.version) &&
                     isNewVersion(
                         arguments.isPreview,
                         arguments.commitCount,
@@ -40,11 +42,20 @@ class GetApplicationRelease(
     // KMK -->
     suspend fun awaitReleaseNotes(arguments: Arguments): Result {
         val releases = service.releaseNotes(arguments)
-            .filter { !it.preRelease }
+            .filter { isSameReleaseFamily(arguments.isPreview, it.version) }
 
         val latest = releases.getLatest() ?: return Result.NoNewUpdate
         return Result.NewUpdate(latest)
     }
+
+    /**
+     * Bleeding-edge fork: there is a single repository, and preview (`r<count>`) and
+     * tagged (`v<semver>`) builds publish prereleases side by side, so only tags that
+     * belong to the current build's family are eligible. This keeps a release build
+     * from offering a preview APK (a different application id) and vice versa.
+     */
+    private fun isSameReleaseFamily(isPreview: Boolean, versionTag: String): Boolean =
+        if (isPreview) versionTag.startsWith("r") else versionTag.startsWith("v")
     // KMK <--
 
     /**

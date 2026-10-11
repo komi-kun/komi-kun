@@ -377,8 +377,11 @@ class AboutScreen : Screen() {
                     }
                 }
 
+                // KMK -->
+                // This fork has no stable channel: every release is a bleeding-edge
+                // prerelease, so don't label the tagged build as "Stable".
                 else -> {
-                    "Stable ${BuildConfig.VERSION_NAME}".let {
+                    "Release ${BuildConfig.VERSION_NAME}".let {
                         if (withBuildDate) {
                             "$it (${getFormattedBuildTime()})"
                         } else {
@@ -386,6 +389,7 @@ class AboutScreen : Screen() {
                         }
                     }
                 }
+                // KMK <--
             }
         }
 

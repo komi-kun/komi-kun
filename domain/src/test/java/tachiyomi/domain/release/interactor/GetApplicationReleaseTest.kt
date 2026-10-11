@@ -77,6 +77,61 @@ class GetApplicationReleaseTest {
     }
 
     @Test
+    fun `When update is a prerelease expect new update`() = runTest {
+        val releases = listOf(
+            Release(
+                "v2.0.0",
+                "info",
+                "http://example.com/release_link",
+                "http://example.com/release_link.apk",
+                preRelease = true,
+            ),
+        )
+
+        coEvery { releaseService.releaseNotes(any()) } returns releases
+
+        val result = getApplicationRelease.await(
+            GetApplicationRelease.Arguments(
+                isFoss = false,
+                isPreview = false,
+                commitCount = 0,
+                versionName = "v1.0.0",
+                repository = "test",
+            ),
+        )
+
+        // KMK: bleeding-edge fork offers prereleases, since there is no stable channel
+        result shouldBe GetApplicationRelease.Result.NewUpdate(releases.getLatest()!!)
+    }
+
+    @Test
+    fun `When other tag family has update expect no new update`() = runTest {
+        val releases = listOf(
+            Release(
+                "v2.0.0",
+                "info",
+                "http://example.com/release_link",
+                "http://example.com/release_link.apk",
+            ),
+        )
+
+        coEvery { releaseService.releaseNotes(any()) } returns releases
+
+        // A preview build must ignore "v*" releases (they ship a different apk)
+        val result = getApplicationRelease.await(
+            GetApplicationRelease.Arguments(
+                isFoss = false,
+                isPreview = true,
+                commitCount = 1000,
+                versionName = "",
+                repository = "test",
+            ),
+        )
+
+        result shouldBe GetApplicationRelease.Result.NoNewUpdate
+    }
+
+    @Test
     fun `When has no update expect no new update`() = runTest {
         val releases = listOf(
             Release(
