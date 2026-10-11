@@ -35,10 +35,12 @@ class BangumiInterceptor(private val bangumi: Bangumi) : Interceptor {
         }
 
         return originalRequest.newBuilder()
+            // KMK -->
             .header(
                 "User-Agent",
-                "Komikku v${BuildConfig.VERSION_NAME} (${BuildConfig.APPLICATION_ID})",
+                "Komikun v${BuildConfig.VERSION_NAME} (${BuildConfig.APPLICATION_ID})",
             )
+            // KMK <--
             .addHeader("Authorization", "Bearer ${currAuth.accessToken}")
             .build()
             .let(chain::proceed)

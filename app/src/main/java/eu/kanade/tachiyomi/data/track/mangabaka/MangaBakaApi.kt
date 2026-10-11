@@ -54,7 +54,7 @@ class MangaBakaApi(
                 "User-Agent",
                 buildString {
                     // KMK -->
-                    append("Komikku v${BuildConfig.VERSION_NAME} ")
+                    append("Komikun v${BuildConfig.VERSION_NAME} ")
                     // KMK <--
                     append("(${BuildConfig.APPLICATION_ID} ${BuildConfig.COMMIT_SHA}) ")
                     append("(Android) (https://github.com/mihonapp/mihon)")
