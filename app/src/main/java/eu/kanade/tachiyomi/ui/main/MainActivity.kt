@@ -100,7 +100,7 @@ import eu.kanade.tachiyomi.util.system.dpToPx
 import eu.kanade.tachiyomi.util.system.isBenchmarkBuildType
 import eu.kanade.tachiyomi.util.system.isDebugBuildType
 import eu.kanade.tachiyomi.util.system.isNavigationBarNeedsScrim
-import eu.kanade.tachiyomi.util.system.isPreviewBuildType
+import eu.kanade.tachiyomi.util.system.isNightlyBuildType
 import eu.kanade.tachiyomi.util.system.isReleaseBuildType
 import eu.kanade.tachiyomi.util.system.updaterEnabled
 import eu.kanade.tachiyomi.util.view.setComposeContent
@@ -478,7 +478,7 @@ class MainActivity : BaseActivity() {
                 mutableStateOf(
                     // KMK -->
                     (isReleaseBuildType && didMigration) ||
-                        (isPreviewBuildType && previewCurrentVersion > previewLastVersion.get()),
+                        (isNightlyBuildType && previewCurrentVersion > previewLastVersion.get()),
                     // KMK <--
                 )
             }

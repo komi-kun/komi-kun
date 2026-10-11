@@ -1,5 +1,5 @@
-name: Preview Builder
-# Manually build a preview on master
+name: Nightly Builder
+# Manually build a nightly on master
 
 on:
   # Dispatch or Manual triggers
@@ -86,8 +86,8 @@ jobs:
         id: prepare_env
         run: |
           tag_prefix=r
-          artifacts_prefix=preview/app
-          build_type_name=Preview
+          artifacts_prefix=nightly/app
+          build_type_name=Nightly
 
           echo "TAG_NAME=${tag_prefix}${{ steps.current_commit.outputs.COMMIT_COUNT }}"
           echo "TAG_NAME=${tag_prefix}${{ steps.current_commit.outputs.COMMIT_COUNT }}" >> $GITHUB_OUTPUT
@@ -150,7 +150,7 @@ jobs:
         run: ./gradlew spotlessCheck
 
       - name: Build app
-        run: ./gradlew assemblePreview -Pdist=ci
+        run: ./gradlew assembleNightly -Pdist=ci
 
       - name: Run unit tests
         run: ./gradlew testDebugUnitTest
@@ -175,7 +175,7 @@ jobs:
       - name: Sign APK
         uses: r0adkll/sign-android-release@f30bdd30588842ac76044ecdbd4b6d0e3e813478
         with:
-          releaseDirectory: app/build/outputs/apk/preview
+          releaseDirectory: app/build/outputs/apk/nightly
           signingKeyBase64: ${{ secrets.SIGNING_KEY }}
           alias: ${{ secrets.ALIAS }}
           keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
@@ -188,17 +188,17 @@ jobs:
         run: |
           set -e
 
-          mv app/build/outputs/apk/${{ needs.prepare-build.outputs.ARTIFACTS_PREFIX }}-universal-preview-signed.apk Komikku-${{ needs.prepare-build.outputs.TAG_NAME }}.apk
-          mv app/build/outputs/apk/${{ needs.prepare-build.outputs.ARTIFACTS_PREFIX }}-arm64-v8a-preview-signed.apk Komikku-arm64-v8a-${{ needs.prepare-build.outputs.TAG_NAME }}.apk
-          mv app/build/outputs/apk/${{ needs.prepare-build.outputs.ARTIFACTS_PREFIX }}-armeabi-v7a-preview-signed.apk Komikku-armeabi-v7a-${{ needs.prepare-build.outputs.TAG_NAME }}.apk
-          mv app/build/outputs/apk/${{ needs.prepare-build.outputs.ARTIFACTS_PREFIX }}-x86-preview-signed.apk Komikku-x86-${{ needs.prepare-build.outputs.TAG_NAME }}.apk
-          mv app/build/outputs/apk/${{ needs.prepare-build.outputs.ARTIFACTS_PREFIX }}-x86_64-preview-signed.apk Komikku-x86_64-${{ needs.prepare-build.outputs.TAG_NAME }}.apk
+          mv app/build/outputs/apk/${{ needs.prepare-build.outputs.ARTIFACTS_PREFIX }}-universal-nightly-signed.apk Komikku-${{ needs.prepare-build.outputs.TAG_NAME }}.apk
+          mv app/build/outputs/apk/${{ needs.prepare-build.outputs.ARTIFACTS_PREFIX }}-arm64-v8a-nightly-signed.apk Komikku-arm64-v8a-${{ needs.prepare-build.outputs.TAG_NAME }}.apk
+          mv app/build/outputs/apk/${{ needs.prepare-build.outputs.ARTIFACTS_PREFIX }}-armeabi-v7a-nightly-signed.apk Komikku-armeabi-v7a-${{ needs.prepare-build.outputs.TAG_NAME }}.apk
+          mv app/build/outputs/apk/${{ needs.prepare-build.outputs.ARTIFACTS_PREFIX }}-x86-nightly-signed.apk Komikku-x86-${{ needs.prepare-build.outputs.TAG_NAME }}.apk
+          mv app/build/outputs/apk/${{ needs.prepare-build.outputs.ARTIFACTS_PREFIX }}-x86_64-nightly-signed.apk Komikku-x86_64-${{ needs.prepare-build.outputs.TAG_NAME }}.apk
 
       - name: Create release
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           tag_name: ${{ needs.prepare-build.outputs.TAG_NAME }}
-          name: Komikku Preview ${{ needs.prepare-build.outputs.TAG_NAME }} (${{ needs.prepare-build.outputs.VERSION_TAG }})
+          name: Komikku Nightly ${{ needs.prepare-build.outputs.TAG_NAME }} (${{ needs.prepare-build.outputs.VERSION_TAG }})
           body: |
             [![GitHub downloads](https://img.shields.io/github/downloads/komi-kun/komi-kun/${{ needs.prepare-build.outputs.TAG_NAME }}/total?label=Downloaded&labelColor=27303D&color=0D1117&logo=github&logoColor=FFFFFF&style=flat)](https://github.com/komi-kun/komi-kun/releases/${{ needs.prepare-build.outputs.TAG_NAME }})
             #### What's Changed

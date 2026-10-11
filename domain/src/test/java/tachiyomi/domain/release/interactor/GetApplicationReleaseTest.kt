@@ -22,7 +22,7 @@ class GetApplicationReleaseTest {
     }
 
     @Test
-    fun `When has update but is preview expect new update`() = runTest {
+    fun `When has update but is nightly expect new update`() = runTest {
         val releases = listOf(
             Release(
                 "r2000",
@@ -37,7 +37,7 @@ class GetApplicationReleaseTest {
         val result = getApplicationRelease.await(
             GetApplicationRelease.Arguments(
                 isFoss = false,
-                isPreview = true,
+                isNightly = true,
                 commitCount = 1000,
                 versionName = "",
                 repository = "test",
@@ -65,7 +65,7 @@ class GetApplicationReleaseTest {
         val result = getApplicationRelease.await(
             GetApplicationRelease.Arguments(
                 isFoss = false,
-                isPreview = false,
+                isNightly = false,
                 commitCount = 0,
                 versionName = "v1.0.0",
                 repository = "test",
@@ -93,7 +93,7 @@ class GetApplicationReleaseTest {
         val result = getApplicationRelease.await(
             GetApplicationRelease.Arguments(
                 isFoss = false,
-                isPreview = false,
+                isNightly = false,
                 commitCount = 0,
                 versionName = "v1.0.0",
                 repository = "test",
@@ -117,11 +117,11 @@ class GetApplicationReleaseTest {
 
         coEvery { releaseService.releaseNotes(any()) } returns releases
 
-        // A preview build must ignore "v*" releases (they ship a different apk)
+        // A nightly build must ignore "v*" releases (they ship a different apk)
         val result = getApplicationRelease.await(
             GetApplicationRelease.Arguments(
                 isFoss = false,
-                isPreview = true,
+                isNightly = true,
                 commitCount = 1000,
                 versionName = "",
                 repository = "test",
@@ -147,7 +147,7 @@ class GetApplicationReleaseTest {
         val result = getApplicationRelease.await(
             GetApplicationRelease.Arguments(
                 isFoss = false,
-                isPreview = false,
+                isNightly = false,
                 commitCount = 0,
                 versionName = "v2.0.0",
                 repository = "test",

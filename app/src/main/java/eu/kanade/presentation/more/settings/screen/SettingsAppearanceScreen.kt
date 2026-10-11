@@ -105,7 +105,7 @@ object SettingsAppearanceScreen : SearchableSettings {
                 Preference.PreferenceItem.TextPreference(
                     title = stringResource(KMR.strings.pref_custom_color),
                     subtitle = stringResource(KMR.strings.custom_color_description),
-                    enabled = appTheme == AppTheme.CUSTOM,
+                    visible = appTheme == AppTheme.CUSTOM,
                     onClick = { navigator.push(AppCustomThemeColorPickerScreen()) },
                 ),
                 Preference.PreferenceItem.ListPreference(
@@ -135,7 +135,7 @@ object SettingsAppearanceScreen : SearchableSettings {
                         }
                         .toMap(),
                     title = stringResource(KMR.strings.pref_custom_theme_style),
-                    enabled = appTheme == AppTheme.CUSTOM,
+                    visible = appTheme == AppTheme.CUSTOM,
                     onValueChanged = {
                         (context as? Activity)?.let { ActivityCompat.recreate(it) }
                         true
@@ -145,7 +145,7 @@ object SettingsAppearanceScreen : SearchableSettings {
                 Preference.PreferenceItem.SwitchPreference(
                     preference = amoledPref,
                     title = stringResource(MR.strings.pref_dark_theme_pure_black),
-                    enabled = themeMode != ThemeMode.LIGHT,
+                    visible = themeMode != ThemeMode.LIGHT,
                     onValueChanged = {
                         (context as? Activity)?.let { ActivityCompat.recreate(it) }
                         true
@@ -198,7 +198,7 @@ object SettingsAppearanceScreen : SearchableSettings {
                         }
                         .toMap(),
                     title = stringResource(KMR.strings.pref_theme_cover_based_style),
-                    enabled = mangaInfoThemeCoverBased,
+                    visible = mangaInfoThemeCoverBased,
                 ),
                 Preference.PreferenceItem.SwitchPreference(
                     preference = uiPreferences.usePanoramaCoverMangaInfo,

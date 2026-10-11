@@ -68,11 +68,11 @@ object SettingsBrowseScreen : SearchableSettings {
                         preference = uiPreferences.expandRelatedMangas,
                         title = stringResource(KMR.strings.pref_expand_related_mangas),
                         subtitle = stringResource(KMR.strings.pref_expand_related_mangas_summary),
-                        enabled = sourcePreferences.relatedMangas.get(),
+                        visible = sourcePreferences.relatedMangas.get(),
                     ),
                     Preference.PreferenceItem.SwitchPreference(
                         preference = uiPreferences.relatedMangasInOverflow,
-                        enabled = !relatedMangasInOverflow,
+                        visible = !relatedMangasInOverflow,
                         title = stringResource(KMR.strings.put_related_mangas_in_overflow),
                         subtitle = stringResource(KMR.strings.put_related_mangas_in_overflow_summary),
                     ),
@@ -80,7 +80,7 @@ object SettingsBrowseScreen : SearchableSettings {
                         preference = uiPreferences.showHomeOnRelatedMangas,
                         title = stringResource(KMR.strings.pref_show_home_on_related_mangas),
                         subtitle = stringResource(KMR.strings.pref_show_home_on_related_mangas_summary),
-                        enabled = sourcePreferences.relatedMangas.get(),
+                        visible = sourcePreferences.relatedMangas.get(),
                     ),
                     // KMK <--
                     run {
@@ -121,7 +121,7 @@ object SettingsBrowseScreen : SearchableSettings {
                         preference = uiPreferences.feedTabInFront,
                         title = stringResource(SYMR.strings.pref_feed_position),
                         subtitle = stringResource(SYMR.strings.pref_feed_position_summery),
-                        enabled = hideFeedTab.not(),
+                        visible = hideFeedTab.not(),
                     ),
                     // KMK -->
                     Preference.PreferenceItem.SwitchPreference(

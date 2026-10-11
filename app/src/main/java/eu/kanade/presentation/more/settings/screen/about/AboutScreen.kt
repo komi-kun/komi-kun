@@ -35,7 +35,8 @@ import eu.kanade.tachiyomi.util.CrashLogUtil
 import eu.kanade.tachiyomi.util.lang.toDateTimestampString
 import eu.kanade.tachiyomi.util.system.copyToClipboard
 import eu.kanade.tachiyomi.util.system.isDebugBuildType
-import eu.kanade.tachiyomi.util.system.isPreviewBuildType
+import eu.kanade.tachiyomi.util.system.isFossBuildType
+import eu.kanade.tachiyomi.util.system.isNightlyBuildType
 import eu.kanade.tachiyomi.util.system.isReleaseBuildType
 import eu.kanade.tachiyomi.util.system.toast
 import eu.kanade.tachiyomi.util.system.updaterEnabled
@@ -369,8 +370,8 @@ class AboutScreen : Screen() {
                     }
                 }
 
-                isPreviewBuildType -> {
-                    "Beta r${BuildConfig.COMMIT_COUNT}".let {
+                isNightlyBuildType -> {
+                    "Nightly r${BuildConfig.COMMIT_COUNT}".let {
                         if (withBuildDate) {
                             "$it (${BuildConfig.COMMIT_SHA}, ${getFormattedBuildTime()})"
                         } else {
@@ -383,7 +384,8 @@ class AboutScreen : Screen() {
                 // This fork has no stable channel: every release is a bleeding-edge
                 // prerelease, so don't label the tagged build as "Stable".
                 else -> {
-                    "Release ${BuildConfig.VERSION_NAME}".let {
+                    val channel = if (isFossBuildType) "FOSS" else "Release"
+                    "$channel ${BuildConfig.VERSION_NAME}".let {
                         if (withBuildDate) {
                             "$it (${getFormattedBuildTime()})"
                         } else {

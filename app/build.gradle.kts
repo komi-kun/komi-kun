@@ -110,7 +110,7 @@ android {
 
             matchingFallbacks.addAll(commonMatchingFallbacks)
         }
-        create("preview") {
+        create("nightly") {
             initWith(release)
 
             applicationIdSuffix = ".beta"
@@ -140,7 +140,7 @@ android {
     }
 
     sourceSets {
-        getByName("preview").res.directories.add("src/beta/res")
+        getByName("nightly").res.directories.add("src/beta/res")
         getByName("benchmark").res.directories.add("src/debug/res")
     }
 
