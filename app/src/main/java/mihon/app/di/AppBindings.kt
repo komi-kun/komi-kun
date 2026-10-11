@@ -27,6 +27,7 @@ import nl.adaptivity.xmlutil.XmlDeclMode
 import nl.adaptivity.xmlutil.core.XmlVersion
 import nl.adaptivity.xmlutil.serialization.XML
 import tachiyomi.data.Database
+import tachiyomi.source.local.AllowHiddenFiles
 
 @BindingContainer
 object AppBindings {
@@ -119,8 +120,8 @@ object AppBindings {
     // KMK -->
     @Provides
     @SingleIn(AppScope::class)
-    fun providesAllowHiddenFiles(sourcePreferences: SourcePreferences): Boolean =
-        sourcePreferences.allowLocalSourceHiddenFolders.get()
+    fun providesAllowHiddenFiles(sourcePreferences: SourcePreferences): AllowHiddenFiles =
+        AllowHiddenFiles { sourcePreferences.allowLocalSourceHiddenFolders.get() }
 
     @Provides
     @SingleIn(AppScope::class)
