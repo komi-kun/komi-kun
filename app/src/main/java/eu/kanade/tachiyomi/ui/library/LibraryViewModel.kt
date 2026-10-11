@@ -69,7 +69,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.WhileSubscribed
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
@@ -86,6 +85,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.plus
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import mihon.core.common.utils.mutate
@@ -93,8 +93,10 @@ import mihon.core.metro.AppCoroutineScope
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.preference.CheckboxState
 import tachiyomi.core.common.preference.TriState
+import tachiyomi.core.common.util.lang.SubscriberGate
 import tachiyomi.core.common.util.lang.compareToWithCollator
 import tachiyomi.core.common.util.lang.launchIO
+import tachiyomi.core.common.util.lang.pausedWhileUnsubscribed
 import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.domain.category.interactor.SetMangaCategories
@@ -178,6 +180,8 @@ class LibraryViewModel(
     // SY -->
     private var recommendationSearchJob: Job? = null
     // SY <--
+
+    private val subscriberGate = SubscriberGate()
 
     private val searchQuery = MutableStateFlow<String?>(null)
 
@@ -346,7 +350,7 @@ class LibraryViewModel(
         // KMK <--
     }
         .flowOn(Dispatchers.IO)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5.seconds), null)
+        .stateIn(viewModelScope + subscriberGate, SharingStarted.Eagerly, null)
 
     private data class DisplayState(
         val activeCategoryIndex: Int,
@@ -401,7 +405,7 @@ class LibraryViewModel(
             // KMK <--
         )
     }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5.seconds), State())
+        .stateIn(viewModelScope + subscriberGate, subscriberGate.whileSubscribed(5.seconds), State())
 
     private data class DisplayPreferences(
         val showCategoryTabs: Boolean,
@@ -611,10 +615,9 @@ class LibraryViewModel(
         }
         // SY <--
 
+        // The collator already ignores case, and lowercasing on every comparison is slow on large libraries
         val sortAlphabetically: (LibraryItem, LibraryItem) -> Int = { manga1, manga2 ->
-            val title1 = manga1.libraryManga.manga.title.lowercase()
-            val title2 = manga2.libraryManga.manga.title.lowercase()
-            title1.compareToWithCollator(title2)
+            manga1.libraryManga.manga.title.compareToWithCollator(manga2.libraryManga.manga.title)
         }
 
         val defaultTrackerScoreSortValue = -1.0
@@ -758,17 +761,20 @@ class LibraryViewModel(
         return combine(
             getLibraryManga.subscribe(),
             getLibraryItemPreferencesFlow(),
-            downloadCache.changes,
+            downloadCache.changes.pausedWhileUnsubscribed(),
         ) { libraryManga, preferences, _ ->
             val sources = libraryManga
                 .mapTo(mutableSetOf()) { it.manga.source }
                 .associateWith { sourceManager.getOrStub(it) }
+            val downloadCounts = downloadManager.getDownloadCounts(libraryManga.map { it.manga })
             libraryManga.map { manga ->
                 // SY -->
                 val downloadCount = if (manga.manga.source == MERGED_SOURCE_ID) {
                     getMergedMangaById.await(manga.manga.id).sumOf { downloadManager.getDownloadCount(it) }
                 } else {
-                    downloadManager.getDownloadCount(manga.manga)
+                    // KMK --> counts are batched for the whole library, so reuse them here
+                    downloadCounts.getValue(manga.id)
+                    // KMK <--
                 }
                 // SY <--
                 // KMK -->

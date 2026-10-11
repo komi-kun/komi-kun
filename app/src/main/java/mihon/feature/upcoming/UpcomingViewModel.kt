@@ -14,9 +14,7 @@ import eu.kanade.core.util.insertSeparatorsReversed
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.WhileSubscribed
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
@@ -24,6 +22,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.plus
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.YearMonth
@@ -31,6 +30,7 @@ import kotlinx.datetime.toLocalDateTime
 import kotlinx.datetime.yearMonth
 import mihon.domain.upcoming.interactor.GetUpcomingManga
 import tachiyomi.core.common.preference.getAndSet
+import tachiyomi.core.common.util.lang.SubscriberGate
 import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.domain.category.model.Category
 import tachiyomi.domain.library.service.LibraryPreferences
@@ -50,6 +50,8 @@ class UpcomingViewModel(
     private val libraryPreferences: LibraryPreferences,
     // KMK <--
 ) : ViewModel() {
+
+    private val subscriberGate = SubscriberGate()
 
     val excludedCategories = upcomingPreferences.filterExcludedCategories
     val includedCategories = upcomingPreferences.filterIncludedCategories
@@ -125,7 +127,7 @@ class UpcomingViewModel(
     ) { partial, isShowingUpdatingMangas ->
         partial.copy(isShowingUpdatingMangas = isShowingUpdatingMangas)
     }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5.seconds), State())
+        .stateIn(viewModelScope + subscriberGate, subscriberGate.whileSubscribed(5.seconds), State())
 
     private fun List<Manga>.toUpcomingUIModels(): List<UpcomingUIModel> {
         var mangaCount = 0

@@ -97,9 +97,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.WhileSubscribed
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
@@ -114,9 +112,11 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.plus
 import kotlinx.coroutines.withContext
 import logcat.LogPriority
 import mihon.core.metro.AppCoroutineScope
@@ -127,8 +127,10 @@ import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.preference.CheckboxState
 import tachiyomi.core.common.preference.TriState
 import tachiyomi.core.common.preference.mapAsCheckboxState
+import tachiyomi.core.common.util.lang.SubscriberGate
 import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.core.common.util.lang.launchNonCancellable
+import tachiyomi.core.common.util.lang.pausedWhileUnsubscribed
 import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.core.common.util.lang.withUIContext
 import tachiyomi.core.common.util.system.logcat
@@ -245,6 +247,8 @@ class MangaViewModel(
     private val insertLibraryUpdateErrorMessages: InsertLibraryUpdateErrorMessages,
     private val deleteChaptersFromDb: DeleteChapters,
 ) : ViewModel() {
+
+    private val subscriberGate = SubscriberGate()
 
     @AssistedFactory
     @ManualViewModelAssistedFactoryKey
@@ -423,8 +427,8 @@ class MangaViewModel(
             .distinctUntilChanged(),
         mergedData,
         combine(
-            downloadCache.changes,
-            downloadManager.queueState,
+            downloadCache.changes.pausedWhileUnsubscribed(),
+            downloadManager.queueState.pausedWhileUnsubscribed(),
             customMangaInfoOverride,
         ) { _, _, override -> override },
     ) { (manga, chapters), flatMetadata, mergedData, override ->
@@ -528,7 +532,7 @@ class MangaViewModel(
         mangaAndChapters,
         scanlators,
         trackers,
-        combine(selectedChapterIds, queuedDownloadStates, ::Pair),
+        combine(selectedChapterIds, queuedDownloadStates.pausedWhileUnsubscribed(), ::Pair),
         combine(dialog, isRefreshingData, uiExtras) { dialog, isRefreshingData, extras ->
             DialogAndExtras(dialog, isRefreshingData, extras)
         },
@@ -588,7 +592,7 @@ class MangaViewModel(
             it.missingChapterCount
         }
         .flowOn(Dispatchers.IO)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5.seconds), State.Loading)
+        .stateIn(viewModelScope + subscriberGate, subscriberGate.whileSubscribed(5.seconds), State.Loading)
 
     init {
         viewModelScope.launch(Dispatchers.Default) {
@@ -599,7 +603,8 @@ class MangaViewModel(
                 .collect(::updateDownloadState)
         }
         viewModelScope.launch(Dispatchers.Default) {
-            downloadManager.progressFlow()
+            // Each tick rebuilds the shown chapter items, so cap how often that happens
+            downloadManager.progressFlow().sample(200.milliseconds)
                 // SY: same as above, downloads aren't filtered by manga id for merged entries.
                 .catch { logcat(LogPriority.ERROR, it) }
                 .collect { downloadProgress[it.chapter.id] = it.progress }

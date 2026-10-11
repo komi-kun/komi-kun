@@ -70,8 +70,10 @@ import eu.kanade.tachiyomi.util.system.toast
 import exh.metadata.metadata.base.TrackerIdMetadata
 import exh.source.MERGED_SOURCE_ID
 import exh.source.getMainSource
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
@@ -917,6 +919,8 @@ data class TrackerSearchScreen(
 
         private val tracker = trackerManager.get(trackerId)!!
 
+        private var searchJob: Job? = null
+
         val supportsPrivateTracking = tracker.supportsPrivateTracking
 
         init {
@@ -927,7 +931,8 @@ data class TrackerSearchScreen(
         }
 
         fun trackingSearch(query: String) {
-            viewModelScope.launch {
+            searchJob?.cancel()
+            searchJob = viewModelScope.launch {
                 // To show loading state
                 state.update { it.copy(queryResult = null, selected = null) }
 
@@ -936,6 +941,7 @@ data class TrackerSearchScreen(
                         val results = tracker.search(query.sanitize())
                         Result.success(results)
                     } catch (e: Throwable) {
+                        if (e is CancellationException) throw e
                         Result.failure(e)
                     }
                 }

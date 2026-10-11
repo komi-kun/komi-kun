@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.os.SystemClock
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -90,14 +91,26 @@ class LibraryUpdateNotifier(
         }
     }
 
+    private var lastProgressNotificationTime = 0L
+
     /**
      * Shows the notification containing the currently updating manga and the progress.
+     *
+     * Called from several update coroutines at once, so it shares the builder under a lock and skips updates that
+     * come faster than the system would show them anyway.
      *
      * @param manga the manga that are being updated.
      * @param current the current progress.
      * @param total the total progress.
      */
+    // KMK --> stays suspend: [libraryUpdateStatus.updateProgress] below suspends, so upstream's
+    // @Synchronized cannot be applied; the throttle below is kept
     suspend fun showProgressNotification(manga: List<Manga>, current: Int, total: Int) {
+        val now = SystemClock.elapsedRealtime()
+        if (current < total && now - lastProgressNotificationTime < NOTIF_PROGRESS_INTERVAL_MS) return
+        lastProgressNotificationTime = now
+
+        // KMK <--
         progressNotificationBuilder
             .setContentTitle(
                 context.stringResource(
@@ -411,3 +424,4 @@ private const val NOTIF_MAX_CHAPTERS = 5
 private const val NOTIF_TITLE_MAX_LEN = 45
 private const val NOTIF_ICON_SIZE = 192
 private const val MANGA_PER_SOURCE_QUEUE_WARNING_THRESHOLD = 60
+private const val NOTIF_PROGRESS_INTERVAL_MS = 500L

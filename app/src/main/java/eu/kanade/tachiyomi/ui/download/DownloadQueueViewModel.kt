@@ -19,7 +19,6 @@ import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.ui.manga.MangaScreen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.WhileSubscribed
@@ -27,6 +26,8 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -238,11 +239,8 @@ class DownloadQueueViewModel(
      */
     private fun launchProgressJob(download: Download) {
         val job = viewModelScope.launch {
-            while (download.pages == null) {
-                delay(50.milliseconds)
-            }
-
-            val progressFlows = download.pages!!.map(Page::progressFlow)
+            val pages = download.pagesFlow.filterNotNull().first()
+            val progressFlows = pages.map(Page::progressFlow)
             combine(progressFlows, Array<Int>::sum)
                 .distinctUntilChanged()
                 .debounce(50.milliseconds)

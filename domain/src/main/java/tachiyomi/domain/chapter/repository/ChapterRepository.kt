@@ -2,6 +2,7 @@ package tachiyomi.domain.chapter.repository
 
 import kotlinx.coroutines.flow.Flow
 import tachiyomi.domain.chapter.model.Chapter
+import tachiyomi.domain.chapter.model.ChapterSummary
 import tachiyomi.domain.chapter.model.ChapterUpdate
 
 interface ChapterRepository {
@@ -27,6 +28,8 @@ interface ChapterRepository {
     // KMK -->
     suspend fun getChaptersByMangaIds(mangaIds: List<Long>): List<Chapter>
     // KMK <--
+
+    suspend fun getChapterSummaryByMangaId(mangaId: Long): ChapterSummary
 
     suspend fun getScanlatorsByMangaId(mangaId: Long): List<String>
 

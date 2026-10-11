@@ -8,12 +8,13 @@ import app.cash.sqldelight.coroutines.asFlow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
+import tachiyomi.core.common.util.lang.pausedWhileUnsubscribed
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 
 fun <T : Any> Query<T>.subscribeToList(
     context: CoroutineContext = EmptyCoroutineContext,
-): Flow<List<T>> = asFlow().map {
+): Flow<List<T>> = asFlow().pausedWhileUnsubscribed().map {
     withContext(context) {
         it.awaitAsList()
     }
@@ -21,7 +22,7 @@ fun <T : Any> Query<T>.subscribeToList(
 
 fun <T : Any> Query<T>.subscribeToOne(
     context: CoroutineContext = EmptyCoroutineContext,
-): Flow<T> = asFlow().map {
+): Flow<T> = asFlow().pausedWhileUnsubscribed().map {
     withContext(context) {
         it.awaitAsOne()
     }
@@ -29,7 +30,7 @@ fun <T : Any> Query<T>.subscribeToOne(
 
 fun <T : Any> Query<T>.subscribeToOneOrNull(
     context: CoroutineContext = EmptyCoroutineContext,
-): Flow<T?> = asFlow().map {
+): Flow<T?> = asFlow().pausedWhileUnsubscribed().map {
     withContext(context) {
         it.awaitAsOneOrNull()
     }

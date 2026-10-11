@@ -16,6 +16,7 @@ import tachiyomi.data.MemoColumnAdapter
 import tachiyomi.data.chapter.ChapterMapper.mapChapter
 import tachiyomi.data.subscribeToList
 import tachiyomi.domain.chapter.model.Chapter
+import tachiyomi.domain.chapter.model.ChapterSummary
 import tachiyomi.domain.chapter.model.ChapterUpdate
 import tachiyomi.domain.chapter.repository.ChapterRepository
 import tachiyomi.domain.manga.model.Manga
@@ -189,6 +190,14 @@ class ChapterRepositoryImpl(
                 ChapterMapper::mapChapter,
             )
             .awaitAsList()
+    }
+
+    override suspend fun getChapterSummaryByMangaId(mangaId: Long): ChapterSummary {
+        return database.chapterQueries
+            .getChapterSummaryByMangaId(mangaId) { total, latestChapterNumber ->
+                ChapterSummary(chapterCount = total, latestChapterNumber = latestChapterNumber)
+            }
+            .awaitAsOne()
     }
 
     override suspend fun getScanlatorsByMangaId(mangaId: Long): List<String> {

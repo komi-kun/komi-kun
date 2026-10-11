@@ -277,8 +277,7 @@ class SyncChaptersWithSource(
 
         // Set this manga as updated since chapters were changed
         // Note that last_update actually represents last time the chapter list changed at all
-        updateManga.awaitUpdateFetchInterval(manga, timeZone, now, fetchWindow, foundRelease)
-        updateManga.awaitUpdateLastUpdate(manga.id)
+        updateManga.awaitUpdateFetchIntervalAndLastUpdate(manga, timeZone, now, fetchWindow, foundRelease)
 
         return added.filterNot { it.url in changedOrDuplicateReadUrls || it.scanlator in excludedScanlators }
     }
