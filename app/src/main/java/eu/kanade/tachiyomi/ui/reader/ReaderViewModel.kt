@@ -332,12 +332,24 @@ class ReaderViewModel(
         }
         // SY <--
 
-        val selectedChapter = chapters.find { it.id == chapterId }
+        // KMK -->
+        // A chapter requested directly (deep link, notification, continue reading) whose scanlator
+        // is excluded by the manga's filter is absent from the filtered list, so the lookup below
+        // would throw and the reader would never open. Re-add the requested chapter from the
+        // unfiltered list. Adapted from Mihon 2b4b8472bb, kept merged-source aware.
+        val chaptersWithRequested = if (chapters.any { it.id == chapterId }) {
+            chapters
+        } else {
+            chapters + unfilteredChapterList.filter { it.id == chapterId }
+        }
+        // KMK <--
+
+        val selectedChapter = chaptersWithRequested.find { it.id == chapterId }
             ?: error("Requested chapter of id $chapterId not found in chapter list")
 
         val chaptersForReader = when {
             (readerPreferences.skipRead.get() || readerPreferences.skipFiltered.get()) -> {
-                val filteredChapters = chapters.filterNot {
+                val filteredChapters = chaptersWithRequested.filterNot {
                     when {
                         readerPreferences.skipRead.get() && it.read -> true
                         readerPreferences.skipFiltered.get() -> {
@@ -366,7 +378,7 @@ class ReaderViewModel(
                     filteredChapters + listOf(selectedChapter)
                 }
             }
-            else -> chapters
+            else -> chaptersWithRequested
         }
 
         chaptersForReader
