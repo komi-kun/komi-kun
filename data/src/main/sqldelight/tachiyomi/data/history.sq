@@ -20,19 +20,9 @@ SELECT id, chapter_id, read_at, read_duration
 FROM history
 WHERE manga_id = :mangaId;
 
--- SY -->
-getHistoryByChapterUrlAndMangaId:
-SELECT
-H.id,
-H.chapter_id,
-H.read_at,
-H.read_duration
-FROM history H
-JOIN chapter C
-ON H.chapter_id = C.id
-WHERE C.remote_url = :chapterUrl AND C.manga_id = :mangaId AND C.id = H.chapter_id
-LIMIT 1;
--- SY <--
+-- KMK -->
+-- Removed unused SY query getHistoryByChapterUrlAndMangaId
+-- KMK <--
 
 -- KMK -->
 resetHistoryByIds:
