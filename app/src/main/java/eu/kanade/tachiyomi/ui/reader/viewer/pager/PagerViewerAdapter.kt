@@ -119,6 +119,9 @@ class PagerViewerAdapter(
 
         chapters.nextChapter?.pages?.let(newItems::addAll)
 
+        // KMK: upstream calls this list `items`, the fork keeps its `subItems` name
+        val currentItem = subItems.getOrNull(viewer.pager.currentItem)
+
         // Resets double-page splits, else insert pages get misplaced
         subItems.filterIsInstance<InsertPage>().also { subItems.removeAll(it) }
 
@@ -134,6 +137,14 @@ class PagerViewerAdapter(
         }
         doubledUp = viewer.config.doublePages
         setJoinedItems(useSecondPage)
+
+        // The pager only follows the pages it has created, so before its first layout it would stay at the same
+        // position while pages are added in front, e.g. the next chapter's in right to left, and land in another
+        // chapter
+        val currentPosition = subItems.indexOf(currentItem)
+        if (currentPosition != -1 && currentPosition != viewer.pager.currentItem) {
+            viewer.pager.setCurrentItem(currentPosition, false)
+        }
 
         // Will skip insert page otherwise
         if (insertPageLastPage != null) {
