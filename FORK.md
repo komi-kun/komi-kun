@@ -72,7 +72,12 @@ assume these are the current state, not divergences:
 - **Preference getters are properties** (`val`, not `fun`) — ported from Mihon #3091 / SY #3091.
 - **Jetpack AndroidX ViewModel** — screens use `ViewModel`; Voyager is kept for navigation only.
 - **`WebGPU` renderer (`ca.mpreg:webgpuviewer`)** plus the **mpreg `ca.mpreg:imagedecoder`** and
-  progressive rendering; SSIV remains for the non-high-quality modes.
+  progressive rendering; SSIV remains for the non-high-quality modes. Mihon's **v0.21.0 release**
+  reverted it (`f45d0ad31d`, release-tag only — it was experimental and unstable, with ~17 follow-up
+  fixes), but we **follow `mihon/main`** and keep it. The choice stays user-facing: `Settings →
+  Advanced → Use high quality renderer` (`basePreferences.highQualityRenderer`, default off) switches
+  WebGPU ↔ SSIV, with an automatic SSIV fallback when `WebGpuRenderer.isAvailable` is false, plus the
+  KMK `alwaysDecodeLongStripWithSSIV` override for long strip.
 - **Material Symbols + Valkyrie** generated icons (`icons/material-symbols`, …);
   `material-icons-extended` is gone.
 - **Apollo GraphQL** trackers (AniList, Kitsu, Shikimori, Suwayomi).
@@ -103,9 +108,10 @@ assume these are the current state, not divergences:
   via `mihon/app/di/injekt/KMKMetroInteropModule.kt`. Converting those is a redesign, not a
   mechanical move. New code should prefer Metro constructor injection.
 - **Metro interop follow-ups**: `1c43addeca` ("Resolve Injekt dependencies directly from the Metro
-  graph") is adapted locally in `0f0c72f0ef`, but `d435dd9217` ("Switch to upstream Injekt") is not
-  ported: the fork still depends on the `com.github.mihonapp:injekt` fork instead of upstream
-  `uy.kohesive.injekt:injekt-core`, alongside its own `KMKMetroInteropModule`.
+  graph") is adapted locally in `0f0c72f0ef`. `d435dd9217` ("Switch to upstream Injekt") is **now
+  ported** — the fork depends on upstream `uy.kohesive.injekt:injekt-core` instead of the
+  `com.github.mihonapp:injekt` fork — while the remaining Injekt consumers are still bridged from the
+  Metro graph by the fork's own `KMKMetroInteropModule`.
 - `c67a33f3d4` ("Remove unused sync scaffold") is not ported — SyncYomi v2 uses
   `version`/`is_syncing`/`last_modified_at`.
 
