@@ -26,6 +26,7 @@ abstract class Installer(private val service: Service) {
     private val extensionManager: ExtensionManager by lazy { service.appGraph.extensionManager }
 
     private var waitingInstall = AtomicReference<Entry?>(null)
+    // Guarded by itself: cancellation comes from any thread, not only main
     // KMK -->
     private val queue = Collections.synchronizedSet(mutableSetOf<Entry>())
     // KMK <--
@@ -102,17 +103,19 @@ abstract class Installer(private val service: Service) {
         if (!ready) {
             return
         }
-        if (queue.isEmpty()) {
-            service.stopSelf()
-            return
-        }
-        val nextEntry = queue.first()
-        if (waitingInstall.compareAndSet(null, nextEntry)) {
+        val nextEntry = synchronized(queue) {
+            if (queue.isEmpty()) {
+                service.stopSelf()
+                return
+            }
+            val entry = queue.first()
+            if (!waitingInstall.compareAndSet(null, entry)) return
             // KMK -->
-            queue.remove(nextEntry)
+            queue.remove(entry)
             // KMK <--
-            processEntry(nextEntry)
+            entry
         }
+        processEntry(nextEntry)
     }
 
     /**
@@ -121,11 +124,11 @@ abstract class Installer(private val service: Service) {
     @CallSuper
     open fun onDestroy() {
         LocalBroadcastManager.getInstance(service).unregisterReceiver(cancelReceiver)
-        queue.forEach {
+        val remaining = synchronized(queue) { queue.toList().also { queue.clear() } }
+        remaining.forEach {
             logcat(LogPriority.INFO) { "The installer stopped before installing ${it.downloadId}" }
             extensionManager.updateInstallStep(it.downloadId, InstallStep.Error)
         }
-        queue.clear()
         waitingInstall.store(null)
     }
 
