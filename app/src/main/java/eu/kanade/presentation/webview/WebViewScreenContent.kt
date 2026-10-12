@@ -3,8 +3,10 @@ package eu.kanade.presentation.webview
 import android.content.pm.ApplicationInfo
 import android.graphics.Bitmap
 import android.os.Message
+import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -42,12 +44,15 @@ import eu.kanade.tachiyomi.util.system.getHtml
 import eu.kanade.tachiyomi.util.system.isDebugBuildType
 import eu.kanade.tachiyomi.util.system.setDefaultSettings
 import eu.kanade.tachiyomi.util.system.setUserAgent
+import eu.kanade.tachiyomi.util.system.toast
 import kotlinx.coroutines.launch
+import logcat.LogPriority
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.automirroredrounded.ArrowBack
 import mihon.icons.materialsymbols.automirroredrounded.ArrowForward
 import mihon.icons.materialsymbols.rounded.Close
 import mihon.icons.materialsymbols.rounded.TabClose
+import tachiyomi.core.common.util.system.logcat
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.i18n.stringResource
@@ -143,6 +148,17 @@ fun WebViewScreenContent(
                 }
 
                 return false
+            }
+
+            override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
+                // Not handling it kills the app along with the page
+                logcat(LogPriority.ERROR) {
+                    "WebView renderer gone: crashed=${detail.didCrash()}, " +
+                        "priority=${detail.rendererPriorityAtExit()}, url=$currentUrl"
+                }
+                view.context.toast(MR.strings.information_webview_crashed, Toast.LENGTH_LONG)
+                onNavigateUp()
+                return true
             }
         }
     }
