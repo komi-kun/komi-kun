@@ -28,14 +28,38 @@ DROP TRIGGER IF EXISTS update_last_favorited_at_mangas;
 DROP INDEX library_favorite_index;
 
 -- ---------------------------------------------------------------------------------------------------------
+-- orphans
+-- ---------------------------------------------------------------------------------------------------------
+
+-- Rows pointing at an entry, chapter or category that no longer exists were written while foreign keys weren't
+-- enforced. Nothing can reach them, and copied over they'd fail the foreign key check that ends the migration.
+DELETE FROM chapters WHERE manga_id NOT IN (SELECT _id FROM mangas);
+DELETE FROM history WHERE chapter_id NOT IN (SELECT _id FROM chapters);
+DELETE FROM mangas_categories
+WHERE manga_id NOT IN (SELECT _id FROM mangas) OR category_id NOT IN (SELECT _id FROM categories);
+DELETE FROM manga_sync WHERE manga_id NOT IN (SELECT _id FROM mangas);
+DELETE FROM excluded_scanlators WHERE manga_id NOT IN (SELECT _id FROM mangas);
+-- KMK -->
+-- Komikku/SY extra tables that are rebuilt with a foreign key to `manga` further down, so the same
+-- leftovers would fail their copy just as well.
+DELETE FROM search_metadata WHERE manga_id NOT IN (SELECT _id FROM mangas);
+DELETE FROM search_tags WHERE manga_id NOT IN (SELECT _id FROM mangas);
+DELETE FROM search_titles WHERE manga_id NOT IN (SELECT _id FROM mangas);
+DELETE FROM libraryUpdateError WHERE manga_id NOT IN (SELECT _id FROM mangas);
+DELETE FROM merged
+WHERE manga_id NOT IN (SELECT _id FROM mangas) OR merge_id NOT IN (SELECT _id FROM mangas);
+-- KMK <--
+
+-- ---------------------------------------------------------------------------------------------------------
 -- favorite related fields merged into favorite_at
 -- ---------------------------------------------------------------------------------------------------------
 
 ALTER TABLE mangas ADD COLUMN favorite_at INTEGER;
 
+-- favorite_modified_at is no fallback for a missing date_added: every manga update rewrote it
 UPDATE mangas
 SET favorite_at = CASE
-    WHEN favorite = 1 THEN coalesce(nullif(date_added, 0), favorite_modified_at * 1000, 0)
+    WHEN favorite = 1 THEN coalesce(date_added, 0)
     ELSE NULL
 END;
 
@@ -60,6 +84,9 @@ WHERE (source, url) IN (
     GROUP BY source, url
     HAVING count(*) > 1
 );
+
+-- Moving the chapters looks each one's entry up here, which without an index scans the whole table per chapter
+CREATE INDEX duplicate_mangas_id_index ON duplicate_mangas(_id);
 -- KMK <--
 
 UPDATE mangas
