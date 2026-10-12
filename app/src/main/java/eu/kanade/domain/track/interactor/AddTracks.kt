@@ -9,11 +9,9 @@ import eu.kanade.tachiyomi.data.track.EnhancedTracker
 import eu.kanade.tachiyomi.data.track.Tracker
 import eu.kanade.tachiyomi.data.track.TrackerManager
 import eu.kanade.tachiyomi.source.Source
-import eu.kanade.tachiyomi.util.lang.convertEpochMillisZone
 import eu.kanade.tachiyomi.util.system.toast
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.datetime.TimeZone
 import logcat.LogPriority
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.util.lang.withUIContext
@@ -74,10 +72,7 @@ class AddTracks(
                     .minOrNull()
 
                 firstReadChapterDate?.let {
-                    val startDate = firstReadChapterDate.toEpochMilliseconds().convertEpochMillisZone(
-                        TimeZone.currentSystemDefault(),
-                        TimeZone.UTC,
-                    )
+                    val startDate = firstReadChapterDate.toEpochMilliseconds()
                     track = track.copy(
                         startDate = Instant.fromEpochMilliseconds(startDate),
                     )
