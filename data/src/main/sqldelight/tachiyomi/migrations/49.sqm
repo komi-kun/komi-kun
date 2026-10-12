@@ -61,6 +61,9 @@ WHERE (source, url) IN (
     GROUP BY source, url
     HAVING count(*) > 1
 );
+
+-- Moving the chapters looks each one's entry up here, which without an index scans the whole table per chapter
+CREATE INDEX duplicate_mangas_id_index ON duplicate_mangas(_id);
 -- KMK <--
 
 UPDATE mangas
