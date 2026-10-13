@@ -17,6 +17,7 @@ import eu.kanade.tachiyomi.data.sync.service.SyncData
 import eu.kanade.tachiyomi.data.sync.service.SyncResult
 import eu.kanade.tachiyomi.data.sync.service.SyncYomiSyncService
 import eu.kanade.tachiyomi.data.sync.service.WebDavSyncService
+import kotlinx.coroutines.flow.toList
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.protobuf.ProtoBuf
 import logcat.LogPriority
@@ -157,13 +158,14 @@ class SyncManager(
 
         logcat(LogPriority.DEBUG) { "Begin create backup (full=$full)" }
         val backupManga = backupCreator.backupMangas(databaseManga, backupOptions)
+            .toList()
             // SY -->
             .let { if (full) it else changedSince(it, syncPreferences.lastPushedAt.get()) }
         // SY <--
         val backup = Backup(
             backupManga = backupManga,
             backupCategories = backupCreator.backupCategories(backupOptions),
-            backupSources = backupCreator.backupSources(backupManga),
+            backupSources = backupCreator.backupSources(backupManga.mapTo(mutableSetOf()) { it.source }),
             // SY -->
             // KMK -->
             // `categorized_display` is derived from the categories; a sync restore sets it, which would

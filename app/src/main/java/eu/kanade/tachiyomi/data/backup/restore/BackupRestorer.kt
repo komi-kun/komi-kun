@@ -10,7 +10,6 @@ import eu.kanade.tachiyomi.data.backup.BackupNotifier
 import eu.kanade.tachiyomi.data.backup.models.BackupCategory
 import eu.kanade.tachiyomi.data.backup.models.BackupExtensionStore
 import eu.kanade.tachiyomi.data.backup.models.BackupFeed
-import eu.kanade.tachiyomi.data.backup.models.BackupManga
 import eu.kanade.tachiyomi.data.backup.models.BackupPreference
 import eu.kanade.tachiyomi.data.backup.models.BackupSavedSearch
 import eu.kanade.tachiyomi.data.backup.models.BackupSource
@@ -28,6 +27,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.chunked
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.withIndex
 import kotlinx.coroutines.launch
 import logcat.LogPriority
 import tachiyomi.core.common.i18n.stringResource
@@ -38,6 +43,7 @@ import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
 import java.io.File
 import java.text.SimpleDateFormat
+import java.util.BitSet
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.CopyOnWriteArrayList
@@ -116,7 +122,7 @@ class BackupRestorer(
     }
 
     private suspend fun restoreFromFile(uri: Uri, options: RestoreOptions) {
-        val backup = backupDecoder.decode(uri)
+        val (entryCount, backup) = backupDecoder.decodeMetadata(uri)
 
         // Store source mapping for error messages
         val backupMaps = backup.backupSources
@@ -124,7 +130,7 @@ class BackupRestorer(
 
         if (options.libraryEntries) {
             restoreSourceNames(backupMaps)
-            restoreAmount += backup.backupManga.size
+            restoreAmount += entryCount
         }
         if (options.categories) {
             restoreAmount += 1
@@ -178,7 +184,7 @@ class BackupRestorer(
             if (options.libraryEntries) {
                 // SY -->
                 restoreManga(
-                    backup.backupManga,
+                    uri,
                     if (options.categories) backup.backupCategories else emptyList(),
                     categoriesRestoreJob,
                 )
@@ -250,7 +256,7 @@ class BackupRestorer(
     // SY <--
 
     private fun CoroutineScope.restoreManga(
-        backupMangas: List<BackupManga>,
+        uri: Uri,
         backupCategories: List<BackupCategory>,
         // SY -->
         categoriesRestoreJob: Job? = null,
@@ -259,9 +265,35 @@ class BackupRestorer(
         // SY -->
         categoriesRestoreJob?.join()
         // SY <--
-        mangaRestorer.sortByNew(backupMangas)
+
+        // New entries go first, and a merged entry goes last because it resolves its references
+        // against entries that must already be in the database. Rather than hold the entries back in
+        // memory, each group is read again in its own pass.
+        val isExisting = mangaRestorer.getExistingMatcher()
+        val existingIndices = BitSet()
+        val deferredIndices = BitSet()
+        val newMangas = backupDecoder.decodeEntries(uri)
+            .withIndex()
+            .filter { (index, manga) ->
+                val existing = isExisting(manga)
+                val deferred = mangaRestorer.isDeferred(manga)
+                if (deferred) {
+                    deferredIndices.set(index)
+                } else if (existing) {
+                    existingIndices.set(index)
+                }
+                !existing && !deferred
+            }
+            .map { it.value }
+        val backupMangas = flow {
+            emitAll(newMangas)
+            emitAll(backupDecoder.decodeEntries(uri, existingIndices::get))
+            emitAll(backupDecoder.decodeEntries(uri, deferredIndices::get))
+        }
+
+        backupMangas
             .chunked(100)
-            .forEach { chunk ->
+            .collect { chunk ->
                 val restoredAsBatch = try {
                     ensureActive()
                     mangaRestorer.restore(chunk, backupCategories)

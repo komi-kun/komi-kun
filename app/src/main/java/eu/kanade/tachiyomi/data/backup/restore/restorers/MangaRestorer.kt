@@ -27,18 +27,20 @@ class MangaRestorer(
     private val now = Clock.System.now().toLocalDateTime(timeZone)
     private val currentFetchWindow = fetchInterval.getWindow(now.date, timeZone)
 
-    suspend fun sortByNew(backupMangas: List<BackupManga>): List<BackupManga> {
+    /**
+     * Returns whether an entry was already in the database at the time of this call.
+     */
+    suspend fun getExistingMatcher(): (BackupManga) -> Boolean {
         val urlsBySource = restoreRepository.getMangaUrlsBySourceId()
 
-        return backupMangas
-            .sortedWith(
-                // KMK -->
-                compareBy<BackupManga> { it.source == MERGED_SOURCE_ID }
-                    // KMK <--
-                    .then(compareBy { it.url in urlsBySource[it.source].orEmpty() })
-                    .then(compareByDescending { it.lastModifiedAt }),
-            )
+        return { it.url in urlsBySource[it.source].orEmpty() }
     }
+
+    /**
+     * Whether an entry has to be restored after the others. A merged entry resolves its references
+     * against entries that must already be in the database, so it cannot go first.
+     */
+    fun isDeferred(backupManga: BackupManga): Boolean = backupManga.source == MERGED_SOURCE_ID
 
     /**
      * Restores [backupMangas] all together, so either every one of them is restored or none is.
