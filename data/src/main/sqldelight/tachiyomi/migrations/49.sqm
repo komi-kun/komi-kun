@@ -28,6 +28,89 @@ DROP TRIGGER IF EXISTS update_last_favorited_at_mangas;
 DROP INDEX library_favorite_index;
 
 -- ---------------------------------------------------------------------------------------------------------
+-- damaged indexes
+-- ---------------------------------------------------------------------------------------------------------
+
+-- Some databases hold rows their unique constraints should have rejected, which a damaged index explains. A
+-- write to a table also writes its indexes and fails on a damaged one, and a read through one can miss rows,
+-- so each table changed in place below is first copied from its rows alone, leaving its indexes behind.
+CREATE TABLE mangas_copy AS
+SELECT
+    _id, source, url, artist, author, description, genre, title, status, thumbnail_url, favorite, last_update,
+    next_update, initialized, viewer, chapter_flags, cover_last_modified, date_added, filtered_scanlators,
+    update_strategy, calculate_interval, last_modified_at, favorite_modified_at, version, is_syncing, notes, memo
+FROM mangas NOT INDEXED;
+DROP TABLE mangas;
+ALTER TABLE mangas_copy RENAME TO mangas;
+
+CREATE TABLE chapters_copy AS
+SELECT
+    _id, manga_id, url, name, scanlator, read, bookmark, last_page_read, chapter_number, source_order, date_fetch,
+    date_upload, last_modified_at, version, is_syncing, memo
+FROM chapters NOT INDEXED;
+DROP TABLE chapters;
+ALTER TABLE chapters_copy RENAME TO chapters;
+
+CREATE TABLE history_copy AS
+SELECT _id, chapter_id, last_read, time_read
+FROM history NOT INDEXED;
+DROP TABLE history;
+ALTER TABLE history_copy RENAME TO history;
+
+CREATE TABLE mangas_categories_copy AS
+SELECT _id, manga_id, category_id, last_modified_at
+FROM mangas_categories NOT INDEXED;
+DROP TABLE mangas_categories;
+ALTER TABLE mangas_categories_copy RENAME TO mangas_categories;
+
+CREATE TABLE manga_sync_copy AS
+SELECT
+    _id, manga_id, sync_id, remote_id, library_id, title, last_chapter_read, total_chapters, status, score,
+    remote_url, start_date, finish_date, private
+FROM manga_sync NOT INDEXED;
+DROP TABLE manga_sync;
+ALTER TABLE manga_sync_copy RENAME TO manga_sync;
+
+CREATE TABLE excluded_scanlators_copy AS
+SELECT manga_id, scanlator
+FROM excluded_scanlators NOT INDEXED;
+DROP TABLE excluded_scanlators;
+ALTER TABLE excluded_scanlators_copy RENAME TO excluded_scanlators;
+
+-- Merging duplicate chapters looks their history up by chapter
+CREATE INDEX history_chapter_id_index ON history(chapter_id);
+
+-- KMK -->
+-- Komikku/SY extra tables that are read and rewritten below, so they are copied from their rows alone the
+-- same way: a damaged index would make a write fail or a read miss a row.
+CREATE TABLE search_metadata_copy AS
+SELECT manga_id, uploader, extra, indexed_extra, extra_version
+FROM search_metadata NOT INDEXED;
+DROP TABLE search_metadata;
+ALTER TABLE search_metadata_copy RENAME TO search_metadata;
+
+CREATE TABLE search_tags_copy AS
+SELECT _id, manga_id, namespace, name, type
+FROM search_tags NOT INDEXED;
+DROP TABLE search_tags;
+ALTER TABLE search_tags_copy RENAME TO search_tags;
+
+CREATE TABLE search_titles_copy AS
+SELECT _id, manga_id, title, type
+FROM search_titles NOT INDEXED;
+DROP TABLE search_titles;
+ALTER TABLE search_titles_copy RENAME TO search_titles;
+
+CREATE TABLE merged_copy AS
+SELECT
+    _id, info_manga, get_chapter_updates, chapter_sort_mode, chapter_priority, download_chapters,
+    merge_id, merge_url, manga_id, manga_url, manga_source
+FROM merged NOT INDEXED;
+DROP TABLE merged;
+ALTER TABLE merged_copy RENAME TO merged;
+-- KMK <--
+
+-- ---------------------------------------------------------------------------------------------------------
 -- orphans
 -- ---------------------------------------------------------------------------------------------------------
 
@@ -461,11 +544,14 @@ CREATE TABLE history(
     ON DELETE CASCADE
 );
 
+-- Some databases hold more than one row for a chapter despite the old unique constraint, and the new one
+-- rejects them, so they merge the way the history of duplicate chapters does above.
 INSERT INTO history(id, manga_id, chapter_id, read_at, read_duration)
-SELECT H._id, C.manga_id, H.chapter_id, H.last_read, H.time_read
+SELECT min(H._id), C.manga_id, H.chapter_id, max(H.last_read), sum(H.time_read)
 FROM history_temp H
 JOIN chapter C
-ON C.id = H.chapter_id;
+ON C.id = H.chapter_id
+GROUP BY H.chapter_id;
 
 DROP TABLE history_temp;
 
@@ -498,16 +584,20 @@ DROP TABLE excluded_scanlators;
 
 -- KMK -->
 -- Scratch table. Dropped before the migration finishes; DROP IF EXISTS keeps it re-runnable.
+-- A surviving entry that merged can leave two rows for the same tracker, and an entry that didn't merge
+-- can still hold two despite the old unique constraint. The new one rejects both, so the one to keep is
+-- chosen first: one on a copy in the library, then the one furthest read, then the one on the copy ranked
+-- first, then the oldest. The LEFT JOIN also brings in tracks of entries that never merged.
 DROP TABLE IF EXISTS duplicate_tracks;
 CREATE TABLE duplicate_tracks AS
 SELECT
     T._id,
     first_value(T._id) OVER (
-        PARTITION BY D.keep_id, T.sync_id
+        PARTITION BY coalesce(D.keep_id, T.manga_id), T.sync_id
         ORDER BY D.favorite DESC, T.last_chapter_read DESC, D.precedence ASC, T._id ASC
     ) AS keep_track_id
 FROM manga_sync T
-JOIN duplicate_mangas D
+LEFT JOIN duplicate_mangas D
 ON D._id = T.manga_id;
 -- KMK <--
 
