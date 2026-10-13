@@ -11,7 +11,7 @@ How to update / review: [.claude/skills/cherrypick-log/README.md](.claude/skills
 
 | Upstream | O | ? | X | empty | other | total |
 |---|--:|--:|--:|--:|--:|--:|
-| mihon | 845 | 33 | 65 | 363 | 0 | 1306 |
+| mihon | 846 | 33 | 65 | 362 | 0 | 1306 |
 | tachiyomiSY | 816 | 3 | 15 | 184 | 0 | 1018 |
 
 ## Commits
@@ -315,7 +315,7 @@ How to update / review: [.claude/skills/cherrypick-log/README.md](.claude/skills
 | O | [9c3cc1ca5f](https://github.com/mihonapp/mihon/commit/9c3cc1ca5f0011c4b3638d8f5272080d219bfb2e) | mihon | 2026-07-23 | Convert :source-api and :source-local to android library module (#3636) | AntsyLich | chore/syncyomi-v2-mihon-backlog `513b1615ec` [hash of mihon] |  |
 |   | [31ff413144](https://github.com/jobobby04/TachiyomiSY/commit/31ff413144d8929f0bb4f8d8e9f4930e0ac2656e) | ↳ tachiyomiSY | 2026-10-11 | Optimize imports across all modules (#3635) | NGB-Was-Taken | pick of mihon `47d7c0f2ea` [pr+title] |  |
 |   | [47d7c0f2ea](https://github.com/mihonapp/mihon/commit/47d7c0f2ea3349c586008db4da3ae1fd571d28ab) | mihon | 2026-07-23 | Optimize imports across all modules (#3635) | NGB-Was-Taken |  |  |
-|   | [e7ec672c8b](https://github.com/mihonapp/mihon/commit/e7ec672c8b4d52c734311177544fae5406781e16) | mihon | 2026-07-22 | Rework library search to use an AST-based approach (#3554) | NGB-Was-Taken |  |  |
+| O | [e7ec672c8b](https://github.com/mihonapp/mihon/commit/e7ec672c8b4d52c734311177544fae5406781e16) | mihon | 2026-07-22 | Rework library search to use an AST-based approach (#3554) | NGB-Was-Taken | chore/syncyomi-v2-mihon-backlog `c7e0fbd064` [hash of mihon] |  |
 | O | [82ee03df5c](https://github.com/jobobby04/TachiyomiSY/commit/82ee03df5c765b6c809aa44bf4a06de98adb18ff) | ↳ tachiyomiSY | 2026-10-11 | Always use Private installer to update Private extensions (#3614) | MajorTanya | pick of mihon `e454cf8e9d` [pr+title]; chore/syncyomi-v2-mihon-backlog `bc4d129180` [hash of mihon, title+author] |  |
 | O | [e454cf8e9d](https://github.com/mihonapp/mihon/commit/e454cf8e9d6edc6027bc54741112fd5ce09ec79a) | mihon | 2026-07-21 | Always use Private installer to update Private extensions (#3614) | MajorTanya | chore/syncyomi-v2-mihon-backlog `bc4d129180` [hash of mihon, title+author] |  |
 | O | [2c03122571](https://github.com/jobobby04/TachiyomiSY/commit/2c03122571afd23905dbbc8d551787a4c1cc5cea) | ↳ tachiyomiSY | 2026-10-11 | Fix incorrect progress when resuming resumable image downloads (#3616) | Mohannad | pick of mihon `6981185f4b` [pr+title]; chore/syncyomi-v2-mihon-backlog `ea3d94de57` [hash of mihon, title+author] |  |
