@@ -51,6 +51,15 @@ class CategoryRepositoryImpl(
             .subscribeToList()
     }
 
+    override suspend fun getCategoriesByMangaIds(mangaIds: List<Long>): Map<Long, List<Category>> {
+        return database.categoryQueries
+            .getCategoriesByMangaIds(mangaIds) { mangaId, id, name, order, flags, hidden, version, uid, lastModifiedAt ->
+                mangaId to CategoryMapper.mapCategory(id, name, order, flags, hidden, version, uid, lastModifiedAt)
+            }
+            .awaitAsList()
+            .groupBy({ it.first }, { it.second })
+    }
+
     // SY -->
     override suspend fun insert(category: Category): Long? {
         return database.transactionWithResult {
