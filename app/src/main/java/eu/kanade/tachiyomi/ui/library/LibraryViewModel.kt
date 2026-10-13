@@ -780,6 +780,10 @@ class LibraryViewModel(
                     // KMK --> matches are case-insensitive, so store the lowercased name like Mihon
                     sourceName = source.name.lowercase(),
                     // KMK <--
+                    // KMK --> unconditional: the AST `language:`/`lang:` search reads this field
+                    // (the language badge below is separate and stays gated on the preference)
+                    sourceLanguage = source.lang,
+                    // KMK <--
                     badges = LibraryItem.Badges(
                         downloadCount = if (preferences.downloadBadge) {
                             // SY -->
