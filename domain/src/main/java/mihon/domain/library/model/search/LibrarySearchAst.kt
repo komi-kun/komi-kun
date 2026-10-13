@@ -90,3 +90,55 @@ data class ComparisonQueryNode(
     val queryComparator: Comparator,
     val negated: Boolean,
 ) : QueryNode
+
+// KMK -->
+/**
+ * A TachiyomiSY EH/NHentai metadata namespace term (e.g. `artist:foo`, `g:circle`).
+ *
+ * Mihon's AST has no equivalent field, so the parser emits this node and the app layer resolves it
+ * against the stored flat metadata (`search_tags`, plus the uploader column) instead of silently
+ * binding it to an unrelated manga field.
+ */
+data class MetadataQueryNode(
+    val namespace: String,
+    val value: String,
+    val negated: Boolean,
+) : QueryNode
+
+/**
+ * TachiyomiSY EH/NHentai tag namespaces and their short/long aliases (see the old
+ * `exh.search.SearchEngine.parseQuery` alias table).
+ *
+ * `language`/`lang` are deliberately **not** listed: Mihon's AST already binds them to the source
+ * language (and the details-screen shortcut relies on that), so only the short `l` alias keeps the
+ * TachiyomiSY metadata meaning. `genre`/`tag`, `source`/`src`, `title`, `author`, ... likewise stay
+ * Mihon fields.
+ */
+object MetadataNamespace {
+    private val aliases = mapOf(
+        "a" to "artist",
+        "artist" to "artist",
+        "c" to "character",
+        "char" to "character",
+        "character" to "character",
+        "f" to "female",
+        "female" to "female",
+        "g" to "group",
+        "creator" to "group",
+        "circle" to "group",
+        "group" to "group",
+        "l" to "language",
+        "m" to "male",
+        "male" to "male",
+        "p" to "parody",
+        "series" to "parody",
+        "parody" to "parody",
+        "r" to "reclass",
+        "reclass" to "reclass",
+        "uploader" to "uploader",
+    )
+
+    /** Returns the canonical namespace for [value], or null when it is not a metadata namespace. */
+    fun canonical(value: String): String? = aliases[value.lowercase()]
+}
+// KMK <--

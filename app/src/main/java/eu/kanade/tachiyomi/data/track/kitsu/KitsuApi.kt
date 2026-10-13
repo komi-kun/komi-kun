@@ -138,8 +138,8 @@ class KitsuApi(
             .dataOrElse(
                 errorLog = "Kitsu: Failed to delete manga",
                 default = {},
-                onException = { e ->
-                    val body = e.body?.use { it.readUtf8() }
+                // KMK -->
+                onException = { e, body ->
                     if (
                         e.statusCode == 500 &&
                         body?.contains("Couldn't find LibraryEntry with 'id'=") == true
@@ -152,6 +152,7 @@ class KitsuApi(
                         throw HttpException(e.statusCode).apply { stackTrace = e.stackTrace }
                     }
                 },
+                // KMK <--
             ) {
                 logcat { "Kitsu: Deleted library entry ${it.libraryEntry.delete?.libraryEntry?.id}" }
             }

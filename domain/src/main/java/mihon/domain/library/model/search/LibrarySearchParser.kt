@@ -65,6 +65,10 @@ class LibrarySearchParser(private val tokens: List<LibrarySearchLexer.Token>) {
             is LibrarySearchLexer.Token.General -> GeneralQueryNode(nextToken.value, negated)
             is LibrarySearchLexer.Token.Field -> {
                 // KMK -->
+                // TachiyomiSY EH/NHentai metadata namespaces (`artist:`, `g:`, ...) take precedence
+                // over Mihon's same-named fields, because the metadata meaning is the useful one for
+                // EH/NHentai libraries (`artist:` used to match the manga's group/artist field).
+                val metadataNamespace = MetadataNamespace.canonical(nextToken.field)
                 // TachiyomiSY compatibility shims (Mihon's grammar otherwise treats these as literals):
                 //  - `src:<digits>` used to match the *source id*, not the source name
                 //  - `id:<n>` (and any comparator-less comparison field) means equality, i.e. `=`
@@ -78,6 +82,8 @@ class LibrarySearchParser(private val tokens: List<LibrarySearchLexer.Token>) {
                     null
                 }
                 when {
+                    metadataNamespace != null ->
+                        MetadataQueryNode(metadataNamespace, nextToken.value, negated)
                     numericSource -> FieldQueryNode(MangaField.SOURCE_ID, nextToken.value, negated)
                     field != null -> FieldQueryNode(field, nextToken.value, negated)
                     comparisonField != null ->

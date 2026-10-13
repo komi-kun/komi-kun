@@ -47,6 +47,7 @@ import exh.source.ExhPreferences
 import exh.source.MANGADEX_IDS
 import exh.source.MERGED_SOURCE_ID
 import exh.source.isEhBasedManga
+import exh.source.isMetadataSource
 import exh.source.mangaDexSourceIds
 import exh.source.nHentaiSourceIds
 import exh.util.isLewd
@@ -83,9 +84,12 @@ import mihon.domain.library.model.search.ComparisonQueryNode
 import mihon.domain.library.model.search.EmptyQueryNode
 import mihon.domain.library.model.search.FieldQueryNode
 import mihon.domain.library.model.search.GeneralQueryNode
+import mihon.domain.library.model.search.MetadataQueryNode
 import mihon.domain.library.model.search.NotNode
 import mihon.domain.library.model.search.OrNode
 import mihon.domain.library.model.search.QueryNode
+import mihon.feature.library.LibrarySearchMetadata
+import mihon.feature.library.containsMetadataQuery
 import mihon.feature.library.matches
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.preference.CheckboxState
@@ -110,6 +114,8 @@ import tachiyomi.domain.library.model.LibraryManga
 import tachiyomi.domain.library.model.LibrarySort
 import tachiyomi.domain.library.model.sort
 import tachiyomi.domain.library.service.LibraryPreferences
+import tachiyomi.domain.manga.interactor.GetFlatMetadataById
+import tachiyomi.domain.manga.interactor.GetIdsOfFavoriteMangaWithMetadata
 import tachiyomi.domain.manga.interactor.GetLibraryManga
 import tachiyomi.domain.manga.interactor.GetMergedMangaById
 import tachiyomi.domain.manga.interactor.SetCustomMangaInfo
@@ -164,6 +170,8 @@ class LibraryViewModel(
     // SY <--
     // KMK -->
     private val smartSearchMerge: SmartSearchMerge,
+    private val getFlatMetadataById: GetFlatMetadataById,
+    private val getIdsOfFavoriteMangaWithMetadata: GetIdsOfFavoriteMangaWithMetadata,
     // KMK <--
 ) : ViewModel() {
 
@@ -1158,7 +1166,8 @@ class LibraryViewModel(
 
     // KMK -->
     // Replaces TachiyomiSY's custom search engine with Mihon's AST-based library search, while
-    // keeping a small supplement for tracker name / localized status matching (see below).
+    // keeping two small supplements: tracker name / localized status matching and the TachiyomiSY
+    // EH/NHentai metadata namespace search (see below).
     private suspend fun filterLibrary(
         unfiltered: List<LibraryItem>,
         query: String?,
@@ -1187,41 +1196,73 @@ class LibraryViewModel(
         }
         val context = preferences.context
 
+        // The EH/NHentai metadata supplement needs the flat metadata, which is expensive to load.
+        // Only do so when the query actually contains a metadata namespace term. `fastFilter`'s
+        // lambda is not suspend, so resolve the metadata in a suspend loop up front and look it up
+        // by manga id inside the filter.
+        val hasMetadataQuery = queryNode.containsMetadataQuery()
+        val metadataById: Map<Long, LibrarySearchMetadata?> = if (hasMetadataQuery) {
+            val metadataIds = getIdsOfFavoriteMangaWithMetadata.await().toHashSet()
+            val resolved = mutableMapOf<Long, LibrarySearchMetadata?>()
+            for (item in unfiltered) {
+                val mangaId = item.libraryManga.manga.id
+                if (resolved.containsKey(mangaId)) continue
+                resolved[mangaId] = if (mangaId in metadataIds &&
+                    isMetadataSource(item.libraryManga.manga.source)
+                ) {
+                    getFlatMetadataById.await(mangaId)?.let { flat ->
+                        LibrarySearchMetadata(uploader = flat.metadata.uploader, tags = flat.tags)
+                    }
+                } else {
+                    null
+                }
+            }
+            resolved
+        } else {
+            emptyMap()
+        }
+
         return unfiltered.fastFilter { item ->
-            queryNode.matchesWithTrackerSupplement(
+            queryNode.matchesWithSupplements(
                 item = item,
                 tracks = tracks[item.libraryManga.manga.id].orEmpty(),
                 context = context,
+                metadata = if (hasMetadataQuery) metadataById[item.libraryManga.manga.id] else null,
             )
         }
     }
 
     /**
-     * KMK tracker supplement on top of Mihon's AST search.
+     * KMK supplements on top of Mihon's AST search.
      *
-     * The AST ([mihon.feature.library.matches]) only inspects manga fields, so a plain-text general
-     * term is additionally allowed to match a logged-in tracker's name or the localized string of
-     * the entry's tracking status (via [filterTracks]) — e.g. `AniList` or `reading`. `field:` and
-     * comparison terms stay AST-only.
+     * The AST ([mihon.feature.library.matches]) only inspects manga fields, so:
+     *  - a plain-text general term additionally matches a logged-in tracker's name or the localized
+     *    string of the entry's tracking status (via [filterTracks]) — e.g. `AniList` or `reading`;
+     *  - a TachiyomiSY metadata namespace term ([MetadataQueryNode], e.g. `artist:foo`, `g:circle`)
+     *    is resolved against the entry's EH/NHentai flat metadata instead of an unrelated manga field.
+     *
+     * `field:` and comparison terms stay AST-only.
      *
      * Semantics: the AST node types are mirrored. A non-negated general term matches when either the
      * AST matches or a track matches; a negated general term matches only when neither matches
      * (so `-reading` also excludes entries whose tracker status is "reading").
      */
-    private fun QueryNode.matchesWithTrackerSupplement(
+    private fun QueryNode.matchesWithSupplements(
         item: LibraryItem,
         tracks: List<Track>,
         context: Context,
+        metadata: LibrarySearchMetadata?,
     ): Boolean = when (this) {
-        is AndNode -> children.all { it.matchesWithTrackerSupplement(item, tracks, context) }
-        is OrNode -> children.any { it.matchesWithTrackerSupplement(item, tracks, context) }
-        is NotNode -> !child.matchesWithTrackerSupplement(item, tracks, context)
+        is AndNode -> children.all { it.matchesWithSupplements(item, tracks, context, metadata) }
+        is OrNode -> children.any { it.matchesWithSupplements(item, tracks, context, metadata) }
+        is NotNode -> !child.matchesWithSupplements(item, tracks, context, metadata)
         is EmptyQueryNode -> true
         is GeneralQueryNode -> {
             val trackerMatch = tracks.isNotEmpty() && filterTracks(value, tracks, context)
             if (negated) matches(item) && !trackerMatch else matches(item) || trackerMatch
         }
         is FieldQueryNode, is ComparisonQueryNode -> matches(item)
+        is MetadataQueryNode -> matches(item, metadata)
     }
     // KMK <--
 

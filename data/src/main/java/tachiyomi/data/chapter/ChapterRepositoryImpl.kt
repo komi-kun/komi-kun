@@ -32,7 +32,10 @@ class ChapterRepositoryImpl(
     override suspend fun addAll(chapters: List<Chapter>): List<Chapter> {
         return try {
             database.transactionWithResult {
-                chapters.map { chapter ->
+                chapters.mapNotNull { chapter ->
+                    // KMK -->
+                    // `ON CONFLICT DO NOTHING` returns no row when a concurrent sync already stored the
+                    // chapter: skip it instead of letting awaitAsOne throw and abort the whole batch
                     val lastInsertId = database.chapterQueries.insert(
                         mangaId = chapter.mangaId,
                         remoteUrl = chapter.url,
@@ -51,7 +54,8 @@ class ChapterRepositoryImpl(
                         version = chapter.version,
                         isSyncing = 0L,
                         // SY <--
-                    ).awaitAsOne()
+                    ).awaitAsOneOrNull() ?: return@mapNotNull null
+                    // KMK <--
                     chapter.copy(id = lastInsertId)
                 }
             }
@@ -113,8 +117,10 @@ class ChapterRepositoryImpl(
 
             val stored = added
                 .filter { existing.add(it.mangaId to it.url) }
-                .map { chapter ->
-                    database.chapterQueries.insert(
+                .mapNotNull { chapter ->
+                    // A concurrent sync may have inserted this chapter between the query above and here:
+                    // `DO NOTHING` returns no row, so skip it rather than aborting the transaction
+                    val lastInsertId = database.chapterQueries.insert(
                         mangaId = chapter.mangaId,
                         remoteUrl = chapter.url,
                         remoteName = chapter.name,
@@ -130,8 +136,8 @@ class ChapterRepositoryImpl(
                         lastModifiedAt = chapter.lastModifiedAt,
                         version = chapter.version,
                         isSyncing = 0L,
-                    ).awaitAsOne()
-                        .let { lastInsertId -> chapter.copy(id = lastInsertId) }
+                    ).awaitAsOneOrNull() ?: return@mapNotNull null
+                    chapter.copy(id = lastInsertId)
                 }
 
             updated.forEach { chapterUpdate ->

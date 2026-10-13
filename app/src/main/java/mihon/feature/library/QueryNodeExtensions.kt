@@ -1,6 +1,7 @@
 package mihon.feature.library
 
 import eu.kanade.tachiyomi.ui.library.LibraryItem
+import exh.metadata.sql.models.SearchTag
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -11,6 +12,7 @@ import mihon.domain.library.model.search.EmptyQueryNode
 import mihon.domain.library.model.search.FieldQueryNode
 import mihon.domain.library.model.search.GeneralQueryNode
 import mihon.domain.library.model.search.MangaField
+import mihon.domain.library.model.search.MetadataQueryNode
 import mihon.domain.library.model.search.NotNode
 import mihon.domain.library.model.search.OrNode
 import mihon.domain.library.model.search.QueryNode
@@ -18,15 +20,61 @@ import tachiyomi.source.local.LocalSource
 import kotlin.math.abs
 import kotlin.time.Instant
 
-fun QueryNode.matches(item: LibraryItem): Boolean {
+// KMK -->
+/**
+ * The EH/NHentai flat metadata of a library entry that [MetadataQueryNode]s are matched against.
+ * [uploader] comes from `search_metadata`, [tags] from `search_tags`.
+ */
+data class LibrarySearchMetadata(
+    val uploader: String?,
+    val tags: List<SearchTag>,
+)
+
+/**
+ * Whether the query contains a TachiyomiSY metadata namespace term. The app layer uses this to
+ * avoid loading the EH/NHentai metadata at all for ordinary queries.
+ */
+fun QueryNode.containsMetadataQuery(): Boolean = when (this) {
+    is AndNode -> children.any { it.containsMetadataQuery() }
+    is OrNode -> children.any { it.containsMetadataQuery() }
+    is NotNode -> child.containsMetadataQuery()
+    is MetadataQueryNode -> true
+    is EmptyQueryNode, is GeneralQueryNode, is FieldQueryNode, is ComparisonQueryNode -> false
+}
+
+/**
+ * Resolves a metadata namespace term against [metadata]. A non-negated term matches only when the
+ * entry has metadata containing the tag (or uploader); a negated term also matches an entry without
+ * any metadata, mirroring TachiyomiSY's search engine.
+ */
+private fun MetadataQueryNode.matchesMetadata(metadata: LibrarySearchMetadata?): Boolean {
+    val match = when {
+        metadata == null -> false
+        namespace == "uploader" -> {
+            metadata.uploader?.contains(value, ignoreCase = true) == true ||
+                metadata.tags.any { it.matchesMetadataTag(namespace, value) }
+        }
+        else -> metadata.tags.any { it.matchesMetadataTag(namespace, value) }
+    }
+    return if (negated) !match else match
+}
+
+private fun SearchTag.matchesMetadataTag(namespace: String, value: String): Boolean =
+    this.namespace.equals(namespace, ignoreCase = true) && name.contains(value, ignoreCase = true)
+// KMK <--
+
+fun QueryNode.matches(item: LibraryItem, metadata: LibrarySearchMetadata? = null): Boolean {
     return when (this) {
-        is AndNode -> children.all { it.matches(item) }
-        is OrNode -> children.any { it.matches(item) }
-        is NotNode -> !child.matches(item)
+        is AndNode -> children.all { it.matches(item, metadata) }
+        is OrNode -> children.any { it.matches(item, metadata) }
+        is NotNode -> !child.matches(item, metadata)
         is EmptyQueryNode -> true
         is GeneralQueryNode -> matches(item)
         is FieldQueryNode -> matches(item)
         is ComparisonQueryNode -> matches(item)
+        // KMK -->
+        is MetadataQueryNode -> matchesMetadata(metadata)
+        // KMK <--
     }
 }
 

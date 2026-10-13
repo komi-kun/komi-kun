@@ -68,7 +68,13 @@ coil-gif = { module = "io.coil-kt.coil3:coil-gif" }
 coil-compose = { module = "io.coil-kt.coil3:coil-compose" }
 coil-network-okhttp = { module = "io.coil-kt.coil3:coil-network-okhttp" }
 
-subsamplingscaleimageview = "com.github.tachiyomiorg:subsampling-scale-image-view:66e0db195d"
+# KMK -->
+# Mihon's SSIV fork (its `Decoder` uses ca.mpreg:imagedecoder). The tachiyomiorg fork
+# (`66e0db195d`) still links against the legacy `tachiyomi.decoder.ImageDecoder`, which this fork no
+# longer ships (it uses ca.mpreg:imagedecoder), so its SSIV reader path crashed at runtime. This hash
+# is the one mihon/main pairs with image-decoder 16.
+subsamplingscaleimageview = "com.github.mihonapp:subsampling-scale-image-view:1b283e2bc4"
+# KMK <--
 image-decoder = { module = "ca.mpreg:imagedecoder", version.ref = "image-decoder" }
 webgpuviewer = { module = "ca.mpreg:webgpuviewer", version.ref = "webgpuviewer" }
 

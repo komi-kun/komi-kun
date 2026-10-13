@@ -142,4 +142,69 @@ class LibrarySearchParserTest {
     }
 
     // KMK <--
+
+    // KMK --> TachiyomiSY EH/NHentai metadata namespaces
+
+    @Test
+    fun `metadata long namespaces become metadata nodes`() {
+        QueryNode.from("artist:foo") shouldBe MetadataQueryNode("artist", "foo", negated = false)
+        QueryNode.from("group:foo") shouldBe MetadataQueryNode("group", "foo", negated = false)
+        QueryNode.from("parody:foo") shouldBe MetadataQueryNode("parody", "foo", negated = false)
+        QueryNode.from("character:foo") shouldBe MetadataQueryNode("character", "foo", negated = false)
+        QueryNode.from("uploader:foo") shouldBe MetadataQueryNode("uploader", "foo", negated = false)
+        QueryNode.from("female:foo") shouldBe MetadataQueryNode("female", "foo", negated = false)
+        QueryNode.from("male:foo") shouldBe MetadataQueryNode("male", "foo", negated = false)
+        QueryNode.from("reclass:foo") shouldBe MetadataQueryNode("reclass", "foo", negated = false)
+    }
+
+    @Test
+    fun `metadata short aliases resolve to the canonical namespace`() {
+        QueryNode.from("a:foo") shouldBe MetadataQueryNode("artist", "foo", negated = false)
+        QueryNode.from("c:foo") shouldBe MetadataQueryNode("character", "foo", negated = false)
+        QueryNode.from("char:foo") shouldBe MetadataQueryNode("character", "foo", negated = false)
+        QueryNode.from("f:foo") shouldBe MetadataQueryNode("female", "foo", negated = false)
+        QueryNode.from("g:foo") shouldBe MetadataQueryNode("group", "foo", negated = false)
+        QueryNode.from("creator:foo") shouldBe MetadataQueryNode("group", "foo", negated = false)
+        QueryNode.from("circle:foo") shouldBe MetadataQueryNode("group", "foo", negated = false)
+        QueryNode.from("l:foo") shouldBe MetadataQueryNode("language", "foo", negated = false)
+        QueryNode.from("m:foo") shouldBe MetadataQueryNode("male", "foo", negated = false)
+        QueryNode.from("p:foo") shouldBe MetadataQueryNode("parody", "foo", negated = false)
+        QueryNode.from("series:foo") shouldBe MetadataQueryNode("parody", "foo", negated = false)
+        QueryNode.from("r:foo") shouldBe MetadataQueryNode("reclass", "foo", negated = false)
+    }
+
+    @Test
+    fun `metadata namespaces are case insensitive`() {
+        QueryNode.from("ARTIST:foo") shouldBe MetadataQueryNode("artist", "foo", negated = false)
+        QueryNode.from("A:foo") shouldBe MetadataQueryNode("artist", "foo", negated = false)
+    }
+
+    @Test
+    fun `metadata namespace keeps the negation`() {
+        QueryNode.from("-artist:foo") shouldBe MetadataQueryNode("artist", "foo", negated = true)
+    }
+
+    @Test
+    fun `metadata namespace honours quoted values`() {
+        val node = QueryNode.from("artist:\"foo bar\"")
+        node.shouldBeInstanceOf<MetadataQueryNode>()
+        node.value shouldBe "foo bar"
+    }
+
+    @Test
+    fun `language and lang stay mihon source language fields`() {
+        // `language`/`lang` are used by the details-screen shortcut, so the SY `l` alias is the only
+        // one that maps to the metadata language namespace.
+        QueryNode.from("language:en") shouldBe FieldQueryNode(MangaField.LANGUAGE, "en", negated = false)
+        QueryNode.from("lang:en") shouldBe FieldQueryNode(MangaField.LANGUAGE, "en", negated = false)
+    }
+
+    @Test
+    fun `non metadata fields are unaffected by the metadata shim`() {
+        QueryNode.from("title:foo") shouldBe FieldQueryNode(MangaField.TITLE, "foo", negated = false)
+        QueryNode.from("tag:action") shouldBe FieldQueryNode(MangaField.GENRE, "action", negated = false)
+        QueryNode.from("source:foo") shouldBe FieldQueryNode(MangaField.SOURCE, "foo", negated = false)
+    }
+
+    // KMK <--
 }
