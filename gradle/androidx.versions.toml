@@ -1,7 +1,9 @@
 [versions]
 agp_version = "9.4.1"
 lifecycle_version = "2.10.0"
-paging_version = "3.4.1"
+# KMK -->
+paging_version = "3.5.3"
+# KMK <--
 interpolator_version = "1.0.0"
 sqlite = "2.7.1"
 # KMK -->
