@@ -10,8 +10,20 @@ import tachiyomi.core.common.preference.InMemoryPreferenceStore.InMemoryPreferen
  */
 class SyncPreferencesTest {
 
-    private fun syncPreferences(syncService: Int) = SyncPreferences(
-        InMemoryPreferenceStore(sequenceOf(InMemoryPreference("sync_service", syncService, 0))),
+    private fun syncPreferences(
+        syncService: Int,
+        // Tombstones are only recorded once the current host is a confirmed v2 server (see
+        // SyncPreferences.isSyncYomiV2), so a v2 server is the default for these tests.
+        serverSupportsV2: Boolean = true,
+        probedHost: String = "https://sync.tachiyomi.org",
+    ) = SyncPreferences(
+        InMemoryPreferenceStore(
+            sequenceOf(
+                InMemoryPreference("sync_service", syncService, 0),
+                InMemoryPreference("__APP_STATE_sync_server_supports_v2", serverSupportsV2, false),
+                InMemoryPreference("__APP_STATE_sync_v2_probed_host", probedHost, ""),
+            ),
+        ),
     )
 
     @Test

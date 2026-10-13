@@ -23,4 +23,4 @@ local.properties
 /app/src/main/assets/client_secrets.json
 *.jks
 *.keystore
-app/standard/preview/*
+app/standard/nightly/*

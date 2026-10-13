@@ -41,6 +41,7 @@ import androidx.core.view.updatePadding
 import ca.mpreg.webgpuviewer.renderer.GainmapInput
 import ca.mpreg.webgpuviewer.renderer.Image
 import ca.mpreg.webgpuviewer.renderer.Image.Companion.invoke
+import ca.mpreg.webgpuviewer.renderer.WebGpuRenderer
 import ca.mpreg.webgpuviewer.viewer.ImagePage
 import ca.mpreg.webgpuviewer.viewer.ImageViewer
 import ca.mpreg.webgpuviewer.viewer.ImageViewerState
@@ -89,7 +90,13 @@ fun MangaCoverDialog(
     val dropdownBgColor = MaterialTheme.colorScheme.surfaceVariant
     // KMK <--
 
-    val useNewRenderer = LocalContext.current.appGraph.basePreferences.highQualityRenderer.get()
+    // KMK -->
+    // Gate on device capability like the reader does (`ReadingMode`): with the preference on but the
+    // WebGPU renderer unavailable, rendering the full-screen cover would show a no-op surface instead of
+    // falling back to the SSIV viewer below.
+    val useNewRenderer = LocalContext.current.appGraph.basePreferences.highQualityRenderer.get() &&
+        runCatching { WebGpuRenderer.isAvailable }.getOrDefault(false)
+    // KMK <--
     val view = LocalView.current
 
     Dialog(

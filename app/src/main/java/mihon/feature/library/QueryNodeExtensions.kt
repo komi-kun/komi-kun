@@ -38,16 +38,16 @@ private fun GeneralQueryNode.matches(item: LibraryItem): Boolean {
         if (field.fieldOnly) return@any false
 
         when (field) {
-            MangaField.TITLE -> manga.title.contains(value, ignoreCase = true)
-            MangaField.AUTHOR -> manga.author?.contains(value, ignoreCase = true) ?: false
-            MangaField.ARTIST -> manga.artist?.contains(value, ignoreCase = true) ?: false
-            MangaField.DESCRIPTION -> manga.description?.contains(value, ignoreCase = true) ?: false
-            MangaField.GENRE -> manga.genre?.any { it.contains(value, ignoreCase = true) } ?: false
+            MangaField.TITLE -> manga.title.matchesSearchTerm(value)
+            MangaField.AUTHOR -> manga.author?.matchesSearchTerm(value) ?: false
+            MangaField.ARTIST -> manga.artist?.matchesSearchTerm(value) ?: false
+            MangaField.DESCRIPTION -> manga.description?.matchesSearchTerm(value) ?: false
+            MangaField.GENRE -> manga.genre?.any { it.matchesSearchTerm(value) } ?: false
             MangaField.SOURCE -> {
-                item.sourceName.contains(value, ignoreCase = true) ||
+                item.sourceName.matchesSearchTerm(value) ||
                     (value.equals("local", ignoreCase = true) && manga.source == LocalSource.ID)
             }
-            MangaField.NOTES -> manga.notes.contains(value, ignoreCase = true)
+            MangaField.NOTES -> manga.notes.matchesSearchTerm(value)
 
             // field-only queries; unreachable; added here to make `when` exhaustive
             MangaField.LANGUAGE, MangaField.SOURCE_ID -> error("How did we get here?")
@@ -64,7 +64,7 @@ private fun FieldQueryNode.matches(item: LibraryItem): Boolean {
             if (value.isEmpty()) {
                 manga.genre.isNullOrEmpty()
             } else {
-                manga.genre?.any { it.contains(value, ignoreCase = true) } ?: false
+                manga.genre?.any { it.matchesSearchTerm(value) } ?: false
             }
         }
 
@@ -72,7 +72,7 @@ private fun FieldQueryNode.matches(item: LibraryItem): Boolean {
             if (value.isEmpty()) {
                 item.sourceName.isEmpty()
             } else {
-                item.sourceName.contains(value, ignoreCase = true) ||
+                item.sourceName.matchesSearchTerm(value) ||
                     (value.equals("local", ignoreCase = true) && manga.source == LocalSource.ID)
             }
         }
@@ -97,7 +97,7 @@ private fun FieldQueryNode.matches(item: LibraryItem): Boolean {
             if (value.isEmpty()) {
                 text.isNullOrEmpty()
             } else {
-                text?.contains(value, ignoreCase = true) ?: false
+                text?.matchesSearchTerm(value) ?: false
             }
         }
     }
@@ -147,3 +147,32 @@ private fun ComparisonQueryNode.matches(item: LibraryItem): Boolean {
 
     return if (negated) !match else match
 }
+
+// KMK -->
+/**
+ * TachiyomiSY compatibility: restore the old wildcard matching. A term containing `*`/`%` (any
+ * sequence of characters) or `?` (exactly one character) is compiled to a regex and matched
+ * anywhere in the text, mirroring the old search engine's SQL `LIKE` handling. Every other term
+ * keeps the plain, case-insensitive substring match. (The old engine's `_` single-character
+ * wildcard is intentionally not restored: `_` is too common in real titles/URLs.)
+ */
+private fun String.matchesSearchTerm(term: String): Boolean =
+    if (term.contains('*') || term.contains('?') || term.contains('%')) {
+        matchesWildcard(term)
+    } else {
+        contains(term, ignoreCase = true)
+    }
+
+private fun String.matchesWildcard(term: String): Boolean {
+    val pattern = buildString {
+        term.forEach { char ->
+            when (char) {
+                '*', '%' -> append(".*")
+                '?' -> append('.')
+                else -> append(Regex.escape(char.toString()))
+            }
+        }
+    }
+    return Regex(pattern, RegexOption.IGNORE_CASE).containsMatchIn(this)
+}
+// KMK <--

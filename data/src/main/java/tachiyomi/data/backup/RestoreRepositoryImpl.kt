@@ -11,8 +11,6 @@ import exh.metadata.metadata.base.FlatMetadata
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import tachiyomi.data.Database
-import tachiyomi.data.MemoColumnAdapter
-import tachiyomi.data.UpdateStrategyColumnAdapter
 import tachiyomi.data.manga.MangaMapper
 import tachiyomi.data.manga.MergedMangaMapper
 import tachiyomi.domain.backup.model.RestoredHistory
@@ -30,7 +28,6 @@ import tachiyomi.domain.manga.repository.MangaRepository
 import tachiyomi.domain.track.model.Track
 import tachiyomi.domain.track.repository.TrackRepository
 import kotlin.math.max
-import kotlin.math.min
 import kotlin.time.Instant
 
 @Inject
@@ -386,7 +383,12 @@ class RestoreRepositoryImpl(
             // each copy; they are one chapter now, read as late as any copy and for as long as all
             .groupBy { chapterIdsByUrl.getValue(it.chapterUrl) }
             .map { (chapterId, copies) ->
-                val readAt = copies.mapNotNull { it.readAt }.maxOrNull()
+                // KMK -->
+                // A removed/unread history entry is backed up with lastRead == 0 => readAt == null.
+                // Writing NULL would make `removeResettedHistory` drop the tombstone, so a removed
+                // history entry would not survive a restore; write epoch 0 (as master did) instead.
+                val readAt = copies.mapNotNull { it.readAt }.maxOrNull() ?: Instant.fromEpochMilliseconds(0)
+                // KMK <--
                 val readDuration = copies.sumOf { it.readDuration }
                 val dbHistory = dbHistoryByChapterId[chapterId]
                     // New history entry

@@ -142,7 +142,12 @@ class CategoryRepositoryImpl(
 
                 if (dbCategory != null) {
                     // KMK -->
-                    val order = if (isSync && category.order !in usedOrders) category.order else freeOrder()
+                    // A user-initiated (non-sync) restore only inserts new categories and leaves
+                    // existing ones untouched, matching master's CategoriesRestorer; updating them
+                    // would rewrite order, flags and the sync counters (`version`/`last_modified_at`).
+                    // The sync path still converges order and counters below.
+                    if (!isSync) return@map dbCategory
+                    val order = if (category.order !in usedOrders) category.order else freeOrder()
                     usedOrders.add(order)
                     // KMK <--
                     database.categoryQueries.update(

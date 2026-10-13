@@ -7,7 +7,6 @@ import mihon.core.common.extensions.JsonObjectEmptyBytes
 import mihon.core.common.extensions.toInstantOrNull
 import mihon.core.common.extensions.toJsonObject
 import tachiyomi.domain.manga.model.Manga
-import kotlin.time.Instant
 
 @Suppress("DEPRECATION")
 @Serializable
@@ -82,11 +81,12 @@ class BackupManga(
             // SY <--
             favorite = this@BackupManga.favorite,
             source = this@BackupManga.source,
-            // For libraries older than dateAdded, the favorite timestamp is the only record of when
-            // an entry was added. It was written by a trigger in seconds, unlike dateAdded.
+            // KMK -->
+            // `favorite_modified_at` is not a fallback for a missing `date_added`: every manga
+            // update rewrote it (see migrations/49.sqm). A missing date-added becomes UNKNOWN.
+            // KMK <--
             dateAdded = if (this@BackupManga.favorite) {
                 this@BackupManga.dateAdded.toInstantOrNull()
-                    ?: this@BackupManga.favoriteModifiedAt?.let { Instant.fromEpochSeconds(it) }
                     ?: Manga.UNKNOWN_FAVORITE_AT
             } else {
                 null

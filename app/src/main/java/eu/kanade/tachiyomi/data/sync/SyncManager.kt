@@ -193,6 +193,12 @@ class SyncManager(
             backup = backup,
         )
 
+        // KMK -->
+        // A category that is live locally again must not be tombstoned on the server. This has to
+        // run before the sync sends its pending tombstones.
+        syncPreferences.forgetDeletedCategory(getCategories.await().map { it.uid })
+        // KMK <--
+
         // SY -->
         val result: SyncResult = syncService?.doSync(syncData, full) ?: return
         val remoteBackup = result.backup
@@ -315,11 +321,14 @@ class SyncManager(
                 backupUri,
                 sync = true,
                 // KMK -->
+                // Honour the user's "choose what to sync" flags instead of forcing everything on.
                 options = RestoreOptions(
-                    appSettings = true,
-                    sourceSettings = true,
-                    libraryEntries = true,
-                    extensionStores = true,
+                    appSettings = syncOptions.appSettings,
+                    sourceSettings = syncOptions.sourceSettings,
+                    libraryEntries = syncOptions.libraryEntries,
+                    categories = syncOptions.categories,
+                    extensionStores = syncOptions.extensionStores,
+                    savedSearchesFeeds = syncOptions.savedSearchesFeeds,
                 ),
                 // KMK <--
             )

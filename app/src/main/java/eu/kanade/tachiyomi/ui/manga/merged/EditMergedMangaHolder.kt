@@ -6,8 +6,8 @@ import coil3.request.transformations
 import coil3.transform.RoundedCornersTransformation
 import eu.davidea.viewholders.FlexibleViewHolder
 import eu.kanade.tachiyomi.databinding.EditMergedSettingsItemBinding
+import eu.kanade.tachiyomi.source.getOrStubOrNull
 import eu.kanade.tachiyomi.util.system.dpToPx
-import kotlinx.coroutines.runBlocking
 import mihon.app.di.appGraph
 import tachiyomi.domain.manga.model.MergedMangaReference
 
@@ -48,11 +48,15 @@ class EditMergedMangaHolder(view: View, val adapter: EditMergedMangaAdapter) : F
             }
         }
 
-        // This Android ViewHolder has no coroutine scope; sources are loaded by the time a manga is
-        // open, so the awaited lookup returns immediately.
-        binding.title.text = runBlocking {
-            itemView.context.appGraph.sourceManager.getOrStub(item.mergedMangaReference.mangaSourceId).toString()
-        }
+        // KMK -->
+        // This Android ViewHolder has no coroutine scope. Read the already-loaded source snapshot
+        // instead of blocking the main thread; while the sources are still loading the title is left
+        // blank and the row is re-bound once the settings state changes.
+        binding.title.text = itemView.context.appGraph.sourceManager
+            .getOrStubOrNull(item.mergedMangaReference.mangaSourceId)
+            ?.toString()
+            .orEmpty()
+        // KMK <--
         binding.subtitle.text = item.mergedManga?.title
         updateDownloadChaptersIcon(item.mergedMangaReference.downloadChapters)
         updateChapterUpdatesIcon(item.mergedMangaReference.getChapterUpdates)

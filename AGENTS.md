@@ -38,8 +38,8 @@ Every Komikku addition or modification to existing code **must** be wrapped:
 // KMK <--
 ```
 
-- Use `// KMK` for all new code. Never add new `// SY` or `// EXH` blocks.
-- Keep upstream `// SY` / `// EXH` blocks intact; when changing code inside one, wrap your change in a nested `// KMK` block.
+- Use `// KMK` for this fork's own new code. Code ported from TachiyomiSY is marked `// SY -->` … `// SY <--` (as `FORK.md` documents); never label code that is not ported from TachiyomiSY as `// SY` (or its legacy `// EXH` form).
+- Keep existing upstream `// SY` / `// EXH` blocks intact; when changing code inside one, wrap your change in a nested `// KMK` block.
 - Markers apply to `.sq` queries and mappers too.
 
 ### Internationalization (strings)
@@ -85,7 +85,7 @@ Every Komikku addition or modification to existing code **must** be wrapped:
 - **Serialization:** Kotlinx Serialization (JSON/Protobuf)
 - **JS engine:** QuickJS (used by sources)
 - **Concurrency:** Kotlin coroutines + Flow for new code; RxJava 1 remains in `source-api` for extension compatibility
-- **Toolchain:** JDK 21 to build (matches `.github/.java-version`), bytecode targets Java 17, Gradle 9.3+, compileSdk 37
+- **Toolchain:** JDK 21 to build (matches `.github/.java-version`), bytecode targets Java 17, Gradle 9.8.1, compileSdk 37.2
 
 Version catalogs in `gradle/`: `libs.versions.toml`, `kotlinx.versions.toml`, `androidx.versions.toml`, `compose.versions.toml`, `sy.versions.toml`.
 

@@ -464,7 +464,7 @@ class DownloadManager(
      */
     suspend fun renameManga(manga: Manga, newTitle: String) = withContext(Dispatchers.IO) {
         val source = sourceManager.getOrStub(manga.source)
-        val oldFolder = provider.findMangaDir(/* KMK --> */ manga.ogTitle /* KMK --> */, source) ?: return@withContext
+        val oldFolder = provider.findMangaDir(/* KMK --> */ manga.ogTitle /* KMK <-- */, source) ?: return@withContext
         val newName = provider.getMangaDirName(newTitle)
 
         if (oldFolder.name == newName) return@withContext

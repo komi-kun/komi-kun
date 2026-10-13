@@ -102,4 +102,44 @@ class LibrarySearchParserTest {
         node.shouldBeInstanceOf<FieldQueryNode>()
         node.value shouldBe "foo bar"
     }
+
+    // KMK --> TachiyomiSY compatibility shims
+
+    @Test
+    fun `comparison field without a comparator means equality`() {
+        // SY users wrote `id:123`; before the shim it lexed as a Field and fell through to a literal term
+        QueryNode.from("id:123") shouldBe
+            ComparisonQueryNode(ComparisonField.ID, "123", Comparator.EQ, negated = false)
+        QueryNode.from("id:123") shouldBe QueryNode.from("id=123")
+    }
+
+    @Test
+    fun `numeric src alias matches the source id`() {
+        // `src:123` used to match the source id; it must not silently match a source *name* containing "123"
+        QueryNode.from("src:123") shouldBe FieldQueryNode(MangaField.SOURCE_ID, "123", negated = false)
+        QueryNode.from("source:123") shouldBe FieldQueryNode(MangaField.SOURCE_ID, "123", negated = false)
+    }
+
+    @Test
+    fun `non numeric src keeps matching the source name`() {
+        QueryNode.from("src:foo") shouldBe FieldQueryNode(MangaField.SOURCE, "foo", negated = false)
+        QueryNode.from("src:local") shouldBe FieldQueryNode(MangaField.SOURCE, "local", negated = false)
+    }
+
+    @Test
+    fun `negated compatibility shims keep the negation`() {
+        QueryNode.from("-src:123") shouldBe FieldQueryNode(MangaField.SOURCE_ID, "123", negated = true)
+        QueryNode.from("-id:123") shouldBe
+            ComparisonQueryNode(ComparisonField.ID, "123", Comparator.EQ, negated = true)
+    }
+
+    @Test
+    fun `wildcard characters are preserved in general terms`() {
+        // The actual wildcard matching lives in QueryNodeExtensions (app module); the parser only
+        // has to leave `*`/`?` untouched instead of treating them as whitespace.
+        QueryNode.from("foo*") shouldBe GeneralQueryNode("foo*", negated = false)
+        QueryNode.from("f?o") shouldBe GeneralQueryNode("f?o", negated = false)
+    }
+
+    // KMK <--
 }

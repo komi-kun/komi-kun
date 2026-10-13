@@ -414,6 +414,7 @@ class HistoryViewModel(
     }
     // KMK <--
 
+    // KMK -->
     private fun getHistoryItemPreferenceFlow(): Flow<ItemPreferences> {
         return combine(
             historyPreferences.filterUnfinishedManga.changes(),
@@ -448,7 +449,7 @@ class HistoryViewModel(
         val isLoading: Boolean = true,
         // KMK <--
         val dialog: Dialog? = null,
-        // KMk -->
+        // KMK -->
         val selection: Set<Long> = emptySet(),
         val hasActiveFilters: Boolean = false,
         val selectionMode: Boolean = false,

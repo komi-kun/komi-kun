@@ -145,8 +145,9 @@ internal class HttpPageLoader(
             // Load the page right away, bypassing the rolling chunk schedule
             boostPage(page)
         } else {
-            // Retry through the normal schedule so the surrounding pages load too
-            page.chapter.pages.orEmpty().loadByRollingChunked(page.index, 3, 5)
+            // Retry through the normal schedule so the surrounding pages load too. Force the failed
+            // page so a cached-but-undecodable image is fetched again.
+            page.chapter.pages.orEmpty().loadByRollingChunked(page.index, 3, 5, force = true)
         }
         // KMK <--
     }
@@ -185,14 +186,16 @@ internal class HttpPageLoader(
      * Starts loading [page] unless it's already loaded or a load is already in flight for it. Claiming the slot and
      * starting the job has to be atomic, otherwise two chunk chains can both launch the same page.
      */
-    private fun launchLoadOnce(page: ReaderPage): Job? {
+    private fun launchLoadOnce(page: ReaderPage, /* KMK --> */ force: Boolean = false /* KMK <-- */): Job? {
         val pageIndex = page.index
         // A page another chain is already loading still counts towards this chunk, otherwise the chain moves on
         // and starts the next chunk while it's in flight
         downloadJobs[pageIndex]?.takeIf { it.isActive }?.let { return it }
         if (page.status !is Page.State.Queue && page.status !is Page.State.Error) return null
 
-        val job = scope.launch(start = CoroutineStart.LAZY) { internalLoadPage(page) }
+        // KMK -->
+        val job = scope.launch(start = CoroutineStart.LAZY) { internalLoadPage(page, force) }
+        // KMK <--
         val running = downloadJobs.putIfAbsent(pageIndex, job)
         if (running != null) {
             job.cancel()
@@ -209,6 +212,9 @@ internal class HttpPageLoader(
         index: Int,
         chunkStartSize: Int,
         chunkEndSize: Int,
+        /* KMK --> */
+        force: Boolean = false,
+        /* KMK <-- */
         onNewChunks: (List<List<ReaderPage>>) -> Unit = {},
     ) {
         val items = this
@@ -243,7 +249,9 @@ internal class HttpPageLoader(
             chunkProcessJob?.cancel()
             chunkProcessJob = scope.launch {
                 for (chunk in chunks) {
-                    val jobs = chunk.mapNotNull { page -> launchLoadOnce(page) }
+                    // KMK -->
+                    val jobs = chunk.mapNotNull { page -> launchLoadOnce(page, force) }
+                    // KMK <--
                     jobs.joinAll()
                 }
             }
@@ -332,7 +340,7 @@ internal class HttpPageLoader(
             // Load the page immediately instead of waiting for the rolling chunk schedule
             val pageIndex = page.index
             downloadJobs.remove(pageIndex)?.cancel()
-            scope.launch { internalLoadPage(page) }.trackAsDownloadJob(pageIndex)
+            scope.launch { internalLoadPage(page, force = true) }.trackAsDownloadJob(pageIndex)
             // KMK <--
         }
     }

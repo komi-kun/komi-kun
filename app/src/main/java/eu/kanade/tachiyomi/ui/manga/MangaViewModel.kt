@@ -1269,7 +1269,7 @@ class MangaViewModel(
                             .let { networkToLocalManga(manga = it, updateInfo = false) }
                     }
 
-                    relatedMangaCollection.value = relatedMangaCollection.value.orEmpty() + relatedManga
+                    relatedMangaCollection.update { it.orEmpty() + relatedManga }
                 }
             }
         } catch (e: Exception) {

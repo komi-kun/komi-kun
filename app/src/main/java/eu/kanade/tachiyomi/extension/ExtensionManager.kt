@@ -51,7 +51,6 @@ import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.source.model.StubSource
 import tachiyomi.i18n.MR
 import java.util.Locale
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * The manager of extensions installed as another apk which extend the available sources. It handles
@@ -80,8 +79,6 @@ class ExtensionManager(
 
     // A full load replaces both maps, so install events wait for it and apply on top instead of being overwritten
     private val loadMutex = Mutex()
-
-    private val iconMap = ConcurrentHashMap<String, Drawable>()
 
     @Volatile
     private var stores = emptyList<ExtensionStore>()

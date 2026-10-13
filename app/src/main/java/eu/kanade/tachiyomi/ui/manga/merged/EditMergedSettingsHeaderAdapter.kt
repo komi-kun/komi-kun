@@ -11,8 +11,8 @@ import androidx.recyclerview.widget.RecyclerView
 import eu.kanade.presentation.components.SpinnerAdapter
 import eu.kanade.presentation.theme.colorscheme.AndroidViewColorScheme
 import eu.kanade.tachiyomi.databinding.EditMergedSettingsHeaderBinding
+import eu.kanade.tachiyomi.source.getOrStubOrNull
 import exh.log.xLogD
-import kotlinx.coroutines.runBlocking
 import mihon.app.di.appGraph
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.domain.manga.model.MergedMangaReference
@@ -112,11 +112,15 @@ class EditMergedSettingsHeaderAdapter(
                 android.R.layout.simple_spinner_dropdown_item,
                 // KMK <--
                 mergedMangas.map {
-                    // This ArrayAdapter has no coroutine scope; sources are loaded by the time a
-                    // manga is open, so the awaited lookup returns immediately.
-                    runBlocking {
-                        view.context.appGraph.sourceManager.getOrStub(it.second.mangaSourceId).toString() + " " + it.first?.title
-                    }
+                    // KMK -->
+                    // This ArrayAdapter has no coroutine scope. Read the already-loaded source
+                    // snapshot instead of blocking the main thread; while the sources are still
+                    // loading, fall back to showing the manga title alone.
+                    val sourceName = view.context.appGraph.sourceManager
+                        .getOrStubOrNull(it.second.mangaSourceId)
+                        ?.toString()
+                    if (sourceName != null) "$sourceName ${it.first?.title}" else it.first?.title.orEmpty()
+                    // KMK <--
                 },
                 // KMK -->
                 colorScheme,

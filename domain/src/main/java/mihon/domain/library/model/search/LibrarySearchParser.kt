@@ -64,9 +64,27 @@ class LibrarySearchParser(private val tokens: List<LibrarySearchLexer.Token>) {
         return when (val nextToken = advance()) {
             is LibrarySearchLexer.Token.General -> GeneralQueryNode(nextToken.value, negated)
             is LibrarySearchLexer.Token.Field -> {
-                MangaField.fromString(nextToken.field)?.let {
-                    FieldQueryNode(it, nextToken.value, negated)
-                } ?: GeneralQueryNode("${nextToken.field}:${nextToken.value}", negated)
+                // KMK -->
+                // TachiyomiSY compatibility shims (Mihon's grammar otherwise treats these as literals):
+                //  - `src:<digits>` used to match the *source id*, not the source name
+                //  - `id:<n>` (and any comparator-less comparison field) means equality, i.e. `=`
+                val field = MangaField.fromString(nextToken.field)
+                val numericSource = field == MangaField.SOURCE &&
+                    nextToken.value.isNotEmpty() &&
+                    nextToken.value.all { it.isDigit() }
+                val comparisonField = if (field == null) {
+                    ComparisonField.fromString(nextToken.field)
+                } else {
+                    null
+                }
+                when {
+                    numericSource -> FieldQueryNode(MangaField.SOURCE_ID, nextToken.value, negated)
+                    field != null -> FieldQueryNode(field, nextToken.value, negated)
+                    comparisonField != null ->
+                        ComparisonQueryNode(comparisonField, nextToken.value, Comparator.EQ, negated)
+                    else -> GeneralQueryNode("${nextToken.field}:${nextToken.value}", negated)
+                }
+                // KMK <--
             }
             is LibrarySearchLexer.Token.CompField -> {
                 ComparisonField.fromString(nextToken.field)?.let {

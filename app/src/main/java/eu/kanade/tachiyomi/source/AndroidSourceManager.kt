@@ -232,6 +232,27 @@ class AndroidSourceManager(
     // SY <--
 
     // KMK -->
+    /**
+     * Non-suspending, non-blocking snapshot of the sources loaded so far, or null while the
+     * extensions are still loading (i.e. before the first package scan completes).
+     *
+     * Synchronous surfaces that lack a coroutine scope (Android ViewHolder/ArrayAdapter binds,
+     * non-composable helpers) should read this and fall back when it is null instead of calling
+     * [get]/[getOrStub] through `runBlocking`, which freezes the main thread for the whole scan.
+     */
+    val sourcesMapOrNull: Map<Long, Source>?
+        get() = sourcesMapFlow.value
+
+    /**
+     * Non-suspending variant of [getOrStub]. Returns the stub registered for [sourceKey] (if any)
+     * while the main map is not loaded yet, and null when nothing is known about it — callers must
+     * then fall back rather than block.
+     */
+    fun getOrStubOrNull(sourceKey: Long): Source? =
+        sourcesMapFlow.value?.get(sourceKey) ?: stubSourcesMap[sourceKey]
+    // KMK <--
+
+    // KMK -->
     override suspend fun getMergedSources(mangaId: Long): List<Source> {
         val sources = getMergedReferencesById.await(mangaId)
         return sources.distinctBy { it.mangaSourceId }
@@ -349,3 +370,22 @@ class AndroidSourceManager(
 
     // SY <--
 }
+
+// KMK -->
+/**
+ * Non-suspending access to the loaded-source snapshot behind [SourceManager].
+ *
+ * Returns null while the extensions are still loading, so callers that cannot suspend (e.g. Android
+ * ViewHolder/ArrayAdapter binds, non-composable helpers) can fall back instead of blocking the main
+ * thread with `runBlocking`.
+ */
+val SourceManager.sourcesMapOrNull: Map<Long, Source>?
+    get() = (this as? AndroidSourceManager)?.sourcesMapOrNull
+
+/**
+ * Non-suspending variant of [SourceManager.getOrStub]. Returns null when the sources are not loaded
+ * yet and nothing is known about [sourceKey], so callers can fall back instead of blocking.
+ */
+fun SourceManager.getOrStubOrNull(sourceKey: Long): Source? =
+    (this as? AndroidSourceManager)?.getOrStubOrNull(sourceKey)
+// KMK <--

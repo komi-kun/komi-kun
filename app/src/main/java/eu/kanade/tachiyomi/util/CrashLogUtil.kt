@@ -7,7 +7,6 @@ import eu.kanade.domain.base.BasePreferences
 import eu.kanade.tachiyomi.BuildConfig
 import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.extension.model.Extension
-import eu.kanade.tachiyomi.network.NetworkPreferences
 import eu.kanade.tachiyomi.util.storage.getUriCompat
 import eu.kanade.tachiyomi.util.system.WebViewUtil
 import eu.kanade.tachiyomi.util.system.createFileInCacheDir
@@ -16,6 +15,7 @@ import eu.kanade.tachiyomi.util.system.toast
 import exh.log.EHLogLevel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.offsetAt
 import kotlinx.datetime.toLocalDateTime
@@ -26,7 +26,6 @@ class CrashLogUtil(
     private val context: Context,
     private val extensionManager: ExtensionManager,
     private val preferences: BasePreferences,
-    private val networkPreferences: NetworkPreferences,
 ) {
 
     suspend fun dumpLogs(exception: Throwable? = null) = withContext(Dispatchers.IO) {
@@ -69,7 +68,18 @@ class CrashLogUtil(
     private suspend fun getExtensionsInfo(): String? {
         val availableExtensions = extensionManager.availableExtensionsFlow.value.associateBy { it.pkgName }
 
-        val outdatedInfoList = extensionManager.getLoadedExtensions()
+        // KMK -->
+        // Extensions may never finish loading (a plausible crash antecedent, e.g. a locked DB), and the
+        // dump must not suspend forever waiting for that: bound the waits and fall back to the snapshot.
+        val loadedExtensions = withTimeoutOrNull(EXTENSIONS_INFO_TIMEOUT_MS) {
+            extensionManager.getLoadedExtensions()
+        } ?: extensionManager.loadedExtensions
+        val notLoadedExtensions = withTimeoutOrNull(EXTENSIONS_INFO_TIMEOUT_MS) {
+            extensionManager.getNotLoadedExtensions()
+        }.orEmpty()
+        // KMK <--
+
+        val outdatedInfoList = loadedExtensions
             .sortedBy { it.name }
             .mapNotNull {
                 val availableExtension = availableExtensions[it.pkgName]
@@ -84,7 +94,7 @@ class CrashLogUtil(
                 """.trimIndent()
             }
 
-        val notLoadedInfoList = extensionManager.getNotLoadedExtensions()
+        val notLoadedInfoList = notLoadedExtensions
             .sortedBy { it.name }
             .map { extension ->
                 buildString {
@@ -110,6 +120,11 @@ class CrashLogUtil(
         }
     }
 }
+
+// KMK -->
+/** Cap on how long the crash-log dump waits for the extension manager to finish loading. */
+private const val EXTENSIONS_INFO_TIMEOUT_MS = 5_000L
+// KMK <--
 
 private val Extension.NotLoaded.Reason.description: String
     get() = when (this) {

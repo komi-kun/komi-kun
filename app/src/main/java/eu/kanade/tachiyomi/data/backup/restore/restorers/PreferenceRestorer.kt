@@ -1,7 +1,6 @@
 package eu.kanade.tachiyomi.data.backup.restore.restorers
 
 import android.content.Context
-import android.util.Log
 import dev.zacsweers.metro.Inject
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.tachiyomi.data.backup.create.BackupCreateWorker

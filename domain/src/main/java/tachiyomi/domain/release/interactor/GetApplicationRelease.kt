@@ -80,7 +80,7 @@ class GetApplicationRelease(
             // tagged as something like "r1234"
             newVersion.toInt() > commitCount
         } else {
-            // Release builds: based on releases in "komikku-app/komikku" repo
+            // Release builds: based on releases in "komi-kun/komi-kun" repo
             // tagged as something like "v0.1.2"
             val oldVersion = versionName.replace("[^\\d.]".toRegex(), "")
 
@@ -119,7 +119,7 @@ class GetApplicationRelease(
     }
 }
 
-// KMK --.
+// KMK -->
 internal fun List<Release>.getLatest(): Release? {
     return firstOrNull()
         ?.copy(

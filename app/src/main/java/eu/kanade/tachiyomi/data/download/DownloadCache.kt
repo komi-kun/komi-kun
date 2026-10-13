@@ -240,7 +240,7 @@ class DownloadCache(
             val mangaDir = if (mangaDirs.isNullOrEmpty()) {
                 null
             } else {
-                mangaDirs[provider.getMangaDirName(it.title)]
+                mangaDirs[provider.getMangaDirName(/* KMK --> */ it.ogTitle /* KMK <-- */)]
             }
             it.id to (mangaDir?.chapterDirs?.size ?: 0)
         }
@@ -368,7 +368,7 @@ class DownloadCache(
     suspend fun renameManga(manga: Manga, mangaUniFile: UniFile, newTitle: String) {
         rootDownloadsDirMutex.withLock {
             val sourceDir = rootDownloadsDir.sourceDirs[manga.source] ?: return
-            val oldMangaDirName = provider.getMangaDirName(/* KMK --> */ manga.ogTitle /* KMK --> */)
+            val oldMangaDirName = provider.getMangaDirName(/* KMK --> */ manga.ogTitle /* KMK <-- */)
             var oldChapterDirs: Set<String>? = null
             // Save the old name's cached chapter dirs
             if (sourceDir.mangaDirs.containsKey(oldMangaDirName)) {

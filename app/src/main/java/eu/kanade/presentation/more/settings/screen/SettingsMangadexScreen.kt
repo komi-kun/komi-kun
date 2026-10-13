@@ -36,13 +36,15 @@ import eu.kanade.presentation.more.settings.widget.PrefsHorizontalPadding
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.library.LibraryUpdateWorker
 import eu.kanade.tachiyomi.source.online.all.MangaDex
+import eu.kanade.tachiyomi.source.sourcesMapOrNull
 import eu.kanade.tachiyomi.util.system.openInBrowser
 import eu.kanade.tachiyomi.util.system.toast
 import eu.kanade.tachiyomi.util.system.workManager
 import exh.md.utils.MdConstants
 import exh.md.utils.MdUtil
+import exh.source.BlacklistedSources
+import exh.source.getMainSource
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import logcat.LogPriority
 import mihon.app.di.appGraph
 import mihon.icons.materialsymbols.MaterialSymbols
@@ -69,10 +71,21 @@ object SettingsMangadexScreen : SearchableSettings {
 
     override fun isEnabled(): Boolean {
         val graph = Injekt.get<Context>().appGraph
-        // SearchableSettings.isEnabled() is synchronous and is called during the settings list
-        // composition; the sources are already loaded by the time settings open, so this does not
-        // meaningfully block.
-        return runBlocking { MdUtil.getEnabledMangaDexs(graph.sourcePreferences, graph.sourceManager) }.isNotEmpty()
+        // KMK -->
+        // SearchableSettings.isEnabled() is synchronous (it runs while the settings list composes)
+        // and has no coroutine scope. Read the already-loaded source snapshot instead of blocking the
+        // main thread on the extension/package scan. This mirrors MdUtil.getEnabledMangaDexs().
+        val sources = graph.sourceManager.sourcesMapOrNull
+        // Safe default: while the snapshot is not ready, keep the entry enabled. The screen's
+        // MangaDex produceState resolves the real state once sources load.
+        if (sources == null) return true
+        val languages = graph.sourcePreferences.enabledLanguages.get()
+        val disabledSourceIds = graph.sourcePreferences.disabledSources.get()
+        return sources.values
+            .filter { it.id !in BlacklistedSources.HIDDEN_SOURCES }
+            .mapNotNull { it.getMainSource<MangaDex>() }
+            .any { it.lang in languages && it.id.toString() !in disabledSourceIds }
+        // KMK <--
     }
 
     @Composable

@@ -91,12 +91,18 @@ class SyncPreferences(
 
     // KMK -->
     /**
-     * Only the SyncYomi service consumes these tombstones. Recording them for Google Drive, WebDAV or
-     * an old v1 SyncYomi server would let the sets grow without bound and then flush a stale backlog
-     * once the user switches to a v2 server, potentially deleting chapters that were re-added.
+     * Only the SyncYomi service consumes these tombstones, and only once the server is known to
+     * speak protocol v2. Recording them for Google Drive, WebDAV or an old v1 SyncYomi server would
+     * let the sets grow without bound and then flush a stale backlog once the user switches to a v2
+     * server, potentially deleting live categories or chapters.
+     *
+     * [serverSupportsV2] is the persisted flag that SyncYomiSyncService sets when the capability
+     * probe succeeds; it is only meaningful for the host it was probed against, so require a match.
      */
-    private fun isSyncYomiService(): Boolean {
-        return syncService.get() == SyncManager.SyncService.SYNCYOMI.value
+    private fun isSyncYomiV2(): Boolean {
+        return syncService.get() == SyncManager.SyncService.SYNCYOMI.value &&
+            v2ProbedHost.get() == clientHost.get() &&
+            serverSupportsV2.get()
     }
 
     /** Serialises the read-modify-write of the tombstone sets so concurrent edits are not lost. */
@@ -109,18 +115,34 @@ class SyncPreferences(
      */
     fun rememberDeletedCategory(uid: Long) {
         // KMK -->
-        if (uid == 0L || !isSyncYomiService()) return
+        if (uid == 0L || !isSyncYomiV2()) return
         synchronized(tombstoneLock) {
             pendingDeletedCategoryUids.set(pendingDeletedCategoryUids.get() + uid.toString())
         }
         // KMK <--
     }
+
+    // KMK -->
+    /**
+     * Forgets category tombstones for categories that are seen live again, so a live category is
+     * never deleted on the server.
+     */
+    fun forgetDeletedCategory(uids: Collection<Long>) {
+        if (uids.isEmpty()) return
+        val keys = uids.mapTo(mutableSetOf()) { it.toString() }
+        synchronized(tombstoneLock) {
+            val pending = pendingDeletedCategoryUids.get()
+            val remaining = pending - keys
+            if (remaining.size != pending.size) pendingDeletedCategoryUids.set(remaining)
+        }
+    }
+    // KMK <--
     // KMK -->
     /**
      * Remembers the chapters a source dropped, so the next SyncYomi v2 request can tombstone them.
      */
     fun rememberDeletedChapters(keys: Collection<String>) {
-        if (keys.isEmpty() || !isSyncYomiService()) return
+        if (keys.isEmpty() || !isSyncYomiV2()) return
         synchronized(tombstoneLock) {
             pendingDeletedChapterKeys.set(pendingDeletedChapterKeys.get() + keys)
         }

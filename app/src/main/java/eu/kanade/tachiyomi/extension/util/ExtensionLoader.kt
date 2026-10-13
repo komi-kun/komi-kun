@@ -113,7 +113,7 @@ internal object ExtensionLoader {
         context: Context,
         alreadyLoaded: Map<String, Extension.Loaded> = emptyMap(),
     ): List<Extension.Installed> {
-        val stores = context.appGraph.getExtensionStores.get()
+        val stores = context.appGraph./* KMK --> */getExtensionStores.get()/* KMK <-- */
         val trustExtension = context.appGraph.trustExtension
         val sourcePreferences = context.appGraph.sourcePreferences
         val enabledContentWarnings = sourcePreferences.enabledContentWarnings.get()
@@ -200,7 +200,7 @@ internal object ExtensionLoader {
             context = context,
             extensionInfo = extensionPackage,
             trustExtension = context.appGraph.trustExtension,
-            stores = context.appGraph.getExtensionStores.get(),
+            stores = context.appGraph./* KMK --> */getExtensionStores.get()/* KMK <-- */,
             enabledContentWarnings = sourcePreferences.enabledContentWarnings.get(),
             applyContentWarningsToInstalled = sourcePreferences.applyContentWarningsToInstalled.get(),
         )

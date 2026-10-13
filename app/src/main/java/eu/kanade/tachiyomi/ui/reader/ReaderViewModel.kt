@@ -319,18 +319,11 @@ class ReaderViewModel(
 
     private var chapterToDownload: Download? = null
 
-    private val unfilteredChapterList by lazy {
-        val manga = manga!!
-        runBlocking {
-            // KMK -->
-            if (manga.source == MERGED_SOURCE_ID) {
-                getMergedChaptersByMangaId.await(manga.id, dedupe = false, applyFilter = false)
-            } else {
-                getChaptersByMangaId.await(manga.id, applyFilter = false)
-            }
-            // KMK <--
-        }
-    }
+    // KMK -->
+    // Primed once by [loadChapterList] on the IO dispatcher. The completion path reads it from a
+    // Dispatchers.Main.immediate coroutine, so it must never trigger a blocking query there.
+    private lateinit var unfilteredChapterList: List<Chapter>
+    // KMK <--
 
     /**
      * Chapter list for the active manga. Loaded by [init].
@@ -342,9 +335,21 @@ class ReaderViewModel(
         // SY -->
         val (chapters, mangaMap) = runBlocking {
             if (manga.source == MERGED_SOURCE_ID) {
+                // KMK -->
+                // Prime the unfiltered (undeduped) list here, off the main thread; it also backs the
+                // requested-chapter lookup below.
+                unfilteredChapterList = getMergedChaptersByMangaId.await(
+                    manga.id,
+                    dedupe = false,
+                    applyFilter = false,
+                )
+                // KMK <--
                 getMergedChaptersByMangaId.await(manga.id, applyFilter = true) to
                     state.value.mergedManga
             } else {
+                // KMK -->
+                unfilteredChapterList = getChaptersByMangaId.await(manga.id, applyFilter = false)
+                // KMK <--
                 getChaptersByMangaId.await(manga.id, applyFilter = true) to null
             }
         }
@@ -438,7 +443,7 @@ class ReaderViewModel(
             .filterNotNull()
             // SY -->
             .drop(1) // allow the loader to set the first page and chapter id
-            // SY <-
+            // SY <--
             .onEach { currentChapter ->
                 if (chapterPageIndex >= 0) {
                     // Restore from SavedState
@@ -1406,6 +1411,7 @@ class ReaderViewModel(
         // KMK --> using injected context
         val notifier = SaveImageNotifier(context)
         notifier.onClear()
+        // KMK <--
 
         // Copy file in background.
         viewModelScope.launchNonCancellable {
@@ -1530,6 +1536,7 @@ class ReaderViewModel(
 
         // KMK --> using injected context
         val destDir = context.cacheImageDir
+        // KMK <--
 
         try {
             viewModelScope.launchNonCancellable {

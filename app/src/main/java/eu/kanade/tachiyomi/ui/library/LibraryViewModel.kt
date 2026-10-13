@@ -743,6 +743,7 @@ class LibraryViewModel(
                 sourceBadge = it[13] as Boolean,
                 useLangIcon = it[14] as Boolean,
                 filterCategories = it[15] as Boolean,
+                // KMK <--
             )
         }
     }

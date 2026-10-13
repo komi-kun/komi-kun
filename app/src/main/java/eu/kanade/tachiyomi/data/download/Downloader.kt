@@ -128,9 +128,12 @@ class Downloader(
     var isPaused: Boolean = false
 
     init {
-        scope.launch(Dispatchers.Main, CoroutineStart.UNDISPATCHED) {
+        // KMK -->
+        // addAllToQueue writes to SharedPreferences, so it must not run on the main thread
+        scope.launch(Dispatchers.Default, CoroutineStart.UNDISPATCHED) {
             addAllToQueue(withContext(Dispatchers.IO) { store.restore() })
         }
+        // KMK <--
     }
 
     /**

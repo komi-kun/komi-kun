@@ -63,6 +63,7 @@ import eu.kanade.presentation.util.Screen
 import eu.kanade.presentation.util.isTabletUi
 import eu.kanade.tachiyomi.source.ConfigurableSource
 import eu.kanade.tachiyomi.source.Source
+import eu.kanade.tachiyomi.source.getOrStubOrNull
 import eu.kanade.tachiyomi.source.isLocalOrStub
 import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.ui.browse.BulkFavoriteViewModel
@@ -99,7 +100,6 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import logcat.LogPriority
 import mihon.app.di.appGraph
@@ -834,12 +834,15 @@ class MangaScreen(
     ) {
         val sourceManager: SourceManager = context.appGraph.sourceManager
         // KMK -->
-        // Compose callback with no coroutine scope; sources are loaded when the manga screen is open.
-        val mergedMangaAndSources = runBlocking {
-            mergedMangaData.manga.values
-                .filterNot { it.source == MERGED_SOURCE_ID }
-                .map { manga -> manga to sourceManager.getOrStub(manga.source) }
-        }
+        // Compose callback with no coroutine scope: read the already-loaded source snapshot instead
+        // of blocking the main thread. While the sources are still loading, fall back to a blank
+        // placeholder stub so the option list keeps its shape (its action then no-ops, as it would
+        // for a genuinely missing source).
+        val mergedMangaAndSources = mergedMangaData.manga.values
+            .filterNot { it.source == MERGED_SOURCE_ID }
+            .map { manga ->
+                manga to (sourceManager.getOrStubOrNull(manga.source) ?: StubSource(manga.source, "", ""))
+            }
         // KMK <--
         MaterialAlertDialogBuilder(context)
             .setTitle(titleRes.getString(context))

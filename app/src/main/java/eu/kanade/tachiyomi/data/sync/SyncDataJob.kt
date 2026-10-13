@@ -9,9 +9,7 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.ForegroundInfo
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
-import androidx.work.WorkInfo
 import androidx.work.WorkManager
-import androidx.work.WorkQuery
 import androidx.work.WorkerParameters
 import dev.zacsweers.metro.Inject
 import eu.kanade.domain.sync.SyncPreferences
@@ -173,23 +171,21 @@ class SyncDataJob(private val context: Context, workerParams: WorkerParameters) 
             val syncEnabled = syncPreferences.isSyncEnabled()
             // KMK <--
             val wm = context.workManager
-            val workQuery = WorkQuery.Builder.fromTags(listOf(TAG_JOB, TAG_AUTO, TAG_MANUAL))
-                .addStates(listOf(WorkInfo.State.RUNNING))
-                .build()
-            wm.getWorkInfos(workQuery).get()
-                // Should only return one work but just in case
-                .forEach {
-                    wm.cancelWorkById(it.id)
-                    // KMK -->
-                    val syncStatus: SyncStatus = context.appGraph.syncStatus
-                    runBlocking { syncStatus.stop() }
-                    // KMK <--
 
-                    // Re-enqueue cancelled scheduled work
-                    if (/* KMK --> */ syncEnabled /* KMK <-- */ && it.tags.contains(TAG_AUTO)) {
-                        setupTask(context)
-                    }
-                }
+            // KMK -->
+            // Cancelling by tag is non-blocking; the old implementation blocked the calling (main)
+            // thread on `getWorkInfos(...).get()`. Both the auto and manual syncs carry TAG_JOB, so
+            // this cancels the running sync without waiting on WorkManager's executor.
+            wm.cancelAllWorkByTag(TAG_JOB)
+
+            val syncStatus: SyncStatus = context.appGraph.syncStatus
+            runBlocking { syncStatus.stop() }
+
+            if (syncEnabled) {
+                // Re-enqueue the cancelled scheduled work
+                setupTask(context)
+            }
+            // KMK <--
         }
     }
 }

@@ -9,10 +9,10 @@ import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.SMangaUpdate
+import eu.kanade.tachiyomi.source.sourcesMapOrNull
 import exh.md.similar.MangaDexSimilarPagingSource
 import exh.source.COMICK_IDS
 import exh.source.MANGADEX_IDS
-import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import logcat.LogPriority
 import tachiyomi.core.common.util.system.logcat
@@ -156,20 +156,27 @@ abstract class TrackerRecommendationPagingSource(
 // KMK -->
 class RecommendationSource(
     override val id: Long = RECOMMENDS_SOURCE,
-    sourceManager: SourceManager = Injekt.get(),
+    private val sourceManager: SourceManager = Injekt.get(),
 ) : Source {
-    private val delegate by lazy {
-        // Source exposes synchronous properties (name/lang/getFilterList), so the delegate must be
-        // resolved without suspending. This is an in-app source, not an installed extension.
-        runBlocking { sourceManager.get(id) }
-    }
+    // Source exposes synchronous properties and there is no suspending call site here, so resolve
+    // the wrapped source from the already-loaded snapshot instead of blocking on the source scan.
+    // It is null while the sources are still loading; the properties below then use their defaults.
+    private val loadedSource: Source?
+        get() = sourceManager.sourcesMapOrNull?.get(id)
+
+    override val name: String
+        get() = loadedSource?.name ?: "Recommends Source"
+    override val lang: String
+        get() = loadedSource?.lang ?: "all"
+    override val supportsLatest: Boolean
+        get() = loadedSource?.supportsLatest ?: false
 
     fun isComickSource(): Boolean = id in COMICK_IDS
     fun isMangaDexSource(): Boolean = id in MANGADEX_IDS
 
-    override val name: String by lazy { delegate?.name ?: "Recommends Source" }
-    override val lang: String by lazy { delegate?.lang ?: "all" }
-    override val supportsLatest by lazy { delegate?.supportsLatest ?: false }
+    // Suspend paths keep awaiting the source manager so they aren't weakened when the snapshot is null.
+    private suspend fun awaitSource(): Source =
+        sourceManager.get(id) ?: throw UnsupportedOperationException()
 
     override suspend fun getMangaUpdate(
         manga: SManga,
@@ -177,24 +184,16 @@ class RecommendationSource(
         fetchDetails: Boolean,
         fetchChapters: Boolean,
     ): SMangaUpdate =
-        delegate?.getMangaUpdate(manga, chapters, fetchDetails, fetchChapters)
-            ?: throw UnsupportedOperationException()
+        awaitSource().getMangaUpdate(manga, chapters, fetchDetails, fetchChapters)
 
-    override suspend fun getPageList(chapter: SChapter) =
-        delegate?.getPageList(chapter)
-            ?: throw UnsupportedOperationException()
+    override suspend fun getPageList(chapter: SChapter) = awaitSource().getPageList(chapter)
 
-    override suspend fun getPopularManga(page: Int) =
-        delegate?.getPopularManga(page)
-            ?: throw UnsupportedOperationException()
-    override suspend fun getLatestUpdates(page: Int) =
-        delegate?.getLatestUpdates(page)
-            ?: throw UnsupportedOperationException()
+    override suspend fun getPopularManga(page: Int) = awaitSource().getPopularManga(page)
+    override suspend fun getLatestUpdates(page: Int) = awaitSource().getLatestUpdates(page)
     override suspend fun getSearchManga(page: Int, query: String, filters: FilterList) =
-        delegate?.getSearchManga(page, query, filters)
-            ?: throw UnsupportedOperationException()
+        awaitSource().getSearchManga(page, query, filters)
     override fun getFilterList() =
-        delegate?.getFilterList()
+        loadedSource?.getFilterList()
             ?: throw UnsupportedOperationException()
 }
 
