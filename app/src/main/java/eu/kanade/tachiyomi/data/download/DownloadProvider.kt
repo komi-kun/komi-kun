@@ -286,7 +286,7 @@ class DownloadProvider(
         // SY <--
     ): String {
         return ChapterDirNameParts(chapterName, chapterScanlator, chapterUrl)
-            .dirName(disallowNonAsciiFilenames, includeChapterUrlHash, sanitizeScanlator = true)
+            .dirName(disallowNonAsciiFilenames, includeChapterUrlHash)
     }
 
     /**
@@ -309,14 +309,18 @@ class DownloadProvider(
         val booleanPairPermutation = listOf(false to false, false to true, true to false, true to true)
         val othersChapterDirNames = booleanPairPermutation
             .map { (disallowNonAsciiFilenames, includeChapterUrlHash) ->
-                parts.dirName(disallowNonAsciiFilenames, includeChapterUrlHash, sanitizeScanlator = true)
+                parts.dirName(disallowNonAsciiFilenames, includeChapterUrlHash)
+            }
+        val splitChapterDirNames = booleanPairPermutation
+            .map { (disallowNonAsciiFilenames, includeChapterUrlHash) ->
+                parts.splitDirName(disallowNonAsciiFilenames, includeChapterUrlHash, sanitizeScanlator = true)
             }
 
         // Scanlators weren't sanitized for a while. One with a "/" nested its folder, so it was never found anyway.
         val scanlator = parts.chapterScanlator
         val unsanitizedScanlatorChapterDirNames = if (scanlator != null && '/' !in scanlator) {
             booleanPairPermutation.map { (disallowNonAsciiFilenames, includeChapterUrlHash) ->
-                parts.dirName(disallowNonAsciiFilenames, includeChapterUrlHash, sanitizeScanlator = false)
+                parts.splitDirName(disallowNonAsciiFilenames, includeChapterUrlHash, sanitizeScanlator = false)
             }
         } else {
             emptyList()
@@ -327,6 +331,7 @@ class DownloadProvider(
             // chapter names)
             add(chapterNameV1)
             addAll(othersChapterDirNames)
+            addAll(splitChapterDirNames)
             addAll(unsanitizedScanlatorChapterDirNames)
         }
     }
@@ -348,7 +353,6 @@ class DownloadProvider(
         val chapterDirName = parts.dirName(
             disallowNonAscii = libraryPreferences.disallowNonAsciiFilenames.get(),
             enableHash = downloadPreferences.includeChapterUrlHash.get(),
-            sanitizeScanlator = true,
         )
         val legacyChapterDirNames = getLegacyChapterDirNames(parts)
 
@@ -387,9 +391,29 @@ private class ChapterDirNameParts(chapterName: String, val chapterScanlator: Str
         chapterScanlator?.let { DiskUtil.buildValidFilename(it) }
     }
 
+    private val validDirNames = arrayOfNulls<String>(2)
+
     private val validChapterNames = arrayOfNulls<String>(2)
 
-    fun dirName(disallowNonAscii: Boolean, enableHash: Boolean, sanitizeScanlator: Boolean): String {
+    fun dirName(disallowNonAscii: Boolean, enableHash: Boolean): String {
+        val index = if (disallowNonAscii) 1 else 0
+        val dirName = validDirNames[index]
+            // The scanlator and the name are made valid together, as every version before 0.21.0 did
+            ?: DiskUtil.buildValidFilename(
+                if (chapterScanlator.isNullOrBlank()) chapterName else "${chapterScanlator}_$chapterName",
+                // Subtract 7 bytes for hash and underscore, 4 bytes for .cbz
+                DiskUtil.MAX_FILE_NAME_BYTES - 11,
+                disallowNonAscii,
+            )
+                .also { validDirNames[index] = it }
+        return if (enableHash) dirName + hashSuffix else dirName
+    }
+
+    /**
+     * The name 0.21.0 and 0.21.1 gave a chapter, which made only the chapter name valid and so differs for names
+     * starting with a space or dot, long names, and non-ASCII scanlators.
+     */
+    fun splitDirName(disallowNonAscii: Boolean, enableHash: Boolean, sanitizeScanlator: Boolean): String {
         return buildString {
             if (!chapterScanlator.isNullOrBlank()) {
                 // A "/" in the scanlator would otherwise nest the chapter in a folder of its own
