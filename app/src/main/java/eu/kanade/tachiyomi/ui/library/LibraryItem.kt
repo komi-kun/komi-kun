@@ -10,6 +10,7 @@ data class LibraryItem(
     val downloadCount: Int = -1,
     val unreadCount: Long = -1,
     val isLocal: Boolean = false,
+    val sourceName: String = "",
     val sourceLanguage: String = "",
     // KMK -->
     val useLangIcon: Boolean = true,
