@@ -157,15 +157,16 @@ The items under "Still divergent" remain in `cherrypick_log.md` for dedicated fo
 
 ### Provenance caveats (SyncYomi v2)
 
-- SyncYomi v2 (`ccaa248bd7`) was ported from the then-**unmerged** `tachiyomiSY/pr-1648`, together
-  with the `tachiyomiSY/pr-1658` chapter-tombstone branch (a `#1659` was not found in this repo's
-  refs). Before the next TachiyomiSY re-sync, re-diff it against SY `master` **once #1648 merges**,
-  then stop tracking the PR branch.
+- SyncYomi v2 (`ccaa248bd7`) was ported from the then-**unmerged** `tachiyomiSY/pr-1648` (plus the
+  `tachiyomiSY/pr-1658` chapter-tombstone branch). That PR has since **squash-merged as `380496a5be`**
+  on SY `master`, so the individual branch commits the fork cites (`2d208b7431`, `2dfae69961`,
+  `41574e8235`, `397c478394`, `c2d2ee6af5`) now live only behind the stale PR refs. Re-diff the
+  series against `380496a5be` before the next TachiyomiSY re-sync, then stop tracking the PR branches.
 - `3b88dd7ca9`'s `(cherry picked from commit 4496c9db1c…)` trailer pointed at a **non-existent
   object**, and `cd3987a228` carried **no trailer**. Both were fixed on 2026-10-14: they now cite the
   real SY sources (`41574e8235` and `e96895345e`), so the SyncYomi-v2 series is attributable again.
-  `15c4b5beef` still cites `4e8e01d4f4`, which only exists on the unmerged `tachiyomiSY/pr-1641`;
-  re-point it once #1641 merges.
+  The `15c4b5beef` port of TachiyomiSY #1641 cites the merged squash `148496e754` (its branch commit
+  `4e8e01d4f4` was superseded when #1641 landed).
 
 ## Known divergences / review notes
 
