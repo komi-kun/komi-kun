@@ -4,20 +4,32 @@
 <!-- Only edit the Status and Notes columns; everything else is regenerated on every run. -->
 
 Commits from main upstream **mihon** and additional **tachiyomiSY** since **2024-01-01** (authors matching `renovate` excluded), checked against `chore/syncyomi-v2-mihon-backlog`.
-Last updated **2026-10-13** from mihon `mihon/main` @ `1ca9b0efb8`, tachiyomiSY `tachiyomiSY/master` @ `5a469745d3`.
+Last updated **2026-10-13** from mihon `mihon/main` @ `446f6df82c`, tachiyomiSY `tachiyomiSY/master` @ `5a469745d3`.
 How to update / review: [.claude/skills/cherrypick-log/README.md](.claude/skills/cherrypick-log/README.md).
 
 **Status:** `O` cherry-picked · `?` maybe, needs review (includes commits that cancel each other out, flagged by the script) · empty = not found · `X` won't pick (set by hand, or version-bump-only commits). **Upstream** `↳ name` = copy of the mihon commit right below it. **Details** = how pairing / status was found (regenerated); **Notes** = yours, kept.
 
 | Upstream | O | ? | X | empty | other | total |
 |---|--:|--:|--:|--:|--:|--:|
-| mihon | 836 | 31 | 65 | 362 | 0 | 1294 |
+| mihon | 845 | 33 | 65 | 363 | 0 | 1306 |
 | tachiyomiSY | 816 | 3 | 15 | 184 | 0 | 1018 |
 
 ## Commits
 
 | Status | Commit | Upstream | Date | Title | Author | Details | Notes |
 |:-:|---|---|---|---|---|---|---|
+|   | [3100dceddd](https://github.com/mihonapp/mihon/commit/3100dceddd177ea5444abff86d3f563fb75b55ce) | mihon | 2026-10-13 | Release v0.21.2 | AntsyLich |  |  |
+| ? | [771ba33a33](https://github.com/mihonapp/mihon/commit/771ba33a33b6b07675625ece8211d1584f247ac8) | mihon | 2026-10-13 | Stream entries when creating and restoring backups | AntsyLich | chore/syncyomi-v2-mihon-backlog `5a7109005c` [title] |  |
+| O | [5a5ff22c37](https://github.com/mihonapp/mihon/commit/5a5ff22c375b77a7557e4fcddf6e377ef94f8b9b) | mihon | 2026-10-13 | Fix concurrent Cloudflare challenges each opening a WebView | AntsyLich | chore/syncyomi-v2-mihon-backlog `cb3b2c9f97` [hash of mihon, title+author] |  |
+| O | [f0f1e4de5a](https://github.com/mihonapp/mihon/commit/f0f1e4de5a13c1e66ef8c49158731bd2f808b0a0) | mihon | 2026-10-12 | Fix some downloads not being recognized | AntsyLich | chore/syncyomi-v2-mihon-backlog `fe1b72dfa1` [hash of mihon] |  |
+| O | [c371d6331d](https://github.com/mihonapp/mihon/commit/c371d6331d25b0e5f47c73d4596c4e9aa7cd15e1) | mihon | 2026-10-12 | Ignore long strip taps confirmed after the reader is gone | AntsyLich | chore/syncyomi-v2-mihon-backlog `c0f7b6ffbb` [hash of mihon, title+author] |  |
+| O | [2df48e19a1](https://github.com/mihonapp/mihon/commit/2df48e19a129aa4fcc7f444cd0d15c5eea52d324) | mihon | 2026-10-12 | Fail the install when nothing can confirm it instead of crashing | AntsyLich | chore/syncyomi-v2-mihon-backlog `997dc04dfa` [hash of mihon, title+author] |  |
+| O | [c9e1b6e96e](https://github.com/mihonapp/mihon/commit/c9e1b6e96e167dfde720c62782bb42e28efa4fa3) | mihon | 2026-10-12 | Show invalid filters from extensions instead of crashing | AntsyLich | chore/syncyomi-v2-mihon-backlog `89748d6ada` [hash of mihon, title+author] |  |
+| O | [3156b4a1c4](https://github.com/mihonapp/mihon/commit/3156b4a1c44e276b5ebd90410fcef27f7ebe5931) | mihon | 2026-10-12 | Insert split pages only into the chapter they belong to | AntsyLich | chore/syncyomi-v2-mihon-backlog `c4c46458a0` [hash of mihon, title+author] |  |
+| O | [ee59394542](https://github.com/mihonapp/mihon/commit/ee59394542728ffa27fdec6417439809a8697678) | mihon | 2026-10-12 | Fix tracker start date being shifted by the UTC offset (#4049) | hazptr | chore/syncyomi-v2-mihon-backlog `a9fd121410` [hash of mihon, title+author] |  |
+| O | [7ae858e602](https://github.com/mihonapp/mihon/commit/7ae858e6023fdc729e3f99c40f529e7f46d66c3d) | mihon | 2026-10-12 | Solve Cloudflare challenges of non-GET requests on the site's root | AntsyLich | chore/syncyomi-v2-mihon-backlog `23b6784a1b` [hash of mihon, title+author] |  |
+| O | [43de88c718](https://github.com/mihonapp/mihon/commit/43de88c7186116d7ecc94e9343d313f0a7dca5c8) | mihon | 2026-10-12 | Update navigationevent to stop back gestures crashing closed screens | AntsyLich | chore/syncyomi-v2-mihon-backlog `0800125d60` [hash of mihon] |  |
+| ? | [ea2b73ad78](https://github.com/mihonapp/mihon/commit/ea2b73ad78a6c1d2d00e76034a5a11876da3db8e) | mihon | 2026-10-12 | Guard the database update against duplicates and damaged indexes | AntsyLich | chore/syncyomi-v2-mihon-backlog `369d9e4a59` [title] |  |
 | O | [1ca9b0efb8](https://github.com/mihonapp/mihon/commit/1ca9b0efb817b54948436e19906de9a5a2dca6b2) | mihon | 2026-10-12 | Don't send full Doubles to Comick for progress (#4090) | MajorTanya | chore/syncyomi-v2-mihon-backlog `4e8a397791` [hash of mihon, title+author] |  |
 |   | [66e736222d](https://github.com/mihonapp/mihon/commit/66e736222df7cefb41a433e31d4ab9474090b4b8) | mihon | 2026-10-12 | Release v0.21.1 | AntsyLich |  |  |
 | O | [51b61a36e8](https://github.com/mihonapp/mihon/commit/51b61a36e8633d458e329859a9e025cf6b02528f) | mihon | 2026-10-12 | Keep the pager on its page when chapters are added before layout | AntsyLich | chore/syncyomi-v2-mihon-backlog `1e484e3a40` [hash of mihon, title+author] |  |
