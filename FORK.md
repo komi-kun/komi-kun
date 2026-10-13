@@ -161,9 +161,11 @@ The items under "Still divergent" remain in `cherrypick_log.md` for dedicated fo
   with the `tachiyomiSY/pr-1658` chapter-tombstone branch (a `#1659` was not found in this repo's
   refs). Before the next TachiyomiSY re-sync, re-diff it against SY `master` **once #1648 merges**,
   then stop tracking the PR branch.
-- `3b88dd7ca9`'s `(cherry picked from commit 4496c9db1c…)` trailer points at a **non-existent
-  object** (the real SY source is `41574e8235`), and `cd3987a228` carries **no trailer** — so the
-  SyncYomi-v2 series stays unattributable to `update_cherrypick_log.py` until these are fixed.
+- `3b88dd7ca9`'s `(cherry picked from commit 4496c9db1c…)` trailer pointed at a **non-existent
+  object**, and `cd3987a228` carried **no trailer**. Both were fixed on 2026-10-14: they now cite the
+  real SY sources (`41574e8235` and `e96895345e`), so the SyncYomi-v2 series is attributable again.
+  `15c4b5beef` still cites `4e8e01d4f4`, which only exists on the unmerged `tachiyomiSY/pr-1641`;
+  re-point it once #1641 merges.
 
 ## Known divergences / review notes
 
@@ -177,26 +179,19 @@ Accepted divergences, recorded during review of the first big upstream sync (Oct
 - **The Mihon copy was preferred over the TachiyomiSY copy in ~57 cases.** The porting workflow
   above says to prefer the SY copy when one exists, but this sync (and earlier history, ~60 commits
   in total) often took the Mihon copy instead. This is a known, accepted deviation: it increases
-  future conflict surface but is not a functional break.
+  future conflict surface but is not a functional break. **Audited 2026-10-14:** the SY copies of
+  those commits contain no SY-only fix or behaviour that this fork is missing — every difference is
+  SY architecture adaptation (SY's extra fields/features) that the fork's adapted ports already
+  preserve, so there is nothing to back-port.
 - **Backups are one-way compatible.** `3b88dd7ca9` adds proto3 defaults to fields that previously
   had none; with `encodeDefaults = false`, values equal to a default are omitted from the payload, so
   a backup written by this build can throw `MissingFieldException` in an older build (surfaced as
   `invalid_backup_file_unknown`, aborting the restore). Old backup → this build is fine. This is
   documented, not reverted; only the old → new direction is supported.
-- **Ports with prose provenance instead of a cherry-pick trailer.** The commits below record their
-  upstream source as prose (or not at all) rather than `(cherry picked from commit <sha>)`, so
-  `update_cherrypick_log.py` does not detect them and will never auto-mark the upstream rows `O`
-  (they were marked `O` by hand on 2026-10-13); future syncs may still re-consider and re-port them:
-
-  | Local (this fork) | Upstream source |
-  |-------------------|-----------------|
-  | `b6635d3f66` | Mihon `771ba33a33` |
-  | `fdc811e834` | Mihon `ea2b73ad78` |
-  | `1c0fd84a7b` | Mihon `db45dda525` |
-  | `da20f781dc` | Mihon `a4abb6292b` |
-  | `8ee215710e` | Mihon `f8fff318ba` |
-  | `d1ab687c8d` | Mihon `5fadea61e7` (#3869, no trailer) |
-  | `387ea9a5b5`, `359ee0cf8f` | TachiyomiSY #1559 / #1658 (no trailer) |
-
-  `cd3987a228` and the broken `3b88dd7ca9` trailer are covered under "Provenance caveats
-  (SyncYomi v2)" above.
+- **Ports with prose provenance instead of a cherry-pick trailer — resolved 2026-10-14.** The Mihon
+  ports (`771ba33a33`, `ea2b73ad78`, `db45dda525`, `a4abb6292b`, `f8fff318ba`, `5fadea61e7`) and the
+  SY sync ports (`e96895345e`, `397c478394`) now carry the standard
+  `(cherry picked from commit <sha>)` trailer, so `update_cherrypick_log.py` detects them
+  automatically. Adding the trailers rewrote those commit messages, so the branch SHAs changed.
+  The only remaining prose-only port is `387ea9a5b5`, which merges two SY PRs (TachiyomiSY #1559 /
+  #1648) and therefore has no single upstream commit to cite.
