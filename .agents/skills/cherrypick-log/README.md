@@ -16,14 +16,14 @@ script's `mark` command, so the table can't be corrupted.
 
 ```bash
 # 1. Fetch upstreams and regenerate cherrypick_log.md (safe to run any time)
-python3 .claude/skills/cherrypick-log/update_cherrypick_log.py
+python3 .agents/skills/cherrypick-log/update_cherrypick_log.py
 
 # 2. In Claude Code, let the AI review the uncertain rows
 /cherrypick-log review the ? rows
 
 # 3. Pick commits, then mark them yourself (or edit the Status / Notes cells by hand)
-python3 .claude/skills/cherrypick-log/update_cherrypick_log.py mark 1a2b3c4d --status O
-python3 .claude/skills/cherrypick-log/update_cherrypick_log.py mark 5e6f7a8b --status X --note "SY-only release bump"
+python3 .agents/skills/cherrypick-log/update_cherrypick_log.py mark 1a2b3c4d --status O
+python3 .agents/skills/cherrypick-log/update_cherrypick_log.py mark 5e6f7a8b --status X --note "SY-only release bump"
 ```
 
 The upstream remotes named in `config.json` must exist. In Komikku these are `git remote add mihon https://github.com/mihonapp/mihon`
@@ -168,7 +168,7 @@ Tuning constants (similarity threshold, date limits, minimum title words) are at
 
 ## Using this in another project
 
-1. Copy the whole `.claude/skills/cherrypick-log/` folder.
+1. Copy the whole `.agents/skills/cherrypick-log/` folder.
 2. Edit `config.json`: the `main_upstream`, one or more `additional_upstreams` (remote, branch, GitHub `owner/repo`),
    target branch, start date (`since`, specific to that repo), excluded identities and output.
 3. Add the remotes (`git remote add <name> <url>`) and run the script.
@@ -180,7 +180,7 @@ with `git cherry-pick -x` (`cherry picked from commit …`) or `owner/repo#N` re
 ## Tests
 
 ```bash
-python3 -m unittest discover -s .claude/skills/cherrypick-log -p 'test_*.py'
+python3 -m unittest discover -s .agents/skills/cherrypick-log -p 'test_*.py'
 ```
 
 The tests in `test_update_cherrypick_log.py` cover revert-chain flags (including when a chain gets longer and the older `X` omissions), releasing

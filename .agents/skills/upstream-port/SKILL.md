@@ -16,8 +16,8 @@ Upstreams (see `FORK.md`): `mihon` (`mihon/main`), `tachiyomiSY` (`tachiyomiSY/m
 ## 1. Decide what to pick
 
 ```bash
-python3 .claude/skills/cherrypick-log/update_cherrypick_log.py          # refresh the log
-python3 .claude/skills/cherrypick-log/update_cherrypick_log.py uncertain --json   # the '?' rows
+python3 .agents/skills/cherrypick-log/update_cherrypick_log.py          # refresh the log
+python3 .agents/skills/cherrypick-log/update_cherrypick_log.py uncertain --json   # the '?' rows
 ```
 
 - Review the `?` rows with the `cherrypick-log` skill; a row already `O` is in the fork — skip it.

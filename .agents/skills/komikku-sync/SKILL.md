@@ -59,10 +59,10 @@ Open a PR from the feature branch to `master` (**never** push `master`).
 
 ## 5. Keep the log in step
 
-`cherrypick_log.md` tracks Komikku too (`.claude/skills/cherrypick-log/config.json` lists it as an
+`cherrypick_log.md` tracks Komikku too (`.agents/skills/cherrypick-log/config.json` lists it as an
 additional upstream with its own `since`). After a sync, advance Komikku's `since` in `config.json`
 to the new base commit's date and re-run the generator so merged rows flip to `O`:
 
 ```bash
-python3 .claude/skills/cherrypick-log/update_cherrypick_log.py
+python3 .agents/skills/cherrypick-log/update_cherrypick_log.py
 ```
