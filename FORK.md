@@ -53,7 +53,7 @@ upstream** — they never mark upstream code itself. Rules (extending `AGENTS.md
 4. Prefer `git cherry-pick -x <sha>` in **chronological order** — earlier commits in a series often
    unblock later ones. Resolve conflicts by adapting to this fork, never by reverting Komikku
    features. When a port needs local changes, keep the `(cherry picked from …)` trailer and wrap the
-   local delta in `// KMK` markers.
+   local delta in `// KUN` markers.
 5. **Prefer the TachiyomiSY copy of a Mihon commit** when one exists (the log shows them as a
    `↳ tachiyomiSY` row): Komikku descends from SY, so the SY-adapted version conflicts far less.
 6. After each batch: `./gradlew spotlessApply spotlessCheck :app:compileDebugKotlin`, then the unit
@@ -179,8 +179,12 @@ Accepted divergences, recorded during review of the first big upstream sync (Oct
 - **Brand strings live inside upstream-owned i18n files.** The app-name strings are edited in
   `i18n/src/commonMain/moko-resources/base/strings.xml` and
   `i18n-sy/src/commonMain/moko-resources/base/strings.xml` (name → Komikun), i.e. inside modules
-  `AGENTS.md` marks as upstream-owned. The edits are `// KUN`-wrapped and are a permanent,
-  intentional divergence, not a sync mistake — keep the Komikun brand when resolving conflicts there.
+  `AGENTS.md` marks as upstream-owned. The edits are `// KUN`-wrapped and are an intentional
+  divergence, not a sync mistake — so default to keeping the Komikun brand when resolving conflicts
+  there. But treat that as a default, not a hard rule: if an incoming upstream change supplants or
+  improves on the fork's branding (a rebrand, a better string/plumbing mechanism, a translation
+  fix), adopt the upstream version and drop or adapt the local edit instead of preserving the fork
+  string blindly.
 - **The Mihon copy was preferred over the TachiyomiSY copy in ~57 cases.** The porting workflow
   above says to prefer the SY copy when one exists, but this sync (and earlier history, ~60 commits
   in total) often took the Mihon copy instead. This is a known, accepted deviation: it increases
