@@ -1,6 +1,6 @@
-# Komikku – AI Agent Guide
+# komi-kun – AI Agent Guide
 
-Komikku is an Android manga reader (min SDK 26, target SDK 36, JVM target 17 / Kotlin) forked from **Mihon** + **TachiyomiSY**. `applicationId`: `app.komikun` (debug: `app.komikun.dev`).
+**komi-kun** is a personal vendoring fork of **Komikku** (app name "Komikun"; `applicationId`: `app.komikun`, debug `app.komikun.dev`). Komikku is itself an Android manga reader (min SDK 26, target SDK 36, JVM target 17 / Kotlin) forked from **Mihon** + **TachiyomiSY**. Komikku is this repo's direct upstream/base; Mihon and TachiyomiSY are Komikku's upstreams (and therefore also reachable from here).
 
 Features: configurable reader, downloads/offline reading, trackers (MyAnimeList, AniList, Kitsu, MangaUpdates, Bangumi, Kavita, Komga, MangaDex, Shikimori, Suwayomi), recommendations, metadata editing, library categories/tags/filters, multi-source browsing and feed tabs.
 
@@ -10,7 +10,10 @@ Features: configurable reader, downloads/offline reading, trackers (MyAnimeList,
 |----------|-------------|---------|
 | Mihon | none (base code) | `MR` (`i18n/`) |
 | TachiyomiSY | `// SY -->` … `// SY <--` (legacy `// EXH` blocks also come from SY) | `SYMR` (`i18n-sy/`) |
-| **Komikku** (this repo) | `// KMK -->` … `// KMK <--` | `KMR` (`i18n-kmk/`) |
+| Komikku (this fork's base upstream) | `// KMK -->` … `// KMK <--` | `KMR` (`i18n-kmk/`) |
+| **komi-kun** (this repo) | `// KUN -->` … `// KUN <--` | `KMR` (`i18n-kmk/`) |
+
+Markers record **divergence from upstream**, never upstream code itself: Mihon is the base (unmarked); `// KMK` / `// SY` mark code inherited from the Komikku / TachiyomiSY upstreams; `// KUN` marks this fork's own code.
 
 ---
 
@@ -30,23 +33,31 @@ Before `git push`, confirm the current branch is not `master` or `main` (`git br
 
 ### Fork markers
 
-Every Komikku addition or modification to existing code **must** be wrapped:
+Markers record **what diverges from upstream** — they never mark upstream code itself. Every komi-kun addition or modification to existing code **must** be wrapped:
 
 ```kotlin
-// KMK -->
+// KUN -->
 // your code here
-// KMK <--
+// KUN <--
 ```
 
-- Use `// KMK` for this fork's own new code. Code ported from TachiyomiSY is marked `// SY -->` … `// SY <--` (as `FORK.md` documents); never label code that is not ported from TachiyomiSY as `// SY` (or its legacy `// EXH` form).
-- Keep existing upstream `// SY` / `// EXH` blocks intact; when changing code inside one, wrap your change in a nested `// KMK` block.
-- Markers apply to `.sq` queries and mappers too.
+| Code origin | Marker |
+|-------------|--------|
+| komi-kun's own code (this repo) | `// KUN -->` … `// KUN <--` |
+| Komikku upstream | `// KMK -->` … `// KMK <--` |
+| TachiyomiSY upstream | `// SY -->` … `// SY <--` (legacy `// EXH` blocks also come from SY) |
+| Mihon (base upstream) | none |
+
+- Use `// KUN` for this fork's own new code. **Never** reuse `// KMK` for komi-kun code: `// KMK` means the code came from the **Komikku** upstream.
+- Never label code that is not from TachiyomiSY as `// SY` (or its legacy `// EXH` form), and never label code that is not from Komikku as `// KMK`.
+- Keep existing upstream `// KMK` / `// SY` / `// EXH` blocks intact; when changing code inside one, wrap your change in a nested `// KUN` block.
+- Markers apply to `.sq` queries and mappers too (use `-- KUN -->` / `-- KUN <--`).
 
 ### Internationalization (strings)
 
 | String kind | Module | Resource class | Base folder only |
 |-------------|--------|----------------|------------------|
-| **Komikku-only** (new features, KMK UI, library-update errors, WebDAV, Discord, etc.) | `i18n-kmk/` | **`KMR`** | `i18n-kmk/src/commonMain/moko-resources/base/` |
+| **komi-kun / Komikku** new features (library-update errors, WebDAV, Discord, etc.) | `i18n-kmk/` | **`KMR`** | `i18n-kmk/src/commonMain/moko-resources/base/` |
 | Mihon upstream | `i18n/` | `MR` | `i18n/src/commonMain/moko-resources/base/` |
 | TachiyomiSY upstream | `i18n-sy/` | `SYMR` | `i18n-sy/src/commonMain/moko-resources/base/` |
 
@@ -54,7 +65,7 @@ Every Komikku addition or modification to existing code **must** be wrapped:
 
 - **All new strings go to `i18n-kmk/`** (`import tachiyomi.i18n.kmk.KMR`). `MR` / `SYMR` are upstream-owned; reuse existing entries, but only add or change them when syncing upstream.
 - **Never** edit non-`base` locale `strings.xml` or `plurals.xml` files in `i18n-kmk/`, `i18n/`, or `i18n-sy/` — [Weblate](https://hosted.weblate.org/engage/komikku-app/) owns translations.
-- Inside a `// KMK` block or for Komikku-only behavior, default to **`KMR`** even if nearby code imports `MR`.
+- Inside a `// KUN` block (or Komikku's own `// KMK` behavior), default to **`KMR`** even if nearby code imports `MR`.
 
 **Examples (→ `i18n-kmk`, not `i18n`):** library update error UI, sync-before-update messages, WebDAV/Discord settings, updater notifications, `mihon/feature/*` Komikku screens.
 
@@ -138,7 +149,7 @@ Package roots: `eu.kanade.tachiyomi.*` (legacy UI), `tachiyomi.*` (domain/data),
 
 **Images** – Coil 3 (`coil3.*`, `context.imageLoader`), configured in `App.kt`. No Glide/Picasso.
 
-**Logging** – Komikku code: `xLogE()` / `xLog()` from `exh.log`. Mihon code: `logcat { }` from `tachiyomi.core.common.util.system`. Avoid raw `android.util.Log`.
+**Logging** – komi-kun / Komikku code: `xLogE()` / `xLog()` from `exh.log`. Mihon code: `logcat { }` from `tachiyomi.core.common.util.system`. Avoid raw `android.util.Log`.
 
 ---
 
@@ -150,13 +161,13 @@ Package roots: `eu.kanade.tachiyomi.*` (legacy UI), `tachiyomi.*` (domain/data),
 
 ---
 
-## Adding a Komikku feature
+## Adding a komi-kun feature
 
 1. **Interactor:** `domain/src/main/java/tachiyomi/domain/<area>/interactor/MyFeature.kt`
-2. **DI:** `addFactory { MyFeature(get()) }` in `KMKDomainModule.kt` (or inside a `// KMK` block in `DomainModule.kt`)
+2. **DI:** `addFactory { MyFeature(get()) }` in `KMKDomainModule.kt` (or inside a `// KUN` block in `DomainModule.kt`)
 3. **UI:** ScreenModel + Screen under `app/src/main/java/eu/kanade/tachiyomi/ui/`
 4. **Strings:** `i18n-kmk/src/commonMain/moko-resources/base/strings.xml`, referenced via `KMR`
-5. **Markers:** wrap edits to existing files in `// KMK -->` / `// KMK <--`
+5. **Markers:** wrap edits to existing files in `// KUN -->` / `// KUN <--`
 
 Reference: `domain/src/main/java/tachiyomi/domain/category/interactor/HideCategory.kt` and its registration in `DomainModule.kt`.
 

@@ -24,18 +24,22 @@ what has and has not been ported (`cherrypick_log.md`).
 
 ## Provenance markers
 
-Markers are how we can still diff our tree against an upstream later. Rules (extending `AGENTS.md`):
+Markers are how we can still diff our tree against an upstream later. Markers record **divergence from
+upstream** — they never mark upstream code itself. Rules (extending `AGENTS.md`):
 
 | Code origin | Marker |
 |-------------|--------|
-| Komikku upstream and this fork's own code | `// KMK -->` … `// KMK <--` |
-| Code ported from TachiyomiSY | `// SY -->` … `// SY <--` |
-| Code ported from Mihon | no block marker — keep the commit's `(cherry picked from commit <sha>)` trailer |
-| Changes *we* make inside a ported block | nest a `// KMK -->` … `// KMK <--` block inside it |
+| This fork (komi-kun) — our own code | `// KUN -->` … `// KUN <--` |
+| Komikku upstream | `// KMK -->` … `// KMK <--` |
+| TachiyomiSY upstream | `// SY -->` … `// SY <--` (legacy `// EXH` also) |
+| Mihon upstream (base) | no block marker — keep the commit's `(cherry picked from commit <sha>)` trailer |
+| Changes *we* make inside an inherited `// KMK` / `// SY` / `// EXH` block | nest a `// KUN -->` … `// KUN <--` block inside it |
 
+- `// KMK` is **not** this fork's marker: it means the code came from the **Komikku** upstream (this
+  repo's base). komi-kun's own code uses `// KUN`.
 - Never add new strings to a non-`base` locale; new strings go to
   `i18n-kmk/.../base/strings.xml` and are referenced via `KMR` (`AGENTS.md`).
-- Markers also apply inside `.sq` / `.sqm` files (use `-- KMK -->` / `-- KMK <--`).
+- Markers also apply inside `.sq` / `.sqm` files (use `-- KUN -->` / `-- KUN <--`).
 - A pure cherry-pick needs no marker: the trailing `(cherry picked from commit <sha>)` is the
   provenance, and `update_cherrypick_log.py` detects it as `O`.
 
