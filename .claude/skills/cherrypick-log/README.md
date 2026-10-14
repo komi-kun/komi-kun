@@ -156,7 +156,13 @@ templates). Their note is `AI checked <date>: omitted - version bump only (<file
 | `output` | Output Markdown path, relative to the repo root (or absolute) |
 | `exclude_identity_regex` | Case-insensitive regex matched against author, committer and co-authors (Komikku: `renovate`). Empty = exclude nothing |
 | `main_upstream` | `{name, remote, branch, github}` of the main upstream. Its commits set the order of the list. Required |
-| `additional_upstreams` | List of one or more `{name, remote, branch, github}`. Their commits are paired with, and interleaved into, the main upstream's. Names must be unique |
+| `additional_upstreams` | List of one or more `{name, remote, branch, github, since?}`. Their commits are paired with, and interleaved into, the main upstream's. Names must be unique. The optional per-upstream `since` (`YYYY-MM-DD`) overrides the global one for that upstream |
+
+A **base / merge upstream** (in this fork: `komikku`, the project it is forked from) is listed as an
+additional upstream too. Its commits are *merged* into `master`, not cherry-picked, so the generator
+marks them `O` automatically once their hash is reachable from the target branch. Give it its own
+`since` close to the current base commit — otherwise every Komikku commit back to the global `since`
+would be listed — and advance that `since` whenever you sync the base forward.
 
 Tuning constants (similarity threshold, date limits, minimum title words) are at the top of the script.
 

@@ -206,6 +206,7 @@ class Upstream:
     remote: str
     branch: str
     github: str
+    since: str = ""  # optional per-upstream start date; falls back to Config.since
 
     @property
     def ref(self) -> str:
@@ -434,7 +435,7 @@ class Builder:
             self.members[e.cluster].append(e)
 
         for sec_no, up in enumerate(self.secondaries):
-            commits = [c for c in self.log(up, self.cfg.since) if not self.excluded(c)]
+            commits = [c for c in self.log(up, up.since or self.cfg.since) if not self.excluded(c)]
             anchor: str | None = None
             for pos in range(len(commits) - 1, -1, -1):  # oldest -> newest
                 s = commits[pos]
@@ -457,7 +458,7 @@ class Builder:
                 entry = Entry(s, up, "own", s.full)
                 if mapped:
                     picked = ", ".join(f"`{p.short}`" for p in mapped)
-                    entry.details.append(f"pick of {self.primary.name} {picked} (before {self.cfg.since}) [{how}]")
+                    entry.details.append(f"pick of {self.primary.name} {picked} (before {up.since or self.cfg.since}) [{how}]")
                     entry.pre_pick = True
                 self.members[entry.cluster].append(entry)
                 (attached[anchor] if anchor else bottom).append((sec_no, pos, entry))
