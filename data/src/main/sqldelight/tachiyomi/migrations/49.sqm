@@ -80,7 +80,7 @@ ALTER TABLE excluded_scanlators_copy RENAME TO excluded_scanlators;
 -- Merging duplicate chapters looks their history up by chapter
 CREATE INDEX history_chapter_id_index ON history(chapter_id);
 
--- KMK -->
+-- KUN -->
 -- Komikku/SY extra tables that are read and rewritten below, so they are copied from their rows alone the
 -- same way: a damaged index would make a write fail or a read miss a row.
 CREATE TABLE search_metadata_copy AS
@@ -108,7 +108,7 @@ SELECT
 FROM merged NOT INDEXED;
 DROP TABLE merged;
 ALTER TABLE merged_copy RENAME TO merged;
--- KMK <--
+-- KUN <--
 
 -- ---------------------------------------------------------------------------------------------------------
 -- orphans
@@ -122,7 +122,7 @@ DELETE FROM mangas_categories
 WHERE manga_id NOT IN (SELECT _id FROM mangas) OR category_id NOT IN (SELECT _id FROM categories);
 DELETE FROM manga_sync WHERE manga_id NOT IN (SELECT _id FROM mangas);
 DELETE FROM excluded_scanlators WHERE manga_id NOT IN (SELECT _id FROM mangas);
--- KMK -->
+-- KUN -->
 -- Komikku/SY extra tables that are rebuilt with a foreign key to `manga` further down, so the same
 -- leftovers would fail their copy just as well.
 DELETE FROM search_metadata WHERE manga_id NOT IN (SELECT _id FROM mangas);
@@ -131,7 +131,7 @@ DELETE FROM search_titles WHERE manga_id NOT IN (SELECT _id FROM mangas);
 DELETE FROM libraryUpdateError WHERE manga_id NOT IN (SELECT _id FROM mangas);
 DELETE FROM merged
 WHERE manga_id NOT IN (SELECT _id FROM mangas) OR merge_id NOT IN (SELECT _id FROM mangas);
--- KMK <--
+-- KUN <--
 
 -- ---------------------------------------------------------------------------------------------------------
 -- favorite related fields merged into favorite_at
@@ -217,7 +217,7 @@ FROM (
 ) AS merged
 WHERE mangas._id = merged.keep_id;
 
--- KMK -->
+-- KUN -->
 -- Extra tables without a surrogate key are simply re-pointed onto the surviving entry. Those with a
 -- unique manga_id (`search_metadata` is keyed by it, `libraryUpdateError` has a unique column) can hold
 -- one row per entry at most: the entry's own row is kept when it has one, otherwise the best-ranked
@@ -267,7 +267,7 @@ WHERE manga_id IN (SELECT _id FROM duplicate_mangas WHERE _id != keep_id);
 UPDATE libraryUpdateError
 SET manga_id = (SELECT keep_id FROM duplicate_mangas WHERE _id = libraryUpdateError.manga_id)
 WHERE manga_id IN (SELECT _id FROM duplicate_mangas WHERE _id != keep_id);
--- KMK <--
+-- KUN <--
 
 DELETE FROM mangas
 WHERE _id IN (SELECT _id FROM duplicate_mangas WHERE _id != keep_id);
@@ -638,7 +638,7 @@ FROM manga_sync T
 LEFT JOIN duplicate_mangas D
 ON D._id = T.manga_id;
 
--- KMK -->
+-- KUN -->
 -- `merged` is Komikku/SY-only. It has no unique key of its own, but both of its references still have
 -- to follow the merge so that no row keeps pointing at a deleted entry once the keys are enforced again
 -- (the table is rebuilt further down, after `duplicate_mangas` is gone).
@@ -647,7 +647,7 @@ SET manga_id = coalesce((SELECT keep_id FROM duplicate_mangas WHERE _id = merged
     merge_id = coalesce((SELECT keep_id FROM duplicate_mangas WHERE _id = merged.merge_id), merge_id)
 WHERE manga_id IN (SELECT _id FROM duplicate_mangas WHERE _id != keep_id)
    OR merge_id IN (SELECT _id FROM duplicate_mangas WHERE _id != keep_id);
--- KMK <--
+-- KUN <--
 
 DROP TABLE duplicate_mangas;
 

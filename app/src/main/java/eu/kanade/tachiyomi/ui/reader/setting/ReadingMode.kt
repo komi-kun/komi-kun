@@ -81,7 +81,7 @@ enum class ReadingMode(
             return mode.type is ViewerType.Pager
         }
 
-        // KMK -->
+        // KUN -->
         /**
          * Whether the high quality WebGPU renderer is usable on this device.
          *
@@ -96,7 +96,7 @@ enum class ReadingMode(
             logcat(LogPriority.WARN, it) { "High quality renderer probe failed" }
             false
         }
-        // KMK <--
+        // KUN <--
 
         fun toViewer(
             preference: Int?,
@@ -105,7 +105,7 @@ enum class ReadingMode(
             @ColorInt seedColor: Int?,
             // KMK <--
         ): Viewer {
-            // KMK -->
+            // KUN -->
             // Capability gate: the renderer's static initializer runs the GPU bring-up and records
             // any failure, so `isAvailable` tells us whether the high quality path can actually draw.
             // Without this, an unsupported device would keep a WebGpuViewer whose renderer no-ops,
@@ -128,7 +128,7 @@ enum class ReadingMode(
                     DEFAULT -> throw IllegalStateException("Preference value must be resolved: $preference")
                 }
             }
-            // KMK <--
+            // KUN <--
             return when (fromPreference(preference)) {
                 LEFT_TO_RIGHT -> L2RPagerViewer(
                     activity,

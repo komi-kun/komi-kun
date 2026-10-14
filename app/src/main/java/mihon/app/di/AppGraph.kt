@@ -104,16 +104,16 @@ interface AppGraph : ViewModelGraph {
     fun inject(backupCreateWorker: BackupCreateWorker)
     fun inject(delayedTrackingUpdateWorker: DelayedTrackingUpdateWorker)
     fun inject(downloadWorker: DownloadWorker)
-    // KMK -->
+    // KUN -->
     fun inject(appUpdateDownloadJob: AppUpdateDownloadJob)
     fun inject(syncDataJob: SyncDataJob)
-    // KMK <--
+    // KUN <--
     fun inject(notificationReceiver: NotificationReceiver)
     fun inject(notificationReceiver: SecureActivityDelegateImpl)
     fun inject(extensionInstallActivity: ExtensionInstallActivity)
-    // KMK -->
+    // KUN -->
     fun inject(eHentaiUpdateWorker: EHentaiUpdateWorker)
-    // KMK <--
+    // KUN <--
 
     val context: Context
 
@@ -146,7 +146,7 @@ interface AppGraph : ViewModelGraph {
     val chapterCache: ChapterCache
     val downloadCache: DownloadCache
 
-    // KMK -->
+    // KUN -->
     val connectionsManager: ConnectionsManager
     val connectionsPreferences: ConnectionsPreferences
     val syncPreferences: SyncPreferences
@@ -177,7 +177,7 @@ interface AppGraph : ViewModelGraph {
     val debugRepository: DebugRepository
     val savedSearchRepository: SavedSearchRepository
     val sourceMigrationRepository: SourceMigrationRepository
-    // KMK <--
+    // KUN <--
 
     val json: Json
     val protoBuf: ProtoBuf

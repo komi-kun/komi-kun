@@ -105,7 +105,7 @@ class HikkaApi(
             val url = "$BASE_API_URL/manga/$slug"
 
             with(json) {
-                // KMK -->
+                // KUN -->
                 // Same pattern as the getRead fix (a2a15db3e2): awaitSuccess closes the response before
                 // throwing, so a 404 returns null without leaking the response.
                 try {
@@ -120,7 +120,7 @@ class HikkaApi(
                         throw e
                     }
                 }
-                // KMK <--
+                // KUN <--
             }
         }
     }

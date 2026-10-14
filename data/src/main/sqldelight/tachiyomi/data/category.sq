@@ -34,9 +34,9 @@ WHEN new.is_syncing = 0 AND (
     new.name != old.name OR
     new.`order` != old.`order` OR
     new.flags != old.flags
-    -- KMK -->
+    -- KUN -->
     OR new.hidden != old.hidden
-    -- KMK <--
+    -- KUN <--
 )
 BEGIN
     UPDATE category
@@ -46,9 +46,9 @@ BEGIN
 END;
 
 CREATE TRIGGER insert_category_uid AFTER INSERT ON category
--- KMK --> a sync restore inserts with is_syncing = 1; it must keep the backup's last_modified_at
+-- KUN --> a sync restore inserts with is_syncing = 1; it must keep the backup's last_modified_at
 WHEN new.is_syncing = 0
--- KMK <--
+-- KUN <--
 BEGIN
     UPDATE category
     SET uid = CASE WHEN uid = 0 THEN abs(random()) ELSE uid END,

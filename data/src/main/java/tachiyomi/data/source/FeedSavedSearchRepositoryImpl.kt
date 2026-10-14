@@ -22,7 +22,7 @@ class FeedSavedSearchRepositoryImpl(
     private val database: Database,
 ) : FeedSavedSearchRepository {
 
-    // KMK -->
+    // KUN -->
     override suspend fun getAllWithSavedSearch(): List<FeedWithSavedSearch> {
         val savedSearches = database.saved_searchQueries
             .selectAll(SavedSearchMapper::map)
@@ -39,7 +39,7 @@ class FeedSavedSearchRepositoryImpl(
                 )
             }
     }
-    // KMK <--
+    // KUN <--
 
     override suspend fun getGlobal(): List<FeedSavedSearch> {
         return database.feed_saved_searchQueries

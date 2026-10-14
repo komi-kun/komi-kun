@@ -170,7 +170,9 @@ class LibraryViewModel(
     // SY <--
     // KMK -->
     private val smartSearchMerge: SmartSearchMerge,
+    // KUN -->
     private val getFlatMetadataById: GetFlatMetadataById,
+    // KUN <--
     private val getIdsOfFavoriteMangaWithMetadata: GetIdsOfFavoriteMangaWithMetadata,
     // KMK <--
 ) : ViewModel() {
@@ -1164,7 +1166,7 @@ class LibraryViewModel(
         dialog.update { Dialog.RecommendationSearchSheet(mangaList) }
     }
 
-    // KMK -->
+    // KUN -->
     // Replaces TachiyomiSY's custom search engine with Mihon's AST-based library search, while
     // keeping two small supplements: tracker name / localized status matching and the TachiyomiSY
     // EH/NHentai metadata namespace search (see below).
@@ -1264,7 +1266,7 @@ class LibraryViewModel(
         is FieldQueryNode, is ComparisonQueryNode -> matches(item)
         is MetadataQueryNode -> matches(item, metadata)
     }
-    // KMK <--
+    // KUN <--
 
     private fun filterTracks(constraint: String, tracks: List<Track>, context: Context): Boolean {
         return tracks.fastAny { track ->

@@ -136,11 +136,11 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
 
     @Inject private lateinit var sourceManager: Lazy<SourceManager>
 
-    // KMK -->
+    // KUN -->
     @Inject private lateinit var pagePreviewCache: PagePreviewCache
 
     @Inject private lateinit var getCustomMangaInfo: GetCustomMangaInfo
-    // KMK <--
+    // KUN <--
 
     @Inject private lateinit var extensionManager: Lazy<ExtensionManager>
 
@@ -183,13 +183,13 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
         Injekt = InjektScope(MetroInjektRegistrar(application = this, graphProvider = this))
 
         graph.inject(this)
-        // KMK -->
+        // KUN -->
         GetCustomMangaInfo.setInstance(getCustomMangaInfo)
-        // KMK <--
+        // KUN <--
         Injekt.importModule(injektMetroInteropModule)
-        // KMK -->
+        // KUN -->
         Injekt.importModule(kmkMetroInteropModule)
-        // KMK <--
+        // KUN <--
 
         TelemetryConfig.init(
             applicationContext,

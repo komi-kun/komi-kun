@@ -180,11 +180,11 @@ class MainActivity : BaseActivity() {
 
     private val isAppMigrating = MutableStateFlow(Migrator.isRunning)
 
-    // KMK -->
+    // KUN -->
     // Komikku reads the migration result for the "What's new" dialog; it is written by the migration
     // coroutine below before `isAppMigrating` flips so the gated composition always sees the final value.
     private var didMigration = false
-    // KMK <--
+    // KUN <--
 
     @Inject private lateinit var getIncognitoState: GetIncognitoState
 
@@ -238,11 +238,11 @@ class MainActivity : BaseActivity() {
         super.onCreate(savedInstanceState)
 
         lifecycleScope.launch {
-            // KMK -->
+            // KUN -->
             // Keep the migration result while letting the app draw the migrating screen instead of
             // blocking the main thread; set it before releasing the screen below.
             didMigration = if (isLaunch) Migrator.awaitAndRelease() else false
-            // KMK <--
+            // KUN <--
             isAppMigrating.value = false
         }
 

@@ -36,9 +36,9 @@ class ExtensionStoresViewModel(
     private val removeExtensionStore: RemoveExtensionStore,
     private val updateExtensionStores: UpdateExtensionStores,
     private val extensionManager: ExtensionManager,
-    // KMK -->
+    // KUN -->
     private val sourcePreferences: SourcePreferences,
-    // KMK <--
+    // KUN <--
 ) : ViewModel() {
 
     private val dialog = MutableStateFlow<ExtensionStoreDialog?>(null)
@@ -46,16 +46,16 @@ class ExtensionStoresViewModel(
     val state: StateFlow<ExtensionStoreScreenState> = combine(
         getExtensionStores.subscribe(),
         dialog,
-        // KMK -->
+        // KUN -->
         sourcePreferences.disabledRepos.changes(),
-        // KMK <--
+        // KUN <--
     ) { stores, dialog, disabledRepos ->
         ExtensionStoreScreenState.Success(
             stores = stores,
             dialog = dialog,
-            // KMK -->
+            // KUN -->
             disabledRepos = disabledRepos,
-            // KMK <--
+            // KUN <--
         )
     }
         .flowOn(Dispatchers.IO)
@@ -67,9 +67,9 @@ class ExtensionStoresViewModel(
      * @param indexUrl The baseUrl of the repo to create.
      */
     fun createRepo(indexUrl: String) {
-        // KMK -->
+        // KUN -->
         viewModelScope.launch(Dispatchers.IO) {
-            // KMK <--
+            // KUN <--
             dialog.update {
                 when (it) {
                     is ExtensionStoreDialog.Create -> it.copy(processing = true)
@@ -113,17 +113,17 @@ class ExtensionStoresViewModel(
      * Deletes the given repo from the database
      */
     fun deleteRepo(indexUrl: String) {
-        // KMK -->
+        // KUN -->
         // Remove repo from disabled list
         enableStore(indexUrl)
-        // KMK <--
+        // KUN <--
         viewModelScope.launch(Dispatchers.IO) {
             removeExtensionStore(indexUrl)
             extensionManager.findAvailableExtensions()
         }
     }
 
-    // KMK -->
+    // KUN -->
     fun enableStore(indexUrl: String) {
         val disabledRepos = sourcePreferences.disabledRepos.get()
         if (indexUrl in disabledRepos) {
@@ -147,7 +147,7 @@ class ExtensionStoresViewModel(
             extensionManager.findAvailableExtensions()
         }
     }
-    // KMK <--
+    // KUN <--
 
     fun addFromDeeplink(storeIndexUrl: String) {
         viewModelScope.launch(Dispatchers.IO) {
@@ -185,9 +185,9 @@ sealed class ExtensionStoreScreenState {
     data class Success(
         val stores: List<ExtensionStore>,
         val dialog: ExtensionStoreDialog? = null,
-        // KMK -->
+        // KUN -->
         val disabledRepos: Set<String> = emptySet(),
-        // KMK <--
+        // KUN <--
     ) : ExtensionStoreScreenState() {
 
         val isEmpty: Boolean

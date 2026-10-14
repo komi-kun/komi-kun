@@ -902,10 +902,10 @@ private fun ColumnScope.MangaContentInfo(
 }
 
 private fun Source.query(): String {
-    // KMK -->
+    // KUN -->
     val langPart = if (lang.isNotBlank()) " lang:$lang" else ""
     return """src:"$name"$langPart""".takeIf { name.isNotBlank() } ?: "srcid:$id"
-    // KMK <--
+    // KUN <--
 }
 
 @Composable

@@ -1444,7 +1444,7 @@ class ReaderViewModel(
         ImageUtil.findImageType(stream1) ?: throw Exception("Not an image")
         val stream2 = page2.stream!!
         ImageUtil.findImageType(stream2) ?: throw Exception("Not an image")
-        // KMK --> migrated off the dropped legacy decoder to the mpreg decoder
+        // KUN --> migrated off the dropped legacy decoder to the mpreg decoder
         val imageBitmap = ImageDecoder.open(stream1()).use { it.decodeNext() }.let { res ->
             createBitmap(res.width, res.height).also { bitmap ->
                 res.image.rewind()
@@ -1457,7 +1457,7 @@ class ReaderViewModel(
                 bitmap.copyPixelsFromBuffer(res.image)
             }.also { res.close() }
         }
-        // KMK <--
+        // KUN <--
 
         val chapter = page1.chapter.chapter
 

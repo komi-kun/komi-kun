@@ -25,7 +25,7 @@ spotless {
         ktlint(libs.ktlint.core.get().version)
         trimTrailingWhitespace()
         endWithNewline()
-        // KMK -->
+        // KUN -->
         // The icons modules' generated R classes must be imported under an alias so
         // they are not mistaken for the consuming module's own R class.
         forbidRegex(
@@ -48,7 +48,7 @@ spotless {
             "(?m)^(?!import ).*\\bmihon\\.icons\\.custommaterialsymbols\\.R\\.",
             "Use the CustomMaterialSymbolsR import alias instead of the qualified name",
         )
-        // KMK <--
+        // KUN <--
     }
     format("xml") {
         target("**/*.xml")

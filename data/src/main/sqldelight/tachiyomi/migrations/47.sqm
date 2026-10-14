@@ -23,9 +23,9 @@ WHEN new.is_syncing = 0 AND (
     new.name != old.name OR
     new.sort != old.sort OR
     new.flags != old.flags
-    -- KMK -->
+    -- KUN -->
     OR new.hidden != old.hidden
-    -- KMK <--
+    -- KUN <--
 )
 BEGIN
     UPDATE categories

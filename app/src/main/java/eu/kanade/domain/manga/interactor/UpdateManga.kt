@@ -26,13 +26,13 @@ class UpdateManga(
         return mangaRepository.updateAll(mangaUpdates)
     }
 
-    // KMK -->
+    // KUN -->
     // The fork edits a local entry's source-owned metadata directly, which the case-specific
     // remote update query covers (Mihon only writes it from UpdateMangaFromRemote).
     suspend fun awaitRemote(mangaRemoteUpdate: MangaRemoteUpdate): Boolean {
         return mangaRepository.updateRemote(mangaRemoteUpdate)
     }
-    // KMK <--
+    // KUN <--
 
     suspend fun awaitUpdateFetchInterval(
         manga: Manga,

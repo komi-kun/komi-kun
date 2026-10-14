@@ -103,7 +103,7 @@ class LibrarySearchParserTest {
         node.value shouldBe "foo bar"
     }
 
-    // KMK --> TachiyomiSY compatibility shims
+    // KUN --> TachiyomiSY compatibility shims
 
     @Test
     fun `comparison field without a comparator means equality`() {
@@ -141,9 +141,9 @@ class LibrarySearchParserTest {
         QueryNode.from("f?o") shouldBe GeneralQueryNode("f?o", negated = false)
     }
 
-    // KMK <--
+    // KUN <--
 
-    // KMK --> TachiyomiSY EH/NHentai metadata namespaces
+    // KUN --> TachiyomiSY EH/NHentai metadata namespaces
 
     @Test
     fun `metadata long namespaces become metadata nodes`() {
@@ -206,5 +206,5 @@ class LibrarySearchParserTest {
         QueryNode.from("source:foo") shouldBe FieldQueryNode(MangaField.SOURCE, "foo", negated = false)
     }
 
-    // KMK <--
+    // KUN <--
 }

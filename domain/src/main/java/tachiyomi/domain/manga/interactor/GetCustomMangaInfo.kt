@@ -10,7 +10,7 @@ class GetCustomMangaInfo(
 
     fun get(mangaId: Long) = customMangaRepository.get(mangaId)
 
-    // KMK -->
+    // KUN -->
     companion object {
         /**
          * Bridge for domain models ([tachiyomi.domain.manga.model.Manga],
@@ -26,5 +26,5 @@ class GetCustomMangaInfo(
 
         fun getInstanceOrNull(): GetCustomMangaInfo? = instance
     }
-    // KMK <--
+    // KUN <--
 }

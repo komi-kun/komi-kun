@@ -332,11 +332,11 @@ class MangaViewModel(
     private val isRelatedMangasFetched = MutableStateFlow<Boolean?>(null)
     private val seedColor = MutableStateFlow<Color?>(null)
 
-    // KMK -->
+    // KUN -->
     // Custom manga info lives outside the database, so editing it can't rely on the manga flow to re-emit.
     // This override carries the freshly read entry until the database pushes the next value.
     private val customMangaInfoOverride = MutableStateFlow<Manga?>(null)
-    // KMK <--
+    // KUN <--
 
     private val mergedData = flow {
         emitAll(
@@ -400,9 +400,9 @@ class MangaViewModel(
             ) {
                 // Check for gallery in library and accept manga with lowest id
                 // Find chapters sharing same root
-                // KMK -->
+                // KUN -->
                 viewModelScope.launchIO {
-                    // KMK <--
+                    // KUN <--
                     try {
                         val (acceptedChain) = updateHelper.findAcceptedRootAndDiscardOthers(manga.source, chapters)
                         // Redirect if we are not the accepted root
@@ -610,11 +610,11 @@ class MangaViewModel(
                 .collect { downloadProgress[it.chapter.id] = it.progress }
         }
 
-        // KMK -->
+        // KUN -->
         viewModelScope.launchIO {
             getManga.subscribe(mangaId).collect { customMangaInfoOverride.value = null }
         }
-        // KMK <--
+        // KUN <--
 
         viewModelScope.launchIO {
             // The state loads the entry and its chapters anyway, so they aren't queried separately
@@ -868,11 +868,11 @@ class MangaViewModel(
             manga = manga.copy(lastUpdate = manga.lastUpdate?.plus(1.milliseconds) ?: Clock.System.now())
         }
 
-        // KMK -->
+        // KUN -->
         // The database may not emit for edits to the custom-info file, so surface the freshly read entry
         // until the next database push clears the override.
         customMangaInfoOverride.value = manga
-        // KMK <--
+        // KUN <--
     }
 
     // KMK -->

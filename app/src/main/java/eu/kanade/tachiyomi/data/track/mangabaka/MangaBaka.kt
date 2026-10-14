@@ -47,9 +47,9 @@ class MangaBaka(id: Long) : BaseTracker(id, "MangaBaka"), DeletableTracker {
 
     override fun getCompletionStatus(): Long = COMPLETED
 
-    // KMK -->
+    // KUN -->
     override fun hasNotStartedReading(status: Long): Boolean = status == PLAN_TO_READ
-    // KMK <--
+    // KUN <--
 
     override fun getScoreList(): List<String> = getScoreRange().map(Int::toString)
 

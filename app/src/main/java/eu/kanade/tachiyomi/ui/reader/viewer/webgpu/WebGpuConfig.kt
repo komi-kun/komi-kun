@@ -75,7 +75,7 @@ class WebGpuConfig(
         private set
 
     init {
-        // KMK -->
+        // KUN -->
         // First WebGPU use: adopt TachiyomiSY/Komikku's `pageLayout` dual page choice into
         // `dualPageView`, which is what the WebGPU renderer reads and what its settings chip edits.
         // Without this, enabling the high quality renderer silently reset a dual page layout to
@@ -85,7 +85,7 @@ class WebGpuConfig(
             readerPreferences.dualPageView.set(legacyDualPageView())
         }
         dualPageView = readerPreferences.dualPageView.get()
-        // KMK <--
+        // KUN <--
 
         readerPreferences.readerTheme
             .register(
@@ -192,7 +192,7 @@ class WebGpuConfig(
         )
     }
 
-    // KMK -->
+    // KUN -->
     /**
      * TachiyomiSY/Komikku's pager dual page choice, as the SSIV viewers see it: `pageLayout` plus the
      * "split wide pages" flag (`dualPageSplitPaged` disables pairing, matching [PagerConfig]).
@@ -214,7 +214,7 @@ class WebGpuConfig(
             else -> ReaderPreferences.DualPageView.NEVER
         }
     }
-    // KMK <--
+    // KUN <--
 
     private fun zoomTypeFromPreference(value: Int) {
         imageZoomType = when (value) {

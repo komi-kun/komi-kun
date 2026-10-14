@@ -65,7 +65,7 @@ SELECT
     coalesce(C.readCount, 0) AS readCount,
     C.latestUpload AS latestUpload,
     C.fetchedAt AS chapterFetchedAt,
-    -- KMK -->
+    -- KUN -->
     -- Same as the non-merged branch above, but over every manga of the merge group
     CASE WHEN EXISTS (
         SELECT 0 FROM excluded_scanlator
@@ -89,7 +89,7 @@ SELECT
         WHERE history.manga_id IN (SELECT manga_id FROM merged WHERE merge_id = M.id)
     )
     END AS lastRead,
-    -- KMK <--
+    -- KUN <--
     coalesce(C.bookmarkCount, 0) AS bookmarkCount,
     -- KMK -->
     coalesce(C.bookmarkReadCount, 0) AS bookmarkedReadCount,

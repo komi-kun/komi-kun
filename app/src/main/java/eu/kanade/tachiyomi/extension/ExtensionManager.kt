@@ -86,11 +86,11 @@ class ExtensionManager(
     private val loadedExtensionMapFlow = MutableStateFlow(emptyMap<String, Extension.Loaded>())
     val loadedExtensionsFlow = loadedExtensionMapFlow.mapExtensionsWhenInitialized()
 
-    // KMK -->
+    // KUN -->
     /** Synchronous snapshot of the currently loaded installed extensions. */
     val loadedExtensions: List<Extension.Loaded>
         get() = loadedExtensionMapFlow.value.values.toList()
-    // KMK <--
+    // KUN <--
 
     // Every store's listing, since more than one store can list the same extension
     private val availableExtensionListFlow = MutableStateFlow(emptyList<Extension.Available>())
@@ -164,7 +164,7 @@ class ExtensionManager(
         }
     }
 
-    // KMK -->
+    // KUN -->
     // Mihon b15af71b94 moved installed-extension icon loading to Coil; only the fork's non-extension
     // delegated sources (E-Hentai/ExH/Merged) still need a drawable supplied by the app.
     fun getSpecificSourceIcon(sourceId: Long): Drawable? = when (sourceId) {
@@ -173,7 +173,7 @@ class ExtensionManager(
         MERGED_SOURCE_ID -> ContextCompat.getDrawable(context, R.mipmap.ic_merged_source)
         else -> null
     }
-    // KMK <--
+    // KUN <--
 
     private var availableExtensionsSourcesData: Map<Long, StubSource> = emptyMap()
 

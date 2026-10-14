@@ -92,9 +92,9 @@ class MigrateMangaViewModel(
         selected: Boolean,
         fromLongPress: Boolean = false,
     ) {
-        // KMK -->
+        // KUN -->
         val titles = state.value.titles
-        // KMK <--
+        // KUN <--
         selection.update { currentSelection ->
             if (item.id in currentSelection == selected) return@update currentSelection
             val selectedIndex = titles.indexOfFirst { it.id == item.id }

@@ -41,9 +41,9 @@ class Comick(id: Long) : BaseTracker(id, "Comick"), DeletableTracker {
 
     override fun getCompletionStatus(): Long = COMPLETED
 
-    // KMK -->
+    // KUN -->
     override fun hasNotStartedReading(status: Long): Boolean = status == PLAN_TO_READ
-    // KMK <--
+    // KUN <--
 
     override fun getScoreList(): List<String> = IntRange(0, 10).map(Int::toString).toList()
 

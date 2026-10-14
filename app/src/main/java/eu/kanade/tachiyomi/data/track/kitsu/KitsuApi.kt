@@ -138,7 +138,7 @@ class KitsuApi(
             .dataOrElse(
                 errorLog = "Kitsu: Failed to delete manga",
                 default = {},
-                // KMK -->
+                // KUN -->
                 onException = { e, body ->
                     if (
                         e.statusCode == 500 &&
@@ -152,7 +152,7 @@ class KitsuApi(
                         throw HttpException(e.statusCode).apply { stackTrace = e.stackTrace }
                     }
                 },
-                // KMK <--
+                // KUN <--
             ) {
                 logcat { "Kitsu: Deleted library entry ${it.libraryEntry.delete?.libraryEntry?.id}" }
             }

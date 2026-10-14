@@ -62,12 +62,12 @@ class MetroInjektRegistrar(
         ExtensionManager::class.java to { graph.extensionManager },
         CoverCache::class.java to { graph.coverCache },
 
-        // KMK -->
+        // KUN -->
         // ProvidesSqlDriver (AppBindings) builds the SqlDriver during graph.inject(this), before the
         // interop modules are imported. On encrypted devices it calls CbzCrypto.getDecryptedPasswordSql(),
         // which resolves SecurityPreferences through Injekt, so it must be available here.
         SecurityPreferences::class.java to { graph.securityPreferences },
-        // KMK <--
+        // KUN <--
     )
 
     private object NoKey

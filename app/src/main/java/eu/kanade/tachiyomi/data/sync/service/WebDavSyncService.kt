@@ -29,10 +29,10 @@ class WebDavSyncService(
     json: Json,
     syncPreferences: SyncPreferences,
     private val notifier: SyncNotifier,
-    // KMK -->
+    // KUN -->
     // Metro DI: the shared ProtoBuf singleton replaces the old `Injekt.get()` default.
     private val protoBuf: ProtoBuf = ProtoBuf,
-    // KMK <--
+    // KUN <--
 ) : SyncService(context, json, syncPreferences) {
 
     private class WebDavException(message: String?) : Exception(message)
@@ -114,16 +114,16 @@ class WebDavSyncService(
             }
 
             pushSyncData(finalSyncData, etag)
-            // KMK -->
+            // KUN -->
             // WebDAV has no delta protocol, so it always uploads (and restores) the whole library.
             return SyncResult(finalSyncData.backup, changed = remoteData != null, protocolV2 = false)
-            // KMK <--
+            // KUN <--
         } catch (e: Exception) {
             xLogE("WebDAV sync error:", e)
             notifier.showSyncError(e.message)
-            // KMK -->
+            // KUN -->
             return SyncResult(null, changed = false, protocolV2 = false)
-            // KMK <--
+            // KUN <--
         }
     }
 
@@ -165,7 +165,7 @@ class WebDavSyncService(
 
         if (!validateSettings()) return
 
-        // KMK -->
+        // KUN -->
         // Stream the backup instead of materialising the whole library in one byte array, like the
         // other sync services. BackupRequestBody keeps WebDAV's raw (non-gzip) protobuf encoding and
         // turns an OutOfMemoryError while writing into an IOException.
@@ -177,7 +177,7 @@ class WebDavSyncService(
         if (body.metaBytes.isEmpty() && backup.backupManga.isEmpty()) {
             throw IllegalStateException(context.stringResource(MR.strings.empty_backup_error))
         }
-        // KMK <--
+        // KUN <--
         val headersBuilder = Headers.Builder().add("Authorization", credentials)
         if (eTag.isNotEmpty()) headersBuilder.add("If-Match", eTag)
 

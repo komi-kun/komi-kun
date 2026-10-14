@@ -49,8 +49,10 @@ object AppBindings {
         context: Context,
         securityPreferences: SecurityPreferences,
         // KMK -->
+        // KUN -->
         // Provided by :data's DatabaseBindings, so the app does not reference the generated Database.
         schema: SqlSchema<QueryResult.AsyncValue<Unit>>,
+        // KUN <--
         // Mihon fd4f73c908: exposes whether the database is being migrated after an update.
         databaseRepository: DatabaseRepositoryImpl,
         // KMK <--
@@ -188,10 +190,12 @@ object AppBindings {
     fun providesProtoBuf(): ProtoBuf = ProtoBuf
 
     // KMK -->
+    // KUN -->
     @Provides
     @SingleIn(AppScope::class)
     fun providesAllowHiddenFiles(sourcePreferences: SourcePreferences): AllowHiddenFiles =
         AllowHiddenFiles { sourcePreferences.allowLocalSourceHiddenFolders.get() }
+    // KUN <--
 
     @Provides
     @SingleIn(AppScope::class)

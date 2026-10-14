@@ -176,7 +176,7 @@ private fun ColumnScope.CategoryFilterSheet(
     val excluded by viewModel.updatesPreferences.filterExcludedCategories.collectAsState()
     val included by viewModel.updatesPreferences.filterIncludedCategories.collectAsState()
 
-    // KMK -->
+    // KUN -->
     // Key the remembered tri-state list on the live category list so it is rebuilt (and stays the same
     // size/order) when categories change while the dialog is open. Upstream origin: mihon 1d8a2b05dd
     // ("Add category filters for Updates tab", #3589) used a keyless remember, which could throw
@@ -190,7 +190,7 @@ private fun ColumnScope.CategoryFilterSheet(
             }
         }.toMutableStateList()
     }
-    // KMK <--
+    // KUN <--
 
     Column {
         allCategories.fastForEachIndexed { idx, category ->

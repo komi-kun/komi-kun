@@ -10,7 +10,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-// KMK -->
+// KUN -->
 // Retained for the fork's own call sites. Upstream (f921ec07a6) removed the GlobalScope variants; the fork still uses
 // them in Komikku/SY/exh code that has no injected scope.
 /**
@@ -45,7 +45,7 @@ fun launchIO(block: suspend CoroutineScope.() -> Unit): Job =
 @DelicateCoroutinesApi
 fun launchNow(block: suspend CoroutineScope.() -> Unit): Job =
     GlobalScope.launch(Dispatchers.Main, CoroutineStart.UNDISPATCHED, block)
-// KMK <--
+// KUN <--
 
 fun CoroutineScope.launchUI(block: suspend CoroutineScope.() -> Unit): Job =
     launch(Dispatchers.Main, block = block)

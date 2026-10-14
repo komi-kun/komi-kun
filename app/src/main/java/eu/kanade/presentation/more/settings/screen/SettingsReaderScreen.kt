@@ -390,11 +390,13 @@ object SettingsReaderScreen : SearchableSettings {
                     preference = readerPreferences.longStripGapSmartScale,
                     title = stringResource(KMR.strings.pref_smart_scale_long_strip_gap),
                 ),
+                // KUN -->
                 Preference.PreferenceItem.SwitchPreference(
                     preference = readerPreferences.alwaysDecodeLongStripWithSSIV,
                     title = stringResource(KMR.strings.pref_always_decode_long_strip_with_ssiv),
                     subtitle = stringResource(KMR.strings.pref_always_decode_long_strip_with_ssiv_summary),
                 ),
+                // KUN <--
                 // KMK <--
                 Preference.PreferenceItem.SliderPreference(
                     preference = readerPreferences.webtoonSidePadding,

@@ -12,9 +12,11 @@ class GetApplicationRelease(
         // KMK -->
         val releases = service.releaseNotes(arguments)
             .filter {
+                // KUN -->
                 // Bleeding-edge fork: prereleases are the releases users get, so do
                 // not filter them out; only keep the tag family of this build.
                 isSameReleaseFamily(arguments.isNightly, it.version) &&
+                    // KUN <--
                     isNewVersion(
                         arguments.isNightly,
                         arguments.commitCount,
@@ -42,12 +44,15 @@ class GetApplicationRelease(
     // KMK -->
     suspend fun awaitReleaseNotes(arguments: Arguments): Result {
         val releases = service.releaseNotes(arguments)
+            // KUN -->
             .filter { isSameReleaseFamily(arguments.isNightly, it.version) }
+        // KUN <--
 
         val latest = releases.getLatest() ?: return Result.NoNewUpdate
         return Result.NewUpdate(latest)
     }
 
+    // KUN -->
     /**
      * Bleeding-edge fork: there is a single repository, and nightly (`r<count>`) and
      * tagged (`v<semver>`) builds publish prereleases side by side, so only tags that
@@ -56,6 +61,7 @@ class GetApplicationRelease(
      */
     private fun isSameReleaseFamily(isNightly: Boolean, versionTag: String): Boolean =
         if (isNightly) versionTag.startsWith("r") else versionTag.startsWith("v")
+    // KUN <--
     // KMK <--
 
     /**

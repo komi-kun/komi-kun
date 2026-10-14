@@ -13,13 +13,13 @@ import dev.zacsweers.metro.SingleIn
 @BindingContainer
 object DatabaseBindings {
 
-    // KMK -->
+    // KUN -->
     // The generated schema lives in this module; expose it so the app's driver bindings do not
     // have to reference the generated `Database` type directly.
     @Provides
     @SingleIn(AppScope::class)
     fun providesSchema(): SqlSchema<QueryResult.AsyncValue<Unit>> = Database.Schema
-    // KMK <--
+    // KUN <--
 
     @Provides
     @SingleIn(AppScope::class)

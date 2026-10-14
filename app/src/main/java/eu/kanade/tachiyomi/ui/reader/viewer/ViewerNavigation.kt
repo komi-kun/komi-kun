@@ -9,9 +9,9 @@ import eu.kanade.tachiyomi.util.lang.invert
 import tachiyomi.i18n.MR
 
 abstract class ViewerNavigation(
-    // KMK -->
+    // KUN -->
     protected val readerPreferences: ReaderPreferences,
-    // KMK <--
+    // KUN <--
 ) {
 
     sealed class NavigationRegion(val nameRes: StringResource, val color: Int) {

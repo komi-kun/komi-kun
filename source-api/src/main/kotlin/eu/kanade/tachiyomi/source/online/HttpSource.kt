@@ -41,11 +41,11 @@ abstract class HttpSource : CatalogueSource {
     // SY -->
     protected val network: NetworkHelper by lazy {
         val network = Injekt.get<NetworkHelper>()
-        // KMK -->
+        // KUN -->
         // NetworkHelper now takes an app scope (Mihon f921ec07a6). This SY subclass overrides `client`, so the scope
         // is never used; give it a scoped instance rather than leaking a global one.
         val scope = CoroutineScope(Dispatchers.IO)
-        // KMK <--
+        // KUN <--
         object : NetworkHelper(scope, Injekt.get<Application>(), Injekt.get(), network.delegateSourcePreferences) {
             override val client: OkHttpClient
                 get() = delegate?.networkHttpClient ?: network.client

@@ -68,7 +68,7 @@ class CrashLogUtil(
     private suspend fun getExtensionsInfo(): String? {
         val availableExtensions = extensionManager.availableExtensionsFlow.value.associateBy { it.pkgName }
 
-        // KMK -->
+        // KUN -->
         // Extensions may never finish loading (a plausible crash antecedent, e.g. a locked DB), and the
         // dump must not suspend forever waiting for that: bound the waits and fall back to the snapshot.
         val loadedExtensions = withTimeoutOrNull(EXTENSIONS_INFO_TIMEOUT_MS) {
@@ -77,7 +77,7 @@ class CrashLogUtil(
         val notLoadedExtensions = withTimeoutOrNull(EXTENSIONS_INFO_TIMEOUT_MS) {
             extensionManager.getNotLoadedExtensions()
         }.orEmpty()
-        // KMK <--
+        // KUN <--
 
         val outdatedInfoList = loadedExtensions
             .sortedBy { it.name }
@@ -121,10 +121,10 @@ class CrashLogUtil(
     }
 }
 
-// KMK -->
+// KUN -->
 /** Cap on how long the crash-log dump waits for the extension manager to finish loading. */
 private const val EXTENSIONS_INFO_TIMEOUT_MS = 5_000L
-// KMK <--
+// KUN <--
 
 private val Extension.NotLoaded.Reason.description: String
     get() = when (this) {

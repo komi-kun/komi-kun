@@ -37,10 +37,10 @@ class SyncYomiSyncService(
     syncPreferences: SyncPreferences,
     private val notifier: SyncNotifier,
 
-    // KMK -->
+    // KUN -->
     // Metro DI: the shared ProtoBuf singleton replaces the old `Injekt.get()` default.
     private val protoBuf: ProtoBuf = ProtoBuf,
-    // KMK <--
+    // KUN <--
 ) : SyncService(context, json, syncPreferences) {
 
     // KMK -->
@@ -110,7 +110,9 @@ class SyncYomiSyncService(
         } else {
             reportSyncEvent(SyncEventStatus.SYNC_FAILED, "Failed to push sync data")
             // KMK -->
+            // KUN -->
             return SyncResult(null, changed = false, protocolV2 = false)
+            // KUN <--
             // KMK <--
         }
 

@@ -87,7 +87,7 @@ class CategoryRepositoryImpl(
         val dbCategoriesByUid = dbCategories.associateBy { it.uid } // Map by UID
 
         // SY -->
-        // KMK -->
+        // KUN -->
         // `order` is UNIQUE, so a reorder would trip it mid-swap. Free the positions of every category
         // we are about to reorder first, then assign the server's positions.
         val reordered = if (isSync) {
@@ -124,7 +124,7 @@ class CategoryRepositoryImpl(
             while (nextOrder in usedOrders) nextOrder++
             return nextOrder++
         }
-        // KMK <--
+        // KUN <--
         // SY <--
 
         val restored = categories
@@ -141,7 +141,7 @@ class CategoryRepositoryImpl(
                 }
 
                 if (dbCategory != null) {
-                    // KMK -->
+                    // KUN -->
                     // A user-initiated (non-sync) restore only inserts new categories and leaves
                     // existing ones untouched, matching master's CategoriesRestorer; updating them
                     // would rewrite order, flags and the sync counters (`version`/`last_modified_at`).
@@ -149,7 +149,7 @@ class CategoryRepositoryImpl(
                     if (!isSync) return@map dbCategory
                     val order = if (category.order !in usedOrders) category.order else freeOrder()
                     usedOrders.add(order)
-                    // KMK <--
+                    // KUN <--
                     database.categoryQueries.update(
                         name = category.name,
                         order = order,
@@ -171,10 +171,10 @@ class CategoryRepositoryImpl(
                 // A sync delta is a converging replica, not an import: new
                 // categories must land at the position the server holds or
                 // reorders never converge across devices.
-                // KMK -->
+                // KUN -->
                 val order = if (isSync && category.order !in usedOrders) category.order else freeOrder()
                 usedOrders.add(order)
-                // KMK <--
+                // KUN <--
                 database.categoryQueries.insert(
                     name = category.name,
                     order = order,

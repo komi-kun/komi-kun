@@ -58,7 +58,7 @@ import java.nio.charset.StandardCharsets
 import kotlin.time.Duration.Companion.days
 import tachiyomi.domain.source.model.Source as DomainSource
 
-// KMK -->
+// KUN -->
 /**
  * Supplies the "allow hidden folders" setting for the local source, re-read on every call so
  * toggling the preference takes effect without restarting the app. Metro cannot bind a function
@@ -68,7 +68,7 @@ fun interface AllowHiddenFiles {
     operator fun invoke(): Boolean
 }
 
-// KMK <--
+// KUN <--
 
 @Inject
 @SingleIn(AppScope::class)
@@ -77,9 +77,9 @@ class LocalSource(
     private val fileSystem: LocalSourceFileSystem,
     private val coverManager: LocalCoverManager,
     // SY -->
-    // KMK --> a provider so the preference is re-read on each search, not captured at startup
+    // KUN --> a provider so the preference is re-read on each search, not captured at startup
     private val allowHiddenFiles: AllowHiddenFiles,
-    // KMK <--
+    // KUN <--
     // SY <--
 ) : Source, UnmeteredSource {
 
@@ -116,9 +116,9 @@ class LocalSource(
             0L
         }
         // SY -->
-        // KMK --> re-read the preference on every call
+        // KUN --> re-read the preference on every call
         val allowLocalSourceHiddenFolders = allowHiddenFiles()
-        // KMK <--
+        // KUN <--
         // SY <--
 
         var mangaDirs = fileSystem.getFilesInBaseDirectory()

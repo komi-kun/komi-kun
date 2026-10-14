@@ -21,10 +21,10 @@ interface TrackRepository {
 
     suspend fun delete(mangaId: Long, trackerId: Long)
 
-    // KMK -->
+    // KUN -->
     /** Deletes every track of [trackerId] regardless of manga (used by the MangaDex cleanup migration). */
     suspend fun deleteByTrackerId(trackerId: Long)
-    // KMK <--
+    // KUN <--
 
     suspend fun upsert(track: Track)
 

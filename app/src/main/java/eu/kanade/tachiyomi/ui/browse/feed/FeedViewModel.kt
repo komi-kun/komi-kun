@@ -81,9 +81,9 @@ class FeedViewModel(
     private val _events = Channel<Event>(Int.MAX_VALUE)
     val events = _events.receiveAsFlow()
 
-    // KMK -->
+    // KUN -->
     private val coroutineDispatcher = Dispatchers.IO.limitedParallelism(1)
-    // KMK <--
+    // KUN <--
     var pushed: Boolean = false
 
     init {
@@ -355,9 +355,9 @@ class FeedViewModel(
                 }
         }
     }
-    // KMK -->
+    // KUN -->
     // No onCleared() needed: Dispatchers.IO.limitedParallelism requires no explicit shutdown.
-    // KMK <--
+    // KUN <--
 
     // KMK -->
     fun showDialog(dialog: Dialog) {

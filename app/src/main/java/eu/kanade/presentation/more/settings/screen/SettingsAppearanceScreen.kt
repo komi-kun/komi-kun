@@ -307,12 +307,12 @@ object SettingsAppearanceScreen : SearchableSettings {
                     subtitle = stringResource(SYMR.strings.put_merge_in_overflow_summary),
                 ),
                 Preference.PreferenceItem.SliderPreference(
-                    // KMK -->
+                    // KUN -->
                     preference = uiPreferences.previewsRowCount,
-                    // KMK <--
+                    // KUN <--
                     valueRange = 0..10,
                     title = stringResource(SYMR.strings.pref_previews_row_count),
-                    // KMK -->
+                    // KUN -->
                     valueText = { count ->
                         if (count > 0) {
                             pluralStringResource(
@@ -324,7 +324,7 @@ object SettingsAppearanceScreen : SearchableSettings {
                             stringResource(MR.strings.disabled)
                         }
                     },
-                    // KMK <--
+                    // KUN <--
                 ),
             ),
         )

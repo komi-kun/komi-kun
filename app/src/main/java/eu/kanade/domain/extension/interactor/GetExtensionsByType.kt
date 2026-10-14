@@ -15,20 +15,20 @@ class GetExtensionsByType(
 ) {
 
     fun subscribe(): Flow<Extensions> {
-        // KMK --> Upstream reads the content-warning set once via .get() here, so the available list
+        // KUN --> Upstream reads the content-warning set once via .get() here, so the available list
         // is not re-filtered when the preference changes while subscribed. Observe it so every
         // emission re-filters with the current set.
         val enabledContentWarningsFlow = preferences.enabledContentWarnings.changes()
-        // KMK <--
+        // KUN <--
 
         return combine(
             preferences.enabledLanguages.changes(),
             extensionManager.loadedExtensionsFlow,
             extensionManager.notLoadedExtensionsFlow,
             extensionManager.availableExtensionsFlow,
-            // KMK -->
+            // KUN -->
             enabledContentWarningsFlow,
-            // KMK <--
+            // KUN <--
         ) { enabledLanguages, _loaded, _notLoaded, _available, enabledContentWarnings ->
             val byName = compareBy<Extension, String>(String.CASE_INSENSITIVE_ORDER) { it.name }
 

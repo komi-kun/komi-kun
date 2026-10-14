@@ -13,9 +13,9 @@ import mihon.core.migration.MigrationContext
 @ContributesIntoSet(AppScope::class)
 class SetupSyncDataMigration(
     private val context: Context,
-    // KMK -->
+    // KUN -->
     private val syncPreferences: SyncPreferences,
-    // KMK <--
+    // KUN <--
 ) : Migration {
     override val version: Float = Migration.ALWAYS
 

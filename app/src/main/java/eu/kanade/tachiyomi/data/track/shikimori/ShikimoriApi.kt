@@ -223,14 +223,14 @@ class ShikimoriApi(
             }
             with(json) {
                 authClient.newCall(
-                    // KMK -->
+                    // KUN -->
                     // SY upstream hardcodes https://shikimori.one/api/graphql here; the .one host
                     // 301-redirects POSTs to GET and 404s. Use the configured .io API base instead.
                     POST(
                         "$API_URL/graphql",
                         body = payload.toString().toRequestBody(jsonMime),
                     ),
-                    // KMK <--
+                    // KUN <--
                 )
                     .awaitSuccess()
                     .parseAs<SMMetadata>()

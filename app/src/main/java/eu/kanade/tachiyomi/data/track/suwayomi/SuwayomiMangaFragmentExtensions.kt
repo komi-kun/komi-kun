@@ -8,10 +8,10 @@ internal fun MangaFragment.toTrackSearch(trackId: Long, baseUrl: String): TrackS
     return TrackSearch.create(trackId).apply {
         remote_id = manga.id.toLong()
         title = manga.title
-        // KMK -->
+        // KUN -->
         // thumbnailUrl is nullable; don't build a ".../null" URL when the source has no thumbnail
         cover_url = manga.thumbnailUrl?.let { "$baseUrl/$it" }.orEmpty()
-        // KMK <--
+        // KUN <--
         summary = manga.description.orEmpty()
         tracking_url = "$baseUrl/manga/${manga.id}"
         total_chapters = manga.chapters.totalCount.toLong()

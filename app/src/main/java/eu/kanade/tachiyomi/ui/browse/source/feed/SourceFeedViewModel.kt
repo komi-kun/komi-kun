@@ -107,9 +107,9 @@ class SourceFeedViewModel(
 
     val sourceIsMangaDex = sourceId in mangaDexSourceIds
 
-    // KMK -->
+    // KUN -->
     private val coroutineDispatcher = Dispatchers.IO.limitedParallelism(5)
-    // KMK <--
+    // KUN <--
 
     val startExpanded by uiPreferences.expandFilters.asState(viewModelScope)
 
@@ -348,7 +348,9 @@ class SourceFeedViewModel(
     ) {
         viewModelScope.launchIO {
             // KMK -->
+            // KUN -->
             val source = source ?: return@launchIO
+            // KUN <--
             val search = getExhSavedSearch.awaitOne(loadedSearch.id, source::getFilterList) ?: loadedSearch
             // KMK <--
 
@@ -451,9 +453,9 @@ class SourceFeedViewModel(
         // KMK <--
     }
 
-    // KMK -->
+    // KUN -->
     // No onCleared() needed: Dispatchers.IO.limitedParallelism requires no explicit shutdown.
-    // KMK <--
+    // KUN <--
 }
 
 @Immutable

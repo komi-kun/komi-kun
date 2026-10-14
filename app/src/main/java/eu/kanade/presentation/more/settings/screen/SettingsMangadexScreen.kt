@@ -71,7 +71,7 @@ object SettingsMangadexScreen : SearchableSettings {
 
     override fun isEnabled(): Boolean {
         val graph = Injekt.get<Context>().appGraph
-        // KMK -->
+        // KUN -->
         // SearchableSettings.isEnabled() is synchronous (it runs while the settings list composes)
         // and has no coroutine scope. Read the already-loaded source snapshot instead of blocking the
         // main thread on the extension/package scan. This mirrors MdUtil.getEnabledMangaDexs().
@@ -85,7 +85,7 @@ object SettingsMangadexScreen : SearchableSettings {
             .filter { it.id !in BlacklistedSources.HIDDEN_SOURCES }
             .mapNotNull { it.getMainSource<MangaDex>() }
             .any { it.lang in languages && it.id.toString() !in disabledSourceIds }
-        // KMK <--
+        // KUN <--
     }
 
     @Composable

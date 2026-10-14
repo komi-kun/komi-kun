@@ -123,11 +123,11 @@ class MangaBackupCreator(
             if (options.history) {
                 val chapterUrlsById = chapters.associate { it.id to it.url }
                 mangaObject.history = historyByMangaId[manga.id].orEmpty().mapNotNull { history ->
-                    // KMK -->
+                    // KUN -->
                     // A chapter removed since its history was read takes that history with it;
                     // skip an orphan row instead of aborting the whole backup.
                     val url = chapterUrlsById[history.chapterId] ?: return@mapNotNull null
-                    // KMK <--
+                    // KUN <--
                     BackupHistory(url, history.readAt.toEpochMillisOrZero(), history.readDuration)
                 }
             }

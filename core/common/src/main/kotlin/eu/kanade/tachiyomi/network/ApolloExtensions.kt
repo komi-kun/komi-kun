@@ -7,7 +7,7 @@ import com.apollographql.apollo.exception.ApolloNetworkException
 import logcat.LogPriority
 import tachiyomi.core.common.util.system.logcat
 
-// KMK -->
+// KUN -->
 /**
  * Returns the result of calling [transform] with [data] if the GraphQL response had data present without errors,
  * otherwise logs the failure under [errorLog] and falls back to [default].
@@ -29,7 +29,7 @@ fun <D : Operation.Data, R> ApolloResponse<D>.dataOrElse(
     errorLog: String,
     default: () -> R,
     onException: ((ApolloHttpException, String?) -> Unit)? = null,
-    // KMK <--
+    // KUN <--
     transform: (D) -> R,
 ): R {
     if (exception != null) {
@@ -38,11 +38,11 @@ fun <D : Operation.Data, R> ApolloResponse<D>.dataOrElse(
             val body = e.body?.use { it.readUtf8() }
             logcat(LogPriority.ERROR, throwable = e) { "$errorLog: $body" }
             if (onException != null) {
-                // KMK -->
+                // KUN -->
                 // The body was already read and closed above; hand it to the handler instead of letting it
                 // re-read the exhausted stream (which would always see an empty body)
                 onException(e, body)
-                // KMK <--
+                // KUN <--
             } else {
                 throw HttpException(e.statusCode).apply { stackTrace = e.stackTrace }
             }

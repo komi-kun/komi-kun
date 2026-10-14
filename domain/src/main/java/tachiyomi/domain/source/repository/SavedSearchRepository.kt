@@ -7,11 +7,11 @@ interface SavedSearchRepository {
 
     suspend fun getById(savedSearchId: Long): SavedSearch?
 
-    // KMK -->
+    // KUN -->
     suspend fun getAll(): List<SavedSearch>
 
     suspend fun deleteAll()
-    // KMK <--
+    // KUN <--
 
     suspend fun getBySourceId(sourceId: Long): List<SavedSearch>
 

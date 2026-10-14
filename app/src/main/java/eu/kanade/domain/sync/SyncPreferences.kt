@@ -89,7 +89,7 @@ class SyncPreferences(
         return syncService.get() != SyncManager.SyncService.NONE.value
     }
 
-    // KMK -->
+    // KUN -->
     /**
      * Only the SyncYomi service consumes these tombstones, and only once the server is known to
      * speak protocol v2. Recording them for Google Drive, WebDAV or an old v1 SyncYomi server would
@@ -107,22 +107,22 @@ class SyncPreferences(
 
     /** Serialises the read-modify-write of the tombstone sets so concurrent edits are not lost. */
     private val tombstoneLock = Any()
-    // KMK <--
+    // KUN <--
 
     // SY -->
     /**
      * Remembers a deleted category so the next SyncYomi v2 request can send it as a tombstone.
      */
     fun rememberDeletedCategory(uid: Long) {
-        // KMK -->
+        // KUN -->
         if (uid == 0L || !isSyncYomiV2()) return
         synchronized(tombstoneLock) {
             pendingDeletedCategoryUids.set(pendingDeletedCategoryUids.get() + uid.toString())
         }
-        // KMK <--
+        // KUN <--
     }
 
-    // KMK -->
+    // KUN -->
     /**
      * Forgets category tombstones for categories that are seen live again, so a live category is
      * never deleted on the server.
@@ -136,7 +136,7 @@ class SyncPreferences(
             if (remaining.size != pending.size) pendingDeletedCategoryUids.set(remaining)
         }
     }
-    // KMK <--
+    // KUN <--
     // KMK -->
     /**
      * Remembers the chapters a source dropped, so the next SyncYomi v2 request can tombstone them.

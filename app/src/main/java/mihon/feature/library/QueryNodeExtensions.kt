@@ -20,7 +20,7 @@ import tachiyomi.source.local.LocalSource
 import kotlin.math.abs
 import kotlin.time.Instant
 
-// KMK -->
+// KUN -->
 /**
  * The EH/NHentai flat metadata of a library entry that [MetadataQueryNode]s are matched against.
  * [uploader] comes from `search_metadata`, [tags] from `search_tags`.
@@ -61,7 +61,7 @@ private fun MetadataQueryNode.matchesMetadata(metadata: LibrarySearchMetadata?):
 
 private fun SearchTag.matchesMetadataTag(namespace: String, value: String): Boolean =
     this.namespace.equals(namespace, ignoreCase = true) && name.contains(value, ignoreCase = true)
-// KMK <--
+// KUN <--
 
 fun QueryNode.matches(item: LibraryItem, metadata: LibrarySearchMetadata? = null): Boolean {
     return when (this) {
@@ -72,9 +72,9 @@ fun QueryNode.matches(item: LibraryItem, metadata: LibrarySearchMetadata? = null
         is GeneralQueryNode -> matches(item)
         is FieldQueryNode -> matches(item)
         is ComparisonQueryNode -> matches(item)
-        // KMK -->
+        // KUN -->
         is MetadataQueryNode -> matchesMetadata(metadata)
-        // KMK <--
+        // KUN <--
     }
 }
 
@@ -165,9 +165,9 @@ private fun ComparisonQueryNode.matches(item: LibraryItem): Boolean {
     val match = when (field) {
         ComparisonField.ID -> value.toLongOrNull()?.let { queryComparator.apply(manga.id, it) }
 
-        // KMK --> upstream mihon/main calls this field `favoriteAt`; the fork still names it `dateAdded`
+        // KUN --> upstream mihon/main calls this field `favoriteAt`; the fork still names it `dateAdded`
         ComparisonField.DATE_ADDED -> manga.dateAdded?.let { compareDates(it, value) }
-        // KMK <--
+        // KUN <--
 
         ComparisonField.FETCH_INTERVAL -> value.toIntOrNull()
             ?.let { queryComparator.apply(abs(manga.fetchInterval), it) }
@@ -196,7 +196,7 @@ private fun ComparisonQueryNode.matches(item: LibraryItem): Boolean {
     return if (negated) !match else match
 }
 
-// KMK -->
+// KUN -->
 /**
  * TachiyomiSY compatibility: restore the old wildcard matching. A term containing `*`/`%` (any
  * sequence of characters) or `?` (exactly one character) is compiled to a regex and matched
@@ -223,4 +223,4 @@ private fun String.matchesWildcard(term: String): Boolean {
     }
     return Regex(pattern, RegexOption.IGNORE_CASE).containsMatchIn(this)
 }
-// KMK <--
+// KUN <--

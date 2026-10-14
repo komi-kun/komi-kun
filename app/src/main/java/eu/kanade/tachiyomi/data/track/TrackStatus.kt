@@ -111,7 +111,7 @@ enum class TrackStatus(val int: Int, val res: StringResource) {
                         else -> null
                     }
                 }
-                // KMK -->
+                // KUN -->
                 // SY upstream has no branches for these trackers, so their tracked manga were grouped as
                 // OTHER ("Not tracked") in the library by-track-status filter.
                 trackerManager.hikka.id -> {
@@ -154,7 +154,7 @@ enum class TrackStatus(val int: Int, val res: StringResource) {
                         else -> null
                     }
                 }
-                // KMK <--
+                // KUN <--
                 else -> null
             }
         }

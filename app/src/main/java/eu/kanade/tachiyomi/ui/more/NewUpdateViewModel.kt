@@ -96,11 +96,11 @@ class NewUpdateViewModel(
     }
 
     fun skipUpdate(versionName: String) {
-        // KMK -->
+        // KUN -->
         // The fork downloads app updates through [AppUpdateDownloadJob], so cancel that instead of
         // a view model-owned download job.
         AppUpdateDownloadJob.stop(context)
-        // KMK <--
+        // KUN <--
         preferences.skippedAppUpdate.set(versionName)
     }
 

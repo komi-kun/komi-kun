@@ -112,7 +112,7 @@ class EditMergedSettingsHeaderAdapter(
                 android.R.layout.simple_spinner_dropdown_item,
                 // KMK <--
                 mergedMangas.map {
-                    // KMK -->
+                    // KUN -->
                     // This ArrayAdapter has no coroutine scope. Read the already-loaded source
                     // snapshot instead of blocking the main thread; while the sources are still
                     // loading, fall back to showing the manga title alone.
@@ -120,7 +120,7 @@ class EditMergedSettingsHeaderAdapter(
                         .getOrStubOrNull(it.second.mangaSourceId)
                         ?.toString()
                     if (sourceName != null) "$sourceName ${it.first?.title}" else it.first?.title.orEmpty()
-                    // KMK <--
+                    // KUN <--
                 },
                 // KMK -->
                 colorScheme,

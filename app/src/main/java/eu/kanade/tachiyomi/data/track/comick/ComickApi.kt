@@ -54,9 +54,9 @@ class ComickApi(
                 .header(
                     "User-Agent",
                     buildString {
-                        // KMK -->
+                        // KUN -->
                         append("Komikun v${BuildConfig.VERSION_NAME} ")
-                        // KMK <--
+                        // KUN <--
                         append("(${BuildConfig.APPLICATION_ID} ${BuildConfig.COMMIT_SHA}) ")
                         append("(Android) (https://github.com/mihonapp/mihon)")
                     },

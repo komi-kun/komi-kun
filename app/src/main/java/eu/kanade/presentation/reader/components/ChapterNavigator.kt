@@ -139,9 +139,9 @@ fun ChapterNavigator(
             mainAxisPadding = mainAxisPadding,
             backgroundColor = backgroundColor,
             buttonColor = buttonColor,
-            // KMK -->
+            // KUN -->
             textColor = textColor,
-            // KMK <--
+            // KUN <--
             modifier = modifier,
         )
     } else {
@@ -161,9 +161,9 @@ fun ChapterNavigator(
             mainAxisPadding = mainAxisPadding,
             backgroundColor = backgroundColor,
             buttonColor = buttonColor,
-            // KMK -->
+            // KUN -->
             textColor = textColor,
-            // KMK <--
+            // KUN <--
             modifier = modifier,
         )
     }
@@ -187,9 +187,9 @@ fun HorizontalChapterNavigator(
     mainAxisPadding: Dp,
     backgroundColor: Color,
     buttonColor: IconButtonColors,
-    // KMK -->
+    // KUN -->
     textColor: Color,
-    // KMK <--
+    // KUN <--
     modifier: Modifier = Modifier,
 ) {
     val layoutDirection = if (isRtl) LayoutDirection.Rtl else LayoutDirection.Ltr
@@ -293,9 +293,9 @@ fun VerticalChapterNavigator(
     mainAxisPadding: Dp,
     backgroundColor: Color,
     buttonColor: IconButtonColors,
-    // KMK -->
+    // KUN -->
     textColor: Color,
-    // KMK <--
+    // KUN <--
     modifier: Modifier = Modifier,
 ) {
     Column(

@@ -179,7 +179,7 @@ Accepted divergences, recorded during review of the first big upstream sync (Oct
 - **Brand strings live inside upstream-owned i18n files.** The app-name strings are edited in
   `i18n/src/commonMain/moko-resources/base/strings.xml` and
   `i18n-sy/src/commonMain/moko-resources/base/strings.xml` (name → Komikun), i.e. inside modules
-  `AGENTS.md` marks as upstream-owned. The edits are `// KMK`-wrapped and are a permanent,
+  `AGENTS.md` marks as upstream-owned. The edits are `// KUN`-wrapped and are a permanent,
   intentional divergence, not a sync mistake — keep the Komikun brand when resolving conflicts there.
 - **The Mihon copy was preferred over the TachiyomiSY copy in ~57 cases.** The porting workflow
   above says to prefer the SY copy when one exists, but this sync (and earlier history, ~60 commits

@@ -173,10 +173,12 @@ class SyncDataJob(private val context: Context, workerParams: WorkerParameters) 
             val wm = context.workManager
 
             // KMK -->
+            // KUN -->
             // Cancelling by tag is non-blocking; the old implementation blocked the calling (main)
             // thread on `getWorkInfos(...).get()`. Both the auto and manual syncs carry TAG_JOB, so
             // this cancels the running sync without waiting on WorkManager's executor.
             wm.cancelAllWorkByTag(TAG_JOB)
+            // KUN <--
 
             val syncStatus: SyncStatus = context.appGraph.syncStatus
             runBlocking { syncStatus.stop() }

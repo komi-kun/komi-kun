@@ -28,9 +28,9 @@ interface ChapterRepository {
 
     suspend fun getChapterByMangaId(mangaId: Long, applyFilter: Boolean = false): List<Chapter>
 
-    // KMK -->
+    // KUN -->
     suspend fun getChaptersByMangaIds(mangaIds: List<Long>): List<Chapter>
-    // KMK <--
+    // KUN <--
 
     suspend fun getChapterSummaryByMangaId(mangaId: Long): ChapterSummary
 

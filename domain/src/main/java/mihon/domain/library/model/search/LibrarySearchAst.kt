@@ -91,7 +91,7 @@ data class ComparisonQueryNode(
     val negated: Boolean,
 ) : QueryNode
 
-// KMK -->
+// KUN -->
 /**
  * A TachiyomiSY EH/NHentai metadata namespace term (e.g. `artist:foo`, `g:circle`).
  *
@@ -141,4 +141,4 @@ object MetadataNamespace {
     /** Returns the canonical namespace for [value], or null when it is not a metadata namespace. */
     fun canonical(value: String): String? = aliases[value.lowercase()]
 }
-// KMK <--
+// KUN <--

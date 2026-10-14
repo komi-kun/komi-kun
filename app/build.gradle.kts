@@ -217,10 +217,10 @@ kotlin {
     }
 }
 
-// KMK -->
+// KUN -->
 // webgpuviewer (v28+) pulls Compose 1.12.0 transitively, whose AAR metadata requires
 // AGP 9.1.0. Komikku builds with AGP 9.4.1, so no version pinning is needed.
-// KMK <--
+// KUN <--
 
 baselineProfile {
     baselineProfileOutputDir = "baselineProfiles"
@@ -424,12 +424,12 @@ apollo {
 
         introspection {
             // Kitsu doesn't like requests without a UA
-            // KMK -->
+            // KUN -->
             headers.put(
                 "User-Agent",
                 "Komikun v${android.defaultConfig.versionName} (${android.defaultConfig.applicationId})",
             )
-            // KMK <--
+            // KUN <--
             endpointUrl.set("https://kitsu.app/api/graphql")
             schemaFile.set(file("$srcDir/kitsu.graphqls"))
         }

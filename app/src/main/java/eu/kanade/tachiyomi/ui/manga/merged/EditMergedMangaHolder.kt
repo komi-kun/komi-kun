@@ -48,7 +48,7 @@ class EditMergedMangaHolder(view: View, val adapter: EditMergedMangaAdapter) : F
             }
         }
 
-        // KMK -->
+        // KUN -->
         // This Android ViewHolder has no coroutine scope. Read the already-loaded source snapshot
         // instead of blocking the main thread; while the sources are still loading the title is left
         // blank and the row is re-bound once the settings state changes.
@@ -56,7 +56,7 @@ class EditMergedMangaHolder(view: View, val adapter: EditMergedMangaAdapter) : F
             .getOrStubOrNull(item.mergedMangaReference.mangaSourceId)
             ?.toString()
             .orEmpty()
-        // KMK <--
+        // KUN <--
         binding.subtitle.text = item.mergedManga?.title
         updateDownloadChaptersIcon(item.mergedMangaReference.downloadChapters)
         updateChapterUpdatesIcon(item.mergedMangaReference.getChapterUpdates)

@@ -41,12 +41,12 @@ internal class HttpPageLoader(
 ) : PageLoader() {
 
     // EXH -->
-    // KMK -->
+    // KUN -->
     // The EXH reader thread count bounds how many pages the parallel loader downloads at once,
     // replacing the old queue of worker coroutines with a semaphore.
     private val readerThreads = readerPreferences.readerThreads.get().coerceAtLeast(1)
     private val downloadSemaphore = Semaphore(readerThreads)
-    // KMK <--
+    // KUN <--
     // EXH <--
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -140,7 +140,7 @@ internal class HttpPageLoader(
         }
         // EXH <--
 
-        // KMK -->
+        // KUN -->
         if (readerPreferences.readerInstantRetry.get()) {
             // Load the page right away, bypassing the rolling chunk schedule
             boostPage(page)
@@ -149,7 +149,7 @@ internal class HttpPageLoader(
             // page so a cached-but-undecodable image is fetched again.
             page.chapter.pages.orEmpty().loadByRollingChunked(page.index, 3, 5, force = true)
         }
-        // KMK <--
+        // KUN <--
     }
 
     override fun recycle() {
@@ -186,16 +186,16 @@ internal class HttpPageLoader(
      * Starts loading [page] unless it's already loaded or a load is already in flight for it. Claiming the slot and
      * starting the job has to be atomic, otherwise two chunk chains can both launch the same page.
      */
-    private fun launchLoadOnce(page: ReaderPage, /* KMK --> */ force: Boolean = false /* KMK <-- */): Job? {
+    private fun launchLoadOnce(page: ReaderPage, /* KUN --> */ force: Boolean = false /* KUN <-- */): Job? {
         val pageIndex = page.index
         // A page another chain is already loading still counts towards this chunk, otherwise the chain moves on
         // and starts the next chunk while it's in flight
         downloadJobs[pageIndex]?.takeIf { it.isActive }?.let { return it }
         if (page.status !is Page.State.Queue && page.status !is Page.State.Error) return null
 
-        // KMK -->
+        // KUN -->
         val job = scope.launch(start = CoroutineStart.LAZY) { internalLoadPage(page, force) }
-        // KMK <--
+        // KUN <--
         val running = downloadJobs.putIfAbsent(pageIndex, job)
         if (running != null) {
             job.cancel()
@@ -212,13 +212,13 @@ internal class HttpPageLoader(
         index: Int,
         chunkStartSize: Int,
         chunkEndSize: Int,
-        /* KMK --> */
+        /* KUN --> */
         force: Boolean = false,
-        /* KMK <-- */
+        /* KUN <-- */
         onNewChunks: (List<List<ReaderPage>>) -> Unit = {},
     ) {
         val items = this
-        // KMK -->
+        // KUN -->
         // When loading ahead isn't allowed, only the pages around the one being read load. Otherwise the EXH
         // preload amount bounds how far ahead the schedule reaches, or the whole chapter when the aggressive
         // loading option is on.
@@ -227,7 +227,7 @@ internal class HttpPageLoader(
             readerPreferences.aggressivePageLoading.get() -> items.indices
             else -> (index - 1)..(index + preloadSize)
         }
-        // KMK <--
+        // KUN <--
         val chunks = buildList {
             items.getOrNull(index)?.let(::add)
             items.getOrNull(index - 1)?.let(::add)
@@ -249,9 +249,9 @@ internal class HttpPageLoader(
             chunkProcessJob?.cancel()
             chunkProcessJob = scope.launch {
                 for (chunk in chunks) {
-                    // KMK -->
+                    // KUN -->
                     val jobs = chunk.mapNotNull { page -> launchLoadOnce(page, force) }
-                    // KMK <--
+                    // KUN <--
                     jobs.joinAll()
                 }
             }
@@ -288,10 +288,10 @@ internal class HttpPageLoader(
      */
     private suspend fun internalLoadPage(page: ReaderPage, force: Boolean = false) {
         // EXH -->
-        // KMK -->
+        // KUN -->
         // Bound concurrent downloads to the user's reader thread count.
         downloadSemaphore.withPermit { internalLoadPageImpl(page, force) }
-        // KMK <--
+        // KUN <--
         // EXH <--
     }
 
@@ -336,12 +336,12 @@ internal class HttpPageLoader(
     // EXH -->
     fun boostPage(page: ReaderPage) {
         if (page.status == Page.State.Queue) {
-            // KMK -->
+            // KUN -->
             // Load the page immediately instead of waiting for the rolling chunk schedule
             val pageIndex = page.index
             downloadJobs.remove(pageIndex)?.cancel()
             scope.launch { internalLoadPage(page, force = true) }.trackAsDownloadJob(pageIndex)
-            // KMK <--
+            // KUN <--
         }
     }
     // EXH <--

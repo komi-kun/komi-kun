@@ -380,7 +380,7 @@ class AboutScreen : Screen() {
                     }
                 }
 
-                // KMK -->
+                // KUN -->
                 // This fork has no stable channel: every release is a bleeding-edge
                 // prerelease, so don't label the tagged build as "Stable".
                 else -> {
@@ -393,7 +393,7 @@ class AboutScreen : Screen() {
                         }
                     }
                 }
-                // KMK <--
+                // KUN <--
             }
         }
 

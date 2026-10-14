@@ -81,10 +81,10 @@ class BackupManga(
             // SY <--
             favorite = this@BackupManga.favorite,
             source = this@BackupManga.source,
-            // KMK -->
+            // KUN -->
             // `favorite_modified_at` is not a fallback for a missing `date_added`: every manga
             // update rewrote it (see migrations/49.sqm). A missing date-added becomes UNKNOWN.
-            // KMK <--
+            // KUN <--
             dateAdded = if (this@BackupManga.favorite) {
                 this@BackupManga.dateAdded.toInstantOrNull()
                     ?: Manga.UNKNOWN_FAVORITE_AT

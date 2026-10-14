@@ -204,7 +204,7 @@ object ImageUtil {
         viewHeight: Int,
         backgroundContext: Context,
     ): BufferedSource {
-        // KMK --> migrated off the dropped legacy decoder to the mpreg decoder
+        // KUN --> migrated off the dropped legacy decoder to the mpreg decoder
         val imageBitmap = ImageDecoder.open(imageSource.inputStream()).use { it.decodeNext() }
             .let { decoded ->
                 createBitmap(decoded.width, decoded.height).also {
@@ -212,7 +212,7 @@ object ImageUtil {
                     it.copyPixelsFromBuffer(decoded.image)
                 }.also { decoded.close() }
             }
-        // KMK <--
+        // KUN <--
         val height = imageBitmap.height
         val width = imageBitmap.width
 

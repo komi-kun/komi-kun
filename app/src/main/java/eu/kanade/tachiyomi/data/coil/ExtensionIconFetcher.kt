@@ -32,15 +32,15 @@ class ExtensionIconFetcher(
     private val context: Context,
     private val getPkgName: suspend () -> String?,
     private val density: Int?,
-    // KMK -->
+    // KUN -->
     // Komikku's E-Hentai/ExH/Merged delegated sources have no extension package, so supply their
     // icon drawable directly instead of failing the fetch.
     private val getFallbackIcon: (() -> Drawable?)? = null,
-    // KMK <--
+    // KUN <--
 ) : Fetcher {
 
     override suspend fun fetch(): FetchResult {
-        // KMK -->
+        // KUN -->
         val pkgName = getPkgName()
         if (pkgName == null) {
             val fallback = getFallbackIcon?.invoke() ?: error("No installed extension")
@@ -50,7 +50,7 @@ class ExtensionIconFetcher(
                 dataSource = DataSource.DISK,
             )
         }
-        // KMK <--
+        // KUN <--
         val appInfo = ExtensionLoader.getExtensionPackageInfoFromPkgName(context, pkgName)?.applicationInfo
             ?: error("Extension $pkgName isn't installed")
         val drawable: Drawable = if (density == null) {
@@ -83,9 +83,9 @@ class ExtensionIconFetcher(
                 context = context,
                 getPkgName = { extensionManager.value.getExtensionPackage(data.sourceId) },
                 density = null,
-                // KMK -->
+                // KUN -->
                 getFallbackIcon = { extensionManager.value.getSpecificSourceIcon(data.sourceId) },
-                // KMK <--
+                // KUN <--
             )
         }
     }

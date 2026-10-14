@@ -169,12 +169,12 @@ internal fun GeneralPage(viewModel: ReaderSettingsViewModel) {
         }
     }
 
-    // KMK -->
+    // KUN -->
     CheckboxItem(
         label = stringResource(KMR.strings.pref_always_decode_long_strip_with_ssiv),
         pref = viewModel.preferences.alwaysDecodeLongStripWithSSIV,
     )
-    // KMK <--
+    // KUN <--
 
     // SY -->
     CheckboxItem(

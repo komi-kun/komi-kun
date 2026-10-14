@@ -6,11 +6,11 @@ import tachiyomi.domain.source.model.Source
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
-// KMK -->
+// KUN -->
 // Mihon b15af71b94 moved installed-extension/source icon loading to Coil
 // (`eu.kanade.tachiyomi.data.coil.InstalledSourceIcon`), so the old `Source.icon()` helper is gone.
 // Komikku keeps this module for its own `installedExtension` accessor.
-// KMK <--
+// KUN <--
 
 // AM (BROWSE) -->
 // Add an extra property to Source for it to get access to ExtensionManager

@@ -93,7 +93,7 @@ class QueryNodeExtensionsTest {
         matches("nope", item(title = "Foobar")) shouldBe false
     }
 
-    // KMK --> TachiyomiSY EH/NHentai metadata namespace search
+    // KUN --> TachiyomiSY EH/NHentai metadata namespace search
 
     private fun tag(namespace: String?, name: String): SearchTag =
         SearchTag(id = null, mangaId = 1L, namespace = namespace, name = name, type = 0)
@@ -235,5 +235,5 @@ class QueryNodeExtensionsTest {
         QueryNode.from("-(id:1 && g:circle)").containsMetadataQuery() shouldBe true
     }
 
-    // KMK <--
+    // KUN <--
 }

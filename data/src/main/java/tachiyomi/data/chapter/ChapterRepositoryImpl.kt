@@ -33,7 +33,7 @@ class ChapterRepositoryImpl(
         return try {
             database.transactionWithResult {
                 chapters.mapNotNull { chapter ->
-                    // KMK -->
+                    // KUN -->
                     // `ON CONFLICT DO NOTHING` returns no row when a concurrent sync already stored the
                     // chapter: skip it instead of letting awaitAsOne throw and abort the whole batch
                     val lastInsertId = database.chapterQueries.insert(
@@ -55,7 +55,7 @@ class ChapterRepositoryImpl(
                         isSyncing = 0L,
                         // SY <--
                     ).awaitAsOneOrNull() ?: return@mapNotNull null
-                    // KMK <--
+                    // KUN <--
                     chapter.copy(id = lastInsertId)
                 }
             }
@@ -250,13 +250,13 @@ class ChapterRepositoryImpl(
             .awaitAsOneOrNull()
     }
 
-    // KMK -->
+    // KUN -->
     override suspend fun getChaptersByMangaIds(mangaIds: List<Long>): List<Chapter> {
         return database.ehQueries
             .getChaptersByMangaIds(mangaIds, ChapterMapper::mapChapter)
             .awaitAsList()
     }
-    // KMK <--
+    // KUN <--
 
     // SY -->
     override suspend fun getChapterByUrl(url: String): List<Chapter> {

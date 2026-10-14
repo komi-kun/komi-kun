@@ -20,7 +20,7 @@ class VerticalNavigatorMigration(
     override val version: Float = 83f
 
     override suspend fun invoke(migrationContext: MigrationContext): Boolean = withContext(Dispatchers.IO) {
-        // KMK --> Only migrate the legacy boolean when it was actually persisted. The old
+        // KUN --> Only migrate the legacy boolean when it was actually persisted. The old
         // preference was introduced together with the new set-based preference in the same
         // unreleased batch, so it is normally absent.
         val oldVerticalNavigator = preferenceStore.getBoolean("pref_webtoon_vertical_navigator", true)
@@ -30,7 +30,7 @@ class VerticalNavigatorMigration(
             }
             oldVerticalNavigator.delete()
         }
-        // KMK <--
+        // KUN <--
 
         val oldVerticalNavigatorOnLeft = preferenceStore.getBoolean("pref_webtoon_vertical_navigator_on_left", false)
         if (oldVerticalNavigatorOnLeft.isSet()) {

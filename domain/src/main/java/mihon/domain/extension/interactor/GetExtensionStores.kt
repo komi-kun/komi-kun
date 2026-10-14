@@ -10,10 +10,10 @@ import mihon.domain.extension.repository.ExtensionStoreRepository
 class GetExtensionStores(
     private val repository: ExtensionStoreRepository,
 ) {
-    // KMK -->
+    // KUN -->
     // Read through the repository's shared flow so stores are queried once at startup (Mihon 8066b8dfc9)
     suspend fun get(): List<ExtensionStore> = repository.getAllAsFlow().first()
-    // KMK <--
+    // KUN <--
 
     fun subscribe(): Flow<List<ExtensionStore>> = repository.getAllAsFlow()
 }

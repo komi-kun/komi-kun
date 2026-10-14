@@ -54,9 +54,9 @@ internal class ComickPagingSource(
         val mangasPage = coroutineScope {
             val headers = Headers.Builder().apply {
                 add("Referer", "api.comick.fun/")
-                // KMK -->
+                // KUN -->
                 add("User-Agent", "Komikun ${System.getProperty("http.agent")}")
-                // KMK <--
+                // KUN <--
             }
 
             // Comick extension populates the URL field with: '/comic/{hid}#'

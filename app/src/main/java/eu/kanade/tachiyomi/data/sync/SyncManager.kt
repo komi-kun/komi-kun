@@ -167,12 +167,12 @@ class SyncManager(
             backupCategories = backupCreator.backupCategories(backupOptions),
             backupSources = backupCreator.backupSources(backupManga.mapTo(mutableSetOf()) { it.source }),
             // SY -->
-            // KMK -->
+            // KUN -->
             // `categorized_display` is derived from the categories; a sync restore sets it, which would
             // otherwise make the next delta echo it back to the server.
             backupPreferences = backupCreator.backupAppPreferences(backupOptions)
                 .filterNot { it.key == "categorized_display" },
-            // KMK <--
+            // KUN <--
             // SY <--
             backupSourcePreferences = backupCreator.backupSourcePreferences(backupOptions),
             backupExtensionStores = backupCreator.backupExtensionStores(backupOptions),
@@ -193,11 +193,11 @@ class SyncManager(
             backup = backup,
         )
 
-        // KMK -->
+        // KUN -->
         // A category that is live locally again must not be tombstoned on the server. This has to
         // run before the sync sends its pending tombstones.
         syncPreferences.forgetDeletedCategory(getCategories.await().map { it.uid })
-        // KMK <--
+        // KUN <--
 
         // SY -->
         val result: SyncResult = syncService?.doSync(syncData, full) ?: return

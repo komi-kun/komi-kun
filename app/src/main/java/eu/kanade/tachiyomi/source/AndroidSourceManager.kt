@@ -231,7 +231,7 @@ class AndroidSourceManager(
         }
     // SY <--
 
-    // KMK -->
+    // KUN -->
     /**
      * Non-suspending, non-blocking snapshot of the sources loaded so far, or null while the
      * extensions are still loading (i.e. before the first package scan completes).
@@ -250,7 +250,7 @@ class AndroidSourceManager(
      */
     fun getOrStubOrNull(sourceKey: Long): Source? =
         sourcesMapFlow.value?.get(sourceKey) ?: stubSourcesMap[sourceKey]
-    // KMK <--
+    // KUN <--
 
     // KMK -->
     override suspend fun getMergedSources(mangaId: Long): List<Source> {
@@ -371,7 +371,7 @@ class AndroidSourceManager(
     // SY <--
 }
 
-// KMK -->
+// KUN -->
 /**
  * Non-suspending access to the loaded-source snapshot behind [SourceManager].
  *
@@ -388,4 +388,4 @@ val SourceManager.sourcesMapOrNull: Map<Long, Source>?
  */
 fun SourceManager.getOrStubOrNull(sourceKey: Long): Source? =
     (this as? AndroidSourceManager)?.getOrStubOrNull(sourceKey)
-// KMK <--
+// KUN <--

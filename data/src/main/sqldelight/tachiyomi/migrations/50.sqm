@@ -73,7 +73,7 @@ SELECT
     coalesce(C.readCount, 0) AS readCount,
     coalesce(C.latestUpload, 0) AS latestUpload,
     coalesce(C.fetchedAt, 0) AS chapterFetchedAt,
-    -- KMK -->
+    -- KUN -->
     -- Same as the non-merged branch above, but over every manga of the merge group
     coalesce(
         CASE WHEN EXISTS (
@@ -100,7 +100,7 @@ SELECT
         END,
         0
     ) AS lastRead,
-    -- KMK <--
+    -- KUN <--
     coalesce(C.bookmarkCount, 0) AS bookmarkCount,
     -- KMK -->
     coalesce(C.bookmarkReadCount, 0) AS bookmarkedReadCount,

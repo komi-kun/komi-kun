@@ -90,13 +90,13 @@ fun MangaCoverDialog(
     val dropdownBgColor = MaterialTheme.colorScheme.surfaceVariant
     // KMK <--
 
-    // KMK -->
+    // KUN -->
     // Gate on device capability like the reader does (`ReadingMode`): with the preference on but the
     // WebGPU renderer unavailable, rendering the full-screen cover would show a no-op surface instead of
     // falling back to the SSIV viewer below.
     val useNewRenderer = LocalContext.current.appGraph.basePreferences.highQualityRenderer.get() &&
         runCatching { WebGpuRenderer.isAvailable }.getOrDefault(false)
-    // KMK <--
+    // KUN <--
     val view = LocalView.current
 
     Dialog(

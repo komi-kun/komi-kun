@@ -64,7 +64,7 @@ class LibrarySearchParser(private val tokens: List<LibrarySearchLexer.Token>) {
         return when (val nextToken = advance()) {
             is LibrarySearchLexer.Token.General -> GeneralQueryNode(nextToken.value, negated)
             is LibrarySearchLexer.Token.Field -> {
-                // KMK -->
+                // KUN -->
                 // TachiyomiSY EH/NHentai metadata namespaces (`artist:`, `g:`, ...) take precedence
                 // over Mihon's same-named fields, because the metadata meaning is the useful one for
                 // EH/NHentai libraries (`artist:` used to match the manga's group/artist field).
@@ -90,7 +90,7 @@ class LibrarySearchParser(private val tokens: List<LibrarySearchLexer.Token>) {
                         ComparisonQueryNode(comparisonField, nextToken.value, Comparator.EQ, negated)
                     else -> GeneralQueryNode("${nextToken.field}:${nextToken.value}", negated)
                 }
-                // KMK <--
+                // KUN <--
             }
             is LibrarySearchLexer.Token.CompField -> {
                 ComparisonField.fromString(nextToken.field)?.let {

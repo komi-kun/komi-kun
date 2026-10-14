@@ -19,9 +19,9 @@ class MangaUpdatesInterceptor(
         // Add the authorization header to the original request.
         val authRequest = originalRequest.newBuilder()
             .addHeader("Authorization", "Bearer $token")
-            // KMK -->
+            // KUN -->
             .header("User-Agent", "Komikun v${BuildConfig.VERSION_NAME} (${BuildConfig.APPLICATION_ID})")
-            // KMK <--
+            // KUN <--
             .build()
 
         return chain.proceed(authRequest)

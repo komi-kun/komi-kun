@@ -153,12 +153,12 @@ open class BrowseSourceViewModel(
     val state: StateFlow<BrowseSourceViewModel.State>
         field = MutableStateFlow<BrowseSourceViewModel.State>(State(Listing.valueOf(listingQuery)))
 
-    // KMK -->
+    // KUN -->
     /** Updates [state] from subclasses, which cannot access the backing field directly. */
     protected fun updateState(transform: (State) -> State) {
         state.update(transform)
     }
-    // KMK <--
+    // KUN <--
 
     var displayMode by sourcePreferences.sourceDisplayMode.asState(viewModelScope)
 
@@ -626,7 +626,9 @@ open class BrowseSourceViewModel(
         // KMK <--
         viewModelScope.launchIO {
             // KMK -->
+            // KUN -->
             val source = source ?: return@launchIO
+            // KUN <--
             val search = getExhSavedSearch.awaitOne(loadedSearch.id, source::getFilterList) ?: loadedSearch
             // KMK <--
 

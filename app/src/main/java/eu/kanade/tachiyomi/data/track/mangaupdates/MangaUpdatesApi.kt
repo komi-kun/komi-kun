@@ -77,7 +77,7 @@ class MangaUpdatesApi(
             ),
         )
             .awaitSuccess()
-            // KMK -->
+            // KUN -->
             // Close the response; the body is never read
             .use {
                 if (it.code == 200) {
@@ -85,7 +85,7 @@ class MangaUpdatesApi(
                     track.last_chapter_read = 1.0
                 }
             }
-        // KMK <--
+        // KUN <--
     }
 
     suspend fun updateSeriesListItem(track: Track) {
@@ -195,7 +195,7 @@ class MangaUpdatesApi(
                 val response = client.newCall(GET(url))
                     .await()
 
-                // KMK -->
+                // KUN -->
                 // Close the response on both the 404 and the success path
                 response.use {
                     if (it.code == 404) {
@@ -204,7 +204,7 @@ class MangaUpdatesApi(
                         it.parseAs<MURecord>()
                     }
                 }
-                // KMK <--
+                // KUN <--
             }
         }
     }

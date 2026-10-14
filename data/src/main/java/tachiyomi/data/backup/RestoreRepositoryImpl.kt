@@ -89,14 +89,14 @@ class RestoreRepositoryImpl(
         // SY -->
         // For a sync restore an empty list must clear the assignment, or removing a manga's only
         // category never reaches the other devices (the stale assignment stays forever).
-        // KMK -->
+        // KUN -->
         // But a normal (non-sync) restore may be run with the "Categories" option off, which makes
         // `entry.categoryIds` empty for every entry; clearing unconditionally would then wipe every
         // manga's category assignments. Only clear when the entry actually carries categories.
         if (isSync || entry.categoryIds.isNotEmpty()) {
             mangaRepository.setMangaCategories(manga.id, entry.categoryIds)
         }
-        // KMK <--
+        // KUN <--
         // SY <--
         restoreChapters(manga, entry.chapters, isSync, syncingFlag)
         restoreTracking(manga, entry.tracks)
@@ -241,12 +241,12 @@ class RestoreRepositoryImpl(
                         read = kept.read || other.read,
                         bookmark = kept.bookmark || other.bookmark,
                         lastPageRead = max(kept.lastPageRead, other.lastPageRead),
-                        // KMK -->
+                        // KUN -->
                         // Duplicate copies of one chapter may carry different sync counters; keep the
                         // newest so a folded copy cannot roll a synced chapter back.
                         version = max(kept.version, other.version),
                         lastModifiedAt = max(kept.lastModifiedAt, other.lastModifiedAt),
-                        // KMK <--
+                        // KUN <--
                     )
                 }
             }
@@ -273,21 +273,21 @@ class RestoreRepositoryImpl(
                 bookmark = chapter.bookmark || dbChapter.bookmark,
                 read = chapter.read,
                 lastPageRead = chapter.lastPageRead,
-                // KMK -->
+                // KUN -->
                 sourceOrder = max(chapter.sourceOrder, dbChapter.sourceOrder),
                 dateUpload = listOfNotNull(chapter.dateUpload, dbChapter.dateUpload).minOrNull(),
-                // KMK <--
+                // KUN <--
             )
         } else {
             chapter.copyFrom(dbChapter)
-                // KMK -->
+                // KUN -->
                 .copy(
                     id = dbChapter.id,
                     bookmark = chapter.bookmark || dbChapter.bookmark,
                     sourceOrder = max(chapter.sourceOrder, dbChapter.sourceOrder),
                     dateUpload = listOfNotNull(chapter.dateUpload, dbChapter.dateUpload).minOrNull(),
                 )
-                // KMK <--
+                // KUN <--
                 .let {
                     when {
                         dbChapter.read && !it.read -> it.copy(read = true, lastPageRead = dbChapter.lastPageRead)
@@ -305,10 +305,10 @@ class RestoreRepositoryImpl(
             id = 0L,
             mangaId = 0L,
             dateFetch = Instant.DISTANT_PAST,
-            // KMK -->
+            // KUN -->
             // dateUpload = 0L, some time source loses dateUpload so we overwrite with backup
             // sourceOrder = 0L, although sourceOrder will be updated on refresh, we want to avoid order mixed up anyway
-            // KMK <--
+            // KUN <--
             lastModifiedAt = 0L,
             version = 0L,
         )
@@ -350,10 +350,10 @@ class RestoreRepositoryImpl(
                     read = chapter.read,
                     bookmark = chapter.bookmark,
                     lastPageRead = chapter.lastPageRead,
-                    // KMK -->
+                    // KUN -->
                     sourceOrder = chapter.sourceOrder,
                     dateUpload = chapter.dateUpload,
-                    // KMK <--
+                    // KUN <--
                     chapterId = chapter.id,
                     version = chapter.version,
                     // SY -->
@@ -383,12 +383,12 @@ class RestoreRepositoryImpl(
             // each copy; they are one chapter now, read as late as any copy and for as long as all
             .groupBy { chapterIdsByUrl.getValue(it.chapterUrl) }
             .map { (chapterId, copies) ->
-                // KMK -->
+                // KUN -->
                 // A removed/unread history entry is backed up with lastRead == 0 => readAt == null.
                 // Writing NULL would make `removeResettedHistory` drop the tombstone, so a removed
                 // history entry would not survive a restore; write epoch 0 (as master did) instead.
                 val readAt = copies.mapNotNull { it.readAt }.maxOrNull() ?: Instant.fromEpochMilliseconds(0)
-                // KMK <--
+                // KUN <--
                 val readDuration = copies.sumOf { it.readDuration }
                 val dbHistory = dbHistoryByChapterId[chapterId]
                     // New history entry
@@ -500,17 +500,17 @@ class RestoreRepositoryImpl(
                         reference.mangaUrl == it.mangaUrl
                 }
             ) {
-                // KMK -->
+                // KUN -->
                 val mergedManga = database.mangaQueries
-                    // KMK <--
+                    // KUN <--
                     .getMangaByUrlAndSource(
                         reference.mangaSourceId,
                         reference.mangaUrl,
                         MangaMapper::mapManga,
                     )
-                    // KMK -->
+                    // KUN -->
                     .awaitAsOneOrNull()
-                    // KMK <--
+                    // KUN <--
                     ?: return@forEach
                 database.mergedQueries.insert(
                     infoManga = reference.isInfoManga,
@@ -529,7 +529,7 @@ class RestoreRepositoryImpl(
     }
 
     private suspend fun restoreFlatMetadata(mangaId: Long, flatMetadata: FlatMetadata) {
-        // KMK -->
+        // KUN -->
         // Mirrors the previous GetFlatMetadataById/InsertFlatMetadata interactors, which swallowed
         // failures so a broken metadata entry could not abort the whole restore.
         val existing = try {
@@ -549,7 +549,7 @@ class RestoreRepositoryImpl(
         } catch (e: Exception) {
             // Empty
         }
-        // KMK <--
+        // KUN <--
     }
 
     private fun restoreEditedInfo(mangaInfo: CustomMangaInfo?) {
