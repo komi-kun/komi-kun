@@ -129,7 +129,20 @@ jobs:
           java-version-file: .github/.java-version
           distribution: temurin
 
+      - name: Check optional secrets
+        id: opt_secrets
+        run: |
+          echo "google_services=${{ secrets.GOOGLE_SERVICES_JSON != '' }}" >> "$GITHUB_OUTPUT"
+          echo "client_secrets=${{ secrets.GOOGLE_CLIENT_SECRETS_JSON != '' }}" >> "$GITHUB_OUTPUT"
+          echo "signing_key=${{ secrets.SIGNING_KEY != '' }}" >> "$GITHUB_OUTPUT"
+          if [ "${{ secrets.GOOGLE_SERVICES_JSON != '' }}" = "true" ]; then
+            echo "telemetry_flag=" >> "$GITHUB_OUTPUT"
+          else
+            echo "telemetry_flag=-Pinclude-telemetry=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Write google-services.json
+        if: steps.opt_secrets.outputs.google_services == 'true'
         uses: DamianReeves/write-file-action@6929a9a6d1807689191dcc8bbe62b54d70a32b42 # v1.3
         with:
           path: app/google-services.json
@@ -137,6 +150,7 @@ jobs:
           write-mode: overwrite
 
       - name: Write client_secrets.json
+        if: steps.opt_secrets.outputs.client_secrets == 'true'
         uses: DamianReeves/write-file-action@6929a9a6d1807689191dcc8bbe62b54d70a32b42 # v1.3
         with:
           path: app/src/main/assets/client_secrets.json
@@ -150,7 +164,7 @@ jobs:
         run: ./gradlew spotlessCheck
 
       - name: Build app
-        run: ./gradlew assembleNightly -Pdist=ci
+        run: ./gradlew assembleNightly -Pdist=ci ${{ steps.opt_secrets.outputs.telemetry_flag }}
 
       - name: Run unit tests
         run: ./gradlew testDebugUnitTest
