@@ -14,14 +14,16 @@ class DeleteDownload(
 ) {
 
     suspend fun awaitAll(manga: Manga, vararg chapters: Chapter) {
-        // KMK -->
+        // KUN -->
         // Deleting touches the download cache and disk; a cancelled caller used to abort midway and leave
         // them out of sync, so run it to completion even if the caller's job is cancelled
+        // KUN <--
+        // SY -->
         withNonCancellableContext {
             sourceManager.get(manga.source)?.let { source ->
                 downloadManager.deleteChapters(chapters.toList(), manga, source)
             }
         }
-        // KMK <--
+        // SY <--
     }
 }

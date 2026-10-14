@@ -773,14 +773,12 @@ class LibraryViewModel(
                 val downloadCount = if (manga.manga.source == MERGED_SOURCE_ID) {
                     getMergedMangaById.await(manga.manga.id).sumOf { downloadManager.getDownloadCount(it) }
                 } else {
-                    // KMK --> counts are batched for the whole library, so reuse them here
+                    // KUN --> counts are batched for the whole library, so reuse them here
                     downloadCounts.getValue(manga.id)
-                    // KMK <--
+                    // KUN <--
                 }
                 // SY <--
-                // KMK -->
                 val source = sources.getValue(manga.manga.source)
-                // KMK <--
                 LibraryItem(
                     libraryManga = manga,
                     // SY -->
@@ -788,13 +786,13 @@ class LibraryViewModel(
                     // SY <--
                     unreadCount = manga.unreadCount,
                     isLocal = manga.manga.isLocal(),
-                    // KMK --> matches are case-insensitive, so store the lowercased name like Mihon
+                    // KUN --> matches are case-insensitive, so store the lowercased name like Mihon
                     sourceName = source.name.lowercase(),
-                    // KMK <--
-                    // KMK --> unconditional: the AST `language:`/`lang:` search reads this field
+                    // KUN <--
+                    // KUN --> unconditional: the AST `language:`/`lang:` search reads this field
                     // (the language badge below is separate and stays gated on the preference)
                     sourceLanguage = source.lang,
-                    // KMK <--
+                    // KUN <--
                     badges = LibraryItem.Badges(
                         downloadCount = if (preferences.downloadBadge) {
                             // SY -->
@@ -856,11 +854,11 @@ class LibraryViewModel(
         }
     }
 
-    // KMK -->
+    // KUN -->
     // Ported from Mihon 2d1d2e4cab ("Rework database queries for the new schema"):
     // read an entry's categories from the loaded library instead of one query per manga,
     // falling back to the database only when the entry is not loaded.
-    // KMK <--
+    // KUN <--
     private suspend fun getCategoryIds(manga: Manga): Set<Long> {
         return state.value.libraryData.favoritesById[manga.id]
             ?.libraryManga
@@ -1391,10 +1389,10 @@ class LibraryViewModel(
             val categories = state.value.libraryData.categories.fastFilter { it.id != 0L }
             // KMK <--
 
-            // KMK -->
+            // KUN -->
             // Ported from Mihon 2d1d2e4cab ("Rework database queries for the new schema"):
             // common/mix are now sets of category ids read from memory, not per-manga queries.
-            // KMK <--
+            // KUN <--
             val mangaCategoryIds = mangaList.map { getCategoryIds(it) }
             val common = mangaCategoryIds.reduceOrNull { set1, set2 -> set1 intersect set2 }.orEmpty()
             val mix = mangaCategoryIds.flatten().toSet() - common

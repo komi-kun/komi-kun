@@ -169,14 +169,12 @@ class UpdatesViewModel(
                 prefs.filterBookmarked,
             )
                 .any { it != TriState.DISABLED } ||
-                // KMK -->
                 prefs.filterExcludedScanlators ||
                 listOf(
                     prefs.filterIncludedCategories,
                     prefs.filterExcludedCategories,
                 )
                     .any { it.isNotEmpty() }
-            // KMK <--
         }
         .distinctUntilChanged()
 

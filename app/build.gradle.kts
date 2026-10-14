@@ -265,9 +265,7 @@ dependencies {
     debugImplementation(compose.ui.tooling)
     implementation(compose.ui.tooling.preview)
     implementation(compose.ui.util)
-    // KMK -->
     implementation(androidx.navigationevent)
-    // KMK <--
 
     implementation(androidx.interpolator)
 

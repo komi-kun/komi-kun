@@ -38,10 +38,10 @@ class RestoreRepositoryImpl(
     private val mangaRepository: MangaRepository,
     private val chapterRepository: ChapterRepository,
     private val trackRepository: TrackRepository,
-    // KMK/SY -->
+    // SY -->
     private val mangaMetadataRepository: MangaMetadataRepository,
     private val customMangaRepository: CustomMangaRepository,
-    // KMK/SY <--
+    // SY <--
 ) : RestoreRepository {
 
     override suspend fun getMangaUrlsBySourceId(): Map<Long, Set<String>> {
@@ -57,10 +57,10 @@ class RestoreRepositoryImpl(
         isSync: Boolean,
         update: suspend (Manga) -> MangaUpdate,
     ) {
-        // KMK/SY -->
+        // SY -->
         // 1 while applying a sync so the triggers neither bump versions nor stamp last_modified_at
         val syncingFlag = if (isSync) 1L else 0L
-        // KMK/SY <--
+        // SY <--
         database.transaction {
             entries.forEach { entry ->
                 // A cancelled restore stops between entries and rolls the whole batch back
@@ -102,11 +102,11 @@ class RestoreRepositoryImpl(
         restoreTracking(manga, entry.tracks)
         restoreHistory(manga, entry.history)
         restoreExcludedScanlators(manga, entry.excludedScanlators)
-        // KMK/SY -->
+        // SY -->
         restoreMergedMangaReferencesForManga(manga.id, entry.mergedMangaReferences)
         entry.flatMetadata?.let { restoreFlatMetadata(manga.id, it) }
         restoreEditedInfo(entry.customMangaInfo?.copy(id = manga.id))
-        // KMK/SY <--
+        // SY <--
         return manga
     }
 

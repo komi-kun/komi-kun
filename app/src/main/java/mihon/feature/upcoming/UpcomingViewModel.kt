@@ -56,11 +56,9 @@ class UpcomingViewModel(
     val excludedCategories = upcomingPreferences.filterExcludedCategories
     val includedCategories = upcomingPreferences.filterIncludedCategories
 
-    // KMK -->
     private val selectedYearMonth = MutableStateFlow(
         Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date.yearMonth,
     )
-    // KMK <--
 
     private val dialog = MutableStateFlow<Dialog?>(null)
 

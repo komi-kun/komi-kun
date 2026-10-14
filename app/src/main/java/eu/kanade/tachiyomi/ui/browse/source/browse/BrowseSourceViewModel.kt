@@ -275,7 +275,7 @@ open class BrowseSourceViewModel(
                         // SY -->
                         .combineMetadata(metadata)
                         // SY <--
-                        // KMK -->
+                        // KUN -->
                         // Ported from Mihon 2d1d2e4cab ("Rework database queries for the new schema"):
                         // query an entry only while it is shown. The initial value is the paging row
                         // as a Pair, because combineMetadata maps the flow to Pair<Manga, RaisedSearchMetadata?>.
@@ -284,7 +284,7 @@ open class BrowseSourceViewModel(
                             SharingStarted.WhileSubscribed(5.seconds),
                             manga to metadata,
                         )
-                    // KMK <--
+                    // KUN <--
                 }
                     .filter { !hideInLibraryItems || !it.value.first.favorite }
             }

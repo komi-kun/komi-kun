@@ -48,20 +48,20 @@ object AppBindings {
     fun providesSqlDriver(
         context: Context,
         securityPreferences: SecurityPreferences,
-        // KMK -->
         // KUN -->
         // Provided by :data's DatabaseBindings, so the app does not reference the generated Database.
         schema: SqlSchema<QueryResult.AsyncValue<Unit>>,
         // KUN <--
+        // KUN -->
         // Mihon fd4f73c908: exposes whether the database is being migrated after an update.
+        // KUN <--
         databaseRepository: DatabaseRepositoryImpl,
-        // KMK <--
     ): SqlDriver {
-        // KMK -->
+        // KUN -->
         // Ported from Mihon 38e93086c8 ("Configure database connections like Room") and
         // 61cd786e7f ("Use WAL on every device"): WAL everywhere, one reader on low-RAM devices.
+        // KUN <--
         val isLowRam = (context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager)?.isLowRamDevice == true
-        // KMK <--
 
         // SY -->
         if (securityPreferences.encryptDatabase.get()) {
@@ -91,15 +91,16 @@ object AppBindings {
                 schema = schema,
                 configuration = AndroidxSqliteConfiguration(
                     isForeignKeyConstraintsEnabled = true,
-                    // KMK -->
+                    // KUN -->
                     // Mihon 61cd786e7f: WAL on every device (the configuration default), one reader
                     // on low-RAM devices, four otherwise. SQLCipher's driver reports its own
                     // connection pool, so this is mostly informational on the encrypted path.
+                    // KUN <--
                     concurrencyModel = MultipleReadersSingleWriter(isWal = true, walCount = if (isLowRam) 1 else 4),
-                    // KMK <--
                 ),
-                // KMK -->
+                // KUN -->
                 // Mihon fd4f73c908: show the migrating screen while the encrypted database upgrades.
+                // KUN <--
                 onConfigure = {
                     val version = executePragmaQuery("user_version", { QueryResult.Value(it.apply { next() }.getLong(0)) })
                     databaseRepository.isMigrating.value = version in 1..<schema.version
@@ -107,14 +108,14 @@ object AppBindings {
                 onOpen = {
                     databaseRepository.isMigrating.value = false
                 },
-                // KMK <--
             )
         }
         // SY <--
 
         return AndroidxSqliteDriver(
-            // KMK -->
+            // KUN -->
             // Mihon 38e93086c8: set busy_timeout on every pooled connection, not once on open.
+            // KUN <--
             connectionFactory = object : AndroidxSqliteConnectionFactory {
                 override val driver: SQLiteDriver = BundledSQLiteDriver()
 
@@ -124,19 +125,19 @@ object AppBindings {
                     }
                 }
             },
-            // KMK <--
             databaseType = AndroidxSqliteDatabaseType.FileProvider(context, "tachiyomi.db"),
             schema = schema,
             configuration = AndroidxSqliteConfiguration(
                 isForeignKeyConstraintsEnabled = true,
-                // KMK -->
+                // KUN -->
                 // Mihon 61cd786e7f: WAL on every device; one reader on low-RAM, four otherwise.
+                // KUN <--
                 concurrencyModel = MultipleReadersSingleWriter(isWal = true, walCount = if (isLowRam) 1 else 4),
-                // KMK <--
             ),
-            // KMK -->
+            // KUN -->
             // Mihon fd4f73c908: runs before the driver compares the schema version, and onOpen once
             // the schema is ready, so the UI can show a migrating screen instead of looking hung.
+            // KUN <--
             onConfigure = {
                 val version = executePragmaQuery("user_version", { QueryResult.Value(it.apply { next() }.getLong(0)) })
                 databaseRepository.isMigrating.value = version in 1..<schema.version
@@ -144,7 +145,6 @@ object AppBindings {
             onOpen = {
                 databaseRepository.isMigrating.value = false
             },
-            // KMK <--
         )
     }
 

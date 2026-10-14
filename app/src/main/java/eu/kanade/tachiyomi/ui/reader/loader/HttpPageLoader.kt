@@ -80,18 +80,16 @@ internal class HttpPageLoader(
         return pages.mapIndexed { index, page ->
             // Don't trust sources and use our own indexing
             ReaderPage(index, page.url, page.imageUrl).also {
-                // KMK -->
                 // Loading starts below, before ChapterLoader gets to set this, and chapter is a lateinit
                 it.chapter = chapter
-                // KMK <--
             }
         }
             .also {
-                // KMK -->
+                // KUN -->
                 // Start loading the first pages in the background. The aggressive-loading option widens the
                 // window inside loadByRollingChunked.
                 it.loadByRollingChunked(0, 1, 1)
-                // KMK <--
+                // KUN <--
             }
         // SY <--
     }

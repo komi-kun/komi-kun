@@ -319,11 +319,11 @@ class ReaderViewModel(
 
     private var chapterToDownload: Download? = null
 
-    // KMK -->
+    // KUN -->
     // Primed once by [loadChapterList] on the IO dispatcher. The completion path reads it from a
     // Dispatchers.Main.immediate coroutine, so it must never trigger a blocking query there.
     private lateinit var unfilteredChapterList: List<Chapter>
-    // KMK <--
+    // KUN <--
 
     /**
      * Chapter list for the active manga. Loaded by [init].
@@ -365,7 +365,7 @@ class ReaderViewModel(
         }
         // SY <--
 
-        // KMK -->
+        // KUN -->
         // A chapter requested directly (deep link, notification, continue reading) whose scanlator
         // is excluded by the manga's filter is absent from the filtered list, so the lookup below
         // would throw and the reader would never open. Re-add the requested chapter from the
@@ -375,7 +375,7 @@ class ReaderViewModel(
         } else {
             chapters + unfilteredChapterList.filter { it.id == chapterId }
         }
-        // KMK <--
+        // KUN <--
 
         val selectedChapter = chaptersWithRequested.find { it.id == chapterId }
             ?: error("Requested chapter of id $chapterId not found in chapter list")
@@ -1408,10 +1408,10 @@ class ReaderViewModel(
 
         val manga = manga ?: return
 
-        // KMK --> using injected context
+        // KUN --> using injected context
         val notifier = SaveImageNotifier(context)
         notifier.onClear()
-        // KMK <--
+        // KUN <--
 
         // Copy file in background.
         viewModelScope.launchNonCancellable {
@@ -1534,9 +1534,9 @@ class ReaderViewModel(
         if (secondPage?.status != Page.State.Ready) return
         val manga = manga ?: return
 
-        // KMK --> using injected context
+        // KUN --> using injected context
         val destDir = context.cacheImageDir
-        // KMK <--
+        // KUN <--
 
         try {
             viewModelScope.launchNonCancellable {

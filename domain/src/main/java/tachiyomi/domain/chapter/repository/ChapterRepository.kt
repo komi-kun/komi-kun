@@ -16,13 +16,11 @@ interface ChapterRepository {
 
     suspend fun updateAllRemote(chapterUpdates: List<ChapterRemoteUpdate>)
 
-    // KMK -->
     suspend fun updateFromRemote(
         removedIds: List<Long>,
         added: List<Chapter>,
         updated: List<ChapterRemoteUpdate>,
     ): List<Chapter>
-    // KMK <--
 
     suspend fun removeChaptersWithIds(chapterIds: List<Long>)
 

@@ -228,8 +228,10 @@ class MangaViewModel(
     // KMK -->
     private val sourcePreferences: SourcePreferences,
     private val downloadProvider: DownloadProvider,
-    private val updateHelper: EHentaiUpdateHelper,
     // KMK <--
+    // SY -->
+    private val updateHelper: EHentaiUpdateHelper,
+    // SY <--
     private val getManga: GetManga,
     private val getMergedChaptersByMangaId: GetMergedChaptersByMangaId,
     private val getMergedMangaById: GetMergedMangaById,

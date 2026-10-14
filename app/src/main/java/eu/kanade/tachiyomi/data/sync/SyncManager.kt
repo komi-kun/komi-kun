@@ -320,17 +320,19 @@ class SyncManager(
                 context,
                 backupUri,
                 sync = true,
-                // KMK -->
+                // KUN -->
                 // Honour the user's "choose what to sync" flags instead of forcing everything on.
+                // KUN <--
                 options = RestoreOptions(
                     appSettings = syncOptions.appSettings,
                     sourceSettings = syncOptions.sourceSettings,
                     libraryEntries = syncOptions.libraryEntries,
                     categories = syncOptions.categories,
                     extensionStores = syncOptions.extensionStores,
+                    // KMK -->
                     savedSearchesFeeds = syncOptions.savedSearchesFeeds,
+                    // KMK <--
                 ),
-                // KMK <--
             )
             // SY <--
             if (applied) {

@@ -66,10 +66,10 @@ class SetMangaChapterFlags(
         )
     }
 
-    // KMK -->
+    // KUN -->
     // Ported from Mihon 2d1d2e4cab ("Rework database queries for the new schema"):
     // one transaction through updateAll instead of one update per manga.
-    // KMK <--
+    // KUN <--
     suspend fun awaitSetAllFlags(
         mangaIds: List<Long>,
         unreadFilter: Long,

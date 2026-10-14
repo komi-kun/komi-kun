@@ -103,14 +103,14 @@ class LibraryUpdateNotifier(
      * @param current the current progress.
      * @param total the total progress.
      */
-    // KMK --> stays suspend: [libraryUpdateStatus.updateProgress] below suspends, so upstream's
+    // KUN --> stays suspend: [libraryUpdateStatus.updateProgress] below suspends, so upstream's
     // @Synchronized cannot be applied; the throttle below is kept
+    // KUN <--
     suspend fun showProgressNotification(manga: List<Manga>, current: Int, total: Int) {
         val now = SystemClock.elapsedRealtime()
         if (current < total && now - lastProgressNotificationTime < NOTIF_PROGRESS_INTERVAL_MS) return
         lastProgressNotificationTime = now
 
-        // KMK <--
         progressNotificationBuilder
             .setContentTitle(
                 context.stringResource(

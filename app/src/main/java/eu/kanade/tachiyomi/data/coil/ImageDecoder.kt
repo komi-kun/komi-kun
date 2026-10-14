@@ -75,7 +75,7 @@ class ImageDecoder(
     override suspend fun decode(): DecodeResult {
         if (options.webtoonStrips) return decodeStrips()
 
-        // KMK -->
+        // SY -->
         var coverStream: BufferedInputStream? = null
         if (resources.sourceOrNull()?.peek()?.use { CbzCrypto.detectCoverImageArchive(it.inputStream()) } == true) {
             if (resources.source().peek().use { ImageUtil.findImageType(it.inputStream()) == null }) {
@@ -84,9 +84,9 @@ class ImageDecoder(
                     ?.getCoverStream()
             }
         }
-        // KMK <--
+        // SY <--
         val res = resources.source().use {
-            // KMK -->
+            // KUN -->
             coverStream.use { cover ->
                 ImageDecoder.open(cover ?: it.inputStream()).use { dec ->
                     DecodeResultImage(
@@ -97,7 +97,7 @@ class ImageDecoder(
                     )
                 }
             }
-            // KMK <--
+            // KUN <--
         }
 
         val srcWidth = res.width
@@ -225,11 +225,11 @@ class ImageDecoder(
             val type = source.peek().inputStream().use {
                 ImageUtil.findImageType(it)
             }
-            // KMK -->
+            // SY -->
             source.peek().inputStream().use { stream ->
                 if (CbzCrypto.detectCoverImageArchive(stream)) return true
             }
-            // KMK <--
+            // SY <--
             return when (type) {
                 ImageUtil.ImageType.AVIF,
                 ImageUtil.ImageType.JXL,

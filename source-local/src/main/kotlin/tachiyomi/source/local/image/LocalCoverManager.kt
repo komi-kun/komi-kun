@@ -37,10 +37,10 @@ class LocalCoverManager(
         manga: SManga,
         inputStream: InputStream,
         // SY -->
-        // KMK -->
+        // KUN -->
         // Default kept from the old `expect` declaration now that the source sets are merged.
+        // KUN <--
         encrypted: Boolean = false,
-        // KMK <--
         // SY <--
     ): UniFile? {
         val directory = fileSystem.getMangaDirectory(manga.url)

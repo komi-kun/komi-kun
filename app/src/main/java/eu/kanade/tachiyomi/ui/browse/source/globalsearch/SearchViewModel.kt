@@ -219,14 +219,14 @@ abstract class SearchViewModel(
     }
 
     private fun updateItem(source: Source, result: SearchItemResult) {
-        // KMK --> Komikku's state is `state` and `items` is a Map
+        // KUN --> Komikku's state is `state` and `items` is a Map
         state.update { currentState ->
             val newItems = currentState.items + (source to result)
             currentState.copy(
                 items = newItems.toSortedMap(sortComparator(newItems)).toMap(),
             )
         }
-        // KMK <--
+        // KUN <--
     }
 
     fun setMigrateDialog(currentId: Long, target: Manga) {

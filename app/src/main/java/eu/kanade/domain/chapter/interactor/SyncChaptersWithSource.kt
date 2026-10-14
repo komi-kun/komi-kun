@@ -42,9 +42,9 @@ class SyncChaptersWithSource(
     private val updateManga: UpdateManga,
     private val getExcludedScanlators: GetExcludedScanlators,
     private val libraryPreferences: LibraryPreferences,
-    // KMK -->
+    // SY -->
     private val syncPreferences: SyncPreferences,
-    // KMK <--
+    // SY <--
 ) {
 
     /**
@@ -249,17 +249,19 @@ class SyncChaptersWithSource(
         }
         // <-- EXH
 
-        // KMK -->
+        // SY -->
         val tombstoneKey = { chapter: Chapter -> chapterTombstoneKey(manga.source, manga.url, chapter.url) }
+        // KUN -->
         // A chapter the source dropped must be tombstoned on the server; one it re-added must not.
+        // KUN <--
         syncPreferences.rememberDeletedChapters(removedChapters.map(tombstoneKey))
-        // KMK <--
+        // SY <--
         val added = chapterRepository.updateFromRemote(
             removedIds = removedChapters.map { it.id },
             added = toAddWithProgress,
             updated = updatedChapters,
         )
-        // KMK -->
+        // SY -->
         syncPreferences.forgetDeletedChapters(added.map(tombstoneKey))
         // KUN -->
         // New and re-added chapters are inserted with last_modified_at = 0, which changedSince
@@ -267,7 +269,7 @@ class SyncChaptersWithSource(
         // server never sees the chapter is back and its tombstone stands until a full sync.
         chapterRepository.updateAll(added.map { it.toChapterUpdate() })
         // KUN <--
-        // KMK <--
+        // SY <--
         val excludedScanlators = getExcludedScanlators.await(manga.id).toHashSet()
 
         // A first fetch lists the back catalogue, and chapters coming back under a deleted number were out already

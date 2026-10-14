@@ -287,14 +287,16 @@ open class ReaderPageImageView @JvmOverloads constructor(
         if (pageView is SubsamplingScaleImageView) return
         removeView(pageView)
 
-        // KMK -->
+        // KUN -->
         // Keep the touch-ignoring view for the webtoon SSIV escape hatch
+        // KUN <--
+        // SY -->
         pageView = if (isWebtoon) {
             WebtoonSubsamplingImageView(context)
         } else {
             SubsamplingScaleImageView(context)
         }.apply {
-            // KMK <--
+            // SY <--
             setDoubleTapZoomStyle(SubsamplingScaleImageView.ZOOM_FOCUS_CENTER)
             setPanLimit(SubsamplingScaleImageView.PAN_LIMIT_INSIDE)
             setMinimumTileDpi(180)

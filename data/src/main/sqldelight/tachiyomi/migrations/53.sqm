@@ -295,7 +295,6 @@ SELECT
     coalesce(C.readCount, 0) AS readCount,
     C.latestUpload AS latestUpload,
     C.fetchedAt AS chapterFetchedAt,
-    -- KMK -->
     -- Joining history to every chapter is the slowest part of the query, and only entries with excluded
     -- scanlators need the chapters to leave theirs out
     CASE WHEN EXISTS (SELECT 0 FROM excluded_scanlator WHERE excluded_scanlator.manga_id = M.id)
@@ -313,7 +312,6 @@ SELECT
     )
     ELSE (SELECT max(history.read_at) FROM history WHERE history.manga_id = M.id)
     END AS lastRead,
-    -- KMK <--
     coalesce(C.bookmarkCount, 0) AS bookmarkCount,
     -- KMK -->
     coalesce(C.bookmarkReadCount, 0) AS bookmarkedReadCount,

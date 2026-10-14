@@ -43,13 +43,13 @@ class SyncPreferences(
         Preference.appStateKey("sync_pending_deleted_category_uids"),
         emptySet(),
     )
-    // KMK -->
+    // KUN -->
     /** Chapter keys a source dropped, kept until the server acknowledges the tombstone. */
+    // KUN <--
     val pendingDeletedChapterKeys = preferenceStore.getStringSet(
         Preference.appStateKey("sync_pending_deleted_chapter_keys"),
         emptySet(),
     )
-    // KMK <--
     // SY <--
 
     val syncInterval = preferenceStore.getInt("sync_interval", 0)
@@ -137,28 +137,34 @@ class SyncPreferences(
         }
     }
     // KUN <--
-    // KMK -->
+    // KUN -->
     /**
      * Remembers the chapters a source dropped, so the next SyncYomi v2 request can tombstone them.
      */
+    // KUN <--
     fun rememberDeletedChapters(keys: Collection<String>) {
+        // KUN -->
         if (keys.isEmpty() || !isSyncYomiV2()) return
         synchronized(tombstoneLock) {
             pendingDeletedChapterKeys.set(pendingDeletedChapterKeys.get() + keys)
         }
+        // KUN <--
     }
 
+    // KUN -->
     /**
      * Forgets chapters a source re-added before they were sent, so a live chapter is never tombstoned.
      */
+    // KUN <--
     fun forgetDeletedChapters(keys: Collection<String>) {
+        // KUN -->
         synchronized(tombstoneLock) {
             val pending = pendingDeletedChapterKeys.get()
             val remaining = pending - keys.toSet()
             if (remaining.size != pending.size) pendingDeletedChapterKeys.set(remaining)
         }
+        // KUN <--
     }
-    // KMK <--
     // SY <--
 
     fun getSyncSettings(): SyncSettings {

@@ -21,10 +21,10 @@ class SetMangaDefaultChapterFlags(
         setDefaultFlags(getFavorites.await().map { it.id })
     }
 
-    // KMK -->
+    // KUN -->
     // Ported from Mihon 2d1d2e4cab ("Rework database queries for the new schema"):
     // apply the default flags to every library entry in a single transaction.
-    // KMK <--
+    // KUN <--
     private suspend fun setDefaultFlags(mangaIds: List<Long>) {
         with(libraryPreferences) {
             setMangaChapterFlags.awaitSetAllFlags(

@@ -139,9 +139,7 @@ class ChapterLoader(
                         source,
                         chapterCache,
                         appScope,
-                        // KMK -->
                         canLoadAhead,
-                        // KMK <--
                         readerPrefs,
                         sourcePreferences,
                     )

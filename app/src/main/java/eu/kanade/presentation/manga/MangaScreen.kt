@@ -610,9 +610,9 @@ private fun MangaScreenSmallImpl(
                             appBarPadding = topPadding,
                             manga = state.manga,
                             source = remember { state.source },
-                            // KMK -->
+                            // SY -->
                             sourceName = remember { state.source.getNameForMangaInfo(state.mergedData?.sources) },
-                            // KMK <--
+                            // SY <--
                             isStubSource = remember { state.source is StubSource },
                             // KMK -->
                             isSourceIncognito = produceState(initialValue = false, state.source) { value = state.source.isIncognitoModeEnabled() }.value,
@@ -1053,9 +1053,9 @@ private fun MangaScreenLargeImpl(
                             appBarPadding = contentPadding.calculateTopPadding(),
                             manga = state.manga,
                             source = remember { state.source },
-                            // KMK -->
+                            // SY -->
                             sourceName = remember { state.source.getNameForMangaInfo(state.mergedData?.sources) },
-                            // KMK <--
+                            // SY <--
                             isStubSource = remember { state.source is StubSource },
                             // KMK -->
                             isSourceIncognito = produceState(initialValue = false, state.source) { value = state.source.isIncognitoModeEnabled() }.value,
@@ -1315,7 +1315,6 @@ private fun LazyListScope.sharedChapterItems(
                         ?.let {
                             // SY -->
                             if (manga.isEhBasedManga()) {
-                                // KMK -->
                                 MetadataUtil.EX_DATE_FORMAT
                                     .format(
                                         java.time.ZonedDateTime.ofInstant(
@@ -1323,7 +1322,6 @@ private fun LazyListScope.sharedChapterItems(
                                             java.time.ZoneId.systemDefault(),
                                         ),
                                     )
-                                // KMK <--
                             } else {
                                 relativeDateText(item.chapter.dateUpload)
                             }

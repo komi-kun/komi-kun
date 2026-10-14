@@ -77,10 +77,10 @@ class SyncYomiSyncService(
         SYNC_CANCELLED,
     }
 
-    // KMK -->
+    // SY -->
     @Serializable
     private data class DeletedChapters(val deletedChapters: List<String> = emptyList())
-    // KMK <--
+    // SY <--
 
     // SY -->
     /**
@@ -130,9 +130,9 @@ class SyncYomiSyncService(
         val host = syncPreferences.clientHost.get()
         val apiKey = syncPreferences.clientAPIKey.get()
 
-        // KMK -->
+        // SY -->
         submitDeletedChapters(host, apiKey)
-        // KMK <--
+        // SY <--
 
         val pendingDeleted = syncPreferences.pendingDeletedCategoryUids.get()
         val headersBuilder = baseHeaders(apiKey)
@@ -402,12 +402,14 @@ class SyncYomiSyncService(
         }
     }
 
-    // KMK -->
+    // KUN -->
     /**
      * Reports the chapters a source dropped to the v2 deletions endpoint before the merge, so the
      * server tombstones them. Keys are cleared only on a 2xx, so an older server without the route
      * (404) loses nothing and they go out once it is upgraded.
      */
+    // KUN <--
+    // SY -->
     private suspend fun submitDeletedChapters(host: String, apiKey: String) {
         val sent = syncPreferences.pendingDeletedChapterKeys.get()
         if (sent.isEmpty()) return
@@ -437,5 +439,5 @@ class SyncYomiSyncService(
         syncPreferences.forgetDeletedChapters(sent)
         logcat(LogPriority.DEBUG) { "SyncYomi v2 deletions applied: ${sent.size} keys" }
     }
-    // KMK <--
+    // SY <--
 }

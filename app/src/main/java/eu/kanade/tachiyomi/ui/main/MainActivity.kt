@@ -188,11 +188,11 @@ class MainActivity : BaseActivity() {
 
     @Inject private lateinit var getIncognitoState: GetIncognitoState
 
-    // KMK -->
     @Inject private lateinit var extensionManager: ExtensionManager
 
+    // KUN -->
     @Inject private lateinit var preferenceStore: PreferenceStore
-    // KMK <--
+    // KUN <--
 
     // To be checked by splash screen. If true then splash screen will be removed.
     var ready = false
