@@ -10,12 +10,13 @@ upstream topology.
 
 | Role | Remote | Branch | What we take |
 |------|--------|--------|--------------|
-| Base / upstream of this fork | `origin` (`komi-kun/komi-kun`) | `master` | Everything. This fork starts from a Komikku commit. |
+| Base upstream (the fork's parent) | `komikku` (`komikku-app/komikku`) | `master` | Everything. Our `master` is a Komikku commit; fast-forward it from `komikku/master` regularly. |
+| This fork | `origin` (`komi-kun/komi-kun`) | `master` | Our own work lives on feature branches, not on `master`. |
 | Additional upstream (primary) | `mihon` (`mihonapp/mihon`) | `main` | Bug fixes and features, cherry-picked individually. |
 | Additional upstream (secondary) | `tachiyomiSY` (`jobobby04/TachiyomiSY`) | `master` | Sync and SY features the fork wants, cherry-picked individually. |
 
 ```bash
-git fetch origin mihon tachiyomiSY
+git fetch komikku mihon tachiyomiSY
 ```
 
 The upstreams are configured in `.claude/skills/cherrypick-log/config.json`; the
