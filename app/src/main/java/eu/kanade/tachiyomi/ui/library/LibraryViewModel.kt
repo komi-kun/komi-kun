@@ -251,6 +251,13 @@ class LibraryViewModel(
                 excludedCategories.value = excluded
             }
             .launchIn(viewModelScope)
+
+        // The DMCA uuid list backs the `mangadex-dmca` search; without this it stays empty.
+        viewModelScope.launchIO {
+            if (mangaDexDmcaUuids.isEmpty()) {
+                mangaDexDmcaUuids = loadMangaDexDmcaUuids(context = preferences.context)
+            }
+        }
         // KMK <--
     }
 
