@@ -53,7 +53,7 @@ data object DictionaryTab : Tab {
     override val options: TabOptions
         @Composable
         get() = TabOptions(
-            index = 5u,
+            index = 4u,
             title = stringResource(KMR.strings.label_dictionary),
             icon = rememberVectorPainter(MaterialSymbols.Rounded.Search),
         )
