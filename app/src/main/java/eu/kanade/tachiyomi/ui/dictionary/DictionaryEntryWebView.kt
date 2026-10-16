@@ -71,18 +71,25 @@ fun DictionaryEntryWebView(
     requestFocusOnMount: Boolean = false,
     isLoading: Boolean = false,
     // KUN -->
-    // Anki mining: when no callback is supplied, the renderer's `addToAnki` reaches
-    // `AnkiCardCreator` through a default controller built from the active profile.
+    // Anki mining: the renderer's `addToAnki` reaches `AnkiCardCreator` either through the
+    // caller-supplied [onAnkiLookup] or, by default, through a controller built from the live
+    // Anki settings. [ankiSentence]/[ankiSentenceOffset] carry the OCR lookup context so
+    // `{sentence}`/`{cloze-*}` populate; [ankiScreenshotProvider] supplies the cropped page
+    // bytes for `{screenshot}` (the reader owns the capture; see plan 05 §B4/T4).
     onAnkiLookup: ((LookupResult, Int?, String?, String?, Boolean) -> Unit)? = null,
+    ankiSentence: String = "",
+    ankiSentenceOffset: Int = -1,
+    ankiScreenshotProvider: (() -> ByteArray?)? = null,
     // KUN <--
 ) {
     val context = LocalContext.current
     val prefs = remember(context) { context.appGraph.dictionaryPreferences }
     // KUN -->
+    val ankiPreferences = remember(context) { AnkiPreferences(AndroidPreferenceStore(context)) }
+    val ankiMining = remember(context, ankiPreferences) { AnkiMiningController(context, ankiPreferences) }
     val ankiScope = rememberCoroutineScope()
-    val ankiMining = remember(context) {
-        AnkiMiningController(context, AnkiPreferences(AndroidPreferenceStore(context)))
-    }
+    val ankiEnabled by ankiPreferences.enabled().collectAsState()
+    val ankiDupAction by ankiPreferences.duplicateAction().collectAsState()
     // KUN <--
     val themeMode by prefs.themeMode().collectAsState()
     val compactGlossary by prefs.compactGlossary().collectAsState()
@@ -145,7 +152,7 @@ fun DictionaryEntryWebView(
         showFrequencyHarmonic, showFrequencyAverage, groupTerms,
         showPitchDiagram, showPitchNumber, showPitchText,
         activeProfile, tabs, recursiveNavMode, showNavigationButtons, groupPitches,
-        entryJsons, compactGlossary,
+        entryJsons, compactGlossary, ankiEnabled, ankiDupAction,
     ) {
         DictionaryRenderSignature(
             results = results, styles = styles, placeholder = placeholder, isDark = isDark,
@@ -157,6 +164,7 @@ fun DictionaryEntryWebView(
             recursiveNavMode = recursiveNavMode, renderRecursiveChrome = true,
             wordAudioEnabled = false, wordAudioAutoplay = false,
             showNavigationButtons = showNavigationButtons, groupPitches = groupPitches,
+            ankiEnabled = ankiEnabled, ankiDupAction = ankiDupAction,
         )
     }
 
@@ -177,6 +185,8 @@ fun DictionaryEntryWebView(
                 showNavigationButtons = showNavigationButtons,
                 groupPitches = groupPitches,
                 compactGlossary = compactGlossary,
+                ankiEnabled = ankiEnabled,
+                ankiDupAction = ankiDupAction,
                 displayNameProvider = { prefs.getDisplayName(it) },
             )
             val entries = entryJsons ?: buildResultEntryJsonStrings(
@@ -283,6 +293,9 @@ fun DictionaryEntryWebView(
                                     selectedDict = selectedDict,
                                     popupSelection = popupSelection,
                                     forceOpen = forceOpen,
+                                    sentence = ankiSentence,
+                                    offset = ankiSentenceOffset,
+                                    screenshotBytes = ankiScreenshotProvider?.invoke(),
                                 )
                             }
                         }

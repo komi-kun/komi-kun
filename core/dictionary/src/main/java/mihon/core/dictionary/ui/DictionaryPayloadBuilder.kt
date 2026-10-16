@@ -16,6 +16,8 @@ import mihon.core.dictionary.model.KanjiEntry
 import mihon.core.dictionary.model.LookupResult
 import mihon.core.dictionary.model.dictionariesDir
 import java.io.File
+import java.text.Collator
+import java.util.Locale
 
 /** One entry in the scrollable lookup-history tab bar shown inside the WebView. */
 data class TabInfo(val label: String, val active: Boolean)
@@ -43,6 +45,10 @@ data class DictionaryRenderSignature(
     val wordAudioAutoplay: Boolean,
     val showNavigationButtons: Boolean,
     val groupPitches: Boolean,
+    // KUN --> Anki mining switches (must be part of the diff key so a settings change re-renders).
+    val ankiEnabled: Boolean,
+    val ankiDupAction: String,
+    // KUN <--
 )
 
 /** Resolves a user display name for a dictionary dir, or null when none is set. */
@@ -148,6 +154,15 @@ private fun buildResultEntryJson(
     }
 }
 
+/**
+ * Display ordering for lookup results. Re-ranks the (partially sorted) engine output with
+ * Yomitan's 10-rule comparator (`docs/design/yomitan-spec/02-lookup-algorithm.md` §c) and then
+ * applies the user's dictionary priority to each result's glossaries.
+ *
+ * Rules 2–10 are implemented from the data `hoshidicts` exposes (two use a documented proxy);
+ * rule 1 (`matchPrimaryReading`) cannot be evaluated because the engine does not surface the
+ * per-source `matchSource`/primary reading. Ties keep the engine's order (stable sort).
+ */
 fun orderLookupResultsForDisplay(
     results: List<LookupResult>,
     profile: DictionaryProfile,
@@ -155,18 +170,52 @@ fun orderLookupResultsForDisplay(
     displayNameProvider: DictionaryDisplayNameProvider = { null },
 ): List<LookupResult> {
     val priorityMap = dictionaryPriorityMap(profile, context, displayNameProvider)
-    if (priorityMap.isEmpty()) return results
-    if (results.size <= 1) return results.map { it.withOrderedDictionaries(priorityMap) }
+    val ordered = results.map { it.withOrderedDictionaries(priorityMap) }
+    if (ordered.size <= 1) return ordered
+    return ordered.sortedWith(lookupDisplayComparator(priorityMap))
+}
 
-    return results
-        .map { it.withOrderedDictionaries(priorityMap) }
-        .withIndex()
-        .sortedWith(
-            compareByDescending<IndexedValue<LookupResult>> { it.value.matched.length }
-                .thenBy { dictionaryPriority(priorityMap, it.value.term.glossaries.firstOrNull()?.dictName) }
-                .thenBy { it.index },
-        )
-        .map { it.value }
+/**
+ * Yomitan's `_sortTermDictionaryEntries` comparator (`translator.js:2184-2234`), highest
+ * priority first. Deferred/approximated rules are noted inline.
+ */
+private fun lookupDisplayComparator(priorityMap: Map<String, Int>): Comparator<LookupResult> {
+    val collator = Collator.getInstance(Locale.US)
+    return compareByDescending<LookupResult> { it.matched.length } // 2. larger maxOriginalTextLength
+        .thenBy { it.preprocessorSteps } // 3. shorter text-processor chain
+        .thenBy { it.process.size } // 4. shorter inflection chain
+        .thenByDescending { exactTermMatch(it) } // 5. larger sourceTermExactMatchCount (proxy)
+        .thenBy { frequencyOrder(it) } // 6. lower frequencyOrder (proxy)
+        .thenBy { dictionaryIndex(priorityMap, it) } // 7. lower dictionaryIndex
+        .thenByDescending { it.term.score } // 8. higher score
+        .thenByDescending { it.term.expression.length } // 9. headword longer first …
+        .thenComparator { a, b -> collator.compare(a.term.expression, b.term.expression) } // … then collator
+        .thenByDescending { it.term.glossaries.size } // 10. more definitions
+}
+
+/**
+ * Rule 5 proxy for `sourceTermExactMatchCount`: `1` when the deinflected text equals the term's
+ * expression (an exact term hit), `0` otherwise. The engine does not expose the per-source
+ * `matchSource`, so the actual count is unavailable.
+ */
+private fun exactTermMatch(result: LookupResult): Int =
+    if (result.deinflected == result.term.expression) 1 else 0
+
+/**
+ * Rule 6 proxy for `frequencyOrder`: the lowest positive frequency value across the term's
+ * frequency dictionaries (`Int.MAX_VALUE` when there is no usable frequency). Yomitan computes it
+ * from the configured frequency dictionaries; hoshidicts exposes the per-dictionary values only.
+ */
+private fun frequencyOrder(result: LookupResult): Int = result.term.frequencies
+    .asSequence()
+    .flatMap { it.frequencies.asSequence() }
+    .filter { it.value >= 0 }
+    .minOfOrNull { it.value } ?: Int.MAX_VALUE
+
+/** Rule 7: the lowest dictionary priority index across the term's glossaries. */
+private fun dictionaryIndex(priorityMap: Map<String, Int>, result: LookupResult): Int {
+    if (priorityMap.isEmpty()) return 0
+    return result.term.glossaries.mapNotNull { priorityMap[it.dictName] }.minOrNull() ?: Int.MAX_VALUE
 }
 
 /**
@@ -195,6 +244,11 @@ fun buildConfigPayload(
     showNavigationButtons: Boolean = true,
     groupPitches: Boolean = false,
     compactGlossary: Boolean = false,
+    // KUN -->
+    // Driven by the app layer from the live Anki settings/profile (see DictionaryEntryWebView).
+    ankiEnabled: Boolean = false,
+    ankiDupAction: String = "prevent",
+    // KUN <--
     displayNameProvider: DictionaryDisplayNameProvider = { null },
 ): JsonObject = buildJsonObject {
     val orderedTitles = activeProfile.dictionaryOrder.map { getDictionaryTitle(context, it, displayNameProvider) }
@@ -202,9 +256,10 @@ fun buildConfigPayload(
         .mapKeys { (dirName, _) -> getDictionaryTitle(context, dirName, displayNameProvider) }
 
     putJsonArray("dictionaryOrder") { for (title in orderedTitles) add(JsonPrimitive(title)) }
-    // Anki mining is wired in the Anki phase (W5); the renderer only needs these two switches.
-    put("ankiEnabled", false)
-    put("ankiDupAction", "prevent")
+    // KUN --> The renderer only needs these two switches to show/enable the Add-to-Anki buttons.
+    put("ankiEnabled", ankiEnabled)
+    put("ankiDupAction", ankiDupAction)
+    // KUN <--
     put("dictionaryCollapseMode", activeProfile.dictionaryCollapseMode)
     putJsonObject("dictionaryDisplayModes") { for ((title, mode) in displayModesByTitle) put(title, mode) }
     put("placeholder", placeholder)
