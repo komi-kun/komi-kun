@@ -194,6 +194,10 @@ fun DictionaryPopup(
                         onTabSelect = { index -> if (index in stack.indices) activeIndex = index },
                         onBack = { if (activeIndex > 0) activeIndex -= 1 else onDismiss() },
                         isLoading = loading,
+                        // KUN --> OCR context so the renderer's `addToAnki` builds sentence/cloze fields.
+                        ankiSentence = request.sentence,
+                        ankiSentenceOffset = request.sentenceOffset,
+                        // KUN <--
                     )
                 }
             }
