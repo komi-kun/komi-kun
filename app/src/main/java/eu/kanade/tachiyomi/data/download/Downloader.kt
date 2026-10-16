@@ -12,6 +12,7 @@ import eu.kanade.tachiyomi.data.cache.ChapterCache
 import eu.kanade.tachiyomi.data.download.model.Download
 import eu.kanade.tachiyomi.data.library.LibraryUpdateNotifier
 import eu.kanade.tachiyomi.data.notification.NotificationHandler
+import eu.kanade.tachiyomi.data.ocr.OcrWorker
 import eu.kanade.tachiyomi.network.HttpException
 import eu.kanade.tachiyomi.source.UnmeteredSource
 import eu.kanade.tachiyomi.source.model.Page
@@ -57,6 +58,8 @@ import logcat.LogPriority
 import mihon.core.archive.CbzCrypto
 import mihon.core.archive.ZipWriter
 import mihon.core.metro.AppCoroutineScope
+import mihon.core.ocr.OcrPreferences
+import mihon.core.ocr.cache.OcrManager
 import nl.adaptivity.xmlutil.serialization.XML
 import okhttp3.Response
 import tachiyomi.core.common.i18n.stringResource
@@ -100,6 +103,10 @@ class Downloader(
     // SY -->
     private val sourcePreferences: SourcePreferences,
     // SY <--
+    // KUN -->
+    private val ocrManager: OcrManager,
+    private val ocrPreferences: OcrPreferences,
+    // KUN <--
 ) {
     /**
      * Queue where active downloads are kept.
@@ -541,6 +548,25 @@ class Downloader(
             cache.addChapter(chapterDirname, mangaDir, download.manga)
 
             DiskUtil.createNoMediaFile(tmpDir, context)
+
+            // KUN -->
+            // OCR hooks (03 §5.4): promote a chapter that was queued while downloading; otherwise
+            // auto-queue when the preference is on. Either way kick the OCR worker so the queue drains.
+            val promotedForOcr = ocrManager.markChapterReadyForOcr(download.chapter.id)
+            val autoQueueOcr = !promotedForOcr && ocrPreferences.autoOnDownload.get()
+            when {
+                promotedForOcr -> {
+                    logcat { "Downloader: promoted queued OCR for chapter=${download.chapter.id}" }
+                }
+                autoQueueOcr -> {
+                    logcat { "Downloader: queued OCR after download for chapter=${download.chapter.id}" }
+                    ocrManager.queueChapters(download.manga.id, listOf(download.chapter.id), waitForDownload = false)
+                }
+            }
+            if (promotedForOcr || autoQueueOcr) {
+                OcrWorker.start(context)
+            }
+            // KUN <--
 
             download.status = Download.State.DOWNLOADED
         } catch (error: Throwable) {
