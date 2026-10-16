@@ -1,0 +1,168 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "com.github.komi-kun.webgpuviewer",
+    "module": "library",
+    "version": "ocr-accessors-1",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "9.8.0"
+    }
+  },
+  "variants": [
+    {
+      "name": "releaseVariantReleaseApiPublication",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.libraryelements": "aar",
+        "org.gradle.usage": "java-api"
+      },
+      "dependencies": [
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib",
+          "version": {
+            "requires": "2.4.20"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "library-ocr-accessors-1.aar",
+          "url": "library-ocr-accessors-1.aar",
+          "size": 15595484,
+          "sha512": "a3c96036c8d3ddbcc614228e372d8fba9484dbc8641c5d06010c06e036af2d9e87b40e8fe596c45bc40486ffc4b713ecdd02fc1bc1f1715d3846a405fe64bc88",
+          "sha256": "2c5ffa6d827868b9dd2fc1b67993594be31c8308131c1228e6102bfa5492c53d",
+          "sha1": "c81be10d7f85d9bfb4c9c3e9169ffedbe82c7ed6",
+          "md5": "68e94b168f49b3baa0a44e155c1abfa5"
+        }
+      ]
+    },
+    {
+      "name": "releaseVariantReleaseRuntimePublication",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.libraryelements": "aar",
+        "org.gradle.usage": "java-runtime"
+      },
+      "dependencies": [
+        {
+          "group": "androidx.compose",
+          "module": "compose-bom",
+          "version": {
+            "requires": "2026.09.00"
+          },
+          "attributes": {
+            "org.gradle.category": "platform"
+          }
+        },
+        {
+          "group": "androidx.annotation",
+          "module": "annotation",
+          "version": {
+            "requires": "1.11.0"
+          }
+        },
+        {
+          "group": "androidx.core",
+          "module": "core",
+          "version": {
+            "requires": "1.19.1"
+          }
+        },
+        {
+          "group": "androidx.window",
+          "module": "window",
+          "version": {
+            "requires": "1.5.1"
+          }
+        },
+        {
+          "group": "androidx.compose.foundation",
+          "module": "foundation",
+          "version": {
+            "requires": "1.12.1"
+          }
+        },
+        {
+          "group": "androidx.annotation",
+          "module": "annotation-experimental",
+          "version": {
+            "requires": "1.6.0"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlinx",
+          "module": "kotlinx-coroutines-core",
+          "version": {
+            "requires": "1.11.0"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib",
+          "version": {
+            "requires": "2.4.20"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "library-ocr-accessors-1.aar",
+          "url": "library-ocr-accessors-1.aar",
+          "size": 15595484,
+          "sha512": "a3c96036c8d3ddbcc614228e372d8fba9484dbc8641c5d06010c06e036af2d9e87b40e8fe596c45bc40486ffc4b713ecdd02fc1bc1f1715d3846a405fe64bc88",
+          "sha256": "2c5ffa6d827868b9dd2fc1b67993594be31c8308131c1228e6102bfa5492c53d",
+          "sha1": "c81be10d7f85d9bfb4c9c3e9169ffedbe82c7ed6",
+          "md5": "68e94b168f49b3baa0a44e155c1abfa5"
+        }
+      ]
+    },
+    {
+      "name": "releaseVariantReleaseSourcePublication",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "library-ocr-accessors-1-sources.jar",
+          "url": "library-ocr-accessors-1-sources.jar",
+          "size": 290863,
+          "sha512": "191e81c02a318cc579cf935a3e9d38680300ec8dee0cce3f1997381b622b67d3f39c32524709308e56c58ed21100b869c0d69e36bb64fcb385b787d0c1e634c9",
+          "sha256": "3584001212510aad8b48f3c910448e9d263a8ddf3e8eef2a1511c8ae40298181",
+          "sha1": "0658be99f225cb08577bb891159e389ba7b24254",
+          "md5": "c77692763bf00b9fe662d6f4a3e5410e"
+        }
+      ]
+    },
+    {
+      "name": "releaseVariantReleaseJavaDocPublication",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "javadoc",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "library-ocr-accessors-1-javadoc.jar",
+          "url": "library-ocr-accessors-1-javadoc.jar",
+          "size": 841253,
+          "sha512": "200d01b7cdc869e2b781df69875d9cc1b22519fc2024877590bb41444cd2a473d7fe161d833d257e5561c81e3b6add066b372fa9fdd45faa75a55696d4c31494",
+          "sha256": "21efbd7fea5711eb070ea73a21065fbf59ff59c4594fd27a71c65ad659a849dd",
+          "sha1": "9f2a63324d2518f1dacc6326a93e06eee1e6778d",
+          "md5": "783506df9c338dad14ccb4f717e8911d"
+        }
+      ]
+    }
+  ]
+}
