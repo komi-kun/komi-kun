@@ -45,6 +45,7 @@ import eu.kanade.tachiyomi.network.JavaScriptEngine
 import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.network.NetworkPreferences
 import eu.kanade.tachiyomi.ui.base.delegate.SecureActivityDelegateImpl
+import eu.kanade.tachiyomi.ui.dictionary.DictionaryPreferences
 import eu.kanade.tachiyomi.ui.main.MainActivity
 import eu.kanade.tachiyomi.ui.reader.ReaderActivity
 import eu.kanade.tachiyomi.ui.reader.ocr.OcrHostBindings
@@ -60,6 +61,7 @@ import exh.source.ExhPreferences
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.protobuf.ProtoBuf
 import mihon.core.dictionary.di.DictionaryBindings
+import mihon.core.dictionary.repository.DictionaryRepository
 import mihon.core.metro.IsDebugBuild
 import mihon.core.ocr.di.OcrBindings
 import mihon.dictionary.host.DictionaryHostBindings
@@ -190,6 +192,13 @@ interface AppGraph : ViewModelGraph {
     val debugRepository: DebugRepository
     val savedSearchRepository: SavedSearchRepository
     val sourceMigrationRepository: SourceMigrationRepository
+    // KUN -->
+
+    // W2 dictionary feature: exposed so Composable screens (popup/tab/settings) can reach
+    // the repository and preferences via `context.appGraph` (plan 02 §5.3; the GPL impls
+    // themselves are bound by `DictionaryHostBindings`/`@ContributesBinding`).
+    val dictionaryPreferences: DictionaryPreferences
+    val dictionaryRepository: DictionaryRepository
     // KUN <--
 
     val json: Json
