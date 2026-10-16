@@ -116,12 +116,13 @@ the "upstream-contributable" claim is therefore **Komikku**, not Mihon. Boundary
 
 | Repo | Pin | Notes |
 |---|---|---|
-| `komi-kun/hoshidicts` → `core/dictionary/src/main/cpp/hoshidicts` | **`62fc9fa16c3c4aac4b7ad06302af86cca09ada9a`** (branch `komi-kun/ndk29-build-guards`) | **CONFIRMED, host build green (GCC + Clang).** Already contains the UTF8proc SSH→HTTPS fix, the CLI/benchmark CMake guards, and host-portability includes — **no W0 fork commit is needed**; only the submodule add remains. Guarded options are `HOSHIDICTS_BUILD_CLI` / `HOSHIDICTS_BUILD_BENCHMARKS` (**not** `HOSHIDICTS_BUILD_TESTS`). Record the pin in `.gitmodules` + `core/dictionary/README.md`. Never track a branch. |
+| `komi-kun/hoshidicts` → `core/dictionary/src/main/cpp/hoshidicts` | **`62fc9fa16c3c4aac4b7ad06302af86cca09ada9a`** (branch `komi-kun/ndk29-build-guards`) | **CONFIRMED, host build green (GCC + Clang).** Already contains the UTF8proc SSH→HTTPS fix, the CLI/benchmark CMake guards, and host-portability includes — **no W0 fork commit is needed**; the submodule add is done (see `.gitmodules`). Guarded options are `HOSHIDICTS_BUILD_CLI` / `HOSHIDICTS_BUILD_BENCHMARKS` (**not** `HOSHIDICTS_BUILD_TESTS`). Record the pin in `.gitmodules` + `core/dictionary/README.md`. Never track a branch. |
 | nested externals (8) | `git submodule update --init --recursive` | `submodules: recursive` in CI checkout of all build workflows (incl. `build_benchmark.yml`) |
 | `komi-kun/webgpuviewer` | **tag `ocr-accessors-1`** = `792aef3b6886343ee38a9140eefdc98114869dfd` (branch `feat/ocr-transform-accessors`, base `7b877c9`) | Coordinate `com.github.komi-kun.webgpuviewer:library:ocr-accessors-1`, consumed from an **in-repo Maven repository**: `maven/` in the repo root, declared as `maven { url = uri("$rootDir/maven") }` in `settings.gradle.kts`. **JitPack cannot build the fork** — the `com.android.application`/`com.android.library` plugin markers (AGP `9.4.1`) fail to resolve on JitPack even though they exist on Google Maven (see `ocr-accessors-1/build.log`), so JitPack is not a viable fetch path for this AGP 9.x project. The release AAR published by the fork (`:library:assembleRelease` + `publishToMavenLocal` verified green) is vendored verbatim as `maven/.../library-ocr-accessors-1.{aar,pom,module,sources.jar,javadoc.jar}` (AAR ≈ 15.6 MB, self-contained: bundles `androidx.webgpu` classes + `jni/<abi>/libwebgpu_c_bundled.so`). Swap back to JitPack by deleting `maven/` and the repository line once the accessors land upstream. |
 
-Root `.gitmodules` currently **does not exist**; create it with the single `core/dictionary/.../hoshidicts`
-entry.
+Root `.gitmodules` now exists with the single `core/dictionary/src/main/cpp/hoshidicts` entry, using the
+HTTPS URL `https://github.com/komi-kun/hoshidicts.git` (the fork builds over HTTPS, not SSH); the pin
+above is the tracked commit.
 
 ### 1.7 OCR artifact strategy
 
