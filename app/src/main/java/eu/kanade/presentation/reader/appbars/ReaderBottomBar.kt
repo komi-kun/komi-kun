@@ -18,12 +18,14 @@ import mihon.icons.custommaterialsymbols.CustomMaterialSymbols
 import mihon.icons.custommaterialsymbols.rounded.CropOff
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.Crop
+import mihon.icons.materialsymbols.rounded.EditNote
 import mihon.icons.materialsymbols.rounded.Explore
 import mihon.icons.materialsymbols.rounded.FormatListNumbered
 import mihon.icons.materialsymbols.rounded.Public
 import mihon.icons.materialsymbols.rounded.Settings
 import mihon.icons.materialsymbols.rounded.Share
 import tachiyomi.i18n.MR
+import tachiyomi.i18n.kmk.KMR
 import tachiyomi.i18n.sy.SYMR
 import tachiyomi.presentation.core.i18n.stringResource
 
@@ -50,6 +52,10 @@ fun ReaderBottomBar(
     onClickPageLayout: () -> Unit,
     onClickShiftPage: () -> Unit,
     // SY <--
+    // KUN -->
+    ocrEnabled: Boolean,
+    onClickOcr: () -> Unit,
+    // KUN <--
     modifier: Modifier = Modifier,
 ) {
     // KMK -->
@@ -150,6 +156,18 @@ fun ReaderBottomBar(
                 )
             }
         }
+
+        // KUN -->
+        if (ReaderBottomButton.Ocr.isIn(enabledButtons)) {
+            IconButton(onClick = onClickOcr) {
+                Icon(
+                    imageVector = MaterialSymbols.Rounded.EditNote,
+                    contentDescription = stringResource(KMR.strings.pref_category_ocr),
+                    tint = if (ocrEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        // KUN <--
 
         if (
             !dualPageSplitEnabled &&

@@ -101,6 +101,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import logcat.LogPriority
 import mihon.core.metro.AppCoroutineScope
+import tachiyomi.core.common.ocr.ReaderOcrSource
 import tachiyomi.core.common.preference.toggle
 import tachiyomi.core.common.storage.UniFileTempFileManager
 import tachiyomi.core.common.util.lang.launchIO
@@ -245,6 +246,32 @@ class ReaderViewModel(
             ChapterDownloadAction.DELETE -> deleteChapter(chapter)
         }
     }
+
+    // KUN -->
+    // region OCR (komi-kun Yomitan/OCR port). GPL-free: only the Apache ReaderOcrSource and the
+    // reader preferences are touched here; the actual OCR services live behind the ReaderOcrHost
+    // seam and the Downloader/worker wiring.
+
+    /** Whether the reader OCR overlay is currently enabled. */
+    fun isOcrOverlayEnabled(): Boolean = readerPreferences.ocrOverlayEnabled.get()
+
+    /** Toggles the OCR overlay and returns its new state. */
+    fun toggleOcrOverlay(): Boolean {
+        val enabled = !readerPreferences.ocrOverlayEnabled.get()
+        readerPreferences.ocrOverlayEnabled.set(enabled)
+        return enabled
+    }
+
+    /** Per-manga OCR source, defaulting to [ReaderOcrSource.AUTOMATIC]. */
+    fun getOcrSource(): ReaderOcrSource =
+        manga?.let { readerPreferences.ocrSource(it.id) } ?: ReaderOcrSource.AUTOMATIC
+
+    fun setOcrSource(source: ReaderOcrSource) {
+        manga?.let { readerPreferences.setOcrSource(it.id, source) }
+    }
+
+    // endregion
+    // KUN <--
 
     /**
      * @param chapter the chapter to download.
