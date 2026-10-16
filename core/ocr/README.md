@@ -33,7 +33,7 @@ Chimahon's two parallel block types into one.
 | `merge/` | `OcrLineMerger` seam + `OwOCRMerger` implementation |
 | `mokuro/` | `.mokuro` models, lenient parser, page resolver, converter, facade |
 | `paddle/PaddleOcrEngine.kt` | Paddle OCR JNI bridge/loader |
-| `paddle/ModelDownloader.kt` | checksum-verified, opt-in runtime download/import of the det/rec models + dict |
+| `paddle/ModelDownloader.kt` | checksum-verified, opt-in runtime download/import of the det/rec models + dict (prunes superseded models) |
 | `overlay/OcrCoordinateMapper.kt` | normalized-space block remapping for reader transforms (split/merge/crop/rotate) |
 | `cache/OcrStore.kt` | persisted OCR queue (`SharedPreferences` JSON) |
 | `cache/OcrCacheManager.kt` | per-page/per-chapter OCR result persistence (dir/CBZ sidecar/internal JSON) |
@@ -46,7 +46,7 @@ Chimahon's two parallel block types into one.
 
 `libpaddle_ocr.so` is **not built here** — it is a separate, checksummed artifact (contract §1.7):
 our own JNI over Paddle-Lite (Apache-2.0) over PaddleOCR's Apache-2.0 deploy post-processing,
-published to `komi-kun/komi-kun-ocr-models` (release **`ocr-models-v1`**) together with `libomp.so`,
+published to `komi-kun/komi-kun-ocr-models` (release **`ocr-models-v2`**) together with `libomp.so`,
 described by `paddle-manifest.json`.
 
 ### Fetching + packaging
@@ -85,10 +85,15 @@ described by `paddle-manifest.json`.
   x86_64 emulators** but the app does not crash. Re-enabling x86_64 needs (a) a Paddle-Lite Android
   x86_64 build and (b) a `valid_targets=x86` model set plus ABI-aware model selection; until then do
   not add an `x86_64` entry to `paddle-manifest.json`.
-- Models (`ppocrv4_det.nb`, `ppocrv4_japan_rec.nb`, `ppocrv4_japan_dict.txt`) download at runtime,
-  opt-in, through `paddle/ModelDownloader`, which verifies each file's SHA-256 against the release
+- Models (`ppocrv5_det.nb`, `ppocrv5_rec.nb`, `ppocrv5_dict.txt`) download at runtime, opt-in,
+  through `paddle/ModelDownloader`, which verifies each file's SHA-256 against the release
   `manifest.json` before keeping it (contract §1.7). The engine loads one Paddle-Lite `naive_buffer`
-  per stage, so `nativeInit`'s `detBin`/`recBin` arguments are passed empty.
+  per stage, so `nativeInit`'s `detBin`/`recBin` arguments are passed empty. PP-OCRv5's recogniser
+  is a single unified multi-language model (up to ~16.7 MB vs the v4 Japan-only ~9.9 MB) and is
+  still CTC at `rec_image_height = 48` with the same `['#' (blank)] + dict + [' ']` convention, so
+  no input-shape or dictionary-format change was needed. `ModelDownloader.cleanupStaleModels()`
+  deletes the superseded `ppocrv4_*` files on download/import so an upgrade does not keep dead
+  weights (unknown files are never touched).
 
 ## Tests
 
