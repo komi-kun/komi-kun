@@ -58,7 +58,11 @@ data object MoreTab : Tab {
             val isSelected = LocalTabNavigator.current.current.key == key
             val image = AnimatedImageVector.animatedVectorResource(R.drawable.animated_more)
             return TabOptions(
-                index = 4u,
+                // KUN -->
+                // DictionaryTab is inserted before MoreTab in HomeScreen.TABS (slot 4), so MoreTab
+                // keeps the last slot to match the visual order.
+                index = 5u,
+                // KUN <--
                 title = stringResource(MR.strings.label_more),
                 icon = rememberAnimatedVectorPainter(image, isSelected),
             )
