@@ -149,7 +149,12 @@ android {
             isEnable = true
             isUniversalApk = true
             reset()
-            include("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+            // KUN -->
+            // One ABI set for all native artifacts (contract §1.5): the vendored dictionary
+            // engine and Paddle OCR both build for `arm64-v8a`/`armeabi-v7a`/`x86_64`.
+            // 32-bit `x86` (i686) is obsolete and dropped.
+            include("armeabi-v7a", "arm64-v8a", "x86_64")
+            // KUN <--
         }
     }
 
@@ -161,6 +166,10 @@ android {
                 "libconscrypt_jni",
                 "libimagedecoder",
                 "libquickjs",
+                // KUN -->
+                "libhoshidicts_jni",
+                "libpaddle_ocr",
+                // KUN <--
             )
                 .map { "**/$it.so" }
         }
@@ -242,6 +251,10 @@ dependencies {
     implementation(projects.icons.simpleIcons)
     implementation(projects.core.archive)
     implementation(projects.core.common)
+    // KUN -->
+    implementation(projects.core.dictionary)
+    implementation(projects.core.ocr)
+    // KUN <--
     implementation(projects.coreMetadata)
     implementation(projects.sourceApi)
     implementation(projects.sourceLocal)

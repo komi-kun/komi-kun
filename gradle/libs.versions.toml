@@ -16,7 +16,14 @@ junit = "6.1.3"
 materialKolor = "5.0.0-alpha07"
 androidx-webkit = "1.16.0"
 image-decoder = "16"
-webgpuviewer = "52"
+# KUN -->
+# komi-kun/webgpuviewer fork (contract §2.6): tag `ocr-accessors-1`
+# (792aef3b6886343ee38a9140eefdc98114869dfd, branch `feat/ocr-transform-accessors`).
+# Consumed via JitPack with no new ref name.
+webgpuviewer = "ocr-accessors-1"
+# AnkiDroid API (GPL-3.0) — Phase 6 only; not consumed by any built module yet.
+anki-api = "2.15.6"
+# KUN <--
 apollo = "5.2.0"
 apollo-adapters = "0.8.0"
 metro = "1.4.2"
@@ -76,7 +83,10 @@ coil-network-okhttp = { module = "io.coil-kt.coil3:coil-network-okhttp" }
 subsamplingscaleimageview = "com.github.mihonapp:subsampling-scale-image-view:1b283e2bc4"
 # KMK <--
 image-decoder = { module = "ca.mpreg:imagedecoder", version.ref = "image-decoder" }
-webgpuviewer = { module = "ca.mpreg:webgpuviewer", version.ref = "webgpuviewer" }
+# KUN -->
+webgpuviewer = { module = "com.github.komi-kun.webgpuviewer:library", version.ref = "webgpuviewer" }
+anki-api = { module = "com.ichi2.anki:api", version.ref = "anki-api" }
+# KUN <--
 
 natural-comparator = "com.github.gpanther:java-nat-sort:natural-comparator-1.1"
 
