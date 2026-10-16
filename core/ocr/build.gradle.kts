@@ -47,22 +47,47 @@ dependencies {
 
 // KUN -->
 // ---------------------------------------------------------------------------------------------
-// Paddle OCR native artifact fetch skeleton (contract §1.7).
+// Paddle OCR native artifact fetch (contract §1.7).
 //
-// The real `libpaddle_ocr.so` is a *separate artifact task*: it is our own JNI over Paddle-Lite
-// (Apache-2.0) published to `komi-kun/komi-kun-ocr-models`, together with `libomp.so` /
-// `libc++_shared.so` and a per-file SHA-256 `manifest.json`. This task only *consumes* that
-// manifest — it never builds Paddle-Lite. It is intentionally NOT wired into `preBuild`/`assemble`
-// so offline builds (and the W3 gates) stay green until the artifact actually exists; run it
-// explicitly with `./gradlew :core:ocr:fetchPaddleNativeLibs`.
+// The real `libpaddle_ocr.so` is a *separate artifact*: it is our own JNI over Paddle-Lite
+// (Apache-2.0) published to `komi-kun/komi-kun-ocr-models`, together with `libomp.so` and a
+// per-file SHA-256 `manifest.json`. This task only *consumes* that manifest — it never builds
+// Paddle-Lite.
 //
-// The manifest lives at `core/ocr/paddle-manifest.json`; each entry has `abi`, `name`, `sha256`,
-// `size` and `spdx`. Files land in `src/main/jniLibs/<abi>/<name>` (contract §1.7 option A).
+// Wiring: `fetchPaddleNativeLibs` is a dependency of the per-variant JNI/native-lib merge tasks,
+// so every `assemble*` packages the fetched `.so`s (see README.md). It is deliberately NOT a
+// dependency of `preBuild`, so the inner loop (`compileDebugKotlin`, `testDebugUnitTest`) stays
+// offline. The task declares its expected outputs (derived from the manifest) and is therefore
+// UP-TO-DATE after the first successful fetch — repeat builds hit no network.
+//
+// The manifest lives at `core/ocr/paddle-manifest.json`; each native entry has `abi`, `name`,
+// `path` (the flat release-asset name), `sha256`, `size` and `spdx`. Files land in
+// `src/main/jniLibs/<abi>/<name>` (git-ignored). Entries without an `abi` are the runtime-
+// downloaded models (see `paddle/ModelDownloader`), not native libs, and are skipped here.
 // ---------------------------------------------------------------------------------------------
 val paddleManifestFile = layout.projectDirectory.file("paddle-manifest.json")
 val paddleJniLibsDir = layout.projectDirectory.dir("src/main/jniLibs")
 
-tasks.register("fetchPaddleNativeLibs") {
+// Native-lib entries resolved at configuration time so the fetch task can declare them as outputs
+// (making it UP-TO-DATE once present). Model entries (no `abi`) download at runtime, not here.
+val paddleTargets: List<File> = run {
+    val manifest = paddleManifestFile.asFile
+    if (!manifest.isFile) {
+        emptyList()
+    } else {
+        @Suppress("UNCHECKED_CAST")
+        val root = groovy.json.JsonSlurper().parse(manifest) as Map<String, Any?>
+        (root["files"] as? List<*>).orEmpty()
+            .filterIsInstance<Map<*, *>>()
+            .mapNotNull { entry ->
+                val abi = (entry["abi"] as? String)?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                val name = (entry["name"] as? String)?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                paddleJniLibsDir.asFile.resolve("$abi/$name")
+            }
+    }
+}
+
+val fetchPaddleNativeLibs = tasks.register("fetchPaddleNativeLibs") {
     group = "ocr"
     description = "Fetch + checksum-verify the Paddle OCR native libs into src/main/jniLibs/<abi>/."
     // Captured as plain Files so the task stays configuration-cache friendly (no `project`/`layout`
@@ -70,7 +95,7 @@ tasks.register("fetchPaddleNativeLibs") {
     val manifest = paddleManifestFile.asFile
     val jniLibs = paddleJniLibsDir.asFile
     inputs.file(manifest).optional()
-    outputs.upToDateWhen { false }
+    outputs.files(paddleTargets)
     doLast {
         // Local helper (no script-object capture) so the task serializes under the configuration cache.
         fun sha256Hex(file: File): String {
@@ -104,7 +129,8 @@ tasks.register("fetchPaddleNativeLibs") {
         }
 
         files.forEach { entry ->
-            val abi = entry["abi"] as? String ?: error("[ocr] manifest entry without `abi`")
+            // Entries without an `abi` are the runtime-downloaded models, not native libs.
+            val abi = (entry["abi"] as? String)?.takeIf { it.isNotBlank() } ?: return@forEach
             val name = entry["name"] as? String ?: error("[ocr] manifest entry without `name`")
             val expectedSha = (entry["sha256"] as? String)?.lowercase().orEmpty()
             val target = jniLibs.resolve("$abi/$name")
@@ -116,7 +142,10 @@ tasks.register("fetchPaddleNativeLibs") {
                 logger.lifecycle("[ocr] $abi/$name already present + verified")
                 return@forEach
             }
-            val url = "$baseUrl/$abi/$name"
+            // Release assets are flat (a `/` in an asset name is rewritten), so the URL is built from
+            // the manifest's `path`, not from `$abi/$name`. Fall back to the nested layout if absent.
+            val assetPath = (entry["path"] as? String)?.takeIf { it.isNotBlank() } ?: "$abi/$name"
+            val url = "$baseUrl/$assetPath"
             logger.lifecycle("[ocr] downloading $url")
             target.parentFile.mkdirs()
             URI(url).toURL().openStream().use { input ->
@@ -127,6 +156,17 @@ tasks.register("fetchPaddleNativeLibs") {
             }
         }
     }
+}
+
+// Package the fetched `.so`s into every APK/AAR. Hooking the per-variant JNI / native-lib merge
+// tasks (not `preBuild`) means only packaging pulls the artifact, so `compile*`/`test*` stay
+// offline; combined with the declared outputs above, the fetch itself is UP-TO-DATE after the
+// first run. See README.md §"PaddleOCR artifact (integration point)".
+tasks.matching {
+    it.name.startsWith("merge") &&
+        (it.name.endsWith("JniLibFolders") || it.name.endsWith("NativeLibs"))
+}.configureEach {
+    dependsOn(fetchPaddleNativeLibs)
 }
 
 // KUN <--
