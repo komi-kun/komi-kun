@@ -90,9 +90,11 @@ class PaddleOcrEngine(
 
     companion object {
         private const val MODEL_DIR = "paddle_ocr"
-        private const val DET_MODEL = "ppocrv4_det.nb"
-        private const val REC_MODEL = "ppocrv4_japan_rec.nb"
-        private const val DICT_TXT = "ppocrv4_japan_dict.txt"
+        // PP-OCRv5 (ocr-models-v2): unified multi-language recogniser. Still CTC with
+        // rec_image_height = 48, so the JNI input shape and the dict convention are unchanged.
+        private const val DET_MODEL = "ppocrv5_det.nb"
+        private const val REC_MODEL = "ppocrv5_rec.nb"
+        private const val DICT_TXT = "ppocrv5_dict.txt"
 
         /**
          * ABIs the Kotlin engine will *attempt*. Only `arm64-v8a` / `armeabi-v7a` are shipped by
