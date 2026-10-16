@@ -33,6 +33,13 @@ Chimahon's two parallel block types into one.
 | `merge/` | `OcrLineMerger` seam + `OwOCRMerger` implementation |
 | `mokuro/` | `.mokuro` models, lenient parser, page resolver, converter, facade |
 | `paddle/PaddleOcrEngine.kt` | Paddle OCR JNI bridge/loader |
+| `paddle/ModelDownloader.kt` | checksum-verified, opt-in runtime download/import of the det/rec models + dict |
+| `overlay/OcrCoordinateMapper.kt` | normalized-space block remapping for reader transforms (split/merge/crop/rotate) |
+| `cache/OcrStore.kt` | persisted OCR queue (`SharedPreferences` JSON) |
+| `cache/OcrCacheManager.kt` | per-page/per-chapter OCR result persistence (dir/CBZ sidecar/internal JSON) |
+| `cache/OcrManager.kt` | source policy + engine orchestration off page bytes, queue driving |
+| `cache/OcrJob.kt` | background queue runner (plain coroutine job; app wraps it for WorkManager) |
+| `OcrPreferences.kt` | OCR source/overlay/queue preferences (`PreferenceStore`) |
 | `di/OcrBindings.kt` | Metro `@BindingContainer` registered in `AppGraph` |
 
 ## PaddleOCR artifact (integration point)
@@ -50,6 +57,9 @@ with `libomp.so` / `libc++_shared.so`, described by `paddle-manifest.json`.
   accepts `x86_64`.
 - The loader prefers the app-storage layout (downloaded at runtime) and falls back to the
   APK-packaged `jniLibs` layout.
+- Models (`manga_det_fp16.*`, `manga_rec_fp16.*`, `ppocrv6_dict.txt`) download at runtime, opt-in,
+  through `paddle/ModelDownloader`, which verifies each file's SHA-256 against the release
+  `manifest.json` before keeping it (contract §1.7).
 
 ## Tests
 
