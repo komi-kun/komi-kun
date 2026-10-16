@@ -76,3 +76,15 @@ bash scripts/verify-gpl-free.sh          # or: ./gradlew verifyGplFree
 Per-wave results and review write-ups are recorded in **`reviews/`** (see
 `reviews/00-contract-review.md` for the format). The GPL-free boundary check is
 `scripts/verify-gpl-free.sh`, surfaced as `./gradlew verifyGplFree` (contract §1.9).
+
+## Maintenance skills
+
+The recurring upkeep for this port is documented as agent skills under `.agents/skills/` — start there
+before doing any of these by hand:
+
+| Skill | Use it for |
+|---|---|
+| `immersion-deps-sync` | Bumping the `hoshidicts` submodule pin (rebuild + re-pin), rebuilding the `webgpuviewer` fork AAR in `maven/`, tracking Chimahon. |
+| `ocr-model-release` | Rebuilding/publishing the Paddle OCR artifact (`komi-kun/komi-kun-ocr-models`) and updating `core/ocr/paddle-manifest.json`. |
+| `yomitan-corpus-sync` | Refreshing the pinned Yomitan conformance corpus when upstream tests change. |
+| `gpl-boundary` | Keeping the GPL-free seam set + `verifyGplFree` green and the licensing artifacts correct. |
