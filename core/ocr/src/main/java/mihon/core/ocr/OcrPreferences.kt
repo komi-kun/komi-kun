@@ -11,11 +11,18 @@ import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.PreferenceStore
 
 /**
- * Preferences for the OCR feature: the per-manga/global OCR source policy, the overlay toggles and
- * the OCR queue parallelism.
+ * **Queue/source policy** preferences for the OCR feature (fix B3 — single source of truth).
  *
- * Persisted through [PreferenceStore] so it is reachable from both `:core:ocr` services and the
- * app settings screen without either importing app/domain types.
+ * This class owns only the preferences that the GPL `:core:ocr` services must read: the
+ * per-manga/global OCR source policy (resolved by the OCR manager's `sourceFor`) and the queue
+ * knobs ([autoOnDownload] consumed by the downloader, [parallelOcrLimit] consumed by the queue
+ * runner). It is persisted through [PreferenceStore] so it is reachable from both `:core:ocr` and
+ * the app settings screen without either importing app/domain types.
+ *
+ * The **reader-facing display toggles** (overlay enabled, outline visibility, two-finger gesture)
+ * deliberately do **not** live here: the reader gates on them from GPL-free files
+ * (`ReaderActivity`/`ReaderPreferences`, contract §1.3), and those files cannot import
+ * `mihon.core.ocr`. They are owned by `ReaderPreferences` instead — see the OCR region there.
  */
 class OcrPreferences(
     private val preferenceStore: PreferenceStore,
@@ -38,18 +45,9 @@ class OcrPreferences(
         return ReaderOcrSource.entries.firstOrNull { it.name == value } ?: ReaderOcrSource.AUTOMATIC
     }
 
-    /** Draw the OCR overlay in the reader. */
-    val overlayEnabled: Preference<Boolean> = preferenceStore.getBoolean("pref_ocr_overlay_enabled", false)
-
-    /** Allow a two-finger tap to toggle the OCR overlay. */
-    val twoFingerGestureEnabled: Preference<Boolean> = preferenceStore.getBoolean("pref_ocr_two_finger_gesture", false)
-
     /** Queue OCR automatically once a chapter finishes downloading. */
     val autoOnDownload: Preference<Boolean> = preferenceStore.getBoolean("pref_ocr_auto_on_download", false)
 
     /** How many chapters the OCR queue processes concurrently. */
     val parallelOcrLimit: Preference<Int> = preferenceStore.getInt("pref_ocr_parallel_limit", 1)
-
-    /** Draw bounding outlines around detected text regions. */
-    val outlineVisible: Preference<Boolean> = preferenceStore.getBoolean("pref_show_ocr_outlines", true)
 }
