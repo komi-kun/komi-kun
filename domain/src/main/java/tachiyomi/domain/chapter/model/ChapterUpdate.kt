@@ -9,6 +9,9 @@ class ChapterUpdate(val id: Long, block: ChapterUpdate.() -> Unit) : PartialUpda
     var lastPageRead: Int? by field(null)
     var dateFetch: Instant? by field(null)
     var version: Long? by field(null)
+    // KUN -->
+    var isOcrReady: Boolean? by field(null)
+    // KUN <--
 
     init {
         block()
@@ -22,5 +25,8 @@ fun Chapter.toChapterUpdate(): ChapterUpdate {
         lastPageRead = this@toChapterUpdate.lastPageRead
         dateFetch = this@toChapterUpdate.dateFetch
         version = this@toChapterUpdate.version
+        // KUN -->
+        isOcrReady = this@toChapterUpdate.isOcrReady
+        // KUN <--
     }
 }
