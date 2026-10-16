@@ -1,0 +1,29 @@
+{
+  "_comment": [
+    "SKELETON (contract §1.7). Produced by the Paddle OCR artifact task, consumed by",
+    "`:core:ocr:fetchPaddleNativeLibs`. `sha256` is empty until the artifact is published;",
+    "the fetch task warns and skips verification while empty, and hard-fails on mismatch.",
+    "The .so trios (libpaddle_ocr/libomp/libc++_shared) are our own Apache-2.0 build over",
+    "Paddle-Lite + PaddleOCR; only the ARM64/ARMv7/x86_64 ABIs are supported (contract §1.5)."
+  ],
+  "release": "ocr-models-v1",
+  "baseUrl": "https://github.com/komi-kun/komi-kun-ocr-models/releases/download/ocr-models-v1",
+  "abi": ["arm64-v8a", "armeabi-v7a", "x86_64"],
+  "files": [
+    { "abi": "arm64-v8a", "name": "libpaddle_ocr.so", "sha256": "", "size": 0, "spdx": "Apache-2.0" },
+    { "abi": "arm64-v8a", "name": "libomp.so", "sha256": "", "size": 0, "spdx": "Apache-2.0" },
+    { "abi": "arm64-v8a", "name": "libc++_shared.so", "sha256": "", "size": 0, "spdx": "Apache-2.0" },
+    { "abi": "armeabi-v7a", "name": "libpaddle_ocr.so", "sha256": "", "size": 0, "spdx": "Apache-2.0" },
+    { "abi": "armeabi-v7a", "name": "libomp.so", "sha256": "", "size": 0, "spdx": "Apache-2.0" },
+    { "abi": "armeabi-v7a", "name": "libc++_shared.so", "sha256": "", "size": 0, "spdx": "Apache-2.0" },
+    { "abi": "x86_64", "name": "libpaddle_ocr.so", "sha256": "", "size": 0, "spdx": "Apache-2.0" },
+    { "abi": "x86_64", "name": "libomp.so", "sha256": "", "size": 0, "spdx": "Apache-2.0" },
+    { "abi": "x86_64", "name": "libc++_shared.so", "sha256": "", "size": 0, "spdx": "Apache-2.0" }
+  ],
+  "models": {
+    "_comment": "Runtime-downloaded, user-opt-in, checksum-verified by ModelDownloader (contract §1.7).",
+    "det": ["manga_det_fp16.param", "manga_det_fp16.bin"],
+    "rec": ["manga_rec_fp16.param", "manga_rec_fp16.bin"],
+    "dict": ["ppocrv6_dict.txt"]
+  }
+}
