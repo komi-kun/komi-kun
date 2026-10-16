@@ -1,0 +1,3 @@
+[submodule "core/dictionary/src/main/cpp/hoshidicts"]
+	path = core/dictionary/src/main/cpp/hoshidicts
+	url = https://github.com/komi-kun/hoshidicts.git
