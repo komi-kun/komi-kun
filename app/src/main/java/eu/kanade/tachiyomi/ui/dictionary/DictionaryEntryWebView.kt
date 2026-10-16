@@ -16,13 +16,17 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
+import kotlinx.coroutines.launch
 import mihon.app.di.appGraph
+import mihon.core.dictionary.anki.AnkiMiningController
+import mihon.core.dictionary.anki.AnkiPreferences
 import mihon.core.dictionary.model.DictionaryProfile
 import mihon.core.dictionary.model.DictionaryStyle
 import mihon.core.dictionary.model.LookupResult
@@ -32,6 +36,7 @@ import mihon.core.dictionary.ui.TabInfo
 import mihon.core.dictionary.ui.buildConfigPayload
 import mihon.core.dictionary.ui.buildResultEntryJsonStrings
 import mihon.core.dictionary.ui.prepareDictionaryWebViewShell
+import tachiyomi.core.common.preference.AndroidPreferenceStore
 import tachiyomi.presentation.core.util.collectAsState
 
 /**
@@ -65,9 +70,20 @@ fun DictionaryEntryWebView(
     forceDefaultTheme: Boolean = false,
     requestFocusOnMount: Boolean = false,
     isLoading: Boolean = false,
+    // KUN -->
+    // Anki mining: when no callback is supplied, the renderer's `addToAnki` reaches
+    // `AnkiCardCreator` through a default controller built from the active profile.
+    onAnkiLookup: ((LookupResult, Int?, String?, String?, Boolean) -> Unit)? = null,
+    // KUN <--
 ) {
     val context = LocalContext.current
     val prefs = remember(context) { context.appGraph.dictionaryPreferences }
+    // KUN -->
+    val ankiScope = rememberCoroutineScope()
+    val ankiMining = remember(context) {
+        AnkiMiningController(context, AnkiPreferences(AndroidPreferenceStore(context)))
+    }
+    // KUN <--
     val themeMode by prefs.themeMode().collectAsState()
     val compactGlossary by prefs.compactGlossary().collectAsState()
     val customColor by prefs.customColor().collectAsState()
@@ -254,6 +270,25 @@ fun DictionaryEntryWebView(
                 state.onRecursiveLookup = onRecursiveLookup
                 state.onTabSelect = onTabSelect
                 state.onBack = onBack
+                // KUN -->
+                state.ankiJsBridge.onAnkiLookup = { index, glossaryIndex, selectedDict, popupSelection, forceOpen ->
+                    results.getOrNull(index)?.let { result ->
+                        if (onAnkiLookup != null) {
+                            onAnkiLookup(result, glossaryIndex, selectedDict, popupSelection, forceOpen)
+                        } else {
+                            ankiScope.launch {
+                                ankiMining.mine(
+                                    result = result,
+                                    glossaryIndex = glossaryIndex,
+                                    selectedDict = selectedDict,
+                                    popupSelection = popupSelection,
+                                    forceOpen = forceOpen,
+                                )
+                            }
+                        }
+                    }
+                }
+                // KUN <--
                 state.customCss = customCss
                 state.fontSize = fontSize
                 state.onContentInvalidated = {
