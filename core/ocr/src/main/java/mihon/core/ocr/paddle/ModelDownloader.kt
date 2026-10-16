@@ -37,7 +37,7 @@ import java.util.zip.ZipInputStream
 
 /** Our own release; the `.so`s are consumed at build time, only models download at runtime. */
 private const val DEFAULT_BASE_URL =
-    "https://github.com/komi-kun/komi-kun-ocr-models/releases/download/ocr-models-v1"
+    "https://github.com/komi-kun/komi-kun-ocr-models/releases/download/ocr-models-v2"
 
 /** One downloadable OCR artifact from the release manifest. */
 @Serializable
@@ -68,9 +68,12 @@ sealed interface ModelDownloadState {
 }
 
 /**
- * Downloads and verifies the PaddleOCR det/rec models and `ppocrv4_japan_dict.txt` into
+ * Downloads and verifies the PaddleOCR det/rec models and `ppocrv5_dict.txt` into
  * `filesDir/paddle_ocr/` (where [PaddleOcrEngine] loads them from), and can import them from a
  * user-picked archive. [triggerPaddleDownload] is the runtime, opt-in entry point.
+ *
+ * Also prunes model files published by earlier releases that the engine no longer loads
+ * ([LEGACY_MODELS]) so an in-place upgrade does not keep dead weights around.
  */
 class ModelDownloader(
     context: Context,
@@ -96,6 +99,8 @@ class ModelDownloader(
     /** Runtime, user-opt-in download of all required models (checksum-verified). */
     fun triggerPaddleDownload() {
         if (isPaddleDownloaded) {
+            // Already on the current model set: still drop anything a previous release left behind.
+            cleanupStaleModels()
             _state.value = ModelDownloadState.Completed
             return
         }
@@ -139,6 +144,8 @@ class ModelDownloader(
             downloadAndVerify(url, entry).getOrElse { return@withContext Result.failure(it) }
             _state.value = ModelDownloadState.Downloading(index + 1, entries.size)
         }
+        // Only after every current model landed: prune what an earlier release installed.
+        cleanupStaleModels()
         Result.success(Unit)
     }
 
@@ -151,8 +158,29 @@ class ModelDownloader(
         }.mapCatching {
             // Verify the freshly imported files against the manifest when one is available.
             fetchManifest().getOrNull()?.let { manifest -> verifyInstalled(manifest) }
+            cleanupStaleModels()
             Unit
         }
+    }
+
+    /**
+     * Deletes model files published by an earlier release that the engine no longer loads (see
+     * [LEGACY_MODELS]), so an in-place upgrade does not keep dead weights in `filesDir/paddle_ocr/`.
+     *
+     * Safe by construction: it only ever removes names this app itself published, never arbitrary
+     * files a user may have placed in the directory. Returns the names actually removed.
+     */
+    fun cleanupStaleModels(): List<String> {
+        val removed = mutableListOf<String>()
+        for (name in LEGACY_MODELS) {
+            if (name in REQUIRED_MODELS) continue
+            val file = File(modelsDir, name)
+            if (file.isFile && file.delete()) {
+                removed += name
+                logcat(LogPriority.INFO) { "ModelDownloader: removed stale model $name" }
+            }
+        }
+        return removed
     }
 
     private fun verifyInstalled(manifest: OcrModelManifest) {
@@ -218,12 +246,24 @@ class ModelDownloader(
         private const val MANIFEST_NAME = "manifest.json"
         private const val PADDLE_DIR = "paddle_ocr"
 
-        private const val DET_MODEL = "ppocrv4_det.nb"
-        private const val REC_MODEL = "ppocrv4_japan_rec.nb"
-        private const val DICT_TXT = "ppocrv4_japan_dict.txt"
+        // PP-OCRv5 (ocr-models-v2): unified multi-language recogniser.
+        private const val DET_MODEL = "ppocrv5_det.nb"
+        private const val REC_MODEL = "ppocrv5_rec.nb"
+        private const val DICT_TXT = "ppocrv5_dict.txt"
 
         /** Must stay in sync with [PaddleOcrEngine]'s model constants. */
         val REQUIRED_MODELS = listOf(DET_MODEL, REC_MODEL, DICT_TXT)
+
+        /**
+         * Model files shipped by `ocr-models-v1` (PP-OCRv4) that the engine no longer loads. Listed
+         * by name so [cleanupStaleModels] can prune them on upgrade without ever touching a file
+         * this app did not publish.
+         */
+        private val LEGACY_MODELS = listOf(
+            "ppocrv4_det.nb",
+            "ppocrv4_japan_rec.nb",
+            "ppocrv4_japan_dict.txt",
+        )
     }
 }
 

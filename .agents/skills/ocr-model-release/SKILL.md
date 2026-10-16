@@ -6,7 +6,7 @@ description: Build, publish and wire the PaddleOCR native artifact that :core:oc
 # Releasing the PaddleOCR artifact
 
 `:core:ocr` uses **our own** Apache-2.0 PaddleOCR artifact — not the opaque zip Chimahon ships. It lives
-in the GitHub repo **`komi-kun/komi-kun-ocr-models`** (releases tagged like `ocr-models-v1`), and the
+in the GitHub repo **`komi-kun/komi-kun-ocr-models`** (releases tagged like `ocr-models-v2`), and the
 app fetches it at build time and verifies every SHA-256.
 
 ## What the artifact is
@@ -17,9 +17,10 @@ app fetches it at build time and verifies every SHA-256.
   `TIMING|`/`LINE|` stdout protocol that `PaddleOcrEngine` parses.
 - **`libomp.so`** per ABI (Paddle-Lite runtime dep). **`libc++_shared.so` is deliberately NOT shipped**
   — AGP already packages the NDK copy (via `:core:dictionary`), and a second copy fails the app merge.
-- **Models** — official PaddleOCR Apache-2.0: `ppocrv4_det.nb`, `ppocrv4_japan_rec.nb`,
-  `ppocrv4_japan_dict.txt`. These are **not** in the APK; `ModelDownloader` fetches them opt-in at
-  runtime (SHA-256 verified).
+- **Models** — official PaddleOCR Apache-2.0. Current release (`ocr-models-v2`, PP-OCRv5 mobile):
+  `ppocrv5_det.nb`, `ppocrv5_rec.nb` (unified ja/zh/en CTC, `h=48`), `ppocrv5_dict.txt`. These are
+  **not** in the APK; `ModelDownloader` fetches them opt-in at runtime (SHA-256 verified) and prunes
+  superseded `ppocrv4_*` files on upgrade.
 - The repo holds `build.sh`, `CMakeLists.txt`, `deps.lock.json`, a CI workflow, `LICENSE`/`NOTICE`, and
   `INTEGRATION.md`.
 
@@ -33,7 +34,7 @@ gh release create ocr-models-v<n> <staged-assets> --title "OCR models v<n>"
 ```
 
 Assets are published **flat** (`arm64-v8a_libpaddle_ocr.so`, `arm64-v8a_libomp.so`,
-`ppocrv4_det.nb`, …), not under per-ABI subdirectories — the app's fetch task resolves by `path`.
+`ppocrv5_det.nb`, …), not under per-ABI subdirectories — the app's fetch task resolves by `path`.
 
 - **Never re-tag a release with different bytes** — the app manifest pins hashes; cut a new tag.
 - The build is **not** byte-reproducible (`opt` writes a non-deterministic header); pin the exact
