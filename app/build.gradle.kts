@@ -3,6 +3,7 @@ import mihon.buildlogic.getBuildTime
 import mihon.buildlogic.getCommitCount
 import mihon.buildlogic.getGitSha
 import mihon.buildlogic.tasks.ReplaceShortcutsPlaceholderTask
+import org.gradle.api.tasks.Exec
 import java.io.FileInputStream
 import java.util.Properties
 import kotlin.io.encoding.Base64
@@ -514,6 +515,17 @@ androidComponents {
         resSource.addGeneratedSourceDirectory(replaceShortcutsPlaceholderTask) { it.outputDir }
     }
 }
+
+// KUN -->
+// GPL-free boundary check (contract §1.3/§1.9). Defined in :app so `./gradlew verifyGplFree`
+// resolves to this task, which wraps scripts/verify-gpl-free.sh so CI and local runs share one
+// code path.
+val verifyGplFree by tasks.registering(Exec::class) {
+    group = "verification"
+    description = "Fails if a GPL-free file (§1.3) imports a GPL package (§1.9)."
+    commandLine("bash", layout.settingsDirectory.file("scripts/verify-gpl-free.sh").asFile.absolutePath)
+}
+// KUN <--
 
 buildscript {
     dependencies {
