@@ -238,6 +238,32 @@ object SettingsMainScreen : Screen() {
             icon = MaterialSymbols.Rounded.Security,
             screen = SettingsSecurityScreen,
         ),
+        // KUN -->
+        Item(
+            titleRes = KMR.strings.pref_category_dictionaries_and_audio,
+            subtitleRes = KMR.strings.pref_dictionary_summary,
+            icon = MaterialSymbols.Rounded.Search,
+            screen = SettingsDictionaryScreen,
+        ),
+        Item(
+            titleRes = KMR.strings.pref_category_dictionary_popup,
+            subtitleRes = KMR.strings.pref_dictionary_popup_summary,
+            icon = MaterialSymbols.Rounded.Palette,
+            screen = SettingsDictionaryPopupScreen,
+        ),
+        Item(
+            titleRes = KMR.strings.pref_category_anki,
+            subtitleRes = KMR.strings.pref_anki_summary,
+            icon = MaterialSymbols.Rounded.CollectionsBookmark,
+            screen = SettingsAnkiScreen,
+        ),
+        Item(
+            titleRes = KMR.strings.pref_category_ocr,
+            subtitleRes = KMR.strings.pref_ocr_summary,
+            icon = MaterialSymbols.AutoMirroredRounded.ChromeReaderMode,
+            screen = SettingsOcrScreen,
+        ),
+        // KUN <--
         // SY -->
         Item(
             titleRes = SYMR.strings.pref_category_eh,
