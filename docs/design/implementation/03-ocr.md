@@ -169,7 +169,7 @@ Ship a **`komi-kun/komi-kun-ocr-models`** release (or GitHub Packages) built by 
 ### 2.3 Concrete requirements
 
 - **ABI:** `arm64-v8a`, `armeabi-v7a` only (matches `PaddleOcrEngine.kt:93-97`); skip x86/x86_64.
-- **Hosting:** pinned release tag (e.g. `ocr-models-v1`); a `manifest.json` with per-file
+- **Hosting:** pinned release tag (e.g. `ocr-models-v2`); a `manifest.json` with per-file
   **SHA-256**, byte size, ABI, and SPDX id (`Apache-2.0` for Paddle + our `.so`; NDK runtime libs
   under their terms). **`ModelDownloader` must verify checksums** (Chimahon does not — §7 R2).
 - **Delivery:** **runtime download, user-opt-in** (Chimahon's model) + an **import-from-file** path
