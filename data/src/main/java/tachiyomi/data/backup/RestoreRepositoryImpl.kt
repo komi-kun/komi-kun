@@ -536,6 +536,9 @@ class RestoreRepositoryImpl(
                     version = chapter.version,
                     isSyncing = syncingFlag,
                     // SY <--
+                    // KUN -->
+                    isOcrReady = chapter.isOcrReady,
+                    // KUN <--
                 ).awaitAsOneOrNull()
             }
         }
