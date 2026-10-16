@@ -1,0 +1,12 @@
+{"dict":"komikun-synthetic-ja","query":"食べました","expect":[{"expression":"食べる","reading":"たべる","rules":["-ます","-た"]}]}
+{"dict":"komikun-synthetic-ja","query":"食べて","expect":[{"expression":"食べる","reading":"たべる","rules":["-て"]}]}
+{"dict":"komikun-synthetic-ja","query":"食べさせられない","expect":[{"expression":"食べる","reading":"たべる","rules":["causative","potential or passive","negative"]}]}
+{"dict":"komikun-synthetic-ja","query":"行った","expect":[{"expression":"行く","reading":"いく","rules":["-た"]}]}
+{"dict":"komikun-synthetic-ja","query":"行きます","expect":[{"expression":"行く","reading":"いく","rules":["-ます"]}]}
+{"dict":"komikun-synthetic-ja","query":"高くない","expect":[{"expression":"高い","reading":"たかい","rules":["negative"]}]}
+{"dict":"komikun-synthetic-ja","query":"買えば","expect":[{"expression":"買う","reading":"かう","rules":["-ば"]}]}
+{"dict":"komikun-synthetic-ja","query":"読みます","expect":[{"expression":"読む","reading":"よむ","rules":["-ます"]}]}
+{"dict":"komikun-synthetic-ja","query":"しませんでした","expect":[{"expression":"する","reading":"する","rules":["-ます","negative","-た"]}]}
+{"dict":"komikun-synthetic-ja","query":"来なかった","expect":[{"expression":"来る","reading":"くる","rules":["negative","-た"]}]}
+{"dict":"komikun-synthetic-ja","query":"読める","expect":[{"expression":"読む","reading":"よむ","rules":["potential"]}]}
+{"dict":"komikun-synthetic-ja","query":"食べる","expect":[{"expression":"食べる","reading":"たべる","rules":[]}]}

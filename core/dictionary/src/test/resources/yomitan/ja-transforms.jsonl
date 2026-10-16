@@ -1,0 +1,1446 @@
+{"category":"adjectives","source":"愛しい","term":"愛しい","rule":"adj-i","reasons":[],"valid":true}
+{"category":"adjectives","source":"愛しそう","term":"愛しい","rule":"adj-i","reasons":["-そう"],"valid":true}
+{"category":"adjectives","source":"愛しさう","term":"愛しい","rule":"adj-i","reasons":["-そう"],"valid":true}
+{"category":"adjectives","source":"愛しすぎる","term":"愛しい","rule":"adj-i","reasons":["-すぎる"],"valid":true}
+{"category":"adjectives","source":"愛し過ぎる","term":"愛しい","rule":"adj-i","reasons":["-過ぎる"],"valid":true}
+{"category":"adjectives","source":"愛しかったら","term":"愛しい","rule":"adj-i","reasons":["-たら"],"valid":true}
+{"category":"adjectives","source":"愛しかったり","term":"愛しい","rule":"adj-i","reasons":["-たり"],"valid":true}
+{"category":"adjectives","source":"愛しくて","term":"愛しい","rule":"adj-i","reasons":["-て"],"valid":true}
+{"category":"adjectives","source":"愛しく","term":"愛しい","rule":"adj-i","reasons":["-く"],"valid":true}
+{"category":"adjectives","source":"愛しくない","term":"愛しい","rule":"adj-i","reasons":["negative"],"valid":true}
+{"category":"adjectives","source":"愛しさ","term":"愛しい","rule":"adj-i","reasons":["-さ"],"valid":true}
+{"category":"adjectives","source":"愛しかった","term":"愛しい","rule":"adj-i","reasons":["-た"],"valid":true}
+{"category":"adjectives","source":"愛しくありません","term":"愛しい","rule":"adj-i","reasons":["-ます","negative"],"valid":true}
+{"category":"adjectives","source":"愛しくありませんでした","term":"愛しい","rule":"adj-i","reasons":["-ます","negative","-た"],"valid":true}
+{"category":"adjectives","source":"愛しくありませんかった","term":"愛しい","rule":"adj-i","reasons":["-ます","negative","-た"],"valid":true}
+{"category":"adjectives","source":"愛しき","term":"愛しい","rule":"adj-i","reasons":["-き"],"valid":true}
+{"category":"adjectives","source":"愛しげ","term":"愛しい","rule":"adj-i","reasons":["-げ"],"valid":true}
+{"category":"adjectives","source":"愛し気","term":"愛しい","rule":"adj-i","reasons":["-げ"],"valid":true}
+{"category":"adjectives","source":"愛しがる","term":"愛しい","rule":"adj-i","reasons":["-がる"],"valid":true}
+{"category":"adjectives","source":"愛しかろう","term":"愛しい","rule":"adj-i","reasons":["volitional"],"valid":true}
+{"category":"adjectives","source":"愛しからう","term":"愛しい","rule":"adj-i","reasons":["volitional"],"valid":true}
+{"category":"ichidan verbs","source":"食べる","term":"食べる","rule":"v1","reasons":[],"valid":true}
+{"category":"ichidan verbs","source":"食べます","term":"食べる","rule":"v1","reasons":["-ます"],"valid":true}
+{"category":"ichidan verbs","source":"食べた","term":"食べる","rule":"v1","reasons":["-た"],"valid":true}
+{"category":"ichidan verbs","source":"食べました","term":"食べる","rule":"v1","reasons":["-ます","-た"],"valid":true}
+{"category":"ichidan verbs","source":"食べて","term":"食べる","rule":"v1","reasons":["-て"],"valid":true}
+{"category":"ichidan verbs","source":"食べられる","term":"食べる","rule":"v1","reasons":["potential or passive"],"valid":true}
+{"category":"ichidan verbs","source":"食べられる","term":"食べる","rule":"v1","reasons":["potential or passive"],"valid":true}
+{"category":"ichidan verbs","source":"食べさせる","term":"食べる","rule":"v1","reasons":["causative"],"valid":true}
+{"category":"ichidan verbs","source":"食べさす","term":"食べる","rule":"v1","reasons":["short causative"],"valid":true}
+{"category":"ichidan verbs","source":"食べさします","term":"食べる","rule":"v1","reasons":["short causative","-ます"],"valid":true}
+{"category":"ichidan verbs","source":"食べさせられる","term":"食べる","rule":"v1","reasons":["causative","potential or passive"],"valid":true}
+{"category":"ichidan verbs","source":"食べろ","term":"食べる","rule":"v1","reasons":["imperative"],"valid":true}
+{"category":"ichidan verbs","source":"食べない","term":"食べる","rule":"v1","reasons":["negative"],"valid":true}
+{"category":"ichidan verbs","source":"食べません","term":"食べる","rule":"v1","reasons":["-ます","negative"],"valid":true}
+{"category":"ichidan verbs","source":"食べなかった","term":"食べる","rule":"v1","reasons":["negative","-た"],"valid":true}
+{"category":"ichidan verbs","source":"食べませんでした","term":"食べる","rule":"v1","reasons":["-ます","negative","-た"],"valid":true}
+{"category":"ichidan verbs","source":"食べなくて","term":"食べる","rule":"v1","reasons":["negative","-て"],"valid":true}
+{"category":"ichidan verbs","source":"食べられない","term":"食べる","rule":"v1","reasons":["potential or passive","negative"],"valid":true}
+{"category":"ichidan verbs","source":"食べられない","term":"食べる","rule":"v1","reasons":["potential or passive","negative"],"valid":true}
+{"category":"ichidan verbs","source":"食べさせない","term":"食べる","rule":"v1","reasons":["causative","negative"],"valid":true}
+{"category":"ichidan verbs","source":"食べささない","term":"食べる","rule":"v1","reasons":["short causative","negative"],"valid":true}
+{"category":"ichidan verbs","source":"食べさせられない","term":"食べる","rule":"v1","reasons":["causative","potential or passive","negative"],"valid":true}
+{"category":"ichidan verbs","source":"食べまして","term":"食べる","rule":"v1","reasons":["-ます","-て"],"valid":true}
+{"category":"ichidan verbs","source":"食べれば","term":"食べる","rule":"v1","reasons":["-ば"],"valid":true}
+{"category":"ichidan verbs","source":"食べりゃ","term":"食べる","rule":"v1","reasons":["-ば","-ゃ"],"valid":true}
+{"category":"ichidan verbs","source":"食べちゃ","term":"食べる","rule":"v1","reasons":["-ちゃ"],"valid":true}
+{"category":"ichidan verbs","source":"食べちゃう","term":"食べる","rule":"v1","reasons":["-ちゃう"],"valid":true}
+{"category":"ichidan verbs","source":"食べちまう","term":"食べる","rule":"v1","reasons":["-ちまう"],"valid":true}
+{"category":"ichidan verbs","source":"食べなさい","term":"食べる","rule":"v1","reasons":["-なさい"],"valid":true}
+{"category":"ichidan verbs","source":"食べそう","term":"食べる","rule":"v1","reasons":["-そう"],"valid":true}
+{"category":"ichidan verbs","source":"食べさう","term":"食べる","rule":"v1","reasons":["-そう"],"valid":true}
+{"category":"ichidan verbs","source":"食べすぎる","term":"食べる","rule":"v1","reasons":["-すぎる"],"valid":true}
+{"category":"ichidan verbs","source":"食べ過ぎる","term":"食べる","rule":"v1","reasons":["-過ぎる"],"valid":true}
+{"category":"ichidan verbs","source":"食べたい","term":"食べる","rule":"v1","reasons":["-たい"],"valid":true}
+{"category":"ichidan verbs","source":"食べたがる","term":"食べる","rule":"v1","reasons":["-たい","-がる"],"valid":true}
+{"category":"ichidan verbs","source":"食べたら","term":"食べる","rule":"v1","reasons":["-たら"],"valid":true}
+{"category":"ichidan verbs","source":"食べたり","term":"食べる","rule":"v1","reasons":["-たり"],"valid":true}
+{"category":"ichidan verbs","source":"食べず","term":"食べる","rule":"v1","reasons":["-ず"],"valid":true}
+{"category":"ichidan verbs","source":"食べぬ","term":"食べる","rule":"v1","reasons":["-ぬ"],"valid":true}
+{"category":"ichidan verbs","source":"食べん","term":"食べる","rule":"v1","reasons":["-ん"],"valid":true}
+{"category":"ichidan verbs","source":"食べんかった","term":"食べる","rule":"v1","reasons":["-ん","-た"],"valid":true}
+{"category":"ichidan verbs","source":"食べんばかり","term":"食べる","rule":"v1","reasons":["-んばかり"],"valid":true}
+{"category":"ichidan verbs","source":"食べんとする","term":"食べる","rule":"v1","reasons":["-んとする"],"valid":true}
+{"category":"ichidan verbs","source":"食べざる","term":"食べる","rule":"v1","reasons":["-ざる"],"valid":true}
+{"category":"ichidan verbs","source":"食べねば","term":"食べる","rule":"v1","reasons":["-ねば"],"valid":true}
+{"category":"ichidan verbs","source":"食べにゃ","term":"食べる","rule":"v1","reasons":["-ねば","-ゃ"],"valid":true}
+{"category":"ichidan verbs","source":"食べ","term":"食べる","rule":"v1d","reasons":["continuative"],"valid":true}
+{"category":"ichidan verbs","source":"食べましょう","term":"食べる","rule":"v1","reasons":["-ます","volitional"],"valid":true}
+{"category":"ichidan verbs","source":"食べませう","term":"食べる","rule":"v1","reasons":["-ます","volitional"],"valid":true}
+{"category":"ichidan verbs","source":"食べましょっか","term":"食べる","rule":"v1","reasons":["-ます","volitional slang"],"valid":true}
+{"category":"ichidan verbs","source":"食べよう","term":"食べる","rule":"v1","reasons":["volitional"],"valid":true}
+{"category":"ichidan verbs","source":"食べやう","term":"食べる","rule":"v1","reasons":["volitional"],"valid":true}
+{"category":"ichidan verbs","source":"食べよっか","term":"食べる","rule":"v1","reasons":["volitional slang"],"valid":true}
+{"category":"ichidan verbs","source":"食べるまい","term":"食べる","rule":"v1","reasons":["-まい"],"valid":true}
+{"category":"ichidan verbs","source":"食べまい","term":"食べる","rule":"v1","reasons":["-まい"],"valid":true}
+{"category":"ichidan verbs","source":"食べておく","term":"食べる","rule":"v1","reasons":["-て","-おく"],"valid":true}
+{"category":"ichidan verbs","source":"食べとく","term":"食べる","rule":"v1","reasons":["-て","-おく"],"valid":true}
+{"category":"ichidan verbs","source":"食べないでおく","term":"食べる","rule":"v1","reasons":["negative","-おく"],"valid":true}
+{"category":"ichidan verbs","source":"食べないどく","term":"食べる","rule":"v1","reasons":["negative","-おく"],"valid":true}
+{"category":"ichidan verbs","source":"食べている","term":"食べる","rule":"v1","reasons":["-て","-いる"],"valid":true}
+{"category":"ichidan verbs","source":"食べてゐる","term":"食べる","rule":"v1","reasons":["-て","-いる"],"valid":true}
+{"category":"ichidan verbs","source":"食べておる","term":"食べる","rule":"v1","reasons":["-て","-いる"],"valid":true}
+{"category":"ichidan verbs","source":"食べてる","term":"食べる","rule":"v1","reasons":["-て","-いる"],"valid":true}
+{"category":"ichidan verbs","source":"食べとる","term":"食べる","rule":"v1","reasons":["-て","-いる"],"valid":true}
+{"category":"ichidan verbs","source":"食べてしまう","term":"食べる","rule":"v1","reasons":["-て","-しまう"],"valid":true}
+{"category":"ichidan verbs","source":"食べやがる","term":"食べる","rule":"v1","reasons":["-やがる"],"valid":true}
+{"category":"ichidan verbs","source":"食べやがって","term":"食べる","rule":"v1","reasons":["-やがる","-て"],"valid":true}
+{"category":"ichidan verbs","source":"食べやがった","term":"食べる","rule":"v1","reasons":["-やがる","-た"],"valid":true}
+{"category":"ichidan verbs","source":"食べやがれ","term":"食べる","rule":"v1","reasons":["-やがる","imperative"],"valid":true}
+{"category":"ichidan verbs","source":"食べやしない","term":"食べる","rule":"v1","reasons":["-やしない"],"valid":true}
+{"category":"ichidan verbs","source":"食べやしません","term":"食べる","rule":"v1","reasons":["-やしません"],"valid":true}
+{"category":"-う verbs","source":"買う","term":"買う","rule":"v5","reasons":[],"valid":true}
+{"category":"-う verbs","source":"買います","term":"買う","rule":"v5","reasons":["-ます"],"valid":true}
+{"category":"-う verbs","source":"買った","term":"買う","rule":"v5","reasons":["-た"],"valid":true}
+{"category":"-う verbs","source":"買いました","term":"買う","rule":"v5","reasons":["-ます","-た"],"valid":true}
+{"category":"-う verbs","source":"買って","term":"買う","rule":"v5","reasons":["-て"],"valid":true}
+{"category":"-う verbs","source":"買える","term":"買う","rule":"v5","reasons":["potential"],"valid":true}
+{"category":"-う verbs","source":"買われる","term":"買う","rule":"v5","reasons":["passive"],"valid":true}
+{"category":"-う verbs","source":"買わせる","term":"買う","rule":"v5","reasons":["causative"],"valid":true}
+{"category":"-う verbs","source":"買わす","term":"買う","rule":"v5","reasons":["short causative"],"valid":true}
+{"category":"-う verbs","source":"買わします","term":"買う","rule":"v5","reasons":["short causative","-ます"],"valid":true}
+{"category":"-う verbs","source":"買わせられる","term":"買う","rule":"v5","reasons":["causative","potential or passive"],"valid":true}
+{"category":"-う verbs","source":"買え","term":"買う","rule":"v5","reasons":["imperative"],"valid":true}
+{"category":"-う verbs","source":"買わない","term":"買う","rule":"v5","reasons":["negative"],"valid":true}
+{"category":"-う verbs","source":"買いません","term":"買う","rule":"v5","reasons":["-ます","negative"],"valid":true}
+{"category":"-う verbs","source":"買わなかった","term":"買う","rule":"v5","reasons":["negative","-た"],"valid":true}
+{"category":"-う verbs","source":"買いませんでした","term":"買う","rule":"v5","reasons":["-ます","negative","-た"],"valid":true}
+{"category":"-う verbs","source":"買わなくて","term":"買う","rule":"v5","reasons":["negative","-て"],"valid":true}
+{"category":"-う verbs","source":"買えない","term":"買う","rule":"v5","reasons":["potential","negative"],"valid":true}
+{"category":"-う verbs","source":"買われない","term":"買う","rule":"v5","reasons":["passive","negative"],"valid":true}
+{"category":"-う verbs","source":"買わせない","term":"買う","rule":"v5","reasons":["causative","negative"],"valid":true}
+{"category":"-う verbs","source":"買わさない","term":"買う","rule":"v5","reasons":["short causative","negative"],"valid":true}
+{"category":"-う verbs","source":"買わせられない","term":"買う","rule":"v5","reasons":["causative","potential or passive","negative"],"valid":true}
+{"category":"-う verbs","source":"買いまして","term":"買う","rule":"v5","reasons":["-ます","-て"],"valid":true}
+{"category":"-う verbs","source":"買えば","term":"買う","rule":"v5","reasons":["-ば"],"valid":true}
+{"category":"-う verbs","source":"買や","term":"買う","rule":"v5","reasons":["-ば","-ゃ"],"valid":true}
+{"category":"-う verbs","source":"買っちゃ","term":"買う","rule":"v5","reasons":["-ちゃ"],"valid":true}
+{"category":"-う verbs","source":"買っちゃう","term":"買う","rule":"v5","reasons":["-ちゃう"],"valid":true}
+{"category":"-う verbs","source":"買っちまう","term":"買う","rule":"v5","reasons":["-ちまう"],"valid":true}
+{"category":"-う verbs","source":"買いなさい","term":"買う","rule":"v5","reasons":["-なさい"],"valid":true}
+{"category":"-う verbs","source":"買いそう","term":"買う","rule":"v5","reasons":["-そう"],"valid":true}
+{"category":"-う verbs","source":"買ひさう","term":"買う","rule":"v5","reasons":["-そう"],"valid":true}
+{"category":"-う verbs","source":"買いすぎる","term":"買う","rule":"v5","reasons":["-すぎる"],"valid":true}
+{"category":"-う verbs","source":"買い過ぎる","term":"買う","rule":"v5","reasons":["-過ぎる"],"valid":true}
+{"category":"-う verbs","source":"買いたい","term":"買う","rule":"v5","reasons":["-たい"],"valid":true}
+{"category":"-う verbs","source":"買いたがる","term":"買う","rule":"v5","reasons":["-たい","-がる"],"valid":true}
+{"category":"-う verbs","source":"買ったら","term":"買う","rule":"v5","reasons":["-たら"],"valid":true}
+{"category":"-う verbs","source":"買ったり","term":"買う","rule":"v5","reasons":["-たり"],"valid":true}
+{"category":"-う verbs","source":"買わず","term":"買う","rule":"v5","reasons":["-ず"],"valid":true}
+{"category":"-う verbs","source":"買わぬ","term":"買う","rule":"v5","reasons":["-ぬ"],"valid":true}
+{"category":"-う verbs","source":"買わん","term":"買う","rule":"v5","reasons":["-ん"],"valid":true}
+{"category":"-う verbs","source":"買わんかった","term":"買う","rule":"v5","reasons":["-ん","-た"],"valid":true}
+{"category":"-う verbs","source":"買わんばかり","term":"買う","rule":"v5","reasons":["-んばかり"],"valid":true}
+{"category":"-う verbs","source":"買わんとする","term":"買う","rule":"v5","reasons":["-んとする"],"valid":true}
+{"category":"-う verbs","source":"買わざる","term":"買う","rule":"v5","reasons":["-ざる"],"valid":true}
+{"category":"-う verbs","source":"買わねば","term":"買う","rule":"v5","reasons":["-ねば"],"valid":true}
+{"category":"-う verbs","source":"買わにゃ","term":"買う","rule":"v5","reasons":["-ねば","-ゃ"],"valid":true}
+{"category":"-う verbs","source":"買い","term":"買う","rule":"v5","reasons":["continuative"],"valid":true}
+{"category":"-う verbs","source":"買いましょう","term":"買う","rule":"v5","reasons":["-ます","volitional"],"valid":true}
+{"category":"-う verbs","source":"買いませう","term":"買う","rule":"v5","reasons":["-ます","volitional"],"valid":true}
+{"category":"-う verbs","source":"買いましょっか","term":"買う","rule":"v5","reasons":["-ます","volitional slang"],"valid":true}
+{"category":"-う verbs","source":"買おう","term":"買う","rule":"v5","reasons":["volitional"],"valid":true}
+{"category":"-う verbs","source":"買はう","term":"買う","rule":"v5","reasons":["volitional"],"valid":true}
+{"category":"-う verbs","source":"買おっか","term":"買う","rule":"v5","reasons":["volitional slang"],"valid":true}
+{"category":"-う verbs","source":"買うまい","term":"買う","rule":"v5","reasons":["-まい"],"valid":true}
+{"category":"-う verbs","source":"買わされる","term":"買う","rule":"v5","reasons":["short causative","passive"],"valid":true}
+{"category":"-う verbs","source":"買っておく","term":"買う","rule":"v5","reasons":["-て","-おく"],"valid":true}
+{"category":"-う verbs","source":"買っとく","term":"買う","rule":"v5","reasons":["-て","-おく"],"valid":true}
+{"category":"-う verbs","source":"買わないでおく","term":"買う","rule":"v5","reasons":["negative","-おく"],"valid":true}
+{"category":"-う verbs","source":"買わないどく","term":"買う","rule":"v5","reasons":["negative","-おく"],"valid":true}
+{"category":"-う verbs","source":"買っている","term":"買う","rule":"v5","reasons":["-て","-いる"],"valid":true}
+{"category":"-う verbs","source":"買ってゐる","term":"買う","rule":"v5","reasons":["-て","-いる"],"valid":true}
+{"category":"-う verbs","source":"買っておる","term":"買う","rule":"v5","reasons":["-て","-いる"],"valid":true}
+{"category":"-う verbs","source":"買ってる","term":"買う","rule":"v5","reasons":["-て","-いる"],"valid":true}
+{"category":"-う verbs","source":"買っとる","term":"買う","rule":"v5","reasons":["-て","-いる"],"valid":true}
+{"category":"-う verbs","source":"買ってしまう","term":"買う","rule":"v5","reasons":["-て","-しまう"],"valid":true}
+{"category":"-う verbs","source":"買いやがる","term":"買う","rule":"v5","reasons":["-やがる"],"valid":true}
+{"category":"-う verbs","source":"買いやがって","term":"買う","rule":"v5","reasons":["-やがる","-て"],"valid":true}
+{"category":"-う verbs","source":"買いやがった","term":"買う","rule":"v5","reasons":["-やがる","-た"],"valid":true}
+{"category":"-う verbs","source":"買いやがれ","term":"買う","rule":"v5","reasons":["-やがる","imperative"],"valid":true}
+{"category":"-う verbs","source":"買いやしない","term":"買う","rule":"v5","reasons":["-やしない"],"valid":true}
+{"category":"-う verbs","source":"買いやしません","term":"買う","rule":"v5","reasons":["-やしません"],"valid":true}
+{"category":"-う verbs","source":"買いますまい","term":"買う","rule":"v5","reasons":["-ます","-まい"],"valid":true}
+{"category":"-う verbs","source":"買いましたら","term":"買う","rule":"v5","reasons":["-ます","-たら"],"valid":true}
+{"category":"-う verbs","source":"買いますれば","term":"買う","rule":"v5","reasons":["-ます","-ば"],"valid":true}
+{"category":"-う verbs","source":"買いませんかった","term":"買う","rule":"v5","reasons":["-ます","negative","-た"],"valid":true}
+{"category":"-く verbs","source":"行く","term":"行く","rule":"v5","reasons":[],"valid":true}
+{"category":"-く verbs","source":"行きます","term":"行く","rule":"v5","reasons":["-ます"],"valid":true}
+{"category":"-く verbs","source":"行った","term":"行く","rule":"v5","reasons":["-た"],"valid":true}
+{"category":"-く verbs","source":"行きました","term":"行く","rule":"v5","reasons":["-ます","-た"],"valid":true}
+{"category":"-く verbs","source":"行って","term":"行く","rule":"v5","reasons":["-て"],"valid":true}
+{"category":"-く verbs","source":"行ける","term":"行く","rule":"v5","reasons":["potential"],"valid":true}
+{"category":"-く verbs","source":"行かれる","term":"行く","rule":"v5","reasons":["passive"],"valid":true}
+{"category":"-く verbs","source":"行かせる","term":"行く","rule":"v5","reasons":["causative"],"valid":true}
+{"category":"-く verbs","source":"行かす","term":"行く","rule":"v5","reasons":["short causative"],"valid":true}
+{"category":"-く verbs","source":"行かします","term":"行く","rule":"v5","reasons":["short causative","-ます"],"valid":true}
+{"category":"-く verbs","source":"行かせられる","term":"行く","rule":"v5","reasons":["causative","potential or passive"],"valid":true}
+{"category":"-く verbs","source":"行け","term":"行く","rule":"v5","reasons":["imperative"],"valid":true}
+{"category":"-く verbs","source":"行かない","term":"行く","rule":"v5","reasons":["negative"],"valid":true}
+{"category":"-く verbs","source":"行きません","term":"行く","rule":"v5","reasons":["-ます","negative"],"valid":true}
+{"category":"-く verbs","source":"行かなかった","term":"行く","rule":"v5","reasons":["negative","-た"],"valid":true}
+{"category":"-く verbs","source":"行きませんでした","term":"行く","rule":"v5","reasons":["-ます","negative","-た"],"valid":true}
+{"category":"-く verbs","source":"行かなくて","term":"行く","rule":"v5","reasons":["negative","-て"],"valid":true}
+{"category":"-く verbs","source":"行けない","term":"行く","rule":"v5","reasons":["potential","negative"],"valid":true}
+{"category":"-く verbs","source":"行かれない","term":"行く","rule":"v5","reasons":["passive","negative"],"valid":true}
+{"category":"-く verbs","source":"行かせない","term":"行く","rule":"v5","reasons":["causative","negative"],"valid":true}
+{"category":"-く verbs","source":"行かさない","term":"行く","rule":"v5","reasons":["short causative","negative"],"valid":true}
+{"category":"-く verbs","source":"行かせられない","term":"行く","rule":"v5","reasons":["causative","potential or passive","negative"],"valid":true}
+{"category":"-く verbs","source":"行きまして","term":"行く","rule":"v5","reasons":["-ます","-て"],"valid":true}
+{"category":"-く verbs","source":"行けば","term":"行く","rule":"v5","reasons":["-ば"],"valid":true}
+{"category":"-く verbs","source":"行きゃ","term":"行く","rule":"v5","reasons":["-ば","-ゃ"],"valid":true}
+{"category":"-く verbs","source":"行っちゃ","term":"行く","rule":"v5","reasons":["-ちゃ"],"valid":true}
+{"category":"-く verbs","source":"行っちゃう","term":"行く","rule":"v5","reasons":["-ちゃう"],"valid":true}
+{"category":"-く verbs","source":"行っちまう","term":"行く","rule":"v5","reasons":["-ちまう"],"valid":true}
+{"category":"-く verbs","source":"行きなさい","term":"行く","rule":"v5","reasons":["-なさい"],"valid":true}
+{"category":"-く verbs","source":"行きそう","term":"行く","rule":"v5","reasons":["-そう"],"valid":true}
+{"category":"-く verbs","source":"行きさう","term":"行く","rule":"v5","reasons":["-そう"],"valid":true}
+{"category":"-く verbs","source":"行きすぎる","term":"行く","rule":"v5","reasons":["-すぎる"],"valid":true}
+{"category":"-く verbs","source":"行き過ぎる","term":"行く","rule":"v5","reasons":["-過ぎる"],"valid":true}
+{"category":"-く verbs","source":"行きたい","term":"行く","rule":"v5","reasons":["-たい"],"valid":true}
+{"category":"-く verbs","source":"行きたがる","term":"行く","rule":"v5","reasons":["-たい","-がる"],"valid":true}
+{"category":"-く verbs","source":"行いたら","term":"行く","rule":"v5","reasons":["-たら"],"valid":true}
+{"category":"-く verbs","source":"行いたり","term":"行く","rule":"v5","reasons":["-たり"],"valid":true}
+{"category":"-く verbs","source":"行かず","term":"行く","rule":"v5","reasons":["-ず"],"valid":true}
+{"category":"-く verbs","source":"行かぬ","term":"行く","rule":"v5","reasons":["-ぬ"],"valid":true}
+{"category":"-く verbs","source":"行かん","term":"行く","rule":"v5","reasons":["-ん"],"valid":true}
+{"category":"-く verbs","source":"行かんかった","term":"行く","rule":"v5","reasons":["-ん","-た"],"valid":true}
+{"category":"-く verbs","source":"行かんばかり","term":"行く","rule":"v5","reasons":["-んばかり"],"valid":true}
+{"category":"-く verbs","source":"行かんとする","term":"行く","rule":"v5","reasons":["-んとする"],"valid":true}
+{"category":"-く verbs","source":"行かざる","term":"行く","rule":"v5","reasons":["-ざる"],"valid":true}
+{"category":"-く verbs","source":"行かねば","term":"行く","rule":"v5","reasons":["-ねば"],"valid":true}
+{"category":"-く verbs","source":"行かにゃ","term":"行く","rule":"v5","reasons":["-ねば","-ゃ"],"valid":true}
+{"category":"-く verbs","source":"行き","term":"行く","rule":"v5","reasons":["continuative"],"valid":true}
+{"category":"-く verbs","source":"行きましょう","term":"行く","rule":"v5","reasons":["-ます","volitional"],"valid":true}
+{"category":"-く verbs","source":"行きませう","term":"行く","rule":"v5","reasons":["-ます","volitional"],"valid":true}
+{"category":"-く verbs","source":"行きましょっか","term":"行く","rule":"v5","reasons":["-ます","volitional slang"],"valid":true}
+{"category":"-く verbs","source":"行こう","term":"行く","rule":"v5","reasons":["volitional"],"valid":true}
+{"category":"-く verbs","source":"行かう","term":"行く","rule":"v5","reasons":["volitional"],"valid":true}
+{"category":"-く verbs","source":"行こっか","term":"行く","rule":"v5","reasons":["volitional slang"],"valid":true}
+{"category":"-く verbs","source":"行くまい","term":"行く","rule":"v5","reasons":["-まい"],"valid":true}
+{"category":"-く verbs","source":"行かされる","term":"行く","rule":"v5","reasons":["short causative","passive"],"valid":true}
+{"category":"-く verbs","source":"行っておく","term":"行く","rule":"v5","reasons":["-て","-おく"],"valid":true}
+{"category":"-く verbs","source":"行いとく","term":"行く","rule":"v5","reasons":["-て","-おく"],"valid":true}
+{"category":"-く verbs","source":"行かないでおく","term":"行く","rule":"v5","reasons":["negative","-おく"],"valid":true}
+{"category":"-く verbs","source":"行かないどく","term":"行く","rule":"v5","reasons":["negative","-おく"],"valid":true}
+{"category":"-く verbs","source":"行っている","term":"行く","rule":"v5","reasons":["-て","-いる"],"valid":true}
+{"category":"-く verbs","source":"行ってゐる","term":"行く","rule":"v5","reasons":["-て","-いる"],"valid":true}
+{"category":"-く verbs","source":"行っておる","term":"行く","rule":"v5","reasons":["-て","-いる"],"valid":true}
+{"category":"-く verbs","source":"行ってる","term":"行く","rule":"v5","reasons":["-て","-いる"],"valid":true}
+{"category":"-く verbs","source":"行っとる","term":"行く","rule":"v5","reasons":["-て","-いる"],"valid":true}
+{"category":"-く verbs","source":"行ってしまう","term":"行く","rule":"v5","reasons":["-て","-しまう"],"valid":true}
+{"category":"-く verbs","source":"行きやがる","term":"行く","rule":"v5","reasons":["-やがる"],"valid":true}
+{"category":"-く verbs","source":"行きやがって","term":"行く","rule":"v5","reasons":["-やがる","-て"],"valid":true}
+{"category":"-く verbs","source":"行きやがった","term":"行く","rule":"v5","reasons":["-やがる","-た"],"valid":true}
+{"category":"-く verbs","source":"行きやがれ","term":"行く","rule":"v5","reasons":["-やがる","imperative"],"valid":true}
+{"category":"-く verbs","source":"行きやしない","term":"行く","rule":"v5","reasons":["-やしない"],"valid":true}
+{"category":"-く verbs","source":"行きやしません","term":"行く","rule":"v5","reasons":["-やしません"],"valid":true}
+{"category":"-く verbs","source":"行きますまい","term":"行く","rule":"v5","reasons":["-ます","-まい"],"valid":true}
+{"category":"-く verbs","source":"行きましたら","term":"行く","rule":"v5","reasons":["-ます","-たら"],"valid":true}
+{"category":"-く verbs","source":"行きますれば","term":"行く","rule":"v5","reasons":["-ます","-ば"],"valid":true}
+{"category":"-く verbs","source":"行きませんかった","term":"行く","rule":"v5","reasons":["-ます","negative","-た"],"valid":true}
+{"category":"-ぐ verbs","source":"泳ぐ","term":"泳ぐ","rule":"v5","reasons":[],"valid":true}
+{"category":"-ぐ verbs","source":"泳ぎます","term":"泳ぐ","rule":"v5","reasons":["-ます"],"valid":true}
+{"category":"-ぐ verbs","source":"泳いだ","term":"泳ぐ","rule":"v5","reasons":["-た"],"valid":true}
+{"category":"-ぐ verbs","source":"泳ぎました","term":"泳ぐ","rule":"v5","reasons":["-ます","-た"],"valid":true}
+{"category":"-ぐ verbs","source":"泳いで","term":"泳ぐ","rule":"v5","reasons":["-て"],"valid":true}
+{"category":"-ぐ verbs","source":"泳げる","term":"泳ぐ","rule":"v5","reasons":["potential"],"valid":true}
+{"category":"-ぐ verbs","source":"泳がれる","term":"泳ぐ","rule":"v5","reasons":["passive"],"valid":true}
+{"category":"-ぐ verbs","source":"泳がせる","term":"泳ぐ","rule":"v5","reasons":["causative"],"valid":true}
+{"category":"-ぐ verbs","source":"泳がす","term":"泳ぐ","rule":"v5","reasons":["short causative"],"valid":true}
+{"category":"-ぐ verbs","source":"泳がします","term":"泳ぐ","rule":"v5","reasons":["short causative","-ます"],"valid":true}
+{"category":"-ぐ verbs","source":"泳がせられる","term":"泳ぐ","rule":"v5","reasons":["causative","potential or passive"],"valid":true}
+{"category":"-ぐ verbs","source":"泳げ","term":"泳ぐ","rule":"v5","reasons":["imperative"],"valid":true}
+{"category":"-ぐ verbs","source":"泳がない","term":"泳ぐ","rule":"v5","reasons":["negative"],"valid":true}
+{"category":"-ぐ verbs","source":"泳ぎません","term":"泳ぐ","rule":"v5","reasons":["-ます","negative"],"valid":true}
+{"category":"-ぐ verbs","source":"泳がなかった","term":"泳ぐ","rule":"v5","reasons":["negative","-た"],"valid":true}
+{"category":"-ぐ verbs","source":"泳ぎませんでした","term":"泳ぐ","rule":"v5","reasons":["-ます","negative","-た"],"valid":true}
+{"category":"-ぐ verbs","source":"泳がなくて","term":"泳ぐ","rule":"v5","reasons":["negative","-て"],"valid":true}
+{"category":"-ぐ verbs","source":"泳げない","term":"泳ぐ","rule":"v5","reasons":["potential","negative"],"valid":true}
+{"category":"-ぐ verbs","source":"泳がれない","term":"泳ぐ","rule":"v5","reasons":["passive","negative"],"valid":true}
+{"category":"-ぐ verbs","source":"泳がせない","term":"泳ぐ","rule":"v5","reasons":["causative","negative"],"valid":true}
+{"category":"-ぐ verbs","source":"泳がさない","term":"泳ぐ","rule":"v5","reasons":["short causative","negative"],"valid":true}
+{"category":"-ぐ verbs","source":"泳がせられない","term":"泳ぐ","rule":"v5","reasons":["causative","potential or passive","negative"],"valid":true}
+{"category":"-ぐ verbs","source":"泳ぎまして","term":"泳ぐ","rule":"v5","reasons":["-ます","-て"],"valid":true}
+{"category":"-ぐ verbs","source":"泳げば","term":"泳ぐ","rule":"v5","reasons":["-ば"],"valid":true}
+{"category":"-ぐ verbs","source":"泳ぎゃ","term":"泳ぐ","rule":"v5","reasons":["-ば","-ゃ"],"valid":true}
+{"category":"-ぐ verbs","source":"泳いじゃ","term":"泳ぐ","rule":"v5","reasons":["-ちゃ"],"valid":true}
+{"category":"-ぐ verbs","source":"泳いじゃう","term":"泳ぐ","rule":"v5","reasons":["-ちゃう"],"valid":true}
+{"category":"-ぐ verbs","source":"泳いじまう","term":"泳ぐ","rule":"v5","reasons":["-ちまう"],"valid":true}
+{"category":"-ぐ verbs","source":"泳ぎなさい","term":"泳ぐ","rule":"v5","reasons":["-なさい"],"valid":true}
+{"category":"-ぐ verbs","source":"泳ぎそう","term":"泳ぐ","rule":"v5","reasons":["-そう"],"valid":true}
+{"category":"-ぐ verbs","source":"泳ぎさう","term":"泳ぐ","rule":"v5","reasons":["-そう"],"valid":true}
+{"category":"-ぐ verbs","source":"泳ぎすぎる","term":"泳ぐ","rule":"v5","reasons":["-すぎる"],"valid":true}
+{"category":"-ぐ verbs","source":"泳ぎ過ぎる","term":"泳ぐ","rule":"v5","reasons":["-過ぎる"],"valid":true}
+{"category":"-ぐ verbs","source":"泳ぎたい","term":"泳ぐ","rule":"v5","reasons":["-たい"],"valid":true}
+{"category":"-ぐ verbs","source":"泳ぎたがる","term":"泳ぐ","rule":"v5","reasons":["-たい","-がる"],"valid":true}
+{"category":"-ぐ verbs","source":"泳いだら","term":"泳ぐ","rule":"v5","reasons":["-たら"],"valid":true}
+{"category":"-ぐ verbs","source":"泳いだり","term":"泳ぐ","rule":"v5","reasons":["-たり"],"valid":true}
+{"category":"-ぐ verbs","source":"泳がず","term":"泳ぐ","rule":"v5","reasons":["-ず"],"valid":true}
+{"category":"-ぐ verbs","source":"泳がぬ","term":"泳ぐ","rule":"v5","reasons":["-ぬ"],"valid":true}
+{"category":"-ぐ verbs","source":"泳がん","term":"泳ぐ","rule":"v5","reasons":["-ん"],"valid":true}
+{"category":"-ぐ verbs","source":"泳がんかった","term":"泳ぐ","rule":"v5","reasons":["-ん","-た"],"valid":true}
+{"category":"-ぐ verbs","source":"泳がんばかり","term":"泳ぐ","rule":"v5","reasons":["-んばかり"],"valid":true}
+{"category":"-ぐ verbs","source":"泳がんとする","term":"泳ぐ","rule":"v5","reasons":["-んとする"],"valid":true}
+{"category":"-ぐ verbs","source":"泳がざる","term":"泳ぐ","rule":"v5","reasons":["-ざる"],"valid":true}
+{"category":"-ぐ verbs","source":"泳がねば","term":"泳ぐ","rule":"v5","reasons":["-ねば"],"valid":true}
+{"category":"-ぐ verbs","source":"泳がにゃ","term":"泳ぐ","rule":"v5","reasons":["-ねば","-ゃ"],"valid":true}
+{"category":"-ぐ verbs","source":"泳ぎ","term":"泳ぐ","rule":"v5","reasons":["continuative"],"valid":true}
+{"category":"-ぐ verbs","source":"泳ぎましょう","term":"泳ぐ","rule":"v5","reasons":["-ます","volitional"],"valid":true}
+{"category":"-ぐ verbs","source":"泳ぎませう","term":"泳ぐ","rule":"v5","reasons":["-ます","volitional"],"valid":true}
+{"category":"-ぐ verbs","source":"泳ぎましょっか","term":"泳ぐ","rule":"v5","reasons":["-ます","volitional slang"],"valid":true}
+{"category":"-ぐ verbs","source":"泳ごう","term":"泳ぐ","rule":"v5","reasons":["volitional"],"valid":true}
+{"category":"-ぐ verbs","source":"泳がう","term":"泳ぐ","rule":"v5","reasons":["volitional"],"valid":true}
+{"category":"-ぐ verbs","source":"泳ごっか","term":"泳ぐ","rule":"v5","reasons":["volitional slang"],"valid":true}
+{"category":"-ぐ verbs","source":"泳ぐまい","term":"泳ぐ","rule":"v5","reasons":["-まい"],"valid":true}
+{"category":"-ぐ verbs","source":"泳がされる","term":"泳ぐ","rule":"v5","reasons":["short causative","passive"],"valid":true}
+{"category":"-ぐ verbs","source":"泳いでおく","term":"泳ぐ","rule":"v5","reasons":["-て","-おく"],"valid":true}
+{"category":"-ぐ verbs","source":"泳いどく","term":"泳ぐ","rule":"v5","reasons":["-て","-おく"],"valid":true}
+{"category":"-ぐ verbs","source":"泳がないでおく","term":"泳ぐ","rule":"v5","reasons":["negative","-おく"],"valid":true}
+{"category":"-ぐ verbs","source":"泳がないどく","term":"泳ぐ","rule":"v5","reasons":["negative","-おく"],"valid":true}
+{"category":"-ぐ verbs","source":"泳いでいる","term":"泳ぐ","rule":"v5","reasons":["-て","-いる"],"valid":true}
+{"category":"-ぐ verbs","source":"泳いでゐる","term":"泳ぐ","rule":"v5","reasons":["-て","-いる"],"valid":true}
+{"category":"-ぐ verbs","source":"泳いでおる","term":"泳ぐ","rule":"v5","reasons":["-て","-いる"],"valid":true}
+{"category":"-ぐ verbs","source":"泳いでる","term":"泳ぐ","rule":"v5","reasons":["-て","-いる"],"valid":true}
+{"category":"-ぐ verbs","source":"泳いでしまう","term":"泳ぐ","rule":"v5","reasons":["-て","-しまう"],"valid":true}
+{"category":"-ぐ verbs","source":"泳ぎやがる","term":"泳ぐ","rule":"v5","reasons":["-やがる"],"valid":true}
+{"category":"-ぐ verbs","source":"泳ぎやがって","term":"泳ぐ","rule":"v5","reasons":["-やがる","-て"],"valid":true}
+{"category":"-ぐ verbs","source":"泳ぎやがった","term":"泳ぐ","rule":"v5","reasons":["-やがる","-た"],"valid":true}
+{"category":"-ぐ verbs","source":"泳ぎやがれ","term":"泳ぐ","rule":"v5","reasons":["-やがる","imperative"],"valid":true}
+{"category":"-ぐ verbs","source":"泳ぎやしない","term":"泳ぐ","rule":"v5","reasons":["-やしない"],"valid":true}
+{"category":"-ぐ verbs","source":"泳ぎやしません","term":"泳ぐ","rule":"v5","reasons":["-やしません"],"valid":true}
+{"category":"-ぐ verbs","source":"泳ぎますまい","term":"泳ぐ","rule":"v5","reasons":["-ます","-まい"],"valid":true}
+{"category":"-ぐ verbs","source":"泳ぎましたら","term":"泳ぐ","rule":"v5","reasons":["-ます","-たら"],"valid":true}
+{"category":"-ぐ verbs","source":"泳ぎますれば","term":"泳ぐ","rule":"v5","reasons":["-ます","-ば"],"valid":true}
+{"category":"-ぐ verbs","source":"泳ぎませんかった","term":"泳ぐ","rule":"v5","reasons":["-ます","negative","-た"],"valid":true}
+{"category":"-す verbs","source":"話す","term":"話す","rule":"v5","reasons":[],"valid":true}
+{"category":"-す verbs","source":"話します","term":"話す","rule":"v5","reasons":["-ます"],"valid":true}
+{"category":"-す verbs","source":"話した","term":"話す","rule":"v5","reasons":["-た"],"valid":true}
+{"category":"-す verbs","source":"話しました","term":"話す","rule":"v5","reasons":["-ます","-た"],"valid":true}
+{"category":"-す verbs","source":"話して","term":"話す","rule":"v5","reasons":["-て"],"valid":true}
+{"category":"-す verbs","source":"話せる","term":"話す","rule":"v5","reasons":["potential"],"valid":true}
+{"category":"-す verbs","source":"話される","term":"話す","rule":"v5","reasons":["passive"],"valid":true}
+{"category":"-す verbs","source":"話させる","term":"話す","rule":"v5","reasons":["causative"],"valid":true}
+{"category":"-す verbs","source":"話さす","term":"話す","rule":"v5","reasons":["short causative"],"valid":true}
+{"category":"-す verbs","source":"話さします","term":"話す","rule":"v5","reasons":["short causative","-ます"],"valid":true}
+{"category":"-す verbs","source":"話させられる","term":"話す","rule":"v5","reasons":["causative","potential or passive"],"valid":true}
+{"category":"-す verbs","source":"話せ","term":"話す","rule":"v5","reasons":["imperative"],"valid":true}
+{"category":"-す verbs","source":"話さない","term":"話す","rule":"v5","reasons":["negative"],"valid":true}
+{"category":"-す verbs","source":"話しません","term":"話す","rule":"v5","reasons":["-ます","negative"],"valid":true}
+{"category":"-す verbs","source":"話さなかった","term":"話す","rule":"v5","reasons":["negative","-た"],"valid":true}
+{"category":"-す verbs","source":"話しませんでした","term":"話す","rule":"v5","reasons":["-ます","negative","-た"],"valid":true}
+{"category":"-す verbs","source":"話さなくて","term":"話す","rule":"v5","reasons":["negative","-て"],"valid":true}
+{"category":"-す verbs","source":"話せない","term":"話す","rule":"v5","reasons":["potential","negative"],"valid":true}
+{"category":"-す verbs","source":"話されない","term":"話す","rule":"v5","reasons":["passive","negative"],"valid":true}
+{"category":"-す verbs","source":"話させない","term":"話す","rule":"v5","reasons":["causative","negative"],"valid":true}
+{"category":"-す verbs","source":"話ささない","term":"話す","rule":"v5","reasons":["short causative","negative"],"valid":true}
+{"category":"-す verbs","source":"話させられない","term":"話す","rule":"v5","reasons":["causative","potential or passive","negative"],"valid":true}
+{"category":"-す verbs","source":"話しまして","term":"話す","rule":"v5","reasons":["-ます","-て"],"valid":true}
+{"category":"-す verbs","source":"話せば","term":"話す","rule":"v5","reasons":["-ば"],"valid":true}
+{"category":"-す verbs","source":"話しゃ","term":"話す","rule":"v5","reasons":["-ば","-ゃ"],"valid":true}
+{"category":"-す verbs","source":"話しちゃ","term":"話す","rule":"v5","reasons":["-ちゃ"],"valid":true}
+{"category":"-す verbs","source":"話しちゃう","term":"話す","rule":"v5","reasons":["-ちゃう"],"valid":true}
+{"category":"-す verbs","source":"話しちまう","term":"話す","rule":"v5","reasons":["-ちまう"],"valid":true}
+{"category":"-す verbs","source":"話しなさい","term":"話す","rule":"v5","reasons":["-なさい"],"valid":true}
+{"category":"-す verbs","source":"話しそう","term":"話す","rule":"v5","reasons":["-そう"],"valid":true}
+{"category":"-す verbs","source":"話しさう","term":"話す","rule":"v5","reasons":["-そう"],"valid":true}
+{"category":"-す verbs","source":"話しすぎる","term":"話す","rule":"v5","reasons":["-すぎる"],"valid":true}
+{"category":"-す verbs","source":"話し過ぎる","term":"話す","rule":"v5","reasons":["-過ぎる"],"valid":true}
+{"category":"-す verbs","source":"話したい","term":"話す","rule":"v5","reasons":["-たい"],"valid":true}
+{"category":"-す verbs","source":"話したがる","term":"話す","rule":"v5","reasons":["-たい","-がる"],"valid":true}
+{"category":"-す verbs","source":"話したら","term":"話す","rule":"v5","reasons":["-たら"],"valid":true}
+{"category":"-す verbs","source":"話したり","term":"話す","rule":"v5","reasons":["-たり"],"valid":true}
+{"category":"-す verbs","source":"話さず","term":"話す","rule":"v5","reasons":["-ず"],"valid":true}
+{"category":"-す verbs","source":"話さぬ","term":"話す","rule":"v5","reasons":["-ぬ"],"valid":true}
+{"category":"-す verbs","source":"話さん","term":"話す","rule":"v5","reasons":["-ん"],"valid":true}
+{"category":"-す verbs","source":"話さんかった","term":"話す","rule":"v5","reasons":["-ん","-た"],"valid":true}
+{"category":"-す verbs","source":"話さんばかり","term":"話す","rule":"v5","reasons":["-んばかり"],"valid":true}
+{"category":"-す verbs","source":"話さんとする","term":"話す","rule":"v5","reasons":["-んとする"],"valid":true}
+{"category":"-す verbs","source":"話さざる","term":"話す","rule":"v5","reasons":["-ざる"],"valid":true}
+{"category":"-す verbs","source":"話さねば","term":"話す","rule":"v5","reasons":["-ねば"],"valid":true}
+{"category":"-す verbs","source":"話さにゃ","term":"話す","rule":"v5","reasons":["-ねば","-ゃ"],"valid":true}
+{"category":"-す verbs","source":"話し","term":"話す","rule":"v5","reasons":["continuative"],"valid":true}
+{"category":"-す verbs","source":"話しましょう","term":"話す","rule":"v5","reasons":["-ます","volitional"],"valid":true}
+{"category":"-す verbs","source":"話しませう","term":"話す","rule":"v5","reasons":["-ます","volitional"],"valid":true}
+{"category":"-す verbs","source":"話しましょっか","term":"話す","rule":"v5","reasons":["-ます","volitional slang"],"valid":true}
+{"category":"-す verbs","source":"話そう","term":"話す","rule":"v5","reasons":["volitional"],"valid":true}
+{"category":"-す verbs","source":"話さう","term":"話す","rule":"v5","reasons":["volitional"],"valid":true}
+{"category":"-す verbs","source":"話そっか","term":"話す","rule":"v5","reasons":["volitional slang"],"valid":true}
+{"category":"-す verbs","source":"話すまい","term":"話す","rule":"v5","reasons":["-まい"],"valid":true}
+{"category":"-す verbs","source":"話しておく","term":"話す","rule":"v5","reasons":["-て","-おく"],"valid":true}
+{"category":"-す verbs","source":"話しとく","term":"話す","rule":"v5","reasons":["-て","-おく"],"valid":true}
+{"category":"-す verbs","source":"話さないでおく","term":"話す","rule":"v5","reasons":["negative","-おく"],"valid":true}
+{"category":"-す verbs","source":"話さないどく","term":"話す","rule":"v5","reasons":["negative","-おく"],"valid":true}
+{"category":"-す verbs","source":"話している","term":"話す","rule":"v5","reasons":["-て","-いる"],"valid":true}
+{"category":"-す verbs","source":"話してゐる","term":"話す","rule":"v5","reasons":["-て","-いる"],"valid":true}
+{"category":"-す verbs","source":"話しておる","term":"話す","rule":"v5","reasons":["-て","-いる"],"valid":true}
+{"category":"-す verbs","source":"話してる","term":"話す","rule":"v5","reasons":["-て","-いる"],"valid":true}
+{"category":"-す verbs","source":"話しとる","term":"話す","rule":"v5","reasons":["-て","-いる"],"valid":true}
+{"category":"-す verbs","source":"話してしまう","term":"話す","rule":"v5","reasons":["-て","-しまう"],"valid":true}
+{"category":"-す verbs","source":"話しやがる","term":"話す","rule":"v5","reasons":["-やがる"],"valid":true}
+{"category":"-す verbs","source":"話しやがって","term":"話す","rule":"v5","reasons":["-やがる","-て"],"valid":true}
+{"category":"-す verbs","source":"話しやがった","term":"話す","rule":"v5","reasons":["-やがる","-た"],"valid":true}
+{"category":"-す verbs","source":"話しやがれ","term":"話す","rule":"v5","reasons":["-やがる","imperative"],"valid":true}
+{"category":"-す verbs","source":"話しやしない","term":"話す","rule":"v5","reasons":["-やしない"],"valid":true}
+{"category":"-す verbs","source":"話しやしません","term":"話す","rule":"v5","reasons":["-やしません"],"valid":true}
+{"category":"-す verbs","source":"増せん","term":"増す","rule":"v5","reasons":["potential","-ん"],"valid":true}
+{"category":"-す verbs","source":"増せんかった","term":"増す","rule":"v5","reasons":["potential","-ん","-た"],"valid":true}
+{"category":"-す verbs","source":"増せんばかり","term":"増す","rule":"v5","reasons":["potential","-んばかり"],"valid":true}
+{"category":"-す verbs","source":"増せんとする","term":"増す","rule":"v5","reasons":["potential","-んとする"],"valid":true}
+{"category":"-す verbs","source":"話しますまい","term":"話す","rule":"v5","reasons":["-ます","-まい"],"valid":true}
+{"category":"-す verbs","source":"話しましたら","term":"話す","rule":"v5","reasons":["-ます","-たら"],"valid":true}
+{"category":"-す verbs","source":"話しますれば","term":"話す","rule":"v5","reasons":["-ます","-ば"],"valid":true}
+{"category":"-す verbs","source":"話しませんかった","term":"話す","rule":"v5","reasons":["-ます","negative","-た"],"valid":true}
+{"category":"-つ verbs","source":"待つ","term":"待つ","rule":"v5","reasons":[],"valid":true}
+{"category":"-つ verbs","source":"待ちます","term":"待つ","rule":"v5","reasons":["-ます"],"valid":true}
+{"category":"-つ verbs","source":"待った","term":"待つ","rule":"v5","reasons":["-た"],"valid":true}
+{"category":"-つ verbs","source":"待ちました","term":"待つ","rule":"v5","reasons":["-ます","-た"],"valid":true}
+{"category":"-つ verbs","source":"待って","term":"待つ","rule":"v5","reasons":["-て"],"valid":true}
+{"category":"-つ verbs","source":"待てる","term":"待つ","rule":"v5","reasons":["potential"],"valid":true}
+{"category":"-つ verbs","source":"待たれる","term":"待つ","rule":"v5","reasons":["passive"],"valid":true}
+{"category":"-つ verbs","source":"待たせる","term":"待つ","rule":"v5","reasons":["causative"],"valid":true}
+{"category":"-つ verbs","source":"待たす","term":"待つ","rule":"v5","reasons":["short causative"],"valid":true}
+{"category":"-つ verbs","source":"待たします","term":"待つ","rule":"v5","reasons":["short causative","-ます"],"valid":true}
+{"category":"-つ verbs","source":"待たせられる","term":"待つ","rule":"v5","reasons":["causative","potential or passive"],"valid":true}
+{"category":"-つ verbs","source":"待て","term":"待つ","rule":"v5","reasons":["imperative"],"valid":true}
+{"category":"-つ verbs","source":"待たない","term":"待つ","rule":"v5","reasons":["negative"],"valid":true}
+{"category":"-つ verbs","source":"待ちません","term":"待つ","rule":"v5","reasons":["-ます","negative"],"valid":true}
+{"category":"-つ verbs","source":"待たなかった","term":"待つ","rule":"v5","reasons":["negative","-た"],"valid":true}
+{"category":"-つ verbs","source":"待ちませんでした","term":"待つ","rule":"v5","reasons":["-ます","negative","-た"],"valid":true}
+{"category":"-つ verbs","source":"待たなくて","term":"待つ","rule":"v5","reasons":["negative","-て"],"valid":true}
+{"category":"-つ verbs","source":"待てない","term":"待つ","rule":"v5","reasons":["potential","negative"],"valid":true}
+{"category":"-つ verbs","source":"待たれない","term":"待つ","rule":"v5","reasons":["passive","negative"],"valid":true}
+{"category":"-つ verbs","source":"待たせない","term":"待つ","rule":"v5","reasons":["causative","negative"],"valid":true}
+{"category":"-つ verbs","source":"待たさない","term":"待つ","rule":"v5","reasons":["short causative","negative"],"valid":true}
+{"category":"-つ verbs","source":"待たせられない","term":"待つ","rule":"v5","reasons":["causative","potential or passive","negative"],"valid":true}
+{"category":"-つ verbs","source":"待ちまして","term":"待つ","rule":"v5","reasons":["-ます","-て"],"valid":true}
+{"category":"-つ verbs","source":"待てば","term":"待つ","rule":"v5","reasons":["-ば"],"valid":true}
+{"category":"-つ verbs","source":"待ちゃ","term":"待つ","rule":"v5","reasons":["-ば","-ゃ"],"valid":true}
+{"category":"-つ verbs","source":"待っちゃ","term":"待つ","rule":"v5","reasons":["-ちゃ"],"valid":true}
+{"category":"-つ verbs","source":"待っちゃう","term":"待つ","rule":"v5","reasons":["-ちゃう"],"valid":true}
+{"category":"-つ verbs","source":"待っちまう","term":"待つ","rule":"v5","reasons":["-ちまう"],"valid":true}
+{"category":"-つ verbs","source":"待ちなさい","term":"待つ","rule":"v5","reasons":["-なさい"],"valid":true}
+{"category":"-つ verbs","source":"待ちそう","term":"待つ","rule":"v5","reasons":["-そう"],"valid":true}
+{"category":"-つ verbs","source":"待ちさう","term":"待つ","rule":"v5","reasons":["-そう"],"valid":true}
+{"category":"-つ verbs","source":"待ちすぎる","term":"待つ","rule":"v5","reasons":["-すぎる"],"valid":true}
+{"category":"-つ verbs","source":"待ち過ぎる","term":"待つ","rule":"v5","reasons":["-過ぎる"],"valid":true}
+{"category":"-つ verbs","source":"待ちたい","term":"待つ","rule":"v5","reasons":["-たい"],"valid":true}
+{"category":"-つ verbs","source":"待ちたがる","term":"待つ","rule":"v5","reasons":["-たい","-がる"],"valid":true}
+{"category":"-つ verbs","source":"待ったら","term":"待つ","rule":"v5","reasons":["-たら"],"valid":true}
+{"category":"-つ verbs","source":"待ったり","term":"待つ","rule":"v5","reasons":["-たり"],"valid":true}
+{"category":"-つ verbs","source":"待たず","term":"待つ","rule":"v5","reasons":["-ず"],"valid":true}
+{"category":"-つ verbs","source":"待たぬ","term":"待つ","rule":"v5","reasons":["-ぬ"],"valid":true}
+{"category":"-つ verbs","source":"待たん","term":"待つ","rule":"v5","reasons":["-ん"],"valid":true}
+{"category":"-つ verbs","source":"待たんかった","term":"待つ","rule":"v5","reasons":["-ん","-た"],"valid":true}
+{"category":"-つ verbs","source":"待たんばかり","term":"待つ","rule":"v5","reasons":["-んばかり"],"valid":true}
+{"category":"-つ verbs","source":"待たんとする","term":"待つ","rule":"v5","reasons":["-んとする"],"valid":true}
+{"category":"-つ verbs","source":"待たざる","term":"待つ","rule":"v5","reasons":["-ざる"],"valid":true}
+{"category":"-つ verbs","source":"待たねば","term":"待つ","rule":"v5","reasons":["-ねば"],"valid":true}
+{"category":"-つ verbs","source":"待たにゃ","term":"待つ","rule":"v5","reasons":["-ねば","-ゃ"],"valid":true}
+{"category":"-つ verbs","source":"待ち","term":"待つ","rule":"v5","reasons":["continuative"],"valid":true}
+{"category":"-つ verbs","source":"待ちましょう","term":"待つ","rule":"v5","reasons":["-ます","volitional"],"valid":true}
+{"category":"-つ verbs","source":"待ちませう","term":"待つ","rule":"v5","reasons":["-ます","volitional"],"valid":true}
+{"category":"-つ verbs","source":"待ちましょっか","term":"待つ","rule":"v5","reasons":["-ます","volitional slang"],"valid":true}
+{"category":"-つ verbs","source":"待とう","term":"待つ","rule":"v5","reasons":["volitional"],"valid":true}
+{"category":"-つ verbs","source":"待たう","term":"待つ","rule":"v5","reasons":["volitional"],"valid":true}
+{"category":"-つ verbs","source":"待とっか","term":"待つ","rule":"v5","reasons":["volitional slang"],"valid":true}
+{"category":"-つ verbs","source":"待つまい","term":"待つ","rule":"v5","reasons":["-まい"],"valid":true}
+{"category":"-つ verbs","source":"待たされる","term":"待つ","rule":"v5","reasons":["short causative","passive"],"valid":true}
+{"category":"-つ verbs","source":"待っておく","term":"待つ","rule":"v5","reasons":["-て","-おく"],"valid":true}
+{"category":"-つ verbs","source":"待っとく","term":"待つ","rule":"v5","reasons":["-て","-おく"],"valid":true}
+{"category":"-つ verbs","source":"待たないでおく","term":"待つ","rule":"v5","reasons":["negative","-おく"],"valid":true}
+{"category":"-つ verbs","source":"待たないどく","term":"待つ","rule":"v5","reasons":["negative","-おく"],"valid":true}
+{"category":"-つ verbs","source":"待っている","term":"待つ","rule":"v5","reasons":["-て","-いる"],"valid":true}
+{"category":"-つ verbs","source":"待ってゐる","term":"待つ","rule":"v5","reasons":["-て","-いる"],"valid":true}
+{"category":"-つ verbs","source":"待っておる","term":"待つ","rule":"v5","reasons":["-て","-いる"],"valid":true}
+{"category":"-つ verbs","source":"待ってる","term":"待つ","rule":"v5","reasons":["-て","-いる"],"valid":true}
+{"category":"-つ verbs","source":"待っとる","term":"待つ","rule":"v5","reasons":["-て","-いる"],"valid":true}
+{"category":"-つ verbs","source":"待ってしまう","term":"待つ","rule":"v5","reasons":["-て","-しまう"],"valid":true}
+{"category":"-つ verbs","source":"待ちやがる","term":"待つ","rule":"v5","reasons":["-やがる"],"valid":true}
+{"category":"-つ verbs","source":"待ちやがって","term":"待つ","rule":"v5","reasons":["-やがる","-て"],"valid":true}
+{"category":"-つ verbs","source":"待ちやがった","term":"待つ","rule":"v5","reasons":["-やがる","-た"],"valid":true}
+{"category":"-つ verbs","source":"待ちやがれ","term":"待つ","rule":"v5","reasons":["-やがる","imperative"],"valid":true}
+{"category":"-つ verbs","source":"待ちやしない","term":"待つ","rule":"v5","reasons":["-やしない"],"valid":true}
+{"category":"-つ verbs","source":"待ちやしません","term":"待つ","rule":"v5","reasons":["-やしません"],"valid":true}
+{"category":"-つ verbs","source":"待ちますまい","term":"待つ","rule":"v5","reasons":["-ます","-まい"],"valid":true}
+{"category":"-つ verbs","source":"待ちましたら","term":"待つ","rule":"v5","reasons":["-ます","-たら"],"valid":true}
+{"category":"-つ verbs","source":"待ちますれば","term":"待つ","rule":"v5","reasons":["-ます","-ば"],"valid":true}
+{"category":"-つ verbs","source":"待ちませんかった","term":"待つ","rule":"v5","reasons":["-ます","negative","-た"],"valid":true}
+{"category":"-ぬ verbs","source":"死ぬ","term":"死ぬ","rule":"v5","reasons":[],"valid":true}
+{"category":"-ぬ verbs","source":"死にます","term":"死ぬ","rule":"v5","reasons":["-ます"],"valid":true}
+{"category":"-ぬ verbs","source":"死んだ","term":"死ぬ","rule":"v5","reasons":["-た"],"valid":true}
+{"category":"-ぬ verbs","source":"死にました","term":"死ぬ","rule":"v5","reasons":["-ます","-た"],"valid":true}
+{"category":"-ぬ verbs","source":"死んで","term":"死ぬ","rule":"v5","reasons":["-て"],"valid":true}
+{"category":"-ぬ verbs","source":"死ねる","term":"死ぬ","rule":"v5","reasons":["potential"],"valid":true}
+{"category":"-ぬ verbs","source":"死なれる","term":"死ぬ","rule":"v5","reasons":["passive"],"valid":true}
+{"category":"-ぬ verbs","source":"死なせる","term":"死ぬ","rule":"v5","reasons":["causative"],"valid":true}
+{"category":"-ぬ verbs","source":"死なす","term":"死ぬ","rule":"v5","reasons":["short causative"],"valid":true}
+{"category":"-ぬ verbs","source":"死なします","term":"死ぬ","rule":"v5","reasons":["short causative","-ます"],"valid":true}
+{"category":"-ぬ verbs","source":"死なせられる","term":"死ぬ","rule":"v5","reasons":["causative","potential or passive"],"valid":true}
+{"category":"-ぬ verbs","source":"死ね","term":"死ぬ","rule":"v5","reasons":["imperative"],"valid":true}
+{"category":"-ぬ verbs","source":"死なない","term":"死ぬ","rule":"v5","reasons":["negative"],"valid":true}
+{"category":"-ぬ verbs","source":"死にません","term":"死ぬ","rule":"v5","reasons":["-ます","negative"],"valid":true}
+{"category":"-ぬ verbs","source":"死ななかった","term":"死ぬ","rule":"v5","reasons":["negative","-た"],"valid":true}
+{"category":"-ぬ verbs","source":"死にませんでした","term":"死ぬ","rule":"v5","reasons":["-ます","negative","-た"],"valid":true}
+{"category":"-ぬ verbs","source":"死ななくて","term":"死ぬ","rule":"v5","reasons":["negative","-て"],"valid":true}
+{"category":"-ぬ verbs","source":"死ねない","term":"死ぬ","rule":"v5","reasons":["potential","negative"],"valid":true}
+{"category":"-ぬ verbs","source":"死なれない","term":"死ぬ","rule":"v5","reasons":["passive","negative"],"valid":true}
+{"category":"-ぬ verbs","source":"死なせない","term":"死ぬ","rule":"v5","reasons":["causative","negative"],"valid":true}
+{"category":"-ぬ verbs","source":"死なさない","term":"死ぬ","rule":"v5","reasons":["short causative","negative"],"valid":true}
+{"category":"-ぬ verbs","source":"死なせられない","term":"死ぬ","rule":"v5","reasons":["causative","potential or passive","negative"],"valid":true}
+{"category":"-ぬ verbs","source":"死にまして","term":"死ぬ","rule":"v5","reasons":["-ます","-て"],"valid":true}
+{"category":"-ぬ verbs","source":"死ねば","term":"死ぬ","rule":"v5","reasons":["-ば"],"valid":true}
+{"category":"-ぬ verbs","source":"死にゃ","term":"死ぬ","rule":"v5","reasons":["-ば","-ゃ"],"valid":true}
+{"category":"-ぬ verbs","source":"死んじゃ","term":"死ぬ","rule":"v5","reasons":["-ちゃ"],"valid":true}
+{"category":"-ぬ verbs","source":"死んじゃう","term":"死ぬ","rule":"v5","reasons":["-ちゃう"],"valid":true}
+{"category":"-ぬ verbs","source":"死んじまう","term":"死ぬ","rule":"v5","reasons":["-ちまう"],"valid":true}
+{"category":"-ぬ verbs","source":"死になさい","term":"死ぬ","rule":"v5","reasons":["-なさい"],"valid":true}
+{"category":"-ぬ verbs","source":"死にそう","term":"死ぬ","rule":"v5","reasons":["-そう"],"valid":true}
+{"category":"-ぬ verbs","source":"死にさう","term":"死ぬ","rule":"v5","reasons":["-そう"],"valid":true}
+{"category":"-ぬ verbs","source":"死にすぎる","term":"死ぬ","rule":"v5","reasons":["-すぎる"],"valid":true}
+{"category":"-ぬ verbs","source":"死に過ぎる","term":"死ぬ","rule":"v5","reasons":["-過ぎる"],"valid":true}
+{"category":"-ぬ verbs","source":"死にたい","term":"死ぬ","rule":"v5","reasons":["-たい"],"valid":true}
+{"category":"-ぬ verbs","source":"死にたがる","term":"死ぬ","rule":"v5","reasons":["-たい","-がる"],"valid":true}
+{"category":"-ぬ verbs","source":"死んだら","term":"死ぬ","rule":"v5","reasons":["-たら"],"valid":true}
+{"category":"-ぬ verbs","source":"死んだり","term":"死ぬ","rule":"v5","reasons":["-たり"],"valid":true}
+{"category":"-ぬ verbs","source":"死なず","term":"死ぬ","rule":"v5","reasons":["-ず"],"valid":true}
+{"category":"-ぬ verbs","source":"死なぬ","term":"死ぬ","rule":"v5","reasons":["-ぬ"],"valid":true}
+{"category":"-ぬ verbs","source":"死なん","term":"死ぬ","rule":"v5","reasons":["-ん"],"valid":true}
+{"category":"-ぬ verbs","source":"死なんかった","term":"死ぬ","rule":"v5","reasons":["-ん","-た"],"valid":true}
+{"category":"-ぬ verbs","source":"死なんばかり","term":"死ぬ","rule":"v5","reasons":["-んばかり"],"valid":true}
+{"category":"-ぬ verbs","source":"死なんとする","term":"死ぬ","rule":"v5","reasons":["-んとする"],"valid":true}
+{"category":"-ぬ verbs","source":"死なざる","term":"死ぬ","rule":"v5","reasons":["-ざる"],"valid":true}
+{"category":"-ぬ verbs","source":"死なねば","term":"死ぬ","rule":"v5","reasons":["-ねば"],"valid":true}
+{"category":"-ぬ verbs","source":"死なにゃ","term":"死ぬ","rule":"v5","reasons":["-ねば","-ゃ"],"valid":true}
+{"category":"-ぬ verbs","source":"死に","term":"死ぬ","rule":"v5","reasons":["continuative"],"valid":true}
+{"category":"-ぬ verbs","source":"死にましょう","term":"死ぬ","rule":"v5","reasons":["-ます","volitional"],"valid":true}
+{"category":"-ぬ verbs","source":"死にませう","term":"死ぬ","rule":"v5","reasons":["-ます","volitional"],"valid":true}
+{"category":"-ぬ verbs","source":"死にましょっか","term":"死ぬ","rule":"v5","reasons":["-ます","volitional slang"],"valid":true}
+{"category":"-ぬ verbs","source":"死のう","term":"死ぬ","rule":"v5","reasons":["volitional"],"valid":true}
+{"category":"-ぬ verbs","source":"死なう","term":"死ぬ","rule":"v5","reasons":["volitional"],"valid":true}
+{"category":"-ぬ verbs","source":"死のっか","term":"死ぬ","rule":"v5","reasons":["volitional slang"],"valid":true}
+{"category":"-ぬ verbs","source":"死ぬまい","term":"死ぬ","rule":"v5","reasons":["-まい"],"valid":true}
+{"category":"-ぬ verbs","source":"死なされる","term":"死ぬ","rule":"v5","reasons":["short causative","passive"],"valid":true}
+{"category":"-ぬ verbs","source":"死んでおく","term":"死ぬ","rule":"v5","reasons":["-て","-おく"],"valid":true}
+{"category":"-ぬ verbs","source":"死んどく","term":"死ぬ","rule":"v5","reasons":["-て","-おく"],"valid":true}
+{"category":"-ぬ verbs","source":"死なないでおく","term":"死ぬ","rule":"v5","reasons":["negative","-おく"],"valid":true}
+{"category":"-ぬ verbs","source":"死なないどく","term":"死ぬ","rule":"v5","reasons":["negative","-おく"],"valid":true}
+{"category":"-ぬ verbs","source":"死んでいる","term":"死ぬ","rule":"v5","reasons":["-て","-いる"],"valid":true}
+{"category":"-ぬ verbs","source":"死んでゐる","term":"死ぬ","rule":"v5","reasons":["-て","-いる"],"valid":true}
+{"category":"-ぬ verbs","source":"死んでおる","term":"死ぬ","rule":"v5","reasons":["-て","-いる"],"valid":true}
+{"category":"-ぬ verbs","source":"死んでる","term":"死ぬ","rule":"v5","reasons":["-て","-いる"],"valid":true}
+{"category":"-ぬ verbs","source":"死んでしまう","term":"死ぬ","rule":"v5","reasons":["-て","-しまう"],"valid":true}
+{"category":"-ぬ verbs","source":"死にやがる","term":"死ぬ","rule":"v5","reasons":["-やがる"],"valid":true}
+{"category":"-ぬ verbs","source":"死にやがって","term":"死ぬ","rule":"v5","reasons":["-やがる","-て"],"valid":true}
+{"category":"-ぬ verbs","source":"死にやがった","term":"死ぬ","rule":"v5","reasons":["-やがる","-た"],"valid":true}
+{"category":"-ぬ verbs","source":"死にやがれ","term":"死ぬ","rule":"v5","reasons":["-やがる","imperative"],"valid":true}
+{"category":"-ぬ verbs","source":"死にやしない","term":"死ぬ","rule":"v5","reasons":["-やしない"],"valid":true}
+{"category":"-ぬ verbs","source":"死にやしません","term":"死ぬ","rule":"v5","reasons":["-やしません"],"valid":true}
+{"category":"-ぬ verbs","source":"死にますまい","term":"死ぬ","rule":"v5","reasons":["-ます","-まい"],"valid":true}
+{"category":"-ぬ verbs","source":"死にましたら","term":"死ぬ","rule":"v5","reasons":["-ます","-たら"],"valid":true}
+{"category":"-ぬ verbs","source":"死にますれば","term":"死ぬ","rule":"v5","reasons":["-ます","-ば"],"valid":true}
+{"category":"-ぬ verbs","source":"死にませんかった","term":"死ぬ","rule":"v5","reasons":["-ます","negative","-た"],"valid":true}
+{"category":"-ぶ verbs","source":"遊ぶ","term":"遊ぶ","rule":"v5","reasons":[],"valid":true}
+{"category":"-ぶ verbs","source":"遊びます","term":"遊ぶ","rule":"v5","reasons":["-ます"],"valid":true}
+{"category":"-ぶ verbs","source":"遊んだ","term":"遊ぶ","rule":"v5","reasons":["-た"],"valid":true}
+{"category":"-ぶ verbs","source":"遊びました","term":"遊ぶ","rule":"v5","reasons":["-ます","-た"],"valid":true}
+{"category":"-ぶ verbs","source":"遊んで","term":"遊ぶ","rule":"v5","reasons":["-て"],"valid":true}
+{"category":"-ぶ verbs","source":"遊べる","term":"遊ぶ","rule":"v5","reasons":["potential"],"valid":true}
+{"category":"-ぶ verbs","source":"遊ばれる","term":"遊ぶ","rule":"v5","reasons":["passive"],"valid":true}
+{"category":"-ぶ verbs","source":"遊ばせる","term":"遊ぶ","rule":"v5","reasons":["causative"],"valid":true}
+{"category":"-ぶ verbs","source":"遊ばす","term":"遊ぶ","rule":"v5","reasons":["short causative"],"valid":true}
+{"category":"-ぶ verbs","source":"遊ばします","term":"遊ぶ","rule":"v5","reasons":["short causative","-ます"],"valid":true}
+{"category":"-ぶ verbs","source":"遊ばせられる","term":"遊ぶ","rule":"v5","reasons":["causative","potential or passive"],"valid":true}
+{"category":"-ぶ verbs","source":"遊べ","term":"遊ぶ","rule":"v5","reasons":["imperative"],"valid":true}
+{"category":"-ぶ verbs","source":"遊ばない","term":"遊ぶ","rule":"v5","reasons":["negative"],"valid":true}
+{"category":"-ぶ verbs","source":"遊びません","term":"遊ぶ","rule":"v5","reasons":["-ます","negative"],"valid":true}
+{"category":"-ぶ verbs","source":"遊ばなかった","term":"遊ぶ","rule":"v5","reasons":["negative","-た"],"valid":true}
+{"category":"-ぶ verbs","source":"遊びませんでした","term":"遊ぶ","rule":"v5","reasons":["-ます","negative","-た"],"valid":true}
+{"category":"-ぶ verbs","source":"遊ばなくて","term":"遊ぶ","rule":"v5","reasons":["negative","-て"],"valid":true}
+{"category":"-ぶ verbs","source":"遊べない","term":"遊ぶ","rule":"v5","reasons":["potential","negative"],"valid":true}
+{"category":"-ぶ verbs","source":"遊ばれない","term":"遊ぶ","rule":"v5","reasons":["passive","negative"],"valid":true}
+{"category":"-ぶ verbs","source":"遊ばせない","term":"遊ぶ","rule":"v5","reasons":["causative","negative"],"valid":true}
+{"category":"-ぶ verbs","source":"遊ばさない","term":"遊ぶ","rule":"v5","reasons":["short causative","negative"],"valid":true}
+{"category":"-ぶ verbs","source":"遊ばせられない","term":"遊ぶ","rule":"v5","reasons":["causative","potential or passive","negative"],"valid":true}
+{"category":"-ぶ verbs","source":"遊びまして","term":"遊ぶ","rule":"v5","reasons":["-ます","-て"],"valid":true}
+{"category":"-ぶ verbs","source":"遊べば","term":"遊ぶ","rule":"v5","reasons":["-ば"],"valid":true}
+{"category":"-ぶ verbs","source":"遊びゃ","term":"遊ぶ","rule":"v5","reasons":["-ば","-ゃ"],"valid":true}
+{"category":"-ぶ verbs","source":"遊んじゃ","term":"遊ぶ","rule":"v5","reasons":["-ちゃ"],"valid":true}
+{"category":"-ぶ verbs","source":"遊んじゃう","term":"遊ぶ","rule":"v5","reasons":["-ちゃう"],"valid":true}
+{"category":"-ぶ verbs","source":"遊んじまう","term":"遊ぶ","rule":"v5","reasons":["-ちまう"],"valid":true}
+{"category":"-ぶ verbs","source":"遊びなさい","term":"遊ぶ","rule":"v5","reasons":["-なさい"],"valid":true}
+{"category":"-ぶ verbs","source":"遊びそう","term":"遊ぶ","rule":"v5","reasons":["-そう"],"valid":true}
+{"category":"-ぶ verbs","source":"遊びさう","term":"遊ぶ","rule":"v5","reasons":["-そう"],"valid":true}
+{"category":"-ぶ verbs","source":"遊びすぎる","term":"遊ぶ","rule":"v5","reasons":["-すぎる"],"valid":true}
+{"category":"-ぶ verbs","source":"遊び過ぎる","term":"遊ぶ","rule":"v5","reasons":["-過ぎる"],"valid":true}
+{"category":"-ぶ verbs","source":"遊びたい","term":"遊ぶ","rule":"v5","reasons":["-たい"],"valid":true}
+{"category":"-ぶ verbs","source":"遊びたがる","term":"遊ぶ","rule":"v5","reasons":["-たい","-がる"],"valid":true}
+{"category":"-ぶ verbs","source":"遊んだら","term":"遊ぶ","rule":"v5","reasons":["-たら"],"valid":true}
+{"category":"-ぶ verbs","source":"遊んだり","term":"遊ぶ","rule":"v5","reasons":["-たり"],"valid":true}
+{"category":"-ぶ verbs","source":"遊ばず","term":"遊ぶ","rule":"v5","reasons":["-ず"],"valid":true}
+{"category":"-ぶ verbs","source":"遊ばぬ","term":"遊ぶ","rule":"v5","reasons":["-ぬ"],"valid":true}
+{"category":"-ぶ verbs","source":"遊ばん","term":"遊ぶ","rule":"v5","reasons":["-ん"],"valid":true}
+{"category":"-ぶ verbs","source":"遊ばんかった","term":"遊ぶ","rule":"v5","reasons":["-ん","-た"],"valid":true}
+{"category":"-ぶ verbs","source":"遊ばんばかり","term":"遊ぶ","rule":"v5","reasons":["-んばかり"],"valid":true}
+{"category":"-ぶ verbs","source":"遊ばんとする","term":"遊ぶ","rule":"v5","reasons":["-んとする"],"valid":true}
+{"category":"-ぶ verbs","source":"遊ばざる","term":"遊ぶ","rule":"v5","reasons":["-ざる"],"valid":true}
+{"category":"-ぶ verbs","source":"遊ばねば","term":"遊ぶ","rule":"v5","reasons":["-ねば"],"valid":true}
+{"category":"-ぶ verbs","source":"遊ばにゃ","term":"遊ぶ","rule":"v5","reasons":["-ねば","-ゃ"],"valid":true}
+{"category":"-ぶ verbs","source":"遊び","term":"遊ぶ","rule":"v5","reasons":["continuative"],"valid":true}
+{"category":"-ぶ verbs","source":"遊びましょう","term":"遊ぶ","rule":"v5","reasons":["-ます","volitional"],"valid":true}
+{"category":"-ぶ verbs","source":"遊びませう","term":"遊ぶ","rule":"v5","reasons":["-ます","volitional"],"valid":true}
+{"category":"-ぶ verbs","source":"遊びましょっか","term":"遊ぶ","rule":"v5","reasons":["-ます","volitional slang"],"valid":true}
+{"category":"-ぶ verbs","source":"遊ぼう","term":"遊ぶ","rule":"v5","reasons":["volitional"],"valid":true}
+{"category":"-ぶ verbs","source":"遊ばう","term":"遊ぶ","rule":"v5","reasons":["volitional"],"valid":true}
+{"category":"-ぶ verbs","source":"遊ぼっか","term":"遊ぶ","rule":"v5","reasons":["volitional slang"],"valid":true}
+{"category":"-ぶ verbs","source":"遊ぶまい","term":"遊ぶ","rule":"v5","reasons":["-まい"],"valid":true}
+{"category":"-ぶ verbs","source":"遊ばされる","term":"遊ぶ","rule":"v5","reasons":["short causative","passive"],"valid":true}
+{"category":"-ぶ verbs","source":"遊んでおく","term":"遊ぶ","rule":"v5","reasons":["-て","-おく"],"valid":true}
+{"category":"-ぶ verbs","source":"遊んどく","term":"遊ぶ","rule":"v5","reasons":["-て","-おく"],"valid":true}
+{"category":"-ぶ verbs","source":"遊んでおく","term":"遊ぶ","rule":"v5","reasons":["-て","-おく"],"valid":true}
+{"category":"-ぶ verbs","source":"遊ばないでおく","term":"遊ぶ","rule":"v5","reasons":["negative","-おく"],"valid":true}
+{"category":"-ぶ verbs","source":"遊んでいる","term":"遊ぶ","rule":"v5","reasons":["-て","-いる"],"valid":true}
+{"category":"-ぶ verbs","source":"遊んでゐる","term":"遊ぶ","rule":"v5","reasons":["-て","-いる"],"valid":true}
+{"category":"-ぶ verbs","source":"遊んでおる","term":"遊ぶ","rule":"v5","reasons":["-て","-いる"],"valid":true}
+{"category":"-ぶ verbs","source":"遊んでる","term":"遊ぶ","rule":"v5","reasons":["-て","-いる"],"valid":true}
+{"category":"-ぶ verbs","source":"遊んでしまう","term":"遊ぶ","rule":"v5","reasons":["-て","-しまう"],"valid":true}
+{"category":"-ぶ verbs","source":"遊びやがる","term":"遊ぶ","rule":"v5","reasons":["-やがる"],"valid":true}
+{"category":"-ぶ verbs","source":"遊びやがって","term":"遊ぶ","rule":"v5","reasons":["-やがる","-て"],"valid":true}
+{"category":"-ぶ verbs","source":"遊びやがった","term":"遊ぶ","rule":"v5","reasons":["-やがる","-た"],"valid":true}
+{"category":"-ぶ verbs","source":"遊びやがれ","term":"遊ぶ","rule":"v5","reasons":["-やがる","imperative"],"valid":true}
+{"category":"-ぶ verbs","source":"遊びやしない","term":"遊ぶ","rule":"v5","reasons":["-やしない"],"valid":true}
+{"category":"-ぶ verbs","source":"遊びやしません","term":"遊ぶ","rule":"v5","reasons":["-やしません"],"valid":true}
+{"category":"-ぶ verbs","source":"遊びますまい","term":"遊ぶ","rule":"v5","reasons":["-ます","-まい"],"valid":true}
+{"category":"-ぶ verbs","source":"遊びましたら","term":"遊ぶ","rule":"v5","reasons":["-ます","-たら"],"valid":true}
+{"category":"-ぶ verbs","source":"遊びますれば","term":"遊ぶ","rule":"v5","reasons":["-ます","-ば"],"valid":true}
+{"category":"-ぶ verbs","source":"遊びませんかった","term":"遊ぶ","rule":"v5","reasons":["-ます","negative","-た"],"valid":true}
+{"category":"-む verbs","source":"飲む","term":"飲む","rule":"v5","reasons":[],"valid":true}
+{"category":"-む verbs","source":"飲みます","term":"飲む","rule":"v5","reasons":["-ます"],"valid":true}
+{"category":"-む verbs","source":"飲んだ","term":"飲む","rule":"v5","reasons":["-た"],"valid":true}
+{"category":"-む verbs","source":"飲みました","term":"飲む","rule":"v5","reasons":["-ます","-た"],"valid":true}
+{"category":"-む verbs","source":"飲んで","term":"飲む","rule":"v5","reasons":["-て"],"valid":true}
+{"category":"-む verbs","source":"飲める","term":"飲む","rule":"v5","reasons":["potential"],"valid":true}
+{"category":"-む verbs","source":"飲まれる","term":"飲む","rule":"v5","reasons":["passive"],"valid":true}
+{"category":"-む verbs","source":"飲ませる","term":"飲む","rule":"v5","reasons":["causative"],"valid":true}
+{"category":"-む verbs","source":"飲ます","term":"飲む","rule":"v5","reasons":["short causative"],"valid":true}
+{"category":"-む verbs","source":"飲まします","term":"飲む","rule":"v5","reasons":["short causative","-ます"],"valid":true}
+{"category":"-む verbs","source":"飲ませられる","term":"飲む","rule":"v5","reasons":["causative","potential or passive"],"valid":true}
+{"category":"-む verbs","source":"飲め","term":"飲む","rule":"v5","reasons":["imperative"],"valid":true}
+{"category":"-む verbs","source":"飲まない","term":"飲む","rule":"v5","reasons":["negative"],"valid":true}
+{"category":"-む verbs","source":"飲みません","term":"飲む","rule":"v5","reasons":["-ます","negative"],"valid":true}
+{"category":"-む verbs","source":"飲まなかった","term":"飲む","rule":"v5","reasons":["negative","-た"],"valid":true}
+{"category":"-む verbs","source":"飲みませんでした","term":"飲む","rule":"v5","reasons":["-ます","negative","-た"],"valid":true}
+{"category":"-む verbs","source":"飲まなくて","term":"飲む","rule":"v5","reasons":["negative","-て"],"valid":true}
+{"category":"-む verbs","source":"飲めない","term":"飲む","rule":"v5","reasons":["potential","negative"],"valid":true}
+{"category":"-む verbs","source":"飲まれない","term":"飲む","rule":"v5","reasons":["passive","negative"],"valid":true}
+{"category":"-む verbs","source":"飲ませない","term":"飲む","rule":"v5","reasons":["causative","negative"],"valid":true}
+{"category":"-む verbs","source":"飲まさない","term":"飲む","rule":"v5","reasons":["short causative","negative"],"valid":true}
+{"category":"-む verbs","source":"飲ませられない","term":"飲む","rule":"v5","reasons":["causative","potential or passive","negative"],"valid":true}
+{"category":"-む verbs","source":"飲みまして","term":"飲む","rule":"v5","reasons":["-ます","-て"],"valid":true}
+{"category":"-む verbs","source":"飲めば","term":"飲む","rule":"v5","reasons":["-ば"],"valid":true}
+{"category":"-む verbs","source":"飲みゃ","term":"飲む","rule":"v5","reasons":["-ば","-ゃ"],"valid":true}
+{"category":"-む verbs","source":"飲んじゃ","term":"飲む","rule":"v5","reasons":["-ちゃ"],"valid":true}
+{"category":"-む verbs","source":"飲んじゃう","term":"飲む","rule":"v5","reasons":["-ちゃう"],"valid":true}
+{"category":"-む verbs","source":"飲んじまう","term":"飲む","rule":"v5","reasons":["-ちまう"],"valid":true}
+{"category":"-む verbs","source":"飲みなさい","term":"飲む","rule":"v5","reasons":["-なさい"],"valid":true}
+{"category":"-む verbs","source":"飲みそう","term":"飲む","rule":"v5","reasons":["-そう"],"valid":true}
+{"category":"-む verbs","source":"飲みさう","term":"飲む","rule":"v5","reasons":["-そう"],"valid":true}
+{"category":"-む verbs","source":"飲みすぎる","term":"飲む","rule":"v5","reasons":["-すぎる"],"valid":true}
+{"category":"-む verbs","source":"飲み過ぎる","term":"飲む","rule":"v5","reasons":["-過ぎる"],"valid":true}
+{"category":"-む verbs","source":"飲みたい","term":"飲む","rule":"v5","reasons":["-たい"],"valid":true}
+{"category":"-む verbs","source":"飲みたがる","term":"飲む","rule":"v5","reasons":["-たい","-がる"],"valid":true}
+{"category":"-む verbs","source":"飲んだら","term":"飲む","rule":"v5","reasons":["-たら"],"valid":true}
+{"category":"-む verbs","source":"飲んだり","term":"飲む","rule":"v5","reasons":["-たり"],"valid":true}
+{"category":"-む verbs","source":"飲まず","term":"飲む","rule":"v5","reasons":["-ず"],"valid":true}
+{"category":"-む verbs","source":"飲まぬ","term":"飲む","rule":"v5","reasons":["-ぬ"],"valid":true}
+{"category":"-む verbs","source":"飲まん","term":"飲む","rule":"v5","reasons":["-ん"],"valid":true}
+{"category":"-む verbs","source":"飲まんかった","term":"飲む","rule":"v5","reasons":["-ん","-た"],"valid":true}
+{"category":"-む verbs","source":"飲まんばかり","term":"飲む","rule":"v5","reasons":["-んばかり"],"valid":true}
+{"category":"-む verbs","source":"飲まんとする","term":"飲む","rule":"v5","reasons":["-んとする"],"valid":true}
+{"category":"-む verbs","source":"飲まざる","term":"飲む","rule":"v5","reasons":["-ざる"],"valid":true}
+{"category":"-む verbs","source":"飲まねば","term":"飲む","rule":"v5","reasons":["-ねば"],"valid":true}
+{"category":"-む verbs","source":"飲まにゃ","term":"飲む","rule":"v5","reasons":["-ねば","-ゃ"],"valid":true}
+{"category":"-む verbs","source":"飲み","term":"飲む","rule":"v5","reasons":["continuative"],"valid":true}
+{"category":"-む verbs","source":"飲みましょう","term":"飲む","rule":"v5","reasons":["-ます","volitional"],"valid":true}
+{"category":"-む verbs","source":"飲みませう","term":"飲む","rule":"v5","reasons":["-ます","volitional"],"valid":true}
+{"category":"-む verbs","source":"飲みましょっか","term":"飲む","rule":"v5","reasons":["-ます","volitional slang"],"valid":true}
+{"category":"-む verbs","source":"飲もう","term":"飲む","rule":"v5","reasons":["volitional"],"valid":true}
+{"category":"-む verbs","source":"飲まう","term":"飲む","rule":"v5","reasons":["volitional"],"valid":true}
+{"category":"-む verbs","source":"飲もっか","term":"飲む","rule":"v5","reasons":["volitional slang"],"valid":true}
+{"category":"-む verbs","source":"飲むまい","term":"飲む","rule":"v5","reasons":["-まい"],"valid":true}
+{"category":"-む verbs","source":"飲まされる","term":"飲む","rule":"v5","reasons":["short causative","passive"],"valid":true}
+{"category":"-む verbs","source":"飲んでおく","term":"飲む","rule":"v5","reasons":["-て","-おく"],"valid":true}
+{"category":"-む verbs","source":"飲んどく","term":"飲む","rule":"v5","reasons":["-て","-おく"],"valid":true}
+{"category":"-む verbs","source":"飲まないでおく","term":"飲む","rule":"v5","reasons":["negative","-おく"],"valid":true}
+{"category":"-む verbs","source":"飲まないどく","term":"飲む","rule":"v5","reasons":["negative","-おく"],"valid":true}
+{"category":"-む verbs","source":"飲んでいる","term":"飲む","rule":"v5","reasons":["-て","-いる"],"valid":true}
+{"category":"-む verbs","source":"飲んでゐる","term":"飲む","rule":"v5","reasons":["-て","-いる"],"valid":true}
+{"category":"-む verbs","source":"飲んでおる","term":"飲む","rule":"v5","reasons":["-て","-いる"],"valid":true}
+{"category":"-む verbs","source":"飲んでる","term":"飲む","rule":"v5","reasons":["-て","-いる"],"valid":true}
+{"category":"-む verbs","source":"飲んでしまう","term":"飲む","rule":"v5","reasons":["-て","-しまう"],"valid":true}
+{"category":"-む verbs","source":"飲みやがる","term":"飲む","rule":"v5","reasons":["-やがる"],"valid":true}
+{"category":"-む verbs","source":"飲みやがって","term":"飲む","rule":"v5","reasons":["-やがる","-て"],"valid":true}
+{"category":"-む verbs","source":"飲みやがった","term":"飲む","rule":"v5","reasons":["-やがる","-た"],"valid":true}
+{"category":"-む verbs","source":"飲みやがれ","term":"飲む","rule":"v5","reasons":["-やがる","imperative"],"valid":true}
+{"category":"-む verbs","source":"飲みやしない","term":"飲む","rule":"v5","reasons":["-やしない"],"valid":true}
+{"category":"-む verbs","source":"飲みやしません","term":"飲む","rule":"v5","reasons":["-やしません"],"valid":true}
+{"category":"-む verbs","source":"飲みますまい","term":"飲む","rule":"v5","reasons":["-ます","-まい"],"valid":true}
+{"category":"-む verbs","source":"飲みましたら","term":"飲む","rule":"v5","reasons":["-ます","-たら"],"valid":true}
+{"category":"-む verbs","source":"飲みますれば","term":"飲む","rule":"v5","reasons":["-ます","-ば"],"valid":true}
+{"category":"-む verbs","source":"飲みませんかった","term":"飲む","rule":"v5","reasons":["-ます","negative","-た"],"valid":true}
+{"category":"godan verbs","source":"作る","term":"作る","rule":"v5","reasons":[],"valid":true}
+{"category":"godan verbs","source":"作ります","term":"作る","rule":"v5","reasons":["-ます"],"valid":true}
+{"category":"godan verbs","source":"作った","term":"作る","rule":"v5","reasons":["-た"],"valid":true}
+{"category":"godan verbs","source":"作りました","term":"作る","rule":"v5","reasons":["-ます","-た"],"valid":true}
+{"category":"godan verbs","source":"作って","term":"作る","rule":"v5","reasons":["-て"],"valid":true}
+{"category":"godan verbs","source":"作れる","term":"作る","rule":"v5","reasons":["potential"],"valid":true}
+{"category":"godan verbs","source":"作られる","term":"作る","rule":"v5","reasons":["passive"],"valid":true}
+{"category":"godan verbs","source":"作らせる","term":"作る","rule":"v5","reasons":["causative"],"valid":true}
+{"category":"godan verbs","source":"作らす","term":"作る","rule":"v5","reasons":["short causative"],"valid":true}
+{"category":"godan verbs","source":"作らします","term":"作る","rule":"v5","reasons":["short causative","-ます"],"valid":true}
+{"category":"godan verbs","source":"作らせられる","term":"作る","rule":"v5","reasons":["causative","potential or passive"],"valid":true}
+{"category":"godan verbs","source":"作れ","term":"作る","rule":"v5","reasons":["imperative"],"valid":true}
+{"category":"godan verbs","source":"作らない","term":"作る","rule":"v5","reasons":["negative"],"valid":true}
+{"category":"godan verbs","source":"作りません","term":"作る","rule":"v5","reasons":["-ます","negative"],"valid":true}
+{"category":"godan verbs","source":"作らなかった","term":"作る","rule":"v5","reasons":["negative","-た"],"valid":true}
+{"category":"godan verbs","source":"作りませんでした","term":"作る","rule":"v5","reasons":["-ます","negative","-た"],"valid":true}
+{"category":"godan verbs","source":"作らなくて","term":"作る","rule":"v5","reasons":["negative","-て"],"valid":true}
+{"category":"godan verbs","source":"作れない","term":"作る","rule":"v5","reasons":["potential","negative"],"valid":true}
+{"category":"godan verbs","source":"作られない","term":"作る","rule":"v5","reasons":["passive","negative"],"valid":true}
+{"category":"godan verbs","source":"作らせない","term":"作る","rule":"v5","reasons":["causative","negative"],"valid":true}
+{"category":"godan verbs","source":"作らさない","term":"作る","rule":"v5","reasons":["short causative","negative"],"valid":true}
+{"category":"godan verbs","source":"作らせられない","term":"作る","rule":"v5","reasons":["causative","potential or passive","negative"],"valid":true}
+{"category":"godan verbs","source":"作りまして","term":"作る","rule":"v5","reasons":["-ます","-て"],"valid":true}
+{"category":"godan verbs","source":"作れば","term":"作る","rule":"v5","reasons":["-ば"],"valid":true}
+{"category":"godan verbs","source":"作りゃ","term":"作る","rule":"v5","reasons":["-ば","-ゃ"],"valid":true}
+{"category":"godan verbs","source":"作っちゃ","term":"作る","rule":"v5","reasons":["-ちゃ"],"valid":true}
+{"category":"godan verbs","source":"作っちゃう","term":"作る","rule":"v5","reasons":["-ちゃう"],"valid":true}
+{"category":"godan verbs","source":"作っちまう","term":"作る","rule":"v5","reasons":["-ちまう"],"valid":true}
+{"category":"godan verbs","source":"作りなさい","term":"作る","rule":"v5","reasons":["-なさい"],"valid":true}
+{"category":"godan verbs","source":"作りそう","term":"作る","rule":"v5","reasons":["-そう"],"valid":true}
+{"category":"godan verbs","source":"作りさう","term":"作る","rule":"v5","reasons":["-そう"],"valid":true}
+{"category":"godan verbs","source":"作りすぎる","term":"作る","rule":"v5","reasons":["-すぎる"],"valid":true}
+{"category":"godan verbs","source":"作り過ぎる","term":"作る","rule":"v5","reasons":["-過ぎる"],"valid":true}
+{"category":"godan verbs","source":"作りたい","term":"作る","rule":"v5","reasons":["-たい"],"valid":true}
+{"category":"godan verbs","source":"作りたがる","term":"作る","rule":"v5","reasons":["-たい","-がる"],"valid":true}
+{"category":"godan verbs","source":"作ったら","term":"作る","rule":"v5","reasons":["-たら"],"valid":true}
+{"category":"godan verbs","source":"作ったり","term":"作る","rule":"v5","reasons":["-たり"],"valid":true}
+{"category":"godan verbs","source":"作らず","term":"作る","rule":"v5","reasons":["-ず"],"valid":true}
+{"category":"godan verbs","source":"作らぬ","term":"作る","rule":"v5","reasons":["-ぬ"],"valid":true}
+{"category":"godan verbs","source":"作らん","term":"作る","rule":"v5","reasons":["-ん"],"valid":true}
+{"category":"godan verbs","source":"作らんかった","term":"作る","rule":"v5","reasons":["-ん","-た"],"valid":true}
+{"category":"godan verbs","source":"作らざる","term":"作る","rule":"v5","reasons":["-ざる"],"valid":true}
+{"category":"godan verbs","source":"作らねば","term":"作る","rule":"v5","reasons":["-ねば"],"valid":true}
+{"category":"godan verbs","source":"作らにゃ","term":"作る","rule":"v5","reasons":["-ねば","-ゃ"],"valid":true}
+{"category":"godan verbs","source":"作り","term":"作る","rule":"v5","reasons":["continuative"],"valid":true}
+{"category":"godan verbs","source":"作りましょう","term":"作る","rule":"v5","reasons":["-ます","volitional"],"valid":true}
+{"category":"godan verbs","source":"作りませう","term":"作る","rule":"v5","reasons":["-ます","volitional"],"valid":true}
+{"category":"godan verbs","source":"作りましょっか","term":"作る","rule":"v5","reasons":["-ます","volitional slang"],"valid":true}
+{"category":"godan verbs","source":"作ろう","term":"作る","rule":"v5","reasons":["volitional"],"valid":true}
+{"category":"godan verbs","source":"作らう","term":"作る","rule":"v5","reasons":["volitional"],"valid":true}
+{"category":"godan verbs","source":"作ろっか","term":"作る","rule":"v5","reasons":["volitional slang"],"valid":true}
+{"category":"godan verbs","source":"作るまい","term":"作る","rule":"v5","reasons":["-まい"],"valid":true}
+{"category":"godan verbs","source":"作らされる","term":"作る","rule":"v5","reasons":["short causative","passive"],"valid":true}
+{"category":"godan verbs","source":"作っておく","term":"作る","rule":"v5","reasons":["-て","-おく"],"valid":true}
+{"category":"godan verbs","source":"作っとく","term":"作る","rule":"v5","reasons":["-て","-おく"],"valid":true}
+{"category":"godan verbs","source":"作らないでおく","term":"作る","rule":"v5","reasons":["negative","-おく"],"valid":true}
+{"category":"godan verbs","source":"作らないどく","term":"作る","rule":"v5","reasons":["negative","-おく"],"valid":true}
+{"category":"godan verbs","source":"作っている","term":"作る","rule":"v5","reasons":["-て","-いる"],"valid":true}
+{"category":"godan verbs","source":"作ってゐる","term":"作る","rule":"v5","reasons":["-て","-いる"],"valid":true}
+{"category":"godan verbs","source":"作っておる","term":"作る","rule":"v5","reasons":["-て","-いる"],"valid":true}
+{"category":"godan verbs","source":"作ってる","term":"作る","rule":"v5","reasons":["-て","-いる"],"valid":true}
+{"category":"godan verbs","source":"作っとる","term":"作る","rule":"v5","reasons":["-て","-いる"],"valid":true}
+{"category":"godan verbs","source":"作ってしまう","term":"作る","rule":"v5","reasons":["-て","-しまう"],"valid":true}
+{"category":"godan verbs","source":"作りやがる","term":"作る","rule":"v5","reasons":["-やがる"],"valid":true}
+{"category":"godan verbs","source":"作りやがって","term":"作る","rule":"v5","reasons":["-やがる","-て"],"valid":true}
+{"category":"godan verbs","source":"作りやがった","term":"作る","rule":"v5","reasons":["-やがる","-た"],"valid":true}
+{"category":"godan verbs","source":"作りやがれ","term":"作る","rule":"v5","reasons":["-やがる","imperative"],"valid":true}
+{"category":"godan verbs","source":"作りやしない","term":"作る","rule":"v5","reasons":["-やしない"],"valid":true}
+{"category":"godan verbs","source":"作りやしません","term":"作る","rule":"v5","reasons":["-やしません"],"valid":true}
+{"category":"godan verbs","source":"作りますまい","term":"作る","rule":"v5","reasons":["-ます","-まい"],"valid":true}
+{"category":"godan verbs","source":"作りましたら","term":"作る","rule":"v5","reasons":["-ます","-たら"],"valid":true}
+{"category":"godan verbs","source":"作りますれば","term":"作る","rule":"v5","reasons":["-ます","-ば"],"valid":true}
+{"category":"godan verbs","source":"作りませんかった","term":"作る","rule":"v5","reasons":["-ます","negative","-た"],"valid":true}
+{"category":"special honorific -ます verbs","source":"いらっしゃいます","term":"いらっしゃる","rule":"v5","reasons":["-ます"],"valid":true}
+{"category":"special honorific -ます verbs","source":"ございました","term":"ござる","rule":"v5","reasons":["-ます","-た"],"valid":true}
+{"category":"special honorific -ます verbs","source":"なさいます","term":"なさる","rule":"v5","reasons":["-ます"],"valid":true}
+{"category":"special honorific -ます verbs","source":"くださいます","term":"くださる","rule":"v5","reasons":["-ます"],"valid":true}
+{"category":"special honorific -ます verbs","source":"下さいます","term":"下さる","rule":"v5","reasons":["-ます"],"valid":true}
+{"category":"special honorific -ます verbs","source":"おっしゃいました","term":"おっしゃる","rule":"v5","reasons":["-ます","-た"],"valid":true}
+{"category":"special honorific -ます verbs","source":"仰いました","term":"仰る","rule":"v5","reasons":["-ます","-た"],"valid":true}
+{"category":"special honorific -ます verbs","source":"仰有いました","term":"仰有る","rule":"v5","reasons":["-ます","-た"],"valid":true}
+{"category":"special honorific -ます verbs","source":"いらっしゃいません","term":"いらっしゃる","rule":"v5","reasons":["-ます","negative"],"valid":true}
+{"category":"irregular verbs","source":"為る","term":"為る","rule":"vs","reasons":[],"valid":true}
+{"category":"irregular verbs","source":"為ます","term":"為る","rule":"vs","reasons":["-ます"],"valid":true}
+{"category":"irregular verbs","source":"為た","term":"為る","rule":"vs","reasons":["-た"],"valid":true}
+{"category":"irregular verbs","source":"為ました","term":"為る","rule":"vs","reasons":["-ます","-た"],"valid":true}
+{"category":"irregular verbs","source":"為て","term":"為る","rule":"vs","reasons":["-て"],"valid":true}
+{"category":"irregular verbs","source":"為られる","term":"為る","rule":"vs","reasons":["potential or passive"],"valid":true}
+{"category":"irregular verbs","source":"為れる","term":"為る","rule":"vs","reasons":["passive"],"valid":true}
+{"category":"irregular verbs","source":"為せる","term":"為る","rule":"vs","reasons":["causative"],"valid":true}
+{"category":"irregular verbs","source":"為させる","term":"為る","rule":"vs","reasons":["causative"],"valid":true}
+{"category":"irregular verbs","source":"為す","term":"為る","rule":"vs","reasons":["short causative"],"valid":true}
+{"category":"irregular verbs","source":"為します","term":"為る","rule":"vs","reasons":["short causative","-ます"],"valid":true}
+{"category":"irregular verbs","source":"為せられる","term":"為る","rule":"vs","reasons":["causative","potential or passive"],"valid":true}
+{"category":"irregular verbs","source":"為させられる","term":"為る","rule":"vs","reasons":["causative","potential or passive"],"valid":true}
+{"category":"irregular verbs","source":"為ろ","term":"為る","rule":"vs","reasons":["imperative"],"valid":true}
+{"category":"irregular verbs","source":"為ない","term":"為る","rule":"vs","reasons":["negative"],"valid":true}
+{"category":"irregular verbs","source":"為ません","term":"為る","rule":"vs","reasons":["-ます","negative"],"valid":true}
+{"category":"irregular verbs","source":"為なかった","term":"為る","rule":"vs","reasons":["negative","-た"],"valid":true}
+{"category":"irregular verbs","source":"為ませんでした","term":"為る","rule":"vs","reasons":["-ます","negative","-た"],"valid":true}
+{"category":"irregular verbs","source":"為なくて","term":"為る","rule":"vs","reasons":["negative","-て"],"valid":true}
+{"category":"irregular verbs","source":"為られない","term":"為る","rule":"vs","reasons":["potential or passive","negative"],"valid":true}
+{"category":"irregular verbs","source":"為れない","term":"為る","rule":"vs","reasons":["passive","negative"],"valid":true}
+{"category":"irregular verbs","source":"為せない","term":"為る","rule":"vs","reasons":["causative","negative"],"valid":true}
+{"category":"irregular verbs","source":"為させない","term":"為る","rule":"vs","reasons":["causative","negative"],"valid":true}
+{"category":"irregular verbs","source":"為さない","term":"為る","rule":"vs","reasons":["short causative","negative"],"valid":true}
+{"category":"irregular verbs","source":"為せられない","term":"為る","rule":"vs","reasons":["causative","potential or passive","negative"],"valid":true}
+{"category":"irregular verbs","source":"為させられない","term":"為る","rule":"vs","reasons":["causative","potential or passive","negative"],"valid":true}
+{"category":"irregular verbs","source":"為まして","term":"為る","rule":"vs","reasons":["-ます","-て"],"valid":true}
+{"category":"irregular verbs","source":"為れば","term":"為る","rule":"vs","reasons":["-ば"],"valid":true}
+{"category":"irregular verbs","source":"為りゃ","term":"為る","rule":"vs","reasons":["-ば","-ゃ"],"valid":true}
+{"category":"irregular verbs","source":"為ちゃ","term":"為る","rule":"vs","reasons":["-ちゃ"],"valid":true}
+{"category":"irregular verbs","source":"為ちゃう","term":"為る","rule":"vs","reasons":["-ちゃう"],"valid":true}
+{"category":"irregular verbs","source":"為ちまう","term":"為る","rule":"vs","reasons":["-ちまう"],"valid":true}
+{"category":"irregular verbs","source":"為なさい","term":"為る","rule":"vs","reasons":["-なさい"],"valid":true}
+{"category":"irregular verbs","source":"為そう","term":"為る","rule":"vs","reasons":["-そう"],"valid":true}
+{"category":"irregular verbs","source":"為さう","term":"為る","rule":"vs","reasons":["-そう"],"valid":true}
+{"category":"irregular verbs","source":"為すぎる","term":"為る","rule":"vs","reasons":["-すぎる"],"valid":true}
+{"category":"irregular verbs","source":"為過ぎる","term":"為る","rule":"vs","reasons":["-過ぎる"],"valid":true}
+{"category":"irregular verbs","source":"為たい","term":"為る","rule":"vs","reasons":["-たい"],"valid":true}
+{"category":"irregular verbs","source":"為たがる","term":"為る","rule":"vs","reasons":["-たい","-がる"],"valid":true}
+{"category":"irregular verbs","source":"為たら","term":"為る","rule":"vs","reasons":["-たら"],"valid":true}
+{"category":"irregular verbs","source":"為たり","term":"為る","rule":"vs","reasons":["-たり"],"valid":true}
+{"category":"irregular verbs","source":"為ず","term":"為る","rule":"vs","reasons":["-ず"],"valid":true}
+{"category":"irregular verbs","source":"為ぬ","term":"為る","rule":"vs","reasons":["-ぬ"],"valid":true}
+{"category":"irregular verbs","source":"為ん","term":"為る","rule":"vs","reasons":["-ん"],"valid":true}
+{"category":"irregular verbs","source":"為んかった","term":"為る","rule":"vs","reasons":["-ん","-た"],"valid":true}
+{"category":"irregular verbs","source":"為んばかり","term":"為る","rule":"vs","reasons":["-んばかり"],"valid":true}
+{"category":"irregular verbs","source":"為んとする","term":"為る","rule":"vs","reasons":["-んとする"],"valid":true}
+{"category":"irregular verbs","source":"為ざる","term":"為る","rule":"vs","reasons":["-ざる"],"valid":true}
+{"category":"irregular verbs","source":"為ねば","term":"為る","rule":"vs","reasons":["-ねば"],"valid":true}
+{"category":"irregular verbs","source":"為にゃ","term":"為る","rule":"vs","reasons":["-ねば","-ゃ"],"valid":true}
+{"category":"irregular verbs","source":"為ましょう","term":"為る","rule":"vs","reasons":["-ます","volitional"],"valid":true}
+{"category":"irregular verbs","source":"為ませう","term":"為る","rule":"vs","reasons":["-ます","volitional"],"valid":true}
+{"category":"irregular verbs","source":"為ましょっか","term":"為る","rule":"vs","reasons":["-ます","volitional slang"],"valid":true}
+{"category":"irregular verbs","source":"為よう","term":"為る","rule":"vs","reasons":["volitional"],"valid":true}
+{"category":"irregular verbs","source":"為やう","term":"為る","rule":"vs","reasons":["volitional"],"valid":true}
+{"category":"irregular verbs","source":"為よっか","term":"為る","rule":"vs","reasons":["volitional slang"],"valid":true}
+{"category":"irregular verbs","source":"為るまい","term":"為る","rule":"vs","reasons":["-まい"],"valid":true}
+{"category":"irregular verbs","source":"為まい","term":"為る","rule":"vs","reasons":["-まい"],"valid":true}
+{"category":"irregular verbs","source":"為ておく","term":"為る","rule":"vs","reasons":["-て","-おく"],"valid":true}
+{"category":"irregular verbs","source":"為とく","term":"為る","rule":"vs","reasons":["-て","-おく"],"valid":true}
+{"category":"irregular verbs","source":"為ないでおく","term":"為る","rule":"vs","reasons":["negative","-おく"],"valid":true}
+{"category":"irregular verbs","source":"為ないどく","term":"為る","rule":"vs","reasons":["negative","-おく"],"valid":true}
+{"category":"irregular verbs","source":"為ている","term":"為る","rule":"vs","reasons":["-て","-いる"],"valid":true}
+{"category":"irregular verbs","source":"為てゐる","term":"為る","rule":"vs","reasons":["-て","-いる"],"valid":true}
+{"category":"irregular verbs","source":"為ておる","term":"為る","rule":"vs","reasons":["-て","-いる"],"valid":true}
+{"category":"irregular verbs","source":"為てる","term":"為る","rule":"vs","reasons":["-て","-いる"],"valid":true}
+{"category":"irregular verbs","source":"為とる","term":"為る","rule":"vs","reasons":["-て","-いる"],"valid":true}
+{"category":"irregular verbs","source":"為てしまう","term":"為る","rule":"vs","reasons":["-て","-しまう"],"valid":true}
+{"category":"irregular verbs","source":"為ますまい","term":"為る","rule":"vs","reasons":["-ます","-まい"],"valid":true}
+{"category":"irregular verbs","source":"為ましたら","term":"為る","rule":"vs","reasons":["-ます","-たら"],"valid":true}
+{"category":"irregular verbs","source":"為ますれば","term":"為る","rule":"vs","reasons":["-ます","-ば"],"valid":true}
+{"category":"irregular verbs","source":"為ませんかった","term":"為る","rule":"vs","reasons":["-ます","negative","-た"],"valid":true}
+{"category":"irregular verbs","source":"する","term":"する","rule":"vs","reasons":[],"valid":true}
+{"category":"irregular verbs","source":"します","term":"する","rule":"vs","reasons":["-ます"],"valid":true}
+{"category":"irregular verbs","source":"した","term":"する","rule":"vs","reasons":["-た"],"valid":true}
+{"category":"irregular verbs","source":"しました","term":"する","rule":"vs","reasons":["-ます","-た"],"valid":true}
+{"category":"irregular verbs","source":"して","term":"する","rule":"vs","reasons":["-て"],"valid":true}
+{"category":"irregular verbs","source":"できる","term":"する","rule":"vs","reasons":["potential"],"valid":true}
+{"category":"irregular verbs","source":"出来る","term":"する","rule":"vs","reasons":["potential"],"valid":true}
+{"category":"irregular verbs","source":"せられる","term":"する","rule":"vs","reasons":["potential or passive"],"valid":true}
+{"category":"irregular verbs","source":"される","term":"する","rule":"vs","reasons":["passive"],"valid":true}
+{"category":"irregular verbs","source":"させる","term":"する","rule":"vs","reasons":["causative"],"valid":true}
+{"category":"irregular verbs","source":"せさせる","term":"する","rule":"vs","reasons":["causative"],"valid":true}
+{"category":"irregular verbs","source":"さす","term":"する","rule":"vs","reasons":["short causative"],"valid":true}
+{"category":"irregular verbs","source":"さします","term":"する","rule":"vs","reasons":["short causative","-ます"],"valid":true}
+{"category":"irregular verbs","source":"させられる","term":"する","rule":"vs","reasons":["causative","potential or passive"],"valid":true}
+{"category":"irregular verbs","source":"せさせられる","term":"する","rule":"vs","reasons":["causative","potential or passive"],"valid":true}
+{"category":"irregular verbs","source":"しろ","term":"する","rule":"vs","reasons":["imperative"],"valid":true}
+{"category":"irregular verbs","source":"しない","term":"する","rule":"vs","reasons":["negative"],"valid":true}
+{"category":"irregular verbs","source":"しません","term":"する","rule":"vs","reasons":["-ます","negative"],"valid":true}
+{"category":"irregular verbs","source":"しなかった","term":"する","rule":"vs","reasons":["negative","-た"],"valid":true}
+{"category":"irregular verbs","source":"しませんでした","term":"する","rule":"vs","reasons":["-ます","negative","-た"],"valid":true}
+{"category":"irregular verbs","source":"しなくて","term":"する","rule":"vs","reasons":["negative","-て"],"valid":true}
+{"category":"irregular verbs","source":"せられない","term":"する","rule":"vs","reasons":["potential or passive","negative"],"valid":true}
+{"category":"irregular verbs","source":"されない","term":"する","rule":"vs","reasons":["passive","negative"],"valid":true}
+{"category":"irregular verbs","source":"させない","term":"する","rule":"vs","reasons":["causative","negative"],"valid":true}
+{"category":"irregular verbs","source":"せさせない","term":"する","rule":"vs","reasons":["causative","negative"],"valid":true}
+{"category":"irregular verbs","source":"ささない","term":"する","rule":"vs","reasons":["short causative","negative"],"valid":true}
+{"category":"irregular verbs","source":"させられない","term":"する","rule":"vs","reasons":["causative","potential or passive","negative"],"valid":true}
+{"category":"irregular verbs","source":"せさせられない","term":"する","rule":"vs","reasons":["causative","potential or passive","negative"],"valid":true}
+{"category":"irregular verbs","source":"しまして","term":"する","rule":"vs","reasons":["-ます","-て"],"valid":true}
+{"category":"irregular verbs","source":"すれば","term":"する","rule":"vs","reasons":["-ば"],"valid":true}
+{"category":"irregular verbs","source":"すりゃ","term":"する","rule":"vs","reasons":["-ば","-ゃ"],"valid":true}
+{"category":"irregular verbs","source":"しちゃ","term":"する","rule":"vs","reasons":["-ちゃ"],"valid":true}
+{"category":"irregular verbs","source":"しちゃう","term":"する","rule":"vs","reasons":["-ちゃう"],"valid":true}
+{"category":"irregular verbs","source":"しちまう","term":"する","rule":"vs","reasons":["-ちまう"],"valid":true}
+{"category":"irregular verbs","source":"しなさい","term":"する","rule":"vs","reasons":["-なさい"],"valid":true}
+{"category":"irregular verbs","source":"しそう","term":"する","rule":"vs","reasons":["-そう"],"valid":true}
+{"category":"irregular verbs","source":"しさう","term":"する","rule":"vs","reasons":["-そう"],"valid":true}
+{"category":"irregular verbs","source":"しすぎる","term":"する","rule":"vs","reasons":["-すぎる"],"valid":true}
+{"category":"irregular verbs","source":"し過ぎる","term":"する","rule":"vs","reasons":["-過ぎる"],"valid":true}
+{"category":"irregular verbs","source":"したい","term":"する","rule":"vs","reasons":["-たい"],"valid":true}
+{"category":"irregular verbs","source":"したがる","term":"する","rule":"vs","reasons":["-たい","-がる"],"valid":true}
+{"category":"irregular verbs","source":"したら","term":"する","rule":"vs","reasons":["-たら"],"valid":true}
+{"category":"irregular verbs","source":"したり","term":"する","rule":"vs","reasons":["-たり"],"valid":true}
+{"category":"irregular verbs","source":"せず","term":"する","rule":"vs","reasons":["-ず"],"valid":true}
+{"category":"irregular verbs","source":"せぬ","term":"する","rule":"vs","reasons":["-ぬ"],"valid":true}
+{"category":"irregular verbs","source":"せん","term":"する","rule":"vs","reasons":["-ん"],"valid":true}
+{"category":"irregular verbs","source":"せんかった","term":"する","rule":"vs","reasons":["-ん","-た"],"valid":true}
+{"category":"irregular verbs","source":"せんばかり","term":"する","rule":"vs","reasons":["-んばかり"],"valid":true}
+{"category":"irregular verbs","source":"せんとする","term":"する","rule":"vs","reasons":["-んとする"],"valid":true}
+{"category":"irregular verbs","source":"せざる","term":"する","rule":"vs","reasons":["-ざる"],"valid":true}
+{"category":"irregular verbs","source":"せねば","term":"する","rule":"vs","reasons":["-ねば"],"valid":true}
+{"category":"irregular verbs","source":"せにゃ","term":"する","rule":"vs","reasons":["-ねば","-ゃ"],"valid":true}
+{"category":"irregular verbs","source":"し","term":"する","rule":"vs","reasons":["continuative"],"valid":true}
+{"category":"irregular verbs","source":"しましょう","term":"する","rule":"vs","reasons":["-ます","volitional"],"valid":true}
+{"category":"irregular verbs","source":"しませう","term":"する","rule":"vs","reasons":["-ます","volitional"],"valid":true}
+{"category":"irregular verbs","source":"しましょっか","term":"する","rule":"vs","reasons":["-ます","volitional slang"],"valid":true}
+{"category":"irregular verbs","source":"しよう","term":"する","rule":"vs","reasons":["volitional"],"valid":true}
+{"category":"irregular verbs","source":"しやう","term":"する","rule":"vs","reasons":["volitional"],"valid":true}
+{"category":"irregular verbs","source":"しよっか","term":"する","rule":"vs","reasons":["volitional slang"],"valid":true}
+{"category":"irregular verbs","source":"するまい","term":"する","rule":"vs","reasons":["-まい"],"valid":true}
+{"category":"irregular verbs","source":"しまい","term":"する","rule":"vs","reasons":["-まい"],"valid":true}
+{"category":"irregular verbs","source":"しなきゃ","term":"する","rule":"vs","reasons":["negative","-ば","-ゃ"],"valid":true}
+{"category":"irregular verbs","source":"しておく","term":"する","rule":"vs","reasons":["-て","-おく"],"valid":true}
+{"category":"irregular verbs","source":"しとく","term":"する","rule":"vs","reasons":["-て","-おく"],"valid":true}
+{"category":"irregular verbs","source":"しないでおく","term":"する","rule":"vs","reasons":["negative","-おく"],"valid":true}
+{"category":"irregular verbs","source":"しないどく","term":"する","rule":"vs","reasons":["negative","-おく"],"valid":true}
+{"category":"irregular verbs","source":"している","term":"する","rule":"vs","reasons":["-て","-いる"],"valid":true}
+{"category":"irregular verbs","source":"してゐる","term":"する","rule":"vs","reasons":["-て","-いる"],"valid":true}
+{"category":"irregular verbs","source":"しておる","term":"する","rule":"vs","reasons":["-て","-いる"],"valid":true}
+{"category":"irregular verbs","source":"してる","term":"する","rule":"vs","reasons":["-て","-いる"],"valid":true}
+{"category":"irregular verbs","source":"しとる","term":"する","rule":"vs","reasons":["-て","-いる"],"valid":true}
+{"category":"irregular verbs","source":"してしまう","term":"する","rule":"vs","reasons":["-て","-しまう"],"valid":true}
+{"category":"irregular verbs","source":"しやがる","term":"する","rule":"vs","reasons":["-やがる"],"valid":true}
+{"category":"irregular verbs","source":"しやがって","term":"する","rule":"vs","reasons":["-やがる","-て"],"valid":true}
+{"category":"irregular verbs","source":"しやがった","term":"する","rule":"vs","reasons":["-やがる","-た"],"valid":true}
+{"category":"irregular verbs","source":"しやがれ","term":"する","rule":"vs","reasons":["-やがる","imperative"],"valid":true}
+{"category":"irregular verbs","source":"しやしない","term":"する","rule":"vs","reasons":["-やしない"],"valid":true}
+{"category":"irregular verbs","source":"しやしません","term":"する","rule":"vs","reasons":["-やしません"],"valid":true}
+{"category":"irregular verbs","source":"為やしない","term":"為る","rule":"vs","reasons":["-やしない"],"valid":true}
+{"category":"irregular verbs","source":"為やしません","term":"為る","rule":"vs","reasons":["-やしません"],"valid":true}
+{"category":"irregular verbs","source":"しますまい","term":"する","rule":"vs","reasons":["-ます","-まい"],"valid":true}
+{"category":"irregular verbs","source":"しましたら","term":"する","rule":"vs","reasons":["-ます","-たら"],"valid":true}
+{"category":"irregular verbs","source":"しますれば","term":"する","rule":"vs","reasons":["-ます","-ば"],"valid":true}
+{"category":"irregular verbs","source":"しませんかった","term":"する","rule":"vs","reasons":["-ます","negative","-た"],"valid":true}
+{"category":"irregular verbs","source":"来る","term":"来る","rule":"vk","reasons":[],"valid":true}
+{"category":"irregular verbs","source":"来ます","term":"来る","rule":"vk","reasons":["-ます"],"valid":true}
+{"category":"irregular verbs","source":"来た","term":"来る","rule":"vk","reasons":["-た"],"valid":true}
+{"category":"irregular verbs","source":"来ました","term":"来る","rule":"vk","reasons":["-ます","-た"],"valid":true}
+{"category":"irregular verbs","source":"来て","term":"来る","rule":"vk","reasons":["-て"],"valid":true}
+{"category":"irregular verbs","source":"来られる","term":"来る","rule":"vk","reasons":["potential or passive"],"valid":true}
+{"category":"irregular verbs","source":"来られる","term":"来る","rule":"vk","reasons":["potential or passive"],"valid":true}
+{"category":"irregular verbs","source":"来させる","term":"来る","rule":"vk","reasons":["causative"],"valid":true}
+{"category":"irregular verbs","source":"来さす","term":"来る","rule":"vk","reasons":["short causative"],"valid":true}
+{"category":"irregular verbs","source":"来さします","term":"来る","rule":"vk","reasons":["short causative","-ます"],"valid":true}
+{"category":"irregular verbs","source":"来させられる","term":"来る","rule":"vk","reasons":["causative","potential or passive"],"valid":true}
+{"category":"irregular verbs","source":"来い","term":"来る","rule":"vk","reasons":["imperative"],"valid":true}
+{"category":"irregular verbs","source":"来ない","term":"来る","rule":"vk","reasons":["negative"],"valid":true}
+{"category":"irregular verbs","source":"来ません","term":"来る","rule":"vk","reasons":["-ます","negative"],"valid":true}
+{"category":"irregular verbs","source":"来なかった","term":"来る","rule":"vk","reasons":["negative","-た"],"valid":true}
+{"category":"irregular verbs","source":"来ませんでした","term":"来る","rule":"vk","reasons":["-ます","negative","-た"],"valid":true}
+{"category":"irregular verbs","source":"来なくて","term":"来る","rule":"vk","reasons":["negative","-て"],"valid":true}
+{"category":"irregular verbs","source":"来られない","term":"来る","rule":"vk","reasons":["potential or passive","negative"],"valid":true}
+{"category":"irregular verbs","source":"来られない","term":"来る","rule":"vk","reasons":["potential or passive","negative"],"valid":true}
+{"category":"irregular verbs","source":"来させない","term":"来る","rule":"vk","reasons":["causative","negative"],"valid":true}
+{"category":"irregular verbs","source":"来ささない","term":"来る","rule":"vk","reasons":["short causative","negative"],"valid":true}
+{"category":"irregular verbs","source":"来させられない","term":"来る","rule":"vk","reasons":["causative","potential or passive","negative"],"valid":true}
+{"category":"irregular verbs","source":"来まして","term":"来る","rule":"vk","reasons":["-ます","-て"],"valid":true}
+{"category":"irregular verbs","source":"来れば","term":"来る","rule":"vk","reasons":["-ば"],"valid":true}
+{"category":"irregular verbs","source":"来りゃ","term":"来る","rule":"vk","reasons":["-ば","-ゃ"],"valid":true}
+{"category":"irregular verbs","source":"来ちゃ","term":"来る","rule":"vk","reasons":["-ちゃ"],"valid":true}
+{"category":"irregular verbs","source":"来ちゃう","term":"来る","rule":"vk","reasons":["-ちゃう"],"valid":true}
+{"category":"irregular verbs","source":"来ちまう","term":"来る","rule":"vk","reasons":["-ちまう"],"valid":true}
+{"category":"irregular verbs","source":"来なさい","term":"来る","rule":"vk","reasons":["-なさい"],"valid":true}
+{"category":"irregular verbs","source":"来そう","term":"来る","rule":"vk","reasons":["-そう"],"valid":true}
+{"category":"irregular verbs","source":"来さう","term":"来る","rule":"vk","reasons":["-そう"],"valid":true}
+{"category":"irregular verbs","source":"来すぎる","term":"来る","rule":"vk","reasons":["-すぎる"],"valid":true}
+{"category":"irregular verbs","source":"来過ぎる","term":"来る","rule":"vk","reasons":["-過ぎる"],"valid":true}
+{"category":"irregular verbs","source":"来たい","term":"来る","rule":"vk","reasons":["-たい"],"valid":true}
+{"category":"irregular verbs","source":"来たがる","term":"来る","rule":"vk","reasons":["-たい","-がる"],"valid":true}
+{"category":"irregular verbs","source":"来たら","term":"来る","rule":"vk","reasons":["-たら"],"valid":true}
+{"category":"irregular verbs","source":"来たり","term":"来る","rule":"vk","reasons":["-たり"],"valid":true}
+{"category":"irregular verbs","source":"来ず","term":"来る","rule":"vk","reasons":["-ず"],"valid":true}
+{"category":"irregular verbs","source":"来ぬ","term":"来る","rule":"vk","reasons":["-ぬ"],"valid":true}
+{"category":"irregular verbs","source":"来ん","term":"来る","rule":"vk","reasons":["-ん"],"valid":true}
+{"category":"irregular verbs","source":"来んかった","term":"来る","rule":"vk","reasons":["-ん","-た"],"valid":true}
+{"category":"irregular verbs","source":"来んばかり","term":"来る","rule":"vk","reasons":["-んばかり"],"valid":true}
+{"category":"irregular verbs","source":"来んとする","term":"来る","rule":"vk","reasons":["-んとする"],"valid":true}
+{"category":"irregular verbs","source":"来ざる","term":"来る","rule":"vk","reasons":["-ざる"],"valid":true}
+{"category":"irregular verbs","source":"来ねば","term":"来る","rule":"vk","reasons":["-ねば"],"valid":true}
+{"category":"irregular verbs","source":"来にゃ","term":"来る","rule":"vk","reasons":["-ねば","-ゃ"],"valid":true}
+{"category":"irregular verbs","source":"来","term":"来る","rule":"vk","reasons":["continuative"],"valid":true}
+{"category":"irregular verbs","source":"来ましょう","term":"来る","rule":"vk","reasons":["-ます","volitional"],"valid":true}
+{"category":"irregular verbs","source":"来ませう","term":"来る","rule":"vk","reasons":["-ます","volitional"],"valid":true}
+{"category":"irregular verbs","source":"来ましょっか","term":"来る","rule":"vk","reasons":["-ます","volitional slang"],"valid":true}
+{"category":"irregular verbs","source":"来よう","term":"来る","rule":"vk","reasons":["volitional"],"valid":true}
+{"category":"irregular verbs","source":"来やう","term":"来る","rule":"vk","reasons":["volitional"],"valid":true}
+{"category":"irregular verbs","source":"来よっか","term":"来る","rule":"vk","reasons":["volitional slang"],"valid":true}
+{"category":"irregular verbs","source":"来るまい","term":"来る","rule":"vk","reasons":["-まい"],"valid":true}
+{"category":"irregular verbs","source":"来まい","term":"来る","rule":"vk","reasons":["-まい"],"valid":true}
+{"category":"irregular verbs","source":"来ておく","term":"来る","rule":"vk","reasons":["-て","-おく"],"valid":true}
+{"category":"irregular verbs","source":"来とく","term":"来る","rule":"vk","reasons":["-て","-おく"],"valid":true}
+{"category":"irregular verbs","source":"来ないでおく","term":"来る","rule":"vk","reasons":["negative","-おく"],"valid":true}
+{"category":"irregular verbs","source":"来ないどく","term":"来る","rule":"vk","reasons":["negative","-おく"],"valid":true}
+{"category":"irregular verbs","source":"来ている","term":"来る","rule":"vk","reasons":["-て","-いる"],"valid":true}
+{"category":"irregular verbs","source":"来てゐる","term":"来る","rule":"vk","reasons":["-て","-いる"],"valid":true}
+{"category":"irregular verbs","source":"来ておる","term":"来る","rule":"vk","reasons":["-て","-いる"],"valid":true}
+{"category":"irregular verbs","source":"来てる","term":"来る","rule":"vk","reasons":["-て","-いる"],"valid":true}
+{"category":"irregular verbs","source":"来とる","term":"来る","rule":"vk","reasons":["-て","-いる"],"valid":true}
+{"category":"irregular verbs","source":"来てしまう","term":"来る","rule":"vk","reasons":["-て","-しまう"],"valid":true}
+{"category":"irregular verbs","source":"来ますまい","term":"来る","rule":"vk","reasons":["-ます","-まい"],"valid":true}
+{"category":"irregular verbs","source":"来ましたら","term":"来る","rule":"vk","reasons":["-ます","-たら"],"valid":true}
+{"category":"irregular verbs","source":"来ますれば","term":"来る","rule":"vk","reasons":["-ます","-ば"],"valid":true}
+{"category":"irregular verbs","source":"来ませんかった","term":"来る","rule":"vk","reasons":["-ます","negative","-た"],"valid":true}
+{"category":"irregular verbs","source":"來る","term":"來る","rule":"vk","reasons":[],"valid":true}
+{"category":"irregular verbs","source":"來ます","term":"來る","rule":"vk","reasons":["-ます"],"valid":true}
+{"category":"irregular verbs","source":"來た","term":"來る","rule":"vk","reasons":["-た"],"valid":true}
+{"category":"irregular verbs","source":"來ました","term":"來る","rule":"vk","reasons":["-ます","-た"],"valid":true}
+{"category":"irregular verbs","source":"來て","term":"來る","rule":"vk","reasons":["-て"],"valid":true}
+{"category":"irregular verbs","source":"來られる","term":"來る","rule":"vk","reasons":["potential or passive"],"valid":true}
+{"category":"irregular verbs","source":"來られる","term":"來る","rule":"vk","reasons":["potential or passive"],"valid":true}
+{"category":"irregular verbs","source":"來させる","term":"來る","rule":"vk","reasons":["causative"],"valid":true}
+{"category":"irregular verbs","source":"來さす","term":"來る","rule":"vk","reasons":["short causative"],"valid":true}
+{"category":"irregular verbs","source":"來さします","term":"來る","rule":"vk","reasons":["short causative","-ます"],"valid":true}
+{"category":"irregular verbs","source":"來させられる","term":"來る","rule":"vk","reasons":["causative","potential or passive"],"valid":true}
+{"category":"irregular verbs","source":"來い","term":"來る","rule":"vk","reasons":["imperative"],"valid":true}
+{"category":"irregular verbs","source":"來ない","term":"來る","rule":"vk","reasons":["negative"],"valid":true}
+{"category":"irregular verbs","source":"來ません","term":"來る","rule":"vk","reasons":["-ます","negative"],"valid":true}
+{"category":"irregular verbs","source":"來なかった","term":"來る","rule":"vk","reasons":["negative","-た"],"valid":true}
+{"category":"irregular verbs","source":"來ませんでした","term":"來る","rule":"vk","reasons":["-ます","negative","-た"],"valid":true}
+{"category":"irregular verbs","source":"來なくて","term":"來る","rule":"vk","reasons":["negative","-て"],"valid":true}
+{"category":"irregular verbs","source":"來られない","term":"來る","rule":"vk","reasons":["potential or passive","negative"],"valid":true}
+{"category":"irregular verbs","source":"來られない","term":"來る","rule":"vk","reasons":["potential or passive","negative"],"valid":true}
+{"category":"irregular verbs","source":"來させない","term":"來る","rule":"vk","reasons":["causative","negative"],"valid":true}
+{"category":"irregular verbs","source":"來ささない","term":"來る","rule":"vk","reasons":["short causative","negative"],"valid":true}
+{"category":"irregular verbs","source":"來させられない","term":"來る","rule":"vk","reasons":["causative","potential or passive","negative"],"valid":true}
+{"category":"irregular verbs","source":"來まして","term":"來る","rule":"vk","reasons":["-ます","-て"],"valid":true}
+{"category":"irregular verbs","source":"來れば","term":"來る","rule":"vk","reasons":["-ば"],"valid":true}
+{"category":"irregular verbs","source":"來りゃ","term":"來る","rule":"vk","reasons":["-ば","-ゃ"],"valid":true}
+{"category":"irregular verbs","source":"來ちゃ","term":"來る","rule":"vk","reasons":["-ちゃ"],"valid":true}
+{"category":"irregular verbs","source":"來ちゃう","term":"來る","rule":"vk","reasons":["-ちゃう"],"valid":true}
+{"category":"irregular verbs","source":"來ちまう","term":"來る","rule":"vk","reasons":["-ちまう"],"valid":true}
+{"category":"irregular verbs","source":"來なさい","term":"來る","rule":"vk","reasons":["-なさい"],"valid":true}
+{"category":"irregular verbs","source":"來そう","term":"來る","rule":"vk","reasons":["-そう"],"valid":true}
+{"category":"irregular verbs","source":"來さう","term":"來る","rule":"vk","reasons":["-そう"],"valid":true}
+{"category":"irregular verbs","source":"來すぎる","term":"來る","rule":"vk","reasons":["-すぎる"],"valid":true}
+{"category":"irregular verbs","source":"來過ぎる","term":"來る","rule":"vk","reasons":["-過ぎる"],"valid":true}
+{"category":"irregular verbs","source":"來たい","term":"來る","rule":"vk","reasons":["-たい"],"valid":true}
+{"category":"irregular verbs","source":"來たがる","term":"來る","rule":"vk","reasons":["-たい","-がる"],"valid":true}
+{"category":"irregular verbs","source":"來たら","term":"來る","rule":"vk","reasons":["-たら"],"valid":true}
+{"category":"irregular verbs","source":"來たり","term":"來る","rule":"vk","reasons":["-たり"],"valid":true}
+{"category":"irregular verbs","source":"來ず","term":"來る","rule":"vk","reasons":["-ず"],"valid":true}
+{"category":"irregular verbs","source":"來ぬ","term":"來る","rule":"vk","reasons":["-ぬ"],"valid":true}
+{"category":"irregular verbs","source":"來ん","term":"來る","rule":"vk","reasons":["-ん"],"valid":true}
+{"category":"irregular verbs","source":"來んかった","term":"來る","rule":"vk","reasons":["-ん","-た"],"valid":true}
+{"category":"irregular verbs","source":"來んばかり","term":"來る","rule":"vk","reasons":["-んばかり"],"valid":true}
+{"category":"irregular verbs","source":"來んとする","term":"來る","rule":"vk","reasons":["-んとする"],"valid":true}
+{"category":"irregular verbs","source":"來ざる","term":"來る","rule":"vk","reasons":["-ざる"],"valid":true}
+{"category":"irregular verbs","source":"來ねば","term":"來る","rule":"vk","reasons":["-ねば"],"valid":true}
+{"category":"irregular verbs","source":"來にゃ","term":"來る","rule":"vk","reasons":["-ねば","-ゃ"],"valid":true}
+{"category":"irregular verbs","source":"來","term":"來る","rule":"vk","reasons":["continuative"],"valid":true}
+{"category":"irregular verbs","source":"來ましょう","term":"來る","rule":"vk","reasons":["-ます","volitional"],"valid":true}
+{"category":"irregular verbs","source":"來ませう","term":"來る","rule":"vk","reasons":["-ます","volitional"],"valid":true}
+{"category":"irregular verbs","source":"來ましょっか","term":"來る","rule":"vk","reasons":["-ます","volitional slang"],"valid":true}
+{"category":"irregular verbs","source":"來よう","term":"來る","rule":"vk","reasons":["volitional"],"valid":true}
+{"category":"irregular verbs","source":"來やう","term":"來る","rule":"vk","reasons":["volitional"],"valid":true}
+{"category":"irregular verbs","source":"來よっか","term":"來る","rule":"vk","reasons":["volitional slang"],"valid":true}
+{"category":"irregular verbs","source":"來るまい","term":"來る","rule":"vk","reasons":["-まい"],"valid":true}
+{"category":"irregular verbs","source":"來とく","term":"來る","rule":"vk","reasons":["-て","-おく"],"valid":true}
+{"category":"irregular verbs","source":"來ておく","term":"來る","rule":"vk","reasons":["-て","-おく"],"valid":true}
+{"category":"irregular verbs","source":"來とく","term":"來る","rule":"vk","reasons":["-て","-おく"],"valid":true}
+{"category":"irregular verbs","source":"來ないでおく","term":"來る","rule":"vk","reasons":["negative","-おく"],"valid":true}
+{"category":"irregular verbs","source":"來ないどく","term":"來る","rule":"vk","reasons":["negative","-おく"],"valid":true}
+{"category":"irregular verbs","source":"來ている","term":"來る","rule":"vk","reasons":["-て","-いる"],"valid":true}
+{"category":"irregular verbs","source":"來てゐる","term":"來る","rule":"vk","reasons":["-て","-いる"],"valid":true}
+{"category":"irregular verbs","source":"來ておる","term":"來る","rule":"vk","reasons":["-て","-いる"],"valid":true}
+{"category":"irregular verbs","source":"來てる","term":"來る","rule":"vk","reasons":["-て","-いる"],"valid":true}
+{"category":"irregular verbs","source":"來とる","term":"來る","rule":"vk","reasons":["-て","-いる"],"valid":true}
+{"category":"irregular verbs","source":"來てしまう","term":"來る","rule":"vk","reasons":["-て","-しまう"],"valid":true}
+{"category":"irregular verbs","source":"來ますまい","term":"來る","rule":"vk","reasons":["-ます","-まい"],"valid":true}
+{"category":"irregular verbs","source":"來ましたら","term":"來る","rule":"vk","reasons":["-ます","-たら"],"valid":true}
+{"category":"irregular verbs","source":"來ますれば","term":"來る","rule":"vk","reasons":["-ます","-ば"],"valid":true}
+{"category":"irregular verbs","source":"來ませんかった","term":"來る","rule":"vk","reasons":["-ます","negative","-た"],"valid":true}
+{"category":"irregular verbs","source":"くる","term":"くる","rule":"vk","reasons":[],"valid":true}
+{"category":"irregular verbs","source":"きます","term":"くる","rule":"vk","reasons":["-ます"],"valid":true}
+{"category":"irregular verbs","source":"きた","term":"くる","rule":"vk","reasons":["-た"],"valid":true}
+{"category":"irregular verbs","source":"きました","term":"くる","rule":"vk","reasons":["-ます","-た"],"valid":true}
+{"category":"irregular verbs","source":"きて","term":"くる","rule":"vk","reasons":["-て"],"valid":true}
+{"category":"irregular verbs","source":"こられる","term":"くる","rule":"vk","reasons":["potential or passive"],"valid":true}
+{"category":"irregular verbs","source":"こられる","term":"くる","rule":"vk","reasons":["potential or passive"],"valid":true}
+{"category":"irregular verbs","source":"こさせる","term":"くる","rule":"vk","reasons":["causative"],"valid":true}
+{"category":"irregular verbs","source":"こさす","term":"くる","rule":"vk","reasons":["short causative"],"valid":true}
+{"category":"irregular verbs","source":"こさします","term":"くる","rule":"vk","reasons":["short causative","-ます"],"valid":true}
+{"category":"irregular verbs","source":"こさせられる","term":"くる","rule":"vk","reasons":["causative","potential or passive"],"valid":true}
+{"category":"irregular verbs","source":"こい","term":"くる","rule":"vk","reasons":["imperative"],"valid":true}
+{"category":"irregular verbs","source":"こない","term":"くる","rule":"vk","reasons":["negative"],"valid":true}
+{"category":"irregular verbs","source":"きません","term":"くる","rule":"vk","reasons":["-ます","negative"],"valid":true}
+{"category":"irregular verbs","source":"こなかった","term":"くる","rule":"vk","reasons":["negative","-た"],"valid":true}
+{"category":"irregular verbs","source":"きませんでした","term":"くる","rule":"vk","reasons":["-ます","negative","-た"],"valid":true}
+{"category":"irregular verbs","source":"こなくて","term":"くる","rule":"vk","reasons":["negative","-て"],"valid":true}
+{"category":"irregular verbs","source":"こられない","term":"くる","rule":"vk","reasons":["potential or passive","negative"],"valid":true}
+{"category":"irregular verbs","source":"こられない","term":"くる","rule":"vk","reasons":["potential or passive","negative"],"valid":true}
+{"category":"irregular verbs","source":"こさせない","term":"くる","rule":"vk","reasons":["causative","negative"],"valid":true}
+{"category":"irregular verbs","source":"こささない","term":"くる","rule":"vk","reasons":["short causative","negative"],"valid":true}
+{"category":"irregular verbs","source":"こさせられない","term":"くる","rule":"vk","reasons":["causative","potential or passive","negative"],"valid":true}
+{"category":"irregular verbs","source":"きまして","term":"くる","rule":"vk","reasons":["-ます","-て"],"valid":true}
+{"category":"irregular verbs","source":"くれば","term":"くる","rule":"vk","reasons":["-ば"],"valid":true}
+{"category":"irregular verbs","source":"くりゃ","term":"くる","rule":"vk","reasons":["-ば","-ゃ"],"valid":true}
+{"category":"irregular verbs","source":"きちゃ","term":"くる","rule":"vk","reasons":["-ちゃ"],"valid":true}
+{"category":"irregular verbs","source":"きちゃう","term":"くる","rule":"vk","reasons":["-ちゃう"],"valid":true}
+{"category":"irregular verbs","source":"きちまう","term":"くる","rule":"vk","reasons":["-ちまう"],"valid":true}
+{"category":"irregular verbs","source":"きなさい","term":"くる","rule":"vk","reasons":["-なさい"],"valid":true}
+{"category":"irregular verbs","source":"きそう","term":"くる","rule":"vk","reasons":["-そう"],"valid":true}
+{"category":"irregular verbs","source":"きさう","term":"くる","rule":"vk","reasons":["-そう"],"valid":true}
+{"category":"irregular verbs","source":"きすぎる","term":"くる","rule":"vk","reasons":["-すぎる"],"valid":true}
+{"category":"irregular verbs","source":"き過ぎる","term":"くる","rule":"vk","reasons":["-過ぎる"],"valid":true}
+{"category":"irregular verbs","source":"きたい","term":"くる","rule":"vk","reasons":["-たい"],"valid":true}
+{"category":"irregular verbs","source":"きたがる","term":"くる","rule":"vk","reasons":["-たい","-がる"],"valid":true}
+{"category":"irregular verbs","source":"きたら","term":"くる","rule":"vk","reasons":["-たら"],"valid":true}
+{"category":"irregular verbs","source":"きたり","term":"くる","rule":"vk","reasons":["-たり"],"valid":true}
+{"category":"irregular verbs","source":"こず","term":"くる","rule":"vk","reasons":["-ず"],"valid":true}
+{"category":"irregular verbs","source":"こぬ","term":"くる","rule":"vk","reasons":["-ぬ"],"valid":true}
+{"category":"irregular verbs","source":"こん","term":"くる","rule":"vk","reasons":["-ん"],"valid":true}
+{"category":"irregular verbs","source":"こんかった","term":"くる","rule":"vk","reasons":["-ん","-た"],"valid":true}
+{"category":"irregular verbs","source":"こんばかり","term":"くる","rule":"vk","reasons":["-んばかり"],"valid":true}
+{"category":"irregular verbs","source":"こんとする","term":"くる","rule":"vk","reasons":["-んとする"],"valid":true}
+{"category":"irregular verbs","source":"こざる","term":"くる","rule":"vk","reasons":["-ざる"],"valid":true}
+{"category":"irregular verbs","source":"こねば","term":"くる","rule":"vk","reasons":["-ねば"],"valid":true}
+{"category":"irregular verbs","source":"こにゃ","term":"くる","rule":"vk","reasons":["-ねば","-ゃ"],"valid":true}
+{"category":"irregular verbs","source":"き","term":"くる","rule":"vk","reasons":["continuative"],"valid":true}
+{"category":"irregular verbs","source":"きましょう","term":"くる","rule":"vk","reasons":["-ます","volitional"],"valid":true}
+{"category":"irregular verbs","source":"きませう","term":"くる","rule":"vk","reasons":["-ます","volitional"],"valid":true}
+{"category":"irregular verbs","source":"きましょっか","term":"くる","rule":"vk","reasons":["-ます","volitional slang"],"valid":true}
+{"category":"irregular verbs","source":"こよう","term":"くる","rule":"vk","reasons":["volitional"],"valid":true}
+{"category":"irregular verbs","source":"こやう","term":"くる","rule":"vk","reasons":["volitional"],"valid":true}
+{"category":"irregular verbs","source":"こよっか","term":"くる","rule":"vk","reasons":["volitional slang"],"valid":true}
+{"category":"irregular verbs","source":"くるまい","term":"くる","rule":"vk","reasons":["-まい"],"valid":true}
+{"category":"irregular verbs","source":"こまい","term":"くる","rule":"vk","reasons":["-まい"],"valid":true}
+{"category":"irregular verbs","source":"きておく","term":"くる","rule":"vk","reasons":["-て","-おく"],"valid":true}
+{"category":"irregular verbs","source":"きとく","term":"くる","rule":"vk","reasons":["-て","-おく"],"valid":true}
+{"category":"irregular verbs","source":"こないでおく","term":"くる","rule":"vk","reasons":["negative","-おく"],"valid":true}
+{"category":"irregular verbs","source":"こないどく","term":"くる","rule":"vk","reasons":["negative","-おく"],"valid":true}
+{"category":"irregular verbs","source":"きている","term":"くる","rule":"vk","reasons":["-て","-いる"],"valid":true}
+{"category":"irregular verbs","source":"きてゐる","term":"くる","rule":"vk","reasons":["-て","-いる"],"valid":true}
+{"category":"irregular verbs","source":"きておる","term":"くる","rule":"vk","reasons":["-て","-いる"],"valid":true}
+{"category":"irregular verbs","source":"きてる","term":"くる","rule":"vk","reasons":["-て","-いる"],"valid":true}
+{"category":"irregular verbs","source":"きとる","term":"くる","rule":"vk","reasons":["-て","-いる"],"valid":true}
+{"category":"irregular verbs","source":"きてしまう","term":"くる","rule":"vk","reasons":["-て","-しまう"],"valid":true}
+{"category":"irregular verbs","source":"きやがる","term":"くる","rule":"vk","reasons":["-やがる"],"valid":true}
+{"category":"irregular verbs","source":"きやがって","term":"くる","rule":"vk","reasons":["-やがる","-て"],"valid":true}
+{"category":"irregular verbs","source":"きやがった","term":"くる","rule":"vk","reasons":["-やがる","-た"],"valid":true}
+{"category":"irregular verbs","source":"きやがれ","term":"くる","rule":"vk","reasons":["-やがる","imperative"],"valid":true}
+{"category":"irregular verbs","source":"きやしない","term":"くる","rule":"vk","reasons":["-やしない"],"valid":true}
+{"category":"irregular verbs","source":"きやしません","term":"くる","rule":"vk","reasons":["-やしません"],"valid":true}
+{"category":"irregular verbs","source":"来やしない","term":"来る","rule":"vk","reasons":["-やしない"],"valid":true}
+{"category":"irregular verbs","source":"来やしません","term":"来る","rule":"vk","reasons":["-やしません"],"valid":true}
+{"category":"irregular verbs","source":"きますまい","term":"くる","rule":"vk","reasons":["-ます","-まい"],"valid":true}
+{"category":"irregular verbs","source":"きましたら","term":"くる","rule":"vk","reasons":["-ます","-たら"],"valid":true}
+{"category":"irregular verbs","source":"きますれば","term":"くる","rule":"vk","reasons":["-ます","-ば"],"valid":true}
+{"category":"irregular verbs","source":"きませんかった","term":"くる","rule":"vk","reasons":["-ます","negative","-た"],"valid":true}
+{"category":"-ずる verbs","source":"論ずる","term":"論ずる","rule":"vz","reasons":[],"valid":true}
+{"category":"-ずる verbs","source":"論じます","term":"論ずる","rule":"vz","reasons":["-ます"],"valid":true}
+{"category":"-ずる verbs","source":"論じた","term":"論ずる","rule":"vz","reasons":["-た"],"valid":true}
+{"category":"-ずる verbs","source":"論じました","term":"論ずる","rule":"vz","reasons":["-ます","-た"],"valid":true}
+{"category":"-ずる verbs","source":"論じて","term":"論ずる","rule":"vz","reasons":["-て"],"valid":true}
+{"category":"-ずる verbs","source":"論ぜられる","term":"論ずる","rule":"vz","reasons":["potential or passive"],"valid":true}
+{"category":"-ずる verbs","source":"論ざれる","term":"論ずる","rule":"vz","reasons":["potential or passive"],"valid":true}
+{"category":"-ずる verbs","source":"論じされる","term":"論ずる","rule":"vz","reasons":["passive"],"valid":true}
+{"category":"-ずる verbs","source":"論ぜされる","term":"論ずる","rule":"vz","reasons":["passive"],"valid":true}
+{"category":"-ずる verbs","source":"論じさせる","term":"論ずる","rule":"vz","reasons":["causative"],"valid":true}
+{"category":"-ずる verbs","source":"論ぜさせる","term":"論ずる","rule":"vz","reasons":["causative"],"valid":true}
+{"category":"-ずる verbs","source":"論じさす","term":"論ずる","rule":"vz","reasons":["short causative"],"valid":true}
+{"category":"-ずる verbs","source":"論ぜさす","term":"論ずる","rule":"vz","reasons":["short causative"],"valid":true}
+{"category":"-ずる verbs","source":"論じさします","term":"論ずる","rule":"vz","reasons":["short causative","-ます"],"valid":true}
+{"category":"-ずる verbs","source":"論ぜさします","term":"論ずる","rule":"vz","reasons":["short causative","-ます"],"valid":true}
+{"category":"-ずる verbs","source":"論じさせられる","term":"論ずる","rule":"vz","reasons":["causative","potential or passive"],"valid":true}
+{"category":"-ずる verbs","source":"論ぜさせられる","term":"論ずる","rule":"vz","reasons":["causative","potential or passive"],"valid":true}
+{"category":"-ずる verbs","source":"論じろ","term":"論ずる","rule":"vz","reasons":["imperative"],"valid":true}
+{"category":"-ずる verbs","source":"論じない","term":"論ずる","rule":"vz","reasons":["negative"],"valid":true}
+{"category":"-ずる verbs","source":"論じません","term":"論ずる","rule":"vz","reasons":["-ます","negative"],"valid":true}
+{"category":"-ずる verbs","source":"論じなかった","term":"論ずる","rule":"vz","reasons":["negative","-た"],"valid":true}
+{"category":"-ずる verbs","source":"論じませんでした","term":"論ずる","rule":"vz","reasons":["-ます","negative","-た"],"valid":true}
+{"category":"-ずる verbs","source":"論じなくて","term":"論ずる","rule":"vz","reasons":["negative","-て"],"valid":true}
+{"category":"-ずる verbs","source":"論ぜられない","term":"論ずる","rule":"vz","reasons":["potential or passive","negative"],"valid":true}
+{"category":"-ずる verbs","source":"論じされない","term":"論ずる","rule":"vz","reasons":["passive","negative"],"valid":true}
+{"category":"-ずる verbs","source":"論ぜされない","term":"論ずる","rule":"vz","reasons":["passive","negative"],"valid":true}
+{"category":"-ずる verbs","source":"論じさせない","term":"論ずる","rule":"vz","reasons":["causative","negative"],"valid":true}
+{"category":"-ずる verbs","source":"論ぜさせない","term":"論ずる","rule":"vz","reasons":["causative","negative"],"valid":true}
+{"category":"-ずる verbs","source":"論じささない","term":"論ずる","rule":"vz","reasons":["short causative","negative"],"valid":true}
+{"category":"-ずる verbs","source":"論ぜささない","term":"論ずる","rule":"vz","reasons":["short causative","negative"],"valid":true}
+{"category":"-ずる verbs","source":"論じさせられない","term":"論ずる","rule":"vz","reasons":["causative","potential or passive","negative"],"valid":true}
+{"category":"-ずる verbs","source":"論ぜさせられない","term":"論ずる","rule":"vz","reasons":["causative","potential or passive","negative"],"valid":true}
+{"category":"-ずる verbs","source":"論じまして","term":"論ずる","rule":"vz","reasons":["-ます","-て"],"valid":true}
+{"category":"-ずる verbs","source":"論ずれば","term":"論ずる","rule":"vz","reasons":["-ば"],"valid":true}
+{"category":"-ずる verbs","source":"論ずりゃ","term":"論ずる","rule":"vz","reasons":["-ば","-ゃ"],"valid":true}
+{"category":"-ずる verbs","source":"論じちゃ","term":"論ずる","rule":"vz","reasons":["-ちゃ"],"valid":true}
+{"category":"-ずる verbs","source":"論じちゃう","term":"論ずる","rule":"vz","reasons":["-ちゃう"],"valid":true}
+{"category":"-ずる verbs","source":"論じちまう","term":"論ずる","rule":"vz","reasons":["-ちまう"],"valid":true}
+{"category":"-ずる verbs","source":"論じなさい","term":"論ずる","rule":"vz","reasons":["-なさい"],"valid":true}
+{"category":"-ずる verbs","source":"論じそう","term":"論ずる","rule":"vz","reasons":["-そう"],"valid":true}
+{"category":"-ずる verbs","source":"論じさう","term":"論ずる","rule":"vz","reasons":["-そう"],"valid":true}
+{"category":"-ずる verbs","source":"論じすぎる","term":"論ずる","rule":"vz","reasons":["-すぎる"],"valid":true}
+{"category":"-ずる verbs","source":"論じ過ぎる","term":"論ずる","rule":"vz","reasons":["-過ぎる"],"valid":true}
+{"category":"-ずる verbs","source":"論じたい","term":"論ずる","rule":"vz","reasons":["-たい"],"valid":true}
+{"category":"-ずる verbs","source":"論じたがる","term":"論ずる","rule":"vz","reasons":["-たい","-がる"],"valid":true}
+{"category":"-ずる verbs","source":"論じたら","term":"論ずる","rule":"vz","reasons":["-たら"],"valid":true}
+{"category":"-ずる verbs","source":"論じたり","term":"論ずる","rule":"vz","reasons":["-たり"],"valid":true}
+{"category":"-ずる verbs","source":"論ぜず","term":"論ずる","rule":"vz","reasons":["-ず"],"valid":true}
+{"category":"-ずる verbs","source":"論ぜぬ","term":"論ずる","rule":"vz","reasons":["-ぬ"],"valid":true}
+{"category":"-ずる verbs","source":"論ぜん","term":"論ずる","rule":"vz","reasons":["-ん"],"valid":true}
+{"category":"-ずる verbs","source":"論ぜんかった","term":"論ずる","rule":"vz","reasons":["-ん","-た"],"valid":true}
+{"category":"-ずる verbs","source":"論ぜんばかり","term":"論ずる","rule":"vz","reasons":["-んばかり"],"valid":true}
+{"category":"-ずる verbs","source":"論ぜんとする","term":"論ずる","rule":"vz","reasons":["-んとする"],"valid":true}
+{"category":"-ずる verbs","source":"論ぜざる","term":"論ずる","rule":"vz","reasons":["-ざる"],"valid":true}
+{"category":"-ずる verbs","source":"論ぜねば","term":"論ずる","rule":"vz","reasons":["-ねば"],"valid":true}
+{"category":"-ずる verbs","source":"論ぜにゃ","term":"論ずる","rule":"vz","reasons":["-ねば","-ゃ"],"valid":true}
+{"category":"-ずる verbs","source":"論じましょう","term":"論ずる","rule":"vz","reasons":["-ます","volitional"],"valid":true}
+{"category":"-ずる verbs","source":"論じませう","term":"論ずる","rule":"vz","reasons":["-ます","volitional"],"valid":true}
+{"category":"-ずる verbs","source":"論じよう","term":"論ずる","rule":"vz","reasons":["volitional"],"valid":true}
+{"category":"-ずる verbs","source":"論じやう","term":"論ずる","rule":"vz","reasons":["volitional"],"valid":true}
+{"category":"-ずる verbs","source":"論ずるまい","term":"論ずる","rule":"vz","reasons":["-まい"],"valid":true}
+{"category":"-ずる verbs","source":"論じまい","term":"論ずる","rule":"vz","reasons":["-まい"],"valid":true}
+{"category":"-ずる verbs","source":"論じとく","term":"論ずる","rule":"vz","reasons":["-て","-おく"],"valid":true}
+{"category":"-ずる verbs","source":"論じている","term":"論ずる","rule":"vz","reasons":["-て","-いる"],"valid":true}
+{"category":"-ずる verbs","source":"論じてゐる","term":"論ずる","rule":"vz","reasons":["-て","-いる"],"valid":true}
+{"category":"-ずる verbs","source":"論じておる","term":"論ずる","rule":"vz","reasons":["-て","-いる"],"valid":true}
+{"category":"-ずる verbs","source":"論じてる","term":"論ずる","rule":"vz","reasons":["-て","-いる"],"valid":true}
+{"category":"-ずる verbs","source":"論じとる","term":"論ずる","rule":"vz","reasons":["-て","-いる"],"valid":true}
+{"category":"-ずる verbs","source":"論じてしまう","term":"論ずる","rule":"vz","reasons":["-て","-しまう"],"valid":true}
+{"category":"-ずる verbs","source":"論じやがる","term":"論ずる","rule":"vz","reasons":["-やがる"],"valid":true}
+{"category":"-ずる verbs","source":"論じやがって","term":"論ずる","rule":"vz","reasons":["-やがる","-て"],"valid":true}
+{"category":"-ずる verbs","source":"論じやがった","term":"論ずる","rule":"vz","reasons":["-やがる","-た"],"valid":true}
+{"category":"-ずる verbs","source":"論じやがれ","term":"論ずる","rule":"vz","reasons":["-やがる","imperative"],"valid":true}
+{"category":"-ずる verbs","source":"論じやしない","term":"論ずる","rule":"vz","reasons":["-やしない"],"valid":true}
+{"category":"-ずる verbs","source":"論じやしません","term":"論ずる","rule":"vz","reasons":["-やしません"],"valid":true}
+{"category":"-え verbs and adjectives","source":"すげえ","term":"すごい","rule":"adj-i","reasons":["-え"],"valid":true}
+{"category":"-え verbs and adjectives","source":"やべえ","term":"やばい","rule":"adj-i","reasons":["-え"],"valid":true}
+{"category":"-え verbs and adjectives","source":"うるせえ","term":"うるさい","rule":"adj-i","reasons":["-え"],"valid":true}
+{"category":"-え verbs and adjectives","source":"ひでえ","term":"ひどい","rule":"adj-i","reasons":["-え"],"valid":true}
+{"category":"-え verbs and adjectives","source":"ねえ","term":"ない","rule":"adj-i","reasons":["-え"],"valid":true}
+{"category":"-え verbs and adjectives","source":"できねえ","term":"できる","rule":"v1","reasons":["negative","-え"],"valid":true}
+{"category":"-え verbs and adjectives","source":"しんじねえ","term":"しんじる","rule":"v1","reasons":["negative","-え"],"valid":true}
+{"category":"-え verbs and adjectives","source":"さめえ","term":"さむい","rule":"adj-i","reasons":["-え"],"valid":true}
+{"category":"-え verbs and adjectives","source":"さみい","term":"さむい","rule":"adj-i","reasons":["-え"],"valid":true}
+{"category":"-え verbs and adjectives","source":"あちぇえ","term":"あつい","rule":"adj-i","reasons":["-え"],"valid":true}
+{"category":"-え verbs and adjectives","source":"あちい","term":"あつい","rule":"adj-i","reasons":["-え"],"valid":true}
+{"category":"-え verbs and adjectives","source":"やせえ","term":"やすい","rule":"adj-i","reasons":["-え"],"valid":true}
+{"category":"-え verbs and adjectives","source":"たけえ","term":"たかい","rule":"adj-i","reasons":["-え"],"valid":true}
+{"category":"-え verbs and adjectives","source":"かわええ","term":"かわいい","rule":"adj-i","reasons":["-え"],"valid":true}
+{"category":"-え verbs and adjectives","source":"ついぇえ","term":"つよい","rule":"adj-i","reasons":["-え"],"valid":true}
+{"category":"-え verbs and adjectives","source":"こうぇえ","term":"こわい","rule":"adj-i","reasons":["-え"],"valid":true}
+{"category":"-え verbs and adjectives","source":"みじけえ","term":"みじかい","rule":"adj-i","reasons":["-え"],"valid":true}
+{"category":"-え verbs and adjectives","source":"なげえ","term":"ながい","rule":"adj-i","reasons":["-え"],"valid":true}
+{"category":"-え verbs and adjectives","source":"くせえ","term":"くさい","rule":"adj-i","reasons":["-え"],"valid":true}
+{"category":"-え verbs and adjectives","source":"うめえ","term":"うまい","rule":"adj-i","reasons":["-え"],"valid":true}
+{"category":"-え verbs and adjectives","source":"でけえ","term":"でかい","rule":"adj-i","reasons":["-え"],"valid":true}
+{"category":"-え verbs and adjectives","source":"まっぜえ","term":"まずい","rule":"adj-i","reasons":["-え"],"valid":true}
+{"category":"-え verbs and adjectives","source":"ちっちぇえ","term":"ちっちゃい","rule":"adj-i","reasons":["-え"],"valid":true}
+{"category":"-え verbs and adjectives","source":"あけえ","term":"あかい","rule":"adj-i","reasons":["-え"],"valid":true}
+{"category":"-え verbs and adjectives","source":"こええ","term":"こわい","rule":"adj-i","reasons":["-え"],"valid":true}
+{"category":"-え verbs and adjectives","source":"つええ","term":"つよい","rule":"adj-i","reasons":["-え"],"valid":true}
+{"category":"-え verbs and adjectives","source":"すげぇ","term":"すごい","rule":"adj-i","reasons":["-え"],"valid":true}
+{"category":"-え verbs and adjectives","source":"やべぇ","term":"やばい","rule":"adj-i","reasons":["-え"],"valid":true}
+{"category":"-え verbs and adjectives","source":"うるせぇ","term":"うるさい","rule":"adj-i","reasons":["-え"],"valid":true}
+{"category":"-え verbs and adjectives","source":"ひでぇ","term":"ひどい","rule":"adj-i","reasons":["-え"],"valid":true}
+{"category":"-え verbs and adjectives","source":"ねぇ","term":"ない","rule":"adj-i","reasons":["-え"],"valid":true}
+{"category":"-え verbs and adjectives","source":"できねぇ","term":"できる","rule":"v1","reasons":["negative","-え"],"valid":true}
+{"category":"-え verbs and adjectives","source":"しんじねぇ","term":"しんじる","rule":"v1","reasons":["negative","-え"],"valid":true}
+{"category":"-え verbs and adjectives","source":"さめぇ","term":"さむい","rule":"adj-i","reasons":["-え"],"valid":true}
+{"category":"-え verbs and adjectives","source":"さみぃ","term":"さむい","rule":"adj-i","reasons":["-え"],"valid":true}
+{"category":"-え verbs and adjectives","source":"あちぃ","term":"あつい","rule":"adj-i","reasons":["-え"],"valid":true}
+{"category":"-え verbs and adjectives","source":"やせぇ","term":"やすい","rule":"adj-i","reasons":["-え"],"valid":true}
+{"category":"-え verbs and adjectives","source":"たけぇ","term":"たかい","rule":"adj-i","reasons":["-え"],"valid":true}
+{"category":"-え verbs and adjectives","source":"みじけぇ","term":"みじかい","rule":"adj-i","reasons":["-え"],"valid":true}
+{"category":"-え verbs and adjectives","source":"なげぇ","term":"ながい","rule":"adj-i","reasons":["-え"],"valid":true}
+{"category":"-え verbs and adjectives","source":"くせぇ","term":"くさい","rule":"adj-i","reasons":["-え"],"valid":true}
+{"category":"-え verbs and adjectives","source":"うめぇ","term":"うまい","rule":"adj-i","reasons":["-え"],"valid":true}
+{"category":"-え verbs and adjectives","source":"でけぇ","term":"でかい","rule":"adj-i","reasons":["-え"],"valid":true}
+{"category":"-え verbs and adjectives","source":"まっぜぇ","term":"まずい","rule":"adj-i","reasons":["-え"],"valid":true}
+{"category":"-え verbs and adjectives","source":"あけぇ","term":"あかい","rule":"adj-i","reasons":["-え"],"valid":true}
+{"category":"n-slang","source":"わかんねえ","term":"わかる","rule":"v5","reasons":["negative","n-slang","-え"],"valid":true}
+{"category":"n-slang","source":"すんな","term":"する","rule":"vs","reasons":["imperative negative slang"],"valid":true}
+{"category":"n-slang","source":"やんなさい","term":"やる","rule":"v5","reasons":["-なさい","n-slang"],"valid":true}
+{"category":"n-slang","source":"食べらんない","term":"食べる","rule":"v1","reasons":["potential or passive","negative","n-slang"],"valid":true}
+{"category":"n-slang","source":"やんなきゃ","term":"やる","rule":"v5","reasons":["negative","n-slang","-ば","-ゃ"],"valid":true}
+{"category":"n-slang","source":"くんなきゃ","term":"くれる","rule":"v1","reasons":["negative","-ば","-ゃ","n-slang"],"valid":true}
+{"category":"irregular verbs","source":"すます","term":"する","rule":"vs","reasons":null,"valid":false}
+{"category":"irregular verbs","source":"すた","term":"する","rule":"vs","reasons":null,"valid":false}
+{"category":"irregular verbs","source":"すました","term":"する","rule":"vs","reasons":null,"valid":false}
+{"category":"irregular verbs","source":"すて","term":"する","rule":"vs","reasons":null,"valid":false}
+{"category":"irregular verbs","source":"すれる","term":"する","rule":"vs","reasons":null,"valid":false}
+{"category":"irregular verbs","source":"すせる","term":"する","rule":"vs","reasons":null,"valid":false}
+{"category":"irregular verbs","source":"すせられる","term":"する","rule":"vs","reasons":null,"valid":false}
+{"category":"irregular verbs","source":"すろ","term":"する","rule":"vs","reasons":null,"valid":false}
+{"category":"irregular verbs","source":"すない","term":"する","rule":"vs","reasons":null,"valid":false}
+{"category":"irregular verbs","source":"すません","term":"する","rule":"vs","reasons":null,"valid":false}
+{"category":"irregular verbs","source":"すなかった","term":"する","rule":"vs","reasons":null,"valid":false}
+{"category":"irregular verbs","source":"すませんでした","term":"する","rule":"vs","reasons":null,"valid":false}
+{"category":"irregular verbs","source":"すなくて","term":"する","rule":"vs","reasons":null,"valid":false}
+{"category":"irregular verbs","source":"すれない","term":"する","rule":"vs","reasons":null,"valid":false}
+{"category":"irregular verbs","source":"すせない","term":"する","rule":"vs","reasons":null,"valid":false}
+{"category":"irregular verbs","source":"すせられない","term":"する","rule":"vs","reasons":null,"valid":false}
+{"category":"irregular verbs","source":"くます","term":"くる","rule":"vk","reasons":null,"valid":false}
+{"category":"irregular verbs","source":"くた","term":"くる","rule":"vk","reasons":null,"valid":false}
+{"category":"irregular verbs","source":"くました","term":"くる","rule":"vk","reasons":null,"valid":false}
+{"category":"irregular verbs","source":"くて","term":"くる","rule":"vk","reasons":null,"valid":false}
+{"category":"irregular verbs","source":"くられる","term":"くる","rule":"vk","reasons":null,"valid":false}
+{"category":"irregular verbs","source":"くられる","term":"くる","rule":"vk","reasons":null,"valid":false}
+{"category":"irregular verbs","source":"くさせる","term":"くる","rule":"vk","reasons":null,"valid":false}
+{"category":"irregular verbs","source":"くさせられる","term":"くる","rule":"vk","reasons":null,"valid":false}
+{"category":"irregular verbs","source":"くい","term":"くる","rule":"vk","reasons":null,"valid":false}
+{"category":"irregular verbs","source":"くない","term":"くる","rule":"vk","reasons":null,"valid":false}
+{"category":"irregular verbs","source":"くません","term":"くる","rule":"vk","reasons":null,"valid":false}
+{"category":"irregular verbs","source":"くなかった","term":"くる","rule":"vk","reasons":null,"valid":false}
+{"category":"irregular verbs","source":"くませんでした","term":"くる","rule":"vk","reasons":null,"valid":false}
+{"category":"irregular verbs","source":"くなくて","term":"くる","rule":"vk","reasons":null,"valid":false}
+{"category":"irregular verbs","source":"くられない","term":"くる","rule":"vk","reasons":null,"valid":false}
+{"category":"irregular verbs","source":"くられない","term":"くる","rule":"vk","reasons":null,"valid":false}
+{"category":"irregular verbs","source":"くさせない","term":"くる","rule":"vk","reasons":null,"valid":false}
+{"category":"irregular verbs","source":"くさせられない","term":"くる","rule":"vk","reasons":null,"valid":false}
+{"category":"uncommon irregular verbs","source":"のたもうて","term":"のたまう","rule":"v5","reasons":["-て"],"valid":true}
+{"category":"uncommon irregular verbs","source":"のたもうた","term":"のたまう","rule":"v5","reasons":["-た"],"valid":true}
+{"category":"uncommon irregular verbs","source":"のたもうたら","term":"のたまう","rule":"v5","reasons":["-たら"],"valid":true}
+{"category":"uncommon irregular verbs","source":"のたもうたり","term":"のたまう","rule":"v5","reasons":["-たり"],"valid":true}
+{"category":"uncommon irregular verbs","source":"宣うて","term":"宣う","rule":"v5","reasons":["-て"],"valid":true}
+{"category":"uncommon irregular verbs","source":"宣うた","term":"宣う","rule":"v5","reasons":["-た"],"valid":true}
+{"category":"uncommon irregular verbs","source":"宣うたら","term":"宣う","rule":"v5","reasons":["-たら"],"valid":true}
+{"category":"uncommon irregular verbs","source":"宣うたり","term":"宣う","rule":"v5","reasons":["-たり"],"valid":true}
+{"category":"uncommon irregular verbs","source":"曰うて","term":"曰う","rule":"v5","reasons":["-て"],"valid":true}
+{"category":"uncommon irregular verbs","source":"曰うた","term":"曰う","rule":"v5","reasons":["-た"],"valid":true}
+{"category":"uncommon irregular verbs","source":"曰うたら","term":"曰う","rule":"v5","reasons":["-たら"],"valid":true}
+{"category":"uncommon irregular verbs","source":"曰うたり","term":"曰う","rule":"v5","reasons":["-たり"],"valid":true}
+{"category":"uncommon irregular verbs","source":"たもうて","term":"たまう","rule":"v5","reasons":["-て"],"valid":true}
+{"category":"uncommon irregular verbs","source":"たもうた","term":"たまう","rule":"v5","reasons":["-た"],"valid":true}
+{"category":"uncommon irregular verbs","source":"たもうたら","term":"たまう","rule":"v5","reasons":["-たら"],"valid":true}
+{"category":"uncommon irregular verbs","source":"たもうたり","term":"たまう","rule":"v5","reasons":["-たり"],"valid":true}
+{"category":"uncommon irregular verbs","source":"給うて","term":"給う","rule":"v5","reasons":["-て"],"valid":true}
+{"category":"uncommon irregular verbs","source":"給うた","term":"給う","rule":"v5","reasons":["-た"],"valid":true}
+{"category":"uncommon irregular verbs","source":"給うたら","term":"給う","rule":"v5","reasons":["-たら"],"valid":true}
+{"category":"uncommon irregular verbs","source":"給うたり","term":"給う","rule":"v5","reasons":["-たり"],"valid":true}
+{"category":"uncommon irregular verbs","source":"賜うて","term":"賜う","rule":"v5","reasons":["-て"],"valid":true}
+{"category":"uncommon irregular verbs","source":"賜うた","term":"賜う","rule":"v5","reasons":["-た"],"valid":true}
+{"category":"uncommon irregular verbs","source":"賜うたら","term":"賜う","rule":"v5","reasons":["-たら"],"valid":true}
+{"category":"uncommon irregular verbs","source":"賜うたり","term":"賜う","rule":"v5","reasons":["-たり"],"valid":true}
+{"category":"uncommon irregular verbs","source":"たゆとうて","term":"たゆたう","rule":"v5","reasons":["-て"],"valid":true}
+{"category":"uncommon irregular verbs","source":"たゆとうた","term":"たゆたう","rule":"v5","reasons":["-た"],"valid":true}
+{"category":"uncommon irregular verbs","source":"たゆとうたら","term":"たゆたう","rule":"v5","reasons":["-たら"],"valid":true}
+{"category":"uncommon irregular verbs","source":"たゆとうたり","term":"たゆたう","rule":"v5","reasons":["-たり"],"valid":true}
+{"category":"uncommon irregular verbs","source":"こうて","term":"こう","rule":"v5","reasons":["-て"],"valid":true}
+{"category":"uncommon irregular verbs","source":"とうて","term":"とう","rule":"v5","reasons":["-て"],"valid":true}
+{"category":"uncommon irregular verbs","source":"請うて","term":"請う","rule":"v5","reasons":["-て"],"valid":true}
+{"category":"uncommon irregular verbs","source":"乞うて","term":"乞う","rule":"v5","reasons":["-て"],"valid":true}
+{"category":"uncommon irregular verbs","source":"恋うて","term":"恋う","rule":"v5","reasons":["-て"],"valid":true}
+{"category":"uncommon irregular verbs","source":"問うて","term":"問う","rule":"v5","reasons":["-て"],"valid":true}
+{"category":"uncommon irregular verbs","source":"訪うて","term":"訪う","rule":"v5","reasons":["-て"],"valid":true}
+{"category":"uncommon irregular verbs","source":"こうた","term":"こう","rule":"v5","reasons":["-た"],"valid":true}
+{"category":"uncommon irregular verbs","source":"とうた","term":"とう","rule":"v5","reasons":["-た"],"valid":true}
+{"category":"uncommon irregular verbs","source":"請うた","term":"請う","rule":"v5","reasons":["-た"],"valid":true}
+{"category":"uncommon irregular verbs","source":"乞うた","term":"乞う","rule":"v5","reasons":["-た"],"valid":true}
+{"category":"uncommon irregular verbs","source":"恋うた","term":"恋う","rule":"v5","reasons":["-た"],"valid":true}
+{"category":"uncommon irregular verbs","source":"問うた","term":"問う","rule":"v5","reasons":["-た"],"valid":true}
+{"category":"uncommon irregular verbs","source":"訪うた","term":"訪う","rule":"v5","reasons":["-た"],"valid":true}
+{"category":"uncommon irregular verbs","source":"こうたら","term":"こう","rule":"v5","reasons":["-たら"],"valid":true}
+{"category":"uncommon irregular verbs","source":"とうたら","term":"とう","rule":"v5","reasons":["-たら"],"valid":true}
+{"category":"uncommon irregular verbs","source":"請うたら","term":"請う","rule":"v5","reasons":["-たら"],"valid":true}
+{"category":"uncommon irregular verbs","source":"乞うたら","term":"乞う","rule":"v5","reasons":["-たら"],"valid":true}
+{"category":"uncommon irregular verbs","source":"恋うたら","term":"恋う","rule":"v5","reasons":["-たら"],"valid":true}
+{"category":"uncommon irregular verbs","source":"問うたら","term":"問う","rule":"v5","reasons":["-たら"],"valid":true}
+{"category":"uncommon irregular verbs","source":"訪うたら","term":"訪う","rule":"v5","reasons":["-たら"],"valid":true}
+{"category":"uncommon irregular verbs","source":"こうたり","term":"こう","rule":"v5","reasons":["-たり"],"valid":true}
+{"category":"uncommon irregular verbs","source":"とうたり","term":"とう","rule":"v5","reasons":["-たり"],"valid":true}
+{"category":"uncommon irregular verbs","source":"請うたり","term":"請う","rule":"v5","reasons":["-たり"],"valid":true}
+{"category":"uncommon irregular verbs","source":"乞うたり","term":"乞う","rule":"v5","reasons":["-たり"],"valid":true}
+{"category":"uncommon irregular verbs","source":"恋うたり","term":"恋う","rule":"v5","reasons":["-たり"],"valid":true}
+{"category":"uncommon irregular verbs","source":"問うたり","term":"問う","rule":"v5","reasons":["-たり"],"valid":true}
+{"category":"uncommon irregular verbs","source":"訪うたり","term":"訪う","rule":"v5","reasons":["-たり"],"valid":true}
+{"category":"combinations","source":"抱き抱えていなければ","term":"抱き抱える","rule":"v1","reasons":["-て","-いる","negative","-ば"],"valid":true}
+{"category":"combinations","source":"抱きかかえていなければ","term":"抱きかかえる","rule":"v1","reasons":["-て","-いる","negative","-ば"],"valid":true}
+{"category":"combinations","source":"打ち込んでいませんでした","term":"打ち込む","rule":"v5","reasons":["-て","-いる","-ます","negative","-た"],"valid":true}
+{"category":"combinations","source":"食べさせられたくなかった","term":"食べる","rule":"v1","reasons":["causative","potential or passive","-たい","negative","-た"],"valid":true}
+{"category":"combinations","source":"食べんとしませんかった","term":"食べる","rule":"v1","reasons":["-んとする","-ます","negative","-た"],"valid":true}
+{"category":"combinations","source":"食べないどきたくありません","term":"食べる","rule":"v1","reasons":["negative","-おく","-たい","-ます","negative"],"valid":true}
+{"category":"ないでいる","source":"食べないでいる","term":"食べる","rule":"v1","reasons":["negative","-いる"],"valid":true}
+{"category":"ないでいる","source":"食べないでゐる","term":"食べる","rule":"v1","reasons":["negative","-いる"],"valid":true}
+{"category":"kawaii","source":"かわいげ","term":"かわいい","rule":"adj-i","reasons":["-げ"],"valid":true}
+{"category":"kawaii","source":"可愛げ","term":"可愛い","rule":"adj-i","reasons":["-げ"],"valid":true}
+{"category":"kawaii","source":"可愛気","term":"可愛い","rule":"adj-i","reasons":["-げ"],"valid":true}
+{"category":"-やしない combinations","source":"食べやしませんでした","term":"食べる","rule":"v1","reasons":["-やしません","-た"],"valid":true}
+{"category":"-やしない combinations","source":"食べやしなかった","term":"食べる","rule":"v1","reasons":["-やしない","-た"],"valid":true}
+{"category":"-やしない combinations","source":"食べやしねえ","term":"食べる","rule":"v1","reasons":["-やしない","-え"],"valid":true}
+{"category":"historical kana (歴史的仮名遣い)","source":"思ふ","term":"思う","rule":"v5","reasons":["-ふ"],"valid":true}
+{"category":"historical kana (歴史的仮名遣い)","source":"思へば","term":"思う","rule":"v5","reasons":["-ば"],"valid":true}
+{"category":"historical kana (歴史的仮名遣い)","source":"思はず","term":"思う","rule":"v5","reasons":["-ず"],"valid":true}
+{"category":"historical kana (歴史的仮名遣い)","source":"思はぬ","term":"思う","rule":"v5","reasons":["-ぬ"],"valid":true}
+{"category":"historical kana (歴史的仮名遣い)","source":"思はん","term":"思う","rule":"v5","reasons":["-ん"],"valid":true}
+{"category":"historical kana (歴史的仮名遣い)","source":"思はんばかり","term":"思う","rule":"v5","reasons":["-んばかり"],"valid":true}
+{"category":"historical kana (歴史的仮名遣い)","source":"思はんとする","term":"思う","rule":"v5","reasons":["-んとする"],"valid":true}
+{"category":"historical kana (歴史的仮名遣い)","source":"思はむ","term":"思う","rule":"v5","reasons":["-む"],"valid":true}
+{"category":"historical kana (歴史的仮名遣い)","source":"思はざる","term":"思う","rule":"v5","reasons":["-ざる"],"valid":true}
+{"category":"historical kana (歴史的仮名遣い)","source":"思はねば","term":"思う","rule":"v5","reasons":["-ねば"],"valid":true}
+{"category":"historical kana (歴史的仮名遣い)","source":"思はせる","term":"思う","rule":"v5","reasons":["causative"],"valid":true}
+{"category":"historical kana (歴史的仮名遣い)","source":"思はす","term":"思う","rule":"v5","reasons":["short causative"],"valid":true}
+{"category":"historical kana (歴史的仮名遣い)","source":"思へ","term":"思う","rule":"v5","reasons":["imperative"],"valid":true}
+{"category":"historical kana (歴史的仮名遣い)","source":"思ひ","term":"思う","rule":"v5","reasons":["continuative"],"valid":true}
+{"category":"historical kana (歴史的仮名遣い)","source":"思はない","term":"思う","rule":"v5","reasons":["negative"],"valid":true}
+{"category":"historical kana (歴史的仮名遣い)","source":"思はれる","term":"思う","rule":"v5","reasons":["passive"],"valid":true}
+{"category":"historical kana (歴史的仮名遣い)","source":"思ひます","term":"思う","rule":"v5","reasons":["-ます"],"valid":true}
+{"category":"historical kana (歴史的仮名遣い)","source":"思ひやしない","term":"思う","rule":"v5","reasons":["-やしない"],"valid":true}
+{"category":"historical kana (歴史的仮名遣い)","source":"思ひやしません","term":"思う","rule":"v5","reasons":["-やしません"],"valid":true}
+{"category":"historical kana (歴史的仮名遣い)","source":"思はう","term":"思う","rule":"v5","reasons":["volitional"],"valid":true}
+{"category":"historical kana (歴史的仮名遣い)","source":"思ひなさい","term":"思う","rule":"v5","reasons":["-なさい"],"valid":true}
+{"category":"historical kana (歴史的仮名遣い)","source":"思ひすぎる","term":"思う","rule":"v5","reasons":["-すぎる"],"valid":true}
+{"category":"historical kana (歴史的仮名遣い)","source":"思ひ過ぎる","term":"思う","rule":"v5","reasons":["-過ぎる"],"valid":true}
+{"category":"historical kana (歴史的仮名遣い)","source":"思ひたい","term":"思う","rule":"v5","reasons":["-たい"],"valid":true}
+{"category":"historical kana (歴史的仮名遣い)","source":"思ひやがる","term":"思う","rule":"v5","reasons":["-やがる"],"valid":true}
+{"category":"historical kana (歴史的仮名遣い) - combinations","source":"思はせられたくない","term":"思う","rule":"v5","reasons":["causative","potential or passive","-たい","negative"],"valid":true}
+{"category":"historical kana (歴史的仮名遣い) - combinations","source":"思ってしまふ","term":"思う","rule":"v5","reasons":["-て","-しまう","-ふ"],"valid":true}
+{"category":"historical kana (歴史的仮名遣い) - combinations","source":"思ってしまひました","term":"思う","rule":"v5","reasons":["-て","-しまう","-ます","-た"],"valid":true}
+{"category":"historical kana (歴史的仮名遣い) - combinations","source":"思ってしまはう","term":"思う","rule":"v5","reasons":["-て","-しまう","volitional"],"valid":true}
+{"category":"historical kana (歴史的仮名遣い) - combinations","source":"思ってゐぬ","term":"思う","rule":"v5","reasons":["-て","-いる","-ぬ"],"valid":true}
+{"category":"incorrect chains","source":"食べて","term":"食べる","rule":null,"reasons":["-て","-いる","continuative"],"valid":false}
+{"category":"incorrect chains","source":"なりません","term":"なる","rule":null,"reasons":["-ます","potential","-ん"],"valid":false}
+{"category":"incorrect chains","source":"食べさせられる","term":"食べる","rule":null,"reasons":["short causative","potential","potential or passive"],"valid":false}
+{"category":"incorrect chains","source":"食べまさない","term":"食べる","rule":null,"reasons":["-ます","negative"],"valid":false}
+{"category":"incorrect chains","source":"食べましたい","term":"食べる","rule":null,"reasons":["-ます","-たい"],"valid":false}
+{"category":"incorrect chains","source":"済ません","term":"済ます","rule":null,"reasons":["-ます","negative"],"valid":false}
+{"category":"incorrect chains","source":"済ましょう","term":"済ます","rule":null,"reasons":["-ます","volitional"],"valid":false}
+{"category":"incorrect short causative -> passive chains","source":"食べさされる","term":"食べる","rule":null,"reasons":["short causative","passive"],"valid":false}
+{"category":"incorrect short causative -> passive chains","source":"話さされる","term":"話す","rule":null,"reasons":["short causative","passive"],"valid":false}
+{"category":"incorrect short causative -> passive chains","source":"論じさされる","term":"論ずる","rule":null,"reasons":["short causative","passive"],"valid":false}
+{"category":"incorrect short causative -> passive chains","source":"論ぜさされる","term":"論ずる","rule":null,"reasons":["short causative","passive"],"valid":false}
+{"category":"incorrect short causative -> passive chains","source":"さされる","term":"する","rule":null,"reasons":["short causative","passive"],"valid":false}
+{"category":"incorrect short causative -> passive chains","source":"為される","term":"為る","rule":null,"reasons":["short causative","passive"],"valid":false}
+{"category":"incorrect short causative -> passive chains","source":"こさされる","term":"くる","rule":null,"reasons":["short causative","passive"],"valid":false}
+{"category":"incorrect short causative -> passive chains","source":"来さされる","term":"来る","rule":null,"reasons":["short causative","passive"],"valid":false}
+{"category":"incorrect short causative -> passive chains","source":"來さされる","term":"來る","rule":null,"reasons":["short causative","passive"],"valid":false}
+{"category":"-く stem of kansai-ben adjectives","source":"宜しゅう","term":"宜しい","rule":null,"reasons":["-く","kansai-ben -く"],"valid":true}
+{"category":"-く stem of kansai-ben adjectives","source":"よろしゅう","term":"よろしい","rule":null,"reasons":["-く","kansai-ben -く"],"valid":true}
+{"category":"-く stem of kansai-ben adjectives","source":"良う","term":"良い","rule":null,"reasons":["-く","kansai-ben -く"],"valid":true}
+{"category":"-く stem of kansai-ben adjectives","source":"よう","term":"よい","rule":null,"reasons":["-く","kansai-ben -く"],"valid":true}
+{"category":"-て form of kansai-ben adjectives","source":"よろしゅうて","term":"よろしい","rule":null,"reasons":["-て","kansai-ben adjective -て"],"valid":true}
+{"category":"-て form of kansai-ben adjectives","source":"宜しゅうて","term":"宜しい","rule":null,"reasons":["-て","kansai-ben adjective -て"],"valid":true}
+{"category":"-て form of kansai-ben adjectives","source":"ようて","term":"よい","rule":null,"reasons":["-て","kansai-ben adjective -て"],"valid":true}
+{"category":"-て form of kansai-ben adjectives","source":"良うて","term":"良い","rule":null,"reasons":["-て","kansai-ben adjective -て"],"valid":true}
+{"category":"Negative form of kansai-ben adjectives","source":"よろしゅうない","term":"よろしい","rule":null,"reasons":["negative","kansai-ben adjective negative"],"valid":true}
+{"category":"Negative form of kansai-ben adjectives","source":"宜しゅうない","term":"宜しい","rule":null,"reasons":["negative","kansai-ben adjective negative"],"valid":true}
+{"category":"Negative form of kansai-ben adjectives","source":"ようない","term":"よい","rule":null,"reasons":["negative","kansai-ben adjective negative"],"valid":true}
+{"category":"Negative form of kansai-ben adjectives","source":"良うない","term":"良い","rule":null,"reasons":["negative","kansai-ben adjective negative"],"valid":true}
+{"category":"Negative form of kansai-ben verbs","source":"食べへん","term":"食べる","rule":null,"reasons":["negative","kansai-ben negative"],"valid":true}
+{"category":"Negative form of kansai-ben verbs","source":"食べへんかった","term":"食べる","rule":null,"reasons":["negative","-た","kansai-ben negative"],"valid":true}
+{"category":"-て form of kansai-ben verbs","source":"買うて","term":"買う","rule":null,"reasons":["-て","kansai-ben -て"],"valid":true}
+{"category":"-て form of kansai-ben verbs","source":"こうて","term":"かう","rule":null,"reasons":["-て","kansai-ben -て"],"valid":true}
+{"category":"-て form of kansai-ben verbs","source":"ほうて","term":"はう","rule":null,"reasons":["-て","kansai-ben -て"],"valid":true}
+{"category":"-た form of kansai-ben terms","source":"買うた","term":"買う","rule":null,"reasons":["-た","kansai-ben -た"],"valid":true}
+{"category":"-た form of kansai-ben terms","source":"こうた","term":"かう","rule":null,"reasons":["-た","kansai-ben -た"],"valid":true}
+{"category":"-た form of kansai-ben terms","source":"ほうた","term":"はう","rule":null,"reasons":["-た","kansai-ben -た"],"valid":true}
+{"category":"-たら form of kansai-ben terms","source":"買うたら","term":"買う","rule":null,"reasons":["-たら","kansai-ben -たら"],"valid":true}
+{"category":"-たら form of kansai-ben terms","source":"こうたら","term":"かう","rule":null,"reasons":["-たら","kansai-ben -たら"],"valid":true}
+{"category":"-たら form of kansai-ben terms","source":"ほうたら","term":"はう","rule":null,"reasons":["-たら","kansai-ben -たら"],"valid":true}
+{"category":"-たり form of kansai-ben terms","source":"買うたり","term":"買う","rule":null,"reasons":["-たり","kansai-ben -たり"],"valid":true}
+{"category":"-たり form of kansai-ben terms","source":"こうたり","term":"かう","rule":null,"reasons":["-たり","kansai-ben -たり"],"valid":true}
+{"category":"-たり form of kansai-ben terms","source":"ほうたり","term":"はう","rule":null,"reasons":["-たり","kansai-ben -たり"],"valid":true}
