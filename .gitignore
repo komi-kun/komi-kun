@@ -3,6 +3,10 @@
 #.vscode
 .kotlin
 build
+# KUN -->
+# AGP's default externalNativeBuild staging directory (lives in the module root).
+.cxx
+# KUN <--
 
 # IDE files
 *.iml
