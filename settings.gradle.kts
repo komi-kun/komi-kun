@@ -39,6 +39,13 @@ dependencyResolutionManagement {
 
     @Suppress("UnstableApiUsage")
     repositories {
+        // KUN -->
+        // In-repo Maven repository for the komi-kun/webgpuviewer fork `:library` artifact
+        // (`ocr-accessors-1`, §1.6/§2.6). JitPack cannot build the fork's AGP 9.4.1 project,
+        // so the release AAR published by the fork is vendored here. Remove this line and
+        // `maven/` once the accessors land upstream and the JitPack coordinate works again.
+        maven { url = uri("$rootDir/maven") }
+        // KUN <--
         mavenCentral()
         google()
         maven(url = "https://www.jitpack.io")

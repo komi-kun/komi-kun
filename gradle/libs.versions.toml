@@ -19,7 +19,8 @@ image-decoder = "16"
 # KUN -->
 # komi-kun/webgpuviewer fork (contract §2.6): tag `ocr-accessors-1`
 # (792aef3b6886343ee38a9140eefdc98114869dfd, branch `feat/ocr-transform-accessors`).
-# Consumed via JitPack with no new ref name.
+# Consumed from the in-repo Maven repo `maven/` (declared in settings.gradle.kts); JitPack cannot
+# build this fork (contract §1.6/§2.6). Coordinate kept JitPack-shaped for an easy swap-back.
 webgpuviewer = "ocr-accessors-1"
 # AnkiDroid API (GPL-3.0) — Phase 6 only; not consumed by any built module yet.
 anki-api = "2.15.6"

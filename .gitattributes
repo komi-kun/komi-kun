@@ -6,6 +6,9 @@
 
 # Gradle wrapper
 *.jar binary
+# KUN --> vendored Maven artifacts (komi-kun/webgpuviewer fork, contract §1.6)
+*.aar binary
+# KUN <--
 
 # SQLDelight schema snapshots
 *.db binary
