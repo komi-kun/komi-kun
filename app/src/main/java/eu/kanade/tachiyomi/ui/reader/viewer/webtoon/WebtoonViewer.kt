@@ -18,6 +18,7 @@ import eu.kanade.tachiyomi.ui.reader.ReaderActivity
 import eu.kanade.tachiyomi.ui.reader.model.ChapterTransition
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import eu.kanade.tachiyomi.ui.reader.model.ViewerChapters
+import eu.kanade.tachiyomi.ui.reader.ocr.OcrViewport
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.ui.reader.viewer.Viewer
 import eu.kanade.tachiyomi.ui.reader.viewer.ViewerNavigation.NavigationRegion
@@ -152,7 +153,12 @@ class WebtoonViewer(
                     val position = recycler.getChildAdapterPosition(child)
                     val item = adapter.items.getOrNull(position)
                     if (item is ReaderPage) {
-                        activity.onPageLongTap(item)
+                        // KUN -->
+                        activity.onPageLongTap(
+                            item,
+                            point = activity.toOverlayPoint(recycler, event.x, event.y),
+                        )
+                        // KUN <--
                         return@f true
                     }
                 }
@@ -246,6 +252,29 @@ class WebtoonViewer(
     override fun getView(): View {
         return frame
     }
+
+    // KUN -->
+    private val ocrViewportRef by lazy { WebtoonOcrViewport(this) }
+
+    override fun ocrViewport(): OcrViewport? = ocrViewportRef
+
+    /** Page holders currently laid out in the recycler viewport, for the OCR overlay. */
+    fun ocrVisibleHolders(): List<WebtoonPageHolder> {
+        val first = layoutManager.findFirstVisibleItemPosition()
+        val last = layoutManager.findLastVisibleItemPosition()
+        if (first == -1 || last == -1) return emptyList()
+        return (first..last).mapNotNull { ocrHolderAt(it) }
+    }
+
+    fun ocrHolderFor(page: ReaderPage): WebtoonPageHolder? {
+        val position = adapter.items.indexOf(page)
+        if (position == -1) return null
+        return ocrHolderAt(position)
+    }
+
+    fun ocrHolderAt(position: Int): WebtoonPageHolder? =
+        recycler.findViewHolderForAdapterPosition(position) as? WebtoonPageHolder
+    // KUN <--
 
     /**
      * Destroys this viewer. Called when leaving the reader or swapping viewers.

@@ -10,6 +10,7 @@ import dev.zacsweers.metro.SingleIn
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.PagerConfig
 import eu.kanade.tachiyomi.ui.reader.viewer.webgpu.WebGpuShader
 import eu.kanade.tachiyomi.ui.reader.viewer.webgpu.WebGpuShaders
+import tachiyomi.core.common.ocr.ReaderOcrSource
 import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.core.common.preference.getEnum
@@ -213,6 +214,41 @@ class ReaderPreferences(
     // KMK <--
 
     // endregion
+
+    // KUN -->
+    // region OCR (komi-kun Yomitan/OCR port)
+
+    /**
+     * Master switch for the reader OCR overlay. When off, no overlay is drawn and a long-press
+     * behaves exactly as upstream (page actions).
+     */
+    val ocrOverlayEnabled = preferenceStore.getBoolean("pref_reader_ocr_overlay_enabled", false)
+
+    /** Whether the passive OCR block outlines are drawn. */
+    val ocrOutlineVisible = preferenceStore.getBoolean("pref_reader_ocr_outline_visible", true)
+
+    /** Whether the tapped OCR block is highlighted while its dictionary popup is open. */
+    val ocrActiveBlockHighlight = preferenceStore.getBoolean("pref_reader_ocr_active_block_highlight", true)
+
+    /** Passive OCR box scale, in percent (100 = tight around the detected block). */
+    val ocrBoxScale = preferenceStore.getInt("pref_reader_ocr_box_scale", 100)
+
+    /**
+     * Per-manga OCR source policy (`AUTOMATIC`/`MOKURO`/`PADDLE`), defaulting to [ReaderOcrSource.AUTOMATIC].
+     * Only the persistent scoped values are stored here; the availability filter lives in
+     * [ReaderOcrSource.availableSources].
+     */
+    fun ocrSource(mangaId: Long): ReaderOcrSource =
+        preferenceStore.getEnum(ocrSourceKey(mangaId), ReaderOcrSource.AUTOMATIC).get()
+
+    fun setOcrSource(mangaId: Long, source: ReaderOcrSource) {
+        preferenceStore.getEnum(ocrSourceKey(mangaId), ReaderOcrSource.AUTOMATIC).set(source)
+    }
+
+    private fun ocrSourceKey(mangaId: Long) = "pref_reader_ocr_source_$mangaId"
+
+    // endregion
+    // KUN <--
 
     // SY -->
 

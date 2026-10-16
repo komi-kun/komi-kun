@@ -37,6 +37,7 @@ import eu.kanade.tachiyomi.ui.reader.model.DownloadStream
 import eu.kanade.tachiyomi.ui.reader.model.ReaderChapter
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import eu.kanade.tachiyomi.ui.reader.model.ViewerChapters
+import eu.kanade.tachiyomi.ui.reader.ocr.OcrViewport
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences.TransitionAnimation
 import eu.kanade.tachiyomi.ui.reader.viewer.ReaderPageImageView.ZoomStartPosition
@@ -179,6 +180,29 @@ open class WebGpuViewer(
     protected fun viewerPageFor(imagePage: ImagePage): ViewerPage? = synchronized(lock) {
         pageCache.values.firstOrNull { it.imagePage === imagePage }
     }
+
+    // KUN -->
+    /**
+     * The reader pages an on-screen [imagePage] draws, resolving a dual-page [ImagePage.ImageSpread]
+     * to both of its sides. Used by the OCR overlay adapter (contract §2.6).
+     */
+    internal fun ocrReaderPagesFor(imagePage: ImagePage?): List<ReaderPage> = synchronized(lock) {
+        when (imagePage) {
+            is ImagePage.ImageSpread -> listOfNotNull(
+                imagePage.left?.let { viewerPageFor(it) as? ViewerReaderPage }?.page,
+                imagePage.right?.let { viewerPageFor(it) as? ViewerReaderPage }?.page,
+            )
+
+            null -> emptyList()
+
+            else -> listOfNotNull((viewerPageFor(imagePage) as? ViewerReaderPage)?.page)
+        }
+    }
+
+    private val ocrViewportRef by lazy { WebGpuOcrViewport(this) }
+
+    override fun ocrViewport(): OcrViewport? = ocrViewportRef
+    // KUN <--
 
     /** Check if a page is in the cache by identity. O(1) via key lookup. */
     private fun pageInCache(page: ViewerPage): Boolean = pageCache[pageKey(page)] === page
@@ -790,9 +814,16 @@ open class WebGpuViewer(
                 }
             }
 
-            onLongTap = { _ ->
+            onLongTap = { offset ->
                 if (activity.viewModel.state.value.menuVisible || config.longTapEnabled) {
-                    (currentPage as? ViewerReaderPage)?.let { activity.onPageLongTap(it.page) }
+                    (currentPage as? ViewerReaderPage)?.let {
+                        // KUN -->
+                        // Retain the normalized long-press offset the viewer delivers (plan 04 §2.2):
+                        // the OCR overlay needs it to hit-test and anchor the dictionary popup.
+                        val point = activity.toOverlayPoint(pager, offset.x * width, offset.y * height)
+                        activity.onPageLongTap(it.page, point = point)
+                        // KUN <--
+                    }
                 }
             }
         }

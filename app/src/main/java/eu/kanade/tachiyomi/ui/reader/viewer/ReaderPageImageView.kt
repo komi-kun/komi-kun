@@ -87,6 +87,9 @@ open class ReaderPageImageView @JvmOverloads constructor(
 
     @CallSuper
     open fun onImageLoaded() {
+        // KUN -->
+        bumpOcrTransformVersion()
+        // KUN <--
         onImageLoaded?.invoke()
         background = pageBackground
     }
@@ -98,6 +101,9 @@ open class ReaderPageImageView @JvmOverloads constructor(
 
     @CallSuper
     open fun onScaleChanged(newScale: Float) {
+        // KUN -->
+        bumpOcrTransformVersion()
+        // KUN <--
         onScaleChanged?.invoke(newScale)
     }
 
@@ -105,6 +111,30 @@ open class ReaderPageImageView @JvmOverloads constructor(
     open fun onViewClicked() {
         onViewClicked?.invoke()
     }
+
+    // KUN -->
+    /**
+     * The [SubsamplingScaleImageView] currently drawing this page, or null for the animated / webtoon
+     * strip paths. Used by the OCR viewport adapters to map between image and view coordinates.
+     */
+    fun ocrSubsamplingImageView(): SubsamplingScaleImageView? = pageView as? SubsamplingScaleImageView
+
+    /** The webtoon strip view currently drawing this page, or null. */
+    fun ocrStripImageView(): WebtoonStripImageView? = pageView as? WebtoonStripImageView
+
+    @Volatile
+    private var ocrTransformVersion = 0L
+
+    /**
+     * Monotonic token bumped whenever the displayed image's scale/centre changes, so the OCR overlay
+     * can tell cheaply whether its mapping moved (contract `OcrViewport.transformVersion`).
+     */
+    fun ocrTransformVersion(): Long = ocrTransformVersion
+
+    private fun bumpOcrTransformVersion() {
+        ocrTransformVersion++
+    }
+    // KUN <--
 
     open fun onPageSelected(forward: Boolean) {
         with(pageView as? SubsamplingScaleImageView) {
@@ -307,7 +337,10 @@ open class ReaderPageImageView @JvmOverloads constructor(
                     }
 
                     override fun onCenterChanged(newCenter: PointF?, origin: Int) {
-                        // Not used
+                        // KUN -->
+                        // Panning moves the OCR mapping too; bump so the overlay redraws.
+                        bumpOcrTransformVersion()
+                        // KUN <--
                     }
                 },
             )

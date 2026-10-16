@@ -96,6 +96,10 @@ fun ReaderAppBars(
     onClickPageLayout: () -> Unit,
     onClickShiftPage: () -> Unit,
     // SY <--
+    // KUN -->
+    ocrEnabled: Boolean,
+    onClickOcr: () -> Unit,
+    // KUN <--
 ) {
     val backgroundColor = MaterialTheme.colorScheme
         .surfaceColorAtElevation(3.dp)
@@ -240,6 +244,10 @@ fun ReaderAppBars(
                     onClickPageLayout = onClickPageLayout,
                     onClickShiftPage = onClickShiftPage,
                     // SY <--
+                    // KUN -->
+                    ocrEnabled = ocrEnabled,
+                    onClickOcr = onClickOcr,
+                    // KUN <--
                 )
             }
         }

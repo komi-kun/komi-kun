@@ -13,6 +13,7 @@ import eu.kanade.tachiyomi.databinding.ReaderErrorBinding
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.ui.reader.model.InsertPage
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
+import eu.kanade.tachiyomi.ui.reader.ocr.OcrDisplayTransform
 import eu.kanade.tachiyomi.ui.reader.viewer.ReaderPageImageView
 import eu.kanade.tachiyomi.ui.reader.viewer.ReaderProgressIndicator
 import eu.kanade.tachiyomi.ui.webview.WebViewActivity
@@ -75,6 +76,32 @@ class PagerPageHolder(
      * Job for loading the page.
      */
     private var extraLoadJob: Job? = null
+
+    // KUN -->
+    /**
+     * How this holder transformed the raw page image for display (split / merge), so the OCR
+     * overlay can map block coordinates back onto the displayed sheet. [OcrDisplayTransform.None]
+     * covers the unmodified page (including SSIV's own crop, which `sourceToViewCoord` already
+     * accounts for). Display rotation (`dualPageRotateToFit`) is a documented v1 limitation.
+     */
+    @Volatile
+    private var ocrTransform: OcrDisplayTransform = OcrDisplayTransform.None
+
+    /** Dimensions of the page's own decoded image, for merged-sheet mapping; 0 when unknown. */
+    @Volatile
+    private var ocrPageWidthPx: Int = 0
+
+    @Volatile
+    private var ocrPageHeightPx: Int = 0
+
+    fun extraOcrPage(): ReaderPage? = extraPage
+
+    fun ocrDisplayTransform(): OcrDisplayTransform = ocrTransform
+
+    fun ocrPageWidth(): Int = ocrPageWidthPx
+
+    fun ocrPageHeight(): Int = ocrPageHeightPx
+    // KUN <--
 
     init {
         loadJob = scope.launch { loadPageAndProcessStatus(1) }
@@ -171,6 +198,11 @@ class PagerPageHolder(
      * Called when the page is ready.
      */
     private suspend fun setImage() {
+        // KUN -->
+        ocrTransform = OcrDisplayTransform.None
+        ocrPageWidthPx = 0
+        ocrPageHeightPx = 0
+        // KUN <--
         if (extraPage == null) {
             progressIndicator?.setProgress(0)
         } else {
@@ -334,6 +366,18 @@ class PagerPageHolder(
         imageSource.close()
         imageSource2.close()
 
+        // KUN -->
+        ocrTransform = OcrDisplayTransform.Merge(
+            partner = extraPage!!,
+            partnerW = imageBitmap2.width,
+            partnerH = imageBitmap2.height,
+            isLTR = isLTR,
+            centerMarginPx = centerMargin,
+        )
+        ocrPageWidthPx = imageBitmap.width
+        ocrPageHeightPx = imageBitmap.height
+        // KUN <--
+
         return ImageUtil.mergeBitmaps(imageBitmap, imageBitmap2, isLTR, centerMargin, viewer.config.pageCanvasColor) {
             updateProgress(it)
         }
@@ -412,6 +456,10 @@ class PagerPageHolder(
                 ImageUtil.Side.LEFT -> ImageUtil.Side.RIGHT
             }
         }
+
+        // KUN -->
+        ocrTransform = OcrDisplayTransform.Split(keepLeft = side == ImageUtil.Side.LEFT)
+        // KUN <--
 
         val sideMargin = if ((viewer.config.centerMarginType and PagerConfig.CenterMarginType.DOUBLE_PAGE_CENTER_MARGIN) >
             0 &&
