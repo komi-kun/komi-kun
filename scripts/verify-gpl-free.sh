@@ -5,7 +5,9 @@
 #
 # The §1.3 file set may be contributed upstream (to Komikku) and therefore must import no GPL
 # package. This script greps ONLY that set for `import` lines and fails when an imported FQN
-# starts with a deny prefix and is not exactly one of the allowed Apache seam FQNs.
+# starts with a deny prefix (or is an exact denied FQN for a GPL type living in an otherwise
+# Apache package, e.g. the viewer OCR adapters / `OcrOverlay`) and is not exactly one of the
+# allowed Apache seam FQNs. It also fails if a §1.3 file declares a GPL license header.
 #
 # Run directly (`bash scripts/verify-gpl-free.sh`) or via the Gradle task in :app
 # (`./gradlew verifyGplFree`), which wraps this script so CI and local runs share one code path.
@@ -58,6 +60,24 @@ DENY_PREFIXES=(
   "eu.kanade.tachiyomi.ui.reader.overlay"
 )
 
+# GPL types that live in packages which also contain Apache (upstream) files that §1.3 files
+# legitimately import, so the package cannot be denied wholesale:
+#
+#   eu.kanade.tachiyomi.ui.reader.viewer.pager.SsivOcrViewport   (pager package also has PagerViewer…)
+#   eu.kanade.tachiyomi.ui.reader.viewer.webtoon.WebtoonOcrViewport
+#   eu.kanade.tachiyomi.ui.reader.viewer.webgpu.WebGpuOcrViewport
+#   eu.kanade.presentation.reader.OcrOverlay
+#
+# A §1.3 file must never import these GPL viewport adapters / overlay (contract §1.2/§1.3), so they
+# are denied by exact FQN. (The GPL `…reader.ocr.impl`/`…reader.ocr` files stay covered by the
+# `eu.kanade.tachiyomi.ui.reader.ocr` deny prefix above.)
+DENY_FQNS=(
+  "eu.kanade.tachiyomi.ui.reader.viewer.pager.SsivOcrViewport"
+  "eu.kanade.tachiyomi.ui.reader.viewer.webtoon.WebtoonOcrViewport"
+  "eu.kanade.tachiyomi.ui.reader.viewer.webgpu.WebGpuOcrViewport"
+  "eu.kanade.presentation.reader.OcrOverlay"
+)
+
 ALLOWED_FQNS=(
   "mihon.dictionary.host.ReaderDictionaryHost"
   "mihon.dictionary.host.DictionaryLookupRequest"
@@ -97,6 +117,14 @@ matches_deny() {
   return 1
 }
 
+matches_deny_fqn() {
+  local fqn="$1" denied
+  for denied in "${DENY_FQNS[@]}"; do
+    [[ "$fqn" == "$denied" ]] && return 0
+  done
+  return 1
+}
+
 is_pending() {
   local path="$1" pending
   for pending in "${PENDING_WAVES[@]}"; do
@@ -121,11 +149,18 @@ for file in "${GPL_FREE_FILES[@]}"; do
 
   scanned=$((scanned + 1))
 
+  # §1.3 files keep an Apache-2.0 (or no) license header — a GPL header here would mean a GPL file
+  # was added to (or a GPL relicense silently landed on) the upstream-contributable set.
+  if grep -q 'SPDX-License-Identifier:.*GPL' "$file"; then
+    echo "verify-gpl-free: ERROR: '$file' is in the GPL-free set (§1.3) but declares a GPL license" >&2
+    fail=1
+  fi
+
   while IFS= read -r fqn; do
     [[ -z "$fqn" ]] && continue
     fqn="${fqn%.\*}" # tolerate a `.*` star-import suffix
     is_allowed "$fqn" && continue
-    if matches_deny "$fqn"; then
+    if matches_deny "$fqn" || matches_deny_fqn "$fqn"; then
       echo "verify-gpl-free: ERROR: '$file' imports a GPL package: '$fqn'" >&2
       fail=1
     fi
