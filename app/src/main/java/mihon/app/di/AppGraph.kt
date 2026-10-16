@@ -47,6 +47,7 @@ import eu.kanade.tachiyomi.network.NetworkPreferences
 import eu.kanade.tachiyomi.ui.base.delegate.SecureActivityDelegateImpl
 import eu.kanade.tachiyomi.ui.main.MainActivity
 import eu.kanade.tachiyomi.ui.reader.ReaderActivity
+import eu.kanade.tachiyomi.ui.reader.ocr.OcrHostBindings
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.ui.setting.track.BaseOAuthLoginActivity
 import eu.kanade.tachiyomi.ui.webview.WebViewActivity
@@ -58,7 +59,10 @@ import exh.pref.DelegateSourcePreferences
 import exh.source.ExhPreferences
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.protobuf.ProtoBuf
+import mihon.core.dictionary.di.DictionaryBindings
 import mihon.core.metro.IsDebugBuild
+import mihon.core.ocr.di.OcrBindings
+import mihon.dictionary.host.DictionaryHostBindings
 import mihon.domain.chapter.interactor.FilterChaptersForDownload
 import mihon.domain.extension.interactor.GetExtensionStoreCountAsFlow
 import mihon.domain.extension.interactor.GetExtensionStores
@@ -90,7 +94,16 @@ import tachiyomi.domain.track.interactor.UpsertTrack
 
 @DependencyGraph(
     scope = AppScope::class,
-    bindingContainers = [AppBindings::class],
+    // KUN -->
+    // Feature bindings live in workstream-owned containers (contract §3.6); AppBindings is W1-only.
+    bindingContainers = [
+        AppBindings::class,
+        DictionaryBindings::class,
+        OcrBindings::class,
+        DictionaryHostBindings::class,
+        OcrHostBindings::class,
+    ],
+    // KUN <--
 )
 interface AppGraph : ViewModelGraph {
     fun inject(app: App)
