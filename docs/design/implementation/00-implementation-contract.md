@@ -102,7 +102,9 @@ the "upstream-contributable" claim is therefore **Komikku**, not Mihon. Boundary
 
 - Both native artifacts (`hoshidicts` engine + Paddle) build for all three. `hoshidicts` must be built for
   armv7 too (W1); Paddle for x86_64 too (W3, per 03 §2.5 recommendation (a)).
-- `webgpuviewer` is ABI-neutral (pure Kotlin/Compose, no `.so`) — no constraint.
+- `webgpuviewer`'s AAR bundles native libs (`jni/<abi>/{libwebgpu_c_bundled.so,libresize.so}` for
+  `arm64-v8a, armeabi-v7a, x86, x86_64`). Vendored in-repo at `maven/` (§1.6); `x86` is unused by our
+  `splits.abi` but still packed into the universal APK (pre-existing artifact behaviour).
 - `app/build.gradle.kts` `splits.abi`: `include("armeabi-v7a", "arm64-v8a", "x86_64")`; keep
   `isUniversalApk = true` (universal APK carries all three).
 - Native modules set `ndk.abiFilters += listOf("arm64-v8a","armeabi-v7a","x86_64")` identically.
@@ -116,7 +118,7 @@ the "upstream-contributable" claim is therefore **Komikku**, not Mihon. Boundary
 |---|---|---|
 | `komi-kun/hoshidicts` → `core/dictionary/src/main/cpp/hoshidicts` | **`62fc9fa16c3c4aac4b7ad06302af86cca09ada9a`** (branch `komi-kun/ndk29-build-guards`) | **CONFIRMED, host build green (GCC + Clang).** Already contains the UTF8proc SSH→HTTPS fix, the CLI/benchmark CMake guards, and host-portability includes — **no W0 fork commit is needed**; only the submodule add remains. Guarded options are `HOSHIDICTS_BUILD_CLI` / `HOSHIDICTS_BUILD_BENCHMARKS` (**not** `HOSHIDICTS_BUILD_TESTS`). Record the pin in `.gitmodules` + `core/dictionary/README.md`. Never track a branch. |
 | nested externals (8) | `git submodule update --init --recursive` | `submodules: recursive` in CI checkout of all build workflows (incl. `build_benchmark.yml`) |
-| `komi-kun/webgpuviewer` | **tag `ocr-accessors-1`** = `792aef3b6886343ee38a9140eefdc98114869dfd` (branch `feat/ocr-transform-accessors`, base `7b877c9`) | Consumed via **JitPack**: `com.github.komi-kun.webgpuviewer:library:ocr-accessors-1` (JitPack already in `settings.gradle.kts`). `:library:assembleRelease` verified green. If JitPack resolution fails, fall back to a GitHub Packages publish of the fork. |
+| `komi-kun/webgpuviewer` | **tag `ocr-accessors-1`** = `792aef3b6886343ee38a9140eefdc98114869dfd` (branch `feat/ocr-transform-accessors`, base `7b877c9`) | Coordinate `com.github.komi-kun.webgpuviewer:library:ocr-accessors-1`, consumed from an **in-repo Maven repository**: `maven/` in the repo root, declared as `maven { url = uri("$rootDir/maven") }` in `settings.gradle.kts`. **JitPack cannot build the fork** — the `com.android.application`/`com.android.library` plugin markers (AGP `9.4.1`) fail to resolve on JitPack even though they exist on Google Maven (see `ocr-accessors-1/build.log`), so JitPack is not a viable fetch path for this AGP 9.x project. The release AAR published by the fork (`:library:assembleRelease` + `publishToMavenLocal` verified green) is vendored verbatim as `maven/.../library-ocr-accessors-1.{aar,pom,module,sources.jar,javadoc.jar}` (AAR ≈ 15.6 MB, self-contained: bundles `androidx.webgpu` classes + `jni/<abi>/libwebgpu_c_bundled.so`). Swap back to JitPack by deleting `maven/` and the repository line once the accessors land upstream. |
 
 Root `.gitmodules` currently **does not exist**; create it with the single `core/dictionary/.../hoshidicts`
 entry.
@@ -308,8 +310,10 @@ Implemented in `PagerViewer`, `WebtoonViewer`, `WebGpuViewer` (continuous shares
 `ImageViewerContinuousState` scroll-offset getter. No `GPUTexture` required, no draw-path change
 (04 §3.2). Consume via one catalog line, reusing the existing ref (no new ref name): `webgpuviewer = { module =
 "com.github.komi-kun.webgpuviewer:library", version.ref = "webgpuviewer" }` with `[versions] webgpuviewer =
-"ocr-accessors-1"` (tag = `792aef3b6886343ee38a9140eefdc98114869dfd`). JitPack is already
-in `settings.gradle.kts`; add no repository. The swap from the upstream pin is one line.
+"ocr-accessors-1"` (tag = `792aef3b6886343ee38a9140eefdc98114869dfd`). The catalog line is unchanged, but the
+artifact is served by the **in-repo Maven repository `maven/`** declared in `settings.gradle.kts` (§1.6) rather
+than JitPack, which cannot build the fork's AGP 9.4.1 project. Swapping back to upstream/JitPack is one
+repository-line + `maven/`-directory removal.
 
 ---
 
@@ -463,7 +467,8 @@ per wave by construction.
    a *file* is "imports no GPL package", which holds. The one non-`:app` shared value type
    (`ReaderOcrSource`) lives in Apache `:core:common` (§1.3) so GPL `:core:ocr` services can use it too.
 3. **ABI set** → `arm64-v8a, armeabi-v7a, x86_64` (§1.5). 01's 64-bit-only and 03's arm64+armv7 are both
-   superseded. `x86` dropped as obsolete; both engines build all three; `webgpuviewer` is ABI-neutral.
+   superseded. `x86` dropped as obsolete; both engines build all three; `webgpuviewer`'s AAR
+   bundles its own `.so` for four ABIs (vendored, see §1.5).
    **Why:** one consistent set preserves existing armv7 users and CI emulators without shipping half-empty ABIs.
 4. **Interface drift** → §2 is authoritative. `DictionarySession.lookup` defaults `(maxResults = 20,
    scanLength = 25)` (01; 02's 32/0 rejected). `OcrViewport` takes `page` + `OcrDisplayTransform` (04; 03's
@@ -479,8 +484,9 @@ per wave by construction.
    `i18n-kmk/.../base/strings.xml`, and `Notifications.kt` are **single-editor (W2)**; W3/W4/W5 supply
    lists/specs. `SettingsOcrScreen.kt` is created by W3 in the **W2 wave** so W2 can register it in W3.
    **Why:** avoids copy/paste merge conflicts across waves.
-8. **ODC "007"**: `webgpuviewer` needs no repository line — JitPack is already configured. 04 §3.4's
-   "add `maven("https://jitpack.io")`" step is a no-op.
+8. **ODC "007"**: `webgpuviewer` needs no *JitPack* line (JitPack was already configured), but JitPack cannot
+   build the fork, so a **local Maven repository line** (`maven { url = uri("$rootDir/maven") }`, §1.6) is
+   required after all. 04 §3.4's "add `maven("https://jitpack.io")`" step is still a no-op.
 9. **DI contention** → `AppBindings.kt` is **W1-only/frozen**; all feature bindings go to workstream-owned
    `@BindingContainer`s or `@ContributesBinding` (§3.6). **Why:** W2/W3 run in parallel and previously both
    edited `AppBindings.kt` (B4).
@@ -519,6 +525,8 @@ Where an implementer reads a plan that contradicts this file, follow the contrac
    decision (05 §B2).
 5. **AnkiDroid `:core:dictionary` dependency** — `com.ichi2.anki:api` is GPL-3.0; keep it optional/Phase 6.
 6. **`webgpuviewer` pin — resolved**: tag `ocr-accessors-1` (`792aef3…`); coordinate
-   `com.github.komi-kun.webgpuviewer:library:ocr-accessors-1`. W1 should verify JitPack resolves it.
+   `com.github.komi-kun.webgpuviewer:library:ocr-accessors-1`. JitPack was verified **unable** to build the
+   fork (AGP `9.4.1` plugin markers don't resolve there), so the artifact is vendored in an in-repo Maven
+   repository (`maven/`, §1.6) — resolution, `:app:compileDebugKotlin`, and `spotlessCheck` all green.
 7. **`armeabi-v7a` Paddle/engine build cost** — the fork is host-verified on GCC/Clang; confirm the Android
    armv7 cross-builds (both artifacts) before locking §1.5.
