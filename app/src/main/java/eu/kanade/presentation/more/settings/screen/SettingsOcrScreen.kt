@@ -16,6 +16,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import dev.icerock.moko.resources.StringResource
 import eu.kanade.presentation.more.settings.Preference
+import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import kotlinx.coroutines.launch
 import mihon.app.di.appGraph
 import mihon.core.ocr.OcrPreferences
@@ -33,9 +34,13 @@ import tachiyomi.presentation.core.i18n.stringResource
  * `SettingsMainScreen`/`SettingsSearchScreen`.
  *
  * Only existing `KMR` keys are used. The settings/services are built from the app graph / default
- * `PreferenceStore` here rather than a ViewModel, since the screen is a stateless `SearchableSettings`
- * and only needs the shared-default preference keys and the cache/model helpers. Selecting Paddle
- * triggers the checksum-verified, opt-in model download (contract §1.7).
+ * `PreferenceStore` here rather than a ViewModel, since the screen is a stateless `SearchableSettings`.
+ *
+ * **Single source of truth (fix B3).** The reader-facing display toggles bind to `ReaderPreferences`
+ * (the same keys the GPL-free reader gates/draws from), while the queue/source policy binds to
+ * `OcrPreferences` (the same keys `:core:ocr` services read). The two never overlap, so enabling the
+ * overlay here actually enables it in the reader. Selecting Paddle triggers the checksum-verified,
+ * opt-in model download (contract §1.7).
  */
 object SettingsOcrScreen : SearchableSettings {
 
@@ -48,6 +53,9 @@ object SettingsOcrScreen : SearchableSettings {
         val context = LocalContext.current
         val json = remember { context.appGraph.json }
         val preferences = remember { OcrPreferences(AndroidPreferenceStore(context)) }
+        // Reader-facing toggles live on ReaderPreferences so the reader (GPL-free, §1.3) reads the
+        // same keys this screen writes — no split-brain overlay preference (fix B3).
+        val readerPreferences = remember { ReaderPreferences(AndroidPreferenceStore(context)) }
         val cacheManager = remember { OcrCacheManager(context, json) }
         val modelDownloader = remember { ModelDownloader(context, context.appGraph.networkHelper.client, json) }
         val scope = rememberCoroutineScope()
@@ -109,16 +117,22 @@ object SettingsOcrScreen : SearchableSettings {
                 },
             ),
 
+            // Overlay master switch: the same key the reader gates on (fix B3).
+            Preference.PreferenceItem.SwitchPreference(
+                preference = readerPreferences.ocrOverlayEnabled,
+                title = stringResource(KMR.strings.pref_ocr_overlay_enabled),
+            ),
+
             // Overlay behaviour.
             Preference.PreferenceGroup(
                 title = stringResource(KMR.strings.pref_category_ocr_boxes),
                 preferenceItems = listOf(
                     Preference.PreferenceItem.SwitchPreference(
-                        preference = preferences.overlayEnabled,
+                        preference = readerPreferences.ocrOutlineVisible,
                         title = stringResource(KMR.strings.pref_show_ocr_outlines),
                     ),
                     Preference.PreferenceItem.SwitchPreference(
-                        preference = preferences.twoFingerGestureEnabled,
+                        preference = readerPreferences.ocrTwoFingerGestureEnabled,
                         title = stringResource(KMR.strings.pref_ocr_two_finger_gesture),
                         subtitle = stringResource(KMR.strings.pref_ocr_two_finger_gesture_summary),
                     ),

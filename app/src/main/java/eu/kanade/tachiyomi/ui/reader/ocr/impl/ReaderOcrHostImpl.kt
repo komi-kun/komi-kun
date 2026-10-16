@@ -29,9 +29,9 @@ import eu.kanade.tachiyomi.ui.dictionary.DictionaryPreferences
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import eu.kanade.tachiyomi.ui.reader.ocr.OcrViewport
 import eu.kanade.tachiyomi.ui.reader.ocr.ReaderOcrHost
+import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import mihon.core.ocr.OcrHitTester
 import mihon.core.ocr.OcrNormalizedBounds
-import mihon.core.ocr.OcrPreferences
 import mihon.core.ocr.model.OcrTextBlock
 import mihon.core.ocr.model.uniformCharOffset
 import mihon.core.ocr.shouldScanWholeWord
@@ -47,7 +47,7 @@ import mihon.dictionary.host.ReaderDictionaryHost
 @ContributesBinding(AppScope::class)
 class ReaderOcrHostImpl(
     private val blockLoader: ReaderOcrBlockLoader,
-    private val ocrPreferences: OcrPreferences,
+    private val readerPreferences: ReaderPreferences,
     private val dictionaryPreferences: DictionaryPreferences,
     private val dictionaryHost: ReaderDictionaryHost,
 ) : ReaderOcrHost {
@@ -64,7 +64,8 @@ class ReaderOcrHostImpl(
         this.viewport = viewport
         val loaded by blockLoader.blocks.collectAsState()
         val active by activeBlock
-        val outlineVisible = ocrPreferences.outlineVisible.get()
+        val outlineVisible = readerPreferences.ocrOutlineVisible.get()
+        val activeBlockHighlight = readerPreferences.ocrActiveBlockHighlight.get()
 
         LaunchedEffect(viewport) {
             if (viewport == null) return@LaunchedEffect
@@ -79,7 +80,7 @@ class ReaderOcrHostImpl(
         OcrOverlay(
             viewport = viewport,
             blocks = blocks,
-            activeBlock = active?.takeIf { it.first == currentPage?.ocrKey() }?.second,
+            activeBlock = active?.takeIf { activeBlockHighlight && it.first == currentPage?.ocrKey() }?.second,
             outlineVisible = outlineVisible,
             modifier = modifier,
         )

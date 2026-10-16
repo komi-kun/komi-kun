@@ -18,6 +18,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Response
 import okhttp3.logging.HttpLoggingInterceptor
 import okio.IOException
+import tachiyomi.core.common.mokuro.MokuroOcrInterceptor
 import tachiyomi.core.common.util.system.logcat
 import java.io.File
 import java.io.RandomAccessFile
@@ -68,6 +69,12 @@ open /* SY <-- */ class NetworkHelper(
             )
             .addInterceptor(UncaughtExceptionInterceptor())
             .addInterceptor(UserAgentInterceptor(::defaultUserAgentProvider))
+            // KUN -->
+            // Cache any `.mokuro` OCR sidecar fetched through this client so the reader can use a
+            // source-provided sidecar without downloading it again (03 §4). Generic + Apache: it
+            // only recognises the extension and stores a copy (see MokuroOcrInterceptor).
+            .addInterceptor(MokuroOcrInterceptor(context))
+        // KUN <--
 
         // KMK -->
         if (EHLogLevel.isExtraLogging()) {

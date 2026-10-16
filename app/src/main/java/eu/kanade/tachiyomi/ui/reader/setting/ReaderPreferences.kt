@@ -10,7 +10,6 @@ import dev.zacsweers.metro.SingleIn
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.PagerConfig
 import eu.kanade.tachiyomi.ui.reader.viewer.webgpu.WebGpuShader
 import eu.kanade.tachiyomi.ui.reader.viewer.webgpu.WebGpuShaders
-import tachiyomi.core.common.ocr.ReaderOcrSource
 import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.core.common.preference.getEnum
@@ -218,13 +217,18 @@ class ReaderPreferences(
     // KUN -->
     // region OCR (komi-kun Yomitan/OCR port)
 
+    // Single source of truth for the reader-facing OCR **display** toggles (fix B3). The reader is
+    // GPL-free (§1.3) and cannot import `mihon.core.ocr`'s `OcrPreferences`, so anything the reader
+    // gates or draws lives here; the OCR **queue/source policy** lives in `OcrPreferences` instead
+    // (it is read by `:core:ocr` services, which cannot see this class).
+
     /**
      * Master switch for the reader OCR overlay. When off, no overlay is drawn and a long-press
-     * behaves exactly as upstream (page actions).
+     * behaves exactly as upstream (page actions). Also toggled by the reader bottom-bar OCR button.
      */
     val ocrOverlayEnabled = preferenceStore.getBoolean("pref_reader_ocr_overlay_enabled", false)
 
-    /** Whether the passive OCR block outlines are drawn. */
+    /** Whether the passive OCR block outlines are drawn (Settings "Show OCR outlines"). */
     val ocrOutlineVisible = preferenceStore.getBoolean("pref_reader_ocr_outline_visible", true)
 
     /** Whether the tapped OCR block is highlighted while its dictionary popup is open. */
@@ -233,19 +237,8 @@ class ReaderPreferences(
     /** Passive OCR box scale, in percent (100 = tight around the detected block). */
     val ocrBoxScale = preferenceStore.getInt("pref_reader_ocr_box_scale", 100)
 
-    /**
-     * Per-manga OCR source policy (`AUTOMATIC`/`MOKURO`/`PADDLE`), defaulting to [ReaderOcrSource.AUTOMATIC].
-     * Only the persistent scoped values are stored here; the availability filter lives in
-     * [ReaderOcrSource.availableSources].
-     */
-    fun ocrSource(mangaId: Long): ReaderOcrSource =
-        preferenceStore.getEnum(ocrSourceKey(mangaId), ReaderOcrSource.AUTOMATIC).get()
-
-    fun setOcrSource(mangaId: Long, source: ReaderOcrSource) {
-        preferenceStore.getEnum(ocrSourceKey(mangaId), ReaderOcrSource.AUTOMATIC).set(source)
-    }
-
-    private fun ocrSourceKey(mangaId: Long) = "pref_reader_ocr_source_$mangaId"
+    /** Allow a two-finger tap to toggle the OCR overlay. */
+    val ocrTwoFingerGestureEnabled = preferenceStore.getBoolean("pref_reader_ocr_two_finger_gesture", false)
 
     // endregion
     // KUN <--

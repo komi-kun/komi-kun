@@ -5,11 +5,14 @@ import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.BindingContainer
 import dev.zacsweers.metro.Provides
 import dev.zacsweers.metro.SingleIn
+import eu.kanade.tachiyomi.data.download.DownloadProvider
+import eu.kanade.tachiyomi.ui.dictionary.DictionaryPreferences
 import eu.kanade.tachiyomi.ui.reader.ocr.impl.ReaderOcrBlockLoader
 import kotlinx.coroutines.CoroutineScope
 import mihon.core.metro.AppCoroutineScope
 import mihon.core.ocr.cache.OcrManager
 import tachiyomi.domain.manga.interactor.GetManga
+import tachiyomi.domain.source.service.SourceManager
 
 /**
  * App-side Metro bindings for the OCR host seam (contract §3.6). GPL (not part of the Apache §1.3
@@ -28,6 +31,16 @@ object OcrHostBindings {
     fun provideReaderOcrBlockLoader(
         ocrManager: OcrManager,
         getManga: GetManga,
+        downloadProvider: DownloadProvider,
+        sourceManager: SourceManager,
+        dictionaryPreferences: DictionaryPreferences,
         @AppCoroutineScope scope: CoroutineScope,
-    ): ReaderOcrBlockLoader = ReaderOcrBlockLoader(ocrManager, getManga, scope)
+    ): ReaderOcrBlockLoader = ReaderOcrBlockLoader(
+        ocrManager = ocrManager,
+        getManga = getManga,
+        downloadProvider = downloadProvider,
+        sourceManager = sourceManager,
+        dictionaryPreferences = dictionaryPreferences,
+        scope = scope,
+    )
 }

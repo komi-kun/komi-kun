@@ -158,6 +158,14 @@ class OcrManager(
     ): List<OcrTextBlock>? =
         if (source.persistsOcrResults) cacheManager.load(key, pageIndex, source.persistentCacheVariant) else null
 
+    /**
+     * The persisted OCR cache key of one chapter. Built here (rather than inline at each call site)
+     * so the reader's block loader and the download/queue worker cannot drift onto different keys
+     * (fix B1/B4) — a chapter pre-OCRed by the worker then shows instantly in the reader.
+     */
+    fun cacheKey(sourceId: Long, mangaId: Long, chapterId: Long): OcrCacheKey =
+        OcrCacheKey(sourceId = sourceId, mangaId = mangaId, chapterId = chapterId)
+
     /** The effective OCR source policy for a manga. */
     fun sourceFor(mangaId: Long): ReaderOcrSource = preferences.resolveSource(mangaId)
 
@@ -169,6 +177,28 @@ class OcrManager(
         if (lines.isEmpty()) return emptyList()
         val (width, height) = imageDimensions(bytes)
         return merger.merge(lines, width, height)
+    }
+
+    /**
+     * Recognizes one page on demand and persists it under [key] when the [source] policy caches
+     * results (the reader's live path, fix B1). The page index, key and cache variant match the
+     * queue worker's, so an on-demand result and a pre-OCRed one converge on the same cache entry.
+     *
+     * Empty results are **not** persisted: they usually mean the engine/native lib is not installed
+     * yet, and caching them would hide a later successful run once the models are downloaded.
+     */
+    suspend fun recognizeAndCache(
+        key: OcrCacheKey,
+        pageIndex: Int,
+        bytes: ByteArray,
+        language: OcrLanguage,
+        source: ReaderOcrSource,
+    ): List<OcrTextBlock> {
+        val blocks = recognizePage(bytes, language)
+        if (source.persistsOcrResults && blocks.isNotEmpty()) {
+            cacheManager.save(key, pageIndex, blocks, language.bcp47, source.persistentCacheVariant)
+        }
+        return blocks
     }
 
     /**
