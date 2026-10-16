@@ -13,6 +13,17 @@
 
 ---
 
+## Checklist
+
+- [ ] `./gradlew spotlessApply spotlessCheck` passes, and `./gradlew testDebugUnitTest` passes.
+- [ ] Upstream code edits are wrapped in the correct `// KUN` / `// KMK` / `// SY` markers, and new strings live only in `i18n-kmk` base (`KMR`).
+- [ ] If a GPL-free seam file or a module dependency changed: `./gradlew verifyGplFree` passes (see the **`gpl-boundary`** skill).
+- [ ] If the Yomitan corpus changed or the pinned Yomitan commit moved: refreshed via the **`yomitan-corpus-sync`** skill (and `YomitanCorpusTest` is green).
+- [ ] If a vendored dependency moved (the `hoshidicts` submodule, the `webgpuviewer` fork AAR, or the Paddle OCR artifact): followed the **`immersion-deps-sync`** / **`ocr-model-release`** skills.
+- [ ] If `.sq` / `.sqm` changed: `./gradlew :data:verifyDebugDatabaseMigration` passes.
+
+---
+
 Add a :+1: [reaction] to [pull requests you find important].
 
 [reaction]: https://github.blog/2016-03-10-add-reactions-to-pull-requests-issues-and-comments/
