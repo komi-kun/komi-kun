@@ -3,17 +3,24 @@
 // JNI bridge between the vendored `hoshidicts` engine and
 // `mihon.core.dictionary.engine.HoshiDictsNative` (contract §2.1).
 //
-// Ported from Chimahon's `hoshidicts_jni.cpp` with the package strings moved to
+// Ported from Chimahon's `hoshidicts_jni.cpp` (GPL-3.0) with the package strings moved to
 // `mihon/core/dictionary/{engine,model}` and the model records extended with
 // `ImportResult.errors`, `TermResult.score` and `PitchEntry.transcriptions`.
 // The FindClass/GetMethodID literals MUST stay in sync with the Kotlin model
-// constructors (contract §3.5) — the R8 rules in consumer-rules.pro keep them.
+// constructors (contract §3.5) — the R8 rules in consumer-rules.pro keep them, and
+// `JniSignatureTest` asserts the signatures on the JVM side.
+//
+// Robustness (contract §2.1): null jstring/jobjectArray arguments are tolerated, a failed
+// `FindClass` short-circuits to an empty/failed result instead of dereferencing a null
+// `jclass`, and every native call is wrapped so a C++ exception becomes a Kotlin-visible
+// result (a failed `ImportResult` or an empty collection) rather than an abort.
 #include <jni.h>
 #include <pthread.h>
 
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <exception>
 #include <memory>
 #include <string>
 #include <vector>
@@ -36,8 +43,18 @@ namespace {
 
     LookupObject *as_object(jlong handle) { return reinterpret_cast<LookupObject *>(handle); }
 
+    // The Kotlin facade passes valid, non-null handles, but a zero handle would otherwise
+    // dereference nullptr after a failed createSession/close race.
+    bool valid_session(LookupObject *obj) { return obj != nullptr; }
+
     std::string jstring_to_std_string(JNIEnv *env, jstring input) {
+        if (input == nullptr) {
+            return {};
+        }
         const char *chars = env->GetStringUTFChars(input, nullptr);
+        if (chars == nullptr) {
+            return {};
+        }
         std::string output(chars);
         env->ReleaseStringUTFChars(input, chars);
         return output;
@@ -45,9 +62,15 @@ namespace {
 
     template<typename Fn>
     void for_each_string(JNIEnv *env, jobjectArray arr, Fn fn) {
+        if (arr == nullptr) {
+            return;
+        }
         const jsize count = env->GetArrayLength(arr);
         for (jsize i = 0; i < count; ++i) {
             auto element = reinterpret_cast<jstring>(env->GetObjectArrayElement(arr, i));
+            if (element == nullptr) {
+                continue;
+            }
             fn(jstring_to_std_string(env, element));
             env->DeleteLocalRef(element);
         }
@@ -60,13 +83,28 @@ namespace {
     // Kotlin `List<T>` is a `java.util.ArrayList` at the JNI boundary.
     jobject new_array_list(JNIEnv *env, jsize capacity) {
         jclass cls = env->FindClass("java/util/ArrayList");
+        if (cls == nullptr) {
+            return nullptr;
+        }
         jmethodID ctor = env->GetMethodID(cls, "<init>", "(I)V");
+        if (ctor == nullptr) {
+            return nullptr;
+        }
         return env->NewObject(cls, ctor, capacity);
     }
 
     void list_add(JNIEnv *env, jobject list, jobject item) {
+        if (list == nullptr) {
+            return;
+        }
         jclass cls = env->FindClass("java/util/ArrayList");
+        if (cls == nullptr) {
+            return;
+        }
         jmethodID add = env->GetMethodID(cls, "add", "(Ljava/lang/Object;)Z");
+        if (add == nullptr) {
+            return;
+        }
         env->CallBooleanMethod(list, add, item);
     }
 
@@ -74,6 +112,9 @@ namespace {
         jobject list = new_array_list(env, static_cast<jsize>(values.size()));
         for (const auto &value : values) {
             jstring item = new_string(env, value);
+            if (item == nullptr) {
+                break;
+            }
             list_add(env, list, item);
             env->DeleteLocalRef(item);
         }
@@ -82,9 +123,15 @@ namespace {
 
     jobject new_import_result(JNIEnv *env, const ImportResult &result) {
         jclass cls = env->FindClass("mihon/core/dictionary/model/ImportResult");
+        if (cls == nullptr) {
+            return nullptr;
+        }
         jmethodID ctor = env->GetMethodID(
                 cls, "<init>",
                 "(ZLjava/lang/String;JJJJJJLjava/util/List;)V");
+        if (ctor == nullptr) {
+            return nullptr;
+        }
         jstring jtitle = new_string(env, result.title);
         jobject errors = new_string_list(env, result.errors);
         jobject out = env->NewObject(
@@ -103,7 +150,13 @@ namespace {
 
     jobject new_transform_group(JNIEnv *env, const TransformGroup &tg) {
         jclass cls = env->FindClass("mihon/core/dictionary/model/TransformGroup");
+        if (cls == nullptr) {
+            return nullptr;
+        }
         jmethodID ctor = env->GetMethodID(cls, "<init>", "(Ljava/lang/String;Ljava/lang/String;)V");
+        if (ctor == nullptr) {
+            return nullptr;
+        }
         jstring name = new_string(env, tg.name);
         jstring desc = new_string(env, tg.description);
         jobject out = env->NewObject(cls, ctor, name, desc);
@@ -116,6 +169,9 @@ namespace {
         jobject list = new_array_list(env, static_cast<jsize>(trace.size()));
         for (const auto &tg : trace) {
             jobject item = new_transform_group(env, tg);
+            if (item == nullptr) {
+                break;
+            }
             list_add(env, list, item);
             env->DeleteLocalRef(item);
         }
@@ -124,9 +180,15 @@ namespace {
 
     jobject new_glossary_entry(JNIEnv *env, const GlossaryEntry &entry) {
         jclass cls = env->FindClass("mihon/core/dictionary/model/GlossaryEntry");
+        if (cls == nullptr) {
+            return nullptr;
+        }
         jmethodID ctor = env->GetMethodID(
                 cls, "<init>",
                 "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V");
+        if (ctor == nullptr) {
+            return nullptr;
+        }
         jstring dict_name = new_string(env, entry.dict_name);
         jstring glossary = new_string(env, entry.glossary);
         jstring definition_tags = new_string(env, entry.definition_tags);
@@ -143,6 +205,9 @@ namespace {
         jobject list = new_array_list(env, static_cast<jsize>(entries.size()));
         for (const auto &entry : entries) {
             jobject item = new_glossary_entry(env, entry);
+            if (item == nullptr) {
+                break;
+            }
             list_add(env, list, item);
             env->DeleteLocalRef(item);
         }
@@ -151,7 +216,13 @@ namespace {
 
     jobject new_frequency(JNIEnv *env, const Frequency &frequency) {
         jclass cls = env->FindClass("mihon/core/dictionary/model/Frequency");
+        if (cls == nullptr) {
+            return nullptr;
+        }
         jmethodID ctor = env->GetMethodID(cls, "<init>", "(ILjava/lang/String;)V");
+        if (ctor == nullptr) {
+            return nullptr;
+        }
         jstring display_value = new_string(env, frequency.display_value);
         jobject out = env->NewObject(cls, ctor, static_cast<jint>(frequency.value), display_value);
         env->DeleteLocalRef(display_value);
@@ -162,6 +233,9 @@ namespace {
         jobject list = new_array_list(env, static_cast<jsize>(frequencies.size()));
         for (const auto &frequency : frequencies) {
             jobject item = new_frequency(env, frequency);
+            if (item == nullptr) {
+                break;
+            }
             list_add(env, list, item);
             env->DeleteLocalRef(item);
         }
@@ -170,7 +244,13 @@ namespace {
 
     jobject new_frequency_entry(JNIEnv *env, const FrequencyEntry &entry) {
         jclass cls = env->FindClass("mihon/core/dictionary/model/FrequencyEntry");
+        if (cls == nullptr) {
+            return nullptr;
+        }
         jmethodID ctor = env->GetMethodID(cls, "<init>", "(Ljava/lang/String;Ljava/util/List;)V");
+        if (ctor == nullptr) {
+            return nullptr;
+        }
         jstring dict_name = new_string(env, entry.dict_name);
         jobject frequencies = new_frequency_list(env, entry.frequencies);
         jobject out = env->NewObject(cls, ctor, dict_name, frequencies);
@@ -183,6 +263,9 @@ namespace {
         jobject list = new_array_list(env, static_cast<jsize>(entries.size()));
         for (const auto &entry : entries) {
             jobject item = new_frequency_entry(env, entry);
+            if (item == nullptr) {
+                break;
+            }
             list_add(env, list, item);
             env->DeleteLocalRef(item);
         }
@@ -191,7 +274,13 @@ namespace {
 
     jobject new_pitch_entry(JNIEnv *env, const PitchEntry &entry) {
         jclass cls = env->FindClass("mihon/core/dictionary/model/PitchEntry");
+        if (cls == nullptr) {
+            return nullptr;
+        }
         jmethodID ctor = env->GetMethodID(cls, "<init>", "(Ljava/lang/String;[ILjava/util/List;)V");
+        if (ctor == nullptr) {
+            return nullptr;
+        }
         jstring dict_name = new_string(env, entry.dict_name);
         jintArray positions = env->NewIntArray(static_cast<jsize>(entry.pitch_positions.size()));
         if (!entry.pitch_positions.empty()) {
@@ -210,6 +299,9 @@ namespace {
         jobject list = new_array_list(env, static_cast<jsize>(entries.size()));
         for (const auto &entry : entries) {
             jobject item = new_pitch_entry(env, entry);
+            if (item == nullptr) {
+                break;
+            }
             list_add(env, list, item);
             env->DeleteLocalRef(item);
         }
@@ -218,9 +310,15 @@ namespace {
 
     jobject new_term_result(JNIEnv *env, const TermResult &term) {
         jclass cls = env->FindClass("mihon/core/dictionary/model/TermResult");
+        if (cls == nullptr) {
+            return nullptr;
+        }
         jmethodID ctor = env->GetMethodID(
                 cls, "<init>",
                 "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/util/List;Ljava/util/List;Ljava/util/List;)V");
+        if (ctor == nullptr) {
+            return nullptr;
+        }
         jstring expression = new_string(env, term.expression);
         jstring reading = new_string(env, term.reading);
         jstring rules = new_string(env, term.rules);
@@ -242,6 +340,9 @@ namespace {
         jobject list = new_array_list(env, static_cast<jsize>(results.size()));
         for (const auto &term : results) {
             jobject item = new_term_result(env, term);
+            if (item == nullptr) {
+                break;
+            }
             list_add(env, list, item);
             env->DeleteLocalRef(item);
         }
@@ -250,9 +351,15 @@ namespace {
 
     jobject new_lookup_result(JNIEnv *env, const LookupResult &result) {
         jclass cls = env->FindClass("mihon/core/dictionary/model/LookupResult");
+        if (cls == nullptr) {
+            return nullptr;
+        }
         jmethodID ctor = env->GetMethodID(
                 cls, "<init>",
                 "(Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lmihon/core/dictionary/model/TermResult;I)V");
+        if (ctor == nullptr) {
+            return nullptr;
+        }
         jstring matched = new_string(env, result.matched);
         jstring deinflected = new_string(env, result.deinflected);
         jobject process = new_process_list(env, result.trace);
@@ -268,9 +375,18 @@ namespace {
 
     jobjectArray new_lookup_result_array(JNIEnv *env, const std::vector<LookupResult> &results) {
         jclass cls = env->FindClass("mihon/core/dictionary/model/LookupResult");
+        if (cls == nullptr) {
+            return nullptr;
+        }
         jobjectArray array = env->NewObjectArray(static_cast<jsize>(results.size()), cls, nullptr);
+        if (array == nullptr) {
+            return nullptr;
+        }
         for (size_t i = 0; i < results.size(); ++i) {
             jobject item = new_lookup_result(env, results[i]);
+            if (item == nullptr) {
+                break;
+            }
             env->SetObjectArrayElement(array, static_cast<jsize>(i), item);
             env->DeleteLocalRef(item);
         }
@@ -279,7 +395,13 @@ namespace {
 
     jobject new_dictionary_style(JNIEnv *env, const DictionaryStyle &style) {
         jclass cls = env->FindClass("mihon/core/dictionary/model/DictionaryStyle");
+        if (cls == nullptr) {
+            return nullptr;
+        }
         jmethodID ctor = env->GetMethodID(cls, "<init>", "(Ljava/lang/String;Ljava/lang/String;)V");
+        if (ctor == nullptr) {
+            return nullptr;
+        }
         jstring dict_name = new_string(env, style.dict_name);
         jstring styles = new_string(env, style.styles);
         jobject out = env->NewObject(cls, ctor, dict_name, styles);
@@ -290,13 +412,50 @@ namespace {
 
     jobjectArray new_dictionary_style_array(JNIEnv *env, const std::vector<DictionaryStyle> &styles) {
         jclass cls = env->FindClass("mihon/core/dictionary/model/DictionaryStyle");
+        if (cls == nullptr) {
+            return nullptr;
+        }
         jobjectArray array = env->NewObjectArray(static_cast<jsize>(styles.size()), cls, nullptr);
+        if (array == nullptr) {
+            return nullptr;
+        }
         for (size_t i = 0; i < styles.size(); ++i) {
             jobject entry = new_dictionary_style(env, styles[i]);
+            if (entry == nullptr) {
+                break;
+            }
             env->SetObjectArrayElement(array, static_cast<jsize>(i), entry);
             env->DeleteLocalRef(entry);
         }
         return array;
+    }
+
+    // A defensive empty array so a thrown native call degrades to "no results" instead of
+    // returning null (the Kotlin facade declares these return types non-null).
+    jobjectArray empty_array(JNIEnv *env, const char *className) {
+        jclass cls = env->FindClass(className);
+        if (cls == nullptr) {
+            return nullptr;
+        }
+        return env->NewObjectArray(0, cls, nullptr);
+    }
+
+    jobject empty_kanji_result(JNIEnv *env, const std::string &character) {
+        jclass resultCls = env->FindClass("mihon/core/dictionary/model/KanjiResult");
+        if (resultCls == nullptr) {
+            return nullptr;
+        }
+        jmethodID resultCtor = env->GetMethodID(resultCls, "<init>",
+                                                "(Ljava/lang/String;Ljava/util/List;)V");
+        if (resultCtor == nullptr) {
+            return nullptr;
+        }
+        jstring character_jstr = new_string(env, character);
+        jobject entries = new_array_list(env, 0);
+        jobject out = env->NewObject(resultCls, resultCtor, character_jstr, entries);
+        env->DeleteLocalRef(character_jstr);
+        env->DeleteLocalRef(entries);
+        return out;
     }
 
     // Import thread arguments
@@ -309,19 +468,38 @@ namespace {
     // Thread function for import with a large stack.
     void *import_thread_func(void *arg) {
         ImportArgs *args = static_cast<ImportArgs *>(arg);
-        args->result = dictionary_importer::import(args->zip_path, args->output_dir, true);
+        try {
+            args->result = dictionary_importer::import(args->zip_path, args->output_dir, true);
+        } catch (const std::exception &e) {
+            args->result.success = false;
+            args->result.errors.emplace_back(e.what());
+        } catch (...) {
+            args->result.success = false;
+            args->result.errors.emplace_back("unknown error during dictionary import");
+        }
         return nullptr;
     }
 }
 
 extern "C" JNIEXPORT jlong JNICALL
 Java_mihon_core_dictionary_engine_HoshiDictsNative_createSession(JNIEnv *, jobject) {
-    return reinterpret_cast<jlong>(new LookupObject());
+    try {
+        return reinterpret_cast<jlong>(new LookupObject());
+    } catch (...) {
+        return 0;
+    }
 }
 
 extern "C" JNIEXPORT void JNICALL
 Java_mihon_core_dictionary_engine_HoshiDictsNative_destroySession(JNIEnv *, jobject, jlong session) {
-    delete as_object(session);
+    if (session == 0) {
+        return;
+    }
+    try {
+        delete as_object(session);
+    } catch (...) {
+        // A destructor must not escape into the JVM.
+    }
 }
 
 extern "C" JNIEXPORT void JNICALL
@@ -331,33 +509,58 @@ Java_mihon_core_dictionary_engine_HoshiDictsNative_rebuildQuery(JNIEnv *env, job
                                                                 jobjectArray pitch_paths,
                                                                 jobjectArray kanji_paths) {
     LookupObject *obj = as_object(session);
-    obj->query = DictionaryQuery{};
-    for_each_string(env, term_paths,
-                    [&](const std::string &path) { obj->query.add_term_dict(path); });
-    for_each_string(env, freq_paths,
-                    [&](const std::string &path) { obj->query.add_freq_dict(path); });
-    for_each_string(env, pitch_paths,
-                    [&](const std::string &path) { obj->query.add_pitch_dict(path); });
-    for_each_string(env, kanji_paths,
-                    [&](const std::string &path) { obj->query.add_kanji_dict(path); });
-    obj->lookup = std::make_unique<Lookup>(obj->query, obj->deinflector);
+    if (!valid_session(obj)) {
+        return;
+    }
+    try {
+        obj->query = DictionaryQuery{};
+        for_each_string(env, term_paths,
+                        [&](const std::string &path) { obj->query.add_term_dict(path); });
+        for_each_string(env, freq_paths,
+                        [&](const std::string &path) { obj->query.add_freq_dict(path); });
+        for_each_string(env, pitch_paths,
+                        [&](const std::string &path) { obj->query.add_pitch_dict(path); });
+        for_each_string(env, kanji_paths,
+                        [&](const std::string &path) { obj->query.add_kanji_dict(path); });
+        obj->lookup = std::make_unique<Lookup>(obj->query, obj->deinflector);
+    } catch (...) {
+        obj->lookup = std::make_unique<Lookup>(obj->query, obj->deinflector);
+    }
 }
 
 extern "C" JNIEXPORT jobject JNICALL
 Java_mihon_core_dictionary_engine_HoshiDictsNative_queryKanji(JNIEnv *env, jobject, jlong session,
                                                               jstring character) {
     LookupObject *obj = as_object(session);
-    auto text_str = jstring_to_std_string(env, character);
-    auto result = obj->query.query_kanji(text_str);
+    const auto text_str = jstring_to_std_string(env, character);
+    if (!valid_session(obj)) {
+        return empty_kanji_result(env, text_str);
+    }
+
+    KanjiResult result;
+    try {
+        result = obj->query.query_kanji(text_str);
+    } catch (...) {
+        return empty_kanji_result(env, text_str);
+    }
 
     jclass entryCls = env->FindClass("mihon/core/dictionary/model/KanjiEntry");
+    if (entryCls == nullptr) {
+        return empty_kanji_result(env, result.character);
+    }
     jmethodID entryCtor = env->GetMethodID(
             entryCls, "<init>",
             "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/Map;)V");
     jclass mapCls = env->FindClass("java/util/HashMap");
+    if (entryCtor == nullptr || mapCls == nullptr) {
+        return empty_kanji_result(env, result.character);
+    }
     jmethodID mapCtor = env->GetMethodID(mapCls, "<init>", "()V");
     jmethodID mapPut = env->GetMethodID(mapCls, "put",
                                         "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
+    if (mapCtor == nullptr || mapPut == nullptr) {
+        return empty_kanji_result(env, result.character);
+    }
 
     jobject entryList = new_array_list(env, static_cast<jsize>(result.entries.size()));
 
@@ -372,16 +575,27 @@ Java_mihon_core_dictionary_engine_HoshiDictsNative_queryKanji(JNIEnv *env, jobje
         jobject definitions = new_string_list(env, e.definitions);
 
         jobject stats = env->NewObject(mapCls, mapCtor);
-        for (const auto &[k, v] : e.stats) {
-            jobject key = new_string(env, k);
-            jobject val = new_string(env, v);
-            env->CallObjectMethod(stats, mapPut, key, val);
-            env->DeleteLocalRef(key);
-            env->DeleteLocalRef(val);
+        if (stats != nullptr) {
+            for (const auto &[k, v] : e.stats) {
+                jobject key = new_string(env, k);
+                jobject val = new_string(env, v);
+                env->CallObjectMethod(stats, mapPut, key, val);
+                env->DeleteLocalRef(key);
+                env->DeleteLocalRef(val);
+            }
         }
 
         jobject entry = env->NewObject(entryCls, entryCtor, dictName, onyomi, kunyomi, tags,
                                        definitions, stats);
+        if (entry == nullptr) {
+            env->DeleteLocalRef(dictName);
+            env->DeleteLocalRef(onyomi);
+            env->DeleteLocalRef(kunyomi);
+            env->DeleteLocalRef(tags);
+            env->DeleteLocalRef(definitions);
+            env->DeleteLocalRef(stats);
+            break;
+        }
         list_add(env, entryList, entry);
 
         env->DeleteLocalRef(dictName);
@@ -394,8 +608,14 @@ Java_mihon_core_dictionary_engine_HoshiDictsNative_queryKanji(JNIEnv *env, jobje
     }
 
     jclass resultCls = env->FindClass("mihon/core/dictionary/model/KanjiResult");
+    if (resultCls == nullptr) {
+        return empty_kanji_result(env, result.character);
+    }
     jmethodID resultCtor = env->GetMethodID(resultCls, "<init>",
                                             "(Ljava/lang/String;Ljava/util/List;)V");
+    if (resultCtor == nullptr) {
+        return empty_kanji_result(env, result.character);
+    }
     jobject character_jstr = new_string(env, result.character);
     jobject out = env->NewObject(resultCls, resultCtor, character_jstr, entryList);
     env->DeleteLocalRef(character_jstr);
@@ -411,20 +631,26 @@ Java_mihon_core_dictionary_engine_HoshiDictsNative_importDictionary(JNIEnv *env,
     args.zip_path = jstring_to_std_string(env, zip_path);
     args.output_dir = jstring_to_std_string(env, output_dir);
 
-    // Create a thread with a 16 MB stack to handle the radix sort's large stack allocations.
-    pthread_t thread;
-    pthread_attr_t attr;
-    pthread_attr_init(&attr);
-    pthread_attr_setstacksize(&attr, 16 * 1024 * 1024);  // 16 MB stack
-
-    int rc = pthread_create(&thread, &attr, import_thread_func, &args);
-    pthread_attr_destroy(&attr);
-
-    if (rc == 0) {
-        pthread_join(thread, nullptr);
+    if (zip_path == nullptr || output_dir == nullptr ||
+        args.zip_path.empty() || args.output_dir.empty()) {
+        args.result.success = false;
+        args.result.errors.emplace_back("importDictionary requires a non-null zip and output dir");
     } else {
-        // Fallback: run on the current thread (risky, but better than silent failure).
-        args.result = dictionary_importer::import(args.zip_path, args.output_dir, true);
+        // Create a thread with a 16 MB stack to handle the radix sort's large stack allocations.
+        pthread_t thread;
+        pthread_attr_t attr;
+        pthread_attr_init(&attr);
+        pthread_attr_setstacksize(&attr, 16 * 1024 * 1024);  // 16 MB stack
+
+        int rc = pthread_create(&thread, &attr, import_thread_func, &args);
+        pthread_attr_destroy(&attr);
+
+        if (rc == 0) {
+            pthread_join(thread, nullptr);
+        } else {
+            // Fallback: run on the current thread (risky, but better than silent failure).
+            import_thread_func(&args);
+        }
     }
 
     if (!args.result.success && !args.result.errors.empty()) {
@@ -438,33 +664,63 @@ Java_mihon_core_dictionary_engine_HoshiDictsNative_lookup(JNIEnv *env, jobject, 
                                                           jstring text, jint max_results,
                                                           jint scan_length) {
     LookupObject *obj = as_object(session);
-    auto text_str = jstring_to_std_string(env, text);
-    auto result = obj->lookup->lookup(text_str, static_cast<int>(max_results),
-                                      static_cast<size_t>(scan_length));
-    return new_lookup_result_array(env, result);
+    if (!valid_session(obj) || obj->lookup == nullptr) {
+        return empty_array(env, "mihon/core/dictionary/model/LookupResult");
+    }
+    const auto text_str = jstring_to_std_string(env, text);
+    try {
+        auto result = obj->lookup->lookup(text_str, static_cast<int>(max_results),
+                                          static_cast<size_t>(scan_length));
+        return new_lookup_result_array(env, result);
+    } catch (...) {
+        return empty_array(env, "mihon/core/dictionary/model/LookupResult");
+    }
 }
 
 extern "C" JNIEXPORT jobjectArray JNICALL
 Java_mihon_core_dictionary_engine_HoshiDictsNative_query(JNIEnv *env, jobject, jlong session,
                                                          jstring text) {
     LookupObject *obj = as_object(session);
-    auto text_str = jstring_to_std_string(env, text);
-    auto results = obj->query.query(text_str);
-    jclass cls = env->FindClass("mihon/core/dictionary/model/TermResult");
-    jobjectArray array = env->NewObjectArray(static_cast<jsize>(results.size()), cls, nullptr);
-    for (size_t i = 0; i < results.size(); ++i) {
-        jobject item = new_term_result(env, results[i]);
-        env->SetObjectArrayElement(array, static_cast<jsize>(i), item);
-        env->DeleteLocalRef(item);
+    if (!valid_session(obj)) {
+        return empty_array(env, "mihon/core/dictionary/model/TermResult");
     }
-    return array;
+    const auto text_str = jstring_to_std_string(env, text);
+    try {
+        auto results = obj->query.query(text_str);
+        jclass cls = env->FindClass("mihon/core/dictionary/model/TermResult");
+        if (cls == nullptr) {
+            return nullptr;
+        }
+        jobjectArray array = env->NewObjectArray(static_cast<jsize>(results.size()), cls, nullptr);
+        if (array == nullptr) {
+            return nullptr;
+        }
+        for (size_t i = 0; i < results.size(); ++i) {
+            jobject item = new_term_result(env, results[i]);
+            if (item == nullptr) {
+                break;
+            }
+            env->SetObjectArrayElement(array, static_cast<jsize>(i), item);
+            env->DeleteLocalRef(item);
+        }
+        return array;
+    } catch (...) {
+        return empty_array(env, "mihon/core/dictionary/model/TermResult");
+    }
 }
 
 extern "C" JNIEXPORT jobjectArray JNICALL
 Java_mihon_core_dictionary_engine_HoshiDictsNative_getStyles(JNIEnv *env, jobject, jlong session) {
     LookupObject *obj = as_object(session);
-    auto styles = obj->query.get_styles();
-    return new_dictionary_style_array(env, styles);
+    if (!valid_session(obj)) {
+        return empty_array(env, "mihon/core/dictionary/model/DictionaryStyle");
+    }
+    try {
+        auto styles = obj->query.get_styles();
+        return new_dictionary_style_array(env, styles);
+    } catch (...) {
+        return empty_array(env, "mihon/core/dictionary/model/DictionaryStyle");
+    }
 }
 
 extern "C" JNIEXPORT jbyteArray JNICALL
@@ -472,32 +728,49 @@ Java_mihon_core_dictionary_engine_HoshiDictsNative_getMediaFile(JNIEnv *env, job
                                                                 jstring dict_name,
                                                                 jstring media_path) {
     LookupObject *obj = as_object(session);
-    auto dict_name_str = jstring_to_std_string(env, dict_name);
-    auto media_path_str = jstring_to_std_string(env, media_path);
-    auto data = obj->query.get_media_file(dict_name_str, media_path_str);
-    if (data.empty()) {
+    if (!valid_session(obj)) {
         return nullptr;
     }
-
-    jbyteArray result = env->NewByteArray(static_cast<jsize>(data.size()));
-    env->SetByteArrayRegion(result, 0, static_cast<jsize>(data.size()),
-                            reinterpret_cast<const jbyte *>(data.data()));
-    return result;
+    const auto dict_name_str = jstring_to_std_string(env, dict_name);
+    const auto media_path_str = jstring_to_std_string(env, media_path);
+    try {
+        auto data = obj->query.get_media_file(dict_name_str, media_path_str);
+        if (data.empty()) {
+            return nullptr;
+        }
+        jbyteArray result = env->NewByteArray(static_cast<jsize>(data.size()));
+        if (result == nullptr) {
+            return nullptr;
+        }
+        env->SetByteArrayRegion(result, 0, static_cast<jsize>(data.size()),
+                                reinterpret_cast<const jbyte *>(data.data()));
+        return result;
+    } catch (...) {
+        return nullptr;
+    }
 }
 
 extern "C" JNIEXPORT jlongArray JNICALL
 Java_mihon_core_dictionary_engine_HoshiDictsNative_probeEntryTypes(JNIEnv *env, jobject,
                                                                    jstring dict_path) {
-    auto dir = jstring_to_std_string(env, dict_path);
-    std::string hashPath = dir + "/hash.table";
-    std::string blobsPath = dir + "/blobs.bin";
+    const auto dir = jstring_to_std_string(env, dict_path);
 
     auto make_zeros = [&]() {
         jlongArray result = env->NewLongArray(4);
+        if (result == nullptr) {
+            return result;
+        }
         jlong zeros[4] = {0, 0, 0, 0};
         env->SetLongArrayRegion(result, 0, 4, zeros);
         return result;
     };
+
+    if (dict_path == nullptr || dir.empty()) {
+        return make_zeros();
+    }
+
+    std::string hashPath = dir + "/hash.table";
+    std::string blobsPath = dir + "/blobs.bin";
 
     FILE *hashFile = fopen(hashPath.c_str(), "rb");
     if (!hashFile) return make_zeros();
@@ -575,6 +848,9 @@ Java_mihon_core_dictionary_engine_HoshiDictsNative_probeEntryTypes(JNIEnv *env, 
     }
 
     jlongArray result = env->NewLongArray(4);
+    if (result == nullptr) {
+        return nullptr;
+    }
     jlong counts[4] = {
             static_cast<jlong>(termCount),
             static_cast<jlong>(freqCount),

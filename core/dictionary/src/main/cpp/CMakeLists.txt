@@ -2,6 +2,10 @@
 # KUN -->
 # Builds the vendored `hoshidicts` static library (git submodule) and links it into
 # `hoshidicts_jni`, the shared library consumed by :core:dictionary (contract §1.4/§1.6).
+#
+# Adapted from Chimahon's `chimahon/src/main/cpp/CMakeLists.txt` (GPL-3.0-or-later); the
+# SQLite/word-audio targets Chimahon needs are dropped and the CLI/benchmark targets are
+# guarded off. Keep the `hoshidicts` submodule pin in README.md.
 cmake_minimum_required(VERSION 3.22.1)
 
 project(hoshidicts_jni LANGUAGES C CXX)

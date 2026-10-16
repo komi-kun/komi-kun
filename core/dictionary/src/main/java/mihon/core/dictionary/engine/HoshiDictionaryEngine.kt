@@ -33,13 +33,7 @@ class HoshiDictionaryEngine : DictionaryEngine {
 
     override fun probeEntryTypes(dictDir: File): EntryTypeCounts {
         ensureAvailable()
-        val counts = HoshiDictsNative.probeEntryTypes(dictDir.absolutePath)
-        return EntryTypeCounts(
-            term = counts.getOrElse(0) { 0L },
-            freq = counts.getOrElse(1) { 0L },
-            pitch = counts.getOrElse(2) { 0L },
-            kanji = counts.getOrElse(3) { 0L },
-        )
+        return HoshiDictsNative.probeEntryTypes(dictDir.absolutePath).toEntryTypeCounts()
     }
 
     override fun openSession(paths: DictionaryPaths): DictionarySession {
@@ -51,6 +45,19 @@ class HoshiDictionaryEngine : DictionaryEngine {
         check(isAvailable) { "hoshidicts_jni is not available on this ABI" }
     }
 }
+
+/**
+ * Maps the 4-long `probeEntryTypes` reply `[term, freq, pitch, kanji]` to [EntryTypeCounts].
+ *
+ * Kept as a pure function so the mapping (including a short/empty array from a degraded
+ * native call) is unit-testable on the JVM without loading `libhoshidicts_jni`.
+ */
+internal fun LongArray.toEntryTypeCounts(): EntryTypeCounts = EntryTypeCounts(
+    term = getOrElse(0) { 0L },
+    freq = getOrElse(1) { 0L },
+    pitch = getOrElse(2) { 0L },
+    kanji = getOrElse(3) { 0L },
+)
 
 /**
  * [DictionarySession] over one native handle. Every call is serialised (`@Synchronized`)
