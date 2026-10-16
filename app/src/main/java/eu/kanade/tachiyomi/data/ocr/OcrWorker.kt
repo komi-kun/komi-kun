@@ -36,7 +36,6 @@ import logcat.LogPriority
 import mihon.core.ocr.OcrLanguage
 import mihon.core.ocr.cache.ChapterImageProvider
 import mihon.core.ocr.cache.ChapterOcrInput
-import mihon.core.ocr.cache.OcrCacheKey
 import mihon.core.ocr.cache.OcrJob
 import mihon.core.ocr.cache.OcrManager
 import mihon.core.ocr.cache.OcrTask
@@ -140,7 +139,11 @@ class OcrChapterResolver(
         ) ?: return null
 
         return ChapterOcrInput(
-            key = OcrCacheKey(sourceId = manga.source, mangaId = chapter.mangaId, chapterId = chapter.id),
+            key = ocrManager.cacheKey(
+                sourceId = manga.source,
+                mangaId = chapter.mangaId,
+                chapterId = chapter.id,
+            ),
             language = resolveLanguage(chapter.mangaId, manga.source),
             source = ocrManager.sourceFor(chapter.mangaId),
             provider = UniFileChapterImageProvider(chapterDir),
