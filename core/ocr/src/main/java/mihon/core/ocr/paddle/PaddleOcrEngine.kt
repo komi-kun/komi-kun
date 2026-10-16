@@ -2,7 +2,8 @@
 // KUN -->
 // Ported from Chimahon (https://github.com/Chimahon/Chimahon, GPL-3.0-or-later),
 // `chimahon-local-ocr/src/main/java/chimahon/local/ocr/PaddleOcrEngine.kt` @ f85c063.
-// Adapted for komi-kun: the `supportedAbi()` gate accepts `x86_64` (contract §1.5/§1.7), logging
+// Adapted for komi-kun: the `supportedAbi()` gate keeps accepting `x86_64` for graceful
+// degradation even though the artifact ships only ARM ABIs (see supportedAbi()), logging
 // uses the project's `logcat`, and the native-library load path also falls back to the APK-packaged
 // (`jniLibs`) layout, not just the downloaded absolute path.
 //
@@ -89,13 +90,14 @@ class PaddleOcrEngine(
 
     companion object {
         private const val MODEL_DIR = "paddle_ocr"
-        private const val DET_PARAM = "manga_det_fp16.param"
-        private const val DET_BIN = "manga_det_fp16.bin"
-        private const val REC_PARAM = "manga_rec_fp16.param"
-        private const val REC_BIN = "manga_rec_fp16.bin"
-        private const val DICT_TXT = "ppocrv6_dict.txt"
+        private const val DET_MODEL = "ppocrv4_det.nb"
+        private const val REC_MODEL = "ppocrv4_japan_rec.nb"
+        private const val DICT_TXT = "ppocrv4_japan_dict.txt"
 
-        /** ABIs for which the Paddle artifact is built (contract §1.5). */
+        /**
+         * ABIs the Kotlin engine will *attempt*. Only `arm64-v8a` / `armeabi-v7a` are shipped by
+         * `komi-kun-ocr-models`; `x86_64` is kept here for graceful degradation (see [supportedAbi]).
+         */
         private val SUPPORTED_ABIS = listOf("arm64-v8a", "armeabi-v7a", "x86_64")
 
         /**
@@ -114,6 +116,16 @@ class PaddleOcrEngine(
     /** Big-core count (ported from ocrtest), computed once per process. */
     private val deviceThreads: Int by lazy { detectPerformanceCores().coerceIn(1, 4) }
 
+    /**
+     * First supported ABI of the device, or null.
+     *
+     * CAVEAT (x86_64): Paddle-Lite publishes **no Android x86_64 prebuilt** and its `opt`-converted
+     * models are target-specific, so `komi-kun-ocr-models` ships only `arm64-v8a`/`armeabi-v7a`.
+     * `x86_64` is still accepted here on purpose: on an x86_64 emulator `System.loadLibrary`
+     * throws `UnsatisfiedLinkError`, [loadNativeLibraries] catches it, and `init()` returns false —
+     * the intended graceful degradation (OCR simply unavailable), not a crash. Do **not** add an
+     * `x86_64` manifest entry or build an ARM `.so` under an x86_64 name.
+     */
     private fun supportedAbi(): String? = Build.SUPPORTED_ABIS.firstOrNull { it in SUPPORTED_ABIS }
 
     fun init() = init(PaddleOcrOptions(numThreads = deviceThreads))
@@ -131,10 +143,10 @@ class PaddleOcrEngine(
         val start = SystemClock.elapsedRealtime()
         val modelDir = File(appContext.filesDir, MODEL_DIR)
         val success = nativeInit(
-            detParamAbsPath = File(modelDir, DET_PARAM).absolutePath,
-            detBinAbsPath = File(modelDir, DET_BIN).absolutePath,
-            recParamAbsPath = File(modelDir, REC_PARAM).absolutePath,
-            recBinAbsPath = File(modelDir, REC_BIN).absolutePath,
+            detParamAbsPath = File(modelDir, DET_MODEL).absolutePath,
+            detBinAbsPath = "",
+            recParamAbsPath = File(modelDir, REC_MODEL).absolutePath,
+            recBinAbsPath = "",
             dictAbsPath = File(modelDir, DICT_TXT).absolutePath,
             numThreads = options.numThreads,
         )

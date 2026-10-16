@@ -68,7 +68,7 @@ sealed interface ModelDownloadState {
 }
 
 /**
- * Downloads and verifies the PaddleOCR det/rec models and `ppocrv6_dict.txt` into
+ * Downloads and verifies the PaddleOCR det/rec models and `ppocrv4_japan_dict.txt` into
  * `filesDir/paddle_ocr/` (where [PaddleOcrEngine] loads them from), and can import them from a
  * user-picked archive. [triggerPaddleDownload] is the runtime, opt-in entry point.
  */
@@ -218,14 +218,12 @@ class ModelDownloader(
         private const val MANIFEST_NAME = "manifest.json"
         private const val PADDLE_DIR = "paddle_ocr"
 
-        private const val DET_PARAM = "manga_det_fp16.param"
-        private const val DET_BIN = "manga_det_fp16.bin"
-        private const val REC_PARAM = "manga_rec_fp16.param"
-        private const val REC_BIN = "manga_rec_fp16.bin"
-        private const val DICT_TXT = "ppocrv6_dict.txt"
+        private const val DET_MODEL = "ppocrv4_det.nb"
+        private const val REC_MODEL = "ppocrv4_japan_rec.nb"
+        private const val DICT_TXT = "ppocrv4_japan_dict.txt"
 
         /** Must stay in sync with [PaddleOcrEngine]'s model constants. */
-        val REQUIRED_MODELS = listOf(DET_PARAM, DET_BIN, REC_PARAM, REC_BIN, DICT_TXT)
+        val REQUIRED_MODELS = listOf(DET_MODEL, REC_MODEL, DICT_TXT)
     }
 }
 
