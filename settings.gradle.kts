@@ -53,7 +53,11 @@ include(":baseline-profile")
 include(":core-metadata")
 include(":core:archive")
 include(":core:common")
+// KUN -->
+include(":core:dictionary")
 include(":core:metro")
+include(":core:ocr")
+// KUN <--
 include(":data")
 include(":domain")
 include(":i18n")
