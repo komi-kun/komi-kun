@@ -6,6 +6,7 @@
 // KUN <--
 package eu.kanade.presentation.reader
 
+import android.graphics.RectF
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
@@ -36,6 +37,9 @@ import mihon.core.ocr.model.OcrTextBlock
  *
  * [blocks] are the OCR blocks of the page currently being read; they are mapped against the first
  * visible page of [viewport]. Dual-page spreads map only that page in v1.
+ *
+ * [boxScalePercent] is the `ReaderPreferences.ocrBoxScale` display setting (100 = tight around the
+ * detected block); the drawn box is grown/shrunk about its own centre by that factor.
  */
 @Composable
 fun OcrOverlay(
@@ -43,6 +47,7 @@ fun OcrOverlay(
     blocks: List<OcrTextBlock>,
     activeBlock: OcrTextBlock?,
     outlineVisible: Boolean,
+    boxScalePercent: Int = 100,
     modifier: Modifier = Modifier,
 ) {
     if (viewport == null || !outlineVisible) return
@@ -60,16 +65,19 @@ fun OcrOverlay(
     val outlineColor = MaterialTheme.colorScheme.primary
     val activeColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.28f)
     val strokeWidth = with(LocalDensity.current) { 1.5.dp.toPx() }
+    // `ocrBoxScale` is a percent; guard against a degenerate zero/negative value.
+    val boxScale = (boxScalePercent / 100f).coerceAtLeast(MIN_BOX_SCALE)
 
     Canvas(modifier = modifier.fillMaxSize()) {
         // Read so a transform change redraws the boxes.
         transformVersion
         val page = viewport.visiblePages().firstOrNull() ?: return@Canvas
         for (block in blocks) {
-            val rect = viewport.imageNormalizedToScreen(
+            val mapped = viewport.imageNormalizedToScreen(
                 page,
-                android.graphics.RectF(block.xmin, block.ymin, block.xmax, block.ymax),
+                RectF(block.xmin, block.ymin, block.xmax, block.ymax),
             ) ?: continue
+            val rect = mapped.scaledAboutCenter(boxScale)
             val topLeft = Offset(rect.left, rect.top)
             val size = Size(rect.width(), rect.height())
             if (activeBlock != null && activeBlock === block) {
@@ -84,3 +92,18 @@ fun OcrOverlay(
         }
     }
 }
+
+/**
+ * Grows/shrinks [this] about its own centre by [scale], implementing `ReaderPreferences.ocrBoxScale`
+ * (100% = tight around the detected block, >100% = larger).
+ */
+private fun RectF.scaledAboutCenter(scale: Float): RectF {
+    if (scale == 1f) return this
+    val cx = (left + right) / 2f
+    val cy = (top + bottom) / 2f
+    val halfWidth = width() / 2f * scale
+    val halfHeight = height() / 2f * scale
+    return RectF(cx - halfWidth, cy - halfHeight, cx + halfWidth, cy + halfHeight)
+}
+
+private const val MIN_BOX_SCALE = 0.05f
