@@ -21,6 +21,7 @@ import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.View.LAYER_TYPE_HARDWARE
+import android.view.ViewConfiguration
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -100,6 +101,7 @@ import eu.kanade.tachiyomi.ui.reader.setting.ReaderOrientation
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderSettingsViewModel
 import eu.kanade.tachiyomi.ui.reader.setting.ReadingMode
+import eu.kanade.tachiyomi.ui.reader.viewer.OcrTwoFingerTapDetector
 import eu.kanade.tachiyomi.ui.reader.viewer.ReaderProgressIndicator
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.PagerConfig
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.PagerViewer
@@ -204,6 +206,21 @@ class ReaderActivity : BaseActivity() {
     // Constructed lazily (TachiyomiSY 68fd60274e): the field's dependencies are not ready at
     // property-initialisation time, which crashed the reader on open.
     private val displayRefreshHost by lazy { DisplayRefreshHost() }
+    // KUN <--
+
+    // KUN -->
+    /**
+     * Two-finger tap detector for the OCR overlay toggle (`ReaderPreferences.ocrTwoFingerGestureEnabled`).
+     * It is fed from [dispatchTouchEvent] and is deliberately non-consuming, so it works identically
+     * across the pager, webtoon and WebGPU backends without touching their page-turn/zoom/pan gestures.
+     */
+    private val ocrTwoFingerTapDetector = OcrTwoFingerTapDetector(
+        touchSlop = ViewConfiguration.get(this).scaledTouchSlop.toFloat(),
+        tapTimeoutMillis = ViewConfiguration.getLongPressTimeout().toLong(),
+    ).apply {
+        isEnabled = { readerPreferences.ocrTwoFingerGestureEnabled.get() }
+        onTap = { onOcrTwoFingerTap() }
+    }
     // KUN <--
 
     private val windowInsetsController by lazy { WindowInsetsControllerCompat(window, window.decorView) }
@@ -636,6 +653,18 @@ class ReaderActivity : BaseActivity() {
         val handled = viewModel.state.value.viewer?.handleKeyEvent(event) ?: false
         return handled || super.dispatchKeyEvent(event)
     }
+
+    // KUN -->
+    /**
+     * Dispatches a touch event. Feeds the passive OCR two-finger tap detector first, then always
+     * delegates to the default implementation - the detector never consumes, so no existing gesture
+     * is affected.
+     */
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        ocrTwoFingerTapDetector.onTouchEvent(ev)
+        return super.dispatchTouchEvent(ev)
+    }
+    // KUN <--
 
     /**
      * Dispatches a generic motion event. If the viewer doesn't handle it, call the default
@@ -1247,6 +1276,17 @@ class ReaderActivity : BaseActivity() {
             (location[0] - overlayLocation[0]) + x,
             (location[1] - overlayLocation[1]) + y,
         )
+    }
+
+    /**
+     * Two-finger tap: toggles the reader OCR overlay (Settings "OCR two-finger gesture"). Mirrors the
+     * reader bottom-bar OCR button, including its on/off toast. Reached only through
+     * [ocrTwoFingerTapDetector], which is gated on the setting.
+     */
+    private fun onOcrTwoFingerTap() {
+        val enabled = viewModel.toggleOcrOverlay()
+        menuToggleToast?.cancel()
+        menuToggleToast = toast(if (enabled) MR.strings.on else MR.strings.off)
     }
     // KUN <--
 

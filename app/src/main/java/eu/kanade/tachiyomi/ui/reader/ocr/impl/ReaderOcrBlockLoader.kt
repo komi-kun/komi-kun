@@ -30,18 +30,21 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import logcat.LogPriority
 import mihon.core.metro.AppCoroutineScope
+import mihon.core.ocr.OcrEngine
 import mihon.core.ocr.OcrLanguage
 import mihon.core.ocr.cache.MokuroChapterLoader
 import mihon.core.ocr.cache.OcrCacheKey
 import mihon.core.ocr.cache.OcrManager
 import mihon.core.ocr.model.OcrTextBlock
 import mihon.core.ocr.mokuro.ImageFileInfo
+import mihon.core.ocr.paddle.PaddleOcrEngine
 import tachiyomi.core.common.ocr.ReaderOcrSource
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.manga.interactor.GetManga
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.source.service.SourceManager
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicLong
 
 /** Identifies one page's OCR blocks: its chapter id plus the page index within the chapter. */
 data class OcrPageKey(val chapterId: Long, val pageIndex: Int)
@@ -59,6 +62,7 @@ fun ReaderPage.ocrKey(): OcrPageKey = OcrPageKey(chapter.chapter.id, index)
  */
 class ReaderOcrBlockLoader(
     private val ocrManager: OcrManager,
+    private val engine: OcrEngine,
     private val getManga: GetManga,
     private val downloadProvider: DownloadProvider,
     private val sourceManager: SourceManager,
@@ -72,6 +76,19 @@ class ReaderOcrBlockLoader(
 
     /** Earliest retry time (ns) for a page that could not be resolved yet; bounded retry rate. */
     private val retryAfter = ConcurrentHashMap<OcrPageKey, Long>()
+
+    /**
+     * Earliest retry time (ns) for the local OCR engine once an `init()` failed (e.g. an `x86_64`
+     * emulator or a device without the downloaded models). Bounds the engine init/log spam that
+     * would otherwise happen once per page, while still recovering if the models arrive later.
+     */
+    private val engineRetryAfter = AtomicLong(0L)
+
+    init {
+        // Keep the reader's in-memory cache fresh while the background queue OCRs the same chapter,
+        // so blocks appear live without leaving/re-entering it (fix: `invalidate()` had no caller).
+        observeOcrQueue()
+    }
 
     /** Starts loading the blocks of [pages] that are not cached yet. Main-thread callers only. */
     fun ensureLoaded(pages: List<ReaderPage>) {
@@ -98,11 +115,37 @@ class ReaderOcrBlockLoader(
     /** The blocks already loaded for [page] (empty until [ensureLoaded] finishes). */
     fun blocksFor(page: ReaderPage): List<OcrTextBlock> = _blocks.value[page.ocrKey()].orEmpty()
 
-    /** Drops the in-memory cache (chapter change / viewer swap). */
+    /** Drops the in-memory cache; the next [ensureLoaded] re-reads the persisted OCR cache. */
     fun invalidate() {
         _blocks.update { emptyMap() }
         inFlight.clear()
         retryAfter.clear()
+    }
+
+    /**
+     * Refreshes the in-memory cache when the background OCR queue advances or a chapter leaves it,
+     * so an already-open page picks up blocks the worker just persisted (fix: `invalidate()` had no
+     * caller). Dropped only when a chapter whose pages are actually cached changed, to avoid needless
+     * reload churn from unrelated queue activity.
+     */
+    private fun observeOcrQueue() {
+        scope.launch {
+            var previous = emptyMap<Long, Int>()
+            ocrManager.queueState.collect { items ->
+                val current = items.associate { it.chapterId to it.currentPage }
+                val changed = buildSet {
+                    current.forEach { (chapterId, page) ->
+                        val before = previous[chapterId]
+                        if (before != null && before != page) add(chapterId)
+                    }
+                    // A chapter that left the queue finished, failed or was cancelled: re-read it.
+                    addAll(previous.keys - current.keys)
+                }
+                val cachedChapters = _blocks.value.keys.map { it.chapterId }
+                if (changed.any { it in cachedChapters }) invalidate()
+                previous = current
+            }
+        }
     }
 
     /**
@@ -198,15 +241,36 @@ class ReaderOcrBlockLoader(
         mangaId: Long,
         sourceId: Long,
     ): List<OcrTextBlock>? {
+        // An unavailable engine (x86_64 emulator, models not downloaded) is tolerated: skip it until
+        // its cooldown elapses instead of re-initializing (and logging) once per page. Returning null
+        // leaves the page unresolved, so [ensureLoaded] retries it later rather than caching "empty".
+        if (!isEngineAvailable()) return null
+
         val bytes = pageBytes(page) ?: return null
         val language = resolveLanguage(mangaId, sourceId)
-        return runCatching {
+        val result = runCatching {
             ocrManager.recognizeAndCache(key, page.index, bytes, language, source)
         }.getOrElse { e ->
             if (e is CancellationException) throw e
             logcat(LogPriority.WARN, e) { "ReaderOcr: engine OCR failed for page ${page.index}" }
             emptyList()
         }
+
+        val current = engine
+        if (current is PaddleOcrEngine && !current.isInitialized()) {
+            // The attempt did not bring the engine up; back off before trying again.
+            engineRetryAfter.set(System.nanoTime() + ENGINE_RETRY_COOLDOWN_NANOS)
+            logcat(LogPriority.INFO) { "ReaderOcr: local OCR engine unavailable, backing off" }
+        }
+        return result
+    }
+
+    /** False while the Paddle engine is known unavailable and its retry cooldown has not elapsed. */
+    private fun isEngineAvailable(): Boolean {
+        val current = engine
+        return current !is PaddleOcrEngine ||
+            current.isInitialized() ||
+            System.nanoTime() >= engineRetryAfter.get()
     }
 
     private fun pageBytes(page: ReaderPage): ByteArray? {
@@ -225,5 +289,8 @@ class ReaderOcrBlockLoader(
 
         /** Minimum gap between retries of a page that is not resolvable yet (bounds DB/disk churn). */
         private const val RETRY_INTERVAL_NANOS = 1_000_000_000L
+
+        /** How long to stop retrying a local OCR engine that failed to initialize. */
+        private const val ENGINE_RETRY_COOLDOWN_NANOS = 60_000_000_000L
     }
 }

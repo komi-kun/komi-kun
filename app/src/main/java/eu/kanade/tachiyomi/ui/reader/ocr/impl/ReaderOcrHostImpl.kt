@@ -14,6 +14,7 @@ package eu.kanade.tachiyomi.ui.reader.ocr.impl
 import android.graphics.RectF
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -61,11 +62,14 @@ class ReaderOcrHostImpl(
 
     @Composable
     override fun Overlay(viewport: OcrViewport?, modifier: Modifier) {
-        this.viewport = viewport
+        // Recording the viewport is a side effect, not composition: keep it out of the compose
+        // phase so recomposition stays pure (the hit-test only reads it after a long-press).
+        SideEffect { this.viewport = viewport }
         val loaded by blockLoader.blocks.collectAsState()
         val active by activeBlock
         val outlineVisible = readerPreferences.ocrOutlineVisible.get()
         val activeBlockHighlight = readerPreferences.ocrActiveBlockHighlight.get()
+        val boxScalePercent = readerPreferences.ocrBoxScale.get()
 
         LaunchedEffect(viewport) {
             if (viewport == null) return@LaunchedEffect
@@ -82,6 +86,7 @@ class ReaderOcrHostImpl(
             blocks = blocks,
             activeBlock = active?.takeIf { activeBlockHighlight && it.first == currentPage?.ocrKey() }?.second,
             outlineVisible = outlineVisible,
+            boxScalePercent = boxScalePercent,
             modifier = modifier,
         )
     }

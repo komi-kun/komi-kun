@@ -10,6 +10,7 @@ import eu.kanade.tachiyomi.ui.dictionary.DictionaryPreferences
 import eu.kanade.tachiyomi.ui.reader.ocr.impl.ReaderOcrBlockLoader
 import kotlinx.coroutines.CoroutineScope
 import mihon.core.metro.AppCoroutineScope
+import mihon.core.ocr.OcrEngine
 import mihon.core.ocr.cache.OcrManager
 import tachiyomi.domain.manga.interactor.GetManga
 import tachiyomi.domain.source.service.SourceManager
@@ -30,6 +31,7 @@ object OcrHostBindings {
     @SingleIn(AppScope::class)
     fun provideReaderOcrBlockLoader(
         ocrManager: OcrManager,
+        engine: OcrEngine,
         getManga: GetManga,
         downloadProvider: DownloadProvider,
         sourceManager: SourceManager,
@@ -37,6 +39,7 @@ object OcrHostBindings {
         @AppCoroutineScope scope: CoroutineScope,
     ): ReaderOcrBlockLoader = ReaderOcrBlockLoader(
         ocrManager = ocrManager,
+        engine = engine,
         getManga = getManga,
         downloadProvider = downloadProvider,
         sourceManager = sourceManager,
