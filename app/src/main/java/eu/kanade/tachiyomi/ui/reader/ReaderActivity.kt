@@ -210,12 +210,14 @@ class ReaderActivity : BaseActivity() {
      * It is fed from [dispatchTouchEvent] and is deliberately non-consuming, so it works identically
      * across the pager, webtoon and WebGPU backends without touching their page-turn/zoom/pan gestures.
      */
-    private val ocrTwoFingerTapDetector = OcrTwoFingerTapDetector(
-        touchSlop = ViewConfiguration.get(this).scaledTouchSlop.toFloat(),
-        tapTimeoutMillis = ViewConfiguration.getLongPressTimeout().toLong(),
-    ).apply {
-        isEnabled = { readerPreferences.ocrTwoFingerGestureEnabled.get() }
-        onTap = { onOcrTwoFingerTap() }
+    private val ocrTwoFingerTapDetector by lazy {
+        OcrTwoFingerTapDetector(
+            touchSlop = ViewConfiguration.get(this).scaledTouchSlop.toFloat(),
+            tapTimeoutMillis = ViewConfiguration.getLongPressTimeout().toLong(),
+        ).apply {
+            isEnabled = { readerPreferences.ocrTwoFingerGestureEnabled.get() }
+            onTap = { onOcrTwoFingerTap() }
+        }
     }
     // KUN <--
 
