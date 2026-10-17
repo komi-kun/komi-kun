@@ -162,6 +162,35 @@ initialized in 168ms`, `recognize: Total: 555ms … Boxes: 21, Lines: 21`, cache
 and a long-press on a bubble opens the dictionary lookup (`libhoshidicts_jni.so`, `DictionaryRender`)
 instead of the page dialog.
 
+### Follow-up: reader OCR watchdog + cancellation (F1/F2/F3)
+
+Review of the F5 deadlock fix flagged two improvements in `ReaderOcrBlockLoader`, fixed in a
+follow-up commit (new commit, not an amend):
+
+- **F1 — cancellation was logged as a failure.** `ensureLoaded`'s `runCatching { load(page) }` also
+  caught `CancellationException` and logged it at WARN. It now rethrows it
+  (`if (e is CancellationException) throw e`, matching `runEngineOcr`), so a cancelled reader scope
+  cancels the load instead of logging and retrying it.
+- **F2 — no watchdog on a hang.** `load(page)` now runs under `withTimeoutOrNull(loadTimeoutMs)`
+  (default **60 s**, exposed as a `ReaderOcrBlockLoader` constructor parameter so tests can shrink
+  it). A timed-out load is treated exactly like the existing "not resolvable yet" path — `retryAfter`
+  is set and an empty result is never cached — and logs one WARN per page per hang episode
+  (`timeoutLogged`, deduplicated so it can never log per frame/retry). The limit is deliberately
+  generous because the first OCR run of a session pays for native engine init + model load (seconds
+  on device), while a genuine hang never completes and must be surfaced. `withTimeoutOrNull`'s
+  nullable-result ambiguity (a timeout vs. `load`'s own `null`) is resolved with a non-null
+  `LoadOutcome` carrier.
+- **F3 — tests.** `ReaderOcrBlockLoaderTest` (app) drives a deliberately hung `load` (100 ms watchdog)
+  and asserts it takes the retry path rather than caching, and that a thrown `CancellationException`
+  propagates instead of being retried. No `Context` is needed: every collaborator is mocked and the
+  load never gets past `GetManga.await`.
+
+Cache state under cancellation stays safe: `OcrCacheManager` writes go through `mutex.withLock`,
+which releases in a `finally` on cancellation, so a timed-out load cannot leave the mutex held or a
+half-written cache entry. A hang *inside a non-cancellable native call* is outside `withTimeoutOrNull`
+(cooperative cancellation cannot interrupt a blocked thread); the watchdog covers suspension-based
+hangs such as the F5 mutex deadlock.
+
 ## 7. Key paths & commands
 
 - Engine: `core/ocr/src/main/java/mihon/core/ocr/paddle/PaddleOcrEngine.kt`
