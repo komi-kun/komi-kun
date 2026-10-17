@@ -1,0 +1,123 @@
+{
+  "version": 0,
+  "date": "2026-01-01 00:00:00",
+  "url": "moz-extension://00000000-0000-0000-0000-000000000000/",
+  "manifest": { "name": "Yomitan", "version": "fixture" },
+  "environment": { "browser": "fixture" },
+  "userAgent": "fixture/0.0",
+  "permissions": {},
+  "options": {
+    "version": 77,
+    "profileCurrent": 0,
+    "global": { "database": { "prefixWildcardsSupported": false } },
+    "profiles": [
+      {
+        "name": "Alpha",
+        "id": "profile-0",
+        "conditionGroups": [],
+        "options": {
+          "general": {
+            "enable": true,
+            "resultOutputMode": "group",
+            "popupDisplayMode": "default",
+            "popupWidth": 420,
+            "popupHeight": 520,
+            "glossaryLayoutMode": "default",
+            "popupTheme": "dark",
+            "customPopupCss": ".fixture { color: red; }",
+            "customPopupOuterCss": "",
+            "showPitchAccentDownstepNotation": true,
+            "showPitchAccentPositionNotation": false,
+            "showPitchAccentGraph": true,
+            "averageFrequency": false,
+            "fontFamily": "Noto Sans CJK JP",
+            "fontSize": 15,
+            "language": "ja",
+            "maxResults": 32,
+            "mainDictionary": "Dict A",
+            "sortFrequencyDictionary": "Freq A",
+            "enableYomitanApi": false,
+            "yomitanApiServer": "http://127.0.0.1:19633",
+            "futureUnknownKey": "ignored"
+          },
+          "popupWindow": {
+            "width": 600,
+            "height": 700,
+            "left": 0,
+            "top": 0,
+            "useLeft": false,
+            "useTop": false,
+            "windowType": "popup",
+            "windowState": "normal"
+          },
+          "audio": {
+            "enabled": true,
+            "sources": [{ "type": "jpod101" }],
+            "volume": 1,
+            "autoPlay": false
+          },
+          "scanning": {
+            "inputs": [{ "type": "mouse" }],
+            "delay": 0,
+            "length": 10,
+            "scanResolution": "word",
+            "preventMiddleMouse": false
+          },
+          "translation": { "searchResolution": "word", "textReplacements": [] },
+          "dictionaries": [
+            { "name": "Dict A", "enabled": true, "alias": "Dict A", "definitionsCollapsible": "not-collapsible" },
+            { "name": "Dict B", "enabled": false, "alias": "Bee", "definitionsCollapsible": "collapsed" },
+            { "name": "Freq A", "enabled": true, "alias": "Freq A", "definitionsCollapsible": "not-collapsible" }
+          ],
+          "parsing": { "selectedParser": "mecab", "termSpacing": true, "readingMode": "default" },
+          "anki": {
+            "enable": true,
+            "server": "http://127.0.0.1:8765",
+            "apiKey": "",
+            "tags": ["fixture-tag"],
+            "checkForDuplicates": true,
+            "duplicateScope": "collection",
+            "duplicateBehavior": "overwrite",
+            "screenshot": { "format": "png", "quality": 92 },
+            "fieldTemplates": null,
+            "noteGuiMode": "browse",
+            "suspendNewCards": false,
+            "displayTagsAndFlags": "never",
+            "targetTags": [],
+            "forceSync": false,
+            "noteDupeCheckFirst": false,
+            "cardFormats": [
+              {
+                "name": "Expression",
+                "deck": "FixtureDeck",
+                "model": "FixtureModel",
+                "type": "term",
+                "fields": { "Expression": { "value": "{expression}", "overwriteMode": "coalesce" } }
+              }
+            ]
+          },
+          "sentenceParsing": { "scanExtent": 200, "terminationCharacters": ["。"] },
+          "inputs": { "hotkeys": {} },
+          "clipboard": { "enableBackgroundMonitor": false },
+          "accessibility": { "forceGoogleDocsHtmlRendering": false }
+        }
+      },
+      {
+        "name": "Beta",
+        "id": "profile-1",
+        "conditionGroups": [
+          { "conditions": [{ "type": "modifierKeys", "operator": "are", "value": "ctrl, shift" }] }
+        ],
+        "options": {
+          "general": { "language": "ja", "popupTheme": "light", "fontSize": 18 },
+          "translation": { "searchResolution": "letter" },
+          "scanning": { "scanResolution": "character" },
+          "dictionaries": [
+            { "name": "Dict B", "enabled": true, "alias": "Bee", "definitionsCollapsible": "not-collapsible" },
+            { "name": "Dict A", "enabled": false, "alias": "Dict A", "definitionsCollapsible": "not-collapsible" }
+          ]
+        }
+      }
+    ]
+  }
+}

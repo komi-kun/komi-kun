@@ -299,6 +299,14 @@
     <string name="pref_import_dictionary_summ">Import a Yomitan dictionary ZIP file</string>
     <string name="pref_import_dictionary_success">Dictionary imported (%1$d terms, %2$d metadata, %3$d media)</string>
     <string name="pref_import_dictionary_failed">Dictionary import failed</string>
+    <!-- Yomitan settings import -->
+    <string name="pref_import_yomitan_settings">Import Yomitan settings (.json)</string>
+    <string name="pref_import_yomitan_settings_summ">Import dictionary profiles, popup and Anki preferences from a Yomitan settings backup</string>
+    <string name="pref_import_yomitan_settings_title">Import Yomitan settings</string>
+    <string name="pref_import_yomitan_settings_applied">Will be applied</string>
+    <string name="pref_import_yomitan_settings_skipped">Not imported (no equivalent)</string>
+    <string name="pref_import_yomitan_settings_done">Yomitan settings imported</string>
+    <string name="pref_import_yomitan_settings_error">Not a valid Yomitan settings backup</string>
     <string name="pref_dictionary_import">Import dictionaries</string>
     <string name="pref_dictionary_export">Export dictionaries</string>
     <string name="pref_dictionary_import_success">Dictionaries imported</string>

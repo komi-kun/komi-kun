@@ -6,6 +6,13 @@ import android.net.Uri
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.getValue
@@ -14,18 +21,26 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import eu.kanade.presentation.more.settings.Preference
 import eu.kanade.tachiyomi.ui.dictionary.DictionaryPreferences
+import eu.kanade.tachiyomi.ui.dictionary.YomitanSettingsApplier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import mihon.app.di.appGraph
+import mihon.core.dictionary.anki.AnkiPreferences
 import mihon.core.dictionary.model.TYPE_SUBDIRS
 import mihon.core.dictionary.model.allDictionaryNames
 import mihon.core.dictionary.model.dictionaryTypeDir
 import mihon.core.dictionary.repository.DictionaryRepository
 import mihon.core.dictionary.ui.invalidateDictionaryTitle
+import mihon.core.dictionary.yomitan.YomitanImportResult
+import mihon.core.dictionary.yomitan.YomitanSettingsImport
+import mihon.core.dictionary.yomitan.YomitanSettingsMapper
+import tachiyomi.core.common.preference.AndroidPreferenceStore
+import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
 import tachiyomi.presentation.core.i18n.stringResource
 import java.io.File
@@ -53,6 +68,11 @@ object SettingsDictionaryScreen : SearchableSettings {
 
         var rawProfiles by remember { mutableStateOf(prefs.rawProfiles().get()) }
         var importMessage by remember { mutableStateOf<String?>(null) }
+        var settingsMessage by remember { mutableStateOf<String?>(null) }
+        var pendingSettings by remember { mutableStateOf<YomitanSettingsImport?>(null) }
+
+        val settingsErrorText = stringResource(KMR.strings.pref_import_yomitan_settings_error)
+        val settingsDoneText = stringResource(KMR.strings.pref_import_yomitan_settings_done)
 
         val dictionaries = remember(refresh) { allDictionaryNames(context) }
         val activeProfile = remember(rawProfiles, refresh) { prefs.profileStore.getActiveProfile() }
@@ -70,6 +90,61 @@ object SettingsDictionaryScreen : SearchableSettings {
                     refresh++
                 }
             }
+        }
+
+        val settingsLauncher = rememberLauncherForActivityResult(
+            ActivityResultContracts.OpenDocument(),
+        ) { uri: Uri? ->
+            if (uri != null) {
+                scope.launch {
+                    val result = withContext(Dispatchers.IO) {
+                        runCatching {
+                            val text = context.contentResolver.openInputStream(uri)
+                                ?.bufferedReader()
+                                ?.use { it.readText() }
+                            if (text.isNullOrBlank()) null else YomitanSettingsMapper.map(text)
+                        }.getOrNull()
+                    }
+                    when (result) {
+                        null -> settingsMessage = settingsErrorText
+                        is YomitanImportResult.Invalid -> settingsMessage = "$settingsErrorText: ${result.reason}"
+                        is YomitanImportResult.Imported -> pendingSettings = result.settings
+                    }
+                }
+            }
+        }
+
+        // Preview/confirm dialog: the user sees exactly what will change before anything is written.
+        pendingSettings?.let { pending ->
+            AlertDialog(
+                onDismissRequest = { pendingSettings = null },
+                title = { Text(text = stringResource(KMR.strings.pref_import_yomitan_settings_title)) },
+                text = { YomitanSettingsSummary(pending) },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            scope.launch {
+                                withContext(Dispatchers.IO) {
+                                    YomitanSettingsApplier.apply(
+                                        pending,
+                                        prefs,
+                                        AnkiPreferences(AndroidPreferenceStore(context)),
+                                    )
+                                }
+                                pendingSettings = null
+                                settingsMessage = settingsDoneText
+                                rawProfiles = prefs.rawProfiles().get()
+                                refresh++
+                            }
+                        },
+                    ) { Text(text = stringResource(MR.strings.action_ok)) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { pendingSettings = null }) {
+                        Text(text = stringResource(MR.strings.action_cancel))
+                    }
+                },
+            )
         }
 
         return listOf(
@@ -97,6 +172,17 @@ object SettingsDictionaryScreen : SearchableSettings {
                             subtitle = stringResource(KMR.strings.pref_import_dictionary_summ),
                             onClick = {
                                 importLauncher.launch(arrayOf("application/zip", "application/x-zip-compressed"))
+                            },
+                        ),
+                    )
+                    add(
+                        Preference.PreferenceItem.TextPreference(
+                            title = stringResource(KMR.strings.pref_import_yomitan_settings),
+                            subtitle = stringResource(KMR.strings.pref_import_yomitan_settings_summ),
+                            onClick = {
+                                settingsLauncher.launch(
+                                    arrayOf("application/json", "text/json", "text/plain", "*/*"),
+                                )
                             },
                         ),
                     )
@@ -132,6 +218,9 @@ object SettingsDictionaryScreen : SearchableSettings {
                         }
                     }
                     importMessage?.let { message ->
+                        add(Preference.PreferenceItem.TextPreference(title = message))
+                    }
+                    settingsMessage?.let { message ->
                         add(Preference.PreferenceItem.TextPreference(title = message))
                     }
                 },
@@ -321,4 +410,28 @@ private fun deleteDictionary(context: Context, name: String, prefs: DictionaryPr
         ),
     )
     prefs.setDisplayName(name, null)
+}
+
+/** Preview of a Yomitan settings import: warnings, then the applied and skipped keys. */
+@Composable
+private fun YomitanSettingsSummary(settings: YomitanSettingsImport) {
+    Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+        settings.warnings.forEach { warning ->
+            Text(text = warning, style = MaterialTheme.typography.bodySmall)
+        }
+        Text(
+            text = stringResource(KMR.strings.pref_import_yomitan_settings_applied),
+            style = MaterialTheme.typography.titleSmall,
+        )
+        settings.appliedReports.forEach { report ->
+            Text(text = "${report.key} → ${report.detail}", style = MaterialTheme.typography.bodySmall)
+        }
+        Text(
+            text = stringResource(KMR.strings.pref_import_yomitan_settings_skipped),
+            style = MaterialTheme.typography.titleSmall,
+        )
+        settings.skippedReports.forEach { report ->
+            Text(text = "${report.key} (${report.detail})", style = MaterialTheme.typography.bodySmall)
+        }
+    }
 }
