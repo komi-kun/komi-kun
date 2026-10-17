@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // KUN -->
 // Writes a parsed [YomitanSettingsImport] into komi-kun preferences: dictionary profiles
-// (order/enabled/display modes), per-dictionary display aliases, the global popup/display prefs
-// and the active Anki mining profile. Idempotent — profiles are matched by name so re-importing
+// (order/enabled/display modes), per-dictionary display aliases, the global popup/display prefs,
+// the active Anki mining profile and the word-audio group (sources/enabled/auto-play/volume). Idempotent — profiles are matched by name so re-importing
 // updates in place instead of duplicating.
 package eu.kanade.tachiyomi.ui.dictionary
 
@@ -30,6 +30,7 @@ object YomitanSettingsApplier {
         val profileResult = applyProfiles(settings, dictionaryPreferences)
         applyPopup(settings, dictionaryPreferences)
         applyAnki(settings, ankiPreferences)
+        applyAudio(settings, dictionaryPreferences)
         return profileResult
     }
 
@@ -99,6 +100,18 @@ object YomitanSettingsApplier {
         )
         ankiPreferences.profileStore.updateProfile(updated)
         ankiPreferences.writeFlatProfile(updated)
+    }
+
+    private fun applyAudio(settings: YomitanSettingsImport, prefs: DictionaryPreferences) {
+        val audio = settings.audio
+        audio.enabled?.let { prefs.audioEnabled().set(it) }
+        audio.autoPlay?.let { prefs.audioAutoPlay().set(it) }
+        audio.volumePercent?.let { prefs.audioVolume().set(it.coerceIn(0, 100)) }
+        audio.enableDefaultAudioSources?.let { prefs.audioEnableDefaultSources().set(it) }
+        audio.fallbackSoundType?.let { prefs.audioFallbackSound().set(it) }
+        // Sources (Custom URL / Custom URL JSON, incl. the user's Local Audio Server) are replaced
+        // wholesale, mirroring Yomitan's ordered `audio.sources[]`.
+        if (audio.sources.isNotEmpty()) prefs.setAudioSources(audio.sources)
     }
 }
 // KUN <--
