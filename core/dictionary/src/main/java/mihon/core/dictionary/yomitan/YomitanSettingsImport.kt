@@ -6,6 +6,8 @@
 // for the write-back.
 package mihon.core.dictionary.yomitan
 
+import mihon.core.dictionary.audio.AudioSourceConfig
+
 /** One applied or skipped item, shown verbatim in the import summary. */
 data class YomitanImportReport(
     /** Yomitan option group, e.g. `general`, `popupWindow`, `scanning`, `anki`, `profiles`. */
@@ -54,6 +56,20 @@ data class YomitanImportAnki(
     val duplicateAction: String? = null,
 )
 
+/**
+ * Word-audio preferences from the active Yomitan profile's `audio` group. `null` scalars = leave
+ * as-is; [sources] is the `type`-discriminated `audio.sources[]` copied verbatim so custom /
+ * `custom-json` sources (e.g. a Local Audio Server URL) survive the import intact.
+ */
+data class YomitanImportAudio(
+    val enabled: Boolean? = null,
+    val autoPlay: Boolean? = null,
+    val volumePercent: Int? = null,
+    val enableDefaultAudioSources: Boolean? = null,
+    val fallbackSoundType: String? = null,
+    val sources: List<AudioSourceConfig> = emptyList(),
+)
+
 /** A fully-parsed, validated Yomitan settings backup ready to preview/apply. */
 data class YomitanSettingsImport(
     /** Top-level backup `version` (Yomitan's settings-format version, currently 0). */
@@ -65,6 +81,7 @@ data class YomitanSettingsImport(
     val profiles: List<YomitanImportProfile>,
     val popup: YomitanImportPopup,
     val anki: YomitanImportAnki,
+    val audio: YomitanImportAudio = YomitanImportAudio(),
     /** dictionary name → display alias, only for aliases that differ from the name. */
     val aliases: Map<String, String>,
     /** Every key the importer looked at, applied or not. */
