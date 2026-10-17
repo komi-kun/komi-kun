@@ -90,6 +90,8 @@ fun DictionaryEntryWebView(
     val ankiScope = rememberCoroutineScope()
     val ankiEnabled by ankiPreferences.enabled().collectAsState()
     val ankiDupAction by ankiPreferences.duplicateAction().collectAsState()
+    val audioEnabled by prefs.audioEnabled().collectAsState()
+    val audioAutoPlay by prefs.audioAutoPlay().collectAsState()
     // KUN <--
     val themeMode by prefs.themeMode().collectAsState()
     val compactGlossary by prefs.compactGlossary().collectAsState()
@@ -152,7 +154,7 @@ fun DictionaryEntryWebView(
         showFrequencyHarmonic, showFrequencyAverage, groupTerms,
         showPitchDiagram, showPitchNumber, showPitchText,
         activeProfile, tabs, recursiveNavMode, showNavigationButtons, groupPitches,
-        entryJsons, compactGlossary, ankiEnabled, ankiDupAction,
+        entryJsons, compactGlossary, ankiEnabled, ankiDupAction, audioEnabled, audioAutoPlay,
     ) {
         DictionaryRenderSignature(
             results = results, styles = styles, placeholder = placeholder, isDark = isDark,
@@ -162,7 +164,7 @@ fun DictionaryEntryWebView(
             showPitchDiagram = showPitchDiagram, showPitchNumber = showPitchNumber,
             showPitchText = showPitchText, activeProfile = activeProfile, tabs = tabs,
             recursiveNavMode = recursiveNavMode, renderRecursiveChrome = true,
-            wordAudioEnabled = false, wordAudioAutoplay = false,
+            wordAudioEnabled = audioEnabled, wordAudioAutoplay = audioEnabled && audioAutoPlay,
             showNavigationButtons = showNavigationButtons, groupPitches = groupPitches,
             ankiEnabled = ankiEnabled, ankiDupAction = ankiDupAction,
         )
@@ -179,9 +181,9 @@ fun DictionaryEntryWebView(
                 context, styles, emptyMap(), placeholder, isDark,
                 showFrequencyHarmonic, showFrequencyAverage, groupTerms,
                 showPitchDiagram, showPitchNumber, showPitchText,
-                false, activeProfile, emptySet(), tabs, recursiveNavMode,
+                audioEnabled && audioAutoPlay, activeProfile, emptySet(), tabs, recursiveNavMode,
                 renderRecursiveChrome = true,
-                wordAudioEnabled = false,
+                wordAudioEnabled = audioEnabled,
                 showNavigationButtons = showNavigationButtons,
                 groupPitches = groupPitches,
                 compactGlossary = compactGlossary,
@@ -307,6 +309,11 @@ fun DictionaryEntryWebView(
                     }
                 }
                 // KUN <--
+                // KUN -->
+                // Native word-audio: the renderer's play button resolves through this bridge.
+                state.audioBridge.configProvider = { prefs.audioPreferences() }
+                state.audioBridge.languageIsoProvider = { activeProfile.languageCode }
+                // KUN <--
                 state.customCss = customCss
                 state.fontSize = fontSize
                 state.onContentInvalidated = {
@@ -379,6 +386,11 @@ fun DictionaryEntryWebView(
                 state?.pendingMediaDataUris = null
                 state?.pendingRenderSignature = null
                 state?.ankiJsBridge?.onAnkiLookup = null
+                // KUN -->
+                state?.audioBridge?.stop()
+                state?.audioBridge?.configProvider = null
+                state?.audioBridge?.languageIsoProvider = null
+                // KUN <--
                 state?.payloadBridge?.rawPayloadJson = ""
                 state?.payloadBridge?.rawEntryJsons = emptyList()
             },
