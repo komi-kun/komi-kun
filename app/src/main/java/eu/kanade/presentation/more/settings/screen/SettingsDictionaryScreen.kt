@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package eu.kanade.presentation.more.settings.screen
 
-import android.content.Context
 import android.net.Uri
-import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
@@ -23,19 +21,18 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import cafe.adriel.voyager.navigator.LocalNavigator
+import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.presentation.more.settings.Preference
-import eu.kanade.tachiyomi.ui.dictionary.DictionaryPreferences
+import eu.kanade.tachiyomi.ui.dictionary.DictionaryBackupImportScreen
+import eu.kanade.tachiyomi.ui.dictionary.DictionaryImportCoordinator
 import eu.kanade.tachiyomi.ui.dictionary.YomitanSettingsApplier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import mihon.app.di.appGraph
 import mihon.core.dictionary.anki.AnkiPreferences
-import mihon.core.dictionary.model.TYPE_SUBDIRS
 import mihon.core.dictionary.model.allDictionaryNames
-import mihon.core.dictionary.model.dictionaryTypeDir
-import mihon.core.dictionary.repository.DictionaryRepository
-import mihon.core.dictionary.ui.invalidateDictionaryTitle
 import mihon.core.dictionary.yomitan.YomitanImportResult
 import mihon.core.dictionary.yomitan.YomitanSettingsImport
 import mihon.core.dictionary.yomitan.YomitanSettingsMapper
@@ -43,7 +40,6 @@ import tachiyomi.core.common.preference.AndroidPreferenceStore
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
 import tachiyomi.presentation.core.i18n.stringResource
-import java.io.File
 
 /**
  * Dictionary settings (02 §5.1): imported-dictionary management (SAF import/list/enable/delete),
@@ -61,6 +57,7 @@ object SettingsDictionaryScreen : SearchableSettings {
     @Composable
     override fun getPreferences(): List<Preference> {
         val context = LocalContext.current
+        val navigator = LocalNavigator.currentOrThrow
         val prefs = remember(context) { context.appGraph.dictionaryPreferences }
         val repository = remember(context) { context.appGraph.dictionaryRepository }
         val scope = rememberCoroutineScope()
@@ -84,7 +81,9 @@ object SettingsDictionaryScreen : SearchableSettings {
             if (uris.isNotEmpty()) {
                 scope.launch {
                     val imported = withContext(Dispatchers.IO) {
-                        uris.mapNotNull { uri -> importDictionary(context, uri, prefs, repository) }
+                        uris.mapNotNull { uri ->
+                            DictionaryImportCoordinator.importFromUri(context, uri, prefs, repository)?.title
+                        }
                     }
                     importMessage = imported.lastOrNull()
                     refresh++
@@ -186,6 +185,11 @@ object SettingsDictionaryScreen : SearchableSettings {
                             },
                         ),
                     )
+                    // KUN -->
+                            title = stringResource(KMR.strings.pref_import_yomitan_backup),
+                            subtitle = stringResource(KMR.strings.pref_import_yomitan_backup_summ),
+                            onClick = { navigator.push(DictionaryBackupImportScreen()) },
+                    // KUN <--
                     if (dictionaries.isEmpty()) {
                         add(
                             Preference.PreferenceItem.TextPreference(
@@ -209,8 +213,7 @@ object SettingsDictionaryScreen : SearchableSettings {
                                     title = stringResource(KMR.strings.pref_dict_delete),
                                     subtitle = name,
                                     onClick = {
-                                        deleteDictionary(context, name, prefs)
-                                        invalidateDictionaryTitle(name)
+                                        DictionaryImportCoordinator.delete(context, name, prefs)
                                         refresh++
                                     },
                                 ),
@@ -334,104 +337,4 @@ object SettingsDictionaryScreen : SearchableSettings {
             ),
         ),
     )
-}
-
-/** Copy an imported dictionary into the type tree and add it to the active profile (02 §6.2). */
-private suspend fun importDictionary(
-    context: Context,
-    uri: Uri,
-    prefs: DictionaryPreferences,
-    repository: DictionaryRepository,
-): String? {
-    val tempZip = File(context.cacheDir, "dict_import_${System.currentTimeMillis()}.zip")
-    val tempImportDir = File(context.cacheDir, "dict_import_tmp_${System.currentTimeMillis()}")
-    return try {
-        context.contentResolver.openInputStream(uri)?.use { input ->
-            tempZip.outputStream().use { output -> input.copyTo(output) }
-        } ?: return null
-
-        tempImportDir.mkdirs()
-        val result = repository.importDictionary(tempZip, tempImportDir)
-        if (!result.success) return null
-
-        val importedDir = tempImportDir.listFiles()?.firstOrNull { it.isDirectory } ?: return null
-        val title = result.title.ifBlank { importedDir.name }
-
-        val targets = buildList {
-            if (result.termCount > 0) add("term")
-            if (result.freqCount > 0) add("frequency")
-            if (result.pitchCount > 0) add("pitch")
-            if (result.kanjiCount > 0) add("kanji")
-        }.ifEmpty { TYPE_SUBDIRS }
-
-        for (type in targets) {
-            val destDir = dictionaryTypeDir(context, type, title)
-            if (destDir.exists()) destDir.deleteRecursively()
-            destDir.parentFile?.mkdirs()
-            importedDir.copyRecursively(destDir, overwrite = true)
-        }
-
-        val profile = prefs.profileStore.getActiveProfile()
-        val order = profile.dictionaryOrder.filter { it.isNotBlank() }
-        if (title !in order) {
-            prefs.profileStore.updateProfile(
-                profile.copy(
-                    dictionaryOrder = order + title,
-                    enabledDictionaries = if (profile.enabledDictionaries.isNotEmpty()) {
-                        profile.enabledDictionaries + title
-                    } else {
-                        profile.enabledDictionaries
-                    },
-                ),
-            )
-        }
-        invalidateDictionaryTitle(title)
-        title
-    } catch (e: Throwable) {
-        Log.e("DictImport", "import failed", e)
-        null
-    } finally {
-        if (tempZip.exists()) tempZip.delete()
-        if (tempImportDir.exists()) tempImportDir.deleteRecursively()
-    }
-}
-
-/** Remove all type subdirs for [name] from disk and drop it from the active profile order. */
-private fun deleteDictionary(context: Context, name: String, prefs: DictionaryPreferences) {
-    TYPE_SUBDIRS.forEach { type ->
-        val dir = dictionaryTypeDir(context, type, name)
-        if (dir.exists()) dir.deleteRecursively()
-    }
-    val profile = prefs.profileStore.getActiveProfile()
-    prefs.profileStore.updateProfile(
-        profile.copy(
-            dictionaryOrder = profile.dictionaryOrder.filter { it != name },
-            enabledDictionaries = profile.enabledDictionaries - name,
-        ),
-    )
-    prefs.setDisplayName(name, null)
-}
-
-/** Preview of a Yomitan settings import: warnings, then the applied and skipped keys. */
-@Composable
-private fun YomitanSettingsSummary(settings: YomitanSettingsImport) {
-    Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-        settings.warnings.forEach { warning ->
-            Text(text = warning, style = MaterialTheme.typography.bodySmall)
-        }
-        Text(
-            text = stringResource(KMR.strings.pref_import_yomitan_settings_applied),
-            style = MaterialTheme.typography.titleSmall,
-        )
-        settings.appliedReports.forEach { report ->
-            Text(text = "${report.key} → ${report.detail}", style = MaterialTheme.typography.bodySmall)
-        }
-        Text(
-            text = stringResource(KMR.strings.pref_import_yomitan_settings_skipped),
-            style = MaterialTheme.typography.titleSmall,
-        )
-        settings.skippedReports.forEach { report ->
-            Text(text = "${report.key} (${report.detail})", style = MaterialTheme.typography.bodySmall)
-        }
-    }
 }
