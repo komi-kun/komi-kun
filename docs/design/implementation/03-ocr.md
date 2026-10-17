@@ -135,7 +135,7 @@ in §1.1 becomes a reimplementation.
 
 ---
 
-## 2. Paddle `.so` + det/rec models — reproducible, permissive source/build/host
+## 2. Native `.so`s (ONNX Runtime) + det/rec models — reproducible, permissive source/build/host
 
 **Problem.** Chimahon downloads `https://github.com/Chimahon/chimahon-local-models/releases/download/
 v2.5/paddle-ocr.zip` (`ModelDownloader.kt:27-31`) containing `libpaddle_ocr.so` (+ `libomp.so`,
@@ -154,8 +154,10 @@ Ship a **`komi-kun/komi-kun-ocr-models`** release (or GitHub Packages) built by 
    `PaddleOcrEngine.kt` stays near-unchanged.
 2. `libonnxruntime.so`, `libomp.so` — ONNX Runtime's republished per-ABI shared library (MIT) and the
    Android NDK OpenMP runtime (`libomp.so`, Apache-2.0 WITH LLVM-exception; required by opencv-mobile's
-   `parallel_for_`, not by ONNX Runtime). `libc++_shared.so` is **not** shipped: AGP already packages the
-   NDK copy via `:core:dictionary`'s `-DANDROID_STL=c++_shared`.
+   `parallel_for_`, not by ONNX Runtime). `libc++_shared.so` **is** shipped in the release but is
+   deliberately **not listed in `paddle-manifest.json` / not fetched into `jniLibs`**: AGP already
+   packages the NDK copy via `:core:dictionary`'s `-DANDROID_STL=c++_shared`, and a second copy collides
+   at app merge. (Matches `00-implementation-contract.md` §1.7 and `core/ocr/README.md`.)
 3. Models: **official PaddlePaddle PP-OCRv6 `small`** ONNX exports (Apache-2.0) —
    `ppocrv6_small_det.onnx`, `ppocrv6_small_rec.onnx` (unified ja/zh/en CTC, `h=48`) and
    `ppocrv6_small_dict.txt`. The `manga_det_fp16`/`manga_rec_fp16` Paddle-Lite fine-tune is **no longer

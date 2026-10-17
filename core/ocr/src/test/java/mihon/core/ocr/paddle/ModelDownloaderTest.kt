@@ -13,16 +13,24 @@
 //  - the cached-manifest fast path is refused for a manifest from another release,
 //  - pending/re-fetch and cached-manifest decisions are pure + unit-tested,
 //  - a staged import is verified (hash-before-copy) before it can touch the engine directory.
+//  (review iteration 4)
+//  - the gate is still released when a run fails, so a retry is possible (F7),
+//  - two racing threads admit exactly one run (F7),
+//  - a release mismatch is refused even when `baseUrl` matches (F4),
+//  - a rejected staged archive leaves the existing install untouched (F7).
 // KUN <--
 package mihon.core.ocr.paddle
 
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
+import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.util.Collections
+import java.util.concurrent.CountDownLatch
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
@@ -135,6 +143,9 @@ class ModelDownloaderTest {
         installed shouldContainExactly listOf(detName, recName)
         File(modelsDir, detName).readText() shouldBe "det"
         File(modelsDir, recName).readText() shouldBe "rec"
+        // The copy stages through `<name>.part` and renames, so no scratch file is left behind (F6).
+        File(modelsDir, "$detName.part").exists() shouldBe false
+        File(modelsDir, "$recName.part").exists() shouldBe false
         // A planted shared object (or any non-model path) is never installed where the engine
         // (`loadNativeLibraries`) could `System.load` it.
         File(modelsDir, "lib/arm64-v8a/libevil.so").exists() shouldBe false
@@ -155,6 +166,38 @@ class ModelDownloaderTest {
     }
 
     @Test
+    fun `SingleFlightGate admits exactly one of two racing threads`() {
+        val gate = SingleFlightGate()
+        val start = CountDownLatch(1)
+        val acquired = Collections.synchronizedList(mutableListOf<Boolean>())
+        val threads = (1..2).map {
+            Thread {
+                start.await()
+                acquired += gate.tryAcquire()
+            }
+        }
+
+        threads.forEach { it.start() }
+        start.countDown()
+        threads.forEach { it.join() }
+
+        // Exactly one thread wins; the other is coalesced (real 2-thread race, not sequential).
+        acquired.count { it } shouldBe 1
+    }
+
+    @Test
+    fun `SingleFlightGate is released when a run fails so a retry can proceed`() {
+        runBlocking {
+            val gate = SingleFlightGate()
+
+            // A run that throws must still release the gate (the `finally`), not wedge it forever.
+            runCatching { gate.runExclusive<Unit> { error("download failed") } }.isFailure shouldBe true
+            // The retry is not coalesced away.
+            gate.runExclusive { true } shouldBe true
+        }
+    }
+
+    @Test
     fun `cachedManifestIsCurrent rejects a manifest from another release`() {
         val current = OcrModelManifest(release = "ocr-models-v3", baseUrl = "https://x/ocr-models-v3")
         val old = OcrModelManifest(release = "ocr-models-v2", baseUrl = "https://x/ocr-models-v2")
@@ -164,6 +207,29 @@ class ModelDownloaderTest {
         // `baseUrl` is the fallback identifier when the manifest omits `release`.
         cachedManifestIsCurrent(
             OcrModelManifest(baseUrl = "https://x/ocr-models-v3"),
+            "ocr-models-v3",
+            "https://x/ocr-models-v3",
+        ) shouldBe true
+    }
+
+    @Test
+    fun `cachedManifestIsCurrent refuses a release mismatch even when baseUrl matches`() {
+        // The exact pinning case F4 guards: baseUrl matches the pinned release, but the manifest was
+        // fetched from a different release, so it is stale.
+        cachedManifestIsCurrent(
+            OcrModelManifest(release = "ocr-models-v2", baseUrl = "https://x/ocr-models-v3"),
+            "ocr-models-v3",
+            "https://x/ocr-models-v3",
+        ) shouldBe false
+        // A manifest that omits `baseUrl` is no longer trivially "current" via the field default.
+        cachedManifestIsCurrent(
+            OcrModelManifest(release = "ocr-models-v2"),
+            "ocr-models-v3",
+            "https://x/ocr-models-v3",
+        ) shouldBe false
+        // A manifest with the pinned release but no baseUrl is still current (release is primary).
+        cachedManifestIsCurrent(
+            OcrModelManifest(release = "ocr-models-v3"),
             "ocr-models-v3",
             "https://x/ocr-models-v3",
         ) shouldBe true
@@ -226,6 +292,8 @@ class ModelDownloaderTest {
     fun `verifyStagedModels rejects a staged archive before it is installed`(@TempDir dir: File) {
         val scratch = File(dir, "scratch").apply { mkdirs() }
         val staged = File(scratch, detName).apply { writeBytes("det".toByteArray()) }
+        val modelsDir = File(dir, "paddle_ocr").apply { mkdirs() }
+        val existing = File(modelsDir, detName).apply { writeBytes("good".toByteArray()) }
         val manifest = OcrModelManifest(
             files = listOf(OcrModelFile(name = detName, sha256 = "0".repeat(64), size = staged.length())),
         )
@@ -234,6 +302,9 @@ class ModelDownloaderTest {
         runCatching {
             verifyStagedModels(scratch, OcrModelManifest(), listOf(detName))
         }.isFailure shouldBe true
+        // A rejected import must leave the existing install byte-for-byte untouched: `importFromUri`
+        // only installs after `verifyStagedModels` succeeds (F7).
+        existing.readText() shouldBe "good"
     }
 
     @Test

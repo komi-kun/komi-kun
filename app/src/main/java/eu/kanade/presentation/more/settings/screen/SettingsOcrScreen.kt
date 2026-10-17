@@ -23,7 +23,6 @@ import mihon.app.di.appGraph
 import mihon.core.ocr.OcrPreferences
 import mihon.core.ocr.cache.OcrCacheManager
 import mihon.core.ocr.paddle.ModelDownloadState
-import mihon.core.ocr.paddle.ModelDownloader
 import tachiyomi.core.common.ocr.ReaderOcrSource
 import tachiyomi.core.common.preference.AndroidPreferenceStore
 import tachiyomi.core.common.util.lang.withIOContext
@@ -59,7 +58,10 @@ object SettingsOcrScreen : SearchableSettings {
         // same keys this screen writes — no split-brain overlay preference (fix B3).
         val readerPreferences = remember { ReaderPreferences(AndroidPreferenceStore(context)) }
         val cacheManager = remember { OcrCacheManager(context, json) }
-        val modelDownloader = remember { ModelDownloader(context, context.appGraph.networkHelper.client, json) }
+        // The graph-scoped singleton (OcrBindings), NOT a screen-local instance: one ModelDownloader
+        // owns `state`/`isPaddleDownloaded` and the single-flight gate, so the CTA and the status-row
+        // retry below coalesce into the same run (F1).
+        val modelDownloader = context.appGraph.modelDownloader
         val downloadState by modelDownloader.state.collectAsStateWithLifecycle()
         val scope = rememberCoroutineScope()
 
@@ -70,7 +72,8 @@ object SettingsOcrScreen : SearchableSettings {
             downloadState == ModelDownloadState.Completed || modelDownloader.isPaddleDownloaded
         }
         val modelStatus = when (val state = downloadState) {
-            is ModelDownloadState.Failed -> stringResource(KMR.strings.ocr_status_error)
+            // Surface the actual reason instead of a constant "Error" (F8).
+            is ModelDownloadState.Failed -> stringResource(KMR.strings.ocr_status_error_reason, state.message)
             is ModelDownloadState.Downloading ->
                 stringResource(KMR.strings.ocr_running) + " (${state.downloaded}/${state.total})"
             ModelDownloadState.Completed -> stringResource(KMR.strings.ocr_ready)
@@ -136,10 +139,12 @@ object SettingsOcrScreen : SearchableSettings {
             ),
 
             // Model download status (contract §1.7): a first-time download's progress and any
-            // failure are surfaced here rather than being silent.
+            // failure are surfaced here. Tapping retries — a failed run releases the single-flight
+            // gate, so re-tapping actually re-runs instead of being coalesced away (F8).
             Preference.PreferenceItem.TextPreference(
                 title = stringResource(KMR.strings.pref_ocr_model_status),
                 subtitle = modelStatus,
+                onClick = { modelDownloader.triggerPaddleDownload() },
             ),
 
             // Overlay master switch: the same key the reader gates on (fix B3).

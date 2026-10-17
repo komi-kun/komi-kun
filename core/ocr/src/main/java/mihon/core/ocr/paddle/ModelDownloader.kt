@@ -58,11 +58,17 @@ data class OcrModelFile(
     val spdx: String? = null,
 )
 
-/** The release manifest (`manifest.json`) describing every OCR model artifact. */
+/**
+ * The release manifest (`manifest.json`) describing every OCR model artifact.
+ *
+ * [baseUrl] deliberately defaults to `""`, **not** [DEFAULT_BASE_URL]: a cached manifest that omits
+ * the field must not be mistaken for one fetched from the pinned release (F4 —
+ * [cachedManifestIsCurrent] treats a blank `baseUrl` as "no identifier", not as the pinned one).
+ */
 @Serializable
 data class OcrModelManifest(
     val release: String = "",
-    val baseUrl: String = DEFAULT_BASE_URL,
+    val baseUrl: String = "",
     val files: List<OcrModelFile> = emptyList(),
 )
 
@@ -135,34 +141,31 @@ class ModelDownloader(
     }
 
     /**
-     * Runtime, user-opt-in entry point (the settings CTA). Non-suspend and main-thread safe: it only
-     * schedules the work. The coroutine re-verifies every model — size **and** SHA-256 — off the
-     * main thread and (re-)downloads anything missing or corrupt, so calling it on each Paddle
-     * selection is cheap and self-healing rather than a one-shot gate.
+     * Runtime, user-opt-in entry point (the settings CTA **and** the status-row retry). Non-suspend
+     * and main-thread safe: it only schedules the work. The coroutine re-verifies every model — size
+     * **and** SHA-256 — off the main thread and (re-)downloads anything missing or corrupt, so
+     * calling it on each Paddle selection is cheap and self-healing rather than a one-shot gate.
      *
      * **Single-flight.** A run already in flight is never started twice: a trigger arriving while a
      * run is active is coalesced into it (the running pass re-verifies the same pinned release), so
      * two runs can never delete each other's `<name>.part` scratch files or race on `manifest.json`.
+     * [SingleFlightGate.runExclusive] releases the gate in a `finally`, so a **failed** run is
+     * immediately retryable.
      */
     fun triggerPaddleDownload() {
-        if (!downloadGate.tryAcquire()) {
-            logcat(LogPriority.INFO) { "ModelDownloader: download already in progress; ignoring duplicate trigger" }
-            return
-        }
         scope.launch {
-            try {
-                runLock.withLock {
-                    downloadModels().fold(
-                        onSuccess = { _state.value = ModelDownloadState.Completed },
-                        onFailure = {
-                            val message = it.message ?: "Unknown error"
-                            _state.value = ModelDownloadState.Failed(message)
-                            xLogE("ModelDownloader: model download failed: $message", it)
-                        },
-                    )
+            when (val result = downloadGate.runExclusive { runLock.withLock { downloadModels() } }) {
+                null -> logcat(LogPriority.INFO) {
+                    "ModelDownloader: download already in progress; ignoring duplicate trigger"
                 }
-            } finally {
-                downloadGate.release()
+                else -> result.fold(
+                    onSuccess = { _state.value = ModelDownloadState.Completed },
+                    onFailure = {
+                        val message = it.message ?: "Unknown error"
+                        _state.value = ModelDownloadState.Failed(message)
+                        xLogE("ModelDownloader: model download failed: $message", it)
+                    },
+                )
             }
         }
     }
@@ -237,30 +240,40 @@ class ModelDownloader(
      * Imports an archive the user picked. Extracts it into a scratch dir, verifies the staged model
      * files against the manifest **before** anything is copied into [modelsDir], and only then
      * installs them — so a bad or partial archive can never clobber a working install.
+     *
+     * **Intentionally-unwired API (F1).** `contract §3.4` schedules **no import UI** (the settings
+     * screen only exposes the download CTA), so nothing in `:app` calls this today. It is kept — and
+     * kept unit-tested — as a ready, checksum-gated entry point for a future "import a model
+     * archive" CTA; [runLock] already serialises it against [triggerPaddleDownload], so wiring it
+     * later needs no concurrency change. It is not dead code: do not delete it.
      */
     suspend fun importFromUri(uri: Uri): Result<Unit> = runLock.withLock {
         withContext(Dispatchers.IO) {
             runCatching {
                 val input = appContext.contentResolver.openInputStream(uri)
                     ?: error("Could not open the selected file")
-                // Prefer the live manifest; fall back to the one cached beside the models so import
-                // still verifies (and is not a silent no-op) offline.
-                val manifest = fetchManifest().getOrElse {
-                    loadCachedManifest() ?: error("No model manifest available to verify the archive")
-                }
-                // The archive is untrusted. Extract it into a throwaway scratch dir, verify it there,
-                // then copy ONLY the model files the engine loads into modelsDir — never an arbitrary
-                // path, in particular not a planted `lib/<abi>/*.so` that
-                // `PaddleOcrEngine.loadNativeLibraries` would `System.load`. The scratch dir is
-                // removed whatever happens.
-                val scratch = File(appContext.cacheDir, "ocr-import-${System.nanoTime()}")
-                scratch.mkdirs()
-                try {
-                    input.use { extractZipInto(scratch, it) }
-                    verifyStagedModels(scratch, manifest, REQUIRED_MODELS)
-                    installRequiredModels(scratch, modelsDir, REQUIRED_MODELS)
-                } finally {
-                    scratch.deleteRecursively()
+                // `use` spans the whole resolution + staging block, so the stream is closed even when
+                // the offline path bails out (no cached manifest) before extraction (F5).
+                input.use { stream ->
+                    // Prefer the live manifest; fall back to the one cached beside the models so
+                    // import still verifies (and is not a silent no-op) offline.
+                    val manifest = fetchManifest().getOrElse {
+                        loadCachedManifest() ?: error("No model manifest available to verify the archive")
+                    }
+                    // The archive is untrusted. Extract it into a throwaway scratch dir, verify it
+                    // there, then copy ONLY the model files the engine loads into modelsDir — never an
+                    // arbitrary path, in particular not a planted `lib/<abi>/*.so` that
+                    // `PaddleOcrEngine.loadNativeLibraries` would `System.load`. The scratch dir is
+                    // removed whatever happens.
+                    val scratch = File(appContext.cacheDir, "ocr-import-${System.nanoTime()}")
+                    scratch.mkdirs()
+                    try {
+                        extractZipInto(scratch, stream)
+                        verifyStagedModels(scratch, manifest, REQUIRED_MODELS)
+                        installRequiredModels(scratch, modelsDir, REQUIRED_MODELS)
+                    } finally {
+                        scratch.deleteRecursively()
+                    }
                 }
                 cleanupStaleModels()
                 Unit
@@ -468,6 +481,10 @@ internal fun verifyStagedModels(from: File, manifest: OcrModelManifest, names: C
  * (anywhere under [from]), and returns the names actually installed. Everything else in [from] is
  * ignored, so an untrusted archive cannot install a non-model (or executable) path into the engine's
  * model directory. Missing names are skipped; [verifyStagedModels] runs first and reports them.
+ *
+ * Each file is copied to `<name>.part` and then renamed into place, so a mid-copy `IOException`
+ * leaves the previous good model untouched instead of a truncated one (F6). The `<name>.part`
+ * scratch name is the same one [removeOwnedPartFiles] cleans, so an interrupted copy is pruned later.
  */
 internal fun installRequiredModels(from: File, to: File, names: Collection<String>): List<String> {
     if (!from.isDirectory) return emptyList()
@@ -475,7 +492,17 @@ internal fun installRequiredModels(from: File, to: File, names: Collection<Strin
     val installed = mutableListOf<String>()
     for (name in names) {
         val source = findModelFile(from, name) ?: continue
-        source.copyTo(File(to, name), overwrite = true)
+        val target = File(to, name)
+        val temp = File(to, "$name.part")
+        try {
+            source.copyTo(temp, overwrite = true)
+            if (!temp.renameTo(target)) {
+                temp.copyTo(target, overwrite = true)
+                temp.delete()
+            }
+        } finally {
+            if (temp.exists()) temp.delete()
+        }
         installed += name
     }
     return installed
@@ -497,12 +524,39 @@ internal class SingleFlightGate {
 }
 
 /**
- * True when [manifest] was fetched from the release the app still pins ([release] tag or [baseUrl]).
- * A cached manifest from any other release must be re-fetched even if it still accounts for every
- * required file — otherwise a release that reuses the model file names could never be picked up.
+ * Runs [body] under this gate and returns its value, or `null` when a run was already in flight
+ * (coalesced). The gate is **always** released — including when [body] throws — so a failed run is
+ * immediately retryable (F7). Extracted from [ModelDownloader.triggerPaddleDownload] so the
+ * release-on-failure contract is unit-testable without an Android `Context`.
+ */
+internal suspend fun <T> SingleFlightGate.runExclusive(body: suspend () -> T): T? =
+    if (!tryAcquire()) {
+        null
+    } else {
+        try {
+            body()
+        } finally {
+            release()
+        }
+    }
+
+/**
+ * True when [manifest] was fetched from the release the app still pins. The release tag is the
+ * **primary** identifier and must match; [OcrModelManifest.baseUrl] is only a fallback for a manifest
+ * that carries no release at all, and must be explicitly present (non-blank) and equal.
+ *
+ * F4: [OcrModelManifest.baseUrl] defaults to `""` precisely so a manifest that **omits** `baseUrl`
+ * no longer trivially matches the pinned default — previously `manifest.baseUrl == baseUrl` was
+ * always true for such a manifest, so a cached manifest from any release looked current and could
+ * pin a stale model set forever. A manifest whose release differs is now refused even when its
+ * `baseUrl` happens to match.
  */
 internal fun cachedManifestIsCurrent(manifest: OcrModelManifest, release: String, baseUrl: String): Boolean =
-    manifest.release == release || manifest.baseUrl == baseUrl
+    if (manifest.release.isNotBlank()) {
+        manifest.release == release
+    } else {
+        manifest.baseUrl.isNotBlank() && manifest.baseUrl == baseUrl
+    }
 
 /**
  * True when [manifest] accounts for every required model in [names] **and** each one verifies

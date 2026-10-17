@@ -64,6 +64,7 @@ import mihon.core.dictionary.di.DictionaryBindings
 import mihon.core.dictionary.repository.DictionaryRepository
 import mihon.core.metro.IsDebugBuild
 import mihon.core.ocr.di.OcrBindings
+import mihon.core.ocr.paddle.ModelDownloader
 import mihon.dictionary.host.DictionaryHostBindings
 import mihon.domain.chapter.interactor.FilterChaptersForDownload
 import mihon.domain.extension.interactor.GetExtensionStoreCountAsFlow
@@ -199,6 +200,14 @@ interface AppGraph : ViewModelGraph {
     // themselves are bound by `DictionaryHostBindings`/`@ContributesBinding`).
     val dictionaryPreferences: DictionaryPreferences
     val dictionaryRepository: DictionaryRepository
+    // KUN <--
+
+    // KUN -->
+    // W3 OCR feature: exposed so the stateless `SettingsOcrScreen` reaches the **graph-scoped**
+    // singleton via `context.appGraph` instead of building its own instance. Exactly one
+    // `ModelDownloader` must drive state and downloads — its single-flight gate and `_state` flow
+    // are only meaningful when every caller (the source-picker CTA, the status-row retry) shares it.
+    val modelDownloader: ModelDownloader
     // KUN <--
 
     val json: Json
