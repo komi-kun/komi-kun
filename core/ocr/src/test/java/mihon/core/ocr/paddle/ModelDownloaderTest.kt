@@ -298,12 +298,25 @@ class ModelDownloaderTest {
             files = listOf(OcrModelFile(name = detName, sha256 = "0".repeat(64), size = staged.length())),
         )
 
-        runCatching { verifyStagedModels(scratch, manifest, listOf(detName)) }.isFailure shouldBe true
-        runCatching {
+        // Mirror `importFromUri`'s verify-then-install ordering: it installs only when
+        // `verifyStagedModels` returns. The real entry point needs a `Context`/`Uri`, so it is not
+        // exercised here (coverage limit); this mirrors its two calls instead. The staged bytes
+        // (`det`) differ from what is installed (`good`), so a rejected archive that reached
+        // `installRequiredModels` would clobber the file and fail the assertion below — it is not
+        // vacuous.
+        val checksumRejected = runCatching {
+            verifyStagedModels(scratch, manifest, listOf(detName))
+            installRequiredModels(scratch, modelsDir, listOf(detName))
+        }
+        checksumRejected.isFailure shouldBe true
+        // A rejected import must leave the existing install byte-for-byte untouched (F7).
+        existing.readText() shouldBe "good"
+
+        val manifestRejected = runCatching {
             verifyStagedModels(scratch, OcrModelManifest(), listOf(detName))
-        }.isFailure shouldBe true
-        // A rejected import must leave the existing install byte-for-byte untouched: `importFromUri`
-        // only installs after `verifyStagedModels` succeeds (F7).
+            installRequiredModels(scratch, modelsDir, listOf(detName))
+        }
+        manifestRejected.isFailure shouldBe true
         existing.readText() shouldBe "good"
     }
 
