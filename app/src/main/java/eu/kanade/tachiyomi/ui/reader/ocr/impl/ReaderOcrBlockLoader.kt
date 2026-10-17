@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import logcat.LogPriority
 import mihon.core.metro.AppCoroutineScope
 import mihon.core.ocr.OcrEngine
@@ -68,6 +69,13 @@ class ReaderOcrBlockLoader(
     private val sourceManager: SourceManager,
     private val dictionaryPreferences: DictionaryPreferences,
     @AppCoroutineScope private val scope: CoroutineScope,
+    /**
+     * Watchdog for one page's [load] (F2). Generous on purpose: the first OCR run of a session
+     * includes native engine init and model load (seconds on device), so the limit is in the tens
+     * of seconds — but a genuine hang never completes, and must be surfaced rather than left
+     * invisible. Overridable so tests can shrink it.
+     */
+    private val loadTimeoutMs: Long = DEFAULT_LOAD_TIMEOUT_MS,
 ) {
     private val _blocks = MutableStateFlow<Map<OcrPageKey, List<OcrTextBlock>>>(emptyMap())
     val blocks: StateFlow<Map<OcrPageKey, List<OcrTextBlock>>> = _blocks.asStateFlow()
@@ -76,6 +84,13 @@ class ReaderOcrBlockLoader(
 
     /** Earliest retry time (ns) for a page that could not be resolved yet; bounded retry rate. */
     private val retryAfter = ConcurrentHashMap<OcrPageKey, Long>()
+
+    /**
+     * Pages whose watchdog already logged a timeout, so a genuine hang logs **once per hang
+     * episode**, not once per frame or per retry. Cleared when the page finally resolves or the
+     * in-memory cache is [invalidate]d.
+     */
+    private val timeoutLogged = ConcurrentHashMap.newKeySet<OcrPageKey>()
 
     /**
      * Earliest retry time (ns) for the local OCR engine once an `init()` failed (e.g. an `x86_64`
@@ -99,19 +114,39 @@ class ReaderOcrBlockLoader(
             retryAfter[key]?.let { if (now < it) return@forEach }
             if (!inFlight.add(key)) return@forEach
             scope.launch(Dispatchers.IO) {
-                val loaded = runCatching { load(page) }.getOrElse { e ->
-                    // Never swallow silently: a throwing load() looked exactly like "OCR does nothing"
-                    // (no logs, no cache, endless retry). See `ort-v6-migration.md` §6/§9.
+                // Watchdog (F2): a future hang can never again be invisible. `withTimeoutOrNull`
+                // cannot distinguish a timeout from a block that returned null, so the result is
+                // wrapped in a non-null [LoadOutcome].
+                val outcome = runCatching {
+                    withTimeoutOrNull(loadTimeoutMs) { LoadOutcome(load(page)) }
+                }.getOrElse { e ->
+                    // F1: never treat cancellation as a failure — rethrow it so the job is cancelled
+                    // (same pattern as `runEngineOcr`). Other throwables are never swallowed:
+                    // a throwing load() looked exactly like "OCR does nothing" (no logs, no cache,
+                    // endless retry). See `ort-v6-migration.md` §6/§9.
+                    if (e is CancellationException) throw e
                     logcat(LogPriority.WARN, e) { "ReaderOcr: failed to resolve OCR blocks for page ${page.index}" }
                     null
                 }
                 inFlight.remove(key)
-                if (loaded != null) {
-                    // A completed resolution (even an empty one) is cached; null retries later.
-                    retryAfter.remove(key)
-                    _blocks.update { it + (key to loaded) }
-                } else {
-                    retryAfter[key] = System.nanoTime() + RETRY_INTERVAL_NANOS
+                when (outcome) {
+                    // The load did not return within [loadTimeoutMs]: assume a hang and treat it
+                    // exactly like "not resolvable yet" — retry later, never cache an empty result.
+                    null -> {
+                        logLoadTimeout(page)
+                        retryAfter[key] = System.nanoTime() + RETRY_INTERVAL_NANOS
+                    }
+                    else -> {
+                        val loaded = outcome.blocks
+                        if (loaded == null) {
+                            retryAfter[key] = System.nanoTime() + RETRY_INTERVAL_NANOS
+                        } else {
+                            // A completed resolution (even an empty one) is cached; null retries later.
+                            timeoutLogged.remove(key)
+                            retryAfter.remove(key)
+                            _blocks.update { it + (key to loaded) }
+                        }
+                    }
                 }
             }
         }
@@ -125,6 +160,7 @@ class ReaderOcrBlockLoader(
         _blocks.update { emptyMap() }
         inFlight.clear()
         retryAfter.clear()
+        timeoutLogged.clear()
     }
 
     /**
@@ -149,6 +185,20 @@ class ReaderOcrBlockLoader(
                 val cachedChapters = _blocks.value.keys.map { it.chapterId }
                 if (changed.any { it in cachedChapters }) invalidate()
                 previous = current
+            }
+        }
+    }
+
+    /**
+     * Logs one page's watchdog timeout **once per hang episode**. A genuine hang (a stalled native
+     * call or a deadlocked suspension point) must be visible; the reader re-drives [ensureLoaded]
+     * while the page is shown, so this is deduplicated per page (not per frame/retry) via
+     * [timeoutLogged], and cleared once the page finally resolves or the cache is [invalidate]d.
+     */
+    private fun logLoadTimeout(page: ReaderPage) {
+        if (timeoutLogged.add(page.ocrKey())) {
+            logcat(LogPriority.WARN) {
+                "ReaderOcr: OCR for page ${page.index} did not complete within ${loadTimeoutMs}ms; retrying later"
             }
         }
     }
@@ -297,5 +347,20 @@ class ReaderOcrBlockLoader(
 
         /** How long to stop retrying a local OCR engine that failed to initialize. */
         private const val ENGINE_RETRY_COOLDOWN_NANOS = 60_000_000_000L
+
+        /**
+         * How long one page's [load] may run before the reader assumes a hang (F2). Deliberately
+         * generous (tens of seconds): the first OCR run of a session pays for native engine init and
+         * model load, which is seconds on device, while a genuine hang never completes and must be
+         * surfaced rather than silently starve the page. See [logLoadTimeout].
+         */
+        private const val DEFAULT_LOAD_TIMEOUT_MS = 60_000L
     }
 }
+
+/**
+ * Non-null carrier for [ReaderOcrBlockLoader.load]'s result so `withTimeoutOrNull` can tell a timed
+ * out load (outer `null`) from a load that legitimately returned null — "not resolvable yet" (inner
+ * `null`). With a nullable `T`, `withTimeoutOrNull` returns `null` for both cases.
+ */
+private class LoadOutcome(val blocks: List<OcrTextBlock>?)
