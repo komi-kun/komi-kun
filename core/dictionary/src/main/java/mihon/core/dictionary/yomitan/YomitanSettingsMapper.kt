@@ -14,6 +14,8 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
+import mihon.core.dictionary.audio.AudioFallbackSound
+import mihon.core.dictionary.audio.AudioSourceConfig
 import mihon.core.dictionary.model.DictionaryProfile
 
 object YomitanSettingsMapper {
@@ -40,9 +42,19 @@ object YomitanSettingsMapper {
         "duplicateBehavior",
     )
 
+    /** Audio keys that have a komi-kun counterpart (the `sources` array is handled wholesale). */
+    private val MODELED_AUDIO = setOf(
+        "enabled",
+        "autoPlay",
+        "volume",
+        "fallbackSoundType",
+        "sources",
+        "enableDefaultAudioSources",
+    )
+
     /** Whole option groups komi-kun cannot represent at all. */
     private val WHOLLY_UNMAPPED_GROUPS =
-        listOf("audio", "parsing", "sentenceParsing", "inputs", "clipboard", "accessibility")
+        listOf("parsing", "sentenceParsing", "inputs", "clipboard", "accessibility")
 
     /** `cardFormats` gets its own explanatory report, so it is not duplicated as a generic key. */
     private const val ANKI_CARD_FORMATS = "cardFormats"
@@ -101,6 +113,7 @@ object YomitanSettingsMapper {
         val activeOptions = profileArray[activeIndex].asObjectOrNull()?.get("options").asObjectOrNull()
         val popup = mapPopup(activeOptions, reports)
         val anki = mapAnki(activeOptions, reports)
+        val audio = mapAudio(activeOptions, reports)
 
         // --- Aggregated "not imported" reports -------------------------------------------
         val conditionCount = profileArray.sumOf { element ->
@@ -116,6 +129,7 @@ object YomitanSettingsMapper {
                 profiles = profiles,
                 popup = popup,
                 anki = anki,
+                audio = audio,
                 aliases = aliases,
                 reports = reports,
                 warnings = warnings,
@@ -282,6 +296,65 @@ object YomitanSettingsMapper {
             duplicateCheck = duplicateCheck,
             duplicateScope = duplicateScope,
             duplicateAction = duplicateAction,
+        )
+    }
+
+    // -------------------------------------------------------------------------------------
+    // Audio preferences
+    // -------------------------------------------------------------------------------------
+
+    /**
+     * Maps Yomitan's `audio` group (`options-schema.json`): enabled/autoPlay/volume/
+     * fallbackSoundType/enableDefaultAudioSources plus the `type`-discriminated `sources[]`. Source
+     * URLs (including a bespoke Local Audio Server `custom-json` URL) are copied verbatim so the
+     * user's setup keeps working after import.
+     */
+    private fun mapAudio(options: JsonObject?, reports: MutableList<YomitanImportReport>): YomitanImportAudio {
+        val audio = options?.get("audio").asObjectOrNull() ?: return YomitanImportAudio()
+
+        val enabled = audio["enabled"].booleanOrNull()
+        val autoPlay = audio["autoPlay"].booleanOrNull()
+        val enableDefaultSources = audio["enableDefaultAudioSources"].booleanOrNull()
+        val volume = audio["volume"].intOrNull()?.coerceIn(0, 100)
+        val fallback = audio["fallbackSoundType"].stringOrNull()?.takeIf { it in AudioFallbackSound.ALL }
+
+        val sources = audio["sources"].asArrayOrNull()?.mapNotNull { element ->
+            val entry = element.asObjectOrNull() ?: return@mapNotNull null
+            val type = entry["type"].stringOrNull()?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            AudioSourceConfig(
+                type = type,
+                url = entry["url"].stringOrNull().orEmpty(),
+                voice = entry["voice"].stringOrNull().orEmpty(),
+            )
+        }.orEmpty()
+
+        enabled?.let { reports += applied("audio", "audio.enabled", it) }
+        autoPlay?.let { reports += applied("audio", "audio.autoPlay", it) }
+        volume?.let { reports += applied("audio", "audio.volume", it) }
+        fallback?.let { reports += applied("audio", "audio.fallbackSoundType", it) }
+        enableDefaultSources?.let { reports += applied("audio", "audio.enableDefaultAudioSources", it) }
+        if (sources.isNotEmpty()) {
+            reports += applied("audio", "audio.sources", "${sources.size} source(s): ${sources.joinToString(",") { it.type }}")
+        }
+
+        // Volume/fallback values komi-kun cannot represent are reported, not silently dropped.
+        audio["volume"].intOrNull()?.takeIf { it !in 0..100 }?.let {
+            reports += skipped("audio", "audio.volume", "$it (clamped to 0-100)")
+        }
+        audio["fallbackSoundType"].stringOrNull()?.takeIf { it !in AudioFallbackSound.ALL }?.let {
+            reports += skipped("audio", "audio.fallbackSoundType", it)
+        }
+
+        // Unknown newer audio keys are surfaced like any other unmodelled key.
+        reportUnmodeledKeys(audio, MODELED_AUDIO, emptySet(), "audio", reports)
+
+        return YomitanImportAudio(
+            enabled = enabled,
+            autoPlay = autoPlay,
+            volumePercent = volume,
+            enableDefaultAudioSources = enableDefaultSources,
+            fallbackSoundType = fallback,
+            sources = sources,
         )
     }
 

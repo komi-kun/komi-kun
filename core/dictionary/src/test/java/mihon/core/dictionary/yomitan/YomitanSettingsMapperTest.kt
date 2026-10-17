@@ -6,6 +6,7 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldContainAll
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import mihon.core.dictionary.audio.AudioSourceTypes
 import mihon.core.dictionary.model.DictionaryProfile
 import org.junit.jupiter.api.Test
 
@@ -83,6 +84,11 @@ class YomitanSettingsMapperTest {
         settings.anki.duplicateCheck shouldBe true
         settings.anki.duplicateScope shouldBe "collection"
         settings.anki.duplicateAction shouldBe "overwrite"
+
+        settings.audio.enabled shouldBe true
+        settings.audio.autoPlay shouldBe false
+        settings.audio.volumePercent shouldBe 1
+        settings.audio.sources.map { it.type } shouldBe listOf(AudioSourceTypes.JPOD_101)
     }
 
     @Test
@@ -100,6 +106,10 @@ class YomitanSettingsMapperTest {
             "anki.tags",
             "anki.duplicateScope",
             "anki.duplicateBehavior",
+            "audio.enabled",
+            "audio.autoPlay",
+            "audio.volume",
+            "audio.sources",
         )
     }
 
@@ -108,7 +118,7 @@ class YomitanSettingsMapperTest {
         val settings = imported()
         val skippedGroups = settings.skippedReports.map { it.group }.toSet()
         skippedGroups shouldContainAll listOf(
-            "scanning", "audio", "parsing", "sentenceParsing", "inputs", "clipboard",
+            "scanning", "parsing", "sentenceParsing", "inputs", "clipboard",
             "accessibility", "popupWindow", "conditionGroups", "translation", "anki", "general",
         )
 
@@ -147,6 +157,7 @@ class YomitanSettingsMapperTest {
         }
         settings.popup shouldBe YomitanImportPopup()
         settings.anki shouldBe YomitanImportAnki()
+        settings.audio shouldBe YomitanImportAudio()
         settings.aliases shouldBe emptyMap()
         settings.warnings shouldBe emptyList()
     }
@@ -160,6 +171,38 @@ class YomitanSettingsMapperTest {
         settings.warnings.single().contains("99") shouldBe true
         // Known keys are still mapped despite the newer schema.
         settings.popup.fontSize shouldBe 15
+    }
+
+    @Test
+    fun `imports a custom-json Local Audio Server source verbatim`() {
+        val raw = """
+            {"version":0,"options":{"version":77,"profileCurrent":0,
+             "profiles":[{"name":"P","options":{"audio":{
+               "enabled":true,"autoPlay":true,"volume":80,"fallbackSoundType":"bloop",
+               "enableDefaultAudioSources":false,
+               "sources":[
+                 {"type":"custom-json","url":"http://127.0.0.1:8765/localaudio/get/?term={term}&reading={reading}","voice":""},
+                 {"type":"custom","url":"http://forvo.example/?t={term}","voice":""}
+               ]}}}]}}
+        """.trimIndent()
+        val settings = imported(raw)
+
+        settings.audio.enabled shouldBe true
+        settings.audio.autoPlay shouldBe true
+        settings.audio.volumePercent shouldBe 80
+        settings.audio.fallbackSoundType shouldBe "bloop"
+        settings.audio.enableDefaultAudioSources shouldBe false
+        settings.audio.sources shouldBe listOf(
+            mihon.core.dictionary.audio.AudioSourceConfig(
+                type = AudioSourceTypes.CUSTOM_JSON,
+                url = "http://127.0.0.1:8765/localaudio/get/?term={term}&reading={reading}",
+            ),
+            mihon.core.dictionary.audio.AudioSourceConfig(
+                type = AudioSourceTypes.CUSTOM,
+                url = "http://forvo.example/?t={term}",
+            ),
+        )
+        settings.skippedReports.none { it.group == "audio" } shouldBe true
     }
 
     @Test

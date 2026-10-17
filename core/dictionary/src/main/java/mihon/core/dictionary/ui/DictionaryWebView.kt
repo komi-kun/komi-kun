@@ -10,6 +10,7 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import mihon.core.dictionary.audio.WordAudioBridge
 import mihon.core.dictionary.model.LookupResult
 import java.net.URLEncoder
 
@@ -61,6 +62,10 @@ fun prepareDictionaryWebViewShell(
         addJavascriptInterface(state.readyBridge, "DictionaryReadyBridge")
         addJavascriptInterface(state.payloadBridge, "PayloadBridge")
         addJavascriptInterface(state.ankiJsBridge, "AnkiJsBridge")
+        // KUN -->
+        // Native half of the renderer's existing word-audio play button.
+        addJavascriptInterface(state.audioBridge, "WordAudioBridge")
+        // KUN <--
 
         webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {
@@ -125,6 +130,9 @@ class DictionaryWebViewState(
     val readyBridge: DictionaryReadyBridge = DictionaryReadyBridge(webViewProvider) { this }
     val payloadBridge: PayloadBridge = PayloadBridge()
     val ankiJsBridge: AnkiJsBridge = AnkiJsBridge(webViewProvider)
+    // KUN --> Word-audio resolution/playback; the app layer sets `configProvider`/`languageIsoProvider`.
+    val audioBridge: WordAudioBridge = WordAudioBridge(webViewProvider)
+    // KUN <--
     var pageReady: Boolean = false
     var fontSize: Int = 16
 
@@ -182,6 +190,9 @@ class DictionaryWebViewState(
 
     fun clear(webView: WebView) {
         onContentInvalidated?.invoke()
+        // KUN --> Never leave a clip playing after the popup content is gone.
+        audioBridge.stop()
+        // KUN <--
         payloadBridge.rawPayloadJson = ""
         payloadBridge.rawEntryJsons = emptyList()
         webView.evaluateJavascript("window.DictionaryRenderer && window.DictionaryRenderer.clear();", null)
