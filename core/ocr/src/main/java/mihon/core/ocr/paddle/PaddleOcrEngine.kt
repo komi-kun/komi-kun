@@ -9,7 +9,8 @@
 // ---------------------------------------------------------------------------------------------
 // INTEGRATION POINT — `libpaddle_ocr.so` *and* `libonnxruntime.so` are SEPARATE artifacts
 // (contract §1.7).
-// This class declares the JNI surface (`nativeInit`/`nativeProcess`/`nativeRelease`) and the Kotlin
+// This class declares the JNI surface (`nativeInit`/`nativeProcess`/`nativeRelease`, plus the
+// optional `nativeGetOrtError` diagnostics accessor) and the Kotlin
 // overload that consumes it. The `.so` is our own JNI wrapper over ONNX Runtime (MIT, loaded with
 // `dlopen`), published to `komi-kun/komi-kun-ocr-models` alongside `libonnxruntime.so`,
 // `libomp.so`/`libc++_shared.so` and fetched
@@ -158,10 +159,26 @@ class PaddleOcrEngine(
             val elapsed = SystemClock.elapsedRealtime() - start
             logcat(LogPriority.INFO) { "Paddle OCR engine initialized in ${elapsed}ms" }
         } else {
-            logcat(LogPriority.ERROR) { "Failed to initialize Paddle OCR engine from ${modelDir.absolutePath}" }
+            logcat(LogPriority.ERROR) {
+                "Failed to initialize Paddle OCR engine from ${modelDir.absolutePath}" +
+                    " (native error: ${nativeOrtError()})"
+            }
         }
         return success
     }
+
+    // KUN -->
+    /**
+     * Last native init failure reason (e.g. a missing/mismatched `libonnxruntime.so`, or a failed
+     * det/rec session), or a short placeholder when the shim does not expose it. The native
+     * `nativeInit` also logs the reason to logcat, so this is best-effort diagnostics only.
+     */
+    private fun nativeOrtError(): String = try {
+        nativeGetOrtError().ifBlank { "unknown" }
+    } catch (_: UnsatisfiedLinkError) {
+        "unavailable"
+    }
+    // KUN <--
 
     /**
      * Loads the native libraries, preferring the runtime-downloaded layout in app storage (STL +
@@ -422,6 +439,15 @@ class PaddleOcrEngine(
     ): String
 
     private external fun nativeRelease()
+
+    // KUN -->
+    /**
+     * Human-readable reason the native engine's last init failed (the ORT error string), or "" when
+     * unavailable. Exported by `libpaddle_ocr.so`'s JNI shim; a shim that predates the accessor
+     * throws [UnsatisfiedLinkError], which [nativeOrtError] handles.
+     */
+    private external fun nativeGetOrtError(): String
+    // KUN <--
 
     /**
      * Big-core count, ported from ocrtest. Cores whose max frequency is
