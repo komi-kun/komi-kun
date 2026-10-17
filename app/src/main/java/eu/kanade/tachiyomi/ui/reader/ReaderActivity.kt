@@ -102,6 +102,7 @@ import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderSettingsViewModel
 import eu.kanade.tachiyomi.ui.reader.setting.ReadingMode
 import eu.kanade.tachiyomi.ui.reader.viewer.OcrTwoFingerTapDetector
+import eu.kanade.tachiyomi.ui.reader.viewer.OutsideTapDismissDetector
 import eu.kanade.tachiyomi.ui.reader.viewer.ReaderProgressIndicator
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.PagerConfig
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.PagerViewer
@@ -219,6 +220,29 @@ class ReaderActivity : BaseActivity() {
             onTap = { onOcrTwoFingerTap() }
         }
     }
+
+    /**
+     * Passive single-finger tap detector that dismisses the **non-modal** dictionary popup when the
+     * tap lands outside it. Fed from [dispatchTouchEvent] and deliberately non-consuming: the page
+     * keeps scrolling/zooming/paging under the popup, and only a confirmed outside tap closes it.
+     * While no popup is open [ReaderDictionaryHost.popupBounds] is null and the detector is a no-op.
+     */
+    private val dictionaryOutsideTapDetector by lazy {
+        OutsideTapDismissDetector(
+            touchSlop = ViewConfiguration.get(this).scaledTouchSlop.toFloat(),
+            tapTimeoutMillis = ViewConfiguration.getLongPressTimeout().toLong(),
+        ).apply {
+            boundsProvider = {
+                readerDictionaryHost.popupBounds()?.let { rect ->
+                    OutsideTapDismissDetector.Bounds { x, y -> rect.contains(x, y) }
+                }
+            }
+            onOutsideTap = { readerDictionaryHost.dismiss() }
+        }
+    }
+
+    /** Scratch buffer for the compose overlay's screen location; UI thread only. */
+    private val composeOverlayLocation = IntArray(2)
     // KUN <--
 
     private val windowInsetsController by lazy { WindowInsetsControllerCompat(window, window.decorView) }
@@ -660,6 +684,17 @@ class ReaderActivity : BaseActivity() {
      */
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
         ocrTwoFingerTapDetector.onTouchEvent(ev)
+        // KUN -->
+        // Dismiss the non-modal dictionary popup on an outside tap. Convert the screen coordinates
+        // into the compose-overlay space the popup bounds are reported in; the detector never
+        // consumes, so the viewer's own gestures are unaffected.
+        binding.composeOverlay.getLocationOnScreen(composeOverlayLocation)
+        dictionaryOutsideTapDetector.onTouchEvent(
+            ev,
+            ev.rawX - composeOverlayLocation[0],
+            ev.rawY - composeOverlayLocation[1],
+        )
+        // KUN <--
         return super.dispatchTouchEvent(ev)
     }
     // KUN <--

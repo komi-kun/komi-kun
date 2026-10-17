@@ -2,6 +2,7 @@
 package mihon.dictionary.impl
 
 import android.content.Context
+import android.graphics.RectF
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -13,6 +14,7 @@ import eu.kanade.tachiyomi.ui.dictionary.DictionaryPopup
 import eu.kanade.tachiyomi.ui.dictionary.DictionaryPopupWebViewWarmup
 import eu.kanade.tachiyomi.ui.dictionary.DictionaryPreferences
 import eu.kanade.tachiyomi.ui.dictionary.PopupRequest
+import eu.kanade.tachiyomi.ui.reader.ocr.impl.ReaderOcrPopupAnchor
 import kotlinx.coroutines.flow.MutableStateFlow
 import mihon.dictionary.host.DictionaryLookupRequest
 import mihon.dictionary.host.ReaderDictionaryHost
@@ -30,6 +32,7 @@ import mihon.dictionary.host.ReaderDictionaryHost
 @ContributesBinding(AppScope::class)
 class ReaderDictionaryHostImpl(
     private val preferences: DictionaryPreferences,
+    private val popupAnchor: ReaderOcrPopupAnchor,
 ) : ReaderDictionaryHost {
 
     private val request = MutableStateFlow<DictionaryLookupRequest?>(null)
@@ -45,6 +48,11 @@ class ReaderDictionaryHostImpl(
     override fun dismiss() {
         request.value = null
     }
+
+    // KUN -->
+    override fun popupBounds(): RectF? =
+        if (request.value != null) popupAnchor.popupBounds.value else null
+    // KUN <--
 
     @Composable
     override fun Popup() {
