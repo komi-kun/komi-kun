@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package eu.kanade.tachiyomi.ui.dictionary
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -26,11 +29,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
@@ -44,6 +50,8 @@ import mihon.core.dictionary.model.getDictionaryPaths
 import mihon.core.dictionary.ui.KanaConverter
 import mihon.core.dictionary.ui.TabInfo
 import mihon.core.dictionary.ui.orderLookupResultsForDisplay
+import tachiyomi.i18n.kmk.KMR
+import tachiyomi.presentation.core.i18n.stringResource
 import kotlin.math.roundToInt
 
 /** One frame of the lookup-history stack (02 §3.2). */
@@ -76,6 +84,7 @@ fun DictionaryPopup(
     val context = LocalContext.current
     val repository = remember(context) { context.appGraph.dictionaryRepository }
     val prefs = remember(context) { context.appGraph.dictionaryPreferences }
+    val popupAnchor = remember(context) { context.appGraph.readerOcrPopupAnchor }
     val scope = rememberCoroutineScope()
 
     var stack by remember { mutableStateOf<List<LookupFrame>>(emptyList()) }
@@ -125,27 +134,64 @@ fun DictionaryPopup(
 
     if (!visible) return
 
-    val screenHeight = LocalConfiguration.current.screenHeightDp
+    // System back closes the popup instead of leaving the reader (BUG 2c).
+    BackHandler { onDismiss() }
+
+    val configuration = LocalConfiguration.current
+    val density = LocalDensity.current
+    val screenHeight = configuration.screenHeightDp
     val current = stack.getOrNull(activeIndex)
     val tabs = stack.mapIndexed { index, frame -> TabInfo(frame.query.take(16), index == activeIndex) }
     val popupWidth = prefs.popupWidth().get().dp
     val popupHeight = resolvePopupHeight(prefs.popupHeight().get(), screenHeight)
 
+    // A visible empty state instead of a blank/black box: distinguish "no dictionaries installed"
+    // from "this word is in no installed dictionary" (BUG 2a).
+    val hasDictionaries = getDictionaryPaths(context, profile).let {
+        it.termPaths.isNotEmpty() || it.freqPaths.isNotEmpty() ||
+            it.pitchPaths.isNotEmpty() || it.kanjiPaths.isNotEmpty()
+    }
+    val placeholder = when {
+        !hasDictionaries -> stringResource(KMR.strings.dictionary_no_dictionaries)
+        !loading && current != null && current.results.isEmpty() ->
+            stringResource(KMR.strings.dictionary_no_results, current.query)
+        else -> ""
+    }
+
     val bg = MaterialTheme.colorScheme.surface
+    val screenWidthPx = with(density) { configuration.screenWidthDp.dp.toPx() }
+    val screenHeightPx = with(density) { configuration.screenHeightDp.dp.toPx() }
+    val popupWidthPx = with(density) { popupWidth.toPx() }
+    val popupHeightPx = with(density) { popupHeight.toPx() }
 
     Box(modifier = modifier.fillMaxSize()) {
+        // Tap-outside scrim: dismisses the popup and swallows gestures, so the page underneath
+        // cannot turn/scroll while the popup is open (plan 04 §2.1). Only composed while visible.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(Unit) { detectTapGestures { onDismiss() } },
+        )
         Surface(
             modifier = Modifier
                 .offset {
-                    val x = request.anchorX.roundToInt()
-                    val y = request.anchorY.roundToInt()
-                    IntOffset(x, y)
+                    // Prefer the OCR host's live anchor so the popup follows the page; fall back to
+                    // the anchor captured when the lookup opened.
+                    val live = popupAnchor.rect.value
+                    val anchorX = live?.left ?: request.anchorX
+                    val anchorY = live?.bottom ?: request.anchorY
+                    IntOffset(
+                        clampToScreen(anchorX, popupWidthPx, screenWidthPx),
+                        clampToScreen(anchorY, popupHeightPx, screenHeightPx),
+                    )
                 }
                 .width(popupWidth)
                 .height(popupHeight)
                 .clip(RoundedCornerShape(12.dp))
                 .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
-                .background(bg),
+                .background(bg)
+                // Consume taps on the popup chrome without dismissing; only outside taps dismiss.
+                .pointerInput(Unit) { detectTapGestures { } },
             color = bg,
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
@@ -181,7 +227,7 @@ fun DictionaryPopup(
                         results = current?.results.orEmpty(),
                         styles = current?.styles.orEmpty(),
                         mediaDataUris = current?.mediaDataUris.orEmpty(),
-                        placeholder = "",
+                        placeholder = placeholder,
                         activeProfile = profile,
                         fontSize = prefs.fontSize().get(),
                         existingExpressions = current?.existingExpressions.orEmpty(),
@@ -194,11 +240,19 @@ fun DictionaryPopup(
                         onTabSelect = { index -> if (index in stack.indices) activeIndex = index },
                         onBack = { if (activeIndex > 0) activeIndex -= 1 else onDismiss() },
                         isLoading = loading,
+                        // KUN --> Give the entry WebView focus so long-press starts text selection.
+                        requestFocusOnMount = true,
                         // KUN --> OCR context so the renderer's `addToAnki` builds sentence/cloze fields.
                         ankiSentence = request.sentence,
                         ankiSentenceOffset = request.sentenceOffset,
                         // KUN <--
                     )
+                    // KUN --> A lookup in flight has no results yet; show progress rather than a
+                    // blank (black) box while the repository works.
+                    if (loading) {
+                        CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                    }
+                    // KUN <--
                 }
             }
         }
@@ -208,6 +262,12 @@ fun DictionaryPopup(
 private fun resolvePopupHeight(configured: Int, screenHeightDp: Int): androidx.compose.ui.unit.Dp {
     val maxHeight = (screenHeightDp - 24).coerceAtLeast(120)
     return configured.coerceAtMost(maxHeight).dp
+}
+
+/** Clamps the popup's anchor so the popup is always fully on screen. */
+private fun clampToScreen(anchor: Float, sizePx: Float, screenPx: Float): Int {
+    val max = (screenPx - sizePx).roundToInt().coerceAtLeast(0)
+    return anchor.roundToInt().coerceIn(0, max)
 }
 
 /** Position (px) + lookup payload for the popup (contract §2.3 seam DTO adapter). */
