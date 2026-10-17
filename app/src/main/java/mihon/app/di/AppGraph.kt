@@ -49,6 +49,7 @@ import eu.kanade.tachiyomi.ui.dictionary.DictionaryPreferences
 import eu.kanade.tachiyomi.ui.main.MainActivity
 import eu.kanade.tachiyomi.ui.reader.ReaderActivity
 import eu.kanade.tachiyomi.ui.reader.ocr.OcrHostBindings
+import eu.kanade.tachiyomi.ui.reader.ocr.impl.ReaderOcrPopupAnchor
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.ui.setting.track.BaseOAuthLoginActivity
 import eu.kanade.tachiyomi.ui.webview.WebViewActivity
@@ -200,6 +201,10 @@ interface AppGraph : ViewModelGraph {
     // themselves are bound by `DictionaryHostBindings`/`@ContributesBinding`).
     val dictionaryPreferences: DictionaryPreferences
     val dictionaryRepository: DictionaryRepository
+
+    // Live anchor of the OCR block whose dictionary popup is open, so the GPL popup can follow the
+    // page without touching the Apache seam (see `ReaderOcrPopupAnchor`).
+    val readerOcrPopupAnchor: ReaderOcrPopupAnchor
     // KUN <--
 
     // KUN -->
