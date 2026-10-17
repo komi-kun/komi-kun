@@ -434,14 +434,14 @@ language)`) between this plan and the dictionary plan so the popup never imports
 
 Define the Apache `ReaderOcrHost` interface (in `app`, no GPL imports) and implement it in `:core:ocr`;
 `ReaderActivity`/`ReaderViewModel` touch only that interface — this is what keeps the reader file
-contributable upstream. **Note:** if `01` keeps `:core:ocr` Apache (§1.5), then the GPL-derived OCR
-files cannot live there as copies and this map's first row changes to a reimplementation.
+contributable upstream. **Settled:** `:core:ocr` is **GPL-3.0-or-later** (`00` §1.1/§1.3, §6.1), so
+the GPL-derived OCR files stay there; the former “if `01` keeps it Apache” branch is closed.
 
 ### 7.2 Risks / unknowns
 
-- **R1 — Paddle model provenance.** `manga_det_fp16`/`manga_rec_fp16` look like an unverified
-  fine-tune. Use official PaddleOCR models (Apache-2.0) to start; only add the fine-tune if its
-  licence is confirmed (recorded in the manifest).
+- **R1 — Paddle model provenance (resolved).** Only the **official** PaddleOCR PP-OCRv6 `small`
+  models (Apache-2.0, §2.1) ship; the `manga_det_fp16`/`manga_rec_fp16` Paddle-Lite fine-tune was
+  never adopted.
 - **R2 — Download integrity.** Chimahon's `ModelDownloader` does no checksum (`ModelDownloader.kt:145-166`).
   Add SHA-256 verification + `manifest.json`.
 - **R3 — Merger port.** `OwOCRMerger` (1261 LOC) is the riskiest correctness surface → seam + fixtures.

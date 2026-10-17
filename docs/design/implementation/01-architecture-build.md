@@ -91,7 +91,7 @@ core/ocr/src/main/java/mihon/core/ocr/
   overlay/      OcrTextOverlayPainter.kt, OcrHitTester.kt, OcrViewport.kt
   paddle/       PaddleOcrEngine.kt, OcrBitmapDecoder.kt, OcrPreprocessor.kt
   di/           OcrBindings.kt
-core/ocr/src/main/jniLibs/<abi>/libpaddle_ocr.so        (or a prebuilt AAR — see §5.4)
+core/ocr/src/main/jniLibs/<abi>/libpaddle_ocr.so + libonnxruntime.so + libomp.so   (fetched artifact — see §5.4)
 ```
 
 ---
