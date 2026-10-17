@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package eu.kanade.tachiyomi.ui.dictionary
 
+import mihon.core.dictionary.audio.AudioFallbackSound
+import mihon.core.dictionary.audio.AudioPreferences
+import mihon.core.dictionary.audio.AudioSourceConfig
 import mihon.core.dictionary.model.DictionaryProfileStore
 import mihon.core.dictionary.repository.DictionaryProfileResolver
 import org.json.JSONObject
@@ -60,6 +63,60 @@ class DictionaryPreferences(
     fun scrollBehavior() = preferenceStore.getString("pref_dictionary_scroll_behavior", SCROLL_SMOOTH)
     fun volumeKeyNavigation() = preferenceStore.getBoolean("pref_dictionary_volume_key_navigation", true)
     fun customCss() = preferenceStore.getString("pref_dictionary_custom_css", "")
+
+    // -------------------------------------------------------------------------
+    // Word audio (Yomitan `options.audio`) — model/types live in :core:dictionary
+    // -------------------------------------------------------------------------
+
+    fun audioEnabled() = preferenceStore.getBoolean("pref_dict_audio_enabled", true)
+    fun audioAutoPlay() = preferenceStore.getBoolean("pref_dict_audio_autoplay", false)
+    fun audioVolume() = preferenceStore.getInt("pref_dict_audio_volume", 100)
+    fun audioEnableDefaultSources() = preferenceStore.getBoolean("pref_dict_audio_default_sources", true)
+    fun audioFallbackSound() = preferenceStore.getString("pref_dict_audio_fallback_sound", AudioFallbackSound.CLICK)
+    fun audioSourcesJson() = preferenceStore.getString("pref_dict_audio_sources", "[]")
+
+    /** The configured `audio.sources[]`. Malformed entries are dropped, never fatal. */
+    fun getAudioSources(): List<AudioSourceConfig> {
+        val raw = audioSourcesJson().get()
+        if (raw.isBlank()) return emptyList()
+        return runCatching {
+            val array = org.json.JSONArray(raw)
+            (0 until array.length()).mapNotNull { index ->
+                val obj = array.optJSONObject(index) ?: return@mapNotNull null
+                val type = obj.optString("type")
+                if (type.isBlank()) return@mapNotNull null
+                AudioSourceConfig(
+                    type = type,
+                    url = obj.optString("url"),
+                    voice = obj.optString("voice"),
+                )
+            }
+        }.getOrDefault(emptyList())
+    }
+
+    fun setAudioSources(sources: List<AudioSourceConfig>) {
+        val array = org.json.JSONArray()
+        sources.forEach { source ->
+            array.put(
+                org.json.JSONObject().apply {
+                    put("type", source.type)
+                    put("url", source.url)
+                    put("voice", source.voice)
+                },
+            )
+        }
+        audioSourcesJson().set(array.toString())
+    }
+
+    /** Snapshot of the live audio configuration for the WebView bridge and playback. */
+    fun audioPreferences(): AudioPreferences = AudioPreferences(
+        enabled = audioEnabled().get(),
+        autoPlay = audioAutoPlay().get(),
+        volumePercent = audioVolume().get(),
+        sources = getAudioSources(),
+        enableDefaultAudioSources = audioEnableDefaultSources().get(),
+        fallbackSoundType = audioFallbackSound().get(),
+    )
 
     // -------------------------------------------------------------------------
     // Profile storage (raw pref keys consumed by DictionaryProfileStore and settings UI)
