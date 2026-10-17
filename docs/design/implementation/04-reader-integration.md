@@ -205,14 +205,17 @@ observes outside taps for dismissal with a passive, non-consuming detector (§4.
 
 | Backend | Where | Change |
 |---|---|---|
-| Pager | `PagerViewer.kt:121-137` (`tapListener`), `:138-149` (`longTapListener`) | keep navigation on tap; in `longTapListener`, convert `MotionEvent` → overlay px and call `activity.onPageLongTap(firstPage, secondPage, point)` |
+| Pager | `PagerViewer.kt:121-137` (`tapListener`), `:138-149` (`longTapListener`) | keep navigation on tap; but first try `activity.onPageSingleTap(firstPage, secondPage, point)` — on a hit the tap is consumed, on a miss navigation runs as before. In `longTapListener`, convert `MotionEvent` → overlay px and call `activity.onPageLongTap(firstPage, secondPage, point)` |
 | Webtoon | `WebtoonViewer.kt:133-147` (`tapListener`), `:148-161` (`longTapListener`) | same as pager (`:155`) |
-| WebGPU paged | `WebGpuViewer.kt:968-972` (`onLongTap = { _ -> … }`) | **retain the offset**: `onLongTap = { offset -> … onPageLongTap(it.page, point = offset.toOverlayPx()) }` |
-| WebGPU continuous | inherits `WebGpuViewer` `onLongTap` | same |
+| WebGPU paged | `WebGpuViewer.kt:968-972` (`onLongTap = { _ -> … }`) | **retain the offset**: `onLongTap = { offset -> … onPageLongTap(it.page, point = offset.toOverlayPx()) }`; `onTap` first tries `onPageSingleTap` |
+| WebGPU continuous | inherits `WebGpuViewer` `onLongTap`/`onTap` | same |
 | Signature | `ReaderActivity.kt:1165` | `fun onPageLongTap(page: ReaderPage, extraPage: ReaderPage? = null, point: PointF? = null)` (append arg; `// KUN`). Keep the existing `openPageDialog` fallback at `:1166`. |
 
-`onPageLongTap` becomes the **single entry point**: if OCR is enabled and `point` hits a block →
-dictionary lookup (§4); otherwise → `viewModel.openPageDialog(page, extraPage)` (unchanged behavior).
+`onPageLongTap` becomes the **single long-press entry point**: if OCR is enabled and `point` hits a
+block → dictionary lookup (§4); otherwise → `viewModel.openPageDialog(page, extraPage)` (unchanged
+behavior). Its single-tap sibling `onPageSingleTap` returns `true` when the tap hit a block (so the
+viewer consumes it) and `false` otherwise, and routes through the *same* hit-test + lookup path in
+`ReaderOcrHostImpl`.
 
 ### 2.3 Reader menu / actions
 
@@ -344,6 +347,12 @@ long-press (any backend)
        │              └─ OcrTextBlock.extractLookupString(...)        (03 §6)
        │                   └─ DictionaryHost.lookup(OcrLookupRequest) ─→ popup visible
        └─ else → viewModel.openPageDialog(page, extraPage)           [ReaderViewModel.kt:1334]
+
+single tap (any backend, OCR overlay on)
+  └─ viewer tap callback (tapListener / state.onTap)
+  └─ ReaderActivity.onPageSingleTap(page, extraPage, point): Boolean
+       ├─ true  (point hits a block) → same lookup path as above; viewer consumes the tap
+       └─ false (miss / overlay off) → viewer's normal navigation runs unchanged
 ```
 
 `OcrLookupRequest(query, sentence, sentenceOffset, anchorRect, vertical, language)` is the DTO both
@@ -387,7 +396,9 @@ fun OcrOverlay(
   scrolling/zooming/paging underneath while the popup tracks its OCR block live (the popup's anchor
   is refreshed every frame). It is dismissed by an outside tap (a passive, non-consuming
   `OutsideTapDismissDetector` fed from `ReaderActivity.dispatchTouchEvent`), Back (`BackHandler`,
-  first), a page change, or when the anchored block leaves the screen.
+  first), a page change, or when the anchored block leaves the screen. A single tap on a *different*
+  block moves the popup to that block (the lookup path above) rather than dismissing and reopening,
+  and the dismiss detector skips such a tap so the popup does not flicker.
 
 ### 4.4 Threading & lifecycle
 
@@ -406,10 +417,18 @@ fun OcrOverlay(
 | Gesture | Owner | Rule |
 |---|---|---|
 | Page turn / drag / pinch | viewer (SSIV / ViewPager / recycler / Compose `pointerInput`) | overlay adds **no** pointer input except over the popup's own bounds → never intercepts; outside-tap dismissal is observed, not consumed |
-| Single tap | viewer navigation (`tapListener`, `state.onTap`) | unchanged; OCR uses **long-press only** |
+| Single tap | viewer navigation (`tapListener`, `state.onTap`) | normal navigation, **except** while the OCR overlay is on and the tap hits a block: then it opens/moves the dictionary popup and the tap is consumed. A miss falls through unchanged |
 | Long-press | viewer → `onPageLongTap` | OCR hook; long-press on empty space falls back to page actions |
 | Zoom/pan | SSIV / WebGPU page transform | box mapping reads the transform each frame via `transformVersion()`; no gesture filtering needed |
 | Back | overlay popup first, then activity | `BackHandler(enabled = popupVisible)` |
+
+Single-tap lookup is gated purely by the existing `ReaderPreferences.ocrOverlayEnabled` flag (it is on
+exactly while the boxes are drawn, i.e. while the two-finger gesture has it on) — no new preference.
+Because it is wired into the *existing* single-tap owner (the viewer's own tap callback, which already
+distinguishes tap / drag / double-tap / long-press), no second raw-touch consumer is added and the
+tap is only consumed on an actual hit. The passive `OutsideTapDismissDetector` is unchanged in what
+it sees; it only learns the tap point so a tap on **another block** does not dismiss-then-reopen the
+popup, and the single-tap lookup moves the popup straight to that block (fast word-by-word scanning).
 
 ---
 
