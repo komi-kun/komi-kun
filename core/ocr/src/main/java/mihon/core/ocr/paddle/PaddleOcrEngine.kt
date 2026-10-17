@@ -185,13 +185,20 @@ class PaddleOcrEngine(
     }
     // KUN <--
 
+    // KUN -->
     /**
-     * Loads the native libraries, preferring the runtime-downloaded layout in app storage (STL +
-     * OpenMP + ONNX Runtime first, engine last — dependency order matters) and **falling back** to
-     * the APK-packaged `jniLibs` layout from the fetched artifact (contract §1.7) when the app-storage
-     * layout is absent or fails to load. In the `jniLibs` path the engine's own `dlopen` of
-     * `libonnxruntime.so` resolves it from the same APK lib dir.
+     * Loads the native libraries. The **live** path today is the APK-packaged `jniLibs` layout: the
+     * fetched artifact ships the `.so`s in the APK, so `loadLibrary` resolves `libpaddle_ocr.so` and
+     * the shim's own `dlopen` of `libonnxruntime.so` resolves from the same APK lib directory.
+     *
+     * It first tries a **forward-compatible** app-storage layout
+     * (`filesDir/paddle_ocr/lib/<abi>/`, STL + OpenMP + ONNX Runtime before the engine — dependency
+     * order matters) for a future release that ships the runtime there. Nothing writes `.so`s into
+     * that directory today (only models are downloaded at runtime), so this branch is currently
+     * **unpopulated** and never wins; it is kept so the fallback already exists when such a release
+     * lands, and a present-but-unloadable app-storage copy still falls back to `jniLibs`.
      */
+    // KUN <--
     private fun loadNativeLibraries(abi: String): Boolean {
         val libDir = File(File(appContext.filesDir, MODEL_DIR), "lib/$abi")
         val engine = File(libDir, "libpaddle_ocr.so")

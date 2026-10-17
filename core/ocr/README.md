@@ -78,9 +78,12 @@ published to `komi-kun/komi-kun-ocr-models` (release **`ocr-models-v3`**) togeth
 
 - The engine emits the `TIMING|` / `LINE|` text protocol consumed by `PaddleOcrEngine.parseOutput`;
   the JNI signatures are `nativeInit` / `nativeProcess` / `nativeRelease` (unchanged by the backend
-  swap). The loader prefers the app-storage layout (downloaded at runtime) and falls back to the
-  APK-packaged `jniLibs` layout; in the latter, the shim's own `dlopen` of `libonnxruntime.so`
-  resolves it from the same APK lib directory.
+  swap). The **live** loader path is the APK-packaged `jniLibs` layout: the fetched artifact ships the
+  `.so`s in the APK, so `loadLibrary` resolves `libpaddle_ocr.so` and the shim's own `dlopen` of
+  `libonnxruntime.so` resolves from the same APK lib directory. The loader also tries a
+  **forward-compatible** app-storage layout (`filesDir/paddle_ocr/lib/<abi>/`) first, but nothing
+  writes `.so`s there today — only models are downloaded at runtime — so that path is currently
+  unpopulated and never wins; the fallback is kept for a future release that populates it.
 - ABIs shipped: **`arm64-v8a`**, **`armeabi-v7a`**, **`x86_64`**. ONNX Runtime publishes all three
   and the ONNX graphs are architecture-independent, so **`x86_64` emulators are now supported**
   instead of merely degrading. `PaddleOcrEngine.supportedAbi()` still catches
