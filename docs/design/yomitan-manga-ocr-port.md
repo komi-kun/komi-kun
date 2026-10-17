@@ -73,7 +73,7 @@ manga reading only — no novel reader, no anime/video player, no screen OCR, no
 | Chimahon (all its Kotlin/JS/C++) | **GPL-3.0** | ❌ (copied code forces GPL-3.0) |
 | `hoshidicts` (dictionary engine, C++) | **GPL-3.0** | ❌ |
 | Yomitan (deinflection rules, renderer) | **GPL-3.0** | ❌ |
-| PaddleOCR / Paddle-Lite | Apache-2.0 | ✅ |
+| ~~PaddleOCR / Paddle-Lite~~ → PP-OCRv6 models (Apache-2.0) + ONNX Runtime (MIT) | Apache-2.0 / MIT | ✅ |
 | LiteRT (panel detection) | Apache-2.0 | ✅ |
 | `ca.mpreg:webgpuviewer` | MIT | ✅ (already a dep) |
 | Google Lens on-device engine + models | proprietary | ❌ |
