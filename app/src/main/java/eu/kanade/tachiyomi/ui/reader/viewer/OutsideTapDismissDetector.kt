@@ -32,8 +32,9 @@ class OutsideTapDismissDetector(
     /** The popup's current bounds, or null when closed (then the detector is a no-op). */
     var boundsProvider: () -> Bounds? = { null }
 
-    /** Invoked once when a qualifying tap lands outside [boundsProvider]. */
-    var onOutsideTap: (() -> Unit)? = null
+    /** Invoked once when a qualifying tap lands outside [boundsProvider], with the tap point in the
+     * same coordinate space as [Bounds.contains]. */
+    var onOutsideTap: ((x: Float, y: Float) -> Unit)? = null
 
     private var tracking = false
     private var moved = false
@@ -81,7 +82,7 @@ class OutsideTapDismissDetector(
                 if (tracking && !moved && !multiPointer && !inside &&
                     eventTime - downTime <= tapTimeoutMillis
                 ) {
-                    onOutsideTap?.invoke()
+                    onOutsideTap?.invoke(x, y)
                 }
                 tracking = false
             }

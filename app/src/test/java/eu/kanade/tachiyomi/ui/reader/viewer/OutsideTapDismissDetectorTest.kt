@@ -33,7 +33,7 @@ class OutsideTapDismissDetectorTest {
         var dismissals = 0
         val detector = OutsideTapDismissDetector(slop, timeout).apply {
             boundsProvider = { if (open) bounds else null }
-            onOutsideTap = { dismissals++ }
+            onOutsideTap = { _, _ -> dismissals++ }
         }
         return detector to { dismissals }
     }
@@ -115,5 +115,19 @@ class OutsideTapDismissDetectorTest {
         // Guard: when bounds exist, an outside tap is required (sanity check on the predicate).
         assertFalse(bounds.contains(500f, 500f))
         assertTrue(bounds.contains(200f, 200f))
+    }
+
+    @Test
+    fun `outside tap reports the tap point`() {
+        // The reader uses the point to decide whether the tap is aimed at another OCR block (leave
+        // the popup for the single-tap lookup to move) or at the page (dismiss).
+        var at: Pair<Float, Float>? = null
+        val detector = OutsideTapDismissDetector(slop, timeout).apply {
+            boundsProvider = { bounds }
+            onOutsideTap = { x, y -> at = x to y }
+        }
+        detector.onGesture(down, 0L, 1, 40f, 60f)
+        detector.onGesture(up, 100L, 1, 40f, 60f)
+        assertTrue(at == 40f to 60f)
     }
 }
