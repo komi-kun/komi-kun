@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package eu.kanade.tachiyomi.ui.dictionary
 
+import android.graphics.RectF
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -34,6 +35,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -165,13 +168,11 @@ fun DictionaryPopup(
     val popupHeightPx = with(density) { popupHeight.toPx() }
 
     Box(modifier = modifier.fillMaxSize()) {
-        // Tap-outside scrim: dismisses the popup and swallows gestures, so the page underneath
-        // cannot turn/scroll while the popup is open (plan 04 §2.1). Only composed while visible.
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .pointerInput(Unit) { detectTapGestures { onDismiss() } },
-        )
+        // Non-modal (plan 04 §2.1, revised): there is deliberately NO full-screen scrim here. A
+        // scrim would swallow every touch and stop the page from scrolling/zooming/paging while the
+        // popup is open. Instead the reader observes taps itself (a passive,
+        // non-consuming detector) and dismisses on an outside tap, so the page stays fully usable
+        // and the popup keeps tracking its block (the anchor below is refreshed every frame).
         Surface(
             modifier = Modifier
                 .offset {
@@ -190,6 +191,14 @@ fun DictionaryPopup(
                 .clip(RoundedCornerShape(12.dp))
                 .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
                 .background(bg)
+                // KUN --> Publish the popup's own bounds so the reader can tell an outside tap from
+                // a touch on the popup (used by the non-consuming outside-tap dismissal).
+                .onGloballyPositioned { coords ->
+                    val bounds = coords.boundsInRoot()
+                    popupAnchor.popupBounds.value =
+                        RectF(bounds.left, bounds.top, bounds.right, bounds.bottom)
+                }
+                // KUN <--
                 // Consume taps on the popup chrome without dismissing; only outside taps dismiss.
                 .pointerInput(Unit) { detectTapGestures { } },
             color = bg,
