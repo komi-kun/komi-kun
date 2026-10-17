@@ -123,7 +123,7 @@ Version catalogs in `gradle/`: `libs.versions.toml`, `kotlinx.versions.toml`, `a
 | `core:metro/` | Shared Metro helpers (`mihon.core.metro`: `GraphProvider`, `AppCoroutineScope`, `IsDebugBuild`) |
 | `core:archive/` | CBZ/archive reading with optional encryption |
 | `core:dictionary/` | **GPL-3.0-or-later** — vendored `hoshidicts` engine (nested git submodule + NDK/CMake + JNI) and the Kotlin dictionary facade (`mihon.core.dictionary`) |
-| `core:ocr/` | **GPL-3.0-or-later** — PaddleOCR + `.mokuro` OCR pipeline, box merge and overlay math (`mihon.core.ocr`); its native `.so`s are fetched, not built (see [Licensing & native modules](#licensing--native-modules)) |
+| `core:ocr/` | **GPL-3.0-or-later** — PaddleOCR models on an ONNX Runtime backend + `.mokuro` OCR pipeline, box merge and overlay math (`mihon.core.ocr`); its native `.so`s are fetched, not built (see [Licensing & native modules](#licensing--native-modules)) |
 | `core-metadata/` | Comic-info metadata parsing |
 | `source-api/` / `source-local/` | Extension `Source` API + local source |
 | `presentation-core/` | Shared Compose components |
@@ -222,11 +222,11 @@ Rules:
 komi-kun's own code is Apache-2.0, but the Yomitan/dictionary/OCR port adds two **GPL-3.0-or-later** modules, so the combined distribution is **GPL-3.0-or-later** while upstream-derived files keep their Apache-2.0 headers. See `NOTICE` and `LICENSES/GPL-3.0-or-later.txt`. The GPL-free seam files (listed in the implementation contract §1.3) stay Apache-2.0 so they can be contributed back to Komikku.
 
 - **`:core:dictionary`** — the vendored `hoshidicts` C++ engine, added as a nested git submodule (`.gitmodules`; pin recorded in `core/dictionary/README.md`) and built with NDK/CMake behind a JNI bridge.
-- **`:core:ocr`** — the OCR pipeline. `libpaddle_ocr.so` (plus its `libomp.so` / `libc++_shared.so` runtime deps) is **fetched, not built**: `./gradlew :core:ocr:fetchPaddleNativeLibs` reads `core/ocr/paddle-manifest.json`, verifies each file's SHA-256 and writes it into `core/ocr/src/main/jniLibs/<abi>/` (git-ignored). Models download at runtime, opt-in and checksum-verified.
+- **`:core:ocr`** — the OCR pipeline, running PaddleOCR **PP-OCRv6 small** models through an **ONNX Runtime** backend (MIT). `libpaddle_ocr.so` (our own Apache-2.0 JNI shim over ORT's C API) and its `libonnxruntime.so` / `libomp.so` runtime deps are **fetched, not built**: `./gradlew :core:ocr:fetchPaddleNativeLibs` reads `core/ocr/paddle-manifest.json`, verifies each file's SHA-256 and writes it into `core/ocr/src/main/jniLibs/<abi>/` (git-ignored). Models (`.onnx` + dict) download at runtime, opt-in and checksum-verified. Because ORT publishes `x86_64` and the ONNX graphs are architecture-independent, **OCR now works on `arm64-v8a`, `armeabi-v7a` and `x86_64`** — the old "OCR unavailable on x86_64" limitation is gone.
 - **ABIs** — one set for every native artifact: `arm64-v8a`, `armeabi-v7a`, `x86_64`; 32-bit `x86` is dropped. Set identically in both modules' `ndk.abiFilters` and in `app/build.gradle.kts` `splits.abi`; the universal APK still carries all three.
 - **`maven/`** — an in-repo Maven repository declared in `settings.gradle.kts` and holding the vendored `komi-kun/webgpuviewer` fork AAR (tag `ocr-accessors-1`, MIT). It exists because JitPack cannot build that AGP 9.x fork; delete `maven/` and its repository line once the accessors land upstream.
 - **GPL boundary** — `./gradlew verifyGplFree` (wrapping `scripts/verify-gpl-free.sh`) fails if any GPL-free seam file imports a GPL package. Keep it green whenever you touch a seam file.
-- **Maintenance skills** — the recurring upkeep for this port is scripted under `.agents/skills/`: `immersion-deps-sync` (bump the `hoshidicts` submodule, rebuild the `webgpuviewer` fork AAR in `maven/`, track Chimahon), `ocr-model-release` (build/publish the Paddle artifact), `yomitan-corpus-sync` (refresh the conformance corpus), and `gpl-boundary` (this boundary + the licensing artifacts).
+- **Maintenance skills** — the recurring upkeep for this port is scripted under `.agents/skills/`: `immersion-deps-sync` (bump the `hoshidicts` submodule, rebuild the `webgpuviewer` fork AAR in `maven/`, track Chimahon), `ocr-model-release` (build/publish the OCR native artifact), `yomitan-corpus-sync` (refresh the conformance corpus), and `gpl-boundary` (this boundary + the licensing artifacts).
 
 ---
 
@@ -276,7 +276,7 @@ Gradle `-P` flags (`buildSrc/src/main/kotlin/mihon/buildlogic/BuildConfig.kt`):
 ./gradlew installDebug                     # install to device/emulator
 ./gradlew :data:generateSqlDelightInterface  # after .sq / .sqm changes
 ./gradlew verifyGplFree                    # GPL-free boundary check (scripts/verify-gpl-free.sh)
-./gradlew :core:ocr:fetchPaddleNativeLibs  # fetch + verify the Paddle .so trio (not part of assemble)
+./gradlew :core:ocr:fetchPaddleNativeLibs  # fetch + verify the OCR native libs (auto-invoked by assemble*)
 ```
 
 **Parallel builds.** When more than one build/agent runs in the same project directory, serialise Gradle with a shared lock so the daemon and the git index never race: `flock /tmp/opencode/gradle.lock ./gradlew <tasks>`. The Yomitan/OCR port follows this convention (`docs/design/implementation/AGENT-RUNBOOK.md`).
