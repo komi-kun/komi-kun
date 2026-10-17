@@ -24,6 +24,7 @@ import androidx.compose.ui.platform.LocalContext
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.presentation.more.settings.Preference
+import eu.kanade.tachiyomi.ui.dictionary.DictionaryAudioSettingsScreen
 import eu.kanade.tachiyomi.ui.dictionary.DictionaryBackupImportScreen
 import eu.kanade.tachiyomi.ui.dictionary.DictionaryImportCoordinator
 import eu.kanade.tachiyomi.ui.dictionary.DictionaryPreferences
@@ -243,6 +244,18 @@ object SettingsDictionaryScreen : SearchableSettings {
                     ),
                 ),
             ),
+            // KUN -->
+            Preference.PreferenceGroup(
+                title = stringResource(KMR.strings.pref_category_dictionary_audio),
+                preferenceItems = listOf(
+                    Preference.PreferenceItem.TextPreference(
+                        title = stringResource(KMR.strings.pref_category_dictionary_audio),
+                        subtitle = stringResource(KMR.strings.pref_dictionary_audio_summary),
+                        onClick = { navigator.push(DictionaryAudioSettingsScreen()) },
+                    ),
+                ),
+            ),
+            // KUN <--
         )
     }
 
