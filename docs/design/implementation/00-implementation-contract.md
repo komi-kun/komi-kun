@@ -524,8 +524,8 @@ Where an implementer reads a plan that contradicts this file, follow the contrac
    native artifacts and the splits (fallback in §1.5). Confirm device priority.
 2. **Import progress** — ship coarse phases (frozen) now, or patch a C progress callback into the
    `hoshidicts` fork now? (01 §9-R4.)
-3. **Paddle fine-tune** — is the `manga_det/rec_fp16` provenance licensed? Until confirmed, official
-   PaddleOCR models only (03 §7.1-R1).
+3. **Paddle fine-tune — resolved.** Only the official PaddleOCR PP-OCRv6 `small` models ship; the
+   `manga_det/rec_fp16` fine-tune is not used (03 §7.2-R1).
 4. **Anki scope** — Phase 6 remains last; confirm the Yomitan-canonical marker catalog + `// KUN` extras
    decision (05 §B2).
 5. **AnkiDroid `:core:dictionary` dependency** — `com.ichi2.anki:api` is GPL-3.0; keep it optional/Phase 6.
