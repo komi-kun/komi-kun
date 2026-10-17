@@ -246,7 +246,18 @@ fun DictionaryEntryWebView(
                 webView.isLongClickable = true
                 webView.isFocusable = true
                 webView.isFocusableInTouchMode = true
-                if (requestFocusOnMount) webView.requestFocus()
+                // KUN -->
+                // `factory` runs before the WebView is attached to a window, and `requestFocus()`
+                // before attach is a no-op. Re-request it once the first attach pass has run, so the
+                // WebView really does hold focus and a long-press starts text selection (and the
+                // system selection toolbar) rather than being handed to another focused view.
+                if (requestFocusOnMount) {
+                    webView.requestFocus()
+                    webView.post {
+                        if (webView.isAttachedToWindow && !webView.hasFocus()) webView.requestFocus()
+                    }
+                }
+                // KUN <--
                 // KUN -->
                 // No `setOnLongClickListener`: a View-level long-click listener makes the WebView
                 // swallow the long-press before its internal gesture detector can start text

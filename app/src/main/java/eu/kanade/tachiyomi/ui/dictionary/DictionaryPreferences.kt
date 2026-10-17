@@ -40,6 +40,14 @@ class DictionaryPreferences(
     fun popupSwipeToDismiss() = preferenceStore.getBoolean("pref_dictionary_popup_swipe_to_dismiss", true)
     fun popupSwipeThreshold() = preferenceStore.getInt("pref_dictionary_popup_swipe_threshold", 56)
 
+    /**
+     * Whether the popup's "long-press to select" hint has been dismissed.
+     *
+     * The entry text is selectable through the WebView's own long-press selection, but nothing in
+     * the popup said so; the hint is shown until the user acknowledges it once.
+     */
+    fun selectionHintDismissed() = preferenceStore.getBoolean("pref_dictionary_selection_hint_dismissed", false)
+
     fun themeMode(): Preference<String> {
         // One-time migration from the old boolean pref.
         val oldPref = preferenceStore.getBoolean("pref_dictionary_theme_dark_amoled", false)
