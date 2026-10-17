@@ -8,6 +8,11 @@
 //  (review iteration 2)
 //  - the synchronous `isPaddleDownloaded` gate checks size only (cheap, main-thread safe),
 //  - a user archive installs only the required model files (no planted `.so` / arbitrary paths).
+//  (review iteration 3)
+//  - concurrent triggers are coalesced by a single-flight gate,
+//  - the cached-manifest fast path is refused for a manifest from another release,
+//  - pending/re-fetch and cached-manifest decisions are pure + unit-tested,
+//  - a staged import is verified (hash-before-copy) before it can touch the engine directory.
 // KUN <--
 package mihon.core.ocr.paddle
 
@@ -135,6 +140,120 @@ class ModelDownloaderTest {
         File(modelsDir, "lib/arm64-v8a/libevil.so").exists() shouldBe false
         File(modelsDir, "lib").exists() shouldBe false
         File(modelsDir, "README.txt").exists() shouldBe false
+    }
+
+    @Test
+    fun `SingleFlightGate coalesces concurrent triggers until released`() {
+        val gate = SingleFlightGate()
+
+        gate.tryAcquire() shouldBe true
+        gate.tryAcquire() shouldBe false
+        gate.tryAcquire() shouldBe false
+
+        gate.release()
+        gate.tryAcquire() shouldBe true
+    }
+
+    @Test
+    fun `cachedManifestIsCurrent rejects a manifest from another release`() {
+        val current = OcrModelManifest(release = "ocr-models-v3", baseUrl = "https://x/ocr-models-v3")
+        val old = OcrModelManifest(release = "ocr-models-v2", baseUrl = "https://x/ocr-models-v2")
+
+        cachedManifestIsCurrent(current, "ocr-models-v3", "https://x/ocr-models-v3") shouldBe true
+        cachedManifestIsCurrent(old, "ocr-models-v3", "https://x/ocr-models-v3") shouldBe false
+        // `baseUrl` is the fallback identifier when the manifest omits `release`.
+        cachedManifestIsCurrent(
+            OcrModelManifest(baseUrl = "https://x/ocr-models-v3"),
+            "ocr-models-v3",
+            "https://x/ocr-models-v3",
+        ) shouldBe true
+    }
+
+    @Test
+    fun `cachedManifestIsUsable requires the pinned release and verified files`(@TempDir dir: File) {
+        val det = File(dir, detName).apply { writeBytes("det".toByteArray()) }
+        val rec = File(dir, recName).apply { writeBytes("rec".toByteArray()) }
+        val dict = File(dir, dictName).apply { writeBytes("dict".toByteArray()) }
+        val names = listOf(detName, recName, dictName)
+        val manifest = OcrModelManifest(
+            release = "ocr-models-v3",
+            baseUrl = "https://x/ocr-models-v3",
+            files = listOf(
+                OcrModelFile(name = detName, sha256 = sha256Hex(det), size = det.length()),
+                OcrModelFile(name = recName, sha256 = sha256Hex(rec), size = rec.length()),
+                OcrModelFile(name = dictName, sha256 = sha256Hex(dict), size = dict.length()),
+            ),
+        )
+
+        cachedManifestIsUsable(manifest, "ocr-models-v3", "https://x/ocr-models-v3", dir, names) shouldBe true
+        // A cached manifest from a newer release must not be trusted even when the files verify.
+        cachedManifestIsUsable(manifest, "ocr-models-v4", "https://x/ocr-models-v4", dir, names) shouldBe false
+        // A same-size but corrupt file fails verification (the fast path is refused, so it re-fetches).
+        File(dir, dictName).writeBytes("junk".toByteArray())
+        cachedManifestIsUsable(manifest, "ocr-models-v3", "https://x/ocr-models-v3", dir, names) shouldBe false
+    }
+
+    @Test
+    fun `requiredModelsVerified is false when a model is missing or corrupt`(@TempDir dir: File) {
+        val det = File(dir, detName).apply { writeBytes("det".toByteArray()) }
+        val manifest = OcrModelManifest(
+            files = listOf(OcrModelFile(name = detName, sha256 = sha256Hex(det), size = det.length())),
+        )
+
+        requiredModelsVerified(manifest, dir, listOf(detName)) shouldBe true
+        requiredModelsVerified(manifest, dir, listOf(detName, recName)) shouldBe false
+
+        File(dir, detName).writeBytes("d".toByteArray())
+        requiredModelsVerified(manifest, dir, listOf(detName)) shouldBe false
+    }
+
+    @Test
+    fun `pendingModelEntries returns only the missing or mismatched files`(@TempDir dir: File) {
+        val good = File(dir, detName).apply { writeBytes("good".toByteArray()) }
+        val entries = listOf(
+            OcrModelFile(name = detName, sha256 = sha256Hex(good), size = good.length()) to "u1",
+            OcrModelFile(name = recName, sha256 = "0".repeat(64), size = 0) to "u2",
+            OcrModelFile(name = dictName, sha256 = "0".repeat(64), size = 0) to "u3",
+        )
+
+        val pending = pendingModelEntries(entries, dir)
+
+        // detName verifies and is kept; the two absent files are pending.
+        pending.map { it.first.name } shouldContainExactly listOf(recName, dictName)
+    }
+
+    @Test
+    fun `verifyStagedModels rejects a staged archive before it is installed`(@TempDir dir: File) {
+        val scratch = File(dir, "scratch").apply { mkdirs() }
+        val staged = File(scratch, detName).apply { writeBytes("det".toByteArray()) }
+        val manifest = OcrModelManifest(
+            files = listOf(OcrModelFile(name = detName, sha256 = "0".repeat(64), size = staged.length())),
+        )
+
+        runCatching { verifyStagedModels(scratch, manifest, listOf(detName)) }.isFailure shouldBe true
+        runCatching {
+            verifyStagedModels(scratch, OcrModelManifest(), listOf(detName))
+        }.isFailure shouldBe true
+    }
+
+    @Test
+    fun `verifyStagedModels accepts a staged archive that matches the manifest`(@TempDir dir: File) {
+        val scratch = File(dir, "scratch").apply { mkdirs() }
+        val staged = File(scratch, detName).apply { writeBytes("det".toByteArray()) }
+        val manifest = OcrModelManifest(
+            files = listOf(OcrModelFile(name = detName, sha256 = sha256Hex(staged), size = staged.length())),
+        )
+
+        runCatching { verifyStagedModels(scratch, manifest, listOf(detName)) }.isSuccess shouldBe true
+    }
+
+    @Test
+    fun `findModelFile matches a nested model by name`(@TempDir dir: File) {
+        val nested = File(dir, "models").apply { mkdirs() }
+        val model = File(nested, detName).apply { writeText("det") }
+
+        findModelFile(dir, detName) shouldBe model
+        findModelFile(dir, "nope.onnx") shouldBe null
     }
 
     private fun zipOf(vararg entries: Pair<String, String>): ByteArray {

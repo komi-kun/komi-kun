@@ -14,6 +14,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.icerock.moko.resources.StringResource
 import eu.kanade.presentation.more.settings.Preference
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
@@ -21,6 +22,7 @@ import kotlinx.coroutines.launch
 import mihon.app.di.appGraph
 import mihon.core.ocr.OcrPreferences
 import mihon.core.ocr.cache.OcrCacheManager
+import mihon.core.ocr.paddle.ModelDownloadState
 import mihon.core.ocr.paddle.ModelDownloader
 import tachiyomi.core.common.ocr.ReaderOcrSource
 import tachiyomi.core.common.preference.AndroidPreferenceStore
@@ -58,7 +60,23 @@ object SettingsOcrScreen : SearchableSettings {
         val readerPreferences = remember { ReaderPreferences(AndroidPreferenceStore(context)) }
         val cacheManager = remember { OcrCacheManager(context, json) }
         val modelDownloader = remember { ModelDownloader(context, context.appGraph.networkHelper.client, json) }
+        val downloadState by modelDownloader.state.collectAsStateWithLifecycle()
         val scope = rememberCoroutineScope()
+
+        // Runtime model-download status (contract §1.7). `isPaddleDownloaded` is a cheap synchronous
+        // gate; the state flow adds live progress and makes a first-time failure visible instead of
+        // silent (the download itself is triggered opt-in on Paddle selection below).
+        val modelsReady = remember(downloadState) {
+            downloadState == ModelDownloadState.Completed || modelDownloader.isPaddleDownloaded
+        }
+        val modelStatus = when (val state = downloadState) {
+            is ModelDownloadState.Failed -> stringResource(KMR.strings.ocr_status_error)
+            is ModelDownloadState.Downloading ->
+                stringResource(KMR.strings.ocr_running) + " (${state.downloaded}/${state.total})"
+            ModelDownloadState.Completed -> stringResource(KMR.strings.ocr_ready)
+            ModelDownloadState.Idle ->
+                if (modelsReady) stringResource(KMR.strings.ocr_ready) else stringResource(KMR.strings.ocr_not_ready)
+        }
 
         var cacheSizeText by remember { mutableStateOf<String?>(null) }
         var showClearDialog by remember { mutableStateOf(false) }
@@ -115,6 +133,13 @@ object SettingsOcrScreen : SearchableSettings {
                     }
                     true
                 },
+            ),
+
+            // Model download status (contract §1.7): a first-time download's progress and any
+            // failure are surfaced here rather than being silent.
+            Preference.PreferenceItem.TextPreference(
+                title = stringResource(KMR.strings.pref_ocr_model_status),
+                subtitle = modelStatus,
             ),
 
             // Overlay master switch: the same key the reader gates on (fix B3).
