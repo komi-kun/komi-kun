@@ -57,5 +57,6 @@ dependencies {
     implementation(kotlinx.coroutines.core)
 
     testImplementation(libs.bundles.test)
+    testImplementation(kotlinx.serialization.json)
     testRuntimeOnly(libs.junit.platform.launcher)
 }
