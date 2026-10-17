@@ -10,6 +10,7 @@ import eu.kanade.tachiyomi.util.system.buildNotificationChannel
 import eu.kanade.tachiyomi.util.system.buildNotificationChannelGroup
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.i18n.MR
+import tachiyomi.i18n.kmk.KMR
 import tachiyomi.i18n.kmk.R
 
 /**
@@ -97,6 +98,20 @@ object Notifications {
     const val ID_APP_INSTALLED = 5
     // KMK <--
 
+    // KUN -->
+    /**
+     * Notification channels and ids used by the dictionary updater and the OCR pipeline.
+     * (W2 owns this file; W3 supplies the OCR side — contract §3.1.)
+     */
+    private const val GROUP_DICTIONARY_AND_OCR = "group_dictionary_and_ocr"
+    const val CHANNEL_DICTIONARY_UPDATE = "dictionary_update_channel"
+    const val ID_DICTIONARY_UPDATE = -801
+    const val ID_DICTIONARY_UPDATE_ERROR = -802
+    const val CHANNEL_OCR = "ocr_channel"
+    const val ID_OCR_PROGRESS = -901
+    const val ID_OCR_ERROR = -902
+    // KUN <--
+
     const val CHANNEL_EXTENSIONS_UPDATE = "ext_apk_update_channel"
     const val ID_UPDATES_TO_EXTS = -401
     const val ID_EXTENSION_INSTALLER = -402
@@ -139,6 +154,11 @@ object Notifications {
                 buildNotificationChannelGroup(GROUP_APK_UPDATES) {
                     setName(context.stringResource(MR.strings.label_recent_updates))
                 },
+                // KUN -->
+                buildNotificationChannelGroup(GROUP_DICTIONARY_AND_OCR) {
+                    setName(context.stringResource(KMR.strings.pref_category_dictionaries_and_audio))
+                },
+                // KUN <--
             ),
         )
 
@@ -209,6 +229,18 @@ object Notifications {
                     setShowBadge(false)
                 },
                 // SY <--
+                // KUN -->
+                buildNotificationChannel(CHANNEL_DICTIONARY_UPDATE, IMPORTANCE_LOW) {
+                    setName(context.stringResource(KMR.strings.channel_dictionary_update))
+                    setGroup(GROUP_DICTIONARY_AND_OCR)
+                    setShowBadge(false)
+                },
+                buildNotificationChannel(CHANNEL_OCR, IMPORTANCE_LOW) {
+                    setName(context.stringResource(KMR.strings.pref_category_ocr))
+                    setGroup(GROUP_DICTIONARY_AND_OCR)
+                    setShowBadge(false)
+                },
+                // KUN <--
             ),
         )
     }

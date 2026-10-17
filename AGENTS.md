@@ -116,6 +116,8 @@ Version catalogs in `gradle/`: `libs.versions.toml`, `kotlinx.versions.toml`, `a
 | `core:common/` | Network (OkHttp), security, storage, shared utils |
 | `core:metro/` | Shared Metro helpers (`mihon.core.metro`: `GraphProvider`, `AppCoroutineScope`, `IsDebugBuild`) |
 | `core:archive/` | CBZ/archive reading with optional encryption |
+| `core:dictionary/` | **GPL-3.0-or-later** — vendored `hoshidicts` engine (nested git submodule + NDK/CMake + JNI) and the Kotlin dictionary facade (`mihon.core.dictionary`) |
+| `core:ocr/` | **GPL-3.0-or-later** — PaddleOCR models on an ONNX Runtime backend + `.mokuro` OCR pipeline, box merge and overlay math (`mihon.core.ocr`); its native `.so`s are fetched, not built (see [Licensing & native modules](#licensing--native-modules)) |
 | `core-metadata/` | Comic-info metadata parsing |
 | `source-api/` / `source-local/` | Extension `Source` API + local source |
 | `presentation-core/` | Shared Compose components |
@@ -127,15 +129,15 @@ Version catalogs in `gradle/`: `libs.versions.toml`, `kotlinx.versions.toml`, `a
 | `baseline-profile/` | Baseline profile and startup benchmark generation (CI-only) |
 | `buildSrc/` | Convention plugins and build logic |
 
-Dependency flow: `app` → `domain` → `source-api`; `data` implements `domain` repos.
+Dependency flow: `app` → `domain` → `source-api`; `data` implements `domain` repos. `:app` also depends on the two **GPL-3.0** modules `:core:dictionary` and `:core:ocr`; those two are independent and must **never** depend on each other (see [Licensing & native modules](#licensing--native-modules)).
 
-Package roots: `eu.kanade.tachiyomi.*` (legacy UI), `tachiyomi.*` (domain/data), `mihon.*` (Mihon's newer package root — also used by komi-kun code, e.g. `mihon.feature.*`), `exh.*` (enhanced sources, SY).
+Package roots: `eu.kanade.tachiyomi.*` (legacy UI), `tachiyomi.*` (domain/data), `mihon.*` (Mihon's newer package root — also used by komi-kun code, e.g. `mihon.feature.*`, `mihon.core.dictionary.*`, `mihon.core.ocr.*`), `exh.*` (enhanced sources, SY).
 
 ---
 
 ## Architecture
 
-**DI** – [Metro](https://zacsweers.github.io/metro/), not Hilt/Injekt. The graph is `mihon/app/di/AppGraph.kt` (`@DependencyGraph`) with providers/bindings in `mihon/app/di/AppBindings.kt`; it is built in `App.kt` (`createGraphFactory<AppGraph.Factory>().create(...)`) and reached as `context.appGraph` or by injecting `AppGraph`. Most classes need only `@Inject` on the constructor (interactors, repositories, services); use `@Provides`/`@Binds` in `AppBindings` for third-party or interface types, and `@ContributesIntoMap` / `@ContributesIntoSet` for maps/sets. Parameterised types use `@AssistedInject` + `@AssistedFactory`. Extension-facing code still resolves through the Injekt interop bridge (`mihon/app/di/injekt/`).
+**DI** – [Metro](https://zacsweers.github.io/metro/), not Hilt/Injekt. The graph is `mihon/app/di/AppGraph.kt` (`@DependencyGraph`) with providers/bindings in `mihon/app/di/AppBindings.kt`; it is built in `App.kt` (`createGraphFactory<AppGraph.Factory>().create(...)`) and reached as `context.appGraph` or by injecting `AppGraph`. Most classes need only `@Inject` on the constructor (interactors, repositories, services); use `@Provides`/`@Binds` in `AppBindings` for third-party or interface types, and `@ContributesIntoMap` / `@ContributesIntoSet` for maps/sets. Parameterised types use `@AssistedInject` + `@AssistedFactory`. Feature bindings live in per-feature Metro `@BindingContainer` objects registered once in `AppGraph.bindingContainers` (`DictionaryBindings`, `OcrBindings`, `DictionaryHostBindings`, `OcrHostBindings`), and feature impls are contributed with `@ContributesBinding(AppScope::class)` — this keeps the GPL modules' wiring out of the shared `AppBindings`. Extension-facing code still resolves through the Injekt interop bridge (`mihon/app/di/injekt/`).
 
 **UI & navigation** – Voyager `Screen`s in `eu.kanade.tachiyomi.ui.*`, composables in `eu.kanade.presentation.*`. Base type: `eu.kanade.presentation.util.Screen` (in `Navigator.kt`). State lives in **Metro ViewModels** obtained with `metroViewModel<VM>()` or `assistedMetroViewModel<VM, Factory> { create(...) }`; they extend `androidx.lifecycle.ViewModel`, expose a `StateFlow` / `MutableStateFlow` (often a `State` data class) and run work in `viewModelScope`. Example: `NewUpdateScreen` + `NewUpdateViewModel` in `app/src/main/java/eu/kanade/tachiyomi/ui/more/`.
 
@@ -159,6 +161,19 @@ Package roots: `eu.kanade.tachiyomi.*` (legacy UI), `tachiyomi.*` (domain/data),
 
 ---
 
+## Licensing & native modules
+
+komi-kun's own code is Apache-2.0, but the Yomitan/dictionary/OCR port adds two **GPL-3.0-or-later** modules, so the combined distribution is **GPL-3.0-or-later** while upstream-derived files keep their Apache-2.0 headers. See `NOTICE` and `LICENSES/GPL-3.0-or-later.txt`. The GPL-free seam files (listed in the implementation contract §1.3) stay Apache-2.0 so they can be contributed back to Komikku.
+
+- **`:core:dictionary`** — the vendored `hoshidicts` C++ engine, added as a nested git submodule (`.gitmodules`; pin recorded in `core/dictionary/README.md`) and built with NDK/CMake behind a JNI bridge.
+- **`:core:ocr`** — the OCR pipeline, running PaddleOCR **PP-OCRv6 small** models through an **ONNX Runtime** backend (MIT). `libpaddle_ocr.so` (our own Apache-2.0 JNI shim over ORT's C API) and its `libonnxruntime.so` / `libomp.so` runtime deps are **fetched, not built**: `./gradlew :core:ocr:fetchPaddleNativeLibs` reads `core/ocr/paddle-manifest.json`, verifies each file's SHA-256 and writes it into `core/ocr/src/main/jniLibs/<abi>/` (git-ignored). Models (`.onnx` + dict) download at runtime, opt-in and checksum-verified. Because ORT publishes `x86_64` and the ONNX graphs are architecture-independent, **OCR now works on `arm64-v8a`, `armeabi-v7a` and `x86_64`** — the old "OCR unavailable on x86_64" limitation is gone.
+- **ABIs** — one set for every native artifact: `arm64-v8a`, `armeabi-v7a`, `x86_64`; 32-bit `x86` is dropped. Set identically in both modules' `ndk.abiFilters` and in `app/build.gradle.kts` `splits.abi`; the universal APK still carries all three.
+- **`maven/`** — an in-repo Maven repository declared in `settings.gradle.kts` and holding the vendored `komi-kun/webgpuviewer` fork AAR (tag `ocr-accessors-1`, MIT). It exists because JitPack cannot build that AGP 9.x fork; delete `maven/` and its repository line once the accessors land upstream.
+- **GPL boundary** — `./gradlew verifyGplFree` (wrapping `scripts/verify-gpl-free.sh`) fails if any GPL-free seam file imports a GPL package. Keep it green whenever you touch a seam file.
+- **Maintenance skills** — the recurring upkeep for this port is scripted under `.agents/skills/`: `immersion-deps-sync` (bump the `hoshidicts` submodule, rebuild the `webgpuviewer` fork AAR in `maven/`, track Chimahon), `ocr-model-release` (build/publish the OCR native artifact), `yomitan-corpus-sync` (refresh the conformance corpus), and `gpl-boundary` (this boundary + the licensing artifacts).
+
+---
+
 ## Extensions & sources
 
 - Catalog sources: installable APK extensions (not in this repo).
@@ -169,7 +184,7 @@ Package roots: `eu.kanade.tachiyomi.*` (legacy UI), `tachiyomi.*` (domain/data),
 
 ## Adding a komi-kun feature
 
-1. **Interactor:** `domain/src/main/java/tachiyomi/domain/<area>/interactor/MyFeature.kt`, annotated `@Inject` (Metro resolves it; add a `@Provides` / `@Binds` to `mihon/app/di/AppBindings.kt` only if it needs manual wiring)
+1. **Interactor:** `domain/src/main/java/tachiyomi/domain/<area>/interactor/MyFeature.kt`, annotated `@Inject` (Metro resolves it; add a `@Provides` / `@Binds` to `mihon/app/di/AppBindings.kt` — or a feature `@BindingContainer`, as the GPL dictionary/OCR modules do — only if it needs manual wiring)
 2. **UI:** Metro ViewModel + `Screen` under `app/src/main/java/eu/kanade/tachiyomi/ui/` (see [Architecture](#architecture))
 3. **Strings:** `i18n-kmk/src/commonMain/moko-resources/base/strings.xml`, referenced via `KMR`
 4. **Markers:** wrap edits to existing files in `// KUN -->` / `// KUN <--`
@@ -203,7 +218,11 @@ Gradle `-P` flags (`buildSrc/src/main/kotlin/mihon/buildlogic/BuildConfig.kt`):
 ./gradlew test                             # all unit tests
 ./gradlew installDebug                     # install to device/emulator
 ./gradlew :data:generateSqlDelightInterface  # after .sq / .sqm changes
+./gradlew verifyGplFree                    # GPL-free boundary check (scripts/verify-gpl-free.sh)
+./gradlew :core:ocr:fetchPaddleNativeLibs  # fetch + verify the OCR native libs (auto-invoked by assemble*)
 ```
+
+**Parallel builds.** When more than one build/agent runs in the same project directory, serialise Gradle with a shared lock so the daemon and the git index never race: `flock /tmp/opencode/gradle.lock ./gradlew <tasks>`. The Yomitan/OCR port follows this convention (`docs/design/implementation/AGENT-RUNBOOK.md`).
 
 **Workflows** (`.github/workflows/`):
 - `build_pull_request.yml` – PR validation: dependency review → wrapper validation → `spotlessCheck` → `assembleNightly` → `testDebugUnitTest` → APK signing (authorized forks)
@@ -232,6 +251,9 @@ Gradle `-P` flags (`buildSrc/src/main/kotlin/mihon/buildlogic/BuildConfig.kt`):
 - `app/src/main/java/mihon/app/di/AppBindings.kt` – `@Provides` / `@Binds` / contributed bindings
 - `buildSrc/src/main/kotlin/mihon/buildlogic/BuildConfig.kt`, `AndroidConfig.kt` – flags, SDK versions
 - `app/build.gradle.kts`, `settings.gradle.kts`
+- `NOTICE`, `LICENSES/GPL-3.0-or-later.txt` – licensing artifacts for the GPL dictionary/OCR port
+- `scripts/verify-gpl-free.sh` – `verifyGplFree` GPL-free boundary check
+- `core/dictionary/README.md`, `core/ocr/README.md` – pins, layout and provenance for the GPL native modules
 - `CONTRIBUTING.md` – prerequisites and contribution process
 
 ---

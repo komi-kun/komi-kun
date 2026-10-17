@@ -3,6 +3,12 @@
 #.vscode
 .kotlin
 build
+# KUN -->
+# AGP's default externalNativeBuild staging directory (lives in the module root).
+.cxx
+# Paddle OCR native libs fetched by :core:ocr:fetchPaddleNativeLibs (contract §1.7).
+core/ocr/src/main/jniLibs/
+# KUN <--
 
 # IDE files
 *.iml

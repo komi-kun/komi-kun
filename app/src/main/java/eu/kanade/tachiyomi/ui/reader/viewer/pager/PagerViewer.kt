@@ -18,6 +18,7 @@ import eu.kanade.tachiyomi.ui.reader.model.InsertPage
 import eu.kanade.tachiyomi.ui.reader.model.ReaderItem
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import eu.kanade.tachiyomi.ui.reader.model.ViewerChapters
+import eu.kanade.tachiyomi.ui.reader.ocr.OcrViewport
 import eu.kanade.tachiyomi.ui.reader.viewer.Viewer
 import eu.kanade.tachiyomi.ui.reader.viewer.ViewerNavigation.NavigationRegion
 import kotlinx.coroutines.MainScope
@@ -135,13 +136,19 @@ abstract class PagerViewer(
                 NavigationRegion.LEFT -> moveLeft()
             }
         }
-        pager.longTapListener = f@{
+        pager.longTapListener = f@{ event ->
             if (activity.viewModel.state.value.menuVisible || config.longTapEnabled) {
                 val item = adapter.joinedItems.getOrNull(pager.currentItem)
                 val firstPage = item?.first as? ReaderPage
                 val secondPage = item?.second as? ReaderPage
                 if (firstPage is ReaderPage) {
-                    activity.onPageLongTap(firstPage, secondPage)
+                    // KUN -->
+                    activity.onPageLongTap(
+                        firstPage,
+                        secondPage,
+                        activity.toOverlayPoint(pager, event.x, event.y),
+                    )
+                    // KUN <--
                     return@f true
                 }
             }
@@ -192,6 +199,18 @@ abstract class PagerViewer(
         pager.children
             .filterIsInstance<PagerPageHolder>()
             .firstOrNull { it.item.first == page || it.item.second == page }
+
+    // KUN -->
+    private val ocrViewportRef by lazy {
+        SsivOcrViewport(activity) { ocrCurrentHolder() }
+    }
+
+    override fun ocrViewport(): OcrViewport? = ocrViewportRef
+
+    /** Holder of the currently selected item, for the OCR viewport. */
+    private fun ocrCurrentHolder(): PagerPageHolder? =
+        (adapter.joinedItems.getOrNull(pager.currentItem)?.first as? ReaderPage)?.let(::getPageHolder)
+    // KUN <--
 
     /**
      * Called when a new page (either a [ReaderPage] or [ChapterTransition]) is marked as active

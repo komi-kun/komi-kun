@@ -3,6 +3,7 @@ import mihon.buildlogic.getBuildTime
 import mihon.buildlogic.getCommitCount
 import mihon.buildlogic.getGitSha
 import mihon.buildlogic.tasks.ReplaceShortcutsPlaceholderTask
+import org.gradle.api.tasks.Exec
 import java.io.FileInputStream
 import java.util.Properties
 import kotlin.io.encoding.Base64
@@ -149,7 +150,12 @@ android {
             isEnable = true
             isUniversalApk = true
             reset()
-            include("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+            // KUN -->
+            // One ABI set for all native artifacts (contract §1.5): the vendored dictionary
+            // engine and Paddle OCR both build for `arm64-v8a`/`armeabi-v7a`/`x86_64`.
+            // 32-bit `x86` (i686) is obsolete and dropped.
+            include("armeabi-v7a", "arm64-v8a", "x86_64")
+            // KUN <--
         }
     }
 
@@ -161,6 +167,12 @@ android {
                 "libconscrypt_jni",
                 "libimagedecoder",
                 "libquickjs",
+                // KUN -->
+                "libhoshidicts_jni",
+                "libpaddle_ocr",
+                "libonnxruntime",
+                "libomp",
+                // KUN <--
             )
                 .map { "**/$it.so" }
         }
@@ -242,6 +254,10 @@ dependencies {
     implementation(projects.icons.simpleIcons)
     implementation(projects.core.archive)
     implementation(projects.core.common)
+    // KUN -->
+    implementation(projects.core.dictionary)
+    implementation(projects.core.ocr)
+    // KUN <--
     implementation(projects.coreMetadata)
     implementation(projects.sourceApi)
     implementation(projects.sourceLocal)
@@ -490,6 +506,17 @@ androidComponents {
         resSource.addGeneratedSourceDirectory(replaceShortcutsPlaceholderTask) { it.outputDir }
     }
 }
+
+// KUN -->
+// GPL-free boundary check (contract §1.3/§1.9). Defined in :app so `./gradlew verifyGplFree`
+// resolves to this task, which wraps scripts/verify-gpl-free.sh so CI and local runs share one
+// code path.
+val verifyGplFree by tasks.registering(Exec::class) {
+    group = "verification"
+    description = "Fails if a GPL-free file (§1.3) imports a GPL package (§1.9)."
+    commandLine("bash", layout.settingsDirectory.file("scripts/verify-gpl-free.sh").asFile.absolutePath)
+}
+// KUN <--
 
 buildscript {
     dependencies {

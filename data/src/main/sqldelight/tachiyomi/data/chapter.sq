@@ -22,6 +22,9 @@ CREATE TABLE chapter(
     version INTEGER NOT NULL DEFAULT 0,
     is_syncing INTEGER NOT NULL DEFAULT 0,
     -- SY <--
+    -- KUN -->
+    is_ocr_ready INTEGER AS Boolean NOT NULL DEFAULT 0,
+    -- KUN <--
     UNIQUE(manga_id, remote_url),
     FOREIGN KEY(manga_id) REFERENCES manga (id)
     ON DELETE CASCADE
@@ -59,7 +62,10 @@ getChapterById:
 SELECT
     id, manga_id, remote_url, remote_name, remote_scanlator, remote_chapter_number,
     remote_date_upload, remote_order, remote_memo, user_read, user_bookmark,
-    user_last_page_read, state_date_fetch, last_modified_at, version, is_syncing
+    user_last_page_read, state_date_fetch, last_modified_at, version, is_syncing,
+    -- KUN -->
+    is_ocr_ready
+    -- KUN <--
 FROM chapter
 WHERE id = :id;
 
@@ -67,7 +73,10 @@ getChaptersByMangaId:
 SELECT
     C.id, C.manga_id, C.remote_url, C.remote_name, C.remote_scanlator, C.remote_chapter_number,
     C.remote_date_upload, C.remote_order, C.remote_memo, C.user_read, C.user_bookmark,
-    C.user_last_page_read, C.state_date_fetch, C.last_modified_at, C.version, C.is_syncing
+    C.user_last_page_read, C.state_date_fetch, C.last_modified_at, C.version, C.is_syncing,
+    -- KUN -->
+    C.is_ocr_ready
+    -- KUN <--
 FROM chapter C
 -- KMK -->
 JOIN manga M ON C.manga_id = M.id
@@ -101,7 +110,10 @@ getBookmarkedChaptersByMangaId:
 SELECT
     id, manga_id, remote_url, remote_name, remote_scanlator, remote_chapter_number,
     remote_date_upload, remote_order, remote_memo, user_read, user_bookmark,
-    user_last_page_read, state_date_fetch, last_modified_at, version, is_syncing
+    user_last_page_read, state_date_fetch, last_modified_at, version, is_syncing,
+    -- KUN -->
+    is_ocr_ready
+    -- KUN <--
 FROM chapter
 WHERE manga_id = :mangaId
 AND user_bookmark;
@@ -111,7 +123,10 @@ getChapterByUrl:
 SELECT
     id, manga_id, remote_url, remote_name, remote_scanlator, remote_chapter_number,
     remote_date_upload, remote_order, remote_memo, user_read, user_bookmark,
-    user_last_page_read, state_date_fetch, last_modified_at, version, is_syncing
+    user_last_page_read, state_date_fetch, last_modified_at, version, is_syncing,
+    -- KUN -->
+    is_ocr_ready
+    -- KUN <--
 FROM chapter
 WHERE remote_url = :chapterUrl;
 -- SY <--
@@ -120,7 +135,10 @@ getChapterByUrlAndMangaId:
 SELECT
     id, manga_id, remote_url, remote_name, remote_scanlator, remote_chapter_number,
     remote_date_upload, remote_order, remote_memo, user_read, user_bookmark,
-    user_last_page_read, state_date_fetch, last_modified_at, version, is_syncing
+    user_last_page_read, state_date_fetch, last_modified_at, version, is_syncing,
+    -- KUN -->
+    is_ocr_ready
+    -- KUN <--
 FROM chapter
 WHERE manga_id = :mangaId
 AND remote_url = :remoteUrl
@@ -130,7 +148,10 @@ LIMIT 1;
 getMergedChaptersByMangaId:
 SELECT C.id, C.manga_id, C.remote_url, C.remote_name, C.remote_scanlator, C.remote_chapter_number,
     C.remote_date_upload, C.remote_order, C.remote_memo, C.user_read, C.user_bookmark,
-    C.user_last_page_read, C.state_date_fetch, C.last_modified_at, C.version, C.is_syncing
+    C.user_last_page_read, C.state_date_fetch, C.last_modified_at, C.version, C.is_syncing,
+    -- KUN -->
+    C.is_ocr_ready
+    -- KUN <--
 FROM (
     SELECT manga_id, merge_id FROM merged WHERE merge_id = :mangaId
 ) AS M
@@ -179,12 +200,20 @@ WHERE is_syncing = 1;
 
 insert:
 INSERT INTO chapter(
-    manga_id, remote_url, remote_name, remote_scanlator, remote_chapter_number,
+    manga_id,
+    -- KUN -->
+    is_ocr_ready,
+    -- KUN <--
+    remote_url, remote_name, remote_scanlator, remote_chapter_number,
     remote_date_upload, remote_order, remote_memo, user_read, user_bookmark,
     user_last_page_read, state_date_fetch, last_modified_at, version, is_syncing
 )
 VALUES (
-    :mangaId, :remoteUrl, :remoteName, :remoteScanlator, :remoteChapterNumber,
+    :mangaId,
+    -- KUN -->
+    :isOcrReady,
+    -- KUN <--
+    :remoteUrl, :remoteName, :remoteScanlator, :remoteChapterNumber,
     :remoteDateUpload, :remoteOrder, :remoteMemo, :userRead, :userBookmark,
     :userLastPageRead, :stateDateFetch, :lastModifiedAt, :version, :isSyncing
 )
@@ -199,6 +228,9 @@ SET user_read = coalesce(:read, user_read),
     user_bookmark = coalesce(:bookmark, user_bookmark),
     user_last_page_read = coalesce(:lastPageRead, user_last_page_read),
     state_date_fetch = coalesce(:dateFetch, state_date_fetch),
+    -- KUN -->
+    is_ocr_ready = coalesce(:isOcrReady, is_ocr_ready),
+    -- KUN <--
     -- SY -->
     version = coalesce(:version, version),
     last_modified_at = coalesce(:lastModifiedAt, last_modified_at),

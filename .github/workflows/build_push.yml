@@ -30,12 +30,21 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          submodules: recursive
 
       - name: Set up JDK
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
         with:
           java-version-file: .github/.java-version
           distribution: temurin
+
+      # KUN -->
+      - name: Provision native toolchain
+        run: |
+          SDKMANAGER="${ANDROID_HOME:-/usr/local/lib/android/sdk}/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
+          "$SDKMANAGER" "ndk;29.0.14206865" "cmake;3.22.1"
+      # KUN <--
 
       - name: Check optional secrets
         id: opt_secrets
@@ -67,6 +76,13 @@ jobs:
 
       - name: Set up gradle
         uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6
+
+      # KUN -->
+      # GPL-free boundary gate (contract §1.3/§1.9). Text-only, needs no NDK/CMake, but the full
+      # checkout (submodules: recursive, above) is what makes the §1.3 files present.
+      - name: Verify GPL-free boundary
+        run: ./gradlew verifyGplFree
+      # KUN <--
 
       - name: Check code format
         run: ./gradlew spotlessCheck

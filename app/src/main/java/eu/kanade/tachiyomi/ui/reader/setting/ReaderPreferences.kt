@@ -212,6 +212,35 @@ class ReaderPreferences(
 
     // endregion
 
+    // KUN -->
+    // region OCR (komi-kun Yomitan/OCR port)
+
+    // Single source of truth for the reader-facing OCR **display** toggles (fix B3). The reader is
+    // GPL-free (§1.3) and cannot import `mihon.core.ocr`'s `OcrPreferences`, so anything the reader
+    // gates or draws lives here; the OCR **queue/source policy** lives in `OcrPreferences` instead
+    // (it is read by `:core:ocr` services, which cannot see this class).
+
+    /**
+     * Master switch for the reader OCR overlay. When off, no overlay is drawn and a long-press
+     * behaves exactly as upstream (page actions). Also toggled by the reader bottom-bar OCR button.
+     */
+    val ocrOverlayEnabled = preferenceStore.getBoolean("pref_reader_ocr_overlay_enabled", false)
+
+    /** Whether the passive OCR block outlines are drawn (Settings "Show OCR outlines"). */
+    val ocrOutlineVisible = preferenceStore.getBoolean("pref_reader_ocr_outline_visible", true)
+
+    /** Whether the tapped OCR block is highlighted while its dictionary popup is open. */
+    val ocrActiveBlockHighlight = preferenceStore.getBoolean("pref_reader_ocr_active_block_highlight", true)
+
+    /** Passive OCR box scale, in percent (100 = tight around the detected block). */
+    val ocrBoxScale = preferenceStore.getInt("pref_reader_ocr_box_scale", 100)
+
+    /** Allow a two-finger tap to toggle the OCR overlay. */
+    val ocrTwoFingerGestureEnabled = preferenceStore.getBoolean("pref_reader_ocr_two_finger_gesture", false)
+
+    // endregion
+    // KUN <--
+
     // SY -->
 
     val readerThreads = preferenceStore.getInt("eh_reader_threads", 2)

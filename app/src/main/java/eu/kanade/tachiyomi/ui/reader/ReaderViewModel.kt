@@ -246,6 +246,22 @@ class ReaderViewModel(
         }
     }
 
+    // KUN -->
+    // region OCR (komi-kun Yomitan/OCR port). GPL-free: only the Apache reader preferences are
+    // touched here; the actual OCR services live behind the ReaderOcrHost seam and the
+    // Downloader/worker wiring. The per-manga OCR **source** policy is owned by `OcrPreferences`
+    // (`:core:ocr`), which `ReaderViewModel` must not import — no duplicate lives here (fix B3).
+
+    /** Toggles the reader OCR overlay and returns its new state. */
+    fun toggleOcrOverlay(): Boolean {
+        val enabled = !readerPreferences.ocrOverlayEnabled.get()
+        readerPreferences.ocrOverlayEnabled.set(enabled)
+        return enabled
+    }
+
+    // endregion
+    // KUN <--
+
     /**
      * @param chapter the chapter to download.
      */
