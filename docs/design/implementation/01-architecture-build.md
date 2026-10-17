@@ -46,6 +46,11 @@ makes the combined work Apache-clean.
 | `:core:dictionary` | `core/dictionary/` | `mihon.core.dictionary` | **GPL-3.0** | Contains the vendored GPL engine, its JNI, the ported Chimahon Kotlin, and the GPL Yomitan renderer assets. Single GPL "blast radius". |
 | `:core:ocr` | `core/ocr/` | `mihon.core.ocr` | **Apache-2.0** | PaddleOCR + `.mokuro` + box-merge + overlay math are **GPL-free** → this module (and the reader hunks that use it) stay upstream-contributable. Must **not** import `:core:dictionary`. |
 
+> **Superseded (2026):** this plan predates the OCR backend migration. The module described here now
+> runs **ONNX Runtime + PP-OCRv6 `small`** rather than a Paddle-Lite `.nb` shim; the current contract is
+> `00-implementation-contract.md` §1.7 and the migration record is `ort-v6-migration.md`. The module
+> layout and the GPL-free boundary below still hold.
+
 Rationale:
 - **Engine wrapper vs OCR split** mirrors the real license split, not just code size. The design
   doc's hard boundary (§4.2) is easiest to enforce with *two modules and one dependency rule*:
@@ -504,6 +509,11 @@ checkout **without** submodules and have **no** NDK/CMake. Required edits:
 nested submodules must be public (they are).
 
 ### 5.4 PaddleOCR artifact (Apache-2.0) — decision needed
+
+> **Superseded (2026):** this section is kept as the historical decision record. The OCR backend later
+> moved from Paddle-Lite to **ONNX Runtime + PP-OCRv6 `small`** (`ort-v6-migration.md`); option A was
+> taken, and the artifact now ships `libpaddle_ocr.so` + `libonnxruntime.so` + `libomp.so` for
+> `arm64-v8a`, `armeabi-v7a` and `x86_64`.
 
 `:core:ocr` ships `libpaddle_ocr.so` + det/rec models under Apache-2.0. Options:
 - **A (recommended for now):** `jniLibs/<abi>/libpaddle_ocr.so` committed via a pinned, checksummed

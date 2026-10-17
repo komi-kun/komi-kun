@@ -127,15 +127,17 @@ above is the tracked commit.
 ### 1.7 OCR artifact strategy
 
 `komi-kun/komi-kun-ocr-models` GitHub release (built by our CI, **not** Chimahon's `v2.5` zip):
-`libpaddle_ocr.so` (our JNI over Paddle-Lite, emits the `TIMING|`/`LINE|` protocol 03 §2.1) **plus the
-runtime deps it links — `libomp.so` and `libc++_shared.so`** (3 files, all three ABIs) + `manifest.json`
-with per-file **SHA-256**, size, ABI, SPDX. Ship via `core/ocr/src/main/jniLibs/<abi>/` (Gradle fetch task,
-plan 01 §5.4 option A); models + `ppocrv6_dict.txt` download at user opt-in at runtime, **checksum-verified**
-in `ModelDownloader`. Official PaddleOCR Apache-2.0 models first; the `manga_*_fp16` fine-tune is optional
-and only if its license is confirmed. Add `libpaddle_ocr.so` to `keepDebugSymbols`. Pack exactly one
-`libc++_shared.so` per ABI (shared with `:core:dictionary`'s `-DANDROID_STL=c++_shared`) to avoid a
-duplicate-`.so` collision. Keep Chimahon's STL/OpenMP-first `System.load` order. **W3 must also patch the
-`PaddleOcrEngine.supportedAbi()` Kotlin gate** to accept `x86_64` (§1.5), not just arm64/armv7.
+`libpaddle_ocr.so` (our JNI over **ONNX Runtime**, emits the `TIMING|`/`LINE|` protocol 03 §2.1) **plus
+its runtime deps — `libonnxruntime.so` and `libomp.so`** (per ABI) + `manifest.json` with per-file
+**SHA-256**, size, ABI, SPDX. Ship via `core/ocr/src/main/jniLibs/<abi>/` (Gradle fetch task, plan 01
+§5.4 option A); models + `ppocrv6_small_dict.txt` download at user opt-in at runtime, **checksum-verified**
+in `ModelDownloader`. Official PaddlePaddle **PP-OCRv6 `small`** ONNX exports (Apache-2.0) — the current
+backend is ONNX Runtime, **not** Paddle-Lite (see `ort-v6-migration.md`); the `manga_*_fp16` Paddle-Lite
+fine-tune is no longer used. Add `libpaddle_ocr.so` to `keepDebugSymbols`. `libc++_shared.so` is **not**
+shipped in the artifact: AGP already packages the NDK copy via `:core:dictionary`'s
+`-DANDROID_STL=c++_shared`, and a second copy collides at app merge. Keep the
+STL → OpenMP → ONNX Runtime → engine `System.load` order. `PaddleOcrEngine.supportedAbi()` accepts
+`arm64-v8a`, `armeabi-v7a` and `x86_64` (§1.5).
 
 ### 1.8 Licensing artifacts
 

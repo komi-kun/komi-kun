@@ -79,8 +79,8 @@ Gold-relative on **original** pages — **EM / CER**:
 | 1 | New native engine (ORT) + `ocr-models-v3` release | done |
 | 2 | App integration (`paddle-manifest.json`, engine constants, ABI) | done |
 | 3 | Verification (gates + APK contents) | done |
-| 4 | Push branch, open PR into the feature branch | pending |
-| 5 | Review loop (≤5 iterations, fresh context each time) | pending |
+| 4 | Push branch, open PR into the feature branch | done — PR #8 (→ `feat/introduce-ocr-and-yomitan`) |
+| 5 | Review loop (≤5 iterations, fresh context each time) | **iteration 1 fixed** (see §6); more pending |
 
 ### Release
 
@@ -96,7 +96,20 @@ Each iteration = a **fresh-context** review agent on the diff, then fixes for fi
 
 | iter | reviewer findings | fixed | remaining |
 |---|---|---|---|
-| — | (not started) | — | — |
+| 1 | 1. **Docs presented Paddle-Lite `.nb` as the current backend** (contract §1.7; `03-ocr` §2; this doc's own framing). 2. **`NOTICE`** lacked the statically-linked `libpaddle_ocr.so` attributions (**opencv-mobile**, **Clipper**). 3. **`ModelDownloader`**: `importFromUri` extracted into `filesDir/<name>` but verified/loaded from `filesDir/paddle_ocr/<name>`, so flat archives always failed; `isPaddleDownloaded` was existence-only, so a corrupt model counted as present and was never re-fetched; failed downloads left `<name>.part` behind. 4. **ORT init failure unsurfaced** — the shim captures `ort_error_` but nothing logs/reads it (`nativeInit` only logs paths), so a missing/mismatched `libonnxruntime.so` was undiagnosable. | Docs → **ONNX Runtime + PP-OCRv6 small** everywhere authoritative (`00` §1.7; `03` §2.1–§2.3, §7); `01-architecture-build.md` (§1.1, §5.4) and `yomitan-manga-ocr-port.md` (§4, §6.1) kept as history with a **“superseded by `ort-v6-migration.md`”** note. `NOTICE` → added **opencv-mobile 4.13.0** (Apache-2.0) and **Clipper 6.4.2** (BSL-1.0) from the artifact's own `NOTICE`. `ModelDownloader` → extraction/verification/loading all use `modelsDir`; `isPaddleDownloaded` re-verifies size **and** SHA-256 against the cached manifest; `<name>.part` files are cleaned on failure and on the next run (owned names only); unit tests added. `PaddleOcrEngine` → `nativeGetOrtError()` accessor surfaced in the init-failure log. | See “Still open” below. |
+| — | (next iteration) | — | — |
+
+### Still open (carried from iteration 1)
+
+- **On-device latency is unmeasured**, and the `dlopen` path has **never executed on a device or
+  emulator** — only the host parity harness. See §8.
+- **Native ORT-error accessor not yet shipped:** the app declares `nativeGetOrtError()`, but the
+  pinned `ocr-models-v3` shim exports only `nativeInit`/`nativeProcess`/`nativeRelease`. Until a shim
+  release adds the accessor, `PaddleOcrEngine` logs `"unavailable"` and the shim's `nativeInit`
+  logcat line (`... runtime=<ort load error>`) remains the source of truth. The artifact-side change
+  is: expose `Engine::ort_error()`, log it in `nativeInit`, and add the JNI getter.
+- **APK size** growth (+103 MB universal, ≈ +34/24/50 MB per ABI split) is **accepted** — it is the
+  full `onnxruntime-android` build, not `onnxruntime-mobile`; see §8.
 
 ## 7. Key paths & commands
 
@@ -132,4 +145,8 @@ Gates (serialise Gradle: `flock /tmp/opencode/gradle.lock ./gradlew …`):
   the **full** `onnxruntime-android:1.31.0` build (`libonnxruntime.so` ≈ 34/24/41 MB uncompressed
   per ABI), not the smaller `--minimal_build`/`onnxruntime-mobile` variant.
 - Licensing: ONNX Runtime is MIT; v6 models Apache-2.0 — compatible with the GPL-3.0 combined work.
-  Re-check `NOTICE`/`scripts/verify-gpl-free.sh` and update the ORT/Paddle mentions.
+  Iteration 1 added the statically-linked **opencv-mobile** (Apache-2.0) and **Clipper** (BSL-1.0)
+  attributions to `NOTICE`; `scripts/verify-gpl-free.sh` stays green (the seam is unchanged).
+- **Artifact-side ORT-error accessor** (iteration 1, finding 4) is not yet in the pinned shim — see
+  §6 “Still open”. Declaring `nativeGetOrtError()` in the app is forward-compatible but currently
+  reports `"unavailable"`.
