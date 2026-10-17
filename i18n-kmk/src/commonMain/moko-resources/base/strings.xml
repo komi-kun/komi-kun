@@ -268,6 +268,8 @@
     <string name="pref_dictionary_profiles">Dictionary profiles</string>
     <string name="pref_dict_imported_list">Imported dictionaries</string>
     <string name="pref_dict_none_imported">No dictionaries imported yet</string>
+    <string name="dictionary_no_dictionaries">No dictionaries available. Import or enable one in Settings \u2192 Dictionaries.</string>
+    <string name="dictionary_no_results">No results for \u201c%1$s\u201d</string>
     <string name="pref_dict_delete">Delete dictionary</string>
     <string name="pref_dict_appearance">Appearance</string>
     <string name="pref_dict_order">Dictionary order</string>

@@ -13,11 +13,11 @@ package eu.kanade.tachiyomi.ui.reader.ocr.impl
 
 import android.graphics.RectF
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -51,6 +51,7 @@ class ReaderOcrHostImpl(
     private val readerPreferences: ReaderPreferences,
     private val dictionaryPreferences: DictionaryPreferences,
     private val dictionaryHost: ReaderDictionaryHost,
+    private val popupAnchor: ReaderOcrPopupAnchor,
 ) : ReaderOcrHost {
 
     /** The viewport the overlay was last composed with; used to map the long-press point. */
@@ -71,15 +72,24 @@ class ReaderOcrHostImpl(
         val activeBlockHighlight = readerPreferences.ocrActiveBlockHighlight.get()
         val boxScalePercent = readerPreferences.ocrBoxScale.get()
 
-        LaunchedEffect(viewport) {
-            if (viewport == null) return@LaunchedEffect
+        // `OcrViewport.visiblePages()` is viewer-owned state, not a Compose snapshot state, so the
+        // page the viewer is showing (including the very first page after mount) can appear without
+        // recomposing this composable. Poll it once per frame into snapshot state, so the overlay
+        // updates as soon as the viewer reports its pages - no manual off/on toggle. `produceState`
+        // uses structural equality, so a stable page set does not recompose. The same loop primes
+        // the block cache via `ensureLoaded`.
+        val visiblePages by produceState(initialValue = emptyList<ReaderPage>(), viewport) {
+            if (viewport == null) return@produceState
             while (true) {
-                blockLoader.ensureLoaded(viewport.visiblePages())
+                val pages = viewport.visiblePages()
+                value = pages
+                blockLoader.ensureLoaded(pages)
+                updatePopupAnchor(viewport, pages)
                 withFrameNanos { }
             }
         }
 
-        val currentPage = viewport?.visiblePages()?.firstOrNull()
+        val currentPage = visiblePages.firstOrNull()
         val blocks = currentPage?.let { loaded[it.ocrKey()] }.orEmpty()
         OcrOverlay(
             viewport = viewport,
@@ -118,6 +128,7 @@ class ReaderOcrHostImpl(
         if (query.isBlank()) return false
 
         activeBlock.value = key to block
+        popupAnchor.rect.value = screen
         dictionaryHost.showLookup(
             DictionaryLookupRequest(
                 query = query,
@@ -129,6 +140,26 @@ class ReaderOcrHostImpl(
             ),
         )
         return true
+    }
+
+    /**
+     * Re-maps the active lookup's block to the current viewport every frame so the popup follows
+     * page turns, zoom and scroll instead of staying at the position it opened at.
+     *
+     * When the block's page is no longer on screen the lookup is dismissed (the popup must never be
+     * left stuck over a different page).
+     */
+    private fun updatePopupAnchor(viewport: OcrViewport, pages: List<ReaderPage>) {
+        val active = activeBlock.value ?: return
+        val page = pages.firstOrNull { it.ocrKey() == active.first }
+        val rect = page?.let { viewport.imageNormalizedToScreen(it, active.second.toRectF()) }
+        if (rect != null) {
+            popupAnchor.rect.value = rect
+        } else {
+            dictionaryHost.dismiss()
+            activeBlock.value = null
+            popupAnchor.clear()
+        }
     }
 
     private fun OcrTextBlock.toRectF(): RectF = RectF(xmin, ymin, xmax, ymax)

@@ -247,7 +247,12 @@ fun DictionaryEntryWebView(
                 webView.isFocusable = true
                 webView.isFocusableInTouchMode = true
                 if (requestFocusOnMount) webView.requestFocus()
-                webView.setOnLongClickListener { false }
+                // KUN -->
+                // No `setOnLongClickListener`: a View-level long-click listener makes the WebView
+                // swallow the long-press before its internal gesture detector can start text
+                // selection, so the gloss text becomes unselectable. Leaving the listener unset
+                // lets the WebView's own long-press selection (and its context menu) work.
+                // KUN <--
                 webView.setOnKeyListener { v, keyCode, event ->
                     if (event.action == android.view.KeyEvent.ACTION_DOWN && prefs.volumeKeyNavigation().get()) {
                         when (keyCode) {
