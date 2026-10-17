@@ -15,6 +15,7 @@ package mihon.core.ocr.paddle
 
 import android.content.Context
 import android.net.Uri
+import exh.log.xLogE
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -22,6 +23,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -33,11 +36,15 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
 import java.security.MessageDigest
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.zip.ZipInputStream
+
+/** Our own release tag. A cached `manifest.json` from any other release must be re-fetched. */
+private const val DEFAULT_RELEASE = "ocr-models-v3"
 
 /** Our own release; the `.so`s are consumed at build time, only models download at runtime. */
 private const val DEFAULT_BASE_URL =
-    "https://github.com/komi-kun/komi-kun-ocr-models/releases/download/ocr-models-v3"
+    "https://github.com/komi-kun/komi-kun-ocr-models/releases/download/$DEFAULT_RELEASE"
 
 /** One downloadable OCR artifact from the release manifest. */
 @Serializable
@@ -83,6 +90,12 @@ class ModelDownloader(
     private val appContext = context.applicationContext
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
+    /** Coalesces redundant [triggerPaddleDownload] calls into one in-flight run. */
+    private val downloadGate = SingleFlightGate()
+
+    /** Serialises a [downloadModels] run against an [importFromUri] run (both write [modelsDir]). */
+    private val runLock = Mutex()
+
     private val _state = MutableStateFlow<ModelDownloadState>(ModelDownloadState.Idle)
     val state: StateFlow<ModelDownloadState> = _state.asStateFlow()
 
@@ -90,15 +103,16 @@ class ModelDownloader(
     val modelsDir: File get() = File(appContext.filesDir, PADDLE_DIR)
 
     /**
-     * Cheap, synchronous presence check: every required model file exists and, when the manifest
-     * cached beside the models is available, matches its published **size** (no cached manifest →
-     * a mere non-empty check).
+     * Cheap, synchronous readiness gate for the settings screen (see `SettingsOcrScreen`): every
+     * required model file exists and, when the manifest cached beside the models is available,
+     * matches its published **size** (no cached manifest → a mere non-empty check).
      *
-     * Deliberately does **not** SHA-256 the files: this is safe to call on the main thread (it only
-     * `stat`s ~31 MB of files, never reads them), which the previous full-hash implementation was
-     * not. The full size **and** SHA-256 verification runs inside [downloadModels], off the main
-     * thread; [triggerPaddleDownload] always enters that coroutine, so a same-size but corrupt model
-     * is still detected and re-fetched.
+     * It does read and JSON-parse the small cached `manifest.json`, so it is **not** a pure `stat`,
+     * but it deliberately does **not** SHA-256 the ~31 MB of model bytes — that is what keeps it
+     * main-thread safe (the previous full-hash implementation was not). The full size **and**
+     * SHA-256 verification runs inside [downloadModels], off the main thread; [triggerPaddleDownload]
+     * always enters that coroutine (once), so a same-size but corrupt model is still detected and
+     * re-fetched.
      */
     val isPaddleDownloaded: Boolean
         get() {
@@ -110,7 +124,7 @@ class ModelDownloader(
             }
         }
 
-    /** The model files the engine needs at runtime (the `.so`s ship in the APK). */
+    /** The model files the engine needs at runtime (the `.so`s ship in the APK). Backs [isPaddleDownloaded]. */
     fun requiredModelFiles(): List<File> = REQUIRED_MODELS.map { File(modelsDir, it) }
 
     /** The manifest cached by the last [fetchManifest], or null when none is on disk. */
@@ -125,13 +139,31 @@ class ModelDownloader(
      * schedules the work. The coroutine re-verifies every model — size **and** SHA-256 — off the
      * main thread and (re-)downloads anything missing or corrupt, so calling it on each Paddle
      * selection is cheap and self-healing rather than a one-shot gate.
+     *
+     * **Single-flight.** A run already in flight is never started twice: a trigger arriving while a
+     * run is active is coalesced into it (the running pass re-verifies the same pinned release), so
+     * two runs can never delete each other's `<name>.part` scratch files or race on `manifest.json`.
      */
     fun triggerPaddleDownload() {
+        if (!downloadGate.tryAcquire()) {
+            logcat(LogPriority.INFO) { "ModelDownloader: download already in progress; ignoring duplicate trigger" }
+            return
+        }
         scope.launch {
-            downloadModels().fold(
-                onSuccess = { _state.value = ModelDownloadState.Completed },
-                onFailure = { _state.value = ModelDownloadState.Failed(it.message ?: "Unknown error") },
-            )
+            try {
+                runLock.withLock {
+                    downloadModels().fold(
+                        onSuccess = { _state.value = ModelDownloadState.Completed },
+                        onFailure = {
+                            val message = it.message ?: "Unknown error"
+                            _state.value = ModelDownloadState.Failed(message)
+                            xLogE("ModelDownloader: model download failed: $message", it)
+                        },
+                    )
+                }
+            } finally {
+                downloadGate.release()
+            }
         }
     }
 
@@ -163,10 +195,12 @@ class ModelDownloader(
         // Drop any `.part` scratch files an interrupted earlier run left behind.
         cleanupPartFiles()
 
-        // Offline-friendly fast path: the manifest cached beside the models already fully accounts
-        // for every required file, and every file verifies (size + SHA-256) — nothing to download.
+        // Offline-friendly fast path: the cached manifest was fetched from the release we still pin
+        // AND fully accounts for every required file, and every file verifies (size + SHA-256) —
+        // nothing to download. Checking the release id stops a cached manifest from pinning an old
+        // model set forever when a future release reuses the same file names.
         loadCachedManifest()?.let { cached ->
-            if (requiredModelsVerified(cached)) {
+            if (cachedManifestIsUsable(cached, DEFAULT_RELEASE, DEFAULT_BASE_URL, modelsDir, REQUIRED_MODELS)) {
                 cleanupStaleModels()
                 return@withContext Result.success(Unit)
             }
@@ -184,7 +218,7 @@ class ModelDownloader(
         }
 
         // Re-fetch only what is missing or fails verification; keep the rest untouched.
-        val pending = entries.filterNot { (entry, _) -> modelFileMatches(File(modelsDir, entry.name), entry) }
+        val pending = pendingModelEntries(entries, modelsDir)
         if (pending.isNotEmpty()) {
             val done = entries.size - pending.size
             _state.value = ModelDownloadState.Downloading(done, entries.size)
@@ -200,39 +234,37 @@ class ModelDownloader(
     }
 
     /**
-     * True when [manifest] accounts for every required model **and** each one verifies against its
-     * published size and SHA-256. Used by [downloadModels] to skip the network on an already-intact
-     * install; a same-size but corrupt file fails here and is re-fetched.
+     * Imports an archive the user picked. Extracts it into a scratch dir, verifies the staged model
+     * files against the manifest **before** anything is copied into [modelsDir], and only then
+     * installs them — so a bad or partial archive can never clobber a working install.
      */
-    private fun requiredModelsVerified(manifest: OcrModelManifest): Boolean =
-        REQUIRED_MODELS.all { name ->
-            val entry = manifest.files.firstOrNull { it.name == name }
-            entry != null && entry.sha256.isNotBlank() && modelFileMatches(File(modelsDir, name), entry)
-        }
-
-    /** Imports an archive the user picked; extracts it and verifies what a manifest describes. */
-    suspend fun importFromUri(uri: Uri): Result<Unit> = withContext(Dispatchers.IO) {
-        runCatching {
-            val input = appContext.contentResolver.openInputStream(uri)
-                ?: error("Could not open the selected file")
-            // The archive is untrusted. Extract it into a throwaway scratch dir, then copy ONLY the
-            // model files the engine loads into modelsDir — never an arbitrary path, in particular
-            // not a planted `lib/<abi>/*.so` that `PaddleOcrEngine.loadNativeLibraries` would
-            // `System.load`. The scratch dir is removed whatever happens.
-            val scratch = File(appContext.cacheDir, "ocr-import-${System.nanoTime()}")
-            scratch.mkdirs()
-            try {
-                input.use { extractZipInto(scratch, it) }
-                installRequiredModels(scratch, modelsDir, REQUIRED_MODELS)
-            } finally {
-                scratch.deleteRecursively()
+    suspend fun importFromUri(uri: Uri): Result<Unit> = runLock.withLock {
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val input = appContext.contentResolver.openInputStream(uri)
+                    ?: error("Could not open the selected file")
+                // Prefer the live manifest; fall back to the one cached beside the models so import
+                // still verifies (and is not a silent no-op) offline.
+                val manifest = fetchManifest().getOrElse {
+                    loadCachedManifest() ?: error("No model manifest available to verify the archive")
+                }
+                // The archive is untrusted. Extract it into a throwaway scratch dir, verify it there,
+                // then copy ONLY the model files the engine loads into modelsDir — never an arbitrary
+                // path, in particular not a planted `lib/<abi>/*.so` that
+                // `PaddleOcrEngine.loadNativeLibraries` would `System.load`. The scratch dir is
+                // removed whatever happens.
+                val scratch = File(appContext.cacheDir, "ocr-import-${System.nanoTime()}")
+                scratch.mkdirs()
+                try {
+                    input.use { extractZipInto(scratch, it) }
+                    verifyStagedModels(scratch, manifest, REQUIRED_MODELS)
+                    installRequiredModels(scratch, modelsDir, REQUIRED_MODELS)
+                } finally {
+                    scratch.deleteRecursively()
+                }
+                cleanupStaleModels()
+                Unit
             }
-        }.mapCatching {
-            // Verify the freshly imported files against the manifest when one is available.
-            fetchManifest().getOrNull()?.let { manifest -> verifyInstalled(manifest) }
-            cleanupStaleModels()
-            cleanupPartFiles()
-            Unit
         }
     }
 
@@ -265,15 +297,6 @@ class ModelDownloader(
         val removed = removeOwnedPartFiles(modelsDir, REQUIRED_MODELS)
         removed.forEach { logcat(LogPriority.INFO) { "ModelDownloader: removed partial download $it" } }
         return removed
-    }
-
-    private fun verifyInstalled(manifest: OcrModelManifest) {
-        for (name in REQUIRED_MODELS) {
-            val entry = manifest.files.firstOrNull { it.name == name } ?: continue
-            val file = File(modelsDir, name)
-            check(file.isFile) { "$name was not imported" }
-            check(modelFileMatches(file, entry)) { "Checksum or size mismatch for $name" }
-        }
     }
 
     private fun downloadAndVerify(url: String, entry: OcrModelFile): Result<Unit> = runCatching {
@@ -418,20 +441,103 @@ internal fun extractZipInto(dir: File, input: InputStream) {
 }
 
 /**
+ * Finds the first regular file named [name] anywhere under [from], or null. Shared by
+ * [installRequiredModels] and [verifyStagedModels] so both match an archive's model files the same
+ * way (a release may nest them under `models/`).
+ */
+internal fun findModelFile(from: File, name: String): File? =
+    from.walkTopDown().firstOrNull { it.isFile && it.name == name }
+
+/**
+ * Verifies the required model files staged under [from] against [manifest] **before** they are
+ * copied into the engine directory, so a bad, partial or misnamed archive can never clobber a
+ * working install. Every required name must be described by the manifest with a checksum and must
+ * match it; the first failure throws.
+ */
+internal fun verifyStagedModels(from: File, manifest: OcrModelManifest, names: Collection<String>) {
+    for (name in names) {
+        val entry = manifest.files.firstOrNull { it.name == name } ?: error("Manifest is missing $name")
+        if (entry.sha256.isBlank()) error("Manifest is missing a SHA-256 for $name")
+        val file = findModelFile(from, name) ?: error("$name was not found in the archive")
+        check(modelFileMatches(file, entry)) { "Checksum or size mismatch for $name" }
+    }
+}
+
+/**
  * Copies only the model files named in [names] from [from] into [to], matching by file name
  * (anywhere under [from]), and returns the names actually installed. Everything else in [from] is
  * ignored, so an untrusted archive cannot install a non-model (or executable) path into the engine's
- * model directory. Missing names are skipped; the caller's manifest verification reports them.
+ * model directory. Missing names are skipped; [verifyStagedModels] runs first and reports them.
  */
 internal fun installRequiredModels(from: File, to: File, names: Collection<String>): List<String> {
     if (!from.isDirectory) return emptyList()
-    val candidates = from.walkTopDown().filter { it.isFile }.toList()
     to.mkdirs()
     val installed = mutableListOf<String>()
     for (name in names) {
-        val source = candidates.firstOrNull { it.name == name } ?: continue
+        val source = findModelFile(from, name) ?: continue
         source.copyTo(File(to, name), overwrite = true)
         installed += name
     }
     return installed
 }
+
+/**
+ * A minimal single-flight gate: the first [tryAcquire] succeeds, every call until [release] is
+ * refused. [ModelDownloader.triggerPaddleDownload] uses it to coalesce redundant triggers, so a
+ * second run cannot purge the first run's in-flight `<name>.part` files (or race on `manifest.json`).
+ */
+internal class SingleFlightGate {
+    private val inFlight = AtomicBoolean(false)
+
+    fun tryAcquire(): Boolean = inFlight.compareAndSet(false, true)
+
+    fun release() {
+        inFlight.set(false)
+    }
+}
+
+/**
+ * True when [manifest] was fetched from the release the app still pins ([release] tag or [baseUrl]).
+ * A cached manifest from any other release must be re-fetched even if it still accounts for every
+ * required file — otherwise a release that reuses the model file names could never be picked up.
+ */
+internal fun cachedManifestIsCurrent(manifest: OcrModelManifest, release: String, baseUrl: String): Boolean =
+    manifest.release == release || manifest.baseUrl == baseUrl
+
+/**
+ * True when [manifest] accounts for every required model in [names] **and** each one verifies
+ * against its published size and SHA-256 inside [modelsDir]. A same-size but corrupt file fails here
+ * and is re-fetched.
+ */
+internal fun requiredModelsVerified(
+    manifest: OcrModelManifest,
+    modelsDir: File,
+    names: Collection<String>,
+): Boolean = names.all { name ->
+    val entry = manifest.files.firstOrNull { it.name == name }
+    entry != null && entry.sha256.isNotBlank() && modelFileMatches(File(modelsDir, name), entry)
+}
+
+/**
+ * The pure fast-path decision: [manifest] is from the pinned release **and** every required model
+ * verifies, so [ModelDownloader.downloadModels] can skip the network. Extracted so it is testable
+ * without an Android `Context`.
+ */
+internal fun cachedManifestIsUsable(
+    manifest: OcrModelManifest,
+    release: String,
+    baseUrl: String,
+    modelsDir: File,
+    names: Collection<String>,
+): Boolean = cachedManifestIsCurrent(manifest, release, baseUrl) &&
+    requiredModelsVerified(manifest, modelsDir, names)
+
+/**
+ * The subset of [entries] that is missing or fails verification in [modelsDir] — the "re-fetch only
+ * what mismatched" decision, extracted so it is testable without an Android `Context`.
+ */
+internal fun pendingModelEntries(
+    entries: List<Pair<OcrModelFile, String>>,
+    modelsDir: File,
+): List<Pair<OcrModelFile, String>> =
+    entries.filterNot { (entry, _) -> modelFileMatches(File(modelsDir, entry.name), entry) }

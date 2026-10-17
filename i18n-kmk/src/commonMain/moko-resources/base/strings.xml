@@ -388,6 +388,7 @@
     <string name="pref_dict_active_ocr_text_opacity">Active text opacity</string>
     <string name="pref_dict_active_ocr_bg_opacity">Active background opacity</string>
     <string name="pref_ocr_cache_size">OCR cache size</string>
+    <string name="pref_ocr_model_status">OCR models</string>
     <string name="pref_ocr_clear_cache">Clear OCR cache</string>
     <string name="action_clear_ocr_cache">Clear OCR cache</string>
     <string name="confirm_clear_ocr_cache">Are you sure you want to clear the OCR cache? This will delete all cached OCR files for this entry.</string>
