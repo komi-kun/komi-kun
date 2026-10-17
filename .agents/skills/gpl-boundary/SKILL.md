@@ -51,7 +51,7 @@ to **Komikku**. Details: `NOTICE`, `LICENSES/GPL-3.0-or-later.txt`, and the impl
 ## Licensing artifacts to keep current
 
 - `LICENSES/GPL-3.0-or-later.txt` (full text) and `NOTICE` (combined-work statement + every component
-  with URL/pin: Chimahon, hoshidicts, Yomitan, the `webgpuviewer` fork, PaddleOCR/Paddle-Lite,
+  with URL/pin: Chimahon, hoshidicts, Yomitan, the `webgpuviewer` fork, PaddleOCR, ONNX Runtime,
   AnkiDroid API). Update `NOTICE` when a vendored component or its pin changes.
 - `AGENTS.md` "Licensing & native modules" + module table: keep it in step with reality.
 

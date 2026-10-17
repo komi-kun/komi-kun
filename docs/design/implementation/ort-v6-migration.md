@@ -76,11 +76,19 @@ Gold-relative on **original** pages — **EM / CER**:
 | # | Phase | Status |
 |---|---|---|
 | 0 | Branch + this doc | done |
-| 1 | New native engine (ORT) + `ocr-models-v3` release | pending |
-| 2 | App integration (`paddle-manifest.json`, engine constants, ABI) | pending |
-| 3 | Verification (gates + APK contents) | pending |
+| 1 | New native engine (ORT) + `ocr-models-v3` release | done |
+| 2 | App integration (`paddle-manifest.json`, engine constants, ABI) | done |
+| 3 | Verification (gates + APK contents) | done |
 | 4 | Push branch, open PR into the feature branch | pending |
 | 5 | Review loop (≤5 iterations, fresh context each time) | pending |
+
+### Release
+
+`ocr-models-v3` (tag `ocr-models-v3`, commit `2471502`) is published at
+`https://github.com/komi-kun/komi-kun-ocr-models/releases/tag/ocr-models-v3`;
+the app pins `baseUrl = .../releases/download/ocr-models-v3`. Its `INTEGRATION.md` is the
+drop-in diff applied by phase 2; `app-paddle-manifest.json` is copied verbatim to
+`core/ocr/paddle-manifest.json`.
 
 ## 6. Review-loop log
 
@@ -114,6 +122,14 @@ Gates (serialise Gradle: `flock /tmp/opencode/gradle.lock ./gradlew …`):
 
 - On-device latency unmeasured (ORT vs Paddle-Lite threading differs) — must be checked before merge.
 - Absolute Japanese accuracy of v6_small is unknown (only agreement with a manga-ocr reference).
-- APK size: ORT runtime adds ~10–15 MB/ABI; models 16.5 → 21 MB.
+- APK size (**measured**, debug ABI splits; run-to-run packaging jitter ≈ ±0.8 MB): the shim +
+  runtime grow each split by ≈ +34.2 MB (`arm64-v8a`), +24.2 MB (`armeabi-v7a`), +49.8 MB
+  (`x86_64`, includes the shim's first x86_64 copy + `libomp.so`); the universal APK ≈ +103.0 MB
+  (baseline → after: `arm64-v8a` 105.8 → 140.0 MB, `armeabi-v7a` 93.8 → 118.0 MB,
+  `x86_64` 104.3 → 154.1 MB, universal 212.1 → 315.1 MB). The **compressed payload** grows by
+  exactly the added (stripped) libs: +34,028,152 / +24,053,288 / +45,520,952 B per split,
+  +103,602,392 B universal; the residual file-size change is zip alignment/padding. The runtime is
+  the **full** `onnxruntime-android:1.31.0` build (`libonnxruntime.so` ≈ 34/24/41 MB uncompressed
+  per ABI), not the smaller `--minimal_build`/`onnxruntime-mobile` variant.
 - Licensing: ONNX Runtime is MIT; v6 models Apache-2.0 — compatible with the GPL-3.0 combined work.
   Re-check `NOTICE`/`scripts/verify-gpl-free.sh` and update the ORT/Paddle mentions.
