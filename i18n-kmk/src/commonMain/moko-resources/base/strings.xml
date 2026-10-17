@@ -265,6 +265,35 @@
     <string name="pref_category_dictionaries_and_audio">Dictionaries and audio</string>
     <string name="pref_category_dictionary_popup">Dictionary popup</string>
     <string name="pref_dictionary_popup_summary">Layout, theme, content</string>
+    <!-- Word audio (Yomitan audio settings) -->
+    <string name="pref_category_dictionary_audio">Word audio</string>
+    <string name="pref_dictionary_audio_summary">Playback sources, auto-play, volume</string>
+    <string name="pref_dict_audio_enabled">Enable word audio</string>
+    <string name="pref_dict_audio_enabled_summary">Show the play button in dictionary entries</string>
+    <string name="pref_dict_audio_autoplay">Auto-play</string>
+    <string name="pref_dict_audio_autoplay_summary">Play the first result automatically when a lookup opens</string>
+    <string name="pref_dict_audio_volume">Volume</string>
+    <string name="pref_dict_audio_default_sources">Use Yomitan default sources</string>
+    <string name="pref_dict_audio_default_sources_summary">Fall back to the built-in JapanesePod101/Jisho (or language) sources</string>
+    <string name="pref_dict_audio_fallback">Fallback sound</string>
+    <string name="pref_dict_audio_fallback_none">None</string>
+    <string name="pref_dict_audio_fallback_click">Click</string>
+    <string name="pref_dict_audio_fallback_bloop">Bloop</string>
+    <string name="pref_dict_audio_sources">Audio sources</string>
+    <string name="pref_dict_audio_source_add">Add audio source</string>
+    <string name="pref_dict_audio_source_type">Source type</string>
+    <string name="pref_dict_audio_source_url">URL</string>
+    <string name="pref_dict_audio_source_url_hint">http://127.0.0.1:8765/localaudio/get/?term={term}&amp;reading={reading}</string>
+    <string name="pref_dict_audio_source_custom_json_hint">Custom URL (JSON) expects {\"type\":\"audioSourceList\",\"audioSources\":[{\"url\":\"…\"}]}</string>
+    <string name="pref_dict_audio_source_remove">Remove source</string>
+    <string name="pref_dict_audio_source_move_up">Move up</string>
+    <string name="pref_dict_audio_source_move_down">Move down</string>
+    <string name="pref_dict_audio_test">Test audio</string>
+    <string name="pref_dict_audio_test_term">Test word</string>
+    <string name="pref_dict_audio_test_play">Play</string>
+    <string name="pref_dict_audio_test_playing">Resolving…</string>
+    <string name="pref_dict_audio_test_none">No audio found for \u201c%1$s\u201d</string>
+    <string name="pref_dict_audio_test_played">Playing from %1$s</string>
     <string name="pref_dictionary_profiles">Dictionary profiles</string>
     <string name="pref_dict_imported_list">Imported dictionaries</string>
     <string name="pref_dict_none_imported">No dictionaries imported yet</string>
