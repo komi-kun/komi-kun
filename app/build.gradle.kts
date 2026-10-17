@@ -170,6 +170,8 @@ android {
                 // KUN -->
                 "libhoshidicts_jni",
                 "libpaddle_ocr",
+                "libonnxruntime",
+                "libomp",
                 // KUN <--
             )
                 .map { "**/$it.so" }

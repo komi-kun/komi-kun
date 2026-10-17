@@ -49,10 +49,10 @@ dependencies {
 // ---------------------------------------------------------------------------------------------
 // Paddle OCR native artifact fetch (contract §1.7).
 //
-// The real `libpaddle_ocr.so` is a *separate artifact*: it is our own JNI over Paddle-Lite
-// (Apache-2.0) published to `komi-kun/komi-kun-ocr-models`, together with `libomp.so` and a
-// per-file SHA-256 `manifest.json`. This task only *consumes* that manifest — it never builds
-// Paddle-Lite.
+// The real `libpaddle_ocr.so` is a *separate artifact*: it is our own JNI over ONNX Runtime
+// (MIT) published to `komi-kun/komi-kun-ocr-models`, together with `libonnxruntime.so`, `libomp.so`
+// and a per-file SHA-256 `manifest.json`. This task only *consumes* that manifest — it never builds
+// ONNX Runtime.
 //
 // Wiring: `fetchPaddleNativeLibs` is a dependency of the per-variant JNI/native-lib merge tasks,
 // so every `assemble*` packages the fetched `.so`s (see README.md). It is deliberately NOT a

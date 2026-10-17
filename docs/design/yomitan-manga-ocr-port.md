@@ -73,11 +73,16 @@ manga reading only — no novel reader, no anime/video player, no screen OCR, no
 | Chimahon (all its Kotlin/JS/C++) | **GPL-3.0** | ❌ (copied code forces GPL-3.0) |
 | `hoshidicts` (dictionary engine, C++) | **GPL-3.0** | ❌ |
 | Yomitan (deinflection rules, renderer) | **GPL-3.0** | ❌ |
-| PaddleOCR / Paddle-Lite | Apache-2.0 | ✅ |
+| ~~PaddleOCR / Paddle-Lite~~ → PP-OCRv6 models (Apache-2.0) + ONNX Runtime (MIT) | Apache-2.0 / MIT | ✅ |
 | LiteRT (panel detection) | Apache-2.0 | ✅ |
 | `ca.mpreg:webgpuviewer` | MIT | ✅ (already a dep) |
 | Google Lens on-device engine + models | proprietary | ❌ |
 | Manga panel YOLO model (HF `leoxs22/…`) | *unverified* | ⚠️ verify |
+
+> **Backend note (2026):** the OCR port now runs PaddleOCR's models through **ONNX Runtime** (MIT),
+> not Paddle-Lite, on **PP-OCRv6 `small`** — see `docs/design/implementation/ort-v6-migration.md`.
+> Licence-wise the PaddleOCR/Paddle-Lite row above still stands (PaddleOCR models are Apache-2.0;
+> ONNX Runtime is MIT).
 
 **One-way compatibility:** Apache-2.0 code may be combined *into* a GPL-3.0 work; the reverse is not
 permitted. So vendoring any of Chimahon/`hoshidicts`/Yomitan means the whole komi-kun distribution
@@ -348,6 +353,11 @@ as the deinflection regression suite.
 We must **build or source these reproducibly under Apache-2.0** (Chimahon fetches them from its own
 release). Decide: build in our own repo/CI, or pin a known upstream build with a recorded checksum
 and license. This is the OCR equivalent of the dictionary-engine decision.
+
+> **Resolved (2026):** we build our own artifact (`komi-kun/komi-kun-ocr-models`) and the backend is
+> now **ONNX Runtime + PP-OCRv6 `small`** rather than Paddle-Lite. See
+> `docs/design/implementation/ort-v6-migration.md`; the paragraph above is kept as the historical
+> problem statement.
 
 ### 6.2 OCR pipeline to reimplement (clean-room, permissive)
 
