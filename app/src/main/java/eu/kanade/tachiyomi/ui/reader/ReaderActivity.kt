@@ -226,6 +226,10 @@ class ReaderActivity : BaseActivity() {
      * tap lands outside it. Fed from [dispatchTouchEvent] and deliberately non-consuming: the page
      * keeps scrolling/zooming/paging under the popup, and only a confirmed outside tap closes it.
      * While no popup is open [ReaderDictionaryHost.popupBounds] is null and the detector is a no-op.
+     *
+     * A tap that lands on an OCR block is *not* treated as an outside tap: the single-tap path
+     * ([onPageSingleTap]) is about to move the popup to that block, so dismissing first would only
+     * make the popup flicker closed and reopen.
      */
     private val dictionaryOutsideTapDetector by lazy {
         OutsideTapDismissDetector(
@@ -237,7 +241,11 @@ class ReaderActivity : BaseActivity() {
                     OutsideTapDismissDetector.Bounds { x, y -> rect.contains(x, y) }
                 }
             }
-            onOutsideTap = { readerDictionaryHost.dismiss() }
+            onOutsideTap = { x, y ->
+                val targetsBlock = readerPreferences.ocrOverlayEnabled.get() &&
+                    readerOcrHost.hitsBlock(Offset(x, y))
+                if (!targetsBlock) readerDictionaryHost.dismiss()
+            }
         }
     }
 
@@ -1294,6 +1302,26 @@ class ReaderActivity : BaseActivity() {
         // KUN <--
         viewModel.openPageDialog(page, /* SY --> */ extraPage /* SY <-- */)
     }
+
+    // KUN -->
+    /**
+     * Single-tap OCR entry point, called by every viewer *before* its normal single-tap navigation
+     * (`PagerViewer`/`WebtoonViewer` `tapListener`, `WebGpuViewer` `state.onTap`).
+     *
+     * While the OCR overlay is enabled and the tap lands on an OCR block, the host starts a
+     * dictionary lookup (the same hit-test + lookup path as [onPageLongTap]) and returns `true`, so
+     * the viewer consumes the tap and does not also page-turn or toggle the menu. A miss - or the
+     * overlay being off - returns `false` and the normal navigation runs unchanged.
+     *
+     * Tying this to the existing overlay flag (no extra preference) keeps it to "when the overlay is
+     * on, one tap looks a word up"; the two-finger toggle therefore turns it on and off with the
+     * boxes.
+     */
+    fun onPageSingleTap(page: ReaderPage, extraPage: ReaderPage?, point: PointF): Boolean {
+        if (!readerPreferences.ocrOverlayEnabled.get()) return false
+        return readerOcrHost.onPageSingleTap(page, extraPage, Offset(point.x, point.y))
+    }
+    // KUN <--
 
     // KUN -->
     /**

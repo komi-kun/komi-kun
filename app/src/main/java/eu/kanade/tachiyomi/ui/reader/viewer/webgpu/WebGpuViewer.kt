@@ -979,7 +979,21 @@ open class WebGpuViewer(
                 return@fetch buildSpreadPage(page)
             }
 
-            onTap = { offset ->
+            onTap = tap@{ offset ->
+                // KUN -->
+                // Single tap on an OCR block: look it up and consume the tap; a miss (or the overlay
+                // off) falls through to the normal navigation below.
+                (currentPage as? ViewerReaderPage)?.let { readerPage ->
+                    if (activity.onPageSingleTap(
+                            readerPage.page,
+                            null,
+                            activity.toOverlayPoint(pager, offset.x * width, offset.y * height),
+                        )
+                    ) {
+                        return@tap
+                    }
+                }
+                // KUN <--
                 when (config.navigator.getAction(PointF(offset.x, offset.y))) {
                     NavigationRegion.MENU -> activity.toggleMenu()
                     NavigationRegion.NEXT -> moveToNext()

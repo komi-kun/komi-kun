@@ -119,7 +119,23 @@ abstract class PagerViewer(
         pager.id = R.id.reader_pager
         pager.adapter = adapter
         pager.addOnPageChangeListener(pagerListener)
-        pager.tapListener = { event ->
+        pager.tapListener = tap@{ event ->
+            // KUN -->
+            // A single tap that lands on an OCR block looks the word up and consumes the tap (only
+            // while the overlay is on); a miss falls through to the normal navigation below.
+            val ocrItem = adapter.joinedItems.getOrNull(pager.currentItem)
+            val ocrFirstPage = ocrItem?.first as? ReaderPage
+            val ocrSecondPage = ocrItem?.second as? ReaderPage
+            if (ocrFirstPage != null &&
+                activity.onPageSingleTap(
+                    ocrFirstPage,
+                    ocrSecondPage,
+                    activity.toOverlayPoint(pager, event.x, event.y),
+                )
+            ) {
+                return@tap
+            }
+            // KUN <--
             val viewPosition = IntArray(2)
             pager.getLocationOnScreen(viewPosition)
             val viewPositionRelativeToWindow = IntArray(2)
