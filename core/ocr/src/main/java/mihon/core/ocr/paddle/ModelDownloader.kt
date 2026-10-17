@@ -89,12 +89,32 @@ class ModelDownloader(
     /** Directory the engine reads its models from (`filesDir/paddle_ocr`). */
     val modelsDir: File get() = File(appContext.filesDir, PADDLE_DIR)
 
-    /** True when every required model file exists and is non-empty. */
+    /**
+     * True when every required model file is present **and intact**. When the manifest fetched with
+     * the models is cached (the normal case), each file is checked against its published size and
+     * SHA-256 — a truncated or corrupt model is therefore reported as not-downloaded, so
+     * [triggerPaddleDownload] re-fetches it. Falls back to a mere non-empty check only when no cached
+     * manifest exists (e.g. an offline import), where no checksum is available.
+     */
     val isPaddleDownloaded: Boolean
-        get() = requiredModelFiles().all { it.isFile && it.length() > 0L }
+        get() {
+            val manifest = loadCachedManifest()
+                ?: return requiredModelFiles().all { it.isFile && it.length() > 0L }
+            return requiredModelFiles().all { file ->
+                val entry = manifest.files.firstOrNull { it.name == file.name }
+                entry != null && modelFileMatches(file, entry)
+            }
+        }
 
     /** The model files the engine needs at runtime (the `.so`s ship in the APK). */
     fun requiredModelFiles(): List<File> = REQUIRED_MODELS.map { File(modelsDir, it) }
+
+    /** The manifest cached by the last [fetchManifest], or null when none is on disk. */
+    private fun loadCachedManifest(): OcrModelManifest? {
+        val file = File(modelsDir, MANIFEST_NAME)
+        if (!file.isFile) return null
+        return runCatching { json.decodeFromString<OcrModelManifest>(file.readText()) }.getOrNull()
+    }
 
     /** Runtime, user-opt-in download of all required models (checksum-verified). */
     fun triggerPaddleDownload() {
@@ -112,13 +132,18 @@ class ModelDownloader(
         }
     }
 
-    /** Fetches and parses the release manifest. */
+    /** Fetches and parses the release manifest (and caches it beside the models). */
     suspend fun fetchManifest(): Result<OcrModelManifest> = withContext(Dispatchers.IO) {
         runCatching {
             val request = Request.Builder().url("$DEFAULT_BASE_URL/$MANIFEST_NAME").build()
             httpClient.newCall(request).execute().use { response ->
                 check(response.isSuccessful) { "Manifest download failed: HTTP ${response.code}" }
-                json.decodeFromString<OcrModelManifest>(response.body.string())
+                val body = response.body.string()
+                val manifest = json.decodeFromString<OcrModelManifest>(body)
+                // Persist the manifest with the models so `isPaddleDownloaded` can re-verify size /
+                // SHA-256 offline instead of trusting mere file existence.
+                File(modelsDir, MANIFEST_NAME).apply { parentFile?.mkdirs() }.writeText(body)
+                manifest
             }
         }
     }
@@ -128,6 +153,8 @@ class ModelDownloader(
      * nothing) when the manifest lacks a checksum for a required file, or a hash mismatches.
      */
     suspend fun downloadModels(): Result<Unit> = withContext(Dispatchers.IO) {
+        // Drop any `.part` scratch files an interrupted earlier run left behind.
+        cleanupPartFiles()
         val manifest = fetchManifest().getOrElse { return@withContext Result.failure(it) }
         val entries = mutableListOf<Pair<OcrModelFile, String>>()
         for (name in REQUIRED_MODELS) {
@@ -154,11 +181,14 @@ class ModelDownloader(
         runCatching {
             val input = appContext.contentResolver.openInputStream(uri)
                 ?: error("Could not open the selected file")
-            input.use { extractZip(it) }
+            // Extract straight into the directory the engine loads from, so verification below and
+            // engine loading see the same files (the previous `filesDir` root never matched).
+            input.use { extractZipInto(modelsDir, it) }
         }.mapCatching {
             // Verify the freshly imported files against the manifest when one is available.
             fetchManifest().getOrNull()?.let { manifest -> verifyInstalled(manifest) }
             cleanupStaleModels()
+            cleanupPartFiles()
             Unit
         }
     }
@@ -183,13 +213,23 @@ class ModelDownloader(
         return removed
     }
 
+    /**
+     * Removes leftover `<required-model>.part` scratch files (an interrupted download). Like
+     * [cleanupStaleModels] this is safe by construction: only the exact names this downloader writes
+     * are ever deleted. Returns the names actually removed.
+     */
+    fun cleanupPartFiles(): List<String> {
+        val removed = removeOwnedPartFiles(modelsDir, REQUIRED_MODELS)
+        removed.forEach { logcat(LogPriority.INFO) { "ModelDownloader: removed partial download $it" } }
+        return removed
+    }
+
     private fun verifyInstalled(manifest: OcrModelManifest) {
         for (name in REQUIRED_MODELS) {
-            val expected = manifest.files.firstOrNull { it.name == name }?.sha256.orEmpty()
-            if (expected.isBlank()) continue
+            val entry = manifest.files.firstOrNull { it.name == name } ?: continue
             val file = File(modelsDir, name)
             check(file.isFile) { "$name was not imported" }
-            check(sha256Hex(file).equals(expected, ignoreCase = true)) { "Checksum mismatch for $name" }
+            check(modelFileMatches(file, entry)) { "Checksum or size mismatch for $name" }
         }
     }
 
@@ -200,45 +240,30 @@ class ModelDownloader(
         val temp = File(modelsDir, "${entry.name}.part")
         temp.parentFile?.mkdirs()
 
-        httpClient.newCall(request).execute().use { response ->
-            check(response.isSuccessful) { "Download failed for ${entry.name}: HTTP ${response.code}" }
-            response.body.byteStream().use { input ->
-                FileOutputStream(temp).use { output -> input.copyTo(output) }
-            }
-        }
-
-        val actual = sha256Hex(temp)
-        if (!actual.equals(entry.sha256, ignoreCase = true)) {
-            temp.delete()
-            error("SHA-256 mismatch for ${entry.name}")
-        }
-        if (entry.size > 0 && temp.length() != entry.size) {
-            logcat(LogPriority.WARN) { "ModelDownloader: ${entry.name} size differs from the manifest" }
-        }
-        if (!temp.renameTo(target)) {
-            temp.copyTo(target, overwrite = true)
-            temp.delete()
-        }
-        Unit
-    }
-
-    private fun extractZip(input: InputStream) {
-        val root = appContext.filesDir.canonicalFile
-        ZipInputStream(input).use { zip ->
-            while (true) {
-                val entry = zip.nextEntry ?: break
-                val target = File(root, entry.name).canonicalFile
-                check(target.path == root.path || target.path.startsWith(root.path + File.separator)) {
-                    "Unsafe zip entry: ${entry.name}"
+        try {
+            httpClient.newCall(request).execute().use { response ->
+                check(response.isSuccessful) { "Download failed for ${entry.name}: HTTP ${response.code}" }
+                response.body.byteStream().use { input ->
+                    FileOutputStream(temp).use { output -> input.copyTo(output) }
                 }
-                if (entry.isDirectory) {
-                    target.mkdirs()
-                } else {
-                    target.parentFile?.mkdirs()
-                    FileOutputStream(target).use { output -> zip.copyTo(output) }
-                }
-                zip.closeEntry()
             }
+
+            val actual = sha256Hex(temp)
+            if (!actual.equals(entry.sha256, ignoreCase = true)) {
+                error("SHA-256 mismatch for ${entry.name}")
+            }
+            if (entry.size > 0 && temp.length() != entry.size) {
+                logcat(LogPriority.WARN) { "ModelDownloader: ${entry.name} size differs from the manifest" }
+            }
+            if (!temp.renameTo(target)) {
+                temp.copyTo(target, overwrite = true)
+                temp.delete()
+            }
+            Unit
+        } finally {
+            // Never leave a partial download behind (HTTP/IO failure or checksum mismatch), and only
+            // ever delete our own `<name>.part` scratch file.
+            if (temp.exists()) temp.delete()
         }
     }
 
@@ -282,4 +307,57 @@ internal fun sha256Hex(file: File): String {
         }
     }
     return digest.digest().joinToString("") { "%02x".format(it) }
+}
+
+/**
+ * True when [file] is a regular, non-empty file matching [entry]'s published [OcrModelFile.size]
+ * (when known) and [OcrModelFile.sha256] (when known). Shared by the cached-manifest
+ * "already downloaded" check and post-import verification, so a truncated or corrupt model is
+ * rejected instead of counted as present.
+ */
+internal fun modelFileMatches(file: File, entry: OcrModelFile): Boolean {
+    if (!file.isFile || file.length() <= 0L) return false
+    if (entry.size > 0 && file.length() != entry.size) return false
+    if (entry.sha256.isNotBlank() && !sha256Hex(file).equals(entry.sha256, ignoreCase = true)) return false
+    return true
+}
+
+/**
+ * Deletes the `<name>.part` scratch files this downloader writes for [names] inside [dir]. Safe by
+ * construction: only those exact, app-owned names are ever removed — never an arbitrary file.
+ * Returns the names actually deleted.
+ */
+internal fun removeOwnedPartFiles(dir: File, names: Collection<String>): List<String> {
+    val removed = mutableListOf<String>()
+    for (name in names) {
+        val file = File(dir, "$name.part")
+        if (file.isFile && file.delete()) removed += file.name
+    }
+    return removed
+}
+
+/**
+ * Extracts a zip [input] directly into [dir] (the engine's model directory), rejecting entries that
+ * would escape it (zip-slip). Used by [ModelDownloader.importFromUri] so extraction, verification
+ * and engine loading all agree on one directory.
+ */
+internal fun extractZipInto(dir: File, input: InputStream) {
+    val root = dir.canonicalFile
+    root.mkdirs()
+    ZipInputStream(input).use { zip ->
+        while (true) {
+            val entry = zip.nextEntry ?: break
+            val target = File(root, entry.name).canonicalFile
+            check(target.path == root.path || target.path.startsWith(root.path + File.separator)) {
+                "Unsafe zip entry: ${entry.name}"
+            }
+            if (entry.isDirectory) {
+                target.mkdirs()
+            } else {
+                target.parentFile?.mkdirs()
+                FileOutputStream(target).use { output -> zip.copyTo(output) }
+            }
+            zip.closeEntry()
+        }
+    }
 }
