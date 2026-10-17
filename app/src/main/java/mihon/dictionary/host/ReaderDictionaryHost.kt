@@ -17,6 +17,15 @@ interface ReaderDictionaryHost {
     fun showLookup(request: DictionaryLookupRequest)
 
     fun dismiss()
+
+    // KUN -->
+    /**
+     * The visible popup's bounds in `compose_overlay` (window-local) coordinates, or null when no
+     * popup is shown. The Apache-headed reader uses it to dismiss the non-modal popup on an
+     * outside tap without installing a gesture-swallowing scrim.
+     */
+    fun popupBounds(): RectF?
+    // KUN <--
 }
 
 /** The single OCR→dictionary DTO (contract §2.3). */

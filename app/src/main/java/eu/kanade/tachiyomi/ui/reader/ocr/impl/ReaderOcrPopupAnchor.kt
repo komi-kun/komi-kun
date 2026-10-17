@@ -21,7 +21,14 @@ class ReaderOcrPopupAnchor {
     /** The active block's rect in `compose_overlay` coordinates, or null when no lookup is open. */
     val rect = mutableStateOf<RectF?>(null)
 
+    /**
+     * The visible popup's own bounds in `compose_overlay` coordinates while it is laid out, or null.
+     * The reader reads this (through the Apache seam) to tell an outside tap from a tap on the popup.
+     */
+    val popupBounds = mutableStateOf<RectF?>(null)
+
     fun clear() {
         rect.value = null
+        popupBounds.value = null
     }
 }

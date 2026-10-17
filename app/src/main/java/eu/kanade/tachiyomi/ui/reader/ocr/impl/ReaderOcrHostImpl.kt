@@ -18,9 +18,12 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.unit.IntSize
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
 import dev.zacsweers.metro.Inject
@@ -72,6 +75,11 @@ class ReaderOcrHostImpl(
         val activeBlockHighlight = readerPreferences.ocrActiveBlockHighlight.get()
         val boxScalePercent = readerPreferences.ocrBoxScale.get()
 
+        // The compose overlay's size, captured from layout. Used to dismiss the popup once its block
+        // has been scrolled fully off-screen - a page can still be partially visible in a continuous
+        // viewer while the block is not.
+        val overlaySize = remember { mutableStateOf(IntSize.Zero) }
+
         // `OcrViewport.visiblePages()` is viewer-owned state, not a Compose snapshot state, so the
         // page the viewer is showing (including the very first page after mount) can appear without
         // recomposing this composable. Poll it once per frame into snapshot state, so the overlay
@@ -84,7 +92,7 @@ class ReaderOcrHostImpl(
                 val pages = viewport.visiblePages()
                 value = pages
                 blockLoader.ensureLoaded(pages)
-                updatePopupAnchor(viewport, pages)
+                updatePopupAnchor(viewport, pages, overlaySize.value)
                 withFrameNanos { }
             }
         }
@@ -97,7 +105,7 @@ class ReaderOcrHostImpl(
             activeBlock = active?.takeIf { activeBlockHighlight && it.first == currentPage?.ocrKey() }?.second,
             outlineVisible = outlineVisible,
             boxScalePercent = boxScalePercent,
-            modifier = modifier,
+            modifier = modifier.onGloballyPositioned { overlaySize.value = it.size },
         )
     }
 
@@ -146,20 +154,28 @@ class ReaderOcrHostImpl(
      * Re-maps the active lookup's block to the current viewport every frame so the popup follows
      * page turns, zoom and scroll instead of staying at the position it opened at.
      *
-     * When the block's page is no longer on screen the lookup is dismissed (the popup must never be
-     * left stuck over a different page).
+     * When the block's page is no longer on screen - or the block itself has been scrolled fully
+     * off the overlay - the lookup is dismissed (the popup must never be left stuck over a different
+     * page or pinned to an edge for an off-screen block).
      */
-    private fun updatePopupAnchor(viewport: OcrViewport, pages: List<ReaderPage>) {
+    private fun updatePopupAnchor(viewport: OcrViewport, pages: List<ReaderPage>, overlaySize: IntSize) {
         val active = activeBlock.value ?: return
         val page = pages.firstOrNull { it.ocrKey() == active.first }
         val rect = page?.let { viewport.imageNormalizedToScreen(it, active.second.toRectF()) }
-        if (rect != null) {
+        if (rect != null && rect.isOnScreen(overlaySize)) {
             popupAnchor.rect.value = rect
         } else {
             dictionaryHost.dismiss()
             activeBlock.value = null
             popupAnchor.clear()
         }
+    }
+
+    /** True while any part of [rect] is inside the overlay. A not-yet-measured overlay keeps it. */
+    private fun RectF.isOnScreen(overlaySize: IntSize): Boolean {
+        if (overlaySize.width <= 0 || overlaySize.height <= 0) return true
+        return right > 0f && bottom > 0f &&
+            left < overlaySize.width && top < overlaySize.height
     }
 
     private fun OcrTextBlock.toRectF(): RectF = RectF(xmin, ymin, xmax, ymax)

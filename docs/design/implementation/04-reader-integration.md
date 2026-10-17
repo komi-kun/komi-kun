@@ -194,11 +194,12 @@ maps to viewport px. `state.visiblePages` already returns every on-screen page.
 | Overlay host | `app/src/main/res/layout/reader_activity.xml:26-29` | none (already above `viewer_container`, `:10-14`) |
 | Compose overlay | `ReaderActivity.kt:227` (`binding.setComposeOverlay()`) | none |
 | Compose content | `ReaderActivity.kt:309-511` (`setComposeOverlay`) | insert `OcrOverlay(...)` into the `Box` at `:330`, beside `ContentOverlay` (`:343`) / `AppBars` (`:345`) |
-| Popup host | `ReaderActivity.kt:361-509` (`when (state.dialog)`) | add OCR/dictionary popup + selection panel; gate the scrim so it only captures pointers when visible |
+| Popup host | `ReaderActivity.kt:361-509` (`when (state.dialog)`) | add OCR/dictionary popup + selection panel; keep the popup **non-modal** — it adds pointer input only over its own bounds and the reader observes outside taps passively |
 
 The `compose_overlay` `ComposeView` is a *non-clickable* sibling above `viewer_container`; touches
-pass through to the viewer unless a composable adds `pointerInput`. **Only the popup/selection scrim
-adds pointer input** — box outlines are draw-only (`Canvas`).
+pass through to the viewer unless a composable adds `pointerInput`. **The dictionary popup adds
+pointer input only over its own bounds** — box outlines are draw-only (`Canvas`), and the reader
+observes outside taps for dismissal with a passive, non-consuming detector (§4.5).
 
 ### 2.2 Tap / long-press capture
 
@@ -382,8 +383,11 @@ fun OcrOverlay(
   state read by the `Canvas`, but **only while the overlay is visible**; map only the visible pages'
   blocks. (Chimahon redraws inside SSIV `onDraw`; we cannot, so gate cost explicitly.)
 - **Popup:** dictionary-owned `OcrLookupPopup`-equivalent rendered at `ReaderActivity.kt:361-509`
-  when `popupVisible`; a full-screen transparent scrim consumes pointers only while open. Back closes
-  it first (`BackHandler`, mirroring Chimahon `ReaderActivity.kt:702`).
+  when `popupVisible`. It is **non-modal**: there is **no scrim**, so the page keeps
+  scrolling/zooming/paging underneath while the popup tracks its OCR block live (the popup's anchor
+  is refreshed every frame). It is dismissed by an outside tap (a passive, non-consuming
+  `OutsideTapDismissDetector` fed from `ReaderActivity.dispatchTouchEvent`), Back (`BackHandler`,
+  first), a page change, or when the anchored block leaves the screen.
 
 ### 4.4 Threading & lifecycle
 
@@ -401,7 +405,7 @@ fun OcrOverlay(
 
 | Gesture | Owner | Rule |
 |---|---|---|
-| Page turn / drag / pinch | viewer (SSIV / ViewPager / recycler / Compose `pointerInput`) | overlay adds **no** pointer input except the popup scrim → never intercepts |
+| Page turn / drag / pinch | viewer (SSIV / ViewPager / recycler / Compose `pointerInput`) | overlay adds **no** pointer input except over the popup's own bounds → never intercepts; outside-tap dismissal is observed, not consumed |
 | Single tap | viewer navigation (`tapListener`, `state.onTap`) | unchanged; OCR uses **long-press only** |
 | Long-press | viewer → `onPageLongTap` | OCR hook; long-press on empty space falls back to page actions |
 | Zoom/pan | SSIV / WebGPU page transform | box mapping reads the transform each frame via `transformVersion()`; no gesture filtering needed |
