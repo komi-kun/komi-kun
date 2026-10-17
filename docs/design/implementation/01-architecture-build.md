@@ -49,7 +49,9 @@ makes the combined work Apache-clean.
 > **Superseded (2026):** this plan predates the OCR backend migration. The module described here now
 > runs **ONNX Runtime + PP-OCRv6 `small`** rather than a Paddle-Lite `.nb` shim; the current contract is
 > `00-implementation-contract.md` §1.7 and the migration record is `ort-v6-migration.md`. The module
-> layout and the GPL-free boundary below still hold.
+> layout and the GPL-free boundary below still hold — but the **`:core:ocr` licence row above does
+> not**: the module is **GPL-3.0-or-later**, not Apache-2.0 (`00-implementation-contract.md`
+> §1.1/§1.3 and §6.1); only the seam files stay Apache-2.0.
 
 Rationale:
 - **Engine wrapper vs OCR split** mirrors the real license split, not just code size. The design
@@ -513,7 +515,9 @@ nested submodules must be public (they are).
 > **Superseded (2026):** this section is kept as the historical decision record. The OCR backend later
 > moved from Paddle-Lite to **ONNX Runtime + PP-OCRv6 `small`** (`ort-v6-migration.md`); option A was
 > taken, and the artifact now ships `libpaddle_ocr.so` + `libonnxruntime.so` + `libomp.so` for
-> `arm64-v8a`, `armeabi-v7a` and `x86_64`.
+> `arm64-v8a`, `armeabi-v7a` and `x86_64`. The heading's **“Apache-2.0” is also superseded**:
+> `:core:ocr` is **GPL-3.0-or-later** (`00-implementation-contract.md` §1.1/§1.3, §6.1). Option A
+> itself still holds.
 
 `:core:ocr` ships `libpaddle_ocr.so` + det/rec models under Apache-2.0. Options:
 - **A (recommended for now):** `jniLibs/<abi>/libpaddle_ocr.so` committed via a pinned, checksummed
