@@ -311,6 +311,32 @@
     <string name="pref_dictionary_export">Export dictionaries</string>
     <string name="pref_dictionary_import_success">Dictionaries imported</string>
     <string name="pref_dictionary_import_error">Dictionary import failed</string>
+    <!-- KUN: Yomitan Dexie-backup import (on-device) -->
+    <string name="pref_import_yomitan_backup">Import Yomitan backup (.json)</string>
+    <string name="pref_import_yomitan_backup_summ">Import every dictionary from a Yomitan Dexie backup</string>
+    <string name="yomitan_backup_intro">Pick a Yomitan Dexie backup (yomitan-dictionaries-*.json). Every dictionary in it is rebuilt on-device and imported. This can take several minutes and needs a lot of temporary storage — keep the app open and the device charging.</string>
+    <string name="yomitan_backup_choose_file">Choose backup file</string>
+    <string name="yomitan_backup_import">Import</string>
+    <string name="yomitan_backup_cancel">Cancel import</string>
+    <string name="yomitan_backup_keep_importing">Keep importing</string>
+    <string name="yomitan_backup_cancel_confirm_title">Cancel import?</string>
+    <string name="yomitan_backup_cancel_confirm_message">Dictionaries already imported are kept. Re-running the same backup resumes and skips them.</string>
+    <string name="yomitan_backup_warning_space">Backup: %1$s. Recommended free space: %2$s (currently %3$s free).</string>
+    <string name="yomitan_backup_warning_low_space">Only %1$s free — about %2$s is recommended.</string>
+    <string name="yomitan_backup_warning_no_styles">This backup has no dictionary stylesheets, so imported dictionaries use the built-in styling.</string>
+    <string name="yomitan_backup_parsing">Reading backup… %1$d of %2$d rows</string>
+    <string name="yomitan_backup_importing">Importing %1$d of %2$d: %3$s</string>
+    <string name="yomitan_backup_running_counts">%1$d imported, %2$d failed so far</string>
+    <string name="yomitan_backup_done_title">Import finished</string>
+    <string name="yomitan_backup_summary">%1$d imported · %2$d skipped · %3$d failed · %4$s</string>
+    <string name="yomitan_backup_summary_malformed">%1$d malformed rows were skipped</string>
+    <string name="yomitan_backup_skipped_item">• %1$s (already imported)</string>
+    <string name="yomitan_backup_imported_item">✓ %1$s (%2$d terms)</string>
+    <string name="yomitan_backup_failed_item">✗ %1$s: %2$s</string>
+    <string name="yomitan_backup_done">Done</string>
+    <string name="yomitan_backup_error">Import failed: %1$s</string>
+    <string name="yomitan_backup_none">No dictionaries were found in the backup.</string>
+    <!-- /KUN -->
     <string name="pref_dictionary_export_success">Dictionaries exported</string>
     <string name="pref_dictionary_export_error">Dictionary export failed</string>
     <string name="pref_dictionary_progress">Working…</string>
