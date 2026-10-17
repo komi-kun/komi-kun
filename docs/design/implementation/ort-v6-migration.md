@@ -133,6 +133,35 @@ Each iteration = a **fresh-context** review agent on the diff, then fixes for fi
 - **APK size** growth (+103 MB universal, ≈ +34/24/50 MB per ABI split) is **accepted** — it is the
   full `onnxruntime-android` build, not `onnxruntime-mobile`; see §8.
 
+### Post-review finding: OCR cache deadlock (F5)
+
+Hardware validation on the user's tablet (OnePlus Pad, arm64, Android 16) showed the reader opens
+(crash F1 fixed above) and the native engine works (models verify, "OCR ready"), but **no OCR ever
+ran**: no engine init, no cache, empty blocks, and long-press fell through to the page-actions
+dialog. jdb showed `ReaderOcrBlockLoader.load()` reaching the cache check and never reaching
+`runEngineOcr`.
+
+**Root cause — a nested-lock deadlock in `OcrCacheManager`.** The keyed entry points `load`/`save`/
+`hasData` took the coroutine `Mutex` and then delegated to the *locked* file wrappers `loadFrom`/
+`saveTo`/`hasDataIn`, which re-locked the **same, non-reentrant** `Mutex` and suspended forever. Both
+the reader's on-demand path and the queue worker hit the cache check first, so the whole feature
+deadlocked before the engine. Reproduced on the x86_64 emulator with temporary logging:
+`cache.load enter` and `cache.loadFrom acquiring` printed, then nothing — no `cache.load exit`, no
+engine init, no cache.
+
+**Fix.** `OcrCacheManager.kt`: the keyed methods now call new **non-locking** private helpers
+(`loadFromBlocking` already existed; `saveToFile`/`hasDataInBlocking` added) directly under their
+single lock; the file wrappers keep their own single lock. No call path re-enters the mutex.
+`ReaderOcrBlockLoader.ensureLoaded` no longer swallows a thrown `load()` silently — it logs the
+throwable at WARN. Regression tests (`OcrCacheManagerTest`) assert the keyed paths complete within a
+10 s `withTimeout`; they time out on the pre-fix code.
+
+**Verified end-to-end** on the x86_64 emulator (local CBZ, `PADDLE` source): `Paddle OCR engine
+initialized in 168ms`, `recognize: Total: 555ms … Boxes: 21, Lines: 21`, cache written to
+`files/ocr_cache/0/1/1.json` with Japanese blocks (`"language":"ja"`), the overlay draws the boxes,
+and a long-press on a bubble opens the dictionary lookup (`libhoshidicts_jni.so`, `DictionaryRender`)
+instead of the page dialog.
+
 ## 7. Key paths & commands
 
 - Engine: `core/ocr/src/main/java/mihon/core/ocr/paddle/PaddleOcrEngine.kt`
@@ -196,6 +225,10 @@ reader crash it exposed (§5 “Final pass”). All gates are green.
   `feat/introduce-ocr-and-yomitan` (commit `46496637e6`) — it predates this PR — and is fixed **here**
   (`ocrTwoFingerTapDetector` is now `by lazy { … }`) so that **merging #8 propagates the fix** into the
   integration target.
+- **Reader OCR deadlock found and fixed (F5).** Hardware validation then revealed OCR *never ran*: the
+  reader/queue cache check deadlocked on the re-entrant `Mutex` in `OcrCacheManager` (the keyed
+  methods re-locked via the locked file wrappers). Fixed with non-locking helpers + a regression test;
+  reader OCR now runs end-to-end (Japanese overlay boxes + long-press dictionary lookup). See §6.
 - **APK-size tradeoff (accepted).** Shipping the full `onnxruntime-android:1.31.0` runtime (not
   `onnxruntime-mobile`) grows each ABI split by ≈ +34/24/50 MB and the universal APK by ≈ +103 MB
   (§8). Accepted as the cost of real `x86_64` support and PP-OCRv6.

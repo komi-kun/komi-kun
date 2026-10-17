@@ -69,7 +69,7 @@ class OcrCacheManager(
         language: String,
         variant: String? = null,
     ) = withContext(Dispatchers.IO) {
-        mutex.withLock { saveTo(internalCacheFile(key), pageIndex, blocks, language, variant) }
+        mutex.withLock { saveToFile(internalCacheFile(key), pageIndex, blocks, language, variant) }
     }
 
     suspend fun load(
@@ -77,11 +77,11 @@ class OcrCacheManager(
         pageIndex: Int,
         variant: String? = null,
     ): List<OcrTextBlock>? = withContext(Dispatchers.IO) {
-        mutex.withLock { loadFrom(internalCacheFile(key), pageIndex, variant) }
+        mutex.withLock { loadFromBlocking(internalCacheFile(key), pageIndex, variant) }
     }
 
     suspend fun hasData(key: OcrCacheKey): Boolean = withContext(Dispatchers.IO) {
-        mutex.withLock { hasDataIn(internalCacheFile(key)) }
+        mutex.withLock { hasDataInBlocking(internalCacheFile(key)) }
     }
 
     suspend fun deleteChapter(key: OcrCacheKey) = withContext(Dispatchers.IO) {
@@ -116,18 +116,7 @@ class OcrCacheManager(
         language: String,
         variant: String? = null,
     ) = withContext(Dispatchers.IO) {
-        mutex.withLock {
-            val data = readChapterData(file).withPage(
-                pageIndex,
-                OcrPageData(
-                    blocks = blocks.map { it.toBlockData() },
-                    language = language,
-                    version = CURRENT_VERSION,
-                ),
-                variant,
-            )
-            writeChapterData(file, data)
-        }
+        mutex.withLock { saveToFile(file, pageIndex, blocks, language, variant) }
     }
 
     /** Loads one page's blocks from [file], or null when absent/unreadable. */
@@ -141,10 +130,7 @@ class OcrCacheManager(
 
     /** True when [file] holds at least one cached page. */
     suspend fun hasDataIn(file: File): Boolean = withContext(Dispatchers.IO) {
-        mutex.withLock {
-            val data = readChapterData(file)
-            data.pages.isNotEmpty() || data.variants.isNotEmpty()
-        }
+        mutex.withLock { hasDataInBlocking(file) }
     }
 
     suspend fun deleteIn(file: File) = withContext(Dispatchers.IO) {
@@ -153,6 +139,32 @@ class OcrCacheManager(
 
     // ---------------------------------------------------------------- helpers
 
+    /**
+     * Non-locking write used by both [save] and [saveTo]. Callers must hold [mutex]: the coroutine
+     * [Mutex] is **not** reentrant, so the keyed entry points must not delegate to the locked
+     * [saveTo]/[loadFrom]/[hasDataIn] wrappers (that deadlocked the reader before the OCR cache
+     * existed, so no OCR ever ran — see `ort-v6-migration.md` §6/§9).
+     */
+    private fun saveToFile(
+        file: File,
+        pageIndex: Int,
+        blocks: List<OcrTextBlock>,
+        language: String,
+        variant: String?,
+    ) {
+        val data = readChapterData(file).withPage(
+            pageIndex,
+            OcrPageData(
+                blocks = blocks.map { it.toBlockData() },
+                language = language,
+                version = CURRENT_VERSION,
+            ),
+            variant,
+        )
+        writeChapterData(file, data)
+    }
+
+    /** Non-locking read used by both [load] and [loadFrom]; callers must hold [mutex]. */
     private fun loadFromBlocking(file: File, pageIndex: Int, variant: String?): List<OcrTextBlock>? {
         if (!file.isFile) return null
         return try {
@@ -161,6 +173,12 @@ class OcrCacheManager(
             logcat(LogPriority.WARN, e) { "OcrCache: failed to read ${file.name}" }
             null
         }
+    }
+
+    /** Non-locking probe used by both [hasData] and [hasDataIn]; callers must hold [mutex]. */
+    private fun hasDataInBlocking(file: File): Boolean {
+        val data = readChapterData(file)
+        return data.pages.isNotEmpty() || data.variants.isNotEmpty()
     }
 
     private fun readChapterData(file: File): OcrChapterData {
