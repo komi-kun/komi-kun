@@ -45,12 +45,22 @@ Other bundled / linked components
   <https://github.com/mpreg-ca/webgpuviewer>) — **MIT**. Vendored verbatim as an in-repo Maven
   artifact under `maven/` (tag `ocr-accessors-1`, `792aef3b6886343ee38a9140eefdc98114869dfd`).
 - **ca.mpreg:imagedecoder** — <https://github.com/mpreg-ca/imagedecoder> — **MIT**.
-- **PaddleOCR** — <https://github.com/PaddlePaddle/PaddleOCR> — **Apache-2.0**. The detection /
-  recognition models download at runtime, opt-in and checksum-verified; the official PaddleOCR
-  models are used unless an optional fine-tune's license has been confirmed.
-- **Paddle-Lite** — <https://github.com/PaddlePaddle/Paddle-Lite> — **Apache-2.0**. The
-  `libpaddle_ocr.so` bridge is komi-kun's own JNI build over Paddle-Lite; it and its runtime
-  dependencies (`libomp.so`, `libc++_shared.so`) ship as a separate checksummed artifact.
+- **PaddleOCR** — <https://github.com/PaddlePaddle/PaddleOCR> — **Apache-2.0**. Only the **official**
+  PP-OCRv6 `small` detection / recognition ONNX models are used; they download at runtime, opt-in and
+  checksum-verified. The `manga_*_fp16` Paddle-Lite fine-tune considered early on is **not used**.
+- **ONNX Runtime** — <https://github.com/microsoft/onnxruntime> (Android AAR
+  `com.microsoft.onnxruntime:onnxruntime-android` **1.31.0**) — **MIT**. `libonnxruntime.so` is
+  republished byte-for-byte as part of a separate, checksummed artifact; `libpaddle_ocr.so` is
+  komi-kun's own Apache-2.0 JNI shim that loads it via `dlopen` and drives the ONNX Runtime C API.
+  The shim's other native dependencies (`libomp.so`, `libc++_shared.so`) come from the Android NDK
+  (Apache-2.0 WITH LLVM-exception) and ship in the same artifact.
+- **opencv-mobile 4.13.0** — <https://github.com/nihui/opencv-mobile> · <https://opencv.org> —
+  **Apache-2.0** (OpenCV itself is Apache-2.0) — Copyright (c) nihui and the OpenCV authors.
+  Statically linked into `libpaddle_ocr.so` (`-Wl,--exclude-libs,ALL`; only the three JNI entry points
+  are exported).
+- **Clipper 6.4.2** — <http://www.angusj.com/delphi/clipper.php> — **Boost Software License 1.0** —
+  Copyright (c) Angus Johnson. Vendored under `third_party/clipper/` and statically linked into
+  `libpaddle_ocr.so`.
 - **LiteRT** — <https://github.com/google-ai-edge/LiteRT> — **Apache-2.0**. Considered for the
   optional panel-detection model, which is out of scope for this port, so it is not currently
   bundled.

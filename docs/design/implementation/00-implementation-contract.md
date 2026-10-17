@@ -22,7 +22,7 @@ Fixes for the fresh-eyes review (`reviews/00-contract-review.md`):
 - **B4** — `webgpuviewer` fork pin resolved: tag `ocr-accessors-1` (`792aef3b6886343ee38a9140eefdc98114869dfd`), §1.6/§2.6.
 - **Should-fixes** — `hoshidicts` pin → `62fc9fa1…` with `HOSHIDICTS_BUILD_CLI`/`_BENCHMARKS`;
   `probeEntryTypes` already returns 4 longs (no work); chapter files are in `:domain`; added
-  `ca.mpreg:imagedecoder`, `libomp.so`/`libc++_shared.so`, Paddle x86_64 gate, `WorkerFactory`/`App.kt`,
+  `ca.mpreg:imagedecoder`, `libonnxruntime.so`/`libomp.so`/`libc++_shared.so`, Paddle x86_64 gate, `WorkerFactory`/`App.kt`,
   `Notifications.kt`; `Mokuro*` → `:core:ocr`; Anki manifest → W5.
 
 ---
@@ -127,15 +127,19 @@ above is the tracked commit.
 ### 1.7 OCR artifact strategy
 
 `komi-kun/komi-kun-ocr-models` GitHub release (built by our CI, **not** Chimahon's `v2.5` zip):
-`libpaddle_ocr.so` (our JNI over Paddle-Lite, emits the `TIMING|`/`LINE|` protocol 03 §2.1) **plus the
-runtime deps it links — `libomp.so` and `libc++_shared.so`** (3 files, all three ABIs) + `manifest.json`
-with per-file **SHA-256**, size, ABI, SPDX. Ship via `core/ocr/src/main/jniLibs/<abi>/` (Gradle fetch task,
-plan 01 §5.4 option A); models + `ppocrv6_dict.txt` download at user opt-in at runtime, **checksum-verified**
-in `ModelDownloader`. Official PaddleOCR Apache-2.0 models first; the `manga_*_fp16` fine-tune is optional
-and only if its license is confirmed. Add `libpaddle_ocr.so` to `keepDebugSymbols`. Pack exactly one
-`libc++_shared.so` per ABI (shared with `:core:dictionary`'s `-DANDROID_STL=c++_shared`) to avoid a
-duplicate-`.so` collision. Keep Chimahon's STL/OpenMP-first `System.load` order. **W3 must also patch the
-`PaddleOcrEngine.supportedAbi()` Kotlin gate** to accept `x86_64` (§1.5), not just arm64/armv7.
+`libpaddle_ocr.so` (our JNI over **ONNX Runtime**, emits the `TIMING|`/`LINE|` protocol 03 §2.1) **plus
+its runtime deps — `libonnxruntime.so` and `libomp.so`** (per ABI) + `manifest.json` with per-file
+**SHA-256**, size, ABI, SPDX. Ship via `core/ocr/src/main/jniLibs/<abi>/` (Gradle fetch task, plan 01
+§5.4 option A); models + `ppocrv6_small_dict.txt` download at user opt-in at runtime, **checksum-verified**
+in `ModelDownloader`. Official PaddlePaddle **PP-OCRv6 `small`** ONNX exports (Apache-2.0) — the current
+backend is ONNX Runtime, **not** Paddle-Lite (see `ort-v6-migration.md`); the `manga_*_fp16` Paddle-Lite
+fine-tune is no longer used. Add `libpaddle_ocr.so` to `keepDebugSymbols`. `libc++_shared.so` **is**
+shipped in the release but is deliberately **not listed in `paddle-manifest.json` / not fetched into
+`jniLibs`**: AGP already packages the NDK copy via `:core:dictionary`'s `-DANDROID_STL=c++_shared`,
+and a second copy collides at app merge (mirrors the manifest's `_comment`; re-add the release's entry
+only if no other module provides it). Keep the STL → OpenMP → ONNX Runtime → engine `System.load`
+order. `PaddleOcrEngine.supportedAbi()` accepts
+`arm64-v8a`, `armeabi-v7a` and `x86_64` (§1.5).
 
 ### 1.8 Licensing artifacts
 
@@ -364,7 +368,7 @@ No two owners touch the same file in the same wave. `A:Wn` = action in wave *n*.
 | `src/main/java/mihon/core/ocr/{OcrEngine,EngineLine,OcrLanguage,OcrResult,OcrBlockData,OcrPreprocessor,OcrBitmapDecoder,ImageChunking,OcrHitTester,OcrLookupText,OcrTextBlock}.kt` | copy | W3 |
 | `.../merge/{LineMerger.kt,OwOCRMerger.kt}`, `.../mokuro/*`, `.../overlay/OcrCoordinateMapper.kt`, `.../cache/{OcrStore,OcrCacheManager,OcrManager,OcrJob}.kt` | port | W3 |
 | `.../paddle/{PaddleOcrEngine,ModelDownloader}.kt` | port (incl. `supportedAbi()` **x86_64 gate patch**, §1.7) | W3 |
-| `src/main/jniLibs/<abi>/{libpaddle_ocr.so,libomp.so,libc++_shared.so}` + fetch task | create (§1.7) | W3 |
+| `src/main/jniLibs/<abi>/{libpaddle_ocr.so,libonnxruntime.so,libomp.so}` + fetch task | create (§1.7) | W3 |
 | `src/test/java/...` (A2 seams) | create | W5 |
 
 `:core:ocr`'s `cache/*` services consume `tachiyomi.core.common.ocr.ReaderOcrSource` (Apache, `:core:common`)
@@ -520,8 +524,8 @@ Where an implementer reads a plan that contradicts this file, follow the contrac
    native artifacts and the splits (fallback in §1.5). Confirm device priority.
 2. **Import progress** — ship coarse phases (frozen) now, or patch a C progress callback into the
    `hoshidicts` fork now? (01 §9-R4.)
-3. **Paddle fine-tune** — is the `manga_det/rec_fp16` provenance licensed? Until confirmed, official
-   PaddleOCR models only (03 §7.1-R1).
+3. **Paddle fine-tune — resolved.** Only the official PaddleOCR PP-OCRv6 `small` models ship; the
+   `manga_det/rec_fp16` fine-tune is not used (03 §7.2-R1).
 4. **Anki scope** — Phase 6 remains last; confirm the Yomitan-canonical marker catalog + `// KUN` extras
    decision (05 §B2).
 5. **AnkiDroid `:core:dictionary` dependency** — `com.ichi2.anki:api` is GPL-3.0; keep it optional/Phase 6.

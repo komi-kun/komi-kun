@@ -122,7 +122,7 @@ These cannot both hold:
   `ImageChunking`, `OcrLookupText`, `Mokuro*`** are **derived from GPL-3.0 Chimahon**. Copying any of
   them makes `:core:ocr` a **GPL-derived** module — it cannot be Apache-2.0, and files in it cannot be
   contributed back to Mihon/Komikku.
-- Only **our own** additions (Metro bindings, the JNI shim over Paddle-Lite, the Compose overlay glue)
+- Only **our own** additions (Metro bindings, the JNI shim over ONNX Runtime, the Compose overlay glue)
   are cleanly Apache-2.0.
 
 **Resolution (recommend to `01`):** keep the module split and the **one-way dependency rule**
@@ -135,7 +135,7 @@ in §1.1 becomes a reimplementation.
 
 ---
 
-## 2. Paddle `.so` + det/rec models — reproducible, permissive source/build/host
+## 2. Native `.so`s (ONNX Runtime) + det/rec models — reproducible, permissive source/build/host
 
 **Problem.** Chimahon downloads `https://github.com/Chimahon/chimahon-local-models/releases/download/
 v2.5/paddle-ocr.zip` (`ModelDownloader.kt:27-31`) containing `libpaddle_ocr.so` (+ `libomp.so`,
@@ -147,15 +147,21 @@ hot-linking a third-party GPL release is fragile. We need **our own** artifact.
 
 Ship a **`komi-kun/komi-kun-ocr-models`** release (or GitHub Packages) built by **our CI**, containing:
 
-1. `libpaddle_ocr.so` — **we write** a small JNI wrapper (`ocr-jni/`) that reproduces
+1. `libpaddle_ocr.so` — **we write** a small JNI shim (`ocr-jni/`) that reproduces
    `nativeInit`/`nativeProcess`/`nativeRelease` (`PaddleOcrEngine.kt:347-365`) against
-   **Paddle-Lite** (Apache-2.0) + **PaddleOCR** deploy code (Apache-2.0), emitting the same
-   `TIMING|`/`LINE|` text protocol (`:229-281`) so `PaddleOcrEngine.kt` stays near-unchanged.
-2. `libomp.so`, `libc++_shared.so` — from the Android NDK (redistributable) / Paddle-Lite packaging.
-3. Models: start from **official PaddleOCR** releases (Apache-2.0) converted to Paddle-Lite **fp16**
-   (`det` + `japan rec`), plus the recognition dict converted to `ppocrv6_dict.txt`. The
-   `manga_det_fp16`/`manga_rec_fp16` names suggest a **manga fine-tune whose provenance is
-   unverified** → treat as an *optional, separately-licensed* upgrade (see §7 risk R1).
+   **ONNX Runtime** (MIT, loaded dynamically through its ABI-stable C API) + **PaddleOCR** deploy/lite
+   post-processing (Apache-2.0), emitting the same `TIMING|`/`LINE|` text protocol (`:229-281`) so
+   `PaddleOcrEngine.kt` stays near-unchanged.
+2. `libonnxruntime.so`, `libomp.so` — ONNX Runtime's republished per-ABI shared library (MIT) and the
+   Android NDK OpenMP runtime (`libomp.so`, Apache-2.0 WITH LLVM-exception; required by opencv-mobile's
+   `parallel_for_`, not by ONNX Runtime). `libc++_shared.so` **is** shipped in the release but is
+   deliberately **not listed in `paddle-manifest.json` / not fetched into `jniLibs`**: AGP already
+   packages the NDK copy via `:core:dictionary`'s `-DANDROID_STL=c++_shared`, and a second copy collides
+   at app merge. (Matches `00-implementation-contract.md` §1.7 and `core/ocr/README.md`.)
+3. Models: **official PaddlePaddle PP-OCRv6 `small`** ONNX exports (Apache-2.0) —
+   `ppocrv6_small_det.onnx`, `ppocrv6_small_rec.onnx` (unified ja/zh/en CTC, `h=48`) and
+   `ppocrv6_small_dict.txt`. The `manga_det_fp16`/`manga_rec_fp16` Paddle-Lite fine-tune is **no longer
+   used**; see `ort-v6-migration.md`.
 
 ### 2.2 Alternatives considered
 
@@ -164,23 +170,26 @@ Ship a **`komi-kun/komi-kun-ocr-models`** release (or GitHub Packages) built by 
 | Hot-link/re-host Chimahon's `v2.5` zip | ❌ not reproducible, opaque provenance, third-party hosting |
 | Reuse `ocrtest` (Chimahon's reference project) | ❌ source not public |
 | Official PaddleOCR Android demo `.so` | ⚠️ usable but API/output mismatch; still needs adaptation |
-| **Build our JNI over Paddle-Lite + official models (chosen)** | ✅ reproducible, Apache-2.0, own hosting |
+| **Build our JNI over ONNX Runtime + official models (chosen)** | ✅ reproducible, MIT/Apache-2.0, own hosting |
 
 ### 2.3 Concrete requirements
 
-- **ABI:** `arm64-v8a`, `armeabi-v7a` only (matches `PaddleOcrEngine.kt:93-97`); skip x86/x86_64.
-- **Hosting:** pinned release tag (e.g. `ocr-models-v2`); a `manifest.json` with per-file
-  **SHA-256**, byte size, ABI, and SPDX id (`Apache-2.0` for Paddle + our `.so`; NDK runtime libs
-  under their terms). **`ModelDownloader` must verify checksums** (Chimahon does not — §7 R2).
+- **ABI:** `arm64-v8a`, `armeabi-v7a`, `x86_64` (matches the manifest and `PaddleOcrEngine`); ONNX
+  Runtime publishes all three and the ONNX graphs are architecture-independent, so x86_64 is supported.
+- **Hosting:** pinned release tag (e.g. `ocr-models-v3`); a `manifest.json` with per-file
+  **SHA-256**, byte size, ABI, and SPDX id (`MIT` for ONNX Runtime, `Apache-2.0` for Paddle + our `.so`;
+  NDK runtime libs under their terms). **`ModelDownloader` must verify checksums** (Chimahon does not —
+  §7 R2).
 - **Delivery:** **runtime download, user-opt-in** (Chimahon's model) + an **import-from-file** path
   (`ModelDownloader.importFromUri:168`, kept, but checksum-gated). Do **not** bundle in the APK
   (size + ABI splits); expose a "Download OCR models" CTA in `SettingsOcrScreen` and post-onboarding.
 - **Size budget:** record actual sizes in the manifest; expect low-tens-of-MB per ABI `.so` + a few
-  MB of fp16 models + small dict. Cap the model download UX accordingly.
+  MB of ONNX models + small dict. Cap the model download UX accordingly.
 - **Load path:** keep Chimahon's **absolute-path** `System.load` (`:112-121`) so the `.so` can live in
-  app storage; keep the STL/OpenMP-first ordering (`:109-116`).
-- **License paperwork:** ship `NOTICE`/`LICENSE` in the OSS-licences screen (PaddleOCR, Paddle-Lite,
-  NDK runtime, our JNI). The engine `.so` we build is Apache-2.0; combined APK is GPL-3.0.
+  app storage; keep the STL → OpenMP → ONNX Runtime → engine ordering (`:109-116`).
+- **License paperwork:** ship `NOTICE`/`LICENSE` in the OSS-licences screen (PaddleOCR, ONNX Runtime,
+  opencv-mobile, Clipper, NDK runtime, our JNI). The engine `.so` we build is Apache-2.0; combined APK
+  is GPL-3.0.
 - **CI:** build the `.so` with `cargo`-free CMake + NDK (AGP 9.4 default r28.2.x) in the models repo,
   publish on tag; the app build consumes the manifest, not the toolchain. ⚠ IFACE-01: `01` §5.4 keeps
   the `.so` in `core/ocr/src/main/jniLibs/<abi>/`; agree whether `:core:ocr` builds it or only
@@ -427,14 +436,14 @@ language)`) between this plan and the dictionary plan so the popup never imports
 
 Define the Apache `ReaderOcrHost` interface (in `app`, no GPL imports) and implement it in `:core:ocr`;
 `ReaderActivity`/`ReaderViewModel` touch only that interface — this is what keeps the reader file
-contributable upstream. **Note:** if `01` keeps `:core:ocr` Apache (§1.5), then the GPL-derived OCR
-files cannot live there as copies and this map's first row changes to a reimplementation.
+contributable upstream. **Settled:** `:core:ocr` is **GPL-3.0-or-later** (`00` §1.1/§1.3, §6.1), so
+the GPL-derived OCR files stay there; the former “if `01` keeps it Apache” branch is closed.
 
 ### 7.2 Risks / unknowns
 
-- **R1 — Paddle model provenance.** `manga_det_fp16`/`manga_rec_fp16` look like an unverified
-  fine-tune. Use official PaddleOCR models (Apache-2.0) to start; only add the fine-tune if its
-  licence is confirmed (recorded in the manifest).
+- **R1 — Paddle model provenance (resolved).** Only the **official** PaddleOCR PP-OCRv6 `small`
+  models (Apache-2.0, §2.1) ship; the `manga_det_fp16`/`manga_rec_fp16` Paddle-Lite fine-tune was
+  never adopted.
 - **R2 — Download integrity.** Chimahon's `ModelDownloader` does no checksum (`ModelDownloader.kt:145-166`).
   Add SHA-256 verification + `manifest.json`.
 - **R3 — Merger port.** `OwOCRMerger` (1261 LOC) is the riskiest correctness surface → seam + fixtures.
@@ -453,8 +462,9 @@ files cannot live there as copies and this map's first row changes to a reimplem
 1. **Scaffold** `:core:ocr` (`core/ocr/`, `mihon.core.ocr`, `01` §1.3); copy engine-agnostic IR +
    `OcrTextBlock`; drop Lens. Add `di/OcrBindings.kt` (`01` §4). **Merger seam** `OcrLineMerger`
    (`merge/LineMerger.kt`) + port `OwOCRMerger` + fixtures (T-§3.6).
-2. **Paddle artifact**: write JNI over Paddle-Lite, build `.so` per ABI, convert models, publish
-   `komi-kun-ocr-models` + `manifest.json`; rewrite `ModelDownloader` with checksums.
+2. **OCR artifact**: write the JNI shim over ONNX Runtime, build `.so` per ABI, export the PP-OCRv6
+   small ONNX models, publish `komi-kun-ocr-models` + `manifest.json`; rewrite `ModelDownloader` with
+   checksums.
 3. **Port `PaddleOcrEngine`** + Metro binding of `OcrEngine`; smoke-test on a downloaded chapter.
 4. **DB** `54.sqm` + `Chapter`/`ChapterUpdate`/`chapter.sq` + mapper; regenerate SQLDelight.
 5. **App services** `OcrStore`/`OcrCacheManager`/`OcrManager`/`OcrJob` → Metro.
