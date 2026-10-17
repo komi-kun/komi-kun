@@ -15,10 +15,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -53,6 +56,8 @@ import mihon.core.dictionary.model.getDictionaryPaths
 import mihon.core.dictionary.ui.KanaConverter
 import mihon.core.dictionary.ui.TabInfo
 import mihon.core.dictionary.ui.orderLookupResultsForDisplay
+import mihon.icons.materialsymbols.MaterialSymbols
+import mihon.icons.materialsymbols.rounded.Close
 import tachiyomi.i18n.kmk.KMR
 import tachiyomi.presentation.core.i18n.stringResource
 import kotlin.math.roundToInt
@@ -204,6 +209,43 @@ fun DictionaryPopup(
             color = bg,
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
+                // KUN -->
+                // Discoverability affordance: the entry text *is* selectable (the WebView's own
+                // long-press starts a selection and shows the system selection toolbar), but the
+                // popup gave no sign of it, so the reasonable conclusion was that nothing could be
+                // selected. Show a one-line hint until the user dismisses it.
+                var selectionHintDismissed by
+                    remember { mutableStateOf(prefs.selectionHintDismissed().get()) }
+                if (!selectionHintDismissed) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 10.dp, end = 2.dp, top = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = stringResource(KMR.strings.dictionary_selection_hint),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f),
+                        )
+                        IconButton(
+                            onClick = {
+                                selectionHintDismissed = true
+                                prefs.selectionHintDismissed().set(true)
+                            },
+                            modifier = Modifier.size(28.dp),
+                        ) {
+                            Icon(
+                                imageVector = MaterialSymbols.Rounded.Close,
+                                contentDescription =
+                                stringResource(KMR.strings.dictionary_selection_hint_dismiss),
+                                modifier = Modifier.size(14.dp),
+                            )
+                        }
+                    }
+                }
+                // KUN <--
                 if (tabs.size > 1) {
                     Row(
                         modifier = Modifier
