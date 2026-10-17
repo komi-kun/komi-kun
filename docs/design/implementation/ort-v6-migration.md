@@ -81,6 +81,23 @@ Gold-relative on **original** pages — **EM / CER**:
 | 3 | Verification (gates + APK contents) | done |
 | 4 | Push branch, open PR into the feature branch | done — PR #8 (→ `feat/introduce-ocr-and-yomitan`) |
 | 5 | Review loop (≤5 iterations, fresh context each time) | **done — converged at iteration 5** (see §6); no Blocker/Major |
+| 6 | Final pass: emulator validation + reader-crash fix | **done** — x86_64 emulator (API 37) validation of the engine + models; a pre-existing reader crash (F1) found and fixed here; see “Final pass” below |
+
+### Final pass (emulator validation + F1)
+
+Run on an **x86_64** emulator (`Pixel_9_Pro_XL`, API 37), the platform the migration exists to enable:
+
+- The engine **loads** and `nativeInit` reports **`ok=true`**; the `dlopen`/JNI path that §8 left
+  "never executed on a device" now has a real on-device run.
+- The models **download and verify** (size + SHA-256 against the cached manifest) on x86_64.
+- The recognition **probe produced correct Japanese**, confirming the ORT + PP-OCRv6 `small` stack
+  end-to-end on this ABI.
+- **The app's own reader path could not be exercised**: opening any chapter crashed in
+  `ReaderActivity`'s constructor (`ViewConfiguration.get(this)` in a property initializer, i.e.
+  `Context.getResources()` before attach). **F1 originates on the base branch**
+  `feat/introduce-ocr-and-yomitan` (commit `46496637e6`), not in this PR; it is fixed **here** so
+  that **merging #8 propagates the fix** to the integration target. Fix: the
+  `ocrTwoFingerTapDetector` is now `by lazy { … }`.
 
 ### Release
 
@@ -138,7 +155,10 @@ Gates (serialise Gradle: `flock /tmp/opencode/gradle.lock ./gradlew …`):
 
 ## 8. Open questions / risks
 
-- On-device latency unmeasured (ORT vs Paddle-Lite threading differs) — must be checked before merge.
+- On-device latency: the ORT path now runs on an **x86_64 emulator** (§5 “Final pass”) — engine load,
+  model verify and recognition all confirmed — but latency and threading are **still unmeasured** (the
+  emulator is not representative hardware, and the other ABIs are untested); must be checked on a
+  real device before the parent PR merges.
 - Absolute Japanese accuracy of v6_small is unknown (only agreement with a manga-ocr reference).
 - APK size (**measured**, debug ABI splits; run-to-run packaging jitter ≈ ±0.8 MB): the shim +
   runtime grow each split by ≈ +34.2 MB (`arm64-v8a`), +24.2 MB (`armeabi-v7a`), +49.8 MB
@@ -161,14 +181,21 @@ Gates (serialise Gradle: `flock /tmp/opencode/gradle.lock ./gradlew …`):
 
 The ORT + PP-OCRv6 work is **converged**: the review loop (≤5 iterations, fresh context each) stopped
 at **iteration 5 (bound)** with **no Blocker/Major** findings, and iteration 5's three nits are
-handled (§6). All gates are green.
+handled (§6). A **final pass** then validated the stack on an **x86_64 emulator** and fixed the
+reader crash it exposed (§5 “Final pass”). All gates are green.
 
 - **PR #8.** `feat/ocr-onnxruntime-v6` is open **into `feat/introduce-ocr-and-yomitan`** (PR #7), not
   `master`; phases 0–5 are done (§5). The branch is the integration target for this work.
-- **Residual risk — never executed on a device.** The `dlopen`/JNI path has only run on the host
-  parity harness; it has **never been run on a device or emulator**, so **on-device latency and the
-  real ORT threading behaviour are unmeasured** (§8). This is the one risk that cannot be closed
-  without hardware and must be checked before the parent PR merges.
+- **On-x86_64-emulator validation (done).** `Pixel_9_Pro_XL`, API 37: the engine loads
+  (`nativeInit ok=true`), the models download and verify, and the recognition probe produced correct
+  Japanese. The `dlopen`/JNI path now has a real on-device run, so the §8 “never executed on a device”
+  risk is closed **for x86_64**; latency numbers on other ABIs are still unmeasured.
+- **Reader crash found and fixed (F1).** The emulator could not open a chapter because
+  `ReaderActivity`'s constructor dereferenced `Context.getResources()` (a `ViewConfiguration.get(this)`
+  property initializer) before attach. The bug **originates on the base branch**
+  `feat/introduce-ocr-and-yomitan` (commit `46496637e6`) — it predates this PR — and is fixed **here**
+  (`ocrTwoFingerTapDetector` is now `by lazy { … }`) so that **merging #8 propagates the fix** into the
+  integration target.
 - **APK-size tradeoff (accepted).** Shipping the full `onnxruntime-android:1.31.0` runtime (not
   `onnxruntime-mobile`) grows each ABI split by ≈ +34/24/50 MB and the universal APK by ≈ +103 MB
   (§8). Accepted as the cost of real `x86_64` support and PP-OCRv6.
