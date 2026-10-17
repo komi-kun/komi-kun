@@ -37,7 +37,7 @@ import java.util.zip.ZipInputStream
 
 /** Our own release; the `.so`s are consumed at build time, only models download at runtime. */
 private const val DEFAULT_BASE_URL =
-    "https://github.com/komi-kun/komi-kun-ocr-models/releases/download/ocr-models-v2"
+    "https://github.com/komi-kun/komi-kun-ocr-models/releases/download/ocr-models-v3"
 
 /** One downloadable OCR artifact from the release manifest. */
 @Serializable
@@ -68,7 +68,7 @@ sealed interface ModelDownloadState {
 }
 
 /**
- * Downloads and verifies the PaddleOCR det/rec models and `ppocrv5_dict.txt` into
+ * Downloads and verifies the PaddleOCR det/rec models and `ppocrv6_small_dict.txt` into
  * `filesDir/paddle_ocr/` (where [PaddleOcrEngine] loads them from), and can import them from a
  * user-picked archive. [triggerPaddleDownload] is the runtime, opt-in entry point.
  *
@@ -246,23 +246,26 @@ class ModelDownloader(
         private const val MANIFEST_NAME = "manifest.json"
         private const val PADDLE_DIR = "paddle_ocr"
 
-        // PP-OCRv5 (ocr-models-v2): unified multi-language recogniser.
-        private const val DET_MODEL = "ppocrv5_det.nb"
-        private const val REC_MODEL = "ppocrv5_rec.nb"
-        private const val DICT_TXT = "ppocrv5_dict.txt"
+        // PP-OCRv6 small (ocr-models-v3): ONNX graphs (the shipped backend is ONNX Runtime).
+        private const val DET_MODEL = "ppocrv6_small_det.onnx"
+        private const val REC_MODEL = "ppocrv6_small_rec.onnx"
+        private const val DICT_TXT = "ppocrv6_small_dict.txt"
 
         /** Must stay in sync with [PaddleOcrEngine]'s model constants. */
         val REQUIRED_MODELS = listOf(DET_MODEL, REC_MODEL, DICT_TXT)
 
         /**
-         * Model files shipped by `ocr-models-v1` (PP-OCRv4) that the engine no longer loads. Listed
-         * by name so [cleanupStaleModels] can prune them on upgrade without ever touching a file
-         * this app did not publish.
+         * Model files shipped by `ocr-models-v1` (PP-OCRv4) and `ocr-models-v2` (PP-OCRv5) that the
+         * engine no longer loads. Listed by name so [cleanupStaleModels] can prune them on upgrade
+         * without ever touching a file this app did not publish.
          */
         private val LEGACY_MODELS = listOf(
             "ppocrv4_det.nb",
             "ppocrv4_japan_rec.nb",
             "ppocrv4_japan_dict.txt",
+            "ppocrv5_det.nb",
+            "ppocrv5_rec.nb",
+            "ppocrv5_dict.txt",
         )
     }
 }

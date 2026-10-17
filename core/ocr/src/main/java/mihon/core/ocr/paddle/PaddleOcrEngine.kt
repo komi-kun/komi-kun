@@ -2,18 +2,19 @@
 // KUN -->
 // Ported from Chimahon (https://github.com/Chimahon/Chimahon, GPL-3.0-or-later),
 // `chimahon-local-ocr/src/main/java/chimahon/local/ocr/PaddleOcrEngine.kt` @ f85c063.
-// Adapted for komi-kun: the `supportedAbi()` gate keeps accepting `x86_64` for graceful
-// degradation even though the artifact ships only ARM ABIs (see supportedAbi()), logging
-// uses the project's `logcat`, and the native-library load path also falls back to the APK-packaged
-// (`jniLibs`) layout, not just the downloaded absolute path.
+// Adapted for komi-kun: every published ABI (including `x86_64`) is now genuinely supported (see
+// supportedAbi()), logging uses the project's `logcat`, and the native-library load path also falls
+// back to the APK-packaged (`jniLibs`) layout, not just the downloaded absolute path.
 //
 // ---------------------------------------------------------------------------------------------
-// INTEGRATION POINT — the native `libpaddle_ocr.so` is a SEPARATE artifact (contract §1.7).
+// INTEGRATION POINT — `libpaddle_ocr.so` *and* `libonnxruntime.so` are SEPARATE artifacts
+// (contract §1.7).
 // This class declares the JNI surface (`nativeInit`/`nativeProcess`/`nativeRelease`) and the Kotlin
-// overload that consumes it. The `.so` is our own JNI wrapper over Paddle-Lite (Apache-2.0),
-// published to `komi-kun/komi-kun-ocr-models` alongside `libomp.so`/`libc++_shared.so` and fetched
+// overload that consumes it. The `.so` is our own JNI wrapper over ONNX Runtime (MIT, loaded with
+// `dlopen`), published to `komi-kun/komi-kun-ocr-models` alongside `libonnxruntime.so`,
+// `libomp.so`/`libc++_shared.so` and fetched
 // by `:core:ocr:fetchPaddleNativeLibs` from `core/ocr/paddle-manifest.json`. Nothing in this module
-// builds Paddle-Lite. Until the artifact lands, `init()` simply returns false and `recognize()`
+// builds ONNX Runtime. Until the artifact lands, `init()` simply returns false and `recognize()`
 // yields an empty list — the engine degrades gracefully.
 //
 // The native side MUST emit the text protocol parsed by [parseOutput]:
@@ -90,15 +91,17 @@ class PaddleOcrEngine(
 
     companion object {
         private const val MODEL_DIR = "paddle_ocr"
-        // PP-OCRv5 (ocr-models-v2): unified multi-language recogniser. Still CTC with
-        // rec_image_height = 48, so the JNI input shape and the dict convention are unchanged.
-        private const val DET_MODEL = "ppocrv5_det.nb"
-        private const val REC_MODEL = "ppocrv5_rec.nb"
-        private const val DICT_TXT = "ppocrv5_dict.txt"
+        // PP-OCRv6 small (ocr-models-v3), run through ONNX Runtime. Still CTC with
+        // rec_image_height = 48, so the JNI input shape and the dict convention are unchanged;
+        // the `.nb` (Paddle-Lite) files are replaced by `.onnx`.
+        private const val DET_MODEL = "ppocrv6_small_det.onnx"
+        private const val REC_MODEL = "ppocrv6_small_rec.onnx"
+        private const val DICT_TXT = "ppocrv6_small_dict.txt"
 
         /**
-         * ABIs the Kotlin engine will *attempt*. Only `arm64-v8a` / `armeabi-v7a` are shipped by
-         * `komi-kun-ocr-models`; `x86_64` is kept here for graceful degradation (see [supportedAbi]).
+         * ABIs the Kotlin engine will *attempt*. `komi-kun-ocr-models` ships all three
+         * (`ocr-models-v3`, ONNX Runtime + architecture-independent ONNX models); an ABI that is
+         * somehow absent still degrades gracefully (see [supportedAbi]).
          */
         private val SUPPORTED_ABIS = listOf("arm64-v8a", "armeabi-v7a", "x86_64")
 
@@ -121,12 +124,10 @@ class PaddleOcrEngine(
     /**
      * First supported ABI of the device, or null.
      *
-     * CAVEAT (x86_64): Paddle-Lite publishes **no Android x86_64 prebuilt** and its `opt`-converted
-     * models are target-specific, so `komi-kun-ocr-models` ships only `arm64-v8a`/`armeabi-v7a`.
-     * `x86_64` is still accepted here on purpose: on an x86_64 emulator `System.loadLibrary`
-     * throws `UnsatisfiedLinkError`, [loadNativeLibraries] catches it, and `init()` returns false —
-     * the intended graceful degradation (OCR simply unavailable), not a crash. Do **not** add an
-     * `x86_64` manifest entry or build an ARM `.so` under an x86_64 name.
+     * `ocr-models-v3` ships `arm64-v8a`, `armeabi-v7a` **and `x86_64`**: ONNX Runtime publishes all
+     * three, and the ONNX models are architecture-independent, so x86_64 emulators are supported
+     * rather than merely degrading. The `UnsatisfiedLinkError` catch below is kept as a safety net
+     * for a device whose ABI has no published artifact.
      */
     private fun supportedAbi(): String? = Build.SUPPORTED_ABIS.firstOrNull { it in SUPPORTED_ABIS }
 
@@ -164,8 +165,9 @@ class PaddleOcrEngine(
 
     /**
      * Loads the native libraries, preferring the runtime-downloaded layout in app storage (STL +
-     * OpenMP first, engine last — dependency order matters) and falling back to the APK-packaged
-     * `jniLibs` layout from the fetched artifact (contract §1.7).
+     * OpenMP + ONNX Runtime first, engine last — dependency order matters) and falling back to the
+     * APK-packaged `jniLibs` layout from the fetched artifact (contract §1.7). In the `jniLibs`
+     * path the engine's own `dlopen` of `libonnxruntime.so` resolves it from the same APK lib dir.
      */
     private fun loadNativeLibraries(abi: String): Boolean {
         val libDir = File(File(appContext.filesDir, MODEL_DIR), "lib/$abi")
@@ -175,6 +177,7 @@ class PaddleOcrEngine(
             try {
                 System.load(File(libDir, "libc++_shared.so").absolutePath)
                 System.load(File(libDir, "libomp.so").absolutePath)
+                System.load(File(libDir, "libonnxruntime.so").absolutePath)
                 System.load(engine.absolutePath)
                 logcat(LogPriority.INFO) { "libpaddle_ocr.so loaded from app storage" }
                 true
