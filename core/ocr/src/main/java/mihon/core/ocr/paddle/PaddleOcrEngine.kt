@@ -187,36 +187,40 @@ class PaddleOcrEngine(
 
     /**
      * Loads the native libraries, preferring the runtime-downloaded layout in app storage (STL +
-     * OpenMP + ONNX Runtime first, engine last — dependency order matters) and falling back to the
-     * APK-packaged `jniLibs` layout from the fetched artifact (contract §1.7). In the `jniLibs`
-     * path the engine's own `dlopen` of `libonnxruntime.so` resolves it from the same APK lib dir.
+     * OpenMP + ONNX Runtime first, engine last — dependency order matters) and **falling back** to
+     * the APK-packaged `jniLibs` layout from the fetched artifact (contract §1.7) when the app-storage
+     * layout is absent or fails to load. In the `jniLibs` path the engine's own `dlopen` of
+     * `libonnxruntime.so` resolves it from the same APK lib dir.
      */
     private fun loadNativeLibraries(abi: String): Boolean {
         val libDir = File(File(appContext.filesDir, MODEL_DIR), "lib/$abi")
         val engine = File(libDir, "libpaddle_ocr.so")
 
-        return if (engine.isFile) {
-            try {
-                System.load(File(libDir, "libc++_shared.so").absolutePath)
-                System.load(File(libDir, "libomp.so").absolutePath)
-                System.load(File(libDir, "libonnxruntime.so").absolutePath)
-                System.load(engine.absolutePath)
-                logcat(LogPriority.INFO) { "libpaddle_ocr.so loaded from app storage" }
-                true
-            } catch (e: UnsatisfiedLinkError) {
-                logcat(LogPriority.ERROR, e) { "Failed to load libpaddle_ocr.so from $libDir" }
-                false
-            }
-        } else {
-            try {
-                System.loadLibrary("paddle_ocr")
-                logcat(LogPriority.INFO) { "libpaddle_ocr.so loaded from jniLibs" }
-                true
-            } catch (e: UnsatisfiedLinkError) {
-                logcat(LogPriority.ERROR, e) { "libpaddle_ocr.so missing (download the OCR models)" }
-                false
-            }
-        }
+        if (engine.isFile && loadFromAppStorage(libDir, engine)) return true
+        return loadFromJniLibs()
+    }
+
+    /** App-storage layout: absolute-path `System.load`s in dependency order. */
+    private fun loadFromAppStorage(libDir: File, engine: File): Boolean = try {
+        System.load(File(libDir, "libc++_shared.so").absolutePath)
+        System.load(File(libDir, "libomp.so").absolutePath)
+        System.load(File(libDir, "libonnxruntime.so").absolutePath)
+        System.load(engine.absolutePath)
+        logcat(LogPriority.INFO) { "libpaddle_ocr.so loaded from app storage" }
+        true
+    } catch (e: UnsatisfiedLinkError) {
+        logcat(LogPriority.ERROR, e) { "Failed to load libpaddle_ocr.so from $libDir; falling back to jniLibs" }
+        false
+    }
+
+    /** APK-packaged layout: the fetched artifact lives in `jniLibs`, so `loadLibrary` finds it. */
+    private fun loadFromJniLibs(): Boolean = try {
+        System.loadLibrary("paddle_ocr")
+        logcat(LogPriority.INFO) { "libpaddle_ocr.so loaded from jniLibs" }
+        true
+    } catch (e: UnsatisfiedLinkError) {
+        logcat(LogPriority.ERROR, e) { "libpaddle_ocr.so missing (download the OCR models)" }
+        false
     }
 
     fun isInitialized(): Boolean = isInitialized

@@ -22,7 +22,7 @@ Fixes for the fresh-eyes review (`reviews/00-contract-review.md`):
 - **B4** — `webgpuviewer` fork pin resolved: tag `ocr-accessors-1` (`792aef3b6886343ee38a9140eefdc98114869dfd`), §1.6/§2.6.
 - **Should-fixes** — `hoshidicts` pin → `62fc9fa1…` with `HOSHIDICTS_BUILD_CLI`/`_BENCHMARKS`;
   `probeEntryTypes` already returns 4 longs (no work); chapter files are in `:domain`; added
-  `ca.mpreg:imagedecoder`, `libomp.so`/`libc++_shared.so`, Paddle x86_64 gate, `WorkerFactory`/`App.kt`,
+  `ca.mpreg:imagedecoder`, `libonnxruntime.so`/`libomp.so`/`libc++_shared.so`, Paddle x86_64 gate, `WorkerFactory`/`App.kt`,
   `Notifications.kt`; `Mokuro*` → `:core:ocr`; Anki manifest → W5.
 
 ---

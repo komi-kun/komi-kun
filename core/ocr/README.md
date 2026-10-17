@@ -99,7 +99,7 @@ published to `komi-kun/komi-kun-ocr-models` (release **`ocr-models-v3`**) togeth
 
 Pure logic is unit-tested under `src/test/` (box math, merger ordering incl. vertical text,
 `.mokuro` parse/resolve/convert, hit-testing, lookup-text extraction, model-download checks;
-97 tests). Run:
+108 tests). Run:
 
 ```bash
 flock /tmp/opencode/gradle.lock ./gradlew :core:ocr:testDebugUnitTest
