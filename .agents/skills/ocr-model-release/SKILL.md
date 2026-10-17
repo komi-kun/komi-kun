@@ -26,8 +26,9 @@ Current release: **`ocr-models-v3`** (ONNX Runtime + PP-OCRv6 small).
   `--minimal_build`/`onnxruntime-mobile` variant; it ships as a checksummed build-time fetch, not a
   Gradle dependency.
 - **`libomp.so`** per ABI (required by opencv-mobile's `parallel_for_`, not by ORT, which owns its own
-  thread pool). **`libc++_shared.so` is deliberately NOT shipped** — AGP already packages the NDK copy
-  (via `:core:dictionary`), and a second copy fails the app merge.
+  thread pool). **`libc++_shared.so` is deliberately NOT listed in the app manifest** (the release
+  does ship it; the app simply does not fetch it) — AGP already packages the NDK copy (via
+  `:core:dictionary`), and a second copy fails the app merge.
 - **Models** — official PaddlePaddle Apache-2.0 ONNX exports. Current release (`ocr-models-v3`,
   PP-OCRv6 **small**): `ppocrv6_small_det.onnx`, `ppocrv6_small_rec.onnx` (unified ja/zh/en CTC,
   `h=48`, 18 710 output classes, 18 708-entry dict with kana), `ppocrv6_small_dict.txt`. These are
