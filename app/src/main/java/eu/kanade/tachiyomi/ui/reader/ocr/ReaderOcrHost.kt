@@ -16,4 +16,21 @@ interface ReaderOcrHost {
 
     /** true iff the point hit an OCR block and a lookup was started; else false (→ page dialog). */
     fun onPageLongPress(page: ReaderPage, extraPage: ReaderPage?, overlayPoint: Offset): Boolean
+
+    // KUN -->
+    /**
+     * true iff a **single** tap at [overlayPoint] hit an OCR block and a lookup was started; else
+     * false (→ the viewer's normal single-tap navigation). Same hit-test + lookup path as
+     * [onPageLongPress]; used while the OCR overlay is enabled so scanning needs one tap, not a
+     * long press.
+     */
+    fun onPageSingleTap(page: ReaderPage, extraPage: ReaderPage?, overlayPoint: Offset): Boolean
+
+    /**
+     * true iff [overlayPoint] currently lands on an OCR text block. Side-effect free, so the
+     * outside-tap dismissal can tell "the user is aiming at another word" (leave the popup for the
+     * single-tap lookup to move) from "the user tapped the page" (dismiss).
+     */
+    fun hitsBlock(overlayPoint: Offset): Boolean
+    // KUN <--
 }
