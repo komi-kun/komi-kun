@@ -131,7 +131,24 @@ class WebtoonViewer(
                 }
             },
         )
-        recycler.tapListener = { event ->
+        recycler.tapListener = tap@{ event ->
+            // KUN -->
+            // A single tap that lands on an OCR block looks the word up and consumes the tap (only
+            // while the overlay is on); a miss falls through to the normal navigation below.
+            val ocrChild = recycler.findChildViewUnder(event.x, event.y)
+            val ocrItem = ocrChild?.let {
+                adapter.items.getOrNull(recycler.getChildAdapterPosition(it))
+            }
+            if (ocrItem is ReaderPage &&
+                activity.onPageSingleTap(
+                    ocrItem,
+                    null,
+                    activity.toOverlayPoint(recycler, event.x, event.y),
+                )
+            ) {
+                return@tap
+            }
+            // KUN <--
             val viewPosition = IntArray(2)
             recycler.getLocationOnScreen(viewPosition)
             val viewPositionRelativeToWindow = IntArray(2)

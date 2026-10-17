@@ -31,6 +31,7 @@ import dev.zacsweers.metro.SingleIn
 import eu.kanade.presentation.reader.OcrOverlay
 import eu.kanade.tachiyomi.ui.dictionary.DictionaryPreferences
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
+import eu.kanade.tachiyomi.ui.reader.ocr.ImagePoint
 import eu.kanade.tachiyomi.ui.reader.ocr.OcrViewport
 import eu.kanade.tachiyomi.ui.reader.ocr.ReaderOcrHost
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
@@ -109,16 +110,24 @@ class ReaderOcrHostImpl(
         )
     }
 
-    override fun onPageLongPress(page: ReaderPage, extraPage: ReaderPage?, overlayPoint: Offset): Boolean {
+    // KUN -->
+    // Long-press and single-tap share the exact same hit-test + lookup path; only the gesture that
+    // reaches it differs (plan 04 §2.2/§4.5).
+    override fun onPageLongPress(page: ReaderPage, extraPage: ReaderPage?, overlayPoint: Offset): Boolean =
+        lookupAt(overlayPoint)
+
+    override fun onPageSingleTap(page: ReaderPage, extraPage: ReaderPage?, overlayPoint: Offset): Boolean =
+        lookupAt(overlayPoint)
+
+    override fun hitsBlock(overlayPoint: Offset): Boolean = findBlockAt(overlayPoint) != null
+    // KUN <--
+
+    private fun lookupAt(overlayPoint: Offset): Boolean {
         val currentViewport = viewport ?: return false
         val hit = currentViewport.screenToImageNormalized(overlayPoint.x, overlayPoint.y) ?: return false
 
         val key = hit.page.ocrKey()
-        val pageBlocks = blockLoader.blocksFor(hit.page)
-        if (pageBlocks.isEmpty()) return false
-
-        val block = OcrHitTester.findBlock(pageBlocks, hit.image.x, hit.image.y) { it.toBounds() }
-            ?: return false
+        val block = findBlock(hit) ?: return false
         val screen = currentViewport.imageNormalizedToScreen(hit.page, block.toRectF()) ?: return false
 
         val offset = uniformCharOffset(
@@ -149,6 +158,21 @@ class ReaderOcrHostImpl(
         )
         return true
     }
+
+    // KUN -->
+    /** The OCR block under [overlayPoint], or null when the viewport has none there. */
+    private fun findBlockAt(overlayPoint: Offset): OcrTextBlock? {
+        val currentViewport = viewport ?: return null
+        val hit = currentViewport.screenToImageNormalized(overlayPoint.x, overlayPoint.y) ?: return null
+        return findBlock(hit)
+    }
+
+    private fun findBlock(hit: ImagePoint): OcrTextBlock? {
+        val pageBlocks = blockLoader.blocksFor(hit.page)
+        if (pageBlocks.isEmpty()) return null
+        return OcrHitTester.findBlock(pageBlocks, hit.image.x, hit.image.y) { it.toBounds() }
+    }
+    // KUN <--
 
     /**
      * Re-maps the active lookup's block to the current viewport every frame so the popup follows
