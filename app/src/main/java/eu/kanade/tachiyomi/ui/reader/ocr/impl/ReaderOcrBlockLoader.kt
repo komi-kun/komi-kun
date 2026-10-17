@@ -99,7 +99,12 @@ class ReaderOcrBlockLoader(
             retryAfter[key]?.let { if (now < it) return@forEach }
             if (!inFlight.add(key)) return@forEach
             scope.launch(Dispatchers.IO) {
-                val loaded = runCatching { load(page) }.getOrNull()
+                val loaded = runCatching { load(page) }.getOrElse { e ->
+                    // Never swallow silently: a throwing load() looked exactly like "OCR does nothing"
+                    // (no logs, no cache, endless retry). See `ort-v6-migration.md` §6/§9.
+                    logcat(LogPriority.WARN, e) { "ReaderOcr: failed to resolve OCR blocks for page ${page.index}" }
+                    null
+                }
                 inFlight.remove(key)
                 if (loaded != null) {
                     // A completed resolution (even an empty one) is cached; null retries later.
