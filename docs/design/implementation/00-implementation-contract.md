@@ -133,10 +133,12 @@ its runtime deps — `libonnxruntime.so` and `libomp.so`** (per ABI) + `manifest
 §5.4 option A); models + `ppocrv6_small_dict.txt` download at user opt-in at runtime, **checksum-verified**
 in `ModelDownloader`. Official PaddlePaddle **PP-OCRv6 `small`** ONNX exports (Apache-2.0) — the current
 backend is ONNX Runtime, **not** Paddle-Lite (see `ort-v6-migration.md`); the `manga_*_fp16` Paddle-Lite
-fine-tune is no longer used. Add `libpaddle_ocr.so` to `keepDebugSymbols`. `libc++_shared.so` is **not**
-shipped in the artifact: AGP already packages the NDK copy via `:core:dictionary`'s
-`-DANDROID_STL=c++_shared`, and a second copy collides at app merge. Keep the
-STL → OpenMP → ONNX Runtime → engine `System.load` order. `PaddleOcrEngine.supportedAbi()` accepts
+fine-tune is no longer used. Add `libpaddle_ocr.so` to `keepDebugSymbols`. `libc++_shared.so` **is**
+shipped in the release but is deliberately **not listed in `paddle-manifest.json` / not fetched into
+`jniLibs`**: AGP already packages the NDK copy via `:core:dictionary`'s `-DANDROID_STL=c++_shared`,
+and a second copy collides at app merge (mirrors the manifest's `_comment`; re-add the release's entry
+only if no other module provides it). Keep the STL → OpenMP → ONNX Runtime → engine `System.load`
+order. `PaddleOcrEngine.supportedAbi()` accepts
 `arm64-v8a`, `armeabi-v7a` and `x86_64` (§1.5).
 
 ### 1.8 Licensing artifacts
@@ -366,7 +368,7 @@ No two owners touch the same file in the same wave. `A:Wn` = action in wave *n*.
 | `src/main/java/mihon/core/ocr/{OcrEngine,EngineLine,OcrLanguage,OcrResult,OcrBlockData,OcrPreprocessor,OcrBitmapDecoder,ImageChunking,OcrHitTester,OcrLookupText,OcrTextBlock}.kt` | copy | W3 |
 | `.../merge/{LineMerger.kt,OwOCRMerger.kt}`, `.../mokuro/*`, `.../overlay/OcrCoordinateMapper.kt`, `.../cache/{OcrStore,OcrCacheManager,OcrManager,OcrJob}.kt` | port | W3 |
 | `.../paddle/{PaddleOcrEngine,ModelDownloader}.kt` | port (incl. `supportedAbi()` **x86_64 gate patch**, §1.7) | W3 |
-| `src/main/jniLibs/<abi>/{libpaddle_ocr.so,libomp.so,libc++_shared.so}` + fetch task | create (§1.7) | W3 |
+| `src/main/jniLibs/<abi>/{libpaddle_ocr.so,libonnxruntime.so,libomp.so}` + fetch task | create (§1.7) | W3 |
 | `src/test/java/...` (A2 seams) | create | W5 |
 
 `:core:ocr`'s `cache/*` services consume `tachiyomi.core.common.ocr.ReaderOcrSource` (Apache, `:core:common`)

@@ -10,8 +10,8 @@
 // INTEGRATION POINT — `libpaddle_ocr.so` *and* `libonnxruntime.so` are SEPARATE artifacts
 // (contract §1.7).
 // This class declares the JNI surface (`nativeInit`/`nativeProcess`/`nativeRelease`, plus the
-// optional `nativeGetOrtError` diagnostics accessor) and the Kotlin
-// overload that consumes it. The `.so` is our own JNI wrapper over ONNX Runtime (MIT, loaded with
+// forward-compatible `nativeGetOrtError` diagnostics accessor — a stub until a shim release exports
+// it) and the Kotlin overload that consumes it. The `.so` is our own JNI wrapper over ONNX Runtime (MIT, loaded with
 // `dlopen`), published to `komi-kun/komi-kun-ocr-models` alongside `libonnxruntime.so`,
 // `libomp.so`/`libc++_shared.so` and fetched
 // by `:core:ocr:fetchPaddleNativeLibs` from `core/ocr/paddle-manifest.json`. Nothing in this module
@@ -170,13 +170,18 @@ class PaddleOcrEngine(
     // KUN -->
     /**
      * Last native init failure reason (e.g. a missing/mismatched `libonnxruntime.so`, or a failed
-     * det/rec session), or a short placeholder when the shim does not expose it. The native
-     * `nativeInit` also logs the reason to logcat, so this is best-effort diagnostics only.
+     * det/rec session), or a short placeholder when the shim does not expose it.
+     *
+     * **Not active yet.** The pinned `ocr-models-v3` shim exports only
+     * `nativeInit`/`nativeProcess`/`nativeRelease`, so [nativeGetOrtError] always throws
+     * [UnsatisfiedLinkError] and this returns its fallback. The shim's own `nativeInit` already logs
+     * the real reason to logcat (`runtime=…`, e.g. `libonnxruntime.so not found`), which is the
+     * source of truth until a shim release adds the getter (see `ort-v6-migration.md` §6).
      */
     private fun nativeOrtError(): String = try {
-        nativeGetOrtError().ifBlank { "unknown" }
+        nativeGetOrtError().ifBlank { "not reported by the native engine" }
     } catch (_: UnsatisfiedLinkError) {
-        "unavailable"
+        "unavailable; see the nativeInit logcat line"
     }
     // KUN <--
 
@@ -443,8 +448,12 @@ class PaddleOcrEngine(
     // KUN -->
     /**
      * Human-readable reason the native engine's last init failed (the ORT error string), or "" when
-     * unavailable. Exported by `libpaddle_ocr.so`'s JNI shim; a shim that predates the accessor
-     * throws [UnsatisfiedLinkError], which [nativeOrtError] handles.
+     * unavailable.
+     *
+     * **Forward-compatible stub.** The pinned `ocr-models-v3` shim does **not** export this symbol
+     * yet, so calling it throws [UnsatisfiedLinkError] (caught by [nativeOrtError]); it activates on
+     * the next shim rebuild that adds the JNI getter (artifact-side work, see `ort-v6-migration.md`
+     * §6 “Still open”). Until then the shim's `nativeInit` logcat line is the source of truth.
      */
     private external fun nativeGetOrtError(): String
     // KUN <--

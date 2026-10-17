@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // KUN -->
-// Unit tests for the ModelDownloader fixes (review iteration 1):
+// Unit tests for the ModelDownloader fixes:
+//  (review iteration 1)
 //  - extraction/verification share one directory (import path bug),
 //  - integrity is checked against size + SHA-256, not mere existence,
 //  - `<name>.part` scratch files are cleaned safely (owned names only).
+//  (review iteration 2)
+//  - the synchronous `isPaddleDownloaded` gate checks size only (cheap, main-thread safe),
+//  - a user archive installs only the required model files (no planted `.so` / arbitrary paths).
 // KUN <--
 package mihon.core.ocr.paddle
 
@@ -48,6 +52,16 @@ class ModelDownloaderTest {
         val file = File(dir, dictName).apply { writeBytes("garbage".toByteArray()) }
         val entry = OcrModelFile(name = dictName, sha256 = "0".repeat(64), size = file.length())
         modelFileMatches(file, entry) shouldBe false
+    }
+
+    @Test
+    fun `modelFileHasExpectedSize accepts a matching size and rejects a wrong size`(@TempDir dir: File) {
+        val file = File(dir, detName).apply { writeBytes("model".toByteArray()) }
+
+        modelFileHasExpectedSize(file, OcrModelFile(name = detName, size = file.length())) shouldBe true
+        modelFileHasExpectedSize(file, OcrModelFile(name = detName, size = file.length() - 1)) shouldBe false
+        modelFileHasExpectedSize(file, OcrModelFile(name = detName, size = 0)) shouldBe true
+        modelFileHasExpectedSize(File(dir, "missing"), OcrModelFile(name = "missing", size = 0)) shouldBe false
     }
 
     @Test
@@ -97,6 +111,30 @@ class ModelDownloaderTest {
 
         result.isFailure shouldBe true
         File(dir, "evil.txt").exists() shouldBe false
+    }
+
+    @Test
+    fun `installRequiredModels copies only the required model files`(@TempDir dir: File) {
+        val scratch = File(dir, "scratch")
+        val modelsDir = File(dir, "paddle_ocr")
+        val zip = zipOf(
+            detName to "det",
+            "models/$recName" to "rec",
+            "lib/arm64-v8a/libevil.so" to "ELF",
+            "README.txt" to "readme",
+        )
+
+        extractZipInto(scratch, ByteArrayInputStream(zip))
+        val installed = installRequiredModels(scratch, modelsDir, listOf(detName, recName, dictName))
+
+        installed shouldContainExactly listOf(detName, recName)
+        File(modelsDir, detName).readText() shouldBe "det"
+        File(modelsDir, recName).readText() shouldBe "rec"
+        // A planted shared object (or any non-model path) is never installed where the engine
+        // (`loadNativeLibraries`) could `System.load` it.
+        File(modelsDir, "lib/arm64-v8a/libevil.so").exists() shouldBe false
+        File(modelsDir, "lib").exists() shouldBe false
+        File(modelsDir, "README.txt").exists() shouldBe false
     }
 
     private fun zipOf(vararg entries: Pair<String, String>): ByteArray {
