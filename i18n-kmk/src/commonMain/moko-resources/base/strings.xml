@@ -397,4 +397,5 @@
     <string name="ocr_status_pending">Pending</string>
     <string name="ocr_status_processing">Processing</string>
     <string name="ocr_status_error">Error</string>
+    <string name="ocr_status_error_reason">Error: %s</string>
 </resources>
