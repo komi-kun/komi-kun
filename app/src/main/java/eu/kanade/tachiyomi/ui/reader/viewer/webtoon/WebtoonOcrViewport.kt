@@ -139,7 +139,6 @@ class WebtoonOcrViewport(
     override fun fitBlockAbove(rect: RectF, lowerFraction: Float): Boolean {
         val overlayHeight = overlayView.height.toFloat()
         if (overlayHeight <= 0f) return false
-        if (session != null && session?.cancelled == true) session = null
         val target = popupFitTarget(rect.centerY(), rect.height(), overlayHeight, lowerFraction)
         if (isComfortablyVisible(rect.top, rect.bottom, target)) return false
 
@@ -157,7 +156,6 @@ class WebtoonOcrViewport(
     override fun restoreFit() {
         val fit = session ?: return
         session = null
-        if (fit.cancelled) return
         val recycler = fit.recycler
         if (recycler.parent == null) return
         val settled = fit.settledOffset ?: return
@@ -170,7 +168,6 @@ class WebtoonOcrViewport(
         val recycler: RecyclerView,
         val preOffset: Int,
         var settledOffset: Int? = null,
-        var cancelled: Boolean = false,
     )
 
     private var session: WebtoonFitSession? = null
