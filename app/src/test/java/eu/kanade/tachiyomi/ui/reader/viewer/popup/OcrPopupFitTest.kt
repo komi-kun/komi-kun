@@ -39,5 +39,39 @@ class OcrPopupFitTest {
         assertFalse(isComfortablyVisible(0f, 40f, target))
         assertEquals(20f, target.targetCenterY - height / 2f, 0.5f)
     }
+
+    // popupHeight = 0.4 * 1000 = 400px, margin = 20px.
+    private val popupHeight = 400f
+
+    @Test
+    fun `an upper block keeps the popup below it`() {
+        // 660px of room below the block: plenty.
+        assertEquals(PopupSide.Below, popupSide(300f, 340f, overlayHeight, popupHeight))
+        assertEquals(340f, popupTopFor(300f, 340f, overlayHeight, popupHeight))
+    }
+
+    @Test
+    fun `a block at the very bottom flips the popup above it`() {
+        // Only 160px below the block - less than the popup - but 800px above it.
+        assertEquals(PopupSide.Above, popupSide(800f, 840f, overlayHeight, popupHeight))
+        // Popup ends at the block's top edge.
+        assertEquals(800f - popupHeight, popupTopFor(800f, 840f, overlayHeight, popupHeight))
+    }
+
+    @Test
+    fun `a block just past the lower band flips above`() {
+        // Bottom edge at 585: 415px below, just under the 400px popup plus the 20px margin.
+        assertEquals(PopupSide.Above, popupSide(545f, 585f, overlayHeight, popupHeight))
+    }
+
+    @Test
+    fun `a block so tall the popup fits neither way is clamped to the roomier side`() {
+        // 100px above, 100px below the popup: neither holds it.
+        assertEquals(PopupSide.Partial, popupSide(100f, 900f, overlayHeight, popupHeight))
+        // Equal slack resolves to below (the natural anchor), still clamped by the caller.
+        assertEquals(900f, popupTopFor(100f, 900f, overlayHeight, popupHeight))
+        // More room below than above keeps it below too.
+        assertEquals(PopupSide.Partial, popupSide(50f, 700f, overlayHeight, popupHeight))
+    }
 }
 // KUN <--
