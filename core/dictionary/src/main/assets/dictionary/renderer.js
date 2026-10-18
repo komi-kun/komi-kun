@@ -2127,6 +2127,23 @@
 
     document.body.appendChild(menu);
 
+    // Size the menu against the *measured* viewport, in pixels. This WebView reports 0 for every
+    // viewport-height unit (`vh`, `dvh`, `svh`, `lvh`) and for height media queries, even though
+    // `innerHeight` is correct, so the old `max-height: 60vh` used to compute to `max-height: 0px`:
+    // the box collapsed to its padding and `overflow-y: auto` then clipped every item. The menu
+    // stayed in the DOM/accessibility tree but never painted - only a ~10px empty rounded box.
+    const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+    if (viewportHeight > 0) {
+      // Same intent as the old 60vh, with a floor so a tiny popup still shows usable rows.
+      const cap = Math.max(140, Math.round(viewportHeight * 0.6));
+      menu.style.maxHeight = Math.min(cap, viewportHeight - 8) + 'px';
+    }
+    if (viewportWidth > 0) {
+      // Same intent as the stylesheet's `max-width: 78vw`, without trusting `vw`.
+      menu.style.maxWidth = Math.min(viewportWidth - 8, Math.round(viewportWidth * 0.78)) + 'px';
+    }
+
     // Position next to the button, right-aligned and clamped to the viewport.
     const rect = button.getBoundingClientRect();
     menu.style.visibility = 'hidden';
@@ -2135,8 +2152,11 @@
       const height = menu.offsetHeight;
       let left = rect.right - width;
       let top = rect.bottom + 4;
-      if (top + height > window.innerHeight) top = Math.max(4, rect.top - height - 4);
-      left = Math.min(Math.max(4, left), Math.max(4, window.innerWidth - width - 4));
+      if (top + height > viewportHeight) top = Math.max(4, rect.top - height - 4);
+      // The popup WebView *is* the canvas: anything laid out beyond it cannot be painted, so the
+      // menu is pulled back inside even when it is taller than the space around the button.
+      top = Math.min(top, Math.max(4, viewportHeight - height - 4));
+      left = Math.min(Math.max(4, left), Math.max(4, viewportWidth - width - 4));
       menu.style.left = left + 'px';
       menu.style.top = top + 'px';
       menu.style.visibility = '';
