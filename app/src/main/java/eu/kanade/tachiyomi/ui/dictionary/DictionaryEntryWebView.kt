@@ -69,6 +69,16 @@ fun DictionaryEntryWebView(
     hideOnContentInvalidated: Boolean = true,
     forceDefaultTheme: Boolean = false,
     requestFocusOnMount: Boolean = false,
+    // KUN -->
+    /**
+     * Whether volume keys may navigate the entry (scroll to the previous/next result group).
+     * Evaluated on every key event so a caller can tie it to live state. The reader passes a
+     * provider that is `false` while its OCR overlay is on: there a volume press must reach the
+     * system and change the media volume - the dictionary plays word audio - instead of scrolling
+     * the entry.
+     */
+    volumeKeyNavigationAllowed: () -> Boolean = { true },
+    // KUN <--
     isLoading: Boolean = false,
     // KUN -->
     // Anki mining: the renderer's `addToAnki` reaches `AnkiCardCreator` either through the
@@ -267,7 +277,16 @@ fun DictionaryEntryWebView(
                 // lets the WebView's own long-press selection (and its context menu) work.
                 // KUN <--
                 webView.setOnKeyListener { v, keyCode, event ->
-                    if (event.action == android.view.KeyEvent.ACTION_DOWN && prefs.volumeKeyNavigation().get()) {
+                    // KUN -->
+                    // While the reader OCR overlay is on, the dictionary's own volume-key navigation
+                    // stands down too: the key must fall through to the system and change the media
+                    // volume (the dictionary plays word audio) instead of scrolling the entry.
+                    val overlayAllowsVolumeKeys = volumeKeyNavigationAllowed()
+                    // KUN <--
+                    if (event.action == android.view.KeyEvent.ACTION_DOWN &&
+                        overlayAllowsVolumeKeys &&
+                        prefs.volumeKeyNavigation().get()
+                    ) {
                         when (keyCode) {
                             android.view.KeyEvent.KEYCODE_VOLUME_UP -> {
                                 (v as? WebView)?.evaluateJavascript(
