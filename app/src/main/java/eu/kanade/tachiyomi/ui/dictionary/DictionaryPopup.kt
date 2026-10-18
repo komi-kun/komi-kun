@@ -90,6 +90,11 @@ fun DictionaryPopup(
     val repository = remember(context) { context.appGraph.dictionaryRepository }
     val prefs = remember(context) { context.appGraph.dictionaryPreferences }
     val popupAnchor = remember(context) { context.appGraph.readerOcrPopupAnchor }
+    // KUN -->
+    // The popup only ever renders inside the reader's OCR overlay; reading the reader preference
+    // lets it keep the volume keys out of the way while that overlay is on.
+    val readerPreferences = remember(context) { context.appGraph.readerPreferences }
+    // KUN <--
     val scope = rememberCoroutineScope()
 
     // KUN --> Path semantics (browser history): tapping a tab only moves the active pointer; a new
@@ -292,6 +297,12 @@ fun DictionaryPopup(
                         isLoading = loading,
                         // KUN --> Give the entry WebView focus so long-press starts text selection.
                         requestFocusOnMount = true,
+                        // KUN -->
+                        // Keep the volume keys with the system while the reader's OCR overlay is on:
+                        // this popup lives inside that overlay, and there the user is listening to
+                        // word audio rather than scrolling the entry.
+                        volumeKeyNavigationAllowed = { !readerPreferences.ocrOverlayEnabled.get() },
+                        // KUN <--
                         // KUN --> OCR context so the renderer's `addToAnki` builds sentence/cloze fields.
                         ankiSentence = request.sentence,
                         ankiSentenceOffset = request.sentenceOffset,

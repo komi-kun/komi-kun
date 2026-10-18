@@ -21,6 +21,13 @@ abstract class ViewerConfig(protected val readerPreferences: ReaderPreferences, 
     var doubleTapAnimDuration = 500
     var volumeKeysEnabled = false
     var volumeKeysInverted = false
+    // KUN -->
+    /**
+     * Whether the reader OCR overlay is on. While it is, the viewers leave the volume keys to the
+     * system (media volume) instead of paging; see [VolumeKeyPagingPolicy].
+     */
+    var ocrOverlayEnabled = false
+    // KUN <--
     var alwaysShowChapterTransition = true
     var navigationMode = 0
         protected set
@@ -56,6 +63,11 @@ abstract class ViewerConfig(protected val readerPreferences: ReaderPreferences, 
 
         readerPreferences.readWithVolumeKeysInverted
             .register({ volumeKeysInverted = it })
+
+        // KUN -->
+        readerPreferences.ocrOverlayEnabled
+            .register({ ocrOverlayEnabled = it })
+        // KUN <--
 
         readerPreferences.alwaysShowChapterTransition
             .register({ alwaysShowChapterTransition = it })
