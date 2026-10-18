@@ -297,6 +297,8 @@
     <string name="pref_dict_invalid_scale">Enter a number between 50 and 200</string>
     <!-- Dictionary popup settings -->
     <string name="pref_dict_popup_size">Popup size</string>
+    <string name="pref_dict_popup_size_scale">Size</string>
+    <string name="pref_dict_popup_size_scale_summary">Scales the popup. The default is proportional to the screen, so a tablet gets a bigger popup.</string>
     <string name="pref_dict_popup_width">Popup width</string>
     <string name="pref_dict_popup_height">Popup height</string>
     <string name="pref_dict_popup_font_size">Popup font size</string>

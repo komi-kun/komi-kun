@@ -16,7 +16,11 @@ import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import eu.kanade.tachiyomi.ui.reader.ocr.ImagePoint
 import eu.kanade.tachiyomi.ui.reader.ocr.OcrViewport
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.OcrOverlayCoords
+import eu.kanade.tachiyomi.ui.reader.viewer.popup.isComfortablyVisible
+import eu.kanade.tachiyomi.ui.reader.viewer.popup.popupFitTarget
+import kotlin.math.abs
 import kotlin.math.max
+import kotlin.math.min
 
 /**
  * GPL [OcrViewport] adapter for the WebGPU backend (plan 04 §1.6 paged, §1.7 continuous).
@@ -47,6 +51,173 @@ class WebGpuOcrViewport(
         continuousState?.let { continuousFromScreen(it, x, y) } ?: pagedFromScreen(x, y)
 
     override fun transformVersion(): Long = state.transformVersion
+
+    // KUN -->
+    /**
+     * Paged: zoom + pan so the block clears the popup; continuous: scroll the minimum needed.
+     * Which one applies follows the viewer's own state (see [continuousState]).
+     */
+    override fun fitBlockAbove(rect: RectF, lowerFraction: Float): Boolean {
+        val overlayHeight = overlayView.height.toFloat()
+        if (overlayHeight <= 0f) return false
+        val cs = continuousState
+        return if (cs != null) fitContinuous(cs, rect, overlayHeight, lowerFraction) else fitPaged(rect, overlayHeight, lowerFraction)
+    }
+
+    override fun restoreFit() {
+        when (val fit = session) {
+            is ContinuousFit -> {
+                session = null
+                restoreContinuous(fit)
+            }
+
+            is PagedFit -> {
+                session = null
+                restorePaged(fit)
+            }
+
+            null -> Unit
+        }
+    }
+
+    private fun fitContinuous(
+        cs: ImageViewerContinuousState,
+        rect: RectF,
+        overlayHeight: Float,
+        lowerFraction: Float,
+    ): Boolean {
+        val target = popupFitTarget(rect.centerY(), rect.height(), overlayHeight, lowerFraction)
+        if (isComfortablyVisible(rect.top, rect.bottom, target)) return false
+        val existing = session as? ContinuousFit
+        val fit = if (existing != null && existing.state === cs) {
+            existing
+        } else {
+            ContinuousFit(cs, cs.savePosition()).also { session = it }
+        }
+        val delta = rect.centerY() - target.targetCenterY
+        if (delta == 0f) return false
+        cs.scrollBy(delta)
+        fit.settledDocumentY = cs.documentY
+        fit.settledScale = cs.scale
+        fit.settledOffsetX = cs.offsetX
+        return true
+    }
+
+    private fun restoreContinuous(fit: ContinuousFit) {
+        val cs = fit.state
+        if (cs.scope == null) return
+        // The user scrolled/zoomed since our move: keep their position.
+        val settled = fit.settledDocumentY ?: return
+        if (abs(cs.documentY - settled) > 0.5f) return
+        if (abs(cs.scale - (fit.settledScale ?: cs.scale)) > 1e-3f) return
+        if (abs(cs.offsetX - (fit.settledOffsetX ?: cs.offsetX)) > 1e-4f) return
+        cs.restorePosition(fit.pre)
+    }
+
+    private fun fitPaged(rect: RectF, overlayHeight: Float, lowerFraction: Float): Boolean {
+        val target = popupFitTarget(rect.centerY(), rect.height(), overlayHeight, lowerFraction)
+        if (isComfortablyVisible(rect.top, rect.bottom, target)) return false
+        val surfaceH = state.height.toFloat()
+        if (surfaceH <= 0f) return false
+        val page = imagePageAt(rect.centerX(), rect.centerY()) ?: return false
+        val existing = session as? PagedFit
+        val fit = if (existing != null && existing.page === page) {
+            existing
+        } else {
+            PagedFit(page, page.scale, page.x, page.y).also { session = it }
+        }
+
+        val off = OcrOverlayCoords.offsetOf(viewer.pager, overlayView)
+        val scaleNow = page.scale
+        if (scaleNow <= 0f) return false
+        // The block's row, in surface-normalised units, moves as `0.5 + scale * (y + k)`; `k` folds
+        // every scale-independent term, so it can be recovered from the current state.
+        val blockNormNow = (rect.centerY() - off.y) / surfaceH
+        val k = (blockNormNow - 0.5f) / scaleNow - page.y
+        val targetNorm = (target.targetCenterY - off.y) / surfaceH
+
+        // Grow the scale until the page can be panned far enough for the block to reach the target
+        // row (a page at its fit scale has no slack to pan).
+        val maxScale = page.maxScale
+        var scale = scaleNow
+        var y = (targetNorm - 0.5f) / scale - k
+        for (i in 0 until MAX_PAN_SEARCH_STEPS) {
+            val lo = page.minY(scale)
+            val hi = page.maxY(scale)
+            if (y in lo..hi) break
+            if (scale >= maxScale) break
+            scale = min(maxScale, scale * 1.25f)
+            y = (targetNorm - 0.5f) / scale - k
+        }
+        y = y.coerceIn(page.minY(scale), page.maxY(scale))
+        if (scale <= 0f) return false
+
+        val targetX = page.x
+        page.animateTo(targetX = targetX, targetY = y, targetScale = scale)
+        // animateTo settles exactly at the values passed (it clamps only its own intermediates).
+        fit.settledScale = scale
+        fit.settledX = targetX
+        fit.settledY = y
+        return true
+    }
+
+    private fun restorePaged(fit: PagedFit) {
+        val page = fit.page
+        if (page.destroyed || page.parent == null) return
+        val settledScale = fit.settledScale ?: return
+        val settledX = fit.settledX ?: return
+        val settledY = fit.settledY ?: return
+        if (abs(page.scale - settledScale) > 0.01f * settledScale + 1e-3f) return
+        if (abs(page.x - settledX) > 0.01f || abs(page.y - settledY) > 0.01f) return
+        page.animateTo(targetX = fit.preX, targetY = fit.preY, targetScale = fit.preScale)
+    }
+
+    /** The leaf [ImagePage] the point at overlay ([x], [y]) falls on, if any. */
+    private fun imagePageAt(x: Float, y: Float): ImagePage? {
+        val surfaceW = state.width.toFloat()
+        val surfaceH = state.height.toFloat()
+        if (surfaceW <= 0f || surfaceH <= 0f) return null
+        val off = OcrOverlayCoords.offsetOf(viewer.pager, overlayView)
+        val nx = (x - off.x) / surfaceW
+        val ny = (y - off.y) / surfaceH
+        for (imagePage in state.visiblePages) {
+            val leaves = if (imagePage is ImagePage.ImageSpread) {
+                listOfNotNull(imagePage.left, imagePage.right)
+            } else {
+                listOf(imagePage)
+            }
+            for (leaf in leaves) {
+                val r = state.rectOf(leaf) ?: continue
+                if (nx in r[0]..r[2] && ny in r[1]..r[3]) return leaf
+            }
+        }
+        return null
+    }
+
+    private class PagedFit(
+        val page: ImagePage,
+        val preScale: Float,
+        val preX: Float,
+        val preY: Float,
+        var settledScale: Float? = null,
+        var settledX: Float? = null,
+        var settledY: Float? = null,
+    )
+
+    private class ContinuousFit(
+        val state: ImageViewerContinuousState,
+        val pre: ImageViewerContinuousState.ContinuousPosition,
+        var settledDocumentY: Float? = null,
+        var settledScale: Float? = null,
+        var settledOffsetX: Float? = null,
+    )
+
+    private var session: Any? = null
+
+    private companion object {
+        const val MAX_PAN_SEARCH_STEPS = 16
+    }
+    // KUN <--
 
     // region paged
 

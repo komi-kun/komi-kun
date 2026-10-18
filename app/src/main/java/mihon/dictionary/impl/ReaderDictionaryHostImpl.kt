@@ -52,6 +52,8 @@ class ReaderDictionaryHostImpl(
     // KUN -->
     override fun popupBounds(): RectF? =
         if (request.value != null) popupAnchor.popupBounds.value else null
+
+    override fun isOpen(): Boolean = request.value != null
     // KUN <--
 
     @Composable
