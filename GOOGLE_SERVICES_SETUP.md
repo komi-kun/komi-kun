@@ -248,14 +248,14 @@ OAuth client (and optionally for the Firebase app registration).
 If you already created the keystore for `CI_SETUP.md` §3.1:
 
 ```bash
-keytool -list -v -keystore release.keystore -alias komikku
+keytool -list -v -keystore release.keystore -alias komikun
 ```
 
 Copy the **`SHA1:`** line (colon-separated hex, e.g. `AB:CD:...`). You can also
 read it from an installed APK or an already-built APK:
 
 ```bash
-keytool -printcert -jarfile Komikku-r85.apk
+keytool -printcert -jarfile Komikun-r85.apk
 ```
 
 > Use the **release** keystore's SHA-1 (the one whose base64 is in
@@ -458,7 +458,7 @@ Trigger each path as described in `CI_SETUP.md` §5. Success looks like:
 2. **Build app** (`assembleNightly -Pdist=ci` or `assembleRelease -Pdist=github`)
    is green.
 3. The **Sign APK** / **Rename apk** / **Upload APK** steps produce an artifact
-   (`Komikku-<tag>-r<count>.apk`, `mapping-<sha>`).
+   (`Komikun-<tag>-r<count>.apk`, `mapping-<sha>`).
 4. For release, the **Upload mapping** step posts the Crashlytics mapping without
    a 403/400.
 

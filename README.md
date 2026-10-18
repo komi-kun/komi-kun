@@ -1,26 +1,28 @@
 <div align="center">
 
-<a href="https://komikku-app.github.io">
+<a href="https://github.com/komi-kun/komi-kun">
   <img width=200px height=200px src="./.github/readme-images/app-icon.png"/>
 </a><br/>
-<a href="https://trendshift.io/repositories/13696" target="_blank"><img src="https://trendshift.io/api/badge/repositories/13696" alt="komikku-app%2Fkomikku | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
- <h1 align="center"> Komikku </h1>
+ <h1 align="center"> Komikun </h1>
 
-| Releases | Preview |
-|----------|---------|
-| <div align="center"> [![GitHub downloads](https://img.shields.io/github/downloads/komikku-app/komikku/latest/total?label=Latest%20Downloads&labelColor=27303D&color=0D1117&logo=github&logoColor=FFFFFF&style=flat)](https://github.com/komikku-app/komikku/releases/latest) [![GitHub downloads](https://img.shields.io/github/downloads/komikku-app/komikku/total?label=Total%20Downloads&labelColor=27303D&color=0D1117&logo=github&logoColor=FFFFFF&style=flat)](https://github.com/komikku-app/komikku/releases) [![Stable build](https://img.shields.io/github/actions/workflow/status/komikku-app/komikku/build_release.yml?labelColor=27303D&label=Stable&labelColor=06599d&color=043b69)](https://github.com/komikku-app/komikku/actions/workflows/build_release.yml) | <div align="center"> [![GitHub downloads](https://img.shields.io/github/downloads/komikku-app/komikku-preview/latest/total?label=Latest%20Downloads&labelColor=27303D&color=0D1117&logo=github&logoColor=FFFFFF&style=flat)](https://github.com/komikku-app/komikku-preview/releases/latest) [![GitHub downloads](https://img.shields.io/github/downloads/komikku-app/komikku-preview/total?label=Total%20Downloads&labelColor=27303D&color=0D1117&logo=github&logoColor=FFFFFF&style=flat)](https://github.com/komikku-app/komikku-preview/releases) [![Preview build](https://img.shields.io/github/actions/workflow/status/komikku-app/komikku-preview/build_app.yml?labelColor=27303D&label=Preview&labelColor=2c2c47&color=1c1c39)](https://github.com/komikku-app/komikku-preview/actions/workflows/build_app.yml) |
+**Komikun** is a personal vendoring fork of [Komikku](https://github.com/komikku-app/komikku),
+which is itself based on TachiyomiSY & Mihon/Tachiyomi. See [FORK.md](./FORK.md) for the upstreams it
+tracks.
+
+| Nightly |
+|---------|
+| <div align="center"> [![GitHub downloads](https://img.shields.io/github/downloads/komi-kun/komi-kun/latest/total?label=Latest%20Downloads&labelColor=27303D&color=0D1117&logo=github&logoColor=FFFFFF&style=flat)](https://github.com/komi-kun/komi-kun/releases/latest) [![GitHub downloads](https://img.shields.io/github/downloads/komi-kun/komi-kun/total?label=Total%20Downloads&labelColor=27303D&color=0D1117&logo=github&logoColor=FFFFFF&style=flat)](https://github.com/komi-kun/komi-kun/releases) [![Nightly build](https://img.shields.io/github/actions/workflow/status/komi-kun/komi-kun/build_nightly.yml?labelColor=27303D&label=Nightly&labelColor=06599d&color=043b69)](https://github.com/komi-kun/komi-kun/actions/workflows/build_nightly.yml) </div> |
 
 *Requires Android 8.0 or higher.*
 
 [![Discord](https://img.shields.io/discord/1242381704459452488.svg?label=&labelColor=6A7EC2&color=7389D8&logo=discord&logoColor=FFFFFF)](https://discord.gg/85jB7V5AJR)
-[![CI](https://img.shields.io/github/actions/workflow/status/komikku-app/komikku/build_push.yml?labelColor=27303D&label=CI)](https://github.com/komikku-app/komikku/actions/workflows/build_push.yml)
-[![License: Apache-2.0](https://img.shields.io/github/license/komikku-app/komikku?labelColor=27303D&color=0877d2)](/LICENSE)
+[![CI](https://img.shields.io/github/actions/workflow/status/komi-kun/komi-kun/build_push.yml?labelColor=27303D&label=CI)](https://github.com/komi-kun/komi-kun/actions/workflows/build_push.yml)
+[![License: Apache-2.0](https://img.shields.io/github/license/komi-kun/komi-kun?labelColor=27303D&color=0877d2)](https://github.com/komi-kun/komi-kun/blob/master/LICENSE)
 [![Translation status](https://img.shields.io/weblate/progress/komikku-app?labelColor=27303D&color=946300)](https://hosted.weblate.org/engage/komikku-app/)
 
 ## Download
 
-[![Stable](https://img.shields.io/github/release/komikku-app/komikku.svg?maxAge=3600&label=Stable&labelColor=06599d&color=043b69)](https://github.com/komikku-app/komikku/releases/latest)
-[![Preview](https://img.shields.io/github/v/release/komikku-app/komikku-preview.svg?maxAge=3600&label=Preview&labelColor=2c2c47&color=1c1c39)](https://github.com/komikku-app/komikku-preview/releases/latest)
+[![Nightly](https://img.shields.io/github/v/release/komi-kun/komi-kun.svg?maxAge=3600&label=Nightly&labelColor=06599d&color=043b69)](https://github.com/komi-kun/komi-kun/releases/latest)
 
 *Requires Android 8.0 or higher.*
 
@@ -35,7 +37,7 @@ A free and open source manga reader which is based off TachiyomiSY & Mihon/Tachi
 
 ## Features
 
-### Komikku's unique features:
+### Komikun's unique features:
 - `Suggestions` automatically showing source-website's recommendations / suggestions / related to current entry for all sources.
 - `Hidden categories` to hide yours things from *nosy* people.
 - `Auto theme color` based on each entry's cover for entry View & Reader.
@@ -134,9 +136,9 @@ Pull requests are welcome. For major changes, please open an issue first to disc
 
 <details><summary>Issues</summary>
 
-[Website](https://komikku-app.github.io/)
+[Upstream website](https://komikku-app.github.io/)
 
-1. **Before reporting a new issue, take a look at the [FAQ](https://komikku-app.github.io/docs/faq/general), the [changelog](https://github.com/komikku-app/komikku/releases) and the already opened [issues](https://github.com/komikku-app/komikku/issues).**
+1. **Before reporting a new issue, take a look at the [FAQ](https://komikku-app.github.io/docs/faq/general), the [changelog](https://github.com/komi-kun/komi-kun/releases) and the already opened [issues](https://github.com/komi-kun/komi-kun/issues).**
 2. If you are unsure, ask here: [![Discord](https://img.shields.io/discord/1242381704459452488.svg?label=&labelColor=6A7EC2&color=7389D8&logo=discord&logoColor=FFFFFF)](https://discord.gg/85jB7V5AJR)
 
 </details>
@@ -151,7 +153,7 @@ Pull requests are welcome. For major changes, please open an issue first to disc
 * If it could be device-dependent, try reproducing on another device (if possible)
 * Don't group unrelated requests into one issue
 
-Use the [issue forms](https://github.com/komikku-app/komikku/issues/new/choose) to submit a bug.
+Use the [issue forms](https://github.com/komi-kun/komi-kun/issues/new/choose) to submit a bug.
 
 </details>
 
@@ -177,11 +179,11 @@ See [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md).
 
 Thank you to all the people who have contributed!
 
-<a href="https://github.com/komikku-app/komikku/graphs/contributors">
-    <img src="https://contrib.rocks/image?repo=komikku-app/komikku" alt="Komikku app contributors" title="Komikku app contributors" width="800"/>
+<a href="https://github.com/komi-kun/komi-kun/graphs/contributors">
+    <img src="https://contrib.rocks/image?repo=komi-kun/komi-kun" alt="Komikun app contributors" title="Komikun app contributors" width="800"/>
 </a>
 
-![Visitor Count](https://count.getloli.com/get/@komikku-app?theme=capoo-2)
+![Visitor Count](https://count.getloli.com/get/@komi-kun?theme=capoo-2)
 
 ### Disclaimer
 
