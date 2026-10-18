@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
@@ -39,8 +40,6 @@ import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import eu.kanade.tachiyomi.ui.reader.ocr.OcrViewport
 import kotlinx.coroutines.isActive
 import mihon.core.ocr.model.OcrTextBlock
-import kotlin.math.max
-import kotlin.math.min
 
 /** One visible page and the OCR blocks already loaded for it. */
 data class OcrOverlayPage(val page: ReaderPage, val blocks: List<OcrTextBlock>)
@@ -150,9 +149,13 @@ fun OcrOverlay(
 
 /**
  * Layers [block]'s recognised text over its own [rect]: a translucent plate for contrast, then the
- * text scaled to fill the block. Vertical (tategaki) blocks are rotated so the string runs down the
- * column instead of across it. A legibility floor refuses to shrink past [minTextPx]; anything that
- * no longer fits is clipped to the block rather than drawn as unreadable micro-text.
+ * text scaled to fill the block.
+ *
+ * Vertical (tategaki) blocks are laid out one upright glyph per cell, stacked top-to-bottom in
+ * right-to-left columns (see [layoutVerticalText]) — never by rotating the whole run. A vertical
+ * block whose single line is clearly horizontal on screen stays horizontal, and the horizontal path
+ * is otherwise unchanged. A legibility floor refuses to shrink past [minTextPx]; anything that no
+ * longer fits is clipped to the block rather than drawn as unreadable micro-text.
  */
 private fun DrawScope.drawOcrBlockText(
     block: OcrTextBlock,
@@ -167,11 +170,8 @@ private fun DrawScope.drawOcrBlockText(
     val rectH = rect.height()
     if (rectW < MIN_BLOCK_PX || rectH < MIN_BLOCK_PX || baseTextPx <= 0f) return
 
-    val text = block.lines.filter { it.isNotBlank() }.joinToString("\n").ifBlank { return }
-    val layout = textMeasurer.measure(AnnotatedString(text), style = baseStyle)
-    val textW = layout.size.width.toFloat()
-    val textH = layout.size.height.toFloat()
-    if (textW <= 0f || textH <= 0f) return
+    val lines = block.lines.filter { it.isNotBlank() }
+    if (lines.isEmpty()) return
 
     // Backing plate: legible over busy artwork without hiding the page, since it only covers the
     // recognised block.
@@ -182,22 +182,32 @@ private fun DrawScope.drawOcrBlockText(
         cornerRadius = CornerRadius(plateCornerPx, plateCornerPx),
     )
 
-    val vertical = block.vertical
-    // A rotated (vertical) string's width spans the block's height and vice versa.
-    val fit = if (vertical) {
-        min(rectH / textW, rectW / textH)
+    val minScale = minTextPx / baseTextPx
+    if (block.vertical && !isClearlyHorizontal(block.vertical, lines.size, rectW, rectH)) {
+        drawTategakiText(lines, rect, textMeasurer, baseStyle, minScale)
     } else {
-        min(rectW / textW, rectH / textH)
+        drawHorizontalOcrText(lines, rect, textMeasurer, baseStyle, minScale)
     }
-    // Do not shrink below the legibility floor; the clip below trims whatever then overflows.
-    val scale = max(fit, minTextPx / baseTextPx)
-    val cx = rect.centerX()
-    val cy = rect.centerY()
+}
+
+/** Horizontal path, unchanged: measure the joined lines once, scale to fit the box, then clip. */
+private fun DrawScope.drawHorizontalOcrText(
+    lines: List<String>,
+    rect: RectF,
+    textMeasurer: TextMeasurer,
+    baseStyle: TextStyle,
+    minScale: Float,
+) {
+    val layout = textMeasurer.measure(AnnotatedString(lines.joinToString("\n")), style = baseStyle)
+    val textW = layout.size.width.toFloat()
+    val textH = layout.size.height.toFloat()
+    if (textW <= 0f || textH <= 0f) return
+
+    val scale = horizontalTextScale(rect.width(), rect.height(), textW, textH, minScale)
 
     clipRect(rect.left, rect.top, rect.right, rect.bottom) {
         withTransform({
-            translate(cx, cy)
-            if (vertical) rotate(90f, pivot = Offset.Zero)
+            translate(rect.centerX(), rect.centerY())
             scale(scale, scale, pivot = Offset.Zero)
             translate(-textW / 2f, -textH / 2f)
         }) {
@@ -205,6 +215,53 @@ private fun DrawScope.drawOcrBlockText(
         }
     }
 }
+
+/**
+ * Tategaki path: every glyph is measured at [baseStyle]'s reference size, positioned upright by
+ * [layoutVerticalText] and drawn scaled by the layout's uniform [PlacedGlyph.scale]. Latin/digit
+ * glyphs are turned 90° inside their own cell; kana, kanji and punctuation stay upright.
+ */
+private fun DrawScope.drawTategakiText(
+    lines: List<String>,
+    rect: RectF,
+    textMeasurer: TextMeasurer,
+    baseStyle: TextStyle,
+    minScale: Float,
+) {
+    val measuredColumns = lines.map { line ->
+        splitGlyphs(line).map { glyph ->
+            MeasuredGlyph(glyph, textMeasurer.measure(AnnotatedString(glyph), style = baseStyle))
+        }
+    }
+    val metrics = measuredColumns.map { column ->
+        column.map { GlyphMetric(it.text, it.layout.size.width.toFloat(), it.layout.size.height.toFloat()) }
+    }
+    val placed = layoutVerticalText(metrics, rect.left, rect.top, rect.right, rect.bottom, minScale)
+    if (placed.isEmpty()) return
+    val flattened = measuredColumns.flatten()
+    if (placed.size != flattened.size) return
+
+    clipRect(rect.left, rect.top, rect.right, rect.bottom) {
+        placed.forEachIndexed { index, glyph ->
+            if (glyph.text.isBlank()) return@forEachIndexed
+            val layout = flattened[index].layout
+            val baseW = layout.size.width.toFloat()
+            val baseH = layout.size.height.toFloat()
+            if (baseW <= 0f || baseH <= 0f) return@forEachIndexed
+            withTransform({
+                translate(glyph.left, glyph.top)
+                scale(glyph.scale, glyph.scale, pivot = Offset.Zero)
+                // Rotate about the glyph's own centre (scaled space), keeping it centred in the cell.
+                if (glyph.rotated) rotate(90f, pivot = Offset(baseW / 2f, baseH / 2f))
+            }) {
+                drawText(layout, color = Color.White, topLeft = Offset.Zero)
+            }
+        }
+    }
+}
+
+/** A glyph and its reference-size measurement, kept paired for the draw pass. */
+private data class MeasuredGlyph(val text: String, val layout: TextLayoutResult)
 
 /**
  * Grows/shrinks [this] about its own centre by [scale], implementing `ReaderPreferences.ocrBoxScale`
