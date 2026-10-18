@@ -156,7 +156,7 @@ class OcrManager(
         pageIndex: Int,
         source: ReaderOcrSource,
     ): List<OcrTextBlock>? =
-        if (source.persistsOcrResults) cacheManager.load(key, pageIndex, source.persistentCacheVariant) else null
+        if (source.persistsOcrResults) cacheManager.load(key, pageIndex, cacheVariant(source)) else null
 
     /**
      * The persisted OCR cache key of one chapter. Built here (rather than inline at each call site)
@@ -196,7 +196,7 @@ class OcrManager(
     ): List<OcrTextBlock> {
         val blocks = recognizePage(bytes, language)
         if (source.persistsOcrResults && blocks.isNotEmpty()) {
-            cacheManager.save(key, pageIndex, blocks, language.bcp47, source.persistentCacheVariant)
+            cacheManager.save(key, pageIndex, blocks, language.bcp47, cacheVariant(source))
         }
         return blocks
     }
@@ -220,7 +220,7 @@ class OcrManager(
         stopRequested: () -> Boolean,
     ): OcrTaskResult {
         val chapterId = input.key.chapterId
-        val variant = input.source.persistentCacheVariant
+        val variant = cacheVariant(input.source)
         val provider = input.provider
 
         val pageCount = provider.pageCount
@@ -347,7 +347,7 @@ class OcrManager(
     // ---------------------------------------------------------------- internals
 
     private suspend fun retryFailedPages(input: ChapterOcrInput, pageCount: Int, onRecovered: () -> Unit) {
-        val variant = input.source.persistentCacheVariant
+        val variant = cacheVariant(input.source)
         for (pageIndex in 0 until pageCount) {
             if (input.source.persistsOcrResults && cacheManager.load(input.key, pageIndex, variant) != null) continue
             val bytes = try {
@@ -371,10 +371,29 @@ class OcrManager(
         if (!input.source.persistsOcrResults) return pageCount
         var cached = 0
         for (pageIndex in 0 until pageCount) {
-            if (cacheManager.load(input.key, pageIndex, input.source.persistentCacheVariant) != null) cached++
+            if (cacheManager.load(input.key, pageIndex, cacheVariant(input.source)) != null) cached++
         }
         return cached
     }
+
+    /**
+     * KUN -->
+     * The cache variant for [source], keyed by engine generation and the non-default thresholds.
+     *
+     * The generation component is why a page OCR'd by an older engine or model is not served from
+     * cache after the engine changes: OCR caches survive app upgrades, so without it a pre-v6
+     * (Paddle-Lite / PP-OCRv5) result keeps masking the current engine's output. The threshold
+     * component makes changed sliders re-run instead of serving the old thresholds' result.
+     */
+    private fun cacheVariant(source: ReaderOcrSource): String? {
+        val base = source.persistentCacheVariant ?: return null
+        val signature = preferences.cacheSignature()
+        return buildString {
+            append(base).append('-').append(ENGINE_CACHE_GENERATION)
+            if (signature.isNotEmpty()) append('-').append(signature)
+        }
+    }
+    // KUN <--
 
     private suspend fun progress(chapterId: Long, pageIndex: Int, pageCount: Int) {
         updateTask(chapterId) { it.copy(currentPage = pageIndex + 1, totalPages = pageCount) }
@@ -459,6 +478,14 @@ class OcrManager(
     }
 
     private companion object {
+        /**
+         * KUN --> Bump when the OCR engine or model changes so persisted page results from the
+         * previous engine are not reused (they survive app upgrades). `v6` = ONNX Runtime +
+         * PP-OCRv6 small (`ocr-models-v3`).
+         */
+        private const val ENGINE_CACHE_GENERATION = "v6"
+        // KUN <--
+
         private const val QUEUE_POLL_MS = 300L
         private const val DEFAULT_IMAGE_DIMENSION = 1000
     }

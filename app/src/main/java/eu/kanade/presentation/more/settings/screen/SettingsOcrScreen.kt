@@ -179,6 +179,48 @@ object SettingsOcrScreen : SearchableSettings {
                 ),
             ),
 
+            // KUN -->
+            // Engine tuning. The three detection sliders map onto the native `nativeProcess`
+            // thresholds (no artefact change); the recognition floor is applied on the per-line
+            // score the engine already emits. Defaults reproduce the previous hard-coded values.
+            Preference.PreferenceGroup(
+                title = stringResource(KMR.strings.pref_ocr_detection),
+                preferenceItems = listOf(
+                    Preference.PreferenceItem.SliderPreference(
+                        preference = preferences.detBoxThreshold,
+                        title = stringResource(KMR.strings.pref_ocr_det_box_threshold),
+                        subtitle = stringResource(KMR.strings.pref_ocr_det_box_threshold_summary),
+                        valueRange = 5..95,
+                        valueText = { "$it%" },
+                    ),
+                    Preference.PreferenceItem.SliderPreference(
+                        preference = preferences.detPixelThreshold,
+                        title = stringResource(KMR.strings.pref_ocr_det_pixel_threshold),
+                        subtitle = stringResource(KMR.strings.pref_ocr_det_pixel_threshold_summary),
+                        valueRange = 5..95,
+                        valueText = { "$it%" },
+                    ),
+                    Preference.PreferenceItem.SliderPreference(
+                        preference = preferences.detUnclipRatio,
+                        title = stringResource(KMR.strings.pref_ocr_det_unclip_ratio),
+                        subtitle = stringResource(KMR.strings.pref_ocr_det_unclip_ratio_summary),
+                        valueRange = 100..300,
+                        valueText = { "%.2f".format(it / 100f) },
+                    ),
+                    Preference.PreferenceItem.SliderPreference(
+                        preference = preferences.recConfidenceFloor,
+                        title = stringResource(KMR.strings.pref_ocr_rec_confidence_floor),
+                        subtitle = stringResource(KMR.strings.pref_ocr_rec_confidence_floor_summary),
+                        valueRange = 0..95,
+                        valueText = { if (it == 0) "off" else "$it%" },
+                    ),
+                    Preference.PreferenceItem.TextPreference(
+                        title = stringResource(KMR.strings.pref_ocr_detection_apply_hint),
+                    ),
+                ),
+            ),
+            // KUN <--
+
             // Cache.
             Preference.PreferenceItem.TextPreference(
                 title = stringResource(KMR.strings.pref_ocr_cache_size),

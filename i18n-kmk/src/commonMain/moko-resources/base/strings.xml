@@ -450,6 +450,17 @@
     <string name="pref_ocr_two_finger_gesture_summary">Allow a two-finger tap to toggle the OCR overlay</string>
     <string name="pref_ocr_auto_on_download">Automatically OCR on download</string>
     <string name="pref_ocr_auto_on_download_summary">Run OCR on chapters as they are downloaded</string>
+    <!-- KUN -->
+    <string name="pref_ocr_detection">Detection tuning</string>
+    <string name="pref_ocr_det_pixel_threshold">Detection threshold</string>
+    <string name="pref_ocr_det_pixel_threshold_summary">How faint a text region may be and still be detected. Lower values find fainter text but also more noise; raise this to stop empty areas being detected as text.</string>
+    <string name="pref_ocr_det_box_threshold">Detection box score threshold</string>
+    <string name="pref_ocr_det_box_threshold_summary">Minimum confidence for a detected region to be kept. Raise it to drop weak, spurious boxes; lower it to recover faint text. This is the main control against boxes appearing on empty areas.</string>
+    <string name="pref_ocr_det_unclip_ratio">Text box expansion</string>
+    <string name="pref_ocr_det_unclip_ratio_summary">How far each detected box is grown before recognition (100-300, i.e. 1.00-3.00). Higher includes more surrounding strokes; lower trims boxes that swallow artwork.</string>
+    <string name="pref_ocr_rec_confidence_floor">Recognition confidence floor</string>
+    <string name="pref_ocr_rec_confidence_floor_summary">Drop recognised lines whose confidence is below this. 0 keeps everything; raise it to remove garbled or misread lines at the cost of losing faint ones.</string>
+    <string name="pref_ocr_detection_apply_hint">Changes apply to pages processed after the change; already-cached pages keep their old results.</string>
     <string name="ocr_source_automatic">Automatic</string>
     <string name="ocr_source_mokuro">Mokuro</string>
     <string name="ocr_source_paddle">Paddle OCR</string>
