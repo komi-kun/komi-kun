@@ -150,4 +150,124 @@ class OcrLineMergerTest {
 
         merger.merge(lines, imageW = 1000, imageH = 1000) shouldHaveSize 0
     }
+
+    // ------------------------------------------------------------------------------------
+    // Border-touching boxes: two text patches whose boxes abut must not become one block
+    // ------------------------------------------------------------------------------------
+
+    @Test
+    fun `touching side-by-side text blocks stay separate`() {
+        val merger = OwOCRMerger()
+        val lines = listOf(
+            line("あいう", 0.10, 0.10, 0.40, 0.20),
+            line("かきく", 0.10, 0.21, 0.40, 0.31),
+            line("さしす", 0.40, 0.10, 0.70, 0.20),
+            line("たちつ", 0.40, 0.21, 0.70, 0.31),
+        )
+
+        val blocks = merger.merge(lines, imageW = 1000, imageH = 1000)
+
+        blocks shouldHaveSize 2
+        blocks[0].lines shouldBe listOf("あいう", "かきく")
+        blocks[1].lines shouldBe listOf("さしす", "たちつ")
+    }
+
+    @Test
+    fun `small-gap side-by-side text blocks stay separate`() {
+        val merger = OwOCRMerger()
+        val lines = listOf(
+            line("あいう", 0.10, 0.10, 0.40, 0.20),
+            line("かきく", 0.10, 0.21, 0.40, 0.31),
+            line("さしす", 0.45, 0.10, 0.75, 0.20),
+            line("たちつ", 0.45, 0.21, 0.75, 0.31),
+        )
+
+        val blocks = merger.merge(lines, imageW = 1000, imageH = 1000)
+
+        blocks shouldHaveSize 2
+        blocks[0].lines shouldBe listOf("あいう", "かきく")
+        blocks[1].lines shouldBe listOf("さしす", "たちつ")
+    }
+
+    @Test
+    fun `touching single-line patches stay separate`() {
+        val merger = OwOCRMerger()
+        val lines = listOf(
+            line("あい", 0.10, 0.10, 0.30, 0.20),
+            line("うえ", 0.30, 0.10, 0.50, 0.20),
+        )
+
+        merger.merge(lines, imageW = 1000, imageH = 1000) shouldHaveSize 2
+    }
+
+    @Test
+    fun `detector-split single line with a small gap is rejoined`() {
+        val merger = OwOCRMerger()
+        val lines = listOf(
+            line("あい", 0.10, 0.10, 0.30, 0.20),
+            line("うえ", 0.305, 0.10, 0.50, 0.20),
+        )
+
+        val blocks = merger.merge(lines, imageW = 1000, imageH = 1000)
+
+        blocks shouldHaveSize 1
+        blocks.first().lines shouldBe listOf("あい", "うえ")
+    }
+
+    @Test
+    fun `mixed-size stacked boxes stay separate`() {
+        val merger = OwOCRMerger()
+        val lines = listOf(
+            line("あいうえお", 0.10, 0.10, 0.40, 0.20),
+            line("かきく", 0.10, 0.21, 0.25, 0.41),
+        )
+
+        merger.merge(lines, imageW = 1000, imageH = 1000) shouldHaveSize 2
+    }
+
+    @Test
+    fun `horizontal and vertical boxes never merge`() {
+        val merger = OwOCRMerger()
+        val lines = listOf(
+            line("キャプション", 0.10, 0.10, 0.50, 0.20),
+            line("たてがき", 0.45, 0.10, 0.55, 0.25, direction = WritingDirection.TTB),
+        )
+
+        val blocks = merger.merge(lines, imageW = 1000, imageH = 1000)
+
+        blocks shouldHaveSize 2
+        blocks.flatMap { it.lines }.toSet() shouldBe setOf("キャプション", "たてがき")
+    }
+
+    @Test
+    fun `side-by-side tategaki columns still form one paragraph`() {
+        val merger = OwOCRMerger()
+        val lines = listOf(
+            line("あいうえ", 0.80, 0.10, 0.90, 0.60, direction = WritingDirection.TTB),
+            line("かきくけ", 0.70, 0.10, 0.80, 0.60, direction = WritingDirection.TTB),
+        )
+
+        val blocks = merger.merge(lines, imageW = 1000, imageH = 1000)
+
+        blocks shouldHaveSize 1
+        blocks.first().vertical shouldBe true
+        blocks.first().lines shouldBe listOf("あいうえ", "かきくけ")
+    }
+
+    @Test
+    fun `legacy side-by-side text blocks stay separate`() {
+        val merger = OwOCRMerger(MergeConfig(language = OcrLanguage.ENGLISH))
+        val lines = listOf(
+            line("hello", 0.10, 0.10, 0.30, 0.15, language = OcrLanguage.ENGLISH),
+            line("there", 0.10, 0.16, 0.30, 0.21, language = OcrLanguage.ENGLISH),
+            line("world", 0.32, 0.10, 0.50, 0.15, language = OcrLanguage.ENGLISH),
+            line("again", 0.32, 0.16, 0.50, 0.21, language = OcrLanguage.ENGLISH),
+        )
+
+        val blocks = merger.merge(lines, imageW = 1000, imageH = 1000)
+
+        blocks shouldHaveSize 2
+        blocks[0].lines shouldBe listOf("hello", "there")
+        blocks[1].lines shouldBe listOf("world", "again")
+    }
 }
