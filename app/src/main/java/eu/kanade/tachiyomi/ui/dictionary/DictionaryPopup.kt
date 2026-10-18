@@ -6,7 +6,6 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -17,7 +16,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -36,7 +34,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -246,32 +243,13 @@ fun DictionaryPopup(
                     }
                 }
                 // KUN <--
-                if (tabs.size > 1) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState())
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
-                    ) {
-                        tabs.forEachIndexed { index, tab ->
-                            Text(
-                                text = tab.label,
-                                style = MaterialTheme.typography.labelMedium,
-                                modifier = Modifier
-                                    .padding(end = 8.dp)
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(
-                                        if (tab.active) {
-                                            MaterialTheme.colorScheme.surfaceVariant
-                                        } else {
-                                            Color.Transparent
-                                        },
-                                    )
-                                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                            )
-                        }
-                    }
-                }
+                // KUN -->
+                // The recursive-lookup stack (tabs) is drawn by the renderer itself: `renderer.js`
+                // emits a `.lookup-tabs` bar of `.lookup-tab` pills whenever more than one frame is
+                // on the stack, and those pills are the ones that actually navigate (async
+                // `onTabSelect`). A second, native Compose tab row used to be rendered here, which
+                // duplicated the pills with no working handler of its own, so it was removed.
+                // KUN <--
 
                 Box(modifier = Modifier.fillMaxSize()) {
                     DictionaryEntryWebView(
