@@ -27,6 +27,8 @@ import eu.kanade.presentation.more.settings.Preference
 import eu.kanade.tachiyomi.ui.dictionary.DictionaryAudioSettingsScreen
 import eu.kanade.tachiyomi.ui.dictionary.DictionaryBackupImportScreen
 import eu.kanade.tachiyomi.ui.dictionary.DictionaryImportCoordinator
+import eu.kanade.tachiyomi.ui.dictionary.DictionaryPopupSizing
+import eu.kanade.tachiyomi.ui.dictionary.DictionaryPreferences
 import eu.kanade.tachiyomi.ui.dictionary.YomitanSettingsApplier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -263,16 +265,17 @@ object SettingsDictionaryScreen : SearchableSettings {
             Preference.PreferenceGroup(
                 title = stringResource(KMR.strings.pref_dict_popup_size),
                 preferenceItems = listOf(
+                    // KUN --> One "size" knob (a percentage of an adaptive, screen-relative
+                    // baseline) instead of raw width/height dp, so it is a single change and the
+                    // default grows with the screen (a tablet gets a bigger popup for free).
                     Preference.PreferenceItem.SliderPreference(
-                        preference = prefs.popupWidth(),
-                        title = stringResource(KMR.strings.pref_dict_popup_width),
-                        valueRange = 200..600,
+                        preference = prefs.popupSizePercent(),
+                        title = stringResource(KMR.strings.pref_dict_popup_size_scale),
+                        subtitle = stringResource(KMR.strings.pref_dict_popup_size_scale_summary),
+                        valueRange = DictionaryPopupSizing.MIN_PERCENT..DictionaryPopupSizing.MAX_PERCENT,
+                        valueText = { "$it%" },
                     ),
-                    Preference.PreferenceItem.SliderPreference(
-                        preference = prefs.popupHeight(),
-                        title = stringResource(KMR.strings.pref_dict_popup_height),
-                        valueRange = 200..800,
-                    ),
+                    // KUN <--
                     Preference.PreferenceItem.SliderPreference(
                         preference = prefs.fontSize(),
                         title = stringResource(KMR.strings.pref_dict_popup_font_size),

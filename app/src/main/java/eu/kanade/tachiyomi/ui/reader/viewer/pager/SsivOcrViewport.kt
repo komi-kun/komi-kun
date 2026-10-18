@@ -9,11 +9,15 @@ import android.graphics.PointF
 import android.graphics.RectF
 import android.view.View
 import com.davemorrissey.labs.subscaleview.SubsamplingScaleImageView
+import com.davemorrissey.labs.subscaleview.SubsamplingScaleImageView.EASE_IN_OUT_QUAD
 import eu.kanade.tachiyomi.ui.reader.ReaderActivity
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import eu.kanade.tachiyomi.ui.reader.ocr.ImagePoint
 import eu.kanade.tachiyomi.ui.reader.ocr.OcrDisplayTransform
 import eu.kanade.tachiyomi.ui.reader.ocr.OcrViewport
+import eu.kanade.tachiyomi.ui.reader.viewer.popup.isComfortablyVisible
+import eu.kanade.tachiyomi.ui.reader.viewer.popup.popupFitTarget
+import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 
@@ -252,4 +256,133 @@ class SsivOcrViewport(
         }
         return hash
     }
+
+    // KUN -->
+    /**
+     * Zooms and pans the current page so the looked-up block sits in the upper region and the popup
+     * can occupy the lower one. A page already showing at fit scale cannot be panned (there is no
+     * slack), so a block in the lower region forces a zoom; that is the common paged case.
+     */
+    override fun fitBlockAbove(rect: RectF, lowerFraction: Float): Boolean {
+        val holder = holderProvider() ?: return false
+        val ssiv = holder.ocrSubsamplingImageView() ?: return false
+        if (!ssiv.isReady || ssiv.sWidth <= 0 || ssiv.sHeight <= 0) return false
+        val overlayHeight = overlayView.height.toFloat()
+        if (overlayHeight <= 0f) return false
+
+        // A previous fit whose page has since been replaced cannot be restored.
+        if (session?.view !== ssiv) session = null
+        // A discarded (user-interrupted) session is not worth restoring: start over from here.
+        if (session?.cancelled == true) session = null
+
+        val target = popupFitTarget(rect.centerY(), rect.height(), overlayHeight, lowerFraction)
+        val comfortable = isComfortablyVisible(rect.top, rect.bottom, target)
+        val active = session
+        if (comfortable) return false
+        val fit = active ?: SsivFitSession(
+            ssiv,
+            ssiv.scale,
+            ssiv.center?.let { PointF(it) } ?: PointF(ssiv.sWidth / 2f, ssiv.sHeight / 2f),
+        ).also { session = it }
+        // A fresh move supersedes any previous interruption state.
+        fit.cancelled = false
+        fit.settledScale = null
+        fit.settledCenter = null
+
+        val off = OcrOverlayCoords.offsetOf(ssiv, overlayView)
+        // The source pixel of the block centre, and where it should end up on screen.
+        val source = ssiv.viewToSourceCoord(rect.centerX() - off.x, rect.centerY() - off.y) ?: return false
+        val viewH = ssiv.height.toFloat()
+        val viewW = ssiv.width.toFloat()
+        if (viewH <= 0f || viewW <= 0f) return false
+        val targetViewY = target.targetCenterY - off.y
+        val delta = targetViewY - viewH / 2f
+
+        // Minimum scale that lets the block's source pixel reach the target row: with the page
+        // fully inside the view (fit scale) the centre is pinned and cannot be panned.
+        val sHeight = ssiv.sHeight.toFloat()
+        val scaleToReach =
+            if (sHeight - source.y > 1f) (viewH - targetViewY) / (sHeight - source.y) else Float.MAX_VALUE
+        val targetScale = max(ssiv.scale, scaleToReach * 1.02f)
+            .coerceIn(ssiv.minScale, ssiv.maxScale)
+        if (targetScale <= 0f) return false
+        // Centre the page on a source point that puts the block at the target row (the animation
+        // centres its source argument in the view). X centres the block horizontally.
+        val targetCenter = PointF(source.x, source.y - delta / targetScale)
+
+        val sessionForListener = fit
+        val builder = ssiv.animateScaleAndCenter(targetScale, targetCenter)
+        if (builder == null) {
+            ssiv.setScaleAndCenter(targetScale, targetCenter)
+            recordSettled(ssiv, sessionForListener)
+        } else {
+            builder
+                .withDuration(FIT_DURATION_MS)
+                .withEasing(EASE_IN_OUT_QUAD)
+                .withInterruptible(true)
+                .withOnAnimationEventListener(
+                    object : SubsamplingScaleImageView.OnAnimationEventListener {
+                        override fun onComplete() = recordSettled(ssiv, sessionForListener)
+                        override fun onInterruptedByUser() {
+                            sessionForListener.cancelled = true
+                        }
+
+                        override fun onInterruptedByNewAnim() {
+                            // A new (possibly ours) animation took over; leave `cancelled` alone so
+                            // a user double-tap, which reports this way, is caught by the settled
+                            // comparison in restoreFit instead.
+                        }
+                    },
+                )
+                .start()
+        }
+        return true
+    }
+
+    override fun restoreFit() {
+        val fit = session ?: return
+        session = null
+        if (fit.cancelled) return
+        val ssiv = fit.view
+        if (!ssiv.isReady || ssiv.parent == null) return
+
+        // If the user has moved the view since our fit settled, their position wins. With no settled
+        // position (interrupted before the move finished) we do nothing rather than risk a yank.
+        val settledScale = fit.settledScale ?: return
+        val settledCenter = fit.settledCenter ?: return
+        val scaleSame = abs(ssiv.scale - settledScale) <= 0.01f * settledScale + 1e-3f
+        val center = ssiv.center
+        val centerSame = center != null &&
+            abs(center.x - settledCenter.x) <= 4f &&
+            abs(center.y - settledCenter.y) <= 4f
+        if (!scaleSame || !centerSame) return
+        val builder = ssiv.animateScaleAndCenter(fit.preScale, fit.preCenter)
+        if (builder == null) {
+            ssiv.setScaleAndCenter(fit.preScale, fit.preCenter)
+        } else {
+            builder.withDuration(FIT_DURATION_MS).withEasing(EASE_IN_OUT_QUAD).withInterruptible(true).start()
+        }
+    }
+
+    private fun recordSettled(ssiv: SubsamplingScaleImageView, fit: SsivFitSession) {
+        if (session !== fit) return
+        fit.settledScale = ssiv.scale
+        fit.settledCenter = ssiv.center?.let { PointF(it) }
+    }
+
+    private class SsivFitSession(
+        val view: SubsamplingScaleImageView,
+        val preScale: Float,
+        val preCenter: PointF,
+        var settledScale: Float? = null,
+        var settledCenter: PointF? = null,
+        var cancelled: Boolean = false,
+    )
+
+    private var session: SsivFitSession? = null
+
+    private companion object {
+        const val FIT_DURATION_MS = 220L
+    }
+    // KUN <--
 }
