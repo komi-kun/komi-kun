@@ -166,6 +166,15 @@ object SettingsOcrScreen : SearchableSettings {
                         title = stringResource(KMR.strings.pref_show_ocr_text),
                         subtitle = stringResource(KMR.strings.pref_show_ocr_text_summary),
                     ),
+                    // Overlay text size: the calibrated default matches the printed lettering, and
+                    // manga fonts vary enough that the reader needs a nudge (KUN).
+                    Preference.PreferenceItem.SliderPreference(
+                        preference = readerPreferences.ocrTextScale,
+                        title = stringResource(KMR.strings.pref_ocr_text_scale),
+                        subtitle = stringResource(KMR.strings.pref_ocr_text_scale_summary),
+                        valueRange = 50..150,
+                        valueText = { "$it%" },
+                    ),
                     Preference.PreferenceItem.SwitchPreference(
                         preference = readerPreferences.ocrTwoFingerGestureEnabled,
                         title = stringResource(KMR.strings.pref_ocr_two_finger_gesture),
