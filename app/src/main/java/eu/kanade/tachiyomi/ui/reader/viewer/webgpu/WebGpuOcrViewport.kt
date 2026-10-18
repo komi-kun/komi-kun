@@ -129,12 +129,13 @@ class WebGpuOcrViewport(
         }
 
         val off = OcrOverlayCoords.offsetOf(viewer.pager, overlayView)
+        val surfaceW = state.width.toFloat()
         val scaleNow = page.scale
-        if (scaleNow <= 0f) return false
+        if (scaleNow <= 0f || surfaceW <= 0f) return false
         // The block's row, in surface-normalised units, moves as `0.5 + scale * (y + k)`; `k` folds
         // every scale-independent term, so it can be recovered from the current state.
-        val blockNormNow = (rect.centerY() - off.y) / surfaceH
-        val k = (blockNormNow - 0.5f) / scaleNow - page.y
+        val blockNormY = (rect.centerY() - off.y) / surfaceH
+        val k = (blockNormY - 0.5f) / scaleNow - page.y
         val targetNorm = (target.targetCenterY - off.y) / surfaceH
 
         // Grow the scale until the page can be panned far enough for the block to reach the target
@@ -153,11 +154,20 @@ class WebGpuOcrViewport(
         y = y.coerceIn(page.minY(scale), page.maxY(scale))
         if (scale <= 0f) return false
 
-        val targetX = page.x
-        page.animateTo(targetX = targetX, targetY = y, targetScale = scale)
+        // The same relation holds horizontally. The old code left x untouched, so zooming around
+        // the page's own x pushed a block that was not at the horizontal centre off the screen -
+        // worst at the bottom, where reaching the target row needs the biggest zoom, so the block
+        // vanished and its own `updatePopupAnchor` dismissed the popup. Bring the block's column to
+        // the viewport centre, then clamp to the page's valid pan range so it can never leave it.
+        val blockNormX = (rect.centerX() - off.x) / surfaceW
+        val kx = (blockNormX - 0.5f) / scaleNow - page.x
+        val targetX = -kx
+        val clampedX = targetX.coerceIn(page.minX(scale), page.maxX(scale))
+
+        page.animateTo(targetX = clampedX, targetY = y, targetScale = scale)
         // animateTo settles exactly at the values passed (it clamps only its own intermediates).
         fit.settledScale = scale
-        fit.settledX = targetX
+        fit.settledX = clampedX
         fit.settledY = y
         return true
     }

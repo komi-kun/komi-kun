@@ -41,6 +41,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import eu.kanade.tachiyomi.ui.reader.viewer.popup.popupTopFor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -206,9 +207,18 @@ fun DictionaryPopup(
                 .offset {
                     // Prefer the OCR host's live anchor so the popup follows the page; fall back to
                     // the anchor captured when the lookup opened.
+                    // KUN --> The popup is anchored by its top-left. Its top edge is chosen so the
+                    // popup sits below the block when the lower region has room, and above it when
+                    // the block is low on the screen (see popupSide) - the bottom-edge case that
+                    // used to force a degenerate zoom. Then it is clamped fully on screen.
                     val live = popupAnchor.rect.value
                     val anchorX = live?.left ?: request.anchorX
-                    val anchorY = live?.bottom ?: request.anchorY
+                    val anchorY = if (live != null && screenHeightPx > 0f) {
+                        popupTopFor(live.top, live.bottom, screenHeightPx, popupHeightPx)
+                    } else {
+                        live?.bottom ?: request.anchorY
+                    }
+                    // KUN <--
                     IntOffset(
                         clampToScreen(anchorX, popupWidthPx, screenWidthPx),
                         clampToScreen(anchorY, popupHeightPx, screenHeightPx),
