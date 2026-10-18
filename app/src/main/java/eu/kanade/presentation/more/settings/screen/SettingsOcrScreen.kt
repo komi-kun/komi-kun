@@ -162,6 +162,11 @@ object SettingsOcrScreen : SearchableSettings {
                         title = stringResource(KMR.strings.pref_show_ocr_outlines),
                     ),
                     Preference.PreferenceItem.SwitchPreference(
+                        preference = readerPreferences.ocrTextOverlayVisible,
+                        title = stringResource(KMR.strings.pref_show_ocr_text),
+                        subtitle = stringResource(KMR.strings.pref_show_ocr_text_summary),
+                    ),
+                    Preference.PreferenceItem.SwitchPreference(
                         preference = readerPreferences.ocrTwoFingerGestureEnabled,
                         title = stringResource(KMR.strings.pref_ocr_two_finger_gesture),
                         subtitle = stringResource(KMR.strings.pref_ocr_two_finger_gesture_summary),

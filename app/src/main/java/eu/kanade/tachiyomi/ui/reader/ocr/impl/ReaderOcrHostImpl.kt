@@ -29,6 +29,7 @@ import dev.zacsweers.metro.ContributesBinding
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import eu.kanade.presentation.reader.OcrOverlay
+import eu.kanade.presentation.reader.OcrOverlayPage
 import eu.kanade.tachiyomi.ui.dictionary.DictionaryPreferences
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import eu.kanade.tachiyomi.ui.reader.ocr.ImagePoint
@@ -73,6 +74,7 @@ class ReaderOcrHostImpl(
         val loaded by blockLoader.blocks.collectAsState()
         val active by activeBlock
         val outlineVisible = readerPreferences.ocrOutlineVisible.get()
+        val showText = readerPreferences.ocrTextOverlayVisible.get()
         val activeBlockHighlight = readerPreferences.ocrActiveBlockHighlight.get()
         val boxScalePercent = readerPreferences.ocrBoxScale.get()
 
@@ -86,28 +88,50 @@ class ReaderOcrHostImpl(
         // recomposing this composable. Poll it once per frame into snapshot state, so the overlay
         // updates as soon as the viewer reports its pages - no manual off/on toggle. `produceState`
         // uses structural equality, so a stable page set does not recompose. The same loop primes
-        // the block cache via `ensureLoaded`.
+        // the block cache: the visible pages **and their neighbours**, so the incoming page's
+        // blocks are already resolved while it is still sliding in rather than only once settled.
         val visiblePages by produceState(initialValue = emptyList<ReaderPage>(), viewport) {
             if (viewport == null) return@produceState
             while (true) {
                 val pages = viewport.visiblePages()
                 value = pages
-                blockLoader.ensureLoaded(pages)
+                blockLoader.ensureLoaded(pages.withNeighbours())
                 updatePopupAnchor(viewport, pages, overlaySize.value)
                 withFrameNanos { }
             }
         }
 
         val currentPage = visiblePages.firstOrNull()
-        val blocks = currentPage?.let { loaded[it.ocrKey()] }.orEmpty()
+        // Drawn every visible page, not just the current one, so a page turn shows the incoming
+        // page's boxes/text as it slides in.
+        val overlayPages = visiblePages.map { page ->
+            OcrOverlayPage(page, loaded[page.ocrKey()].orEmpty())
+        }
         OcrOverlay(
             viewport = viewport,
-            blocks = blocks,
+            pages = overlayPages,
             activeBlock = active?.takeIf { activeBlockHighlight && it.first == currentPage?.ocrKey() }?.second,
             outlineVisible = outlineVisible,
+            showText = showText,
             boxScalePercent = boxScalePercent,
             modifier = modifier.onGloballyPositioned { overlaySize.value = it.size },
         )
+    }
+
+    /**
+     * The visible pages plus their immediate chapter neighbours, so the block cache is primed for
+     * the page a turn is about to reveal. [ReaderOcrBlockLoader.ensureLoaded] deduplicates by page
+     * key and in-flight job, so preloading never repeats work.
+     */
+    private fun List<ReaderPage>.withNeighbours(): List<ReaderPage> {
+        if (isEmpty()) return this
+        val result = LinkedHashSet(this)
+        for (page in this) {
+            val chapterPages = page.chapter.pages ?: continue
+            chapterPages.getOrNull(page.index - 1)?.let(result::add)
+            chapterPages.getOrNull(page.index + 1)?.let(result::add)
+        }
+        return result.toList()
     }
 
     // KUN -->
