@@ -43,8 +43,17 @@ internal data class PlacedGlyph(
  * tall column is scaled by the box width and a long column by the box height. [minScale] is the
  * legibility floor; when the floor wins the column overflows the box and the caller's clip trims it.
  *
- * Each glyph is centred across its column and vertically centred inside its own cell, so multi-glyph
- * strings and punctuation (。、), which occupy a full cell, stack naturally.
+ * The cell side is the glyph's horizontal **advance** ([GlyphMetric.width]) — ~1 em for full-width
+ * CJK — and *not* its measured line-box height. A Compose glyph layout is as tall as the font's full
+ * line height (ascent + descent, ~1.2–1.5 em depending on the font); using that as the cell made
+ * every glyph under-fill its column, which the eye reads as the text being shrunk and centred in the
+ * block rather than sitting on the printed glyphs.
+ *
+ * Columns are **top-anchored**: every column starts at [rectTop], so a run shorter than its box
+ * stays put at the top edge instead of floating to the vertical middle, and each column sits in its
+ * own share of the block width, right-to-left. Each glyph is centred across its column and
+ * vertically centred inside its own cell, so multi-glyph strings and punctuation (。、), which
+ * occupy a full cell, stack naturally.
  *
  * What can only be judged visually: the exact glyph size against the printed text under it, whether
  * the plate alpha reads well over artwork, and whether rotated Latin looks right — the tests pin the
@@ -65,9 +74,12 @@ internal fun layoutVerticalText(
     val visible = columns.filter { it.isNotEmpty() }
     if (visible.isEmpty()) return emptyList()
 
-    // The widest/tallest glyph at the reference size defines the natural cell (full-width CJK is
-    // square). If every glyph measures zero there is nothing to draw.
-    val refCell = visible.maxOf { column -> column.maxOf { max(it.width, it.height) } }
+    // The cell is the glyph's horizontal advance at the reference size (full-width CJK advance is
+    // square, ~1 em). Using the measured line-box height instead would over-state the cell by the
+    // font's leading and shrink every glyph. Fall back to the height only if all advances are zero.
+    val refCell = visible.maxOf { column -> column.maxOf { it.width } }
+        .takeIf { it > 0f }
+        ?: visible.maxOf { column -> column.maxOf { it.height } }
     if (refCell <= 0f) return emptyList()
 
     val columnCount = visible.size
@@ -81,15 +93,15 @@ internal fun layoutVerticalText(
     visible.forEachIndexed { columnIndex, column ->
         // Column 0 is the rightmost: step left by a column width each time.
         val columnCenterX = rectRight - columnWidth * (columnIndex + 0.5f)
-        // Centre the column's content within the box when it is shorter than the box.
-        val contentTop = rectTop + (rectH - cell * column.size) / 2f
+        // Top-anchored: each column starts at the block's top edge and grows downward, so short
+        // columns stay aligned with the first one instead of being centred in the box height.
         column.forEachIndexed { glyphIndex, glyph ->
             val width = glyph.width * scale
             val height = glyph.height * scale
             placed += PlacedGlyph(
                 text = glyph.text,
                 left = columnCenterX - width / 2f,
-                top = contentTop + cell * glyphIndex + (cell - height) / 2f,
+                top = rectTop + cell * glyphIndex + (cell - height) / 2f,
                 scale = scale,
                 rotated = isRotatedInVertical(glyph.text),
             )
