@@ -201,7 +201,14 @@ class OwOCRMerger(
                 for (j in lines.indices) {
                     if (used[j]) continue
                     val candidate = lines[j]
-                    val vertical = if (current.area > candidate.area) current.vertical else candidate.vertical
+                    // KUN -->
+                    // Never cluster a horizontal line with a vertical column: the merge rule
+                    // is axis-dependent, and mixing orientations produces one block whose
+                    // text direction is meaningless. Use the line's own orientation instead of
+                    // the larger box's, which was the old behaviour.
+                    if (current.vertical != candidate.vertical) continue
+                    val vertical = current.vertical
+                    // KUN <--
                     if (shouldGroupInSameParagraph(current, candidate, vertical, cfg)) {
                         cluster.add(candidate)
                         queue.add(candidate)
@@ -218,9 +225,15 @@ class OwOCRMerger(
     }
 
     /**
-     * Pixel-relative paragraph grouping used for Japanese. Lines join when their thickness, area
-     * density, rotation and nearest-edge distance are compatible; furigana (small, tight kana
-     * beside a kanji line) is explicitly allowed to join.
+     * Paragraph grouping used for Japanese.
+     *
+     * The pair must have the same orientation, a comparable thickness and compatible rotation,
+     * and it must be a genuine "next line" along the text's advance axis ([OcrMergeGeometry.nextLine]).
+     * Requiring overlap on the run axis and rejecting same-row boxes is what stops two separate
+     * text patches whose boxes touch at a border from being glued into one paragraph.
+     *
+     * A line kept next to its main line by the (disabled) furigana filter is the one deliberate
+     * exception: ruby is much thinner than the kanji it annotates.
      */
     private fun shouldGroupInSameParagraph(
         line1: Line,
@@ -228,21 +241,10 @@ class OwOCRMerger(
         vertical: Boolean,
         cfg: MergeConfig,
     ): Boolean {
-        val imgW = cfg.imageWidth ?: 1000.0
-        val imgH = cfg.imageHeight ?: 1000.0
-
-        val w1 = line1.bbox.width * imgW
-        val h1 = line1.bbox.height * imgH
-        val w2 = line2.bbox.width * imgW
-        val h2 = line2.bbox.height * imgH
-
-        val charSize1 = if (line1.vertical) w1 else h1
-        val charSize2 = if (line2.vertical) w2 else h2
-        val characterSize = maxOf(charSize1, charSize2)
-
-        val t1 = minOf(w1, h1)
-        val t2 = minOf(w2, h2)
-        val thicknessRatio = if (t1 > 0 && t2 > 0) maxOf(t1, t2) / minOf(t1, t2) else 1.0
+        val t1 = OcrMergeGeometry.thickness(line1.bbox, vertical)
+        val t2 = OcrMergeGeometry.thickness(line2.bbox, vertical)
+        val larger = maxOf(t1, t2)
+        val thicknessRatio = if (larger > 0) minOf(t1, t2) / larger else 1.0
 
         var rotDiff = abs(line1.bbox.rotation - line2.bbox.rotation)
         while (rotDiff > PI) rotDiff -= PI
@@ -250,65 +252,15 @@ class OwOCRMerger(
         val distToMultipleOfPiHalf = minOf(rotDiff, abs(PI / 2 - rotDiff))
         if (distToMultipleOfPiHalf >= 0.1) return false
 
-        val area1 = w1 * h1
-        val area2 = w2 * h2
-        val areaRatio = if (maxOf(area1, area2) > 0) minOf(area1, area2) / maxOf(area1, area2) else 1.0
-        val isPunctuation = areaRatio < 0.10
-
-        val maxHDistMult: Double
-        val minDensityReq: Double
-        if (isPunctuation) {
-            maxHDistMult = 1.0
-            minDensityReq = 0.40
-        } else if (thicknessRatio > 1.8) {
-            maxHDistMult = 0.50
-            minDensityReq = 0.55
-        } else {
-            maxHDistMult = 0.75
-            minDensityReq = 0.50
-        }
-        val furiganaHDistMult = if (thicknessRatio < 1.35 && !isPunctuation) 1.25 else 0.0
-
-        val mergedLeft = minOf(line1.bbox.left, line2.bbox.left) * imgW
-        val mergedTop = minOf(line1.bbox.top, line2.bbox.top) * imgH
-        val mergedRight = maxOf(line1.bbox.right, line2.bbox.right) * imgW
-        val mergedBottom = maxOf(line1.bbox.bottom, line2.bbox.bottom) * imgH
-        val mergedArea = maxOf(0.0, mergedRight - mergedLeft) * maxOf(0.0, mergedBottom - mergedTop)
-        if (mergedArea > 0 && (area1 + area2) / mergedArea < minDensityReq) return false
-
-        if (vertical) {
-            val hDist = horizontalDistance(line1.bbox, line2.bbox) * imgW
-            val lineWidth = (w1 + w2) / 2
-            val yMinDiff = abs(line1.bbox.top - line2.bbox.top) * imgH
-            val yOverlap = maxOf(0.0, minOf(line1.bbox.bottom, line2.bbox.bottom) * imgH - maxOf(line1.bbox.top, line2.bbox.top) * imgH)
-            val minH = minOf(h1, h2)
-            val yMaxDiff = abs(line1.bbox.bottom - line2.bbox.bottom) * imgH
-            if (yMinDiff > characterSize * 2.0 && yMaxDiff > characterSize * 2.0) return false
-
-            if (hDist < lineWidth * maxHDistMult && yOverlap > minH * 0.5) return true
-            if (furiganaHDistMult > 0 && hDist < lineWidth * furiganaHDistMult &&
-                yMinDiff < characterSize * 0.3 && yOverlap > minH * 0.5
-            ) {
-                return true
-            }
-            if (thicknessRatio < 2.5 && hDist < lineWidth * 1.0 &&
-                yMinDiff < characterSize * 0.5 && yOverlap > minH * 0.5
-            ) {
-                return true
-            }
-            return false
+        if (thicknessRatio < OcrMergeGeometry.MIN_THICKNESS_RATIO) {
+            // Only when the user explicitly turned the furigana filter off: the kana is the
+            // same run as the kanji line it sits beside, so keep it in the block.
+            return !cfg.furiganaFilter && cfg.language.isJapanese &&
+                line1.hasJpText && line2.hasJpText &&
+                OcrMergeGeometry.runOverlap(line1.bbox, line2.bbox, vertical) > 0.8
         }
 
-        val vDist = verticalDistance(line1.bbox, line2.bbox) * imgH
-        val lineHeight = maxOf(h1, h2)
-        if (vDist >= lineHeight * 1.5) return false
-
-        val coord1 = line2.bbox.right * imgW
-        val coord2 = line1.bbox.right * imgW
-        if (abs(coord1 - coord2) < 1.5 * characterSize) return true
-        if (cfg.supportCenterAlignedText && horizontalOverlap(line1.bbox, line2.bbox) > 0.9) return true
-
-        return false
+        return OcrMergeGeometry.nextLine(line1.bbox, line2.bbox, vertical, cfg.supportCenterAlignedText)
     }
 
     // ================================================================
@@ -362,37 +314,34 @@ class OwOCRMerger(
         return paragraphs
     }
 
+    /**
+     * Legacy-path version of the same rule. The old implementation only compared a signed edge
+     * distance (`coord1 - coord2`) after a generous distance check, so any two boxes on the same
+     * row could join no matter how far apart they were. Delegating to the shared geometry keeps
+     * both paths honouring the same "successive line" definition.
+     */
     private fun shouldGroupInSameParagraphLegacy(
         line1: Line,
         line2: Line,
         vertical: Boolean,
         cfg: MergeConfig,
     ): Boolean {
-        val characterSize = maxOf(line1.characterSize, line2.characterSize)
+        if (line1.vertical != line2.vertical) return false
 
-        if (vertical) {
-            val hDist = horizontalDistance(line1.bbox, line2.bbox)
-            val lineWidth = maxOf(line1.bbox.width, line2.bbox.width)
-            if (hDist >= lineWidth) return false
-            if (abs(line1.bbox.top - line2.bbox.top) < characterSize) return true
-        } else {
-            val vDist = verticalDistance(line1.bbox, line2.bbox)
-            val lineHeight = maxOf(line1.bbox.height, line2.bbox.height)
-            if (vDist >= lineHeight * 2) return false
-
-            val coord1 = if (line1.rtl) line2.bbox.right else line1.bbox.left
-            val coord2 = if (line1.rtl) line1.bbox.right else line2.bbox.left
-            if (coord1 - coord2 < 2 * characterSize) return true
-            if (cfg.supportCenterAlignedText && horizontalOverlap(line1.bbox, line2.bbox) > 0.9) return true
+        val t1 = OcrMergeGeometry.thickness(line1.bbox, vertical)
+        val t2 = OcrMergeGeometry.thickness(line2.bbox, vertical)
+        val larger = maxOf(t1, t2)
+        val thicknessRatio = if (larger > 0) minOf(t1, t2) / larger else 1.0
+        if (thicknessRatio < OcrMergeGeometry.MIN_THICKNESS_RATIO) {
+            val filtered = localFuriganaFilter(listOf(line1, line2), vertical)
+            if (filtered.size == 1) {
+                line1.isFurigana = true
+                return true
+            }
+            return false
         }
 
-        val filtered = localFuriganaFilter(listOf(line1, line2), vertical)
-        if (filtered.size == 1) {
-            line1.isFurigana = true
-            return true
-        }
-
-        return false
+        return OcrMergeGeometry.nextLine(line1.bbox, line2.bbox, vertical, cfg.supportCenterAlignedText)
     }
 
     // ================================================================
@@ -659,27 +608,28 @@ class OwOCRMerger(
         return merged
     }
 
+    /**
+     * Close-paragraph merging is deliberately narrow: it only rejoins **single-line** paragraphs
+     * that the detector split into fragments of one line ([OcrMergeGeometry.sameLineFragment]).
+     *
+     * It no longer merges multi-line blocks that sit side by side. That was the over-aggressive
+     * rule behind "two text patches whose boxes are joined at a border become one patch": a
+     * horizontal distance within `2 * characterSize` plus vertical overlap merged any two nearby
+     * blocks, including two touching columns/bubbles of unrelated text. Stacking lines inside a
+     * paragraph is handled earlier, by [shouldGroupInSameParagraph].
+     */
     private fun closeEnough(a: Paragraph, b: Paragraph, vertical: Boolean): Boolean {
-        val charSize = maxOf(a.characterSize, b.characterSize)
-
         var rotDiff = abs(a.rotation - b.rotation)
         while (rotDiff > PI) rotDiff -= PI
         if (rotDiff > PI / 2) rotDiff = PI - rotDiff
         val distToMultipleOfPiHalf = minOf(rotDiff, abs(PI / 2 - rotDiff))
         if (distToMultipleOfPiHalf >= 0.1) return false
 
-        return if (vertical) {
-            val widthRatio = minOf(a.bbox.width, b.bbox.width) / max(0.001, maxOf(a.bbox.width, b.bbox.width))
-            verticalDistance(a.bbox, b.bbox) <= 0.5 * charSize &&
-                widthRatio > 0.95 &&
-                horizontalOverlap(a.bbox, b.bbox) > 0.95
-        } else {
-            val heightRatio = minOf(a.bbox.height, b.bbox.height) / max(0.001, maxOf(a.bbox.height, b.bbox.height))
-            a.rtl == b.rtl &&
-                horizontalDistance(a.bbox, b.bbox) <= 2 * charSize &&
-                heightRatio > 0.6 &&
-                verticalOverlap(a.bbox, b.bbox) > 0.7
-        }
+        if (a.vertical != b.vertical) return false
+        if (!vertical && a.rtl != b.rtl) return false
+
+        return a.lines.size == 1 && b.lines.size == 1 &&
+            OcrMergeGeometry.sameLineFragment(a.bbox, b.bbox, vertical)
     }
 
     // ================================================================
@@ -859,39 +809,5 @@ class OwOCRMerger(
         }
 
         return components
-    }
-
-    // ================================================================
-    // UTILITY: overlap / distance on normalized boxes
-    // ================================================================
-
-    private fun horizontalOverlap(a: NormalizedBBox, b: NormalizedBBox): Double {
-        val overlapLeft = maxOf(a.left, b.left)
-        val overlapRight = minOf(a.right, b.right)
-        if (overlapRight <= overlapLeft) return 0.0
-        val overlapWidth = overlapRight - overlapLeft
-        val smallerWidth = minOf(a.width, b.width)
-        return if (smallerWidth > 0) overlapWidth / smallerWidth else 0.0
-    }
-
-    private fun verticalOverlap(a: NormalizedBBox, b: NormalizedBBox): Double {
-        val overlapTop = maxOf(a.top, b.top)
-        val overlapBottom = minOf(a.bottom, b.bottom)
-        if (overlapBottom <= overlapTop) return 0.0
-        val overlapHeight = overlapBottom - overlapTop
-        val smallerHeight = minOf(a.height, b.height)
-        return if (smallerHeight > 0) overlapHeight / smallerHeight else 0.0
-    }
-
-    private fun horizontalDistance(a: NormalizedBBox, b: NormalizedBBox): Double = when {
-        a.right < b.left -> b.left - a.right
-        b.right < a.left -> a.left - b.right
-        else -> 0.0
-    }
-
-    private fun verticalDistance(a: NormalizedBBox, b: NormalizedBBox): Double = when {
-        a.bottom < b.top -> b.top - a.bottom
-        b.bottom < a.top -> a.top - b.bottom
-        else -> 0.0
     }
 }
