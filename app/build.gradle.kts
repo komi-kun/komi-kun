@@ -47,7 +47,9 @@ android {
     }
 
     if (System.getenv("MIHON_GITHUB_RELEASE").toBoolean()) {
-        val tempStoreFile = file(System.getenv("RUNNER_TEMP")).resolve("komikku.keystore")
+        // KUN -->
+        val tempStoreFile = file(System.getenv("RUNNER_TEMP")).resolve("komikun.keystore")
+        // KUN <--
 
         val storeFileBytes = System.getenv("storeFileBase64").let(Base64::decode)
         tempStoreFile.outputStream().use { it.write(storeFileBytes) }

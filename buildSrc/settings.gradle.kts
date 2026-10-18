@@ -15,4 +15,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "komikku-buildSrc"
+// KUN -->
+rootProject.name = "komikun-buildSrc"
+// KUN <--

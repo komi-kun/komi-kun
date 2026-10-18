@@ -28,7 +28,7 @@ gh run watch "$rid" --exit-status
 
 - Tag **`r<commit-count>`** (pushed by the workflow; the release action creates it if the tag step is skipped).
 - A signed `assembleNightly -Pdist=ci`, published as a **non-draft prerelease** with 5 APKs:
-  `Komikku-r<count>.apk` (universal) plus `arm64-v8a`, `armeabi-v7a`, `x86`, `x86_64`.
+  `Komikun-r<count>.apk` (universal) plus `arm64-v8a`, `armeabi-v7a`, `x86`, `x86_64`.
 
 ## 4. How the in-app updater sees it
 

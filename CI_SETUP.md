@@ -123,12 +123,12 @@ Create (or reuse) an Android release keystore:
 ```bash
 keytool -genkeypair -v \
   -keystore release.keystore \
-  -alias komikku \
+  -alias komikun \
   -keyalg RSA -keysize 4096 -validity 10000
 ```
 
 The prompts set your **store password** and **key password**. Pick an alias
-(the example uses `komikku`).
+(the example uses `komikun`).
 
 Generate each secret value:
 
@@ -137,7 +137,7 @@ Generate each secret value:
 base64 -w0 release.keystore
 
 # KEY_STORE_PASSWORD — the store password you entered
-# ALIAS              — the alias you entered (e.g. komikku)
+# ALIAS              — the alias you entered (e.g. komikun)
 # KEY_PASSWORD       — the key password you entered
 ```
 
@@ -148,7 +148,7 @@ never be committed.
 > **Why base64:** `SIGNING_KEY` is consumed two ways. The `r0adkll` signer
 > (`push`/`PR`/`nightly`/`benchmark`) reads it as `signingKeyBase64`; the release
 > workflow passes it as the `storeFileBase64` env var so the AGP signing config
-> writes `$RUNNER_TEMP/komikku.keystore`. Both expect the raw base64 of the
+> writes `$RUNNER_TEMP/komikun.keystore`. Both expect the raw base64 of the
 > keystore file with no line breaks, hence `-w0`.
 
 ### 3.2 `GOOGLE_SERVICES_JSON` (optional)
@@ -202,7 +202,7 @@ REPO=komi-kun/komi-kun
 base64 -w0 release.keystore | gh secret set SIGNING_KEY --repo "$REPO"
 gh secret set KEY_STORE_PASSWORD --repo "$REPO" --body 'YOUR_STORE_PASSWORD'
 gh secret set KEY_PASSWORD       --repo "$REPO" --body 'YOUR_KEY_PASSWORD'   # same as the store password for PKCS12
-gh secret set ALIAS              --repo "$REPO" --body 'komikku'
+gh secret set ALIAS              --repo "$REPO" --body 'komikun'
 
 # 5-6 (optional): Google JSON files -- pipe the file's exact bytes as the secret value.
 gh secret set GOOGLE_SERVICES_JSON       --repo "$REPO" < app/google-services.json
@@ -267,8 +267,8 @@ first. Then walk through these in order.
    Check optional secrets → (write Google files, if the secrets exist) →
    `spotlessCheck` → `assembleNightly -Pdist=ci` → `testDebugUnitTest` →
    `:data:verifyDebugDatabaseMigration` → sign → rename → upload APK + mapping.
-4. Expected artifact: **`Komikku-p<PR number>-r<count>.apk`** (e.g.
-   `Komikku-p123-r85.apk`), plus **`mapping-<sha>`**. On test failure,
+4. Expected artifact: **`Komikun-p<PR number>-r<count>.apk`** (e.g.
+   `Komikun-p123-r85.apk`), plus **`mapping-<sha>`**. On test failure,
    **`test-report-<sha>`** is also uploaded.
 5. Close the PR and delete the branch when done; don't merge it.
 
@@ -281,7 +281,7 @@ first. Then walk through these in order.
 1. Push one non-`.md` commit to `master` (or trigger via
    **Actions → CI → Run workflow**).
 2. Expected: same chain as the PR job, ending in the sign + rename + upload.
-3. Expected artifact: **`Komikku-master-r<count>.apk`** and `mapping-<sha>`.
+3. Expected artifact: **`Komikun-master-r<count>.apk`** and `mapping-<sha>`.
 
 ### 5.3 Nightly (`build_nightly.yml`) — **the release path**
 
@@ -289,9 +289,9 @@ first. Then walk through these in order.
    (The `build-app` job only runs when `github.ref == 'refs/heads/master'`.)
 2. Expected: creates tag `r<commit-count>`, builds `assembleNightly -Pdist=ci`,
    signs with `r0adkll`, publishes a **non-draft prerelease**.
-3. Expected assets (5): **`Komikku-r<count>.apk`**, `Komikku-arm64-v8a-r<count>.apk`,
-   `Komikku-armeabi-v7a-r<count>.apk`, `Komikku-x86-r<count>.apk`,
-   `Komikku-x86_64-r<count>.apk`.
+3. Expected assets (5): **`Komikun-r<count>.apk`**, `Komikun-arm64-v8a-r<count>.apk`,
+   `Komikun-armeabi-v7a-r<count>.apk`, `Komikun-x86-r<count>.apk`,
+   `Komikun-x86_64-r<count>.apk`.
 4. Visit **Releases** to confirm it, then delete it (and the auto-tag) if it was
    just a smoke test.
 
@@ -305,11 +305,11 @@ first. Then walk through these in order.
    (Tags must start with `v`.)
 2. Expected: `prepare-build` (changelog compare) → `assembleRelease -Pdist=github`
    with AGP signing → non-draft prerelease.
-3. Expected assets (5): **`Komikku-v1.14.1-ci-test.apk`**,
-   `Komikku-arm64-v8a-v1.14.1-ci-test.apk`,
-   `Komikku-armeabi-v7a-v1.14.1-ci-test.apk`,
-   `Komikku-x86-v1.14.1-ci-test.apk`,
-   `Komikku-x86_64-v1.14.1-ci-test.apk`.
+3. Expected assets (5): **`Komikun-v1.14.1-ci-test.apk`**,
+   `Komikun-arm64-v8a-v1.14.1-ci-test.apk`,
+   `Komikun-armeabi-v7a-v1.14.1-ci-test.apk`,
+   `Komikun-x86-v1.14.1-ci-test.apk`,
+   `Komikun-x86_64-v1.14.1-ci-test.apk`.
 4. Delete the tag/release after verifying.
 
 > This fork has no stable channel: both the nightly and the tag release are
