@@ -84,6 +84,7 @@ class ReaderOcrHostImpl(
         val showText = readerPreferences.ocrTextOverlayVisible.get()
         val activeBlockHighlight = readerPreferences.ocrActiveBlockHighlight.get()
         val boxScalePercent = readerPreferences.ocrBoxScale.get()
+        val textScalePercent = readerPreferences.ocrTextScale.get()
 
         // The compose overlay's size, captured from layout. Used to dismiss the popup once its block
         // has been scrolled fully off-screen - a page can still be partially visible in a continuous
@@ -130,6 +131,7 @@ class ReaderOcrHostImpl(
             outlineVisible = outlineVisible,
             showText = showText,
             boxScalePercent = boxScalePercent,
+            textScalePercent = textScalePercent,
             modifier = modifier.onGloballyPositioned {
                 measuredOverlaySize.value = it.size
                 overlaySize = it.size

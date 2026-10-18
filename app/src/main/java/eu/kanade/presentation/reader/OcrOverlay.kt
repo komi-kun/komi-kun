@@ -60,6 +60,10 @@ data class OcrOverlayPage(val page: ReaderPage, val blocks: List<OcrTextBlock>)
  * [boxScalePercent] is the `ReaderPreferences.ocrBoxScale` display setting (100 = tight around the
  * detected block); the drawn outline is grown/shrunk about its own centre by that factor. The text
  * layer always uses the true block rect, so it stays over the glyphs it came from.
+ *
+ * [textScalePercent] is the `ReaderPreferences.ocrTextScale` display setting (100 = the calibrated
+ * size that matches the printed glyphs; see [layoutVerticalText]). It is an escape hatch for the
+ * many different lettering fonts a manga can use.
  */
 @Composable
 fun OcrOverlay(
@@ -69,6 +73,7 @@ fun OcrOverlay(
     outlineVisible: Boolean,
     showText: Boolean,
     boxScalePercent: Int = 100,
+    textScalePercent: Int = 100,
     modifier: Modifier = Modifier,
 ) {
     if (viewport == null) return
@@ -97,6 +102,8 @@ fun OcrOverlay(
     val plateCornerPx = with(density) { 3.dp.toPx() }
     // `ocrBoxScale` is a percent; guard against a degenerate zero/negative value.
     val boxScale = (boxScalePercent / 100f).coerceAtLeast(MIN_BOX_SCALE)
+    // User-facing overlay text size (percent), clamped so a bad value cannot make the text unusable.
+    val textScale = (textScalePercent / 100f).coerceIn(MIN_TEXT_SCALE, MAX_TEXT_SCALE)
 
     Canvas(modifier = modifier.fillMaxSize()) {
         // Read so a transform change redraws the boxes.
@@ -130,6 +137,7 @@ fun OcrOverlay(
                         baseTextPx = baseTextPx,
                         minTextPx = minTextPx,
                         plateCornerPx = plateCornerPx,
+                        textScale = textScale,
                     )
                 }
 
@@ -149,8 +157,8 @@ fun OcrOverlay(
 
 /**
  * Layers [block]'s recognised text over its own [rect]: a translucent plate for contrast, then the
- * text scaled to fill the block, each glyph carrying a thin dark outline so it stays legible over
- * light artwork where the plate alone is weak.
+ * text itself, sized against the printed text underneath (see [layoutVerticalText]) and scaled by
+ * [textScale] (the user's overlay text size preference).
  *
  * Vertical (tategaki) blocks are laid out one upright glyph per cell, stacked top-to-bottom in
  * right-to-left columns (see [layoutVerticalText]) — never by rotating the whole run. A vertical
@@ -166,6 +174,7 @@ private fun DrawScope.drawOcrBlockText(
     baseTextPx: Float,
     minTextPx: Float,
     plateCornerPx: Float,
+    textScale: Float,
 ) {
     val rectW = rect.width()
     val rectH = rect.height()
@@ -175,8 +184,7 @@ private fun DrawScope.drawOcrBlockText(
     if (lines.isEmpty()) return
 
     // Backing plate: legible over busy artwork without hiding the page, since it only covers the
-    // recognised block. Kept fairly light now that the glyph outline carries the edge contrast, so
-    // more of the artwork shows through.
+    // recognised block.
     drawRoundRect(
         color = PLATE_COLOR,
         topLeft = Offset(rect.left, rect.top),
@@ -185,13 +193,10 @@ private fun DrawScope.drawOcrBlockText(
     )
 
     val minScale = minTextPx / baseTextPx
-    // Screen-space halo weight; the glyph transforms divide by their scale so it stays constant
-    // whatever size the text ends up.
-    val haloPx = HALO_WIDTH.dp.toPx()
     if (block.vertical && !isClearlyHorizontal(block.vertical, lines.size, rectW, rectH)) {
-        drawTategakiText(lines, rect, textMeasurer, baseStyle, minScale, haloPx)
+        drawTategakiText(lines, rect, textMeasurer, baseStyle, minScale, textScale)
     } else {
-        drawHorizontalOcrText(lines, rect, textMeasurer, baseStyle, minScale, haloPx)
+        drawHorizontalOcrText(lines, rect, textMeasurer, baseStyle, minScale, textScale)
     }
 }
 
@@ -202,7 +207,7 @@ private fun DrawScope.drawHorizontalOcrText(
     textMeasurer: TextMeasurer,
     baseStyle: TextStyle,
     minScale: Float,
-    haloPx: Float,
+    textScale: Float,
 ) {
     val layout = textMeasurer.measure(AnnotatedString(lines.joinToString("\n")), style = baseStyle)
     val textW = layout.size.width.toFloat()
@@ -214,10 +219,10 @@ private fun DrawScope.drawHorizontalOcrText(
     clipRect(rect.left, rect.top, rect.right, rect.bottom) {
         withTransform({
             translate(rect.centerX(), rect.centerY())
-            scale(scale, scale, pivot = Offset.Zero)
+            scale(scale * textScale, scale * textScale, pivot = Offset.Zero)
             translate(-textW / 2f, -textH / 2f)
         }) {
-            drawOutlinedText(layout, haloPx / scale)
+            drawText(layout, color = Color.White)
         }
     }
 }
@@ -233,7 +238,7 @@ private fun DrawScope.drawTategakiText(
     textMeasurer: TextMeasurer,
     baseStyle: TextStyle,
     minScale: Float,
-    haloPx: Float,
+    textScale: Float,
 ) {
     val measuredColumns = lines.map { line ->
         splitGlyphs(line).map { glyph ->
@@ -243,7 +248,15 @@ private fun DrawScope.drawTategakiText(
     val metrics = measuredColumns.map { column ->
         column.map { GlyphMetric(it.text, it.layout.size.width.toFloat(), it.layout.size.height.toFloat()) }
     }
-    val placed = layoutVerticalText(metrics, rect.left, rect.top, rect.right, rect.bottom, minScale)
+    val placed = layoutVerticalText(
+        metrics,
+        rect.left,
+        rect.top,
+        rect.right,
+        rect.bottom,
+        minScale,
+        glyphScale = textScale,
+    )
     if (placed.isEmpty()) return
     val flattened = measuredColumns.flatten()
     if (placed.size != flattened.size) return
@@ -261,22 +274,10 @@ private fun DrawScope.drawTategakiText(
                 // Rotate about the glyph's own centre (scaled space), keeping it centred in the cell.
                 if (glyph.rotated) rotate(90f, pivot = Offset(baseW / 2f, baseH / 2f))
             }) {
-                drawOutlinedText(layout, haloPx / glyph.scale)
+                drawText(layout, color = Color.White)
             }
         }
     }
-}
-
-/**
- * Draws [layout] as white fill over a dark outline [haloWidthPx] wide (in the current, potentially
- * scaled, coordinate space), so the text keeps its edge over both light and dark artwork. A stroked
- * pass is cheap — it reuses the already-measured layout rather than re-laying it out.
- */
-private fun DrawScope.drawOutlinedText(layout: TextLayoutResult, haloWidthPx: Float) {
-    if (haloWidthPx > 0f) {
-        drawText(layout, color = HALO_COLOR, drawStyle = Stroke(width = haloWidthPx))
-    }
-    drawText(layout, color = Color.White)
 }
 
 /** A glyph and its reference-size measurement, kept paired for the draw pass. */
@@ -297,6 +298,12 @@ private fun RectF.scaledAboutCenter(scale: Float): RectF {
 
 private const val MIN_BOX_SCALE = 0.05f
 
+/** Clamp on the user's overlay text size preference (percent). */
+private const val MIN_TEXT_SCALE = 0.5f
+
+/** Clamp on the user's overlay text size preference (percent). */
+private const val MAX_TEXT_SCALE = 1.5f
+
 /** Fixed size the recognised text is measured at, before being scaled to each block. */
 private const val BASE_TEXT_SP = 20f
 
@@ -306,10 +313,4 @@ private const val MIN_TEXT_SP = 9f
 /** Blocks smaller than this (px) are too small to show readable text in. */
 private const val MIN_BLOCK_PX = 6f
 
-private val PLATE_COLOR = Color.Black.copy(alpha = 0.5f)
-
-/** Dark halo stroked around each glyph so white text keeps its edge over light artwork too. */
-private val HALO_COLOR = Color.Black.copy(alpha = 0.85f)
-
-/** Screen-space width (dp) of the glyph halo, constant under the per-block glyph scaling. */
-private const val HALO_WIDTH = 2f
+private val PLATE_COLOR = Color.Black.copy(alpha = 0.62f)
