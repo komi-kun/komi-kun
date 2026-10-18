@@ -378,15 +378,20 @@ class OcrManager(
 
     /**
      * KUN -->
-     * The cache variant for [source], extended with a signature of the non-default engine
-     * thresholds so a threshold change invalidates the persisted pages instead of serving results
-     * the old thresholds produced. At the defaults the signature is empty and the variant is
-     * unchanged from before the tuning feature existed.
+     * The cache variant for [source], keyed by engine generation and the non-default thresholds.
+     *
+     * The generation component is why a page OCR'd by an older engine or model is not served from
+     * cache after the engine changes: OCR caches survive app upgrades, so without it a pre-v6
+     * (Paddle-Lite / PP-OCRv5) result keeps masking the current engine's output. The threshold
+     * component makes changed sliders re-run instead of serving the old thresholds' result.
      */
     private fun cacheVariant(source: ReaderOcrSource): String? {
         val base = source.persistentCacheVariant ?: return null
         val signature = preferences.cacheSignature()
-        return if (signature.isEmpty()) base else "$base-$signature"
+        return buildString {
+            append(base).append('-').append(ENGINE_CACHE_GENERATION)
+            if (signature.isNotEmpty()) append('-').append(signature)
+        }
     }
     // KUN <--
 
@@ -473,6 +478,14 @@ class OcrManager(
     }
 
     private companion object {
+        /**
+         * KUN --> Bump when the OCR engine or model changes so persisted page results from the
+         * previous engine are not reused (they survive app upgrades). `v6` = ONNX Runtime +
+         * PP-OCRv6 small (`ocr-models-v3`).
+         */
+        private const val ENGINE_CACHE_GENERATION = "v6"
+        // KUN <--
+
         private const val QUEUE_POLL_MS = 300L
         private const val DEFAULT_IMAGE_DIMENSION = 1000
     }
