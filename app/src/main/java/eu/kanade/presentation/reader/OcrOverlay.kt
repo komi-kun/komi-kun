@@ -149,7 +149,8 @@ fun OcrOverlay(
 
 /**
  * Layers [block]'s recognised text over its own [rect]: a translucent plate for contrast, then the
- * text scaled to fill the block.
+ * text scaled to fill the block, each glyph carrying a thin dark outline so it stays legible over
+ * light artwork where the plate alone is weak.
  *
  * Vertical (tategaki) blocks are laid out one upright glyph per cell, stacked top-to-bottom in
  * right-to-left columns (see [layoutVerticalText]) — never by rotating the whole run. A vertical
@@ -174,7 +175,8 @@ private fun DrawScope.drawOcrBlockText(
     if (lines.isEmpty()) return
 
     // Backing plate: legible over busy artwork without hiding the page, since it only covers the
-    // recognised block.
+    // recognised block. Kept fairly light now that the glyph outline carries the edge contrast, so
+    // more of the artwork shows through.
     drawRoundRect(
         color = PLATE_COLOR,
         topLeft = Offset(rect.left, rect.top),
@@ -183,20 +185,24 @@ private fun DrawScope.drawOcrBlockText(
     )
 
     val minScale = minTextPx / baseTextPx
+    // Screen-space halo weight; the glyph transforms divide by their scale so it stays constant
+    // whatever size the text ends up.
+    val haloPx = HALO_WIDTH.dp.toPx()
     if (block.vertical && !isClearlyHorizontal(block.vertical, lines.size, rectW, rectH)) {
-        drawTategakiText(lines, rect, textMeasurer, baseStyle, minScale)
+        drawTategakiText(lines, rect, textMeasurer, baseStyle, minScale, haloPx)
     } else {
-        drawHorizontalOcrText(lines, rect, textMeasurer, baseStyle, minScale)
+        drawHorizontalOcrText(lines, rect, textMeasurer, baseStyle, minScale, haloPx)
     }
 }
 
-/** Horizontal path, unchanged: measure the joined lines once, scale to fit the box, then clip. */
+/** Horizontal path, unchanged positioning: measure the joined lines once, scale to fit, then clip. */
 private fun DrawScope.drawHorizontalOcrText(
     lines: List<String>,
     rect: RectF,
     textMeasurer: TextMeasurer,
     baseStyle: TextStyle,
     minScale: Float,
+    haloPx: Float,
 ) {
     val layout = textMeasurer.measure(AnnotatedString(lines.joinToString("\n")), style = baseStyle)
     val textW = layout.size.width.toFloat()
@@ -211,7 +217,7 @@ private fun DrawScope.drawHorizontalOcrText(
             scale(scale, scale, pivot = Offset.Zero)
             translate(-textW / 2f, -textH / 2f)
         }) {
-            drawText(layout, color = Color.White, topLeft = Offset.Zero)
+            drawOutlinedText(layout, haloPx / scale)
         }
     }
 }
@@ -227,6 +233,7 @@ private fun DrawScope.drawTategakiText(
     textMeasurer: TextMeasurer,
     baseStyle: TextStyle,
     minScale: Float,
+    haloPx: Float,
 ) {
     val measuredColumns = lines.map { line ->
         splitGlyphs(line).map { glyph ->
@@ -254,10 +261,22 @@ private fun DrawScope.drawTategakiText(
                 // Rotate about the glyph's own centre (scaled space), keeping it centred in the cell.
                 if (glyph.rotated) rotate(90f, pivot = Offset(baseW / 2f, baseH / 2f))
             }) {
-                drawText(layout, color = Color.White, topLeft = Offset.Zero)
+                drawOutlinedText(layout, haloPx / glyph.scale)
             }
         }
     }
+}
+
+/**
+ * Draws [layout] as white fill over a dark outline [haloWidthPx] wide (in the current, potentially
+ * scaled, coordinate space), so the text keeps its edge over both light and dark artwork. A stroked
+ * pass is cheap — it reuses the already-measured layout rather than re-laying it out.
+ */
+private fun DrawScope.drawOutlinedText(layout: TextLayoutResult, haloWidthPx: Float) {
+    if (haloWidthPx > 0f) {
+        drawText(layout, color = HALO_COLOR, drawStyle = Stroke(width = haloWidthPx))
+    }
+    drawText(layout, color = Color.White)
 }
 
 /** A glyph and its reference-size measurement, kept paired for the draw pass. */
@@ -287,4 +306,10 @@ private const val MIN_TEXT_SP = 9f
 /** Blocks smaller than this (px) are too small to show readable text in. */
 private const val MIN_BLOCK_PX = 6f
 
-private val PLATE_COLOR = Color.Black.copy(alpha = 0.58f)
+private val PLATE_COLOR = Color.Black.copy(alpha = 0.5f)
+
+/** Dark halo stroked around each glyph so white text keeps its edge over light artwork too. */
+private val HALO_COLOR = Color.Black.copy(alpha = 0.85f)
+
+/** Screen-space width (dp) of the glyph halo, constant under the per-block glyph scaling. */
+private const val HALO_WIDTH = 2f
