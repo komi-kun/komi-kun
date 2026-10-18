@@ -15,19 +15,19 @@
         <!-- two round-capped page-turn arms (stroke only) -->
         <path
             android:fillColor="#00000000"
-            android:strokeColor="#FFE680"
+            android:strokeColor="#C837AB"
             android:strokeWidth="42"
             android:strokeLineCap="round"
             android:pathData="M162 214L250 122" />
         <path
             android:fillColor="#00000000"
-            android:strokeColor="#FFE680"
+            android:strokeColor="#C837AB"
             android:strokeWidth="42"
             android:strokeLineCap="round"
             android:pathData="M162 214L252 306" />
         <!-- bookmark-tailed stem, notch included in the outline -->
         <path
-            android:fillColor="#FFE680"
+            android:fillColor="#C837AB"
             android:pathData="M140 112h44v192l-22 -36l-22 36z" />
         <!-- 4-point nightly spark (cream, accent-independent) -->
         <path
