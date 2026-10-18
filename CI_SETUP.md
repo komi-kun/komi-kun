@@ -123,12 +123,12 @@ Create (or reuse) an Android release keystore:
 ```bash
 keytool -genkeypair -v \
   -keystore release.keystore \
-  -alias komikku \
+  -alias komikun \
   -keyalg RSA -keysize 4096 -validity 10000
 ```
 
 The prompts set your **store password** and **key password**. Pick an alias
-(the example uses `komikku`).
+(the example uses `komikun`).
 
 Generate each secret value:
 
@@ -137,7 +137,7 @@ Generate each secret value:
 base64 -w0 release.keystore
 
 # KEY_STORE_PASSWORD — the store password you entered
-# ALIAS              — the alias you entered (e.g. komikku)
+# ALIAS              — the alias you entered (e.g. komikun)
 # KEY_PASSWORD       — the key password you entered
 ```
 
@@ -202,7 +202,7 @@ REPO=komi-kun/komi-kun
 base64 -w0 release.keystore | gh secret set SIGNING_KEY --repo "$REPO"
 gh secret set KEY_STORE_PASSWORD --repo "$REPO" --body 'YOUR_STORE_PASSWORD'
 gh secret set KEY_PASSWORD       --repo "$REPO" --body 'YOUR_KEY_PASSWORD'   # same as the store password for PKCS12
-gh secret set ALIAS              --repo "$REPO" --body 'komikku'
+gh secret set ALIAS              --repo "$REPO" --body 'komikun'
 
 # 5-6 (optional): Google JSON files -- pipe the file's exact bytes as the secret value.
 gh secret set GOOGLE_SERVICES_JSON       --repo "$REPO" < app/google-services.json

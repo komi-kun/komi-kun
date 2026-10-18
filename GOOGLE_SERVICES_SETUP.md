@@ -248,7 +248,7 @@ OAuth client (and optionally for the Firebase app registration).
 If you already created the keystore for `CI_SETUP.md` §3.1:
 
 ```bash
-keytool -list -v -keystore release.keystore -alias komikku
+keytool -list -v -keystore release.keystore -alias komikun
 ```
 
 Copy the **`SHA1:`** line (colon-separated hex, e.g. `AB:CD:...`). You can also
