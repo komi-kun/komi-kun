@@ -47,7 +47,7 @@ body:
         You can upload the crash log file as an attachment, or paste the crash logs in plain text if needed.
 
   - type: input
-    id: komikku-version
+    id: komikun-version
     attributes:
       label: Komikun version
       description: You can find your Komikun version in **More → About**.
