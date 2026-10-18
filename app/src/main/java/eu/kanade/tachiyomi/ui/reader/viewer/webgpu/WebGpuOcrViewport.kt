@@ -10,6 +10,7 @@ package eu.kanade.tachiyomi.ui.reader.viewer.webgpu
 import android.graphics.PointF
 import android.graphics.RectF
 import android.view.View
+import ca.mpreg.webgpuviewer.transition.TransitionBasic
 import ca.mpreg.webgpuviewer.viewer.ImagePage
 import ca.mpreg.webgpuviewer.viewer.ImageViewerContinuousState
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
@@ -64,7 +65,7 @@ class WebGpuOcrViewport(
 
     private fun pagedToScreen(page: ReaderPage, rect: RectF): RectF? {
         val imagePage = imagePageFor(page) ?: return null
-        val r = state.rectOf(imagePage) ?: return null
+        val r = pagedSurfaceRect(imagePage) ?: return null
         val surfaceW = state.width.toFloat()
         val surfaceH = state.height.toFloat()
         if (surfaceW <= 0f || surfaceH <= 0f) return null
@@ -81,6 +82,40 @@ class WebGpuOcrViewport(
         )
     }
 
+    /**
+     * [state.rectOf] gives a page's resting (home) rect; a page turn slides the cached page by
+     * [ImageViewerState.pageOffset], so the overlay must shift with it or the boxes stay put while
+     * the page moves. Only the slide transitions ([TransitionBasic] and its vertical twin) offset
+     * pages; every other transition draws in place, so no shift is applied for them. The offset is
+     * surface-normalized, exactly as the transition consumes it.
+     */
+    private fun pagedSurfaceRect(imagePage: ImagePage): FloatArray? {
+        val r = state.rectOf(imagePage) ?: return null
+        val frac = state.pageOffset
+        if (frac == 0f) return r
+        val vertical = state.transition === TransitionBasic.Vertical
+        if (!vertical && state.transition !== TransitionBasic) return r
+        // Page 1 is the current page (offset -frac); page 2 the incoming one (slides in from the
+        // far side).
+        val shift = if (isFirstVisiblePage(imagePage)) {
+            -frac
+        } else {
+            if (frac > 0f) 1f - frac else -(frac + 1f)
+        }
+        return if (vertical) {
+            floatArrayOf(r[0], r[1] + shift, r[2], r[3] + shift)
+        } else {
+            floatArrayOf(r[0] + shift, r[1], r[2] + shift, r[3])
+        }
+    }
+
+    /** True when [imagePage] is the first page the last frame drew (the turn's "from" page). */
+    private fun isFirstVisiblePage(imagePage: ImagePage): Boolean {
+        val first = state.visiblePages.firstOrNull() ?: return true
+        if (first === imagePage) return true
+        return first is ImagePage.ImageSpread && (first.left === imagePage || first.right === imagePage)
+    }
+
     private fun pagedFromScreen(x: Float, y: Float): ImagePoint? {
         val surfaceW = state.width.toFloat()
         val surfaceH = state.height.toFloat()
@@ -89,7 +124,7 @@ class WebGpuOcrViewport(
         val nx = (x - off.x) / surfaceW
         val ny = (y - off.y) / surfaceH
         for (imagePage in state.visiblePages) {
-            val r = state.rectOf(imagePage) ?: continue
+            val r = pagedSurfaceRect(imagePage) ?: continue
             val w = r[2] - r[0]
             val h = r[3] - r[1]
             if (w <= 0f || h <= 0f) continue
