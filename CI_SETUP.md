@@ -148,7 +148,7 @@ never be committed.
 > **Why base64:** `SIGNING_KEY` is consumed two ways. The `r0adkll` signer
 > (`push`/`PR`/`nightly`/`benchmark`) reads it as `signingKeyBase64`; the release
 > workflow passes it as the `storeFileBase64` env var so the AGP signing config
-> writes `$RUNNER_TEMP/komikku.keystore`. Both expect the raw base64 of the
+> writes `$RUNNER_TEMP/komikun.keystore`. Both expect the raw base64 of the
 > keystore file with no line breaks, hence `-w0`.
 
 ### 3.2 `GOOGLE_SERVICES_JSON` (optional)
