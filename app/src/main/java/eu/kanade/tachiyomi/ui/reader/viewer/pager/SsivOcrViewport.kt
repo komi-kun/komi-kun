@@ -174,25 +174,24 @@ private fun splitAndMergeOffsets(isInRight: Boolean, upperIsRight: Boolean): Pai
 /**
  * GPL [OcrViewport] adapter for the pager (SSIV) backend (plan 04 §1.4).
  *
- * Owned by [PagerViewer] and rebuilt implicitly: [holderProvider] always returns the currently
- * selected holder, so the mapping follows the page turn without re-creating the adapter.
- * Main-thread only.
+ * Owned by [PagerViewer] and rebuilt implicitly: [holdersProvider] returns every holder currently
+ * laid out on screen (the current page plus any neighbour a page turn currently has visible), so
+ * the mapping follows the page turn without re-creating the adapter. [transformVersion] folds in
+ * each holder's live window position, so a page **slide** invalidates the overlay every frame, not
+ * only when the SSIV's own scale/centre changes. Main-thread only.
  */
 class SsivOcrViewport(
     private val activity: ReaderActivity,
-    private val holderProvider: () -> PagerPageHolder?,
+    private val holdersProvider: () -> List<PagerPageHolder>,
 ) : OcrViewport {
 
     private val overlayView: View get() = activity.binding.composeOverlay
 
-    override fun visiblePages(): List<ReaderPage> {
-        val holder = holderProvider() ?: return emptyList()
-        return listOfNotNull(holder.page, holder.extraOcrPage())
-    }
+    override fun visiblePages(): List<ReaderPage> =
+        holdersProvider().flatMap { listOfNotNull(it.page, it.extraOcrPage()) }
 
     override fun imageNormalizedToScreen(page: ReaderPage, rect: RectF): RectF? {
-        val holder = holderProvider() ?: return null
-        if (page !== holder.page && page !== holder.extraOcrPage()) return null
+        val holder = holdersProvider().firstOrNull { it.page === page || it.extraOcrPage() === page } ?: return null
         val ssiv = holder.ocrSubsamplingImageView() ?: return null
         if (!ssiv.isReady || ssiv.sWidth <= 0 || ssiv.sHeight <= 0) return null
 
@@ -217,24 +216,40 @@ class SsivOcrViewport(
     }
 
     override fun screenToImageNormalized(x: Float, y: Float): ImagePoint? {
-        val holder = holderProvider() ?: return null
-        val ssiv = holder.ocrSubsamplingImageView() ?: return null
-        if (!ssiv.isReady || ssiv.sWidth <= 0 || ssiv.sHeight <= 0) return null
+        // During a slide two holders are on screen; the point is inside exactly one, so try the
+        // current holder first and fall through to a neighbour.
+        for (holder in holdersProvider()) {
+            val ssiv = holder.ocrSubsamplingImageView() ?: continue
+            if (!ssiv.isReady || ssiv.sWidth <= 0 || ssiv.sHeight <= 0) continue
 
-        val off = OcrOverlayCoords.offsetOf(ssiv, overlayView)
-        val source = ssiv.viewToSourceCoord(x - off.x, y - off.y) ?: return null
-        return holder.ocrDisplayTransform().mapInverse(
-            u = source.x / ssiv.sWidth,
-            v = source.y / ssiv.sHeight,
-            owner = holder.page,
-            partner = holder.extraOcrPage(),
-            ownerW = holder.ocrPageWidth(),
-            ownerH = holder.ocrPageHeight(),
-        )
+            val off = OcrOverlayCoords.offsetOf(ssiv, overlayView)
+            val source = ssiv.viewToSourceCoord(x - off.x, y - off.y) ?: continue
+            val u = source.x / ssiv.sWidth
+            val v = source.y / ssiv.sHeight
+            if (u < 0f || u > 1f || v < 0f || v > 1f) continue
+            return holder.ocrDisplayTransform().mapInverse(
+                u = u,
+                v = v,
+                owner = holder.page,
+                partner = holder.extraOcrPage(),
+                ownerW = holder.ocrPageWidth(),
+                ownerH = holder.ocrPageHeight(),
+            )
+        }
+        return null
     }
 
     override fun transformVersion(): Long {
-        val holder = holderProvider() ?: return 0L
-        return holder.ocrTransformVersion() * 31L + holder.item.hashCode()
+        // Includes each holder's window location, which changes continuously through a ViewPager
+        // slide; `ocrTransformVersion` alone only ticks on SSIV scale/centre changes, so the boxes
+        // would otherwise stay put until the page settled.
+        var hash = 0L
+        val location = IntArray(2)
+        for (holder in holdersProvider()) {
+            holder.getLocationInWindow(location)
+            hash = hash * 31L + holder.hashCode() + location[0] * 7L + location[1] * 13L +
+                holder.ocrTransformVersion()
+        }
+        return hash
     }
 }

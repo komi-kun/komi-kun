@@ -21,6 +21,7 @@ import eu.kanade.tachiyomi.ui.reader.model.ViewerChapters
 import eu.kanade.tachiyomi.ui.reader.ocr.OcrViewport
 import eu.kanade.tachiyomi.ui.reader.viewer.Viewer
 import eu.kanade.tachiyomi.ui.reader.viewer.ViewerNavigation.NavigationRegion
+import eu.kanade.tachiyomi.util.view.isVisibleOnScreen
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import mihon.app.di.appGraph
@@ -218,7 +219,7 @@ abstract class PagerViewer(
 
     // KUN -->
     private val ocrViewportRef by lazy {
-        SsivOcrViewport(activity) { ocrCurrentHolder() }
+        SsivOcrViewport(activity, ::ocrVisibleHolders)
     }
 
     override fun ocrViewport(): OcrViewport? = ocrViewportRef
@@ -226,6 +227,20 @@ abstract class PagerViewer(
     /** Holder of the currently selected item, for the OCR viewport. */
     private fun ocrCurrentHolder(): PagerPageHolder? =
         (adapter.joinedItems.getOrNull(pager.currentItem)?.first as? ReaderPage)?.let(::getPageHolder)
+
+    /**
+     * Every pager holder laid out on screen, current page first. During a slide this is both the
+     * outgoing and the incoming page, so the OCR overlay maps and draws the incoming page's boxes
+     * as it slides in instead of only once the pager settles.
+     */
+    private fun ocrVisibleHolders(): List<PagerPageHolder> {
+        val holders = pager.children
+            .filterIsInstance<PagerPageHolder>()
+            .filter { it.isVisibleOnScreen() }
+            .toList()
+        val current = ocrCurrentHolder() ?: return holders
+        return listOf(current) + holders.filter { it !== current }
+    }
     // KUN <--
 
     /**

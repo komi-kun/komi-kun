@@ -232,6 +232,13 @@ class ReaderPreferences(
     /** Whether the tapped OCR block is highlighted while its dictionary popup is open. */
     val ocrActiveBlockHighlight = preferenceStore.getBoolean("pref_reader_ocr_active_block_highlight", true)
 
+    /**
+     * Whether each OCR block's recognised text is layered over the image, scaled to the block it was
+     * read from (so it replaces the original glyphs and shows exactly what was recognised where).
+     * Only draws while the OCR overlay itself is enabled. On by default.
+     */
+    val ocrTextOverlayVisible = preferenceStore.getBoolean("pref_reader_ocr_text_overlay_visible", true)
+
     /** Passive OCR box scale, in percent (100 = tight around the detected block). */
     val ocrBoxScale = preferenceStore.getInt("pref_reader_ocr_box_scale", 100)
 
