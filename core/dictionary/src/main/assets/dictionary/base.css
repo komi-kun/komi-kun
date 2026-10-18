@@ -1170,7 +1170,12 @@ html[data-theme="dark"][data-komikun-eink-mode="true"] .anki-open-btn:hover {
   z-index: 3000;
   min-width: 180px;
   max-width: 78vw;
-  max-height: 60vh;
+  /* NB: this WebView reports 0 for `vh` (and `dvh`/`svh`/`lvh`) and for height media queries, so a
+     `max-height: 60vh` here would collapse the menu to its padding box and `overflow-y: auto`
+     would clip every item (invisible menu). `100%` resolves against the fixed element's
+     containing block (the viewport), which is correct; renderer.js also sets a pixel cap from
+     `window.innerHeight` before measuring. */
+  max-height: 100%;
   overflow-y: auto;
   padding: 4px;
   background: var(--bg);
