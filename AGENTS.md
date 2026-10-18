@@ -32,7 +32,7 @@ Markers record **divergence from upstream**, never upstream code itself: Mihon i
 | Branch | Create a **feature branch** for the task (`git checkout -b <type>/<short-description>`, e.g. `feat/manga-recommendations`). |
 | Commit | **OK** on a feature branch when work is ready. **Never** commit directly to `master` / `main` unless the user explicitly asks. |
 | Push | **OK** to push the **current feature branch** when work is ready. **Never** push to `master` / `main` unless the user explicitly asks. |
-| Merge | **Squash-merge** PRs with `gh pr merge --squash --delete-branch` (GitHub's tooling, via `gh`). **Never** a merge commit. |
+| Merge | Into **`master` / `main`**: **squash-merge** with `gh pr merge --squash --delete-branch` (GitHub's tooling, via `gh`) — **never** a merge commit. Into a **feature branch** (rare): a merge commit is fine, and is how the per-commit signatures are preserved. |
 
 Before `git push`, confirm the current branch is not `master` or `main` (`git branch --show-current`).
 
