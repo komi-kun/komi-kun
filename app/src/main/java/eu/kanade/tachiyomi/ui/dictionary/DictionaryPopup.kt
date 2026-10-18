@@ -26,7 +26,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -51,6 +50,7 @@ import mihon.core.dictionary.model.DictionaryStyle
 import mihon.core.dictionary.model.LookupResult
 import mihon.core.dictionary.model.getDictionaryPaths
 import mihon.core.dictionary.ui.KanaConverter
+import mihon.core.dictionary.ui.LookupPath
 import mihon.core.dictionary.ui.TabInfo
 import mihon.core.dictionary.ui.orderLookupResultsForDisplay
 import mihon.icons.materialsymbols.MaterialSymbols
@@ -59,7 +59,7 @@ import tachiyomi.i18n.kmk.KMR
 import tachiyomi.presentation.core.i18n.stringResource
 import kotlin.math.roundToInt
 
-/** One frame of the lookup-history stack (02 §3.2). */
+/** One frame (term + results) of the recursive-lookup path (02 §3.2). */
 internal data class LookupFrame(
     val query: String,
     val results: List<LookupResult>,
@@ -71,10 +71,10 @@ internal data class LookupFrame(
 /**
  * The dictionary popup (02 §3.2), extracted from Chimahon's `OcrLookupPopup`.
  *
- * It is self-contained: it owns the lookup-history stack, performs lookups through the
+ * It is self-contained: it owns the lookup path, performs lookups through the
  * [mihon.core.dictionary.repository.DictionaryRepository], and renders results via
- * [DictionaryEntryWebView]. Recursive lookup is simplified to a single history stack of tabs
- * (docs/design/yomitan-spec/07-search-ux.md §f).
+ * [DictionaryEntryWebView]. Recursive lookup follows browser-history (path) semantics over a single
+ * tab trail — see [LookupPath] and docs/design/yomitan-spec/07-search-ux.md §f.
  *
  * Positioned absolutely (no `Popup` window) so it composites with the WebGPU external surface.
  */
@@ -92,11 +92,12 @@ fun DictionaryPopup(
     val popupAnchor = remember(context) { context.appGraph.readerOcrPopupAnchor }
     val scope = rememberCoroutineScope()
 
-    var stack by remember { mutableStateOf<List<LookupFrame>>(emptyList()) }
-    var activeIndex by remember { mutableIntStateOf(-1) }
+    // KUN --> Path semantics (browser history): tapping a tab only moves the active pointer; a new
+    // lookup truncates everything after the active entry before appending. See [LookupPath].
+    var path by remember { mutableStateOf(LookupPath<LookupFrame>()) }
     var loading by remember { mutableStateOf(false) }
 
-    suspend fun performLookup(query: String, replaceStack: Boolean) {
+    suspend fun performLookup(query: String, resetPath: Boolean) {
         loading = true
         val frame = withContext(Dispatchers.Default) {
             val paths = getDictionaryPaths(context, profile)
@@ -109,19 +110,21 @@ fun DictionaryPopup(
             )
             LookupFrame(query, ordered, lookup.styles, emptyMap())
         }
-        if (replaceStack) {
-            stack = listOf(frame)
-            activeIndex = 0
+        if (resetPath) {
+            path = path.start(frame)
         } else {
-            stack = stack + frame
-            activeIndex = stack.lastIndex
+            // Truncate anything after the active tab, then append the new term (path semantics).
+            path = path.push(frame)
         }
+        // KUN <--
         loading = false
         // Media loads off the critical path (02 §3.5).
         scope.launch {
             val media = withContext(Dispatchers.IO) { repository.loadMediaAsync(frame.results) }
             if (media.isNotEmpty()) {
-                stack = stack.map { if (it === frame) it.copy(mediaDataUris = media) else it }
+                path = path.copy(
+                    entries = path.entries.map { if (it === frame) it.copy(mediaDataUris = media) else it },
+                )
             }
         }
     }
@@ -133,7 +136,7 @@ fun DictionaryPopup(
             } else {
                 request.query
             }
-            performLookup(query, replaceStack = true)
+            performLookup(query, resetPath = true)
         }
     }
 
@@ -144,8 +147,10 @@ fun DictionaryPopup(
 
     val configuration = LocalConfiguration.current
     val density = LocalDensity.current
-    val current = stack.getOrNull(activeIndex)
-    val tabs = stack.mapIndexed { index, frame -> TabInfo(frame.query.take(16), index == activeIndex) }
+    val current = path.active
+    val tabs = path.entries.mapIndexed { index, frame ->
+        TabInfo(frame.query.take(16), index == path.activeIndex)
+    }
     // KUN --> Size is a percentage of an adaptive, screen-relative baseline (see
     // DictionaryPopupSizing), so a tablet gets a bigger popup by default and the "Popup size"
     // preference scales it everywhere.
@@ -280,10 +285,10 @@ fun DictionaryPopup(
                         customCss = prefs.customCss().get(),
                         modifier = Modifier.fillMaxSize(),
                         onRecursiveLookup = { query, _, _, _, _, _ ->
-                            if (query.isNotBlank()) scope.launch { performLookup(query, replaceStack = false) }
+                            if (query.isNotBlank()) scope.launch { performLookup(query, resetPath = false) }
                         },
-                        onTabSelect = { index -> if (index in stack.indices) activeIndex = index },
-                        onBack = { if (activeIndex > 0) activeIndex -= 1 else onDismiss() },
+                        onTabSelect = { index -> path = path.select(index) },
+                        onBack = { if (path.canGoBack) path = path.back() else onDismiss() },
                         isLoading = loading,
                         // KUN --> Give the entry WebView focus so long-press starts text selection.
                         requestFocusOnMount = true,
