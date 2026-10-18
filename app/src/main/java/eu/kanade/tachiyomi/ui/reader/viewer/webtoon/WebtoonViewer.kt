@@ -22,6 +22,7 @@ import eu.kanade.tachiyomi.ui.reader.ocr.OcrViewport
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.ui.reader.viewer.Viewer
 import eu.kanade.tachiyomi.ui.reader.viewer.ViewerNavigation.NavigationRegion
+import eu.kanade.tachiyomi.ui.reader.viewer.VolumeKeyPagingPolicy
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import mihon.app.di.appGraph
@@ -444,16 +445,32 @@ class WebtoonViewer(
 
         when (event.keyCode) {
             KeyEvent.KEYCODE_VOLUME_DOWN -> {
-                if (!config.volumeKeysEnabled || activity.viewModel.state.value.menuVisible) {
+                // KUN -->
+                if (!VolumeKeyPagingPolicy.shouldConsumeForPaging(
+                        volumeKeysEnabled = config.volumeKeysEnabled,
+                        menuVisible = activity.viewModel.state.value.menuVisible,
+                        ocrOverlayEnabled = config.ocrOverlayEnabled,
+                    )
+                ) {
                     return false
-                } else if (isUp) {
+                }
+                // KUN <--
+                if (isUp) {
                     if (!config.volumeKeysInverted) scrollDown() else scrollUp()
                 }
             }
             KeyEvent.KEYCODE_VOLUME_UP -> {
-                if (!config.volumeKeysEnabled || activity.viewModel.state.value.menuVisible) {
+                // KUN -->
+                if (!VolumeKeyPagingPolicy.shouldConsumeForPaging(
+                        volumeKeysEnabled = config.volumeKeysEnabled,
+                        menuVisible = activity.viewModel.state.value.menuVisible,
+                        ocrOverlayEnabled = config.ocrOverlayEnabled,
+                    )
+                ) {
                     return false
-                } else if (isUp) {
+                }
+                // KUN <--
+                if (isUp) {
                     if (!config.volumeKeysInverted) scrollUp() else scrollDown()
                 }
             }
