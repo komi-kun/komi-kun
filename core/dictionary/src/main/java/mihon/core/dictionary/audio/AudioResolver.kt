@@ -43,24 +43,54 @@ class AudioResolver(
         reading: String,
         languageIso: String,
         enableDefaultSources: Boolean,
-    ): List<AudioCandidate> {
-        val effective = ArrayDeque(sources)
+    ): List<AudioCandidate> = resolve(sources, term, reading, languageIso, enableDefaultSources).candidates
+
+    /**
+     * Like [resolveAll] but also returns the ordered effective source list (configured sources,
+     * then appended defaults), so the audio picker can list every source — including the ones that
+     * produced no candidate — in the user's configured order.
+     */
+    suspend fun resolve(
+        sources: List<AudioSourceConfig>,
+        term: String,
+        reading: String,
+        languageIso: String,
+        enableDefaultSources: Boolean,
+    ): AudioResolution {
+        val effective = effectiveSources(sources, languageIso, enableDefaultSources)
+
+        val seen = HashSet<String>()
+        val out = ArrayList<AudioCandidate>()
+        effective.forEachIndexed { index, source ->
+            val label = AudioSourceTypes.displayName(source.type)
+            for (candidate in candidatesFor(source, term, reading, languageIso)) {
+                if (candidate.url.isBlank()) continue
+                if (seen.add(candidate.url)) {
+                    out += candidate.copy(sourceIndex = index, sourceLabel = label)
+                }
+            }
+        }
+        return AudioResolution(sources = effective, candidates = out)
+    }
+
+    /**
+     * The ordered source list actually resolved: the configured `audio.sources[]` verbatim
+     * (order preserved), followed by the language's implicit defaults only when
+     * [enableDefaultSources] is on and the type is not already configured.
+     */
+    fun effectiveSources(
+        sources: List<AudioSourceConfig>,
+        languageIso: String,
+        enableDefaultSources: Boolean,
+    ): List<AudioSourceConfig> {
+        val effective = ArrayList<AudioSourceConfig>(sources)
         if (enableDefaultSources) {
             val configuredTypes = sources.mapTo(HashSet()) { it.type }
             AudioSourceTypes.defaultsFor(languageIso)
                 .filterNot { it in configuredTypes }
                 .forEach { effective += AudioSourceConfig(type = it) }
         }
-
-        val seen = HashSet<String>()
-        val out = ArrayList<AudioCandidate>()
-        for (source in effective) {
-            for (candidate in candidatesFor(source, term, reading, languageIso)) {
-                if (candidate.url.isBlank()) continue
-                if (seen.add(candidate.url)) out += candidate
-            }
-        }
-        return out
+        return effective
     }
 
     /** Candidates for a single source. Network errors yield an empty list, never a throw. */

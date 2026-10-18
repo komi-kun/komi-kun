@@ -43,13 +43,13 @@ class WordAudioBridge(
         val webView = webViewProvider() ?: return
         val config = configProvider?.invoke() ?: return
         if (!config.enabled) {
-            deliver(webView, callbackId, emptyList())
+            deliver(webView, callbackId, AudioResolution(emptyList(), emptyList()))
             return
         }
         val language = (languageIsoProvider?.invoke() ?: "ja").ifBlank { "ja" }
         scope.launch {
-            val candidates = withContext(Dispatchers.IO) {
-                AudioResolver(http).resolveAll(
+            val resolution = withContext(Dispatchers.IO) {
+                AudioResolver(http).resolve(
                     sources = config.sources,
                     term = expression,
                     reading = reading,
@@ -57,7 +57,7 @@ class WordAudioBridge(
                     enableDefaultSources = config.enableDefaultAudioSources,
                 )
             }
-            deliver(webView, callbackId, candidates)
+            deliver(webView, callbackId, resolution)
         }
     }
 
@@ -73,21 +73,39 @@ class WordAudioBridge(
         player.stop()
     }
 
-    private fun deliver(webView: WebView, callbackId: String, candidates: List<AudioCandidate>) {
-        val array = JSONArray().apply {
-            candidates.forEach { candidate ->
+    private fun deliver(webView: WebView, callbackId: String, resolution: AudioResolution) {
+        val sources = JSONArray().apply {
+            resolution.sources.forEachIndexed { index, source ->
+                put(
+                    JSONObject().apply {
+                        put("index", index)
+                        put("type", source.type)
+                        put("label", AudioSourceTypes.displayName(source.type))
+                        if (source.url.isNotBlank()) put("url", source.url)
+                    },
+                )
+            }
+        }
+        val candidates = JSONArray().apply {
+            resolution.candidates.forEach { candidate ->
                 put(
                     JSONObject().apply {
                         put("url", candidate.url)
                         candidate.name?.let { put("name", it) }
                         put("sourceType", candidate.sourceType)
+                        put("sourceIndex", candidate.sourceIndex)
+                        if (candidate.sourceLabel.isNotBlank()) put("sourceLabel", candidate.sourceLabel)
                     },
                 )
             }
         }
+        val payload = JSONObject().apply {
+            put("sources", sources)
+            put("candidates", candidates)
+        }
         val idJson = JSONObject.quote(callbackId)
         val js = "window.DictionaryRenderer && window.DictionaryRenderer.onAudioResults(" +
-            "$idJson, ${array.toString().escapeLineSeparators()});"
+            "$idJson, ${payload.toString().escapeLineSeparators()});"
         webView.post { webView.evaluateJavascript(js, null) }
     }
 }

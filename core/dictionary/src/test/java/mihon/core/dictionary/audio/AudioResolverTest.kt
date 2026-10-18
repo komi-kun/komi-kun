@@ -211,5 +211,92 @@ class AudioResolverTest {
             resolver.candidatesFor(AudioSourceConfig(type), "a", "b", "ja") shouldBe emptyList()
         }
     }
+
+    // --- picker metadata (source identity + order) --------------------------------------------
+
+    @Test
+    fun `resolve tags candidates with their source index and label in configured order`() = runBlocking {
+        val http = FakeHttp(
+            responses = mapOf(
+                // Two distinct custom-json sources, each yielding one sample, plus a custom URL.
+                "http://first/?term=猫&reading=ねこ" to ok(audioSourceList("First A" to "http://first/a.mp3")),
+                "http://second/?term=猫&reading=ねこ" to ok(audioSourceList("Second A" to "http://second/a.mp3")),
+            ),
+        )
+        val resolution = AudioResolver(http).resolve(
+            sources = listOf(
+                AudioSourceConfig(AudioSourceTypes.CUSTOM_JSON, "http://first/?term={term}&reading={reading}"),
+                AudioSourceConfig(AudioSourceTypes.CUSTOM_JSON, "http://second/?term={term}&reading={reading}"),
+                AudioSourceConfig(AudioSourceTypes.CUSTOM, "http://third/a.mp3"),
+            ),
+            term = "猫",
+            reading = "ねこ",
+            languageIso = "ja",
+            enableDefaultSources = false,
+        )
+
+        // The picker lists sources in the exact configured order.
+        resolution.sources.map { it.url } shouldContainExactly listOf(
+            "http://first/?term={term}&reading={reading}",
+            "http://second/?term={term}&reading={reading}",
+            "http://third/a.mp3",
+        )
+        // Candidates carry their origin so the menu can group samples under the right source.
+        resolution.candidates.map { it.sourceIndex } shouldContainExactly listOf(0, 1, 2)
+        resolution.candidates.map { it.url } shouldContainExactly listOf(
+            "http://first/a.mp3",
+            "http://second/a.mp3",
+            "http://third/a.mp3",
+        )
+        resolution.candidates.map { it.sourceLabel } shouldContainExactly listOf(
+            "Custom URL (JSON)",
+            "Custom URL (JSON)",
+            "Custom URL",
+        )
+    }
+
+    @Test
+    fun `resolve keeps multiple samples of one source grouped and in order`() = runBlocking {
+        val http = FakeHttp(
+            responses = mapOf(
+                "http://local/?t=猫&r=ねこ" to
+                    ok(audioSourceList("Sample One" to "http://local/1.mp3", "Sample Two" to "http://local/2.mp3")),
+            ),
+        )
+        val resolution = AudioResolver(http).resolve(
+            sources = listOf(
+                AudioSourceConfig(AudioSourceTypes.CUSTOM_JSON, "http://local/?t={term}&r={reading}"),
+            ),
+            term = "猫",
+            reading = "ねこ",
+            languageIso = "ja",
+            enableDefaultSources = false,
+        )
+
+        resolution.sources.size shouldBe 1
+        resolution.candidates.map { it.sourceIndex } shouldContainExactly listOf(0, 0)
+        resolution.candidates.map { it.name } shouldContainExactly listOf("Sample One", "Sample Two")
+    }
+
+    @Test
+    fun `effectiveSources preserves configured order and only appends unconfigured defaults`() {
+        val resolver = AudioResolver(FakeHttp())
+        val configured = listOf(
+            AudioSourceConfig(AudioSourceTypes.CUSTOM_JSON, "http://local/"),
+            AudioSourceConfig(AudioSourceTypes.JISHO),
+            AudioSourceConfig(AudioSourceTypes.CUSTOM, "http://x/"),
+        )
+        val effective = resolver.effectiveSources(configured, languageIso = "ja", enableDefaultSources = true)
+
+        // Configured order first; jpod101 and jisho are already configured, so only
+        // language-pod-101 is appended from the ja defaults.
+        effective.map { it.type } shouldContainExactly listOf(
+            AudioSourceTypes.CUSTOM_JSON,
+            AudioSourceTypes.JISHO,
+            AudioSourceTypes.CUSTOM,
+            AudioSourceTypes.JPOD_101,
+            AudioSourceTypes.LANGUAGE_POD_101,
+        )
+    }
 }
 // KUN <--
