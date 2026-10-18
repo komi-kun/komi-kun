@@ -25,6 +25,12 @@ interface ReaderDictionaryHost {
      * outside tap without installing a gesture-swallowing scrim.
      */
     fun popupBounds(): RectF?
+
+    /**
+     * Whether a lookup popup is currently shown. The reader's OCR host uses it to notice a close it
+     * did not initiate (outside tap, back) so it can restore the page position.
+     */
+    fun isOpen(): Boolean
     // KUN <--
 }
 
