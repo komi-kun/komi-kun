@@ -206,6 +206,37 @@ class YomitanSettingsMapperTest {
     }
 
     @Test
+    fun `preserves the exact audio source order including repeated types`() {
+        val raw = """
+            {"version":0,"options":{"version":77,"profileCurrent":0,
+             "profiles":[{"name":"P","options":{"audio":{
+               "enableDefaultAudioSources":false,
+               "sources":[
+                 {"type":"custom-json","url":"http://127.0.0.1:8765/localaudio/get/?term={term}&reading={reading}","voice":""},
+                 {"type":"jpod101","url":"","voice":""},
+                 {"type":"custom-json","url":"http://forvo.example/json?t={term}","voice":""},
+                 {"type":"custom","url":"http://third/?t={term}","voice":""}
+               ]}}}]}}
+        """.trimIndent()
+        val settings = imported(raw)
+
+        // Verbatim order, repeated `custom-json` type included: whatever the backup says plays
+        // first must remain first.
+        settings.audio.sources.map { it.type } shouldBe listOf(
+            AudioSourceTypes.CUSTOM_JSON,
+            AudioSourceTypes.JPOD_101,
+            AudioSourceTypes.CUSTOM_JSON,
+            AudioSourceTypes.CUSTOM,
+        )
+        settings.audio.sources.map { it.url } shouldBe listOf(
+            "http://127.0.0.1:8765/localaudio/get/?term={term}&reading={reading}",
+            "",
+            "http://forvo.example/json?t={term}",
+            "http://third/?t={term}",
+        )
+    }
+
+    @Test
     fun `malformed and non-Yomitan files are rejected without crashing`() {
         (YomitanSettingsMapper.map("not json") is YomitanImportResult.Invalid) shouldBe true
         (YomitanSettingsMapper.map("""{"formatName":"dexie"}""") is YomitanImportResult.Invalid) shouldBe true
