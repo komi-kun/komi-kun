@@ -48,4 +48,56 @@ internal fun popupFitTarget(
 /** True when `[blockTop]..[blockBottom]` already sits entirely inside the safe band. */
 internal fun isComfortablyVisible(blockTop: Float, blockBottom: Float, target: PopupFitTarget): Boolean =
     blockTop >= target.safeTop && blockBottom <= target.safeBottom
+
+/**
+ * Which side of the looked-up block the popup should occupy.
+ *
+ * The popup is anchored to the block, so its natural position is **below** the block (the block
+ * stays where the reader was already looking). That is only usable when the popup's height fits
+ * between the block's bottom and the viewport bottom; a block low on the screen leaves no room
+ * there, and forcing it below would either cover the block or run off the screen. In that case the
+ * popup flips **above** the block, which needs no page move at all - the alternative used to be a
+ * large zoom towards the block, which for a block at the very bottom has no valid target and pushed
+ * the block off-screen (the popup was then auto-dismissed). [Partial] is the last resort for a block
+ * so tall that neither side holds the whole popup: the popup is put on the roomier side and clamped
+ * into the viewport, partially overlapping the block.
+ */
+internal enum class PopupSide { Below, Above, Partial }
+
+/**
+ * The [PopupSide] for a block, from the block's on-screen edges, the viewport height and the
+ * popup's own height. A small margin keeps the popup off the exact edge.
+ */
+internal fun popupSide(
+    blockTop: Float,
+    blockBottom: Float,
+    overlayHeight: Float,
+    popupHeight: Float,
+): PopupSide {
+    if (overlayHeight <= 0f) return PopupSide.Below
+    val margin = 0.02f * overlayHeight
+    return when {
+        overlayHeight - blockBottom >= popupHeight + margin -> PopupSide.Below
+        blockTop >= popupHeight + margin -> PopupSide.Above
+        else -> PopupSide.Partial
+    }
+}
+
+/**
+ * The popup's top edge for a block, given the popup's own height, so the caller can offset it
+ * without re-deriving the rule. Mirrors the fit: [PopupSide.Below] starts at the block's bottom,
+ * [PopupSide.Above] ends at the block's top, and [PopupSide.Partial] takes whichever side has more
+ * room (the caller still clamps into the viewport).
+ */
+internal fun popupTopFor(
+    blockTop: Float,
+    blockBottom: Float,
+    overlayHeight: Float,
+    popupHeight: Float,
+): Float = when (popupSide(blockTop, blockBottom, overlayHeight, popupHeight)) {
+    PopupSide.Below -> blockBottom
+    PopupSide.Above -> blockTop - popupHeight
+    PopupSide.Partial ->
+        if (blockTop > overlayHeight - blockBottom) blockTop - popupHeight else blockBottom
+}
 // KUN <--
