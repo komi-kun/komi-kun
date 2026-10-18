@@ -6,18 +6,21 @@
 // KUN <--
 package mihon.core.ocr
 
+import mihon.core.ocr.paddle.PaddleOcrOptions
 import tachiyomi.core.common.ocr.ReaderOcrSource
 import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.PreferenceStore
 
 /**
- * **Queue/source policy** preferences for the OCR feature (fix B3 — single source of truth).
+ * **Queue/source policy and engine-tuning** preferences for the OCR feature (fix B3 — single source
+ * of truth).
  *
  * This class owns only the preferences that the GPL `:core:ocr` services must read: the
- * per-manga/global OCR source policy (resolved by the OCR manager's `sourceFor`) and the queue
+ * per-manga/global OCR source policy (resolved by the OCR manager's `sourceFor`), the queue
  * knobs ([autoOnDownload] consumed by the downloader, [parallelOcrLimit] consumed by the queue
- * runner). It is persisted through [PreferenceStore] so it is reachable from both `:core:ocr` and
- * the app settings screen without either importing app/domain types.
+ * runner) and the detector/recogniser thresholds the Paddle engine reads per page
+ * ([detectionOptions]). It is persisted through [PreferenceStore] so it is reachable from both
+ * `:core:ocr` and the app settings screen without either importing app/domain types.
  *
  * The **reader-facing display toggles** (overlay enabled, outline visibility, two-finger gesture)
  * deliberately do **not** live here: the reader gates on them from GPL-free files
@@ -50,4 +53,66 @@ class OcrPreferences(
 
     /** How many chapters the OCR queue processes concurrently. */
     val parallelOcrLimit: Preference<Int> = preferenceStore.getInt("pref_ocr_parallel_limit", 1)
+
+    // KUN -->
+    // ------------------------------------------------------------------ engine tuning
+    // The three detector knobs map 1:1 onto the JNI `nativeProcess` arguments and the native
+    // `Options` (see `komi-kun-ocr-models` `src/ocr_engine.h`): they need no artefact change.
+    // They are stored as whole-number percentages so they can use the shared `SliderPreference`.
+    // The recognition floor is applied in Kotlin on the per-line score the engine already emits,
+    // so it also needs no native change.
+
+    /** Detection binarisation threshold (native `det_db_thresh`), percent of the probability map. */
+    val detPixelThreshold: Preference<Int> = preferenceStore.getInt("pref_ocr_det_pixel_threshold", DEFAULT_DET_PIXEL)
+
+    /** Detection box score threshold (native `det_db_box_thresh`), percent. */
+    val detBoxThreshold: Preference<Int> = preferenceStore.getInt("pref_ocr_det_box_threshold", DEFAULT_DET_BOX)
+
+    /** Detection box expansion (native `det_db_unclip_ratio`), percent (140 = ratio 1.40). */
+    val detUnclipRatio: Preference<Int> = preferenceStore.getInt("pref_ocr_det_unclip_ratio", DEFAULT_DET_UNCLIP)
+
+    /** Drop recognised lines whose engine confidence is below this percent (0 = keep everything). */
+    val recConfidenceFloor: Preference<Int> = preferenceStore.getInt("pref_ocr_rec_confidence_floor", DEFAULT_REC_FLOOR)
+
+    /**
+     * The effective engine options for a page. [numThreads] is the device-derived thread count the
+     * engine normally computes itself; the thresholds come from the user preferences above, so
+     * changing them takes effect for every page processed afterwards.
+     */
+    fun detectionOptions(numThreads: Int): PaddleOcrOptions = PaddleOcrOptions(
+        thresh = detPixelThreshold.get().coerceIn(1, 99) / 100f,
+        boxThresh = detBoxThreshold.get().coerceIn(1, 99) / 100f,
+        unclipRatio = detUnclipRatio.get().coerceIn(100, 300) / 100f,
+        recConfidenceFloor = recConfidenceFloor.get().coerceIn(0, 99) / 100f,
+        numThreads = numThreads,
+    )
+
+    /**
+     * A suffix that distinguishes OCR results produced with non-default thresholds, so changing a
+     * threshold re-runs OCR instead of serving a stale cached page. Empty at the defaults, which
+     * keeps the persisted variant byte-identical to before this feature for anyone who never
+     * touches the sliders.
+     */
+    fun cacheSignature(): String {
+        val pixel = detPixelThreshold.get()
+        val box = detBoxThreshold.get()
+        val unclip = detUnclipRatio.get()
+        val floor = recConfidenceFloor.get()
+        if (pixel == DEFAULT_DET_PIXEL && box == DEFAULT_DET_BOX &&
+            unclip == DEFAULT_DET_UNCLIP && floor == DEFAULT_REC_FLOOR
+        ) {
+            return ""
+        }
+        return "t${pixel}b${box}u${unclip}r$floor"
+    }
+
+    companion object {
+        // Defaults exactly match the values the engine hard-coded before this feature (the ocrtest
+        // "Full Page Preset"): 0.15 pixel threshold, 0.25 box score, 1.40 unclip, no rec floor.
+        const val DEFAULT_DET_PIXEL = 15
+        const val DEFAULT_DET_BOX = 25
+        const val DEFAULT_DET_UNCLIP = 140
+        const val DEFAULT_REC_FLOOR = 0
+    }
+    // KUN <--
 }
