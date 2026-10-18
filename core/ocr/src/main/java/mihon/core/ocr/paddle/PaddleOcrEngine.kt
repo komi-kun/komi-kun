@@ -38,6 +38,7 @@ import mihon.core.ocr.NormalizedBBox
 import mihon.core.ocr.OcrBitmapDecoder
 import mihon.core.ocr.OcrEngine
 import mihon.core.ocr.OcrLanguage
+import mihon.core.ocr.OcrPreferences
 import mihon.core.ocr.WritingDirection
 import tachiyomi.core.common.util.system.logcat
 import java.io.Closeable
@@ -56,6 +57,10 @@ data class PaddleOcrOptions(
     val unclipRatio: Float = 1.40f,
     val filterFurigana: Boolean = false,
     val numThreads: Int = 4,
+    // KUN -->
+    /** Lines whose recognition score is below this are dropped. 0 disables the floor. */
+    val recConfidenceFloor: Float = 0f,
+    // KUN <--
 )
 
 data class PaddleOcrResult(
@@ -75,6 +80,10 @@ data class PaddleOcrResult(
 
 class PaddleOcrEngine(
     context: Context,
+    // KUN -->
+    // User-tunable detector/recogniser thresholds (OcrPreferences.detectionOptions), read per page.
+    private val preferences: OcrPreferences,
+    // KUN <--
 ) : OcrEngine, Closeable {
     private val appContext = context.applicationContext
 
@@ -251,7 +260,7 @@ class PaddleOcrEngine(
                 return emptyList()
             }
             return try {
-                recognizeLocked(bitmap, PaddleOcrOptions(numThreads = deviceThreads), language).lines
+                recognizeLocked(bitmap, preferences.detectionOptions(deviceThreads), language).lines
             } finally {
                 bitmap.recycle()
             }
@@ -292,7 +301,7 @@ class PaddleOcrEngine(
                 filterFurigana = options.filterFurigana,
                 numThreads = options.numThreads,
             )
-            val result = parseOutput(raw, language, software.width, software.height)
+            val result = parseOutput(raw, language, software.width, software.height, options.recConfidenceFloor)
             logcat(LogPriority.INFO) { "recognize: ${result.benchmark}" }
             return result
         } finally {
@@ -300,7 +309,15 @@ class PaddleOcrEngine(
         }
     }
 
-    private fun parseOutput(raw: String, language: OcrLanguage, imgW: Int, imgH: Int): PaddleOcrResult {
+    private fun parseOutput(
+        raw: String,
+        language: OcrLanguage,
+        imgW: Int,
+        imgH: Int,
+        // KUN --> Drop lines whose recognition confidence is below this (0 = keep every line).
+        minRecScore: Float = 0f,
+        // KUN <--
+    ): PaddleOcrResult {
         if (raw.isBlank()) return PaddleOcrResult(emptyList(), 0, 0, 0, 0, 0, 0, 0, 0)
 
         var totalMs = 0L
@@ -330,7 +347,12 @@ class PaddleOcrEngine(
             } else if (lineStr.startsWith("LINE|")) {
                 val parts = lineStr.split("|", limit = 8)
                 if (parts.size >= 8) {
-                    // parts[2] (confidence score) is parsed for protocol compatibility but unused.
+                    // KUN -->
+                    // parts[2] is the per-line recognition confidence. The native engine always
+                    // emits it; the user-configurable floor drops low-confidence lines here, in
+                    // Kotlin, without a native change.
+                    val recScore = parts[2].toFloatOrNull() ?: 0f
+                    // KUN <--
                     val bboxCoords = parts[3].split(",")
                     val ptsCoords = parts[4].split(",")
                     val isVertical = (parts[5] == "1")
@@ -343,6 +365,9 @@ class PaddleOcrEngine(
                     if (isFurigana) furiganaCount++
 
                     if (text.isBlank()) continue
+                    // KUN --> Recognition confidence floor (0 = keep every line).
+                    if (minRecScore > 0f && recScore < minRecScore) continue
+                    // KUN <--
 
                     if (bboxCoords.size == 4) {
                         val left = bboxCoords[0].toDoubleOrNull() ?: continue
