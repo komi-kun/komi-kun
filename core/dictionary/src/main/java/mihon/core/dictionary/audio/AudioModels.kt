@@ -93,10 +93,27 @@ data class AudioPreferences(
     }
 }
 
-/** A single playable candidate: a resolved URL plus provenance for the source menu. */
+/**
+ * A single playable candidate: a resolved URL plus provenance for the source menu.
+ *
+ * [sourceIndex] positions the candidate within the *effective* source list (configured sources
+ * first, appended language defaults after) and is what lets the picker group samples back under
+ * the source they came from, in order. [sourceLabel] is that source's display name.
+ */
 data class AudioCandidate(
     val url: String,
     val name: String? = null,
     val sourceType: String,
+    val sourceIndex: Int = -1,
+    val sourceLabel: String = "",
+)
+
+/**
+ * The full resolution for one lookup: the ordered effective source list (so the picker can also
+ * show sources that yielded nothing) plus the playable candidates in that same order.
+ */
+data class AudioResolution(
+    val sources: List<AudioSourceConfig>,
+    val candidates: List<AudioCandidate>,
 )
 // KUN <--

@@ -393,6 +393,10 @@ dependencies {
     // Tests
     testImplementation(libs.bundles.test)
     testRuntimeOnly(libs.junit.platform.launcher)
+    // KUN -->
+    // Real org.json for JVM unit tests (Android's is stubbed and throws "not mocked").
+    testImplementation(libs.org.json)
+    // KUN <--
 
     // For detecting memory leaks; see https://square.github.io/leakcanary/
     // debugImplementation(libs.leakcanary.android)
