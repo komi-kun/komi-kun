@@ -101,7 +101,7 @@ class OcrTextLayoutTest {
     }
 
     @Test
-    fun `a short column is centred vertically`() {
+    fun `a short column starts at the box top, not centred`() {
         val placed = layoutVerticalText(
             columns(listOf("あ")),
             rectLeft = 0f,
@@ -111,8 +111,73 @@ class OcrTextLayoutTest {
             minScale = 0.1f,
         )
 
-        // scale = 100/20 = 5 -> a 100px cell centred in the 400px box.
-        assertEquals(150f, placed.single().top, 0.001f)
+        // scale = 100/20 = 5 -> a 100px cell, but top-anchored in the 400px box (was 150 when the
+        // column used to float to the vertical middle).
+        assertEquals(5f, placed.single().scale, 0.001f)
+        assertEquals(0f, placed.single().top, 0.001f)
+    }
+
+    @Test
+    fun `every column is top-anchored even when shorter than the longest`() {
+        val placed = layoutVerticalText(
+            columns(listOf("あ", "い", "う"), listOf("か")),
+            rectLeft = 0f,
+            rectTop = 10f,
+            rectRight = 200f,
+            rectBottom = 610f,
+            minScale = 0.1f,
+        )
+
+        // Longest column (3) defines the fit; the 1-glyph column must still start at rectTop.
+        val first = placed.first { it.text == "あ" }
+        val short = placed.first { it.text == "か" }
+        assertEquals(10f, first.top, 0.001f)
+        assertEquals(10f, short.top, 0.001f)
+        assertTrue(short.top < placed.first { it.text == "い" }.top)
+    }
+
+    @Test
+    fun `the cell is the glyph advance, not the taller line box`() {
+        // A realistic glyph: advance 20 (its em), line-box height 30 (font leading). The cell must
+        // be 20, so a 100x100 box scales by 5 -- not 100/30 = 3.33 as when max(width,height) was used.
+        val placed = layoutVerticalText(
+            listOf(listOf(GlyphMetric("あ", width = 20f, height = 30f))),
+            rectLeft = 0f,
+            rectTop = 0f,
+            rectRight = 100f,
+            rectBottom = 100f,
+            minScale = 0.1f,
+        )
+
+        assertEquals(5f, placed.single().scale, 0.001f)
+        // The 20-wide glyph now fills the 100-wide column exactly.
+        assertEquals(100f, 20f * placed.single().scale, 0.001f)
+        assertEquals(0f, placed.single().left, 0.001f)
+    }
+
+    @Test
+    fun `advance-sized glyphs fill their column so the run is not inset in the block`() {
+        // Two columns in a 100-wide box: each column owns 50px. Advance 20, line box 30: with the
+        // correct reference the glyph edge reaches rectRight on the right column and rectLeft on the
+        // left one, instead of being centred in its slot with a gap on both sides.
+        val placed = layoutVerticalText(
+            listOf(
+                listOf(GlyphMetric("あ", width = 20f, height = 30f)),
+                listOf(GlyphMetric("い", width = 20f, height = 30f)),
+            ),
+            rectLeft = 0f,
+            rectTop = 0f,
+            rectRight = 100f,
+            rectBottom = 100f,
+            minScale = 0.1f,
+        )
+
+        val right = placed.first { it.text == "あ" }
+        val left = placed.first { it.text == "い" }
+        val width = 20f * right.scale
+        assertEquals(2.5f, right.scale, 0.001f)
+        assertEquals(100f, right.left + width, 0.001f) // flush to the right edge
+        assertEquals(0f, left.left, 0.001f) // flush to the left edge
     }
 
     @Test
@@ -132,7 +197,7 @@ class OcrTextLayoutTest {
     }
 
     @Test
-    fun `the legibility floor overflows a short box vertically`() {
+    fun `the legibility floor overflows a short box downward from the top`() {
         val placed = layoutVerticalText(
             columns(List(10) { "あ" }),
             rectLeft = 0f,
@@ -143,8 +208,9 @@ class OcrTextLayoutTest {
         )
 
         val cell = 20f * placed.first().scale
-        assertTrue(placed.first().top < 0f, "the column starts above the box")
-        assertTrue(placed.last().top + cell > 20f, "the column ends below the box")
+        // Top-anchored: the first cell sits at the box top and the overflow runs below it.
+        assertEquals(0f, placed.first().top, 0.001f)
+        assertTrue(placed.last().top + cell > 20f, "the column overflows below the box")
     }
 
     @Test
