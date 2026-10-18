@@ -242,6 +242,13 @@ class ReaderPreferences(
     /** Passive OCR box scale, in percent (100 = tight around the detected block). */
     val ocrBoxScale = preferenceStore.getInt("pref_reader_ocr_box_scale", 100)
 
+    /**
+     * Size of the overlaid recognised text as a percentage of the calibrated default (100 = the size
+     * measured to match the printed lettering). Manga lettering fonts differ a lot, so this is the
+     * escape hatch for a title whose printed glyphs sit above or below the default.
+     */
+    val ocrTextScale = preferenceStore.getInt("pref_reader_ocr_text_scale", 100)
+
     /** Allow a two-finger tap to toggle the OCR overlay. */
     val ocrTwoFingerGestureEnabled = preferenceStore.getBoolean("pref_reader_ocr_two_finger_gesture", false)
 

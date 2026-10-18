@@ -25,6 +25,8 @@ class OcrPreferenceReconciliationTest {
         readerPreferences.ocrOutlineVisible.get() shouldBe true
         readerPreferences.ocrTwoFingerGestureEnabled.get() shouldBe false
         readerPreferences.ocrActiveBlockHighlight.get() shouldBe true
+        // Overlay text size stays at the calibrated default.
+        readerPreferences.ocrTextScale.get() shouldBe 100
 
         // The settings switch and the reader gate need only share this one key.
         readerPreferences.ocrOverlayEnabled.set(true)
