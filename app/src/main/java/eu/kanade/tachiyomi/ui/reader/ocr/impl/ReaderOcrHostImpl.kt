@@ -13,6 +13,7 @@ package eu.kanade.tachiyomi.ui.reader.ocr.impl
 
 import android.content.Context
 import android.graphics.RectF
+import android.os.SystemClock
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
@@ -38,6 +39,8 @@ import eu.kanade.tachiyomi.ui.reader.ocr.ImagePoint
 import eu.kanade.tachiyomi.ui.reader.ocr.OcrViewport
 import eu.kanade.tachiyomi.ui.reader.ocr.ReaderOcrHost
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
+import eu.kanade.tachiyomi.ui.reader.viewer.popup.PopupSide
+import eu.kanade.tachiyomi.ui.reader.viewer.popup.popupSide
 import mihon.core.ocr.OcrHitTester
 import mihon.core.ocr.OcrNormalizedBounds
 import mihon.core.ocr.model.OcrTextBlock
@@ -69,6 +72,17 @@ class ReaderOcrHostImpl(
     /** The overlay's last measured size, so a lookup knows how much room the popup will take. */
     @Volatile
     private var overlaySize = IntSize.Zero
+
+    // KUN -->
+    /**
+     * Uptime until which an off-screen block rect must **not** dismiss the popup. A just-opened
+     * popup schedules its own "keep the block visible" move (and the popup composes) over a few
+     * frames; a rect sampled mid-move can momentarily read as off-screen, and dismissing on that
+     * frame was what closed the popup right after it opened. After the grace, the real guard (the
+     * block left the overlay / scrolled away) applies as before.
+     */
+    private var popupGraceUntil = 0L
+    // KUN <--
 
     /** The block highlighted by the last successful hit, for the overlay. */
     private val activeBlock = mutableStateOf<Pair<OcrPageKey, OcrTextBlock>?>(null)
@@ -189,6 +203,10 @@ class ReaderOcrHostImpl(
 
         activeBlock.value = key to block
         popupAnchor.rect.value = screen
+        // KUN --> A new lookup must survive its own placement: ignore off-screen anchor samples
+        // while the popup settles (see popupGraceUntil). Refreshed per lookup.
+        popupGraceUntil = SystemClock.uptimeMillis() + POPUP_GRACE_MS
+        // KUN <--
         dictionaryHost.showLookup(
             DictionaryLookupRequest(
                 query = query,
@@ -201,7 +219,26 @@ class ReaderOcrHostImpl(
         )
         // KUN --> Keep the looked-up block visible above the popup: paged backends zoom and pan,
         // continuous ones scroll the minimum. A comfortable block is left untouched.
-        currentViewport.fitBlockAbove(screen, popupLowerFraction())
+        //
+        // Only the "popup below the block" case needs the page moved (and only a block that already
+        // reaches the lower band does). A block low on the screen leaves no room below, so the popup
+        // goes **above** it instead - and the block is already where it needs to be, so no zoom or
+        // scroll happens. That is exactly the bottom-edge case that used to zoom to a degenerate
+        // target and dismiss itself.
+        val fraction = popupLowerFraction()
+        val overlayHeight = overlaySize.height.toFloat()
+        if (overlayHeight > 0f &&
+            popupSide(
+                screen.top,
+                screen.bottom,
+                overlayHeight,
+                overlayHeight * fraction,
+            ) == PopupSide.Below
+        ) {
+            if (currentViewport.fitBlockAbove(screen, fraction)) {
+                popupGraceUntil = SystemClock.uptimeMillis() + POPUP_GRACE_MS
+            }
+        }
         // KUN <--
         return true
     }
@@ -214,6 +251,15 @@ class ReaderOcrHostImpl(
     private fun popupLowerFraction(): Float {
         val overlayHeightPx = overlaySize.height
         if (overlayHeightPx <= 0) return 0f
+        val popupHeightPx = dictionaryPopupHeightPx()
+        if (popupHeightPx <= 0f) return 0f
+        // Relative to the overlay the fit itself measures in, so the band the block is moved to
+        // matches the region the popup actually occupies.
+        return (popupHeightPx / overlayHeightPx).coerceIn(0f, 1f)
+    }
+
+    /** The dictionary popup's height in px, from the same sizing `DictionaryPopup` uses. */
+    private fun dictionaryPopupHeightPx(): Float {
         val config = context.resources.configuration
         val size = DictionaryPopupSizing.resolve(
             screenWidthDp = config.screenWidthDp,
@@ -222,10 +268,7 @@ class ReaderOcrHostImpl(
             overrideWidthDp = dictionaryPreferences.popupWidth().get(),
             overrideHeightDp = dictionaryPreferences.popupHeight().get(),
         )
-        val density = context.resources.displayMetrics.density
-        val screenHeightPx = config.screenHeightDp * density
-        if (screenHeightPx <= 0f) return 0f
-        return (size.heightDp * density / screenHeightPx).coerceIn(0f, 1f)
+        return size.heightDp * context.resources.displayMetrics.density
     }
     // KUN <--
 
@@ -258,7 +301,7 @@ class ReaderOcrHostImpl(
         val rect = page?.let { viewport.imageNormalizedToScreen(it, active.second.toRectF()) }
         if (rect != null && rect.isOnScreen(overlaySize)) {
             popupAnchor.rect.value = rect
-        } else {
+        } else if (rect == null || SystemClock.uptimeMillis() >= popupGraceUntil) {
             dictionaryHost.dismiss()
             // KUN --> Undo the "keep the block visible" fit; the adapter keeps the user's own
             // position when they moved the view manually.
@@ -267,6 +310,9 @@ class ReaderOcrHostImpl(
             activeBlock.value = null
             popupAnchor.clear()
         }
+        // KUN --> The `else` (no branch taken) is the settle grace: a momentarily off-screen rect is
+        // ignored so the popup we just placed cannot dismiss itself mid-move (see popupGraceUntil).
+        // KUN <--
     }
 
     /** True while any part of [rect] is inside the overlay. A not-yet-measured overlay keeps it. */
@@ -287,5 +333,10 @@ class ReaderOcrHostImpl(
 
     private companion object {
         private const val DEFAULT_LANGUAGE = "ja"
+
+        // KUN --> Long enough to cover the paged fit animation (220 ms) plus a few frames of the
+        // popup settling, short enough that a genuinely scrolled-away block still dismisses promptly.
+        private const val POPUP_GRACE_MS = 600L
+        // KUN <--
     }
 }
