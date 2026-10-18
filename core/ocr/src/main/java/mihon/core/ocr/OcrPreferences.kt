@@ -89,9 +89,8 @@ class OcrPreferences(
 
     /**
      * A suffix that distinguishes OCR results produced with non-default thresholds, so changing a
-     * threshold re-runs OCR instead of serving a stale cached page. Empty at the defaults, which
-     * keeps the persisted variant byte-identical to before this feature for anyone who never
-     * touches the sliders.
+     * threshold re-runs OCR instead of serving a stale cached page. Empty at the defaults; the
+     * OCR manager combines it with its engine-generation key.
      */
     fun cacheSignature(): String {
         val pixel = detPixelThreshold.get()
