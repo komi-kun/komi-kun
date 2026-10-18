@@ -54,7 +54,9 @@ dependencyResolutionManagement {
 
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
-rootProject.name = "Komikku"
+// KUN -->
+rootProject.name = "Komikun"
+// KUN <--
 include(":app")
 include(":baseline-profile")
 include(":core-metadata")

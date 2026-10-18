@@ -224,16 +224,16 @@ jobs:
         run: |
           set -e
 
-          mv app/build/outputs/apk/${{ needs.prepare-build.outputs.ARTIFACTS_PREFIX }}-universal-nightly-signed.apk Komikku-${{ needs.prepare-build.outputs.TAG_NAME }}.apk
-          mv app/build/outputs/apk/${{ needs.prepare-build.outputs.ARTIFACTS_PREFIX }}-arm64-v8a-nightly-signed.apk Komikku-arm64-v8a-${{ needs.prepare-build.outputs.TAG_NAME }}.apk
-          mv app/build/outputs/apk/${{ needs.prepare-build.outputs.ARTIFACTS_PREFIX }}-armeabi-v7a-nightly-signed.apk Komikku-armeabi-v7a-${{ needs.prepare-build.outputs.TAG_NAME }}.apk
-          mv app/build/outputs/apk/${{ needs.prepare-build.outputs.ARTIFACTS_PREFIX }}-x86_64-nightly-signed.apk Komikku-x86_64-${{ needs.prepare-build.outputs.TAG_NAME }}.apk
+          mv app/build/outputs/apk/${{ needs.prepare-build.outputs.ARTIFACTS_PREFIX }}-universal-nightly-signed.apk Komikun-${{ needs.prepare-build.outputs.TAG_NAME }}.apk
+          mv app/build/outputs/apk/${{ needs.prepare-build.outputs.ARTIFACTS_PREFIX }}-arm64-v8a-nightly-signed.apk Komikun-arm64-v8a-${{ needs.prepare-build.outputs.TAG_NAME }}.apk
+          mv app/build/outputs/apk/${{ needs.prepare-build.outputs.ARTIFACTS_PREFIX }}-armeabi-v7a-nightly-signed.apk Komikun-armeabi-v7a-${{ needs.prepare-build.outputs.TAG_NAME }}.apk
+          mv app/build/outputs/apk/${{ needs.prepare-build.outputs.ARTIFACTS_PREFIX }}-x86_64-nightly-signed.apk Komikun-x86_64-${{ needs.prepare-build.outputs.TAG_NAME }}.apk
 
       - name: Create release
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           tag_name: ${{ needs.prepare-build.outputs.TAG_NAME }}
-          name: Komikku Nightly ${{ needs.prepare-build.outputs.TAG_NAME }} (${{ needs.prepare-build.outputs.VERSION_TAG }})
+          name: Komikun Nightly ${{ needs.prepare-build.outputs.TAG_NAME }} (${{ needs.prepare-build.outputs.VERSION_TAG }})
           body: |
             [![GitHub downloads](https://img.shields.io/github/downloads/komi-kun/komi-kun/${{ needs.prepare-build.outputs.TAG_NAME }}/total?label=Downloaded&labelColor=27303D&color=0D1117&logo=github&logoColor=FFFFFF&style=flat)](https://github.com/komi-kun/komi-kun/releases/tag/${{ needs.prepare-build.outputs.TAG_NAME }})
             #### What's Changed
@@ -250,12 +250,12 @@ jobs:
             <!-->
             > [!TIP]
             >
-            > ### If you are unsure which version to download then go with `Komikku-${{ needs.prepare-build.outputs.TAG_NAME }}.apk`
+            > ### If you are unsure which version to download then go with `Komikun-${{ needs.prepare-build.outputs.TAG_NAME }}.apk`
           files: |
-            Komikku-${{ needs.prepare-build.outputs.TAG_NAME }}.apk
-            Komikku-arm64-v8a-${{ needs.prepare-build.outputs.TAG_NAME }}.apk
-            Komikku-armeabi-v7a-${{ needs.prepare-build.outputs.TAG_NAME }}.apk
-            Komikku-x86_64-${{ needs.prepare-build.outputs.TAG_NAME }}.apk
+            Komikun-${{ needs.prepare-build.outputs.TAG_NAME }}.apk
+            Komikun-arm64-v8a-${{ needs.prepare-build.outputs.TAG_NAME }}.apk
+            Komikun-armeabi-v7a-${{ needs.prepare-build.outputs.TAG_NAME }}.apk
+            Komikun-x86_64-${{ needs.prepare-build.outputs.TAG_NAME }}.apk
           # Bleeding-edge fork: same semantics as build_release.yml — a published
           # (non-draft) prerelease. `make_latest` cannot be set for a prerelease, so
           # the in-app updater lists all releases and offers the newest one.
