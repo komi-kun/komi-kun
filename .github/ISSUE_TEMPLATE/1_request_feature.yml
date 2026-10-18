@@ -1,12 +1,12 @@
 name: ⭐ Feature request
-description: Suggest a feature to improve Komikku
+description: Suggest a feature to improve Komikun
 labels: [feature request]
 body:
   - type: textarea
     id: feature-description
     attributes:
       label: Describe your suggested feature
-      description: How can Komikku be improved?
+      description: How can Komikun be improved?
       placeholder: |
         Example:
           "It should work like this..."
