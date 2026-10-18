@@ -20,6 +20,28 @@ interface OcrViewport {
     fun screenToImageNormalized(x: Float, y: Float): ImagePoint?
 
     fun transformVersion(): Long
+
+    // KUN -->
+    /**
+     * Move the view so the looked-up block [rect] (overlay coordinates) is comfortably visible above
+     * a popup that will cover the bottom [lowerFraction] of the viewport.
+     *
+     * Paged, zoomable backends zoom and pan so the block comes to rest just above the popup;
+     * continuous backends scroll the **minimum** needed (nothing, when the block is already clear).
+     * Returns true when the view was moved (so the caller can later [restoreFit]); false when the
+     * block was already comfortably visible and nothing changed.
+     *
+     * Must be called on the main thread. Implementations must keep the caller's position so
+     * [restoreFit] can put it back.
+     */
+    fun fitBlockAbove(rect: RectF, lowerFraction: Float): Boolean = false
+
+    /**
+     * Undo the last [fitBlockAbove]. If the user adjusted the view themselves while the popup was
+     * open, their position wins and nothing moves.
+     */
+    fun restoreFit() = Unit
+    // KUN <--
 }
 
 /** [image] is normalized to `0..1` within [page]. */

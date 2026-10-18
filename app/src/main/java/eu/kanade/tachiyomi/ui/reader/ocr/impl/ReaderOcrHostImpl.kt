@@ -11,6 +11,7 @@
 // KUN <--
 package eu.kanade.tachiyomi.ui.reader.ocr.impl
 
+import android.content.Context
 import android.graphics.RectF
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
@@ -29,6 +30,7 @@ import dev.zacsweers.metro.ContributesBinding
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import eu.kanade.presentation.reader.OcrOverlay
+import eu.kanade.tachiyomi.ui.dictionary.DictionaryPopupSizing
 import eu.kanade.tachiyomi.ui.dictionary.DictionaryPreferences
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import eu.kanade.tachiyomi.ui.reader.ocr.ImagePoint
@@ -56,11 +58,16 @@ class ReaderOcrHostImpl(
     private val dictionaryPreferences: DictionaryPreferences,
     private val dictionaryHost: ReaderDictionaryHost,
     private val popupAnchor: ReaderOcrPopupAnchor,
+    private val context: Context,
 ) : ReaderOcrHost {
 
     /** The viewport the overlay was last composed with; used to map the long-press point. */
     @Volatile
     private var viewport: OcrViewport? = null
+
+    /** The overlay's last measured size, so a lookup knows how much room the popup will take. */
+    @Volatile
+    private var overlaySize = IntSize.Zero
 
     /** The block highlighted by the last successful hit, for the overlay. */
     private val activeBlock = mutableStateOf<Pair<OcrPageKey, OcrTextBlock>?>(null)
@@ -79,7 +86,7 @@ class ReaderOcrHostImpl(
         // The compose overlay's size, captured from layout. Used to dismiss the popup once its block
         // has been scrolled fully off-screen - a page can still be partially visible in a continuous
         // viewer while the block is not.
-        val overlaySize = remember { mutableStateOf(IntSize.Zero) }
+        val measuredOverlaySize = remember { mutableStateOf(IntSize.Zero) }
 
         // `OcrViewport.visiblePages()` is viewer-owned state, not a Compose snapshot state, so the
         // page the viewer is showing (including the very first page after mount) can appear without
@@ -93,7 +100,16 @@ class ReaderOcrHostImpl(
                 val pages = viewport.visiblePages()
                 value = pages
                 blockLoader.ensureLoaded(pages)
-                updatePopupAnchor(viewport, pages, overlaySize.value)
+                updatePopupAnchor(viewport, pages, measuredOverlaySize.value)
+                // KUN --> A popup closed from outside the OCR host (outside tap, system back) must
+                // still undo the "keep the block visible" move. Our own off-screen dismissal above
+                // has already cleared the active block, so this only fires for external closes.
+                if (activeBlock.value != null && !dictionaryHost.isOpen()) {
+                    viewport.restoreFit()
+                    activeBlock.value = null
+                    popupAnchor.clear()
+                }
+                // KUN <--
                 withFrameNanos { }
             }
         }
@@ -106,7 +122,10 @@ class ReaderOcrHostImpl(
             activeBlock = active?.takeIf { activeBlockHighlight && it.first == currentPage?.ocrKey() }?.second,
             outlineVisible = outlineVisible,
             boxScalePercent = boxScalePercent,
-            modifier = modifier.onGloballyPositioned { overlaySize.value = it.size },
+            modifier = modifier.onGloballyPositioned {
+                measuredOverlaySize.value = it.size
+                overlaySize = it.size
+            },
         )
     }
 
@@ -156,8 +175,35 @@ class ReaderOcrHostImpl(
                 language = language,
             ),
         )
+        // KUN --> Keep the looked-up block visible above the popup: paged backends zoom and pan,
+        // continuous ones scroll the minimum. A comfortable block is left untouched.
+        currentViewport.fitBlockAbove(screen, popupLowerFraction())
+        // KUN <--
         return true
     }
+
+    // KUN -->
+    /**
+     * The fraction of the viewport height the dictionary popup will cover, from the same sizing
+     * (screen-relative baseline scaled by the size preference) `DictionaryPopup` uses.
+     */
+    private fun popupLowerFraction(): Float {
+        val overlayHeightPx = overlaySize.height
+        if (overlayHeightPx <= 0) return 0f
+        val config = context.resources.configuration
+        val size = DictionaryPopupSizing.resolve(
+            screenWidthDp = config.screenWidthDp,
+            screenHeightDp = config.screenHeightDp,
+            percent = dictionaryPreferences.popupSizePercent().get(),
+            overrideWidthDp = dictionaryPreferences.popupWidth().get(),
+            overrideHeightDp = dictionaryPreferences.popupHeight().get(),
+        )
+        val density = context.resources.displayMetrics.density
+        val screenHeightPx = config.screenHeightDp * density
+        if (screenHeightPx <= 0f) return 0f
+        return (size.heightDp * density / screenHeightPx).coerceIn(0f, 1f)
+    }
+    // KUN <--
 
     // KUN -->
     /** The OCR block under [overlayPoint], or null when the viewport has none there. */
@@ -190,6 +236,10 @@ class ReaderOcrHostImpl(
             popupAnchor.rect.value = rect
         } else {
             dictionaryHost.dismiss()
+            // KUN --> Undo the "keep the block visible" fit; the adapter keeps the user's own
+            // position when they moved the view manually.
+            viewport.restoreFit()
+            // KUN <--
             activeBlock.value = null
             popupAnchor.clear()
         }

@@ -22,8 +22,23 @@ class DictionaryPreferences(
     private val preferenceStore: PreferenceStore,
 ) {
 
-    fun popupWidth() = preferenceStore.getInt("pref_dictionary_popup_width", 300)
-    fun popupHeight() = preferenceStore.getInt("pref_dictionary_popup_height", 360)
+    // KUN -->
+    // Exact dp overrides for the popup. 0 means "derive from the screen" (the adaptive default
+    // that makes the popup scale with a tablet); a positive value is set explicitly, e.g. by a
+    // Yomitan settings import.
+    fun popupWidth() = preferenceStore.getInt("pref_dictionary_popup_width", 0)
+    fun popupHeight() = preferenceStore.getInt("pref_dictionary_popup_height", 0)
+
+    /**
+     * The popup's size as a percentage of [DictionaryPopupSizing]'s adaptive baseline. One knob so
+     * "I want it bigger on my tablet" is a single change, and so the default tracks the screen.
+     */
+    fun popupSizePercent() = preferenceStore.getInt(
+        "pref_dictionary_popup_size_percent",
+        DictionaryPopupSizing.DEFAULT_PERCENT,
+    )
+    // KUN <--
+
     fun popupMode() = preferenceStore.getString("pref_dictionary_popup_mode", "floating")
     fun fontSize() = preferenceStore.getInt("pref_dictionary_font_size", 16)
     fun fontFamily() = preferenceStore.getString("pref_dictionary_font_family", "")

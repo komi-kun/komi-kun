@@ -8,6 +8,7 @@ package eu.kanade.tachiyomi.ui.reader.viewer.webtoon
 
 import android.graphics.RectF
 import android.view.View
+import androidx.recyclerview.widget.RecyclerView
 import eu.kanade.tachiyomi.ui.reader.ReaderActivity
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import eu.kanade.tachiyomi.ui.reader.ocr.ImagePoint
@@ -15,8 +16,11 @@ import eu.kanade.tachiyomi.ui.reader.ocr.OcrViewport
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.OcrOverlayCoords
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.mapForward
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.mapInverse
+import eu.kanade.tachiyomi.ui.reader.viewer.popup.isComfortablyVisible
+import eu.kanade.tachiyomi.ui.reader.viewer.popup.popupFitTarget
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 /**
  * GPL [OcrViewport] adapter for the webtoon backend (plan 04 §1.5).
@@ -125,4 +129,50 @@ class WebtoonOcrViewport(
         val holders = viewer.ocrVisibleHolders()
         return scroll * 31L + holders.sumOf { it.hashCode().toLong() }
     }
+
+    // KUN -->
+    /**
+     * Nudges the strip so the looked-up block clears the popup. The webtoon reader is already a
+     * continuous scroll, so a block that is comfortably visible is left alone; otherwise it scrolls
+     * the **minimum** distance needed to bring the block above the popup - never a zoom.
+     */
+    override fun fitBlockAbove(rect: RectF, lowerFraction: Float): Boolean {
+        val overlayHeight = overlayView.height.toFloat()
+        if (overlayHeight <= 0f) return false
+        if (session != null && session?.cancelled == true) session = null
+        val target = popupFitTarget(rect.centerY(), rect.height(), overlayHeight, lowerFraction)
+        if (isComfortablyVisible(rect.top, rect.bottom, target)) return false
+
+        val recycler = viewer.recycler
+        val delta = (rect.centerY() - target.targetCenterY).roundToInt()
+        if (delta == 0) return false
+        val preOffset = recycler.computeVerticalScrollOffset()
+        val fit = session ?: WebtoonFitSession(recycler, preOffset).also { session = it }
+        recycler.scrollBy(0, delta)
+        // Record where we actually landed so a later manual scroll can be told apart from ours.
+        fit.settledOffset = recycler.computeVerticalScrollOffset()
+        return true
+    }
+
+    override fun restoreFit() {
+        val fit = session ?: return
+        session = null
+        if (fit.cancelled) return
+        val recycler = fit.recycler
+        if (recycler.parent == null) return
+        val settled = fit.settledOffset ?: return
+        // The user scrolled since our move: keep their position.
+        if (recycler.computeVerticalScrollOffset() != settled) return
+        recycler.scrollBy(0, fit.preOffset - settled)
+    }
+
+    private class WebtoonFitSession(
+        val recycler: RecyclerView,
+        val preOffset: Int,
+        var settledOffset: Int? = null,
+        var cancelled: Boolean = false,
+    )
+
+    private var session: WebtoonFitSession? = null
+    // KUN <--
 }

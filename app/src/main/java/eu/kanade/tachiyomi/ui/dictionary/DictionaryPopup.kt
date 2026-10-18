@@ -144,11 +144,27 @@ fun DictionaryPopup(
 
     val configuration = LocalConfiguration.current
     val density = LocalDensity.current
-    val screenHeight = configuration.screenHeightDp
     val current = stack.getOrNull(activeIndex)
     val tabs = stack.mapIndexed { index, frame -> TabInfo(frame.query.take(16), index == activeIndex) }
-    val popupWidth = prefs.popupWidth().get().dp
-    val popupHeight = resolvePopupHeight(prefs.popupHeight().get(), screenHeight)
+    // KUN --> Size is a percentage of an adaptive, screen-relative baseline (see
+    // DictionaryPopupSizing), so a tablet gets a bigger popup by default and the "Popup size"
+    // preference scales it everywhere.
+    val popupSize = remember(
+        context,
+        configuration.screenWidthDp,
+        configuration.screenHeightDp,
+    ) {
+        DictionaryPopupSizing.resolve(
+            screenWidthDp = configuration.screenWidthDp,
+            screenHeightDp = configuration.screenHeightDp,
+            percent = prefs.popupSizePercent().get(),
+            overrideWidthDp = prefs.popupWidth().get(),
+            overrideHeightDp = prefs.popupHeight().get(),
+        )
+    }
+    val popupWidth = popupSize.widthDp.dp
+    val popupHeight = popupSize.heightDp.dp
+    // KUN <--
 
     // A visible empty state instead of a blank/black box: distinguish "no dictionaries installed"
     // from "this word is in no installed dictionary" (BUG 2a).
@@ -286,11 +302,6 @@ fun DictionaryPopup(
             }
         }
     }
-}
-
-private fun resolvePopupHeight(configured: Int, screenHeightDp: Int): androidx.compose.ui.unit.Dp {
-    val maxHeight = (screenHeightDp - 24).coerceAtLeast(120)
-    return configured.coerceAtMost(maxHeight).dp
 }
 
 /** Clamps the popup's anchor so the popup is always fully on screen. */
