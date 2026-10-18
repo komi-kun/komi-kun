@@ -22,6 +22,7 @@
   let _selectedDictionaries = {}; // entryIndex -> dictName
   let _wordAudioEnabled = true;
   let _autoplayGuard = false;
+  const _audioCallbacks = new Map();
   let _listenersInstalled = false;
   let _lastAnkiDupAction = -1; // -1 = unknown/not set
   let _dictionaryMediaObserver = null;
@@ -1979,35 +1980,255 @@
     arrow_back: '<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>'
   };
 
+  // ── Word-audio picker (Yomitan's long-press / right-click menu) ───────────
+  // Single tap plays the default (best) candidate. Long-press or right-click opens a menu that
+  // lists the *configured* audio sources in order, and for a source that returned more than one
+  // sample, the individual samples. The menu is renderer-driven on purpose: the button lives in
+  // this DOM, so a native Compose menu would need coordinate round-trips and would fight the
+  // WebView's own long-press text selection. The native bridge stays a thin "resolve + play" seam.
+  const _audioNative = () => (typeof WordAudioBridge !== 'undefined' ? WordAudioBridge : null);
+
+  function requestAudioCandidates(expression, reading, handler) {
+    const bridge = _audioNative();
+    if (!bridge) return;
+    const callbackId = 'audio_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+    _audioCallbacks.set(callbackId, handler);
+    bridge.fetchAudio(expression, reading, callbackId);
+  }
+
+  function playAudioCandidate(url, button) {
+    const bridge = _audioNative();
+    if (!bridge || !url) return;
+    if (button) {
+      button.classList.add('playing');
+      setTimeout(() => button.classList.remove('playing'), 600);
+    }
+    bridge.playAudio(url);
+  }
+
+  // Tolerates both the rich `{sources, candidates}` payload and a bare candidate array.
+  function audioPayload(payload) {
+    if (Array.isArray(payload)) return { sources: [], candidates: payload };
+    return {
+      sources: Array.isArray(payload && payload.sources) ? payload.sources : [],
+      candidates: Array.isArray(payload && payload.candidates) ? payload.candidates : [],
+    };
+  }
+
+  let _audioMenuNode = null;
+  let _audioMenuDismiss = null;
+
+  function closeAudioMenu() {
+    if (_audioMenuNode) {
+      _audioMenuNode.remove();
+      _audioMenuNode = null;
+    }
+    if (_audioMenuDismiss) {
+      document.removeEventListener('pointerdown', _audioMenuDismiss, true);
+      window.removeEventListener('scroll', _audioMenuDismiss, true);
+      window.removeEventListener('resize', _audioMenuDismiss, true);
+      _audioMenuDismiss = null;
+    }
+  }
+
+  function showAudioMenu(button, payload) {
+    const {sources, candidates} = audioPayload(payload);
+    if (sources.length === 0 && candidates.length === 0) return;
+
+    closeAudioMenu();
+
+    // Group candidates by the source they came from; insertion order preserves resolution order.
+    const bySource = new Map();
+    candidates.forEach((candidate, position) => {
+      const idx = (typeof candidate.sourceIndex === 'number') ? candidate.sourceIndex : -1;
+      if (!bySource.has(idx)) bySource.set(idx, []);
+      bySource.get(idx).push({candidate, isDefault: position === 0});
+    });
+
+    const menu = document.createElement('div');
+    menu.className = 'word-audio-menu';
+    menu.setAttribute('role', 'menu');
+
+    // Sources that share a display label get an order suffix (Yomitan appends indices too).
+    const labelCounts = {};
+    sources.forEach(s => {
+      const label = s.label || s.type || 'Source';
+      labelCounts[label] = (labelCounts[label] || 0) + 1;
+    });
+    const labelSeen = {};
+
+    const makeGroup = (label) => {
+      const group = document.createElement('div');
+      group.className = 'word-audio-menu-group';
+      const header = document.createElement('div');
+      header.className = 'word-audio-menu-header';
+      header.textContent = label;
+      group.appendChild(header);
+      menu.appendChild(group);
+      return group;
+    };
+
+    const appendItem = (group, url, label, isDefault, disabled) => {
+      const item = document.createElement('button');
+      item.className = 'word-audio-menu-item';
+      if (isDefault) item.classList.add('word-audio-menu-item-default');
+      const text = document.createElement('span');
+      text.className = 'word-audio-menu-item-label';
+      text.textContent = label;
+      item.appendChild(text);
+      if (isDefault) {
+        const badge = document.createElement('span');
+        badge.className = 'word-audio-menu-item-badge';
+        badge.textContent = 'default';
+        item.appendChild(badge);
+      }
+      if (disabled) {
+        item.disabled = true;
+        item.classList.add('word-audio-menu-item-empty');
+      } else {
+        item.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          closeAudioMenu();
+          playAudioCandidate(url, button);
+        });
+      }
+      group.appendChild(item);
+    };
+
+    const renderGroup = (group, entries) => {
+      if (entries.length === 0) {
+        appendItem(group, null, 'No audio found', false, true);
+        return;
+      }
+      entries.forEach((entry, index) => {
+        const candidate = entry.candidate;
+        const name = (candidate.name && String(candidate.name).trim()) ? String(candidate.name).trim() : '';
+        let label = name || 'Play';
+        if (entries.length > 1) label = (index + 1) + '. ' + label;
+        appendItem(group, candidate.url, label, entry.isDefault, false);
+      });
+    };
+
+    if (sources.length > 0) {
+      sources.forEach((source) => {
+        let label = source.label || source.type || 'Source';
+        if (labelCounts[label] > 1) {
+          labelSeen[label] = (labelSeen[label] || 0) + 1;
+          label = label + ' ' + labelSeen[label];
+        }
+        renderGroup(makeGroup(label), bySource.get(source.index) || []);
+      });
+      // Defensive: candidates with no source identity (e.g. an older bridge payload).
+      const orphans = bySource.get(-1) || [];
+      if (orphans.length > 0) renderGroup(makeGroup('Audio'), orphans);
+    } else {
+      renderGroup(makeGroup('Audio'), candidates.map((candidate, position) => ({candidate, isDefault: position === 0})));
+    }
+
+    document.body.appendChild(menu);
+
+    // Position next to the button, right-aligned and clamped to the viewport.
+    const rect = button.getBoundingClientRect();
+    menu.style.visibility = 'hidden';
+    requestAnimationFrame(() => {
+      const width = menu.offsetWidth;
+      const height = menu.offsetHeight;
+      let left = rect.right - width;
+      let top = rect.bottom + 4;
+      if (top + height > window.innerHeight) top = Math.max(4, rect.top - height - 4);
+      left = Math.min(Math.max(4, left), Math.max(4, window.innerWidth - width - 4));
+      menu.style.left = left + 'px';
+      menu.style.top = top + 'px';
+      menu.style.visibility = '';
+    });
+
+    _audioMenuNode = menu;
+    _audioMenuDismiss = (ev) => {
+      if (_audioMenuNode && ev && ev.target && _audioMenuNode.contains(ev.target)) return;
+      closeAudioMenu();
+    };
+    document.addEventListener('pointerdown', _audioMenuDismiss, true);
+    window.addEventListener('scroll', _audioMenuDismiss, true);
+    window.addEventListener('resize', _audioMenuDismiss, true);
+  }
+
   function createAudioButton(expression, reading) {
     const audioBtn = document.createElement('button');
     audioBtn.className = 'word-audio-btn';
     audioBtn.innerHTML = ICONS.volume_up;
-    audioBtn.title = 'Play Word Audio';
+    audioBtn.title = 'Play Word Audio (long-press for source options)';
     audioBtn.dataset.expression = expression;
     audioBtn.dataset.reading = reading;
-    
-    audioBtn.onclick = (e) => {
-      e.stopPropagation();
-      if (typeof WordAudioBridge !== 'undefined') {
-        const callbackId = 'audio_' + Date.now();
-        audioBtn.classList.add('loading');
-        
-        window.DictionaryRenderer.onAudioResults = (id, results) => {
-          if (id !== callbackId) return;
-          audioBtn.classList.remove('loading');
-          
-          if (results && results.length > 0) {
-            WordAudioBridge.playAudio(results[0].url);
-          } else {
-            audioBtn.classList.add('error');
-            setTimeout(() => audioBtn.classList.remove('error'), 1000);
-          }
-        };
-        
-        WordAudioBridge.fetchAudio(expression, reading, callbackId);
+
+    let longPressTimer = null;
+    let longPressFired = false;
+    let startX = 0;
+    let startY = 0;
+    const cancelLongPress = () => {
+      if (longPressTimer) {
+        clearTimeout(longPressTimer);
+        longPressTimer = null;
       }
     };
+
+    const playDefault = () => {
+      audioBtn.classList.add('loading');
+      requestAudioCandidates(expression, reading, (payload) => {
+        audioBtn.classList.remove('loading');
+        const {candidates} = audioPayload(payload);
+        const first = candidates[0];
+        if (first && first.url) {
+          playAudioCandidate(first.url, audioBtn);
+        } else {
+          audioBtn.classList.add('error');
+          setTimeout(() => audioBtn.classList.remove('error'), 1000);
+        }
+      });
+    };
+
+    const openMenu = (ev) => {
+      if (ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+      }
+      audioBtn.classList.add('loading');
+      requestAudioCandidates(expression, reading, (payload) => {
+        audioBtn.classList.remove('loading');
+        showAudioMenu(audioBtn, payload);
+      });
+    };
+
+    audioBtn.onclick = (e) => {
+      e.stopPropagation();
+      if (longPressFired) {
+        longPressFired = false;
+        return;
+      }
+      playDefault();
+    };
+    // Right-click / mouse long-press, and Android long-press (which fires `contextmenu` on some
+    // WebView builds); the touch timer below covers the builds where it does not.
+    audioBtn.addEventListener('contextmenu', (e) => openMenu(e));
+    audioBtn.addEventListener('touchstart', (e) => {
+      if (e.touches.length !== 1) return;
+      longPressFired = false;
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      cancelLongPress();
+      longPressTimer = setTimeout(() => {
+        longPressTimer = null;
+        longPressFired = true;
+        openMenu(null);
+      }, 450);
+    }, { passive: true });
+    audioBtn.addEventListener('touchmove', (e) => {
+      if (!longPressTimer || !e.touches[0]) return;
+      const t = e.touches[0];
+      if (Math.abs(t.clientX - startX) > 12 || Math.abs(t.clientY - startY) > 12) cancelLongPress();
+    }, { passive: true });
+    audioBtn.addEventListener('touchend', cancelLongPress, { passive: true });
+    audioBtn.addEventListener('touchcancel', cancelLongPress, { passive: true });
+
     return audioBtn;
   }
 
@@ -2820,6 +3041,7 @@
       const root = document.documentElement;
       _wordAudioEnabled = payload.wordAudioEnabled !== false;
       _autoplayGuard = false;
+      closeAudioMenu();
       _selectedDictionaries = {};
       resetDictionaryMediaObserver();
       if (payload.ankiDupAction !== undefined) {
@@ -2992,6 +3214,7 @@
 
   function clear() {
     _autoplayGuard = false;
+    closeAudioMenu();
     clearRecursiveSelection();
     resetDictionaryMediaObserver();
     const container = document.getElementById('entries');
@@ -3130,7 +3353,13 @@
       }
     },
 
-    onAudioResults: (id, results) => { /* overriden by UI */ },
+    onAudioResults: (id, payload) => {
+      const handler = _audioCallbacks.get(id);
+      if (handler) {
+        _audioCallbacks.delete(id);
+        handler(payload);
+      }
+    },
   };
 
   // Scroll state guards for programmatic jumps.
