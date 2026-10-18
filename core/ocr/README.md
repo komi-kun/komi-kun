@@ -39,7 +39,7 @@ Chimahon's two parallel block types into one.
 | `cache/OcrCacheManager.kt` | per-page/per-chapter OCR result persistence (dir/CBZ sidecar/internal JSON) |
 | `cache/OcrManager.kt` | source policy + engine orchestration off page bytes, queue driving |
 | `cache/OcrJob.kt` | background queue runner (plain coroutine job; app wraps it for WorkManager) |
-| `OcrPreferences.kt` | OCR source/overlay/queue preferences (`PreferenceStore`) |
+| `OcrPreferences.kt` | OCR source/queue + engine-threshold preferences (`PreferenceStore`) |
 | `di/OcrBindings.kt` | Metro `@BindingContainer` registered in `AppGraph` |
 
 ## PaddleOCR artifact (integration point)

@@ -156,7 +156,7 @@ class OcrManager(
         pageIndex: Int,
         source: ReaderOcrSource,
     ): List<OcrTextBlock>? =
-        if (source.persistsOcrResults) cacheManager.load(key, pageIndex, source.persistentCacheVariant) else null
+        if (source.persistsOcrResults) cacheManager.load(key, pageIndex, cacheVariant(source)) else null
 
     /**
      * The persisted OCR cache key of one chapter. Built here (rather than inline at each call site)
@@ -196,7 +196,7 @@ class OcrManager(
     ): List<OcrTextBlock> {
         val blocks = recognizePage(bytes, language)
         if (source.persistsOcrResults && blocks.isNotEmpty()) {
-            cacheManager.save(key, pageIndex, blocks, language.bcp47, source.persistentCacheVariant)
+            cacheManager.save(key, pageIndex, blocks, language.bcp47, cacheVariant(source))
         }
         return blocks
     }
@@ -220,7 +220,7 @@ class OcrManager(
         stopRequested: () -> Boolean,
     ): OcrTaskResult {
         val chapterId = input.key.chapterId
-        val variant = input.source.persistentCacheVariant
+        val variant = cacheVariant(input.source)
         val provider = input.provider
 
         val pageCount = provider.pageCount
@@ -347,7 +347,7 @@ class OcrManager(
     // ---------------------------------------------------------------- internals
 
     private suspend fun retryFailedPages(input: ChapterOcrInput, pageCount: Int, onRecovered: () -> Unit) {
-        val variant = input.source.persistentCacheVariant
+        val variant = cacheVariant(input.source)
         for (pageIndex in 0 until pageCount) {
             if (input.source.persistsOcrResults && cacheManager.load(input.key, pageIndex, variant) != null) continue
             val bytes = try {
@@ -371,10 +371,24 @@ class OcrManager(
         if (!input.source.persistsOcrResults) return pageCount
         var cached = 0
         for (pageIndex in 0 until pageCount) {
-            if (cacheManager.load(input.key, pageIndex, input.source.persistentCacheVariant) != null) cached++
+            if (cacheManager.load(input.key, pageIndex, cacheVariant(input.source)) != null) cached++
         }
         return cached
     }
+
+    /**
+     * KUN -->
+     * The cache variant for [source], extended with a signature of the non-default engine
+     * thresholds so a threshold change invalidates the persisted pages instead of serving results
+     * the old thresholds produced. At the defaults the signature is empty and the variant is
+     * unchanged from before the tuning feature existed.
+     */
+    private fun cacheVariant(source: ReaderOcrSource): String? {
+        val base = source.persistentCacheVariant ?: return null
+        val signature = preferences.cacheSignature()
+        return if (signature.isEmpty()) base else "$base-$signature"
+    }
+    // KUN <--
 
     private suspend fun progress(chapterId: Long, pageIndex: Int, pageCount: Int) {
         updateTask(chapterId) { it.copy(currentPage = pageIndex + 1, totalPages = pageCount) }

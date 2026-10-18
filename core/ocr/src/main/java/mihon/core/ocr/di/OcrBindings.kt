@@ -36,7 +36,8 @@ object OcrBindings {
 
     @Provides
     @SingleIn(AppScope::class)
-    fun providesOcrEngine(context: Context): OcrEngine = PaddleOcrEngine(context)
+    fun providesOcrEngine(context: Context, preferences: OcrPreferences): OcrEngine =
+        PaddleOcrEngine(context, preferences)
 
     @Provides
     @SingleIn(AppScope::class)
