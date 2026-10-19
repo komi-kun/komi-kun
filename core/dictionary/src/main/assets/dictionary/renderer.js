@@ -2221,8 +2221,9 @@
       });
     };
 
+    audioBtn.playAudio = playDefault;
     audioBtn.onclick = (e) => {
-      e.stopPropagation();
+      if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
       if (longPressFired) {
         longPressFired = false;
         return;
@@ -3218,7 +3219,13 @@
         if (payload.wordAudioAutoplay && !_autoplayGuard) {
           _autoplayGuard = true;
           const firstBtn = container.querySelector('.word-audio-btn');
-          if (firstBtn) firstBtn.click();
+          if (firstBtn) {
+            if (typeof firstBtn.playAudio === 'function') {
+              firstBtn.playAudio();
+            } else {
+              firstBtn.click();
+            }
+          }
         }
       }
 
@@ -3279,6 +3286,7 @@
         }
         payload.results = results;
 
+        _autoplayGuard = false;
         _selectedDictionaries = {};
         if (payload.ankiDupAction !== undefined) {
           _lastAnkiDupAction = payload.ankiDupAction;

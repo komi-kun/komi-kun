@@ -46,6 +46,8 @@ object YomitanSettingsMapper {
     private val MODELED_AUDIO = setOf(
         "enabled",
         "autoPlay",
+        "autoplay",
+        "autoPlayAudio",
         "volume",
         "fallbackSoundType",
         "sources",
@@ -314,6 +316,9 @@ object YomitanSettingsMapper {
 
         val enabled = audio["enabled"].booleanOrNull()
         val autoPlay = audio["autoPlay"].booleanOrNull()
+            ?: audio["autoplay"].booleanOrNull()
+            ?: options?.get("general").asObjectOrNull()?.get("autoPlayAudio").booleanOrNull()
+            ?: options?.get("general").asObjectOrNull()?.get("autoPlay").booleanOrNull()
         val enableDefaultSources = audio["enableDefaultAudioSources"].booleanOrNull()
         val volume = audio["volume"].intOrNull()?.coerceIn(0, 100)
         val fallback = audio["fallbackSoundType"].stringOrNull()?.takeIf { it in AudioFallbackSound.ALL }

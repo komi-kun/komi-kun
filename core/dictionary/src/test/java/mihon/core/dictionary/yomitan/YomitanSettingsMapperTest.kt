@@ -237,6 +237,26 @@ class YomitanSettingsMapperTest {
     }
 
     @Test
+    fun `extracts autoplay from fallback keys when present`() {
+        val rawLowercase = """
+            {"version":0,"options":{"version":77,"profileCurrent":0,
+             "profiles":[{"name":"P","options":{"audio":{
+               "enabled":true,"autoplay":true,"sources":[]
+             }}}]}}
+        """.trimIndent()
+        imported(rawLowercase).audio.autoPlay shouldBe true
+
+        val rawGeneral = """
+            {"version":0,"options":{"version":77,"profileCurrent":0,
+             "profiles":[{"name":"P","options":{
+               "general":{"autoPlayAudio":true},
+               "audio":{"enabled":true,"sources":[]}
+             }}]}}
+        """.trimIndent()
+        imported(rawGeneral).audio.autoPlay shouldBe true
+    }
+
+    @Test
     fun `malformed and non-Yomitan files are rejected without crashing`() {
         (YomitanSettingsMapper.map("not json") is YomitanImportResult.Invalid) shouldBe true
         (YomitanSettingsMapper.map("""{"formatName":"dexie"}""") is YomitanImportResult.Invalid) shouldBe true
