@@ -45,7 +45,7 @@ import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.chapter.interactor.GetChapter
 import tachiyomi.domain.manga.interactor.GetManga
 import tachiyomi.domain.source.service.SourceManager
-import tachiyomi.i18n.kmk.KMR
+import tachiyomi.i18n.kun.KUNMR
 import java.util.zip.ZipInputStream
 
 /**
@@ -61,7 +61,7 @@ class OcrWorker(
 
     override suspend fun getForegroundInfo(): ForegroundInfo {
         val notification = applicationContext.notificationBuilder(Notifications.CHANNEL_OCR) {
-            setContentTitle(applicationContext.stringResource(KMR.strings.ocr_running))
+            setContentTitle(applicationContext.stringResource(KUNMR.strings.ocr_running))
             setSmallIcon(android.R.drawable.stat_sys_download_done)
             setOngoing(true)
         }.build()

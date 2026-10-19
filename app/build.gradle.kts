@@ -256,6 +256,9 @@ dependencies {
     // SY -->
     implementation(projects.i18nSy)
     // SY <--
+    // KUN -->
+    implementation(projects.i18nKun)
+    // KUN <--
     implementation(projects.icons.customMaterialSymbols)
     implementation(projects.icons.materialSymbols)
     implementation(projects.icons.simpleIcons)

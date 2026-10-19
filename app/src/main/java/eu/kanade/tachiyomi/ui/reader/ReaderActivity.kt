@@ -153,6 +153,7 @@ import tachiyomi.domain.manga.model.MangaCover
 import tachiyomi.domain.manga.model.asMangaCover
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
+import tachiyomi.i18n.kun.KUNMR
 import tachiyomi.i18n.sy.SYMR
 import tachiyomi.presentation.core.components.ActionButton
 import tachiyomi.presentation.core.util.collectAsState
@@ -607,7 +608,7 @@ class ReaderActivity : BaseActivity() {
                             verticalArrangement = Arrangement.spacedBy(16.dp),
                         ) {
                             Text(
-                                text = stringResource(KMR.strings.action_redo_ocr),
+                                text = stringResource(KUNMR.strings.action_redo_ocr),
                                 style = MaterialTheme.typography.titleMedium,
                             )
                             Row(
@@ -616,28 +617,28 @@ class ReaderActivity : BaseActivity() {
                             ) {
                                 ActionButton(
                                     modifier = Modifier.weight(1f),
-                                    title = stringResource(KMR.strings.action_redo_ocr_page),
+                                    title = stringResource(KUNMR.strings.action_redo_ocr_page),
                                     icon = MaterialSymbols.Rounded.Refresh,
                                     onClick = {
                                         onDismissRequest()
-                                        toast(stringResource(KMR.strings.ocr_redoing_page, page.index + 1))
+                                        toast(stringResource(KUNMR.strings.ocr_redoing_page, page.index + 1))
                                         readerOcrHost.redoOcr(page, chapter = false) {
                                             runOnUiThread {
-                                                toast(stringResource(KMR.strings.ocr_redo_page_complete, page.index + 1))
+                                                toast(stringResource(KUNMR.strings.ocr_redo_page_complete, page.index + 1))
                                             }
                                         }
                                     },
                                 )
                                 ActionButton(
                                     modifier = Modifier.weight(1f),
-                                    title = stringResource(KMR.strings.action_redo_ocr_chapter),
+                                    title = stringResource(KUNMR.strings.action_redo_ocr_chapter),
                                     icon = MaterialSymbols.Rounded.CollectionsBookmark,
                                     onClick = {
                                         onDismissRequest()
-                                        toast(stringResource(KMR.strings.ocr_redoing_chapter))
+                                        toast(stringResource(KUNMR.strings.ocr_redoing_chapter))
                                         readerOcrHost.redoOcr(page, chapter = true) {
                                             runOnUiThread {
-                                                toast(stringResource(KMR.strings.ocr_redo_chapter_complete))
+                                                toast(stringResource(KUNMR.strings.ocr_redo_chapter_complete))
                                             }
                                         }
                                     },
@@ -1437,7 +1438,7 @@ class ReaderActivity : BaseActivity() {
         if (currentPage != null) {
             viewModel.openRedoOcrDialog(currentPage)
         } else {
-            toast(KMR.strings.action_redo_ocr)
+            toast(KUNMR.strings.action_redo_ocr)
         }
     }
     // KUN <--

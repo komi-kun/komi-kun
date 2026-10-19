@@ -77,6 +77,9 @@ include(":flagkit")
 // SY -->
 include(":i18n-sy")
 // SY <--
+// KUN -->
+include(":i18n-kun")
+// KUN <--
 include(":icons:custom-material-symbols")
 include(":icons:material-symbols")
 include(":icons:simple-icons")

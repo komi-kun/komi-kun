@@ -11,7 +11,7 @@ Features: configurable reader, downloads/offline reading, trackers (MyAnimeList,
 | Mihon | none (base code) | `MR` (`i18n/`) |
 | TachiyomiSY | `// SY -->` … `// SY <--` (legacy `// EXH` blocks also come from SY) | `SYMR` (`i18n-sy/`) |
 | Komikku (this fork's base upstream) | `// KMK -->` … `// KMK <--` | `KMR` (`i18n-kmk/`) |
-| **komi-kun** (this repo) | `// KUN -->` … `// KUN <--` | `KMR` (`i18n-kmk/`) |
+| **komi-kun** (this repo) | `// KUN -->` … `// KUN <--` | `KUNMR` (`i18n-kun/`) |
 
 Markers record **divergence from upstream**, never upstream code itself: Mihon is the base (unmarked); `// KMK` / `// SY` mark code inherited from the Komikku / TachiyomiSY upstreams; `// KUN` marks this fork's own code.
 
@@ -62,22 +62,24 @@ Markers record **what diverges from upstream** — they never mark upstream code
 
 | String kind | Module | Resource class | Base folder only |
 |-------------|--------|----------------|------------------|
-| **komi-kun / Komikku** new features (library-update errors, WebDAV, Discord, etc.) | `i18n-kmk/` | **`KMR`** | `i18n-kmk/src/commonMain/moko-resources/base/` |
+| **komi-kun** new features (Yomitan, dictionaries, OCR, Anki, etc.) | `i18n-kun/` | **`KUNMR`** | `i18n-kun/src/commonMain/moko-resources/base/` |
+| Komikku upstream (library-update errors, WebDAV, Discord, etc.) | `i18n-kmk/` | `KMR` | `i18n-kmk/src/commonMain/moko-resources/base/` |
 | Mihon upstream | `i18n/` | `MR` | `i18n/src/commonMain/moko-resources/base/` |
 | TachiyomiSY upstream | `i18n-sy/` | `SYMR` | `i18n-sy/src/commonMain/moko-resources/base/` |
 
 **Hard rules:**
 
-- **All new strings go to `i18n-kmk/`** (`import tachiyomi.i18n.kmk.KMR`). `MR` / `SYMR` are upstream-owned; reuse existing entries, but only add or change them when syncing upstream.
+- **All new komi-kun strings go to `i18n-kun/`** (`import tachiyomi.i18n.kun.KUNMR`). `KMR`, `MR`, and `SYMR` are upstream-owned; reuse existing entries, but add new strings to `i18n-kun/` so upstream merges never conflict.
+- Translations in `i18n-kun/` can be added directly for supported locales. Upstream `i18n/`, `i18n-sy/`, and `i18n-kmk/` remain upstream-owned.
+- Inside a `// KUN` block, default to **`KUNMR`** even if nearby code imports `KMR` or `MR`.
 - **Weblate is not connected to this repo.** Translation content is maintained here, not generated: non-`base` locale files in `i18n-kmk/`, `i18n/`, and `i18n-sy/` are normal source files.
   - **Port upstream translation commits** (“Translations update from Hosted Weblate” from Mihon/TachiyomiSY/Komikku) like any other upstream commit. Never skip them or mark them `X` — they are the only source of refreshed translations.
   - **Translate new strings yourself**: when you add a `base` string, add its translation to the non-`base` locales you can translate confidently (missing keys fall back to the base language, so skipping a locale is safe). Do this as part of the feature, not as a follow-up.
   - Hand-edit an existing translation only to fix an obvious error.
-- Inside a `// KUN` block (or Komikku's own `// KMK` behavior), default to **`KMR`** even if nearby code imports `MR`.
 
 **Porting translation commits:** upstream locale files and this fork's have diverged in both directions (the fork still has Komikku-era keys that Mihon removed, and is missing newer upstream keys). Resolve conflicts per file by keeping upstream's values for the keys it has, dropping entries whose string no longer exists in the module's `base/`, and re-appending fork-only entries that still exist in `base/` — `scripts/resolve_i18n_union.py` in the `upstream-port` skill automates this. Never drop a translation for a string that still exists in `base/`. Validate that the XML is well-formed and that no key from the fork's `base` lost its translation.
 
-**Examples (→ `i18n-kmk`, not `i18n`):** library update error UI, sync-before-update messages, WebDAV/Discord settings, updater notifications, `mihon/feature/*` screens.
+**Examples (→ `i18n-kun`, not `i18n-kmk` or `i18n`):** dictionary settings & management, OCR settings/actions, AnkiDroid integration, Yomitan backup import.
 
 **Self-check before finishing:** `git diff` must not hand-add `<string name="…">` / `<plurals name="…">` entries under non-`base` locales, **except** translations that accompany a new base string or a ported upstream translation commit. New base strings should ship with translations where you can provide them.
 
@@ -128,7 +130,7 @@ Version catalogs in `gradle/`: `libs.versions.toml`, `kotlinx.versions.toml`, `a
 | `source-api/` / `source-local/` | Extension `Source` API + local source |
 | `presentation-core/` | Shared Compose components |
 | `presentation-widget/` | Home-screen Glance widget |
-| `i18n/` / `i18n-sy/` / `i18n-kmk/` | Strings → `MR` / `SYMR` / `KMR` (see [Internationalization](#internationalization-strings)) |
+| `i18n/` / `i18n-sy/` / `i18n-kmk/` / `i18n-kun/` | Strings → `MR` / `SYMR` / `KMR` / `KUNMR` (see [Internationalization](#internationalization-strings)) |
 | `flagkit/` | Country-flag drawables |
 | `icons:material-symbols/`, `icons:custom-material-symbols/`, `icons:simple-icons/` | Generated icon packs (`MaterialSymbols`, custom Material Symbols, Simple Icons) |
 | `icons-sy/` | Generated icon packs for TachiyomiSY sources (`SYMaterialSymbols`, `SYCustomMaterialSymbols`, `SYBrands`) — kept as SY ships them so upstream code needs no import rewrite |
@@ -242,7 +244,7 @@ komi-kun's own code is Apache-2.0, but the Yomitan/dictionary/OCR port adds two 
 
 1. **Interactor:** `domain/src/main/java/tachiyomi/domain/<area>/interactor/MyFeature.kt`, annotated `@Inject` (Metro resolves it; add a `@Provides` / `@Binds` to `mihon/app/di/AppBindings.kt` — or a feature `@BindingContainer`, as the GPL dictionary/OCR modules do — only if it needs manual wiring)
 2. **UI:** Metro ViewModel + `Screen` under `app/src/main/java/eu/kanade/tachiyomi/ui/` (see [Architecture](#architecture))
-3. **Strings:** `i18n-kmk/src/commonMain/moko-resources/base/strings.xml`, referenced via `KMR`
+3. **Strings:** `i18n-kun/src/commonMain/moko-resources/base/strings.xml`, referenced via `KUNMR`
 4. **Markers:** wrap edits to existing files in `// KUN -->` / `// KUN <--`
 5. **Backup/sync fields:** new `@ProtoNumber`s must use the fork-reserved `10000-10999` block (see [Backup protobuf field numbers](#backup-protobuf-field-numbers)); never take an upstream number.
 
