@@ -222,17 +222,19 @@ private fun isCombiningMark(codePoint: Int): Boolean = when (Character.getType(c
 /**
  * True when a glyph should be set sideways (rotated 90° clockwise) inside its vertical cell.
  *
- * Kana, kanji and CJK punctuation (。、) stay **upright**; printable ASCII — Latin letters, digits and
- * ASCII punctuation — is rotated, the traditional way Latin runs appear inside tategaki. Full-width
- * digits (０-９) are CJK-width, so they stay upright. ASCII never forces the whole run back to a
- * rotated-horizontal line: only the individual Latin glyph turns.
+ * Kana, kanji, digits (0-9, ０-９) and CJK punctuation (。、) stay **upright**; printable ASCII Latin
+ * letters and symbols are rotated, the traditional way Latin runs appear inside tategaki. Full-width
+ * and ASCII digits are set upright to match the printed artwork (e.g. "２年目春").
+ * ASCII never forces the whole run back to a rotated-horizontal line: only the individual Latin glyph turns.
  *
  * The CJK marks in [VERTICAL_ROTATED_MARKS] rotate too: their vertical form *is* the horizontal
  * glyph turned 90° clockwise. The printed page shows ー as a vertical stroke and 「 as a top-right
  * corner, so leaving them upright (the horizontal glyph) visibly mismatches the artwork.
  */
 internal fun isRotatedInVertical(text: String): Boolean =
-    text.isNotEmpty() && text.all { it in '!'..'~' || it in VERTICAL_ROTATED_MARKS }
+    text.isNotEmpty() &&
+        text.none { it in '0'..'9' || it in '\uFF10'..'\uFF19' } &&
+        text.all { it in '!'..'~' || it in VERTICAL_ROTATED_MARKS }
 
 /**
  * CJK punctuation and marks whose tategaki form is the horizontal glyph rotated 90° clockwise:
