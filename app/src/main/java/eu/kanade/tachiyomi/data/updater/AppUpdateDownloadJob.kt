@@ -35,18 +35,20 @@ import eu.kanade.tachiyomi.util.system.toast
 import eu.kanade.tachiyomi.util.system.workManager
 import exh.log.xLogE
 import exh.source.ExhPreferences
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import mihon.app.di.AppGraph
 import mihon.app.di.appGraph
+import mihon.core.metro.AppCoroutineScope
 import mihon.core.metro.metroGraph
 import okhttp3.internal.http2.ErrorCode
 import okhttp3.internal.http2.StreamResetException
 import tachiyomi.core.common.i18n.stringResource
-import tachiyomi.core.common.util.lang.launchUI
 import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.domain.release.service.AppUpdatePolicy
 import tachiyomi.i18n.MR
@@ -69,6 +71,13 @@ class AppUpdateDownloadJob(private val context: Context, workerParams: WorkerPar
     // KMK -->
     @Inject private lateinit var exhPreferences: ExhPreferences
     // KMK <--
+
+    // KUN -->
+    // Use the application scope for the post-install check instead of the deprecated GlobalScope
+    // helpers (launchUI was marked @DelicateCoroutinesApi).
+    @Inject @AppCoroutineScope
+    private lateinit var appScope: CoroutineScope
+    // KUN <--
 
     override suspend fun doWork(): Result {
         graph.inject(this)
@@ -258,7 +267,8 @@ class AppUpdateDownloadJob(private val context: Context, workerParams: WorkerPar
             withContext(Dispatchers.IO) {
                 data.close()
             }
-            launchUI {
+            // KUN --> was launchUI (GlobalScope); use the application scope instead.
+            appScope.launch(Dispatchers.Main) {
                 delay(1000)
                 val hasNotification = context.notificationManager
                     .activeNotifications.any { it.id == Notifications.ID_APP_INSTALL }
@@ -269,6 +279,7 @@ class AppUpdateDownloadJob(private val context: Context, workerParams: WorkerPar
                     notifier.promptInstall(file.getUriCompat(context))
                 }
             }
+            // KUN <--
         } catch (error: Exception) {
             // Either install package can't be found (probably bots) or there's a security exception
             // with the download manager. Nothing we can workaround.

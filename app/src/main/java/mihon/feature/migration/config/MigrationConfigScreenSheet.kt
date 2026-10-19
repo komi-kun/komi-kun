@@ -231,6 +231,10 @@ private fun MigrationSheetSwitchItem(
     )
 }
 
+// KUN -->
+// Ported from Mihon dfed97edc8 ("Address compose and xmlutil deprecations"): ListItem's
+// headlineContent parameter is deprecated in favour of the trailing content overload.
+// KUN <--
 @Composable
 private fun MigrationSheetSwitchItem(
     title: String,
@@ -239,16 +243,16 @@ private fun MigrationSheetSwitchItem(
     onClick: () -> Unit,
 ) {
     ListItem(
-        headlineContent = { Text(text = title) },
-        supportingContent = subtitle?.let { { Text(text = subtitle) } },
+        modifier = Modifier.clickable(onClick = onClick),
         trailingContent = {
             Switch(
                 checked = checked,
                 onCheckedChange = null,
             )
         },
+        supportingContent = subtitle?.let { { Text(text = subtitle) } },
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-        modifier = Modifier.clickable(onClick = onClick),
+        content = { Text(text = title) },
     )
 }
 
@@ -269,12 +273,12 @@ private fun MigrationSheetWarningItem(
                 tint = MaterialTheme.colorScheme.active,
             )
         },
-        headlineContent = {
-            Text(
-                text = text,
-                color = MaterialTheme.colorScheme.error,
-            )
-        },
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-    )
+    ) {
+        Text(
+            text = text,
+            color = MaterialTheme.colorScheme.error,
+            modifier = Modifier,
+        )
+    }
 }

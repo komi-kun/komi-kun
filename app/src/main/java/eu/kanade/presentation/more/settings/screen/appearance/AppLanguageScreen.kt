@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -74,15 +75,13 @@ class AppLanguageScreen : Screen() {
                 modifier = Modifier.padding(contentPadding),
             ) {
                 items(langs) {
+                    // KUN -->
+                    // Ported from Mihon dfed97edc8 ("Address compose and xmlutil deprecations"):
+                    // use the ListItem overload with a trailing content lambda.
+                    // KUN <--
                     ListItem(
                         modifier = Modifier.clickable {
                             currentLanguage = it.langTag
-                        },
-                        headlineContent = { Text(it.displayName) },
-                        supportingContent = {
-                            it.localizedDisplayName?.let {
-                                Text(it)
-                            }
                         },
                         // KMK -->
                         leadingContent = {
@@ -106,6 +105,12 @@ class AppLanguageScreen : Screen() {
                                 )
                             }
                         },
+                        supportingContent = {
+                            it.localizedDisplayName?.let {
+                                Text(it)
+                            }
+                        },
+                        content = { Text(it.displayName) },
                     )
                 }
             }

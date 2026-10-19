@@ -352,6 +352,10 @@ class MigrationConfigScreen(private val mangaIds: Collection<Long>) : Screen() {
         }
     }
 
+    // KUN -->
+    // Ported from Mihon dfed97edc8 ("Address compose and xmlutil deprecations"): ListItem's
+    // headlineContent parameter is deprecated in favour of the trailing content overload.
+    // KUN <--
     @Composable
     private fun SourceItem(
         source: MigrationSource,
@@ -361,29 +365,7 @@ class MigrationConfigScreen(private val mangaIds: Collection<Long>) : Screen() {
         onClick: () -> Unit,
     ) {
         ListItem(
-            headlineContent = {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    SourceIcon(source = source.source)
-                    Text(
-                        text = source.name,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.weight(1f),
-                    )
-                    if (showLanguage) {
-                        Pill(
-                            // KMK -->
-                            text = FlagEmoji.getEmojiLangFlag(source.shortLanguage) + " (${source.upperShortLanguage})",
-                            // KMK <--
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
-                }
-            },
+            modifier = Modifier.clickable(onClick = onClick),
             trailingContent = if (dragEnabled) {
                 {
                     Icon(
@@ -397,11 +379,31 @@ class MigrationConfigScreen(private val mangaIds: Collection<Long>) : Screen() {
             } else {
                 null
             },
-            colors = ListItemDefaults.colors(
-                containerColor = Color.Transparent,
-            ),
-            modifier = Modifier.clickable(onClick = onClick),
-        )
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                SourceIcon(source = source.source)
+                Text(
+                    text = source.name,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                if (showLanguage) {
+                    Pill(
+                        // KUN -->
+                        // Ported from Mihon dfed97edc8; keep the fork's KMK flag emoji text.
+                        text = FlagEmoji.getEmojiLangFlag(source.shortLanguage) + " (${source.upperShortLanguage})",
+                        // KUN <--
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
+        }
     }
 
     @Inject
