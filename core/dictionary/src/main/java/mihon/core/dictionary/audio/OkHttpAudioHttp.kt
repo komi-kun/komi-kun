@@ -12,7 +12,7 @@ import okhttp3.Request
 import java.util.concurrent.TimeUnit
 
 class OkHttpAudioHttp(
-    private val client: OkHttpClient = defaultClient(),
+    private val client: OkHttpClient = sharedClient,
 ) : AudioHttp {
 
     override suspend fun get(url: String): AudioHttpResponse = withContext(Dispatchers.IO) {
@@ -49,11 +49,17 @@ class OkHttpAudioHttp(
     }
 
     companion object {
-        private fun defaultClient(): OkHttpClient = OkHttpClient.Builder()
-            .connectTimeout(5, TimeUnit.SECONDS)
-            .readTimeout(10, TimeUnit.SECONDS)
-            .callTimeout(15, TimeUnit.SECONDS)
-            .build()
+        val sharedClient: OkHttpClient by lazy {
+            OkHttpClient.Builder()
+                .connectTimeout(5, TimeUnit.SECONDS)
+                .readTimeout(10, TimeUnit.SECONDS)
+                .callTimeout(15, TimeUnit.SECONDS)
+                .followRedirects(true)
+                .followSslRedirects(true)
+                .build()
+        }
+
+        private fun defaultClient(): OkHttpClient = sharedClient
     }
 }
 // KUN <--

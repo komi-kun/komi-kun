@@ -17,11 +17,16 @@
 //  * `text-to-speech*`   — Synthetic TTS URLs for native speech playback.
 package mihon.core.dictionary.audio
 
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import java.net.URLEncoder
+import java.util.Collections
+import java.util.LinkedHashMap
 
 class AudioResolver(
     private val http: AudioHttp,
@@ -32,6 +37,14 @@ class AudioResolver(
         isLenient = true
         explicitNulls = false
     }
+
+    private val resolutionCache = Collections.synchronizedMap(
+        object : LinkedHashMap<String, AudioResolution>(64, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, AudioResolution>?): Boolean {
+                return size > 256
+            }
+        },
+    )
 
     /**
      * Candidate URLs for [sources], in priority order. When [enableDefaultSources] is set, the
@@ -59,20 +72,33 @@ class AudioResolver(
         languageIso: String,
         enableDefaultSources: Boolean,
     ): AudioResolution {
+        val cacheKey = "$languageIso\n$term\n$reading\n${sources.hashCode()}\n$enableDefaultSources"
+        resolutionCache[cacheKey]?.let { return it }
+
         val effective = effectiveSources(sources, languageIso, enableDefaultSources)
 
         val seen = HashSet<String>()
         val out = ArrayList<AudioCandidate>()
-        effective.forEachIndexed { index, source ->
+
+        val candidateLists = coroutineScope {
+            effective.map { source ->
+                async { candidatesFor(source, term, reading, languageIso) }
+            }.awaitAll()
+        }
+
+        candidateLists.forEachIndexed { index, candidates ->
+            val source = effective[index]
             val label = AudioSourceTypes.displayName(source.type)
-            for (candidate in candidatesFor(source, term, reading, languageIso)) {
+            for (candidate in candidates) {
                 if (candidate.url.isBlank()) continue
                 if (seen.add(candidate.url)) {
                     out += candidate.copy(sourceIndex = index, sourceLabel = label)
                 }
             }
         }
-        return AudioResolution(sources = effective, candidates = out)
+        val resolution = AudioResolution(sources = effective, candidates = out)
+        resolutionCache[cacheKey] = resolution
+        return resolution
     }
 
     /**
