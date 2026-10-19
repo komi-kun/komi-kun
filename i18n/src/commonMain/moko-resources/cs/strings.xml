@@ -821,7 +821,7 @@
     <string name="storage_failed_to_create_download_directory">Nepodařilo se vytvořit adresář pro stahování</string>
     <string name="storage_failed_to_create_directory">Nepodařilo se vytvořit adresář: %s</string>
     <string name="clear_database_text">Chystáte se odstranit položky z databáze</string>
-    <string name="clear_db_exclude_read">Ponechat položky s přečtenými kapitolami</string>
+    <string name="clear_db_exclude_read">Zachovat záznamy o přečtených kapitolách</string>
     <string name="theme_catppuccin">Catppuccin</string>
     <string name="pref_hide_missing_chapter_indicators">Skrýt indikátory chybějících kapitol</string>
     <string name="pref_disallow_non_ascii_filenames">Nepovolovat soubory s non-ASCII znaky</string>

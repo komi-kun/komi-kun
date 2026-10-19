@@ -98,9 +98,9 @@
     <string name="white_background">Branco</string>
     <string name="black_background">Preto</string>
     <string name="pref_viewer_type">Modo de leitura padrão</string>
-    <string name="left_to_right_viewer">Paginado (esquerda para direita)</string>
-    <string name="right_to_left_viewer">Paginado (direita para esquerda)</string>
-    <string name="vertical_viewer">Paginado (vertical)</string>
+    <string name="left_to_right_viewer">Paginado (Esquerda para direita)</string>
+    <string name="right_to_left_viewer">Paginado (Direita para esquerda)</string>
+    <string name="vertical_viewer">Paginado (Vertical)</string>
     <string name="webtoon_viewer">Tira longa</string>
     <string name="pref_image_scale_type">Tipo de escala</string>
     <string name="scale_type_fit_screen">Ajustar à tela</string>
@@ -797,7 +797,7 @@
     <string name="pref_auto_update_manga_on_mark_read">Atualizar progresso quando marcado como lido</string>
     <string name="remove_private_extension_message">Você realmente deseja remover a extensão \"%s\"?</string>
     <string name="export">Exportar</string>
-    <string name="pref_incognito_mode_extension_summary">Pausar histórico de leitura para extensão</string>
+    <string name="pref_incognito_mode_extension_summary">Pausa o histórico de leitura para a extensão</string>
     <string name="trackers_updated_summary">Rastreadores atualizados para o capítulo %d</string>
     <string name="tracked_privately">Rastreado de forma privada</string>
     <string name="action_toggle_private_on">Rastrear privadamente</string>
