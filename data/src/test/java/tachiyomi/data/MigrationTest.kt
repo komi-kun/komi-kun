@@ -49,6 +49,11 @@ class MigrationTest {
                 // SyncYomi triggers survive
                 driver.triggerExists("update_last_modified_at_mangas") shouldBe true
                 driver.triggerExists("update_manga_version") shouldBe true
+                val versionTrigger = driver.scalarString(
+                    "SELECT sql FROM sqlite_master WHERE type = 'trigger' AND name = 'update_manga_version'",
+                )
+                versionTrigger?.contains("remote_cover") shouldBe false
+                versionTrigger?.contains("new.is_syncing = 0") shouldBe true
                 driver.triggerExists("update_last_modified_at_chapters") shouldBe true
                 driver.triggerExists("update_chapter_and_manga_version") shouldBe true
                 driver.triggerExists("update_category_version") shouldBe true
@@ -167,32 +172,6 @@ class MigrationTest {
                 // An unrelated update keeps the version unchanged.
                 driver.execute(null, "UPDATE manga SET remote_title = 'renamed' WHERE id = 1", 0).await()
                 (driver.scalarLong("SELECT version FROM manga WHERE id = 1") ?: 0) shouldBe 5
-            } finally {
-                driver.close()
-            }
-        }
-    }
-
-    @Test
-    fun `migration from version 55 restores the cover-free version trigger`() {
-        runBlocking {
-            val dbFile = Files.createTempFile("komikku-trigger-repair-test", ".db")
-            Files.copy(Path.of("src/main/sqldelight/55.db"), dbFile, REPLACE_EXISTING)
-            val driver = JdbcSqliteDriver("jdbc:sqlite:$dbFile")
-            try {
-                // 55.db is the snapshot after 54.sqm, whose trigger still reacts to remote_cover.
-                val before = driver.scalarString(
-                    "SELECT sql FROM sqlite_master WHERE type = 'trigger' AND name = 'update_manga_version'",
-                )
-                before?.contains("remote_cover") shouldBe true
-
-                Database.Schema.migrate(driver, 55L, Database.Schema.version).await()
-
-                val after = driver.scalarString(
-                    "SELECT sql FROM sqlite_master WHERE type = 'trigger' AND name = 'update_manga_version'",
-                )
-                after?.contains("remote_cover") shouldBe false
-                after?.contains("new.is_syncing = 0") shouldBe true
             } finally {
                 driver.close()
             }
