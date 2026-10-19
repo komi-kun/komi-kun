@@ -128,7 +128,6 @@ import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.source.local.image.LocalCoverManager
 import tachiyomi.source.local.isLocal
-import java.util.Locale
 import kotlin.getValue
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
@@ -603,9 +602,6 @@ class ReaderViewModel(
                 manga = mangaList[it.chapter.mangaId] ?: manga,
                 // KMK <--
                 isCurrent = it.chapter.id == currentChapter?.chapter?.id,
-                // KUN -->
-                dateFormat = UiPreferences.dateFormat(uiPreferences.dateFormat.get(), Locale.getDefault()),
-                // KUN <--
             )
         }
     }
