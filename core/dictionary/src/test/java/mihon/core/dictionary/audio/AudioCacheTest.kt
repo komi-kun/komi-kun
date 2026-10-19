@@ -2,11 +2,9 @@
 // KUN -->
 package mihon.core.dictionary.audio
 
-import android.content.Context
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
-import io.mockk.every
-import io.mockk.mockk
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
@@ -16,90 +14,112 @@ class AudioCacheTest {
     @TempDir
     lateinit var tempDir: File
 
-    @Test
-    fun `sha256 produces consistent hex string`() {
-        val hash = AudioCache.sha256("https://example.com/audio.mp3")
-        hash shouldBe AudioCache.sha256("https://example.com/audio.mp3")
-        hash.length shouldBe 64
+    @BeforeEach
+    fun setUp() {
+        AudioCache.clear()
+        AudioCache.setMaxMemoryBytes(AudioCache.DEFAULT_MAX_MEMORY_BYTES)
     }
 
     @Test
-    fun `getCachedFile returns null for blank or tts url`() {
-        val ctx = mockk<Context>()
-        every { ctx.cacheDir } returns tempDir
-
-        AudioCache.getCachedFile(ctx, "") shouldBe null
-        AudioCache.getCachedFile(ctx, "tts:something") shouldBe null
-        AudioCache.getCachedFile(null, "https://example.com/audio.mp3") shouldBe null
+    fun `get returns null for blank or tts url`() {
+        AudioCache.get("") shouldBe null
+        AudioCache.get("   ") shouldBe null
+        AudioCache.get("tts:something") shouldBe null
+        AudioCache.get("tts://speak?text=hi") shouldBe null
     }
 
     @Test
-    fun `getCachedFile returns file when it exists and is non-empty`() {
-        val ctx = mockk<Context>()
-        every { ctx.cacheDir } returns tempDir
+    fun `get returns null on cache miss`() {
+        AudioCache.get("https://example.com/audio.mp3") shouldBe null
+    }
 
+    @Test
+    fun `put and get stores and retrieves bytes in memory`() {
         val url = "https://example.com/audio.mp3"
-        val cacheDir = AudioCache.getCacheDir(ctx)
-        val file = File(cacheDir, "${AudioCache.sha256(url)}.mp3")
-        file.writeBytes(ByteArray(1024) { 1 })
+        val bytes = ByteArray(1024) { it.toByte() }
 
-        val cached = AudioCache.getCachedFile(ctx, url)
+        AudioCache.put(url, bytes)
+
+        val cached = AudioCache.get(url)
         cached shouldNotBe null
-        cached?.absolutePath shouldBe file.absolutePath
+        cached shouldBe bytes
+        AudioCache.sizeBytes() shouldBe 1024L
+        AudioCache.count() shouldBe 1
     }
 
     @Test
-    fun `getCachedFile rejects jpod dummy audio`() {
-        val ctx = mockk<Context>()
-        every { ctx.cacheDir } returns tempDir
+    fun `put rejects jpod dummy audio`() {
+        val url = "https://example.com/dummy.mp3"
+        val dummyBytes = ByteArray(AudioCache.JPOD_DUMMY_AUDIO_BYTES) { 0 }
 
-        val url = "https://example.com/audio.mp3"
-        val cacheDir = AudioCache.getCacheDir(ctx)
-        val file = File(cacheDir, "${AudioCache.sha256(url)}.mp3")
-        file.writeBytes(ByteArray(AudioCache.JPOD_DUMMY_AUDIO_BYTES.toInt()) { 0 })
+        AudioCache.put(url, dummyBytes)
 
-        AudioCache.getCachedFile(ctx, url) shouldBe null
+        AudioCache.get(url) shouldBe null
+        AudioCache.count() shouldBe 0
     }
 
     @Test
-    fun `getCachedFile rejects empty file`() {
-        val ctx = mockk<Context>()
-        every { ctx.cacheDir } returns tempDir
+    fun `put rejects empty byte array`() {
+        val url = "https://example.com/empty.mp3"
+        AudioCache.put(url, byteArrayOf())
 
-        val url = "https://example.com/audio.mp3"
-        val cacheDir = AudioCache.getCacheDir(ctx)
-        val file = File(cacheDir, "${AudioCache.sha256(url)}.mp3")
-        file.createNewFile()
-
-        AudioCache.getCachedFile(ctx, url) shouldBe null
+        AudioCache.get(url) shouldBe null
+        AudioCache.count() shouldBe 0
     }
 
     @Test
-    fun `pruneIfNeeded deletes oldest files when cache exceeds maxBytes`() {
-        val ctx = mockk<Context>()
-        every { ctx.cacheDir } returns tempDir
-        val cacheDir = AudioCache.getCacheDir(ctx)
+    fun `LRU eviction drops oldest unaccessed entry when exceeding max memory`() {
+        AudioCache.setMaxMemoryBytes(250L)
 
-        val file1 = File(cacheDir, "oldest.mp3").apply {
-            writeBytes(ByteArray(100) { 1 })
-            setLastModified(1000L)
-        }
-        val file2 = File(cacheDir, "middle.mp3").apply {
-            writeBytes(ByteArray(100) { 2 })
-            setLastModified(2000L)
-        }
-        val file3 = File(cacheDir, "newest.mp3").apply {
-            writeBytes(ByteArray(100) { 3 })
-            setLastModified(3000L)
-        }
+        val bytes1 = ByteArray(100) { 1 }
+        val bytes2 = ByteArray(100) { 2 }
+        val bytes3 = ByteArray(100) { 3 }
 
-        // Total size = 300 bytes. maxBytes = 250, targetBytes = 150
-        AudioCache.pruneIfNeeded(cacheDir, maxBytes = 250, targetBytes = 150)
+        AudioCache.put("url1", bytes1)
+        AudioCache.put("url2", bytes2)
+        AudioCache.put("url3", bytes3)
 
-        // file1 (oldest) and file2 (middle) should be deleted, leaving total <= 150
-        file1.exists() shouldBe false
-        file2.exists() shouldBe false
-        file3.exists() shouldBe true
+        // 300 bytes total > 250 bytes max -> url1 (oldest) should be evicted
+        AudioCache.get("url1") shouldBe null
+        AudioCache.get("url2") shouldBe bytes2
+        AudioCache.get("url3") shouldBe bytes3
+        AudioCache.sizeBytes() shouldBe 200L
+        AudioCache.count() shouldBe 2
+    }
+
+    @Test
+    fun `accessing an entry refreshes its LRU position`() {
+        AudioCache.setMaxMemoryBytes(250L)
+
+        val bytes1 = ByteArray(100) { 1 }
+        val bytes2 = ByteArray(100) { 2 }
+        val bytes3 = ByteArray(100) { 3 }
+
+        AudioCache.put("url1", bytes1)
+        AudioCache.put("url2", bytes2)
+
+        // Access url1 so it becomes newer than url2
+        AudioCache.get("url1") shouldBe bytes1
+
+        // Add url3 -> total 300 > 250 -> url2 (least recently used) should be evicted!
+        AudioCache.put("url3", bytes3)
+
+        AudioCache.get("url1") shouldBe bytes1
+        AudioCache.get("url2") shouldBe null
+        AudioCache.get("url3") shouldBe bytes3
+    }
+
+    @Test
+    fun `purgeLegacyDiskCache cleans up old word_audio directory`() {
+        val legacyDir = File(tempDir, "word_audio").apply { mkdirs() }
+        val dummyFile = File(legacyDir, "old.mp3").apply { writeText("old") }
+
+        legacyDir.exists() shouldBe true
+        dummyFile.exists() shouldBe true
+
+        AudioCache.purgeLegacyDiskCache(tempDir)
+
+        legacyDir.exists() shouldBe false
     }
 }
 // KUN <--
