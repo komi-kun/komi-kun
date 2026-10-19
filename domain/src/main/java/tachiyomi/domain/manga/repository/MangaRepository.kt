@@ -56,9 +56,11 @@ interface MangaRepository {
     // KUN -->
     /**
      * Updates only the source-owned cover URL of [mangaId], leaving every other field untouched.
-     * The write only succeeds while the entry still points at [staleUrl]. The SyncYomi triggers
-     * stamp `last_modified_at` and bump `version`, so the new URL is uploaded and wins
-     * version-based reconciliation on other devices.
+     * The write only succeeds while the entry still points at [staleUrl] and no sync is applying
+     * (`is_syncing = 0`); otherwise it fails so the recovery can be retried after sync. It bumps
+     * `version` explicitly, since routine cover-only changes no longer do; the SyncYomi triggers
+     * still stamp `last_modified_at`, so the new URL is uploaded and wins version-based
+     * reconciliation on other devices.
      */
     suspend fun updateCover(mangaId: Long, staleUrl: String, thumbnailUrl: String): Boolean
     // KUN <--

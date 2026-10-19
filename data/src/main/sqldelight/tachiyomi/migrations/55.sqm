@@ -1,0 +1,20 @@
+-- KUN -->
+-- Supersedes 54.sqm: routine cover URL churn (CDN rotation) must not bump the whole-row sync
+-- version, because that inflates versions and can overwrite genuine edits on other devices.
+-- Stale-cover recovery now bumps `version` explicitly in `updateCover`, which also fails while
+-- `is_syncing != 0` so it can be retried after sync.
+--
+-- 54.sqm remains the historical step for databases that already applied it; this migration is a
+-- no-op re-definition for fresh installs and brings migrated databases to the final condition.
+DROP TRIGGER IF EXISTS update_manga_version;
+
+CREATE TRIGGER update_manga_version AFTER UPDATE ON manga
+BEGIN
+    UPDATE manga SET version = version + 1
+    WHERE id = new.id AND new.is_syncing = 0 AND (
+        new.remote_url != old.remote_url OR
+        new.remote_description != old.remote_description OR
+        new.user_favorite_at IS NOT old.user_favorite_at
+    );
+END;
+-- KUN <--

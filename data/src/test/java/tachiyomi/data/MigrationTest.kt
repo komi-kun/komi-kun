@@ -7,6 +7,7 @@ import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Test
+import tachiyomi.data.manga.MangaRepositoryImpl
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption.REPLACE_EXISTING
@@ -143,13 +144,24 @@ class MigrationTest {
                     (driver.scalarLong("SELECT strftime('%s', 'now')") ?: 0)
                 (driver.scalarLong("SELECT version FROM manga WHERE id = 1") ?: 0) shouldBe 4
 
-                // A cover-only change must bump version too, otherwise sync peers keep the
-                // local row on a version tie and never apply the new URL. The local Coil
-                // timestamp must stay untouched.
+                // A raw cover-only change must NOT bump version: routine CDN URL churn would
+                // otherwise inflate versions and overwrite genuine edits on other devices.
                 val coverLastModifiedBefore =
                     driver.scalarLong("SELECT state_cover_last_modified FROM manga WHERE id = 1")
                 driver.execute(null, "UPDATE manga SET remote_cover = 'https://new-cover' WHERE id = 1", 0).await()
+                (driver.scalarLong("SELECT version FROM manga WHERE id = 1") ?: 0) shouldBe 4
+                driver.scalarLong("SELECT state_cover_last_modified FROM manga WHERE id = 1") shouldBe
+                    coverLastModifiedBefore
+
+                // The stale-cover recovery path bumps version explicitly exactly once, so the new
+                // URL still wins version-based reconciliation, while the local Coil timestamp
+                // stays untouched.
+                val currentCover = driver.scalarString("SELECT remote_cover FROM manga WHERE id = 1")!!
+                MangaRepositoryImpl(DatabaseBindings.providesDatabase(driver))
+                    .updateCover(1, currentCover, "https://recovered-cover") shouldBe true
                 (driver.scalarLong("SELECT version FROM manga WHERE id = 1") ?: 0) shouldBe 5
+                driver.scalarString("SELECT remote_cover FROM manga WHERE id = 1") shouldBe
+                    "https://recovered-cover"
                 driver.scalarLong("SELECT state_cover_last_modified FROM manga WHERE id = 1") shouldBe
                     coverLastModifiedBefore
 
@@ -214,6 +226,11 @@ class MigrationTest {
     private fun SqlDriver.scalarLong(sql: String): Long? =
         executeQuery(null, sql, { cursor ->
             QueryResult.Value(if (cursor.next().value) cursor.getLong(0) else null)
+        }, 0).value
+
+    private fun SqlDriver.scalarString(sql: String): String? =
+        executeQuery(null, sql, { cursor ->
+            QueryResult.Value(if (cursor.next().value) cursor.getString(0) else null)
         }, 0).value
 
     private fun SqlDriver.columnCount(table: String, column: String): Long =

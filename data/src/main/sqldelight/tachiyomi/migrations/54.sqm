@@ -1,7 +1,12 @@
+-- KUN -->
 -- SyncYomi reconciles manga by `version` (SyncService/merge and RestoreRepositoryImpl) and
 -- `SyncManager.isMangaDifferent` does not compare the cover URL. A cover-only change used to
 -- leave `version` (and therefore the winner of a merge tie) unchanged, so the new URL was
 -- uploaded but silently discarded on other devices. Include `remote_cover` in the version bump.
+--
+-- Historical step: 55.sqm supersedes this trigger again because routine cover URL churn must not
+-- inflate the whole-row sync version. Keep this file unchanged so databases that already applied
+-- it migrate deterministically.
 --
 -- `state_cover_last_modified` is intentionally not involved: it is a local Coil cache key
 -- component and is not part of BackupManga.
@@ -17,3 +22,4 @@ BEGIN
         new.user_favorite_at IS NOT old.user_favorite_at
     );
 END;
+-- KUN <--

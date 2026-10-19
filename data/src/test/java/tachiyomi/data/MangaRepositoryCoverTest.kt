@@ -62,13 +62,38 @@ class MangaRepositoryCoverTest {
         }
     }
 
+    @Test
+    fun `a row that is being synced is left alone so the write can be retried`() {
+        runBlocking {
+            val driver = newDriver()
+            try {
+                val repository = MangaRepositoryImpl(DatabaseBindings.providesDatabase(driver))
+                driver.insertManga(isSyncing = 1)
+
+                repository.updateCover(
+                    1,
+                    "https://old.example/cover.jpg",
+                    "https://new.example/cover.jpg",
+                ) shouldBe false
+
+                driver.scalarString("SELECT remote_cover FROM manga WHERE id = 1") shouldBe
+                    "https://old.example/cover.jpg"
+                driver.scalarLong("SELECT state_cover_last_modified FROM manga WHERE id = 1") shouldBe 123
+                driver.scalarLong("SELECT version FROM manga WHERE id = 1") shouldBe 1
+                driver.scalarLong("SELECT last_modified_at FROM manga WHERE id = 1") shouldBe 0
+            } finally {
+                driver.close()
+            }
+        }
+    }
+
     private suspend fun newDriver(): SqlDriver {
         return JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY).also {
             Database.Schema.create(it).await()
         }
     }
 
-    private suspend fun SqlDriver.insertManga() {
+    private suspend fun SqlDriver.insertManga(isSyncing: Int = 0) {
         execute(
             null,
             """
@@ -82,7 +107,7 @@ class MangaRepositoryCoverTest {
                 1, 1, '/manga/1', 'Title', 0, 0,
                 '{}', '', 0, 0,
                 0, 1, 'https://old.example/cover.jpg',
-                123, 0, 1, 0,
+                123, 0, 1, $isSyncing,
                 1000, 500
             )
             """.trimIndent(),
