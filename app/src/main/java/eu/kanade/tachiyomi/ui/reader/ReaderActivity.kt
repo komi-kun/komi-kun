@@ -30,9 +30,12 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -68,6 +71,7 @@ import eu.kanade.domain.base.BasePreferences
 import eu.kanade.domain.connections.service.ConnectionsPreferences
 import eu.kanade.domain.manga.model.readingMode
 import eu.kanade.domain.ui.UiPreferences
+import eu.kanade.presentation.components.AdaptiveSheet
 import eu.kanade.presentation.reader.ChapterListDialog
 import eu.kanade.presentation.reader.DisplayRefreshHost
 import eu.kanade.presentation.reader.OrientationSelectDialog
@@ -135,6 +139,9 @@ import logcat.LogPriority
 import mihon.app.di.AppGraph
 import mihon.core.metro.metroGraph
 import mihon.dictionary.host.ReaderDictionaryHost
+import mihon.icons.materialsymbols.MaterialSymbols
+import mihon.icons.materialsymbols.rounded.CollectionsBookmark
+import mihon.icons.materialsymbols.rounded.Refresh
 import tachiyomi.core.common.Constants
 import tachiyomi.core.common.i18n.pluralStringResource
 import tachiyomi.core.common.i18n.stringResource
@@ -147,6 +154,7 @@ import tachiyomi.domain.manga.model.asMangaCover
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
 import tachiyomi.i18n.sy.SYMR
+import tachiyomi.presentation.core.components.ActionButton
 import tachiyomi.presentation.core.util.collectAsState
 import java.io.ByteArrayOutputStream
 import kotlin.time.Duration.Companion.seconds
@@ -440,7 +448,7 @@ class ReaderActivity : BaseActivity() {
             // KMK <--
 
             val onDismissRequest = viewModel::closeDialog
-            when (state.dialog) {
+            when (val dialog = state.dialog) {
                 is ReaderViewModel.Dialog.Loading -> {
                     AlertDialog(
                         onDismissRequest = {},
@@ -587,6 +595,58 @@ class ReaderActivity : BaseActivity() {
                     text = { Text(text = stringResource(SYMR.strings.eh_retry_all_help_message)) },
                 )
                 // SY <--
+
+                // KUN -->
+                is ReaderViewModel.Dialog.RedoOcr -> {
+                    val page = dialog.page
+                    AdaptiveSheet(onDismissRequest = onDismissRequest) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 16.dp, horizontal = 24.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                        ) {
+                            Text(
+                                text = stringResource(KMR.strings.action_redo_ocr),
+                                style = MaterialTheme.typography.titleMedium,
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                ActionButton(
+                                    modifier = Modifier.weight(1f),
+                                    title = stringResource(KMR.strings.action_redo_ocr_page),
+                                    icon = MaterialSymbols.Rounded.Refresh,
+                                    onClick = {
+                                        onDismissRequest()
+                                        toast(stringResource(KMR.strings.ocr_redoing_page, page.index + 1))
+                                        readerOcrHost.redoOcr(page, chapter = false) {
+                                            runOnUiThread {
+                                                toast(stringResource(KMR.strings.ocr_redo_page_complete, page.index + 1))
+                                            }
+                                        }
+                                    },
+                                )
+                                ActionButton(
+                                    modifier = Modifier.weight(1f),
+                                    title = stringResource(KMR.strings.action_redo_ocr_chapter),
+                                    icon = MaterialSymbols.Rounded.CollectionsBookmark,
+                                    onClick = {
+                                        onDismissRequest()
+                                        toast(stringResource(KMR.strings.ocr_redoing_chapter))
+                                        readerOcrHost.redoOcr(page, chapter = true) {
+                                            runOnUiThread {
+                                                toast(stringResource(KMR.strings.ocr_redo_chapter_complete))
+                                            }
+                                        }
+                                    },
+                                )
+                            }
+                        }
+                    }
+                }
+                // KUN <--
                 null -> {}
             }
 
@@ -873,6 +933,9 @@ class ReaderActivity : BaseActivity() {
                 menuToggleToast?.cancel()
                 menuToggleToast = toast(if (enabled) MR.strings.on else MR.strings.off)
             },
+            onLongClickOcr = {
+                showRedoOcrDialog()
+            },
             // KUN <--
         )
     }
@@ -992,8 +1055,19 @@ class ReaderActivity : BaseActivity() {
 
     private fun exhCurrentpage(): ReaderPage? {
         val viewer = viewModel.state.value.viewer
-        val currentPage = (((viewer as? PagerViewer)?.currentPage ?: (viewer as? WebtoonViewer)?.currentPage) as? ReaderPage)?.index
-        return currentPage?.let { viewModel.state.value.viewerChapters?.currChapter?.pages?.getOrNull(it) }
+        // KUN -->
+        val pageFromViewer = when (viewer) {
+            is PagerViewer -> viewer.currentPage as? ReaderPage
+            is WebtoonViewer -> viewer.currentPage as? ReaderPage
+            is WebGpuViewer -> (viewer.currentPage as? WebGpuViewer.ViewerReaderPage)?.page
+            else -> null
+        }
+        if (pageFromViewer != null) return pageFromViewer
+
+        val currPages = viewModel.state.value.viewerChapters?.currChapter?.pages.orEmpty()
+        val index = (viewModel.state.value.currentPage - 1).coerceIn(0, (currPages.size - 1).coerceAtLeast(0))
+        return currPages.getOrNull(index) ?: currPages.firstOrNull()
+        // KUN <--
     }
 
     fun reloadChapters(doublePages: Boolean, force: Boolean = false) {
@@ -1352,6 +1426,19 @@ class ReaderActivity : BaseActivity() {
         val enabled = viewModel.toggleOcrOverlay()
         menuToggleToast?.cancel()
         menuToggleToast = toast(if (enabled) MR.strings.on else MR.strings.off)
+    }
+
+    /**
+     * Shows a dialog to force-redo OCR for the current page or the entire chapter,
+     * updating the cache and overriding any .mokuro sidecars in the archive.
+     */
+    private fun showRedoOcrDialog() {
+        val currentPage = exhCurrentpage()
+        if (currentPage != null) {
+            viewModel.openRedoOcrDialog(currentPage)
+        } else {
+            toast(KMR.strings.action_redo_ocr)
+        }
     }
     // KUN <--
 

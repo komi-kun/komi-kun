@@ -179,6 +179,10 @@ class ReaderOcrHostImpl(
         lookupAt(overlayPoint)
 
     override fun hitsBlock(overlayPoint: Offset): Boolean = findBlockAt(overlayPoint) != null
+
+    override fun redoOcr(page: ReaderPage, chapter: Boolean, onComplete: (() -> Unit)?) {
+        blockLoader.redoOcr(page, chapter, onComplete)
+    }
     // KUN <--
 
     private fun lookupAt(overlayPoint: Offset): Boolean {
