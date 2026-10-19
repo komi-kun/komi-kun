@@ -72,7 +72,6 @@ END;
 -- Routine cover URL churn (CDN rotation) must not inflate the whole-row sync version: it would
 -- overwrite genuine edits on other devices. `remote_cover` is therefore deliberately not part of
 -- this condition; the stale-cover recovery path bumps `version` explicitly in `updateCover`.
--- KUN <--
 CREATE TRIGGER update_manga_version AFTER UPDATE ON manga
 BEGIN
     UPDATE manga SET version = version + 1
@@ -82,6 +81,7 @@ BEGIN
         new.user_favorite_at IS NOT old.user_favorite_at
     );
 END;
+-- KUN <--
 -- SY <--
 
 getMangaById:

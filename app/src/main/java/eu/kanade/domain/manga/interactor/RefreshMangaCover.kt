@@ -125,11 +125,14 @@ class RefreshMangaCover(
 
             // Non-library rows have no source cover to repair and would only cause source calls.
             if (!manga.favorite) return false
+            if (coverCache.hasCustomCover(mangaId)) return false
+            // A concurrent recovery may have already written the same URL. Treat it as success so
+            // the caller can keep the winner's in-memory alias instead of invalidating it.
+            if (manga.ogThumbnailUrl == newUrl) return true
             // A manual refresh may have updated the entry while the image was being fetched.
             if (manga.ogThumbnailUrl != staleUrl) return false
             // Never override a user-provided cover.
             if (manga.thumbnailUrl != manga.ogThumbnailUrl) return false
-            if (coverCache.hasCustomCover(mangaId)) return false
 
             // The WHERE clause keeps a concurrent manual refresh from being overwritten even
             // if it happens between the checks above and the write. It also fails while a sync

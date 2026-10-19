@@ -127,6 +127,18 @@ class RefreshMangaCoverTest {
     }
 
     @Test
+    fun `treats an already persisted replacement as success`() = runTest {
+        // A concurrent recovery won the race and already wrote the same URL.
+        stubManga(ogThumbnailUrl = newUrl)
+
+        refreshMangaCover.persistReplacement(mangaId, staleUrl, newUrl) shouldBe true
+
+        coVerify(exactly = 0) { repository.updateCover(any(), any(), any()) }
+        // The winner already handled the cover cache.
+        verify(exactly = 0) { coverCache.deleteFromCache(any(), any()) }
+    }
+
+    @Test
     fun `does not persist when the entry changed meanwhile`() = runTest {
         stubManga(ogThumbnailUrl = "https://manual.example/cover.jpg")
 
