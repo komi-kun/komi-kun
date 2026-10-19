@@ -27,6 +27,7 @@ import eu.kanade.presentation.more.settings.Preference
 import eu.kanade.tachiyomi.ui.dictionary.DictionaryAudioSettingsScreen
 import eu.kanade.tachiyomi.ui.dictionary.DictionaryBackupImportScreen
 import eu.kanade.tachiyomi.ui.dictionary.DictionaryImportCoordinator
+import eu.kanade.tachiyomi.ui.dictionary.DictionaryManagementScreen
 import eu.kanade.tachiyomi.ui.dictionary.DictionaryPopupSizing
 import eu.kanade.tachiyomi.ui.dictionary.DictionaryPreferences
 import eu.kanade.tachiyomi.ui.dictionary.YomitanSettingsApplier
@@ -193,36 +194,19 @@ object SettingsDictionaryScreen : SearchableSettings {
                             subtitle = stringResource(KMR.strings.pref_import_yomitan_backup_summ),
                             onClick = { navigator.push(DictionaryBackupImportScreen()) },
                     // KUN <--
-                    if (dictionaries.isEmpty()) {
-                        add(
-                            Preference.PreferenceItem.TextPreference(
-                                title = stringResource(KMR.strings.pref_dict_none_imported),
-                            ),
-                        )
-                    } else {
-                        dictionaries.forEach { name ->
-                            add(
-                                Preference.PreferenceItem.TextPreference(
-                                    title = name,
-                                    subtitle = if (activeProfile.enabledDictionaries.isEmpty() || name in activeProfile.enabledDictionaries) {
-                                        stringResource(KMR.strings.pref_dict_enabled_in_profile)
-                                    } else {
-                                        null
-                                    },
-                                ),
-                            )
-                            add(
-                                Preference.PreferenceItem.TextPreference(
-                                    title = stringResource(KMR.strings.pref_dict_delete),
-                                    subtitle = name,
-                                    onClick = {
-                                        DictionaryImportCoordinator.delete(context, name, prefs)
-                                        refresh++
-                                    },
-                                ),
-                            )
-                        }
-                    }
+                    // KUN -->
+                    add(
+                        Preference.PreferenceItem.TextPreference(
+                            title = stringResource(KMR.strings.pref_manage_dictionaries),
+                            subtitle = if (dictionaries.isEmpty()) {
+                                stringResource(KMR.strings.pref_dict_none_imported)
+                            } else {
+                                stringResource(KMR.strings.pref_manage_dictionaries_summary, dictionaries.size)
+                            },
+                            onClick = { navigator.push(DictionaryManagementScreen()) },
+                        ),
+                    )
+                    // KUN <--
                     importMessage?.let { message ->
                         add(Preference.PreferenceItem.TextPreference(title = message))
                     }
