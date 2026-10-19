@@ -80,6 +80,14 @@ sealed interface ModelDownloadState {
     data class Failed(val message: String) : ModelDownloadState
 }
 
+/** Progress of a runtime PaddleOCR-VL model download. */
+sealed interface VlDownloadState {
+    data object Idle : VlDownloadState
+    data class Downloading(val bytesDownloaded: Long, val totalBytes: Long) : VlDownloadState
+    data object Completed : VlDownloadState
+    data class Failed(val message: String) : VlDownloadState
+}
+
 /**
  * Downloads and verifies the PaddleOCR det/rec models and `ppocrv6_small_dict.txt` into
  * `filesDir/paddle_ocr/` (where [PaddleOcrEngine] loads them from), and can import them from a
@@ -105,8 +113,114 @@ class ModelDownloader(
     private val _state = MutableStateFlow<ModelDownloadState>(ModelDownloadState.Idle)
     val state: StateFlow<ModelDownloadState> = _state.asStateFlow()
 
+    private val _vlState = MutableStateFlow<VlDownloadState>(VlDownloadState.Idle)
+    val vlState: StateFlow<VlDownloadState> = _vlState.asStateFlow()
+
     /** Directory the engine reads its models from (`filesDir/paddle_ocr`). */
     val modelsDir: File get() = File(appContext.filesDir, PADDLE_DIR)
+
+    /** Directory the on-device PaddleOCR-VL engine reads its models from (`filesDir/paddleocr_vl`). */
+    val vlModelsDir: File get() = File(appContext.filesDir, PADDLE_VL_DIR)
+
+    /** The compiled LiteRT-LM model package. */
+    val vlModelFile: File get() = File(vlModelsDir, VL_MODEL_NAME)
+
+    val isVlDownloaded: Boolean
+        get() = vlModelFile.isFile && vlModelFile.length() > 10_000_000L
+
+    fun getVlModelSizeReadable(): String? {
+        if (!isVlDownloaded) return null
+        val bytes = vlModelFile.length()
+        val mb = bytes / (1024.0 * 1024.0)
+        return if (mb >= 1024.0) {
+            "%.2f GB".format(mb / 1024.0)
+        } else {
+            "%.1f MB".format(mb)
+        }
+    }
+
+    fun getModelsSizeReadable(): String? {
+        if (!modelsDir.exists()) return null
+        val bytes = modelsDir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+        if (bytes == 0L) return null
+        val mb = bytes / (1024.0 * 1024.0)
+        return "%.1f MB".format(mb)
+    }
+
+    /**
+     * Deletes the on-device PP-OCRv6 model files from app storage (`filesDir/paddle_ocr`).
+     */
+    fun deleteModels(): Boolean {
+        return runCatching {
+            if (modelsDir.exists()) {
+                modelsDir.deleteRecursively()
+            }
+            _state.value = ModelDownloadState.Idle
+            true
+        }.getOrDefault(false)
+    }
+
+    /**
+     * Deletes the on-device PaddleOCR-VL model file from app storage (`filesDir/paddleocr_vl`).
+     */
+    fun deleteVlModel(): Boolean {
+        return runCatching {
+            if (vlModelsDir.exists()) {
+                vlModelsDir.deleteRecursively()
+            }
+            _vlState.value = VlDownloadState.Idle
+            true
+        }.getOrDefault(false)
+    }
+
+    fun triggerVlDownload(customUrl: String? = null, onCompleted: ((File) -> Unit)? = null) {
+        scope.launch {
+            val url = customUrl?.takeIf { it.isNotBlank() } ?: DEFAULT_VL_URL
+            _vlState.value = VlDownloadState.Downloading(0L, 0L)
+            val result = runCatching {
+                val temp = File(vlModelsDir, "$VL_MODEL_NAME.part")
+                temp.parentFile?.mkdirs()
+                val request = Request.Builder().url(url).build()
+                httpClient.newCall(request).execute().use { response ->
+                    check(response.isSuccessful) { "Download failed: HTTP ${response.code}" }
+                    val body = response.body
+                    val total = body.contentLength()
+                    body.byteStream().use { input ->
+                        FileOutputStream(temp).use { output ->
+                            val buffer = ByteArray(128 * 1024)
+                            var bytesRead: Int
+                            var downloaded = 0L
+                            var lastEmit = System.currentTimeMillis()
+                            while (input.read(buffer).also { bytesRead = it } != -1) {
+                                output.write(buffer, 0, bytesRead)
+                                downloaded += bytesRead
+                                val now = System.currentTimeMillis()
+                                if (now - lastEmit > 250) {
+                                    lastEmit = now
+                                    _vlState.value = VlDownloadState.Downloading(downloaded, total)
+                                }
+                            }
+                        }
+                    }
+                }
+                if (!temp.renameTo(vlModelFile)) {
+                    temp.copyTo(vlModelFile, overwrite = true)
+                    temp.delete()
+                }
+                vlModelFile
+            }
+            result.fold(
+                onSuccess = { file ->
+                    _vlState.value = VlDownloadState.Completed
+                    onCompleted?.invoke(file)
+                },
+                onFailure = { error ->
+                    _vlState.value = VlDownloadState.Failed(error.localizedMessage ?: "Download failed")
+                    logcat(LogPriority.ERROR, error) { "ModelDownloader: failed to download PaddleOCR-VL model" }
+                },
+            )
+        }
+    }
 
     /**
      * Cheap, synchronous readiness gate for the settings screen (see `SettingsOcrScreen`): every
@@ -338,7 +452,6 @@ class ModelDownloader(
                 temp.copyTo(target, overwrite = true)
                 temp.delete()
             }
-            Unit
         } finally {
             // Never leave a partial download behind (HTTP/IO failure or checksum mismatch), and only
             // ever delete our own `<name>.part` scratch file.
@@ -349,6 +462,9 @@ class ModelDownloader(
     companion object {
         private const val MANIFEST_NAME = "manifest.json"
         private const val PADDLE_DIR = "paddle_ocr"
+        private const val PADDLE_VL_DIR = "paddleocr_vl"
+        const val VL_MODEL_NAME = "PaddleOCR-VL-1.6.litertlm"
+        const val DEFAULT_VL_URL = "https://huggingface.co/litert-community/PaddleOCR-VL-1.6/resolve/main/PaddleOCR-VL-1.6.litertlm"
 
         // PP-OCRv6 small (ocr-models-v3): ONNX graphs (the shipped backend is ONNX Runtime).
         private const val DET_MODEL = "ppocrv6_small_det.onnx"

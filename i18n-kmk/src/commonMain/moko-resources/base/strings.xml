@@ -504,4 +504,20 @@
     <string name="ocr_status_processing">Processing</string>
     <string name="ocr_status_error">Error</string>
     <string name="ocr_status_error_reason">Error: %s</string>
+    <string name="pref_ocr_download_models">Download models</string>
+    <string name="pref_ocr_download_models_summary">Download PP-OCRv6 detection and recognition models (~16 MB)</string>
+    <string name="pref_ocr_delete_models">Delete models</string>
+    <string name="pref_ocr_delete_models_summary">Remove downloaded PP-OCRv6 model files from app storage</string>
+    <string name="confirm_delete_ocr_models">Are you sure you want to delete the downloaded PP-OCRv6 model files?</string>
+    <string name="pref_ocr_paddlevl_status">PaddleOCR-VL model status</string>
+    <string name="pref_ocr_paddlevl_download">Download PaddleOCR-VL model</string>
+    <string name="pref_ocr_paddlevl_download_summary">Download the on-device LiteRT-LM model bundle (~1.4 GB)</string>
+    <string name="pref_ocr_paddlevl_delete">Delete PaddleOCR-VL model</string>
+    <string name="pref_ocr_paddlevl_delete_summary">Remove the on-device vision-language model (~1.4 GB) from app storage</string>
+    <string name="confirm_delete_paddlevl_model">Are you sure you want to delete the downloaded PaddleOCR-VL model file (~1.4 GB)?</string>
+    <string name="ocr_paddlevl_status_not_downloaded">Model not downloaded</string>
+    <string name="ocr_paddlevl_status_ready">Model ready (%s)</string>
+    <string name="ocr_paddlevl_status_downloading">Downloading model: %1$s / %2$s (%3$d%%)</string>
+    <string name="pref_ocr_paddlevl_download_url">Model download URL</string>
+    <string name="pref_ocr_paddlevl_download_url_summary">Direct URL for downloading the .litertlm model bundle</string>
 </resources>

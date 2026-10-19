@@ -35,6 +35,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -70,6 +71,7 @@ import eu.kanade.domain.base.BasePreferences
 import eu.kanade.domain.connections.service.ConnectionsPreferences
 import eu.kanade.domain.manga.model.readingMode
 import eu.kanade.domain.ui.UiPreferences
+import eu.kanade.presentation.components.AdaptiveSheet
 import eu.kanade.presentation.reader.ChapterListDialog
 import eu.kanade.presentation.reader.DisplayRefreshHost
 import eu.kanade.presentation.reader.OrientationSelectDialog
@@ -137,6 +139,9 @@ import logcat.LogPriority
 import mihon.app.di.AppGraph
 import mihon.core.metro.metroGraph
 import mihon.dictionary.host.ReaderDictionaryHost
+import mihon.icons.materialsymbols.MaterialSymbols
+import mihon.icons.materialsymbols.rounded.CollectionsBookmark
+import mihon.icons.materialsymbols.rounded.Refresh
 import tachiyomi.core.common.Constants
 import tachiyomi.core.common.i18n.pluralStringResource
 import tachiyomi.core.common.i18n.stringResource
@@ -149,6 +154,7 @@ import tachiyomi.domain.manga.model.asMangaCover
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
 import tachiyomi.i18n.sy.SYMR
+import tachiyomi.presentation.core.components.ActionButton
 import tachiyomi.presentation.core.util.collectAsState
 import java.io.ByteArrayOutputStream
 import kotlin.time.Duration.Companion.seconds
@@ -589,21 +595,25 @@ class ReaderActivity : BaseActivity() {
                 // KUN -->
                 is ReaderViewModel.Dialog.RedoOcr -> {
                     val page = dialog.page
-                    AlertDialog(
-                        onDismissRequest = onDismissRequest,
-                        confirmButton = {
-                            TextButton(onClick = onDismissRequest) {
-                                Text(text = stringResource(MR.strings.action_cancel))
-                            }
-                        },
-                        title = { Text(text = stringResource(KMR.strings.action_redo_ocr)) },
-                        text = {
-                            Column(
+                    AdaptiveSheet(onDismissRequest = onDismissRequest) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 16.dp, horizontal = 24.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                        ) {
+                            Text(
+                                text = stringResource(KMR.strings.action_redo_ocr),
+                                style = MaterialTheme.typography.titleMedium,
+                            )
+                            Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
                             ) {
-                                TextButton(
-                                    modifier = Modifier.fillMaxWidth(),
+                                ActionButton(
+                                    modifier = Modifier.weight(1f),
+                                    title = stringResource(KMR.strings.action_redo_ocr_page),
+                                    icon = MaterialSymbols.Rounded.Refresh,
                                     onClick = {
                                         onDismissRequest()
                                         toast(stringResource(KMR.strings.ocr_redoing_page, page.index + 1))
@@ -613,14 +623,11 @@ class ReaderActivity : BaseActivity() {
                                             }
                                         }
                                     },
-                                ) {
-                                    Text(
-                                        text = stringResource(KMR.strings.action_redo_ocr_page),
-                                        style = MaterialTheme.typography.bodyLarge,
-                                    )
-                                }
-                                TextButton(
-                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                                ActionButton(
+                                    modifier = Modifier.weight(1f),
+                                    title = stringResource(KMR.strings.action_redo_ocr_chapter),
+                                    icon = MaterialSymbols.Rounded.CollectionsBookmark,
                                     onClick = {
                                         onDismissRequest()
                                         toast(stringResource(KMR.strings.ocr_redoing_chapter))
@@ -630,15 +637,10 @@ class ReaderActivity : BaseActivity() {
                                             }
                                         }
                                     },
-                                ) {
-                                    Text(
-                                        text = stringResource(KMR.strings.action_redo_ocr_chapter),
-                                        style = MaterialTheme.typography.bodyLarge,
-                                    )
-                                }
+                                )
                             }
-                        },
-                    )
+                        }
+                    }
                 }
                 // KUN <--
                 null -> {}

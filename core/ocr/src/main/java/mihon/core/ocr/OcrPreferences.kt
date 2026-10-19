@@ -88,6 +88,12 @@ class OcrPreferences(
         "",
     )
 
+    /** Download URL for the on-device PaddleOCR-VL .litertlm model file. */
+    val paddleVlDownloadUrl: Preference<String> = preferenceStore.getString(
+        "pref_ocr_paddlevl_download_url",
+        "https://huggingface.co/litert-community/PaddleOCR-VL-1.6/resolve/main/PaddleOCR-VL-1.6.litertlm",
+    )
+
     /** Automatically fall back to local PP-OCRv6 if PaddleOCR-VL server/device fails. */
     val paddleVlFallback: Preference<Boolean> = preferenceStore.getBoolean(
         "pref_ocr_paddlevl_fallback",
