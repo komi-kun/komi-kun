@@ -71,12 +71,13 @@ git cherry-pick -x <translation-commit>
 ```
 
 The fork's locale files diverge from upstream's in both directions (Komikku kept keys Mihon removed,
-and the files are missing newer upstream keys), so the cherry-pick will conflict. Resolve every
-conflicted `i18n*` file with the helper, which takes upstream's file and re-appends the fork-only
-entries (including `plurals`):
+and the files are missing newer upstream keys). Run the helper after the cherry-pick stops with
+conflicts (or right after a `--no-commit` pick, before adding): it rewrites every moko-resources file
+the commit touches — including ones git merged without a conflict — keeping upstream's values and
+re-appending the fork-only entries (including `plurals`):
 
 ```bash
-python3 .agents/skills/upstream-port/scripts/resolve_i18n_union.py    # default: all unmerged files
+python3 .agents/skills/upstream-port/scripts/resolve_i18n_union.py    # all moko files changed by the pick
 ```
 
 Then check that nothing was lost: every key in the fork's `base` that was translated before must still
