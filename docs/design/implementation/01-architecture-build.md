@@ -51,7 +51,9 @@ makes the combined work Apache-clean.
 > `00-implementation-contract.md` §1.7 and the migration record is `ort-v6-migration.md`. The module
 > layout and the GPL-free boundary below still hold — but the **`:core:ocr` licence row above does
 > not**: the module is **GPL-3.0-or-later**, not Apache-2.0 (`00-implementation-contract.md`
-> §1.1/§1.3 and §6.1); only the seam files stay Apache-2.0.
+> §1.1/§1.3 and §6.1); only the seam files stay Apache-2.0. Persistent OCR cache is keyed with `v8`
+> generation (`OcrManager.kt`), thresholds include `DEFAULT_REC_FLOOR = 35` (`OcrPreferences.kt`), and
+> `PaddleOcrEngine` declares `nativeGetOrtError()` as a forward-compatible stub.
 
 Rationale:
 - **Engine wrapper vs OCR split** mirrors the real license split, not just code size. The design

@@ -15,13 +15,13 @@ class OcrPreferencesTest {
     private fun preferences() = OcrPreferences(InMemoryPreferenceStore())
 
     @Test
-    fun `defaults match the previous hard-coded engine values`() {
+    fun `defaults match the expected engine values`() {
         val options = preferences().detectionOptions(numThreads = 4)
 
         options.thresh shouldBe 0.15f
         options.boxThresh shouldBe 0.25f
         options.unclipRatio shouldBe 1.40f
-        options.recConfidenceFloor shouldBe 0f
+        options.recConfidenceFloor shouldBe 0.35f
         options.numThreads shouldBe 4
     }
 
@@ -36,7 +36,7 @@ class OcrPreferencesTest {
         preferences.detBoxThreshold.set(45)
 
         preferences.detectionOptions(numThreads = 2).boxThresh shouldBe 0.45f
-        preferences.cacheSignature() shouldBe "t15b45u140r0"
+        preferences.cacheSignature() shouldBe "t15b45u140r35"
     }
 
     @Test

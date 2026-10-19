@@ -479,11 +479,11 @@ class OcrManager(
 
     private companion object {
         /**
-         * KUN --> Bump when the OCR engine or model changes so persisted page results from the
-         * previous engine are not reused (they survive app upgrades). `v6` = ONNX Runtime +
-         * PP-OCRv6 small (`ocr-models-v3`).
+         * KUN --> Bump when the OCR engine, model or merge/filter pipeline changes so persisted
+         * page results from the previous pipeline are not reused (they survive app upgrades).
+         * `v8` = PP-OCRv6 small with 0.35 dialogue floor, 1-char SFX filtering, cross-bubble separation.
          */
-        private const val ENGINE_CACHE_GENERATION = "v6"
+        private const val ENGINE_CACHE_GENERATION = "v9"
         // KUN <--
 
         private const val QUEUE_POLL_MS = 300L

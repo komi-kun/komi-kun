@@ -44,8 +44,13 @@ class OwOCRMerger(
         if (parsed.isEmpty()) return emptyList()
 
         val japanese = cfg.language.isJapanese
-        val filtered = if (cfg.furiganaFilter && japanese) globalFuriganaFilter(parsed, cfg) else parsed
-        if (filtered.isEmpty()) return emptyList()
+        // KUN -->
+        val filteredNoise = if (japanese) filterSingleCharSfxNoise(parsed) else parsed
+        if (filteredNoise.isEmpty()) return emptyList()
+        val filteredFuri = if (cfg.furiganaFilter && japanese) globalFuriganaFilter(filteredNoise, cfg) else filteredNoise
+        if (filteredFuri.isEmpty()) return emptyList()
+        val filtered = if (japanese) trimFuriganaBloatedVerticalColumns(filteredFuri) else filteredFuri
+        // KUN <--
 
         val paragraphs = if (japanese) japaneseParagraphs(filtered, cfg) else legacyParagraphs(filtered, cfg)
         val merged = if (cfg.mergeCloseParagraphs) mergeCloseParagraphs(paragraphs, cfg) else paragraphs
@@ -79,6 +84,11 @@ class OwOCRMerger(
     private fun EngineLine.toLine(cfg: MergeConfig): Line? {
         if (text.isBlank()) return null
         if (cfg.language == OcrLanguage.CHINESE && !hasKanji) return null
+        // KUN -->
+        if (cfg.language == OcrLanguage.JAPANESE && (!hasJpText || OcrPreprocessor.isImplausibleJapaneseNoise(text))) {
+            return null
+        }
+        // KUN <--
 
         val vertical = writingDirection == WritingDirection.TTB
         val rtl = writingDirection == WritingDirection.RTL || (!vertical && cfg.language.isRtl)
@@ -93,6 +103,84 @@ class OwOCRMerger(
             rotation = rotation,
         )
     }
+
+    // KUN -->
+    private fun filterSingleCharSfxNoise(lines: List<Line>): List<Line> {
+        if (lines.isEmpty()) return emptyList()
+
+        val thicknesses = lines.map { minOf(it.bbox.width, it.bbox.height) }.sorted()
+        val medianThickness = if (thicknesses.size % 2 == 1) {
+            thicknesses[thicknesses.size / 2]
+        } else {
+            (thicknesses[thicknesses.size / 2 - 1] + thicknesses[thicknesses.size / 2]) / 2.0
+        }
+
+        return lines.filterNot { line ->
+            val stripped = line.text.trim { it.isWhitespace() || !it.isLetterOrDigit() }
+            if (stripped.isEmpty()) return@filterNot false
+            val cpCount = stripped.codePointCount(0, stripped.length)
+            if (cpCount != 1) return@filterNot false
+
+            val lineThickness = minOf(line.bbox.width, line.bbox.height)
+            val isTilted = abs(line.bbox.rotation) > 0.03
+            val isOversized = lines.size >= 3 && lineThickness > medianThickness * 1.55
+            isTilted || isOversized
+        }
+    }
+
+    private fun Line.canAdoptVerticalFromNeighbor(): Boolean {
+        val cpCount = text.trim().codePointCount(0, text.trim().length)
+        if (cpCount != 1) return false
+        val minDim = minOf(bbox.width, bbox.height)
+        val maxDim = maxOf(bbox.width, bbox.height).coerceAtLeast(1e-6)
+        return minDim / maxDim >= 0.65
+    }
+
+    /**
+     * When the detector merges vertical ruby furigana (printed on the right of a vertical column)
+     * into the main kanji column's bounding box, the box's right edge balloons to ~1.5-2.0x the
+     * normal column width and overlaps the neighbour column to its right. Trimming the right edge
+     * back to the page's normal vertical column width restores clean column alignment and merging.
+     */
+    private fun trimFuriganaBloatedVerticalColumns(lines: List<Line>): List<Line> {
+        val verticalWidths = lines.filter { it.vertical }.map { it.bbox.width }.sorted()
+        if (verticalWidths.size < 3) return lines
+        val medianWidth = if (verticalWidths.size % 2 == 1) {
+            verticalWidths[verticalWidths.size / 2]
+        } else {
+            (verticalWidths[verticalWidths.size / 2 - 1] + verticalWidths[verticalWidths.size / 2]) / 2.0
+        }
+        if (medianWidth <= 0.0) return lines
+
+        return lines.map { line ->
+            val trimmed = line.text.trim()
+            val cpCount = trimmed.codePointCount(0, trimmed.length)
+            if (
+                line.vertical &&
+                line.hasKanji &&
+                cpCount >= 3 &&
+                line.bbox.height > line.bbox.width * 1.4 &&
+                line.bbox.width > medianWidth * 1.45 &&
+                line.bbox.width < medianWidth * 2.2
+            ) {
+                val newRight = minOf(line.bbox.right, line.bbox.left + medianWidth * 1.10)
+                Line(
+                    text = line.text,
+                    bbox = line.bbox.copy(right = newRight),
+                    vertical = line.vertical,
+                    rtl = line.rtl,
+                    characterSize = line.characterSize,
+                    hasJpText = line.hasJpText,
+                    hasKanji = line.hasKanji,
+                    rotation = line.rotation,
+                    isFurigana = line.isFurigana,
+                )
+            } else {
+                line
+            }
+        }
+    }
+    // KUN <--
 
     // ================================================================
     // STAGE 2: paragraph records
@@ -140,11 +228,9 @@ class OwOCRMerger(
         cfg: MergeConfig,
         legacy: Boolean,
     ): Paragraph {
-        val sorted = if (vertical) {
-            lines.sortedByDescending { it.bbox.right }
-        } else {
-            lines.sortedBy { it.bbox.top }
-        }
+        // KUN -->
+        val sorted = sortLinesInParagraph(lines, vertical, rtl)
+        // KUN <--
 
         val merged = if (legacy) mergeOverlappingLines(sorted, vertical) else sorted
         val filtered = if (legacy && sorted.none { it.isFurigana } && cfg.furiganaFilter) {
@@ -181,6 +267,74 @@ class OwOCRMerger(
         )
     }
 
+    // KUN -->
+    /**
+     * Orders lines within a paragraph in correct reading order.
+     * For vertical (tategaki): columns are ordered right-to-left, and fragments within the same
+     * column (or with high advance overlap) are ordered top-to-bottom.
+     * For horizontal: rows are ordered top-to-bottom, and fragments within the same row (or with
+     * high advance overlap) are ordered left-to-right (or right-to-left for RTL).
+     */
+    private fun sortLinesInParagraph(
+        lines: List<Line>,
+        vertical: Boolean,
+        rtl: Boolean,
+    ): List<Line> {
+        if (lines.size <= 1) return lines
+
+        val n = lines.size
+        val parent = IntArray(n) { it }
+        fun find(i: Int): Int {
+            var root = i
+            while (root != parent[root]) root = parent[root]
+            var curr = i
+            while (curr != root) {
+                val next = parent[curr]
+                parent[curr] = root
+                curr = next
+            }
+            return root
+        }
+        fun union(i: Int, j: Int) {
+            val rootI = find(i)
+            val rootJ = find(j)
+            if (rootI != rootJ) parent[rootI] = rootJ
+        }
+
+        for (i in 0 until n) {
+            for (j in i + 1 until n) {
+                val a = lines[i]
+                val b = lines[j]
+                val onSameRun = OcrMergeGeometry.sameLineFragment(a.bbox, b.bbox, vertical) ||
+                    OcrMergeGeometry.advanceOverlap(a.bbox, b.bbox, vertical) > 0.45
+                if (onSameRun) {
+                    union(i, j)
+                }
+            }
+        }
+
+        val groups = lines.indices.groupBy { find(it) }.values.map { indices ->
+            indices.map { lines[it] }
+        }
+
+        val sortedGroups = groups.map { group ->
+            if (vertical) {
+                group.sortedBy { it.bbox.top }
+            } else if (rtl) {
+                group.sortedByDescending { it.bbox.right }
+            } else {
+                group.sortedBy { it.bbox.left }
+            }
+        }
+
+        return if (vertical) {
+            sortedGroups.sortedByDescending { group -> group.maxOf { it.bbox.right } }.flatten()
+        } else {
+            sortedGroups.sortedBy { group -> group.minOf { it.bbox.top } }.flatten()
+        }
+    }
+    // KUN <--
+
     // ================================================================
     // STAGE 2a: paragraph grouping — Japanese path (pixel-proximity clustering)
     // ================================================================
@@ -202,12 +356,12 @@ class OwOCRMerger(
                     if (used[j]) continue
                     val candidate = lines[j]
                     // KUN -->
-                    // Never cluster a horizontal line with a vertical column: the merge rule
-                    // is axis-dependent, and mixing orientations produces one block whose
-                    // text direction is meaningless. Use the line's own orientation instead of
-                    // the larger box's, which was the old behaviour.
-                    if (current.vertical != candidate.vertical) continue
-                    val vertical = current.vertical
+                    val vertical = when {
+                        current.vertical == candidate.vertical -> current.vertical
+                        current.vertical && candidate.canAdoptVerticalFromNeighbor() -> true
+                        candidate.vertical && current.canAdoptVerticalFromNeighbor() -> true
+                        else -> null
+                    } ?: continue
                     // KUN <--
                     if (shouldGroupInSameParagraph(current, candidate, vertical, cfg)) {
                         cluster.add(candidate)
@@ -217,7 +371,9 @@ class OwOCRMerger(
                 }
             }
 
-            val vertical = cluster.maxByOrNull { it.area }?.vertical ?: true
+            // KUN -->
+            val vertical = cluster.any { it.vertical }
+            // KUN <--
             paragraphs.add(buildParagraph(cluster, vertical, cluster.first().rtl, cfg, legacy = false))
         }
 
@@ -260,7 +416,10 @@ class OwOCRMerger(
                 OcrMergeGeometry.runOverlap(line1.bbox, line2.bbox, vertical) > 0.8
         }
 
-        return OcrMergeGeometry.nextLine(line1.bbox, line2.bbox, vertical, cfg.supportCenterAlignedText)
+        // KUN -->
+        return OcrMergeGeometry.nextLine(line1.bbox, line2.bbox, vertical, cfg.supportCenterAlignedText) ||
+            OcrMergeGeometry.sameLineFragment(line1.bbox, line2.bbox, vertical)
+        // KUN <--
     }
 
     // ================================================================
@@ -341,7 +500,10 @@ class OwOCRMerger(
             return false
         }
 
-        return OcrMergeGeometry.nextLine(line1.bbox, line2.bbox, vertical, cfg.supportCenterAlignedText)
+        // KUN -->
+        return OcrMergeGeometry.nextLine(line1.bbox, line2.bbox, vertical, cfg.supportCenterAlignedText) ||
+            OcrMergeGeometry.sameLineFragment(line1.bbox, line2.bbox, vertical)
+        // KUN <--
     }
 
     // ================================================================
@@ -498,7 +660,11 @@ class OwOCRMerger(
             val sub = lines[j]
             val subText = sub.text
 
-            if (kanjiRegex.containsMatchIn(subText)) continue
+            // KUN -->
+            val hasKanji = kanjiRegex.containsMatchIn(subText)
+            val cpCount = subText.codePointCount(0, subText.length)
+            if (hasKanji && cpCount > 2) continue
+            // KUN <--
             val hasAlpha = alphaRegex.containsMatchIn(subText)
             val hasKatakana = katakanaRegex.containsMatchIn(subText)
             if (hasAlpha && !hasKatakana) continue
@@ -515,7 +681,10 @@ class OwOCRMerger(
 
                 val mainBbox = main.bbox
                 val mainThickness = minOf(mainBbox.width * imgW, mainBbox.height * imgH)
-                if (subThickness > mainThickness * 0.75) continue
+                // KUN -->
+                val maxThicknessRatio = if (hasKanji) 0.55 else 0.75
+                if (subThickness > mainThickness * maxThicknessRatio) continue
+                // KUN <--
 
                 val proximityLimit = mainThickness * 0.30
                 val overlapRatio = 0.05

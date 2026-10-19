@@ -12,8 +12,11 @@ data class AudioHttpResponse(
     val bodyText: String,
 )
 
-/** Fetches GET requests. Implementations must be safe to call from a background dispatcher. */
+/** Fetches HTTP requests. Implementations must be safe to call from a background dispatcher. */
 fun interface AudioHttp {
     suspend fun get(url: String): AudioHttpResponse
+
+    suspend fun postForm(url: String, formFields: Map<String, String>): AudioHttpResponse =
+        AudioHttpResponse(ok = false, status = 0, bodyText = "")
 }
 // KUN <--

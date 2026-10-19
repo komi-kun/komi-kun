@@ -106,12 +106,14 @@ class OcrPreferences(
     }
 
     companion object {
-        // Defaults exactly match the values the engine hard-coded before this feature (the ocrtest
-        // "Full Page Preset"): 0.15 pixel threshold, 0.25 box score, 1.40 unclip, no rec floor.
+        // Defaults match the ocrtest "Full Page Preset" for detection (0.15 pixel threshold,
+        // 0.25 box score, 1.40 unclip), and a 35% recognition floor for Japanese dialogue
+        // (protects stylised dialogue and bleed while structural noise filtering drops garbage
+        // SFX reads).
         const val DEFAULT_DET_PIXEL = 15
         const val DEFAULT_DET_BOX = 25
         const val DEFAULT_DET_UNCLIP = 140
-        const val DEFAULT_REC_FLOOR = 0
+        const val DEFAULT_REC_FLOOR = 35
     }
     // KUN <--
 }
