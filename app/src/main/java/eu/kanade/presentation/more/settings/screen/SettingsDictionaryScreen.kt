@@ -249,6 +249,11 @@ object SettingsDictionaryScreen : SearchableSettings {
             Preference.PreferenceGroup(
                 title = stringResource(KMR.strings.pref_category_dictionary_audio),
                 preferenceItems = listOf(
+                    Preference.PreferenceItem.SwitchPreference(
+                        preference = prefs.audioAutoPlay(),
+                        title = stringResource(KMR.strings.pref_dict_audio_autoplay),
+                        subtitle = stringResource(KMR.strings.pref_dict_audio_autoplay_summary),
+                    ),
                     Preference.PreferenceItem.TextPreference(
                         title = stringResource(KMR.strings.pref_category_dictionary_audio),
                         subtitle = stringResource(KMR.strings.pref_dictionary_audio_summary),
@@ -321,6 +326,13 @@ object SettingsDictionaryScreen : SearchableSettings {
             Preference.PreferenceGroup(
                 title = stringResource(KMR.strings.pref_dict_content),
                 preferenceItems = listOf(
+                    // KUN -->
+                    Preference.PreferenceItem.SwitchPreference(
+                        preference = prefs.audioAutoPlay(),
+                        title = stringResource(KMR.strings.pref_dict_audio_autoplay),
+                        subtitle = stringResource(KMR.strings.pref_dict_audio_autoplay_summary),
+                    ),
+                    // KUN <--
                     Preference.PreferenceItem.SwitchPreference(
                         preference = prefs.popupSwipeToDismiss(),
                         title = stringResource(KMR.strings.pref_dict_popup_swipe_to_dismiss),

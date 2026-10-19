@@ -6,6 +6,7 @@
 // import can fill them and a hand-configured Local Audio Server can be tested here.
 package eu.kanade.tachiyomi.ui.dictionary
 
+import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -311,6 +312,7 @@ class DictionaryAudioSettingsScreen : Screen() {
 @ViewModelKey
 @ContributesIntoMap(AppScope::class, binding = binding<ViewModel>())
 class DictionaryAudioSettingsViewModel(
+    private val context: Context,
     private val prefs: DictionaryPreferences,
 ) : ViewModel() {
 
@@ -335,7 +337,7 @@ class DictionaryAudioSettingsViewModel(
 
     private val audio = prefs.audioPreferences()
     private val http = OkHttpAudioHttp()
-    private val player = WordAudioPlayer()
+    private val player = WordAudioPlayer(context)
 
     private val stateFlow = MutableStateFlow(
         State(
@@ -435,10 +437,6 @@ class DictionaryAudioSettingsViewModel(
                 testing = false,
                 testResult = TestResult.Playing(AudioSourceTypes.displayName(first.sourceType)),
             )
-            viewModelScope.launch {
-                delay(2000)
-                player.stop()
-            }
         }
     }
 

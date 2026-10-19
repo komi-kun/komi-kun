@@ -16,11 +16,14 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.speech.tts.TextToSpeech
+import android.util.Log
 import java.util.Locale
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.exp
 import kotlin.math.sin
+
+private const val TAG = "WordAudioPlayer"
 
 class WordAudioPlayer(
     private var context: Context? = null,
@@ -80,18 +83,31 @@ class WordAudioPlayer(
                 .build(),
         )
         mediaPlayer.setVolume(volume, volume)
-        mediaPlayer.setOnPreparedListener { it.start() }
-        mediaPlayer.setOnCompletionListener { releaseInternal() }
-        mediaPlayer.setOnErrorListener { _, _, _ ->
+        mediaPlayer.setOnPreparedListener {
+            Log.d(TAG, "MediaPlayer starting playback: $url")
+            it.start()
+        }
+        mediaPlayer.setOnCompletionListener {
+            Log.d(TAG, "MediaPlayer completed playback: $url")
+            releaseInternal()
+        }
+        mediaPlayer.setOnErrorListener { _, what, extra ->
+            Log.e(TAG, "MediaPlayer error what=$what extra=$extra for url: $url")
             releaseInternal()
             onPlaybackError?.invoke()
             true
         }
         try {
-            mediaPlayer.setDataSource(url)
+            val ctx = context
+            if (ctx != null) {
+                mediaPlayer.setDataSource(ctx, Uri.parse(url))
+            } else {
+                mediaPlayer.setDataSource(url)
+            }
             mediaPlayer.prepareAsync()
             player = mediaPlayer
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start playback for url: $url", e)
             runCatching { mediaPlayer.release() }
             onPlaybackError?.invoke()
         }
