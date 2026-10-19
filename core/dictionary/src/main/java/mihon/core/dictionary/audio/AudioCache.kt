@@ -2,7 +2,6 @@
 // KUN -->
 package mihon.core.dictionary.audio
 
-import android.content.Context
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -10,56 +9,100 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
-import java.security.MessageDigest
 
+/**
+ * Thread-safe, in-memory LRU audio cache for word pronunciation clips.
+ * Audio bytes reside entirely in RAM without hitting storage, preventing disk I/O and flash wear.
+ */
 object AudioCache {
 
     /** JPod101 returns a 52,288-byte placeholder MP3 when a word has no audio. */
-    const val JPOD_DUMMY_AUDIO_BYTES = 52288L
+    const val JPOD_DUMMY_AUDIO_BYTES = 52288
 
-    private const val MAX_CACHE_SIZE_BYTES = 50L * 1024 * 1024 // 50 MB
-    private const val PRUNE_TARGET_BYTES = 40L * 1024 * 1024 // 40 MB
+    /** Maximum memory allocated to cached audio clips (default 24 MB). */
+    const val DEFAULT_MAX_MEMORY_BYTES = 24L * 1024 * 1024
 
-    fun getCacheDir(context: Context): File {
-        val dir = File(context.cacheDir, "word_audio")
-        if (!dir.exists()) dir.mkdirs()
-        return dir
+    private val lock = Any()
+    private val memoryMap = object : LinkedHashMap<String, ByteArray>(64, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ByteArray>?): Boolean = false
+    }
+    private var currentMemoryBytes: Long = 0L
+    private var maxMemoryBytes: Long = DEFAULT_MAX_MEMORY_BYTES
+
+    fun setMaxMemoryBytes(bytes: Long) {
+        synchronized(lock) {
+            maxMemoryBytes = bytes
+            trimToSize(bytes)
+        }
     }
 
-    fun sha256(url: String): String {
-        val digest = MessageDigest.getInstance("SHA-256").digest(url.toByteArray(Charsets.UTF_8))
-        return digest.joinToString("") { "%02x".format(it) }
+    fun sizeBytes(): Long = synchronized(lock) {
+        currentMemoryBytes
     }
 
-    /**
-     * Returns the cached local audio file if it exists, is non-empty, and is not a known
-     * dummy placeholder. Returns null on cache miss.
-     */
-    fun getCachedFile(context: Context?, url: String): File? {
-        if (context == null || url.isBlank() || url.startsWith("tts:")) return null
-        val cacheDir = getCacheDir(context)
-        val file = File(cacheDir, "${sha256(url)}.mp3")
-        return if (file.exists() && file.length() > 0 && file.length() != JPOD_DUMMY_AUDIO_BYTES) {
-            file.setLastModified(System.currentTimeMillis())
-            file
-        } else {
-            null
+    fun count(): Int = synchronized(lock) {
+        memoryMap.size
+    }
+
+    fun clear() {
+        synchronized(lock) {
+            memoryMap.clear()
+            currentMemoryBytes = 0L
         }
     }
 
     /**
-     * Returns the cached file if present, or downloads it via [client] on [Dispatchers.IO].
-     * Returns null if download fails or the content is the dummy placeholder.
+     * Returns the cached in-memory audio byte array if present.
+     * Returns null on cache miss or if [url] is blank or synthetic TTS.
      */
-    suspend fun getOrDownload(context: Context?, url: String, client: OkHttpClient): File? = withContext(Dispatchers.IO) {
-        if (context == null || url.isBlank() || url.startsWith("tts:")) return@withContext null
-        val cached = getCachedFile(context, url)
-        if (cached != null) return@withContext cached
+    fun get(url: String): ByteArray? = synchronized(lock) {
+        if (url.isBlank() || url.startsWith("tts:")) return null
+        memoryMap[url]
+    }
 
-        val cacheDir = getCacheDir(context)
-        val hash = sha256(url)
-        val targetFile = File(cacheDir, "$hash.mp3")
-        val tempFile = File(cacheDir, "$hash.tmp")
+    /**
+     * Stores [data] in the in-memory cache if valid and not the JPod dummy placeholder.
+     */
+    fun put(url: String, data: ByteArray) {
+        synchronized(lock) {
+            if (url.isBlank() || url.startsWith("tts:")) return
+            if (data.isEmpty() || data.size == JPOD_DUMMY_AUDIO_BYTES) return
+
+            val old = memoryMap.put(url, data)
+            currentMemoryBytes += data.size
+            if (old != null) {
+                currentMemoryBytes -= old.size
+            }
+            trimToSize(maxMemoryBytes)
+        }
+    }
+
+    fun remove(url: String): ByteArray? = synchronized(lock) {
+        val old = memoryMap.remove(url)
+        if (old != null) {
+            currentMemoryBytes -= old.size
+        }
+        old
+    }
+
+    private fun trimToSize(targetBytes: Long) {
+        val iterator = memoryMap.entries.iterator()
+        while (currentMemoryBytes > targetBytes && iterator.hasNext()) {
+            val entry = iterator.next()
+            currentMemoryBytes -= entry.value.size
+            iterator.remove()
+        }
+    }
+
+    /**
+     * Returns cached audio bytes from memory if present, or fetches via [client] on [Dispatchers.IO]
+     * directly into memory. Returns null if download fails or content is the dummy placeholder.
+     * Zero storage/disk I/O.
+     */
+    suspend fun getOrDownload(url: String, client: OkHttpClient): ByteArray? = withContext(Dispatchers.IO) {
+        if (url.isBlank() || url.startsWith("tts:")) return@withContext null
+        val cached = get(url)
+        if (cached != null) return@withContext cached
 
         try {
             val request = Request.Builder().url(url).build()
@@ -67,54 +110,35 @@ object AudioCache {
                 if (!response.isSuccessful) return@withContext null
                 val body = response.body
                 val declaredLength = body.contentLength()
-                if (declaredLength == JPOD_DUMMY_AUDIO_BYTES) return@withContext null
+                if (declaredLength == JPOD_DUMMY_AUDIO_BYTES.toLong()) return@withContext null
 
-                tempFile.outputStream().use { out ->
-                    body.byteStream().copyTo(out)
-                }
-
-                if (tempFile.length() == 0L || tempFile.length() == JPOD_DUMMY_AUDIO_BYTES) {
-                    tempFile.delete()
+                val bytes = body.bytes()
+                if (bytes.isEmpty() || bytes.size == JPOD_DUMMY_AUDIO_BYTES) {
                     return@withContext null
                 }
-
-                if (tempFile.renameTo(targetFile)) {
-                    pruneIfNeeded(cacheDir)
-                    targetFile
-                } else {
-                    null
-                }
+                put(url, bytes)
+                bytes
             }
         } catch (_: Exception) {
-            runCatching { tempFile.delete() }
             null
         }
     }
 
-    /** Pre-download in the background so future playback hits the local disk cache. */
-    fun prefetch(context: Context?, url: String, client: OkHttpClient, scope: CoroutineScope) {
-        if (context == null || url.isBlank() || url.startsWith("tts:")) return
-        if (getCachedFile(context, url) != null) return
+    /** Pre-fetch in the background into memory so future playback is instantaneous. */
+    fun prefetch(url: String, client: OkHttpClient, scope: CoroutineScope) {
+        if (url.isBlank() || url.startsWith("tts:")) return
+        if (get(url) != null) return
         scope.launch(Dispatchers.IO) {
-            getOrDownload(context, url, client)
+            getOrDownload(url, client)
         }
     }
 
-    internal fun pruneIfNeeded(
-        cacheDir: File,
-        maxBytes: Long = MAX_CACHE_SIZE_BYTES,
-        targetBytes: Long = PRUNE_TARGET_BYTES,
-    ) {
-        val files = cacheDir.listFiles() ?: return
-        var totalSize = files.sumOf { it.length() }
-        if (totalSize > maxBytes) {
-            val sorted = files.sortedBy { it.lastModified() }
-            for (f in sorted) {
-                if (totalSize <= targetBytes) break
-                val len = f.length()
-                if (f.delete()) {
-                    totalSize -= len
-                }
+    /** Clean up any legacy disk cache directory from older builds. */
+    fun purgeLegacyDiskCache(cacheDir: File) {
+        runCatching {
+            val dir = File(cacheDir, "word_audio")
+            if (dir.exists()) {
+                dir.deleteRecursively()
             }
         }
     }

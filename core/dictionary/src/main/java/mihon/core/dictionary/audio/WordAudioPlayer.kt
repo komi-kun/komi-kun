@@ -10,6 +10,7 @@ import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
+import android.media.MediaDataSource
 import android.media.MediaPlayer
 import android.net.Uri
 import android.os.Bundle
@@ -25,7 +26,6 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
 import java.util.Locale
 import kotlin.math.PI
 import kotlin.math.cos
@@ -42,6 +42,7 @@ class WordAudioPlayer(
     private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var currentPlayJob: Job? = null
     private var player: MediaPlayer? = null
+    private var currentDataSource: MediaDataSource? = null
     private var fallbackTrack: AudioTrack? = null
     private var tts: TextToSpeech? = null
     private var ttsInitialized = false
@@ -51,6 +52,7 @@ class WordAudioPlayer(
     fun attachContext(ctx: Context) {
         if (context == null) {
             context = ctx.applicationContext
+            ctx.cacheDir?.let { AudioCache.purgeLegacyDiskCache(it) }
         }
     }
 
@@ -62,8 +64,8 @@ class WordAudioPlayer(
 
     /**
      * Play first playable candidate from [urls] at [volume] (0f..1f).
-     * If a cached local file exists for candidate 0, playback starts instantly (< 5ms).
-     * Otherwise, downloads via OkHttp in the background, falling back to next candidate on error.
+     * If candidate 0 is cached in memory, playback starts instantly (< 2ms) via [ByteArrayMediaDataSource].
+     * Otherwise, downloads directly into RAM via OkHttp in the background with zero storage I/O.
      */
     fun playCandidateList(urls: List<String>, volume: Float) {
         val validUrls = urls.filter { it.isNotBlank() }
@@ -73,20 +75,18 @@ class WordAudioPlayer(
         }
     }
 
-    /** Prefetch [urls] to the local disk cache in the background. */
+    /** Prefetch [urls] to the in-memory cache in the background. */
     fun prefetch(urls: List<String>) {
-        val ctx = context ?: return
         for (url in urls.take(3)) {
             if (url.isNotBlank() && !url.startsWith("tts:")) {
-                AudioCache.prefetch(ctx, url, OkHttpAudioHttp.sharedClient, ioScope)
+                AudioCache.prefetch(url, OkHttpAudioHttp.sharedClient, ioScope)
             }
         }
     }
 
     fun prefetch(url: String) {
         if (url.isBlank() || url.startsWith("tts:")) return
-        val ctx = context ?: return
-        AudioCache.prefetch(ctx, url, OkHttpAudioHttp.sharedClient, ioScope)
+        AudioCache.prefetch(url, OkHttpAudioHttp.sharedClient, ioScope)
     }
 
     /** Play fallback synthesized sound ([AudioFallbackSound]) at [volume]. */
@@ -118,23 +118,22 @@ class WordAudioPlayer(
         currentPlayJob?.cancel()
         releaseInternal()
 
-        // 1. Check if the first candidate is already cached on disk or is TTS
+        // 1. Check if the first candidate is already cached in memory or is TTS
         val firstUrl = urls.firstOrNull() ?: return
         if (firstUrl.startsWith("tts://speak?") || firstUrl.startsWith("tts:")) {
             speakTts(firstUrl, volume)
             return
         }
 
-        val ctx = context
-        val cachedFile = AudioCache.getCachedFile(ctx, firstUrl)
-        if (cachedFile != null) {
-            if (playFile(cachedFile, volume)) {
+        val cachedBytes = AudioCache.get(firstUrl)
+        if (cachedBytes != null) {
+            if (playData(cachedBytes, firstUrl, volume)) {
                 if (urls.size > 1) prefetch(urls.drop(1))
                 return
             }
         }
 
-        // 2. Not cached locally, or cached file was unplayable: download via coroutine
+        // 2. Not cached in memory: download directly into memory via coroutine (zero storage I/O)
         currentPlayJob = ioScope.launch {
             val client = OkHttpAudioHttp.sharedClient
             for (url in urls) {
@@ -146,22 +145,12 @@ class WordAudioPlayer(
                     return@launch
                 }
 
-                val file = if (ctx != null) {
-                    AudioCache.getOrDownload(ctx, url, client)
-                } else {
-                    null
-                }
-
-                if (file != null && isActive) {
+                val bytes = AudioCache.getOrDownload(url, client)
+                if (bytes != null && isActive) {
                     val played = withContext(Dispatchers.Main) {
-                        if (isActive) playFile(file, volume) else false
+                        if (isActive) playData(bytes, url, volume) else false
                     }
                     if (played) return@launch
-                } else if (ctx == null && isActive) {
-                    withContext(Dispatchers.Main) {
-                        if (isActive) playUrlDirect(url, volume)
-                    }
-                    return@launch
                 }
             }
 
@@ -173,7 +162,7 @@ class WordAudioPlayer(
         }
     }
 
-    private fun playFile(file: File, volume: Float): Boolean {
+    private fun playData(bytes: ByteArray, url: String, volume: Float): Boolean {
         releaseInternal()
         val mediaPlayer = MediaPlayer()
         mediaPlayer.setAudioAttributes(
@@ -184,24 +173,29 @@ class WordAudioPlayer(
         )
         mediaPlayer.setVolume(volume, volume)
         mediaPlayer.setOnCompletionListener {
-            Log.d(TAG, "MediaPlayer completed playback: ${file.name}")
+            Log.d(TAG, "MediaPlayer completed playback: $url")
             releaseInternal()
         }
         mediaPlayer.setOnErrorListener { _, what, extra ->
-            Log.e(TAG, "MediaPlayer error what=$what extra=$extra for file: ${file.name}")
+            Log.e(TAG, "MediaPlayer error what=$what extra=$extra for url: $url")
             releaseInternal()
             onPlaybackError?.invoke()
             true
         }
         return try {
-            mediaPlayer.setDataSource(file.absolutePath)
+            val dataSource = ByteArrayMediaDataSource(bytes)
+            currentDataSource = dataSource
+            mediaPlayer.setDataSource(dataSource)
             mediaPlayer.prepare()
             mediaPlayer.start()
             player = mediaPlayer
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to play cached file: ${file.name}", e)
-            runCatching { file.delete() }
+            Log.e(TAG, "Failed to play in-memory audio for url: $url", e)
+            AudioCache.remove(url)
+            val ds = currentDataSource
+            currentDataSource = null
+            runCatching { ds?.close() }
             runCatching { mediaPlayer.release() }
             false
         }
@@ -357,6 +351,9 @@ class WordAudioPlayer(
             runCatching { current.reset() }
             runCatching { current.release() }
         }
+        val ds = currentDataSource
+        currentDataSource = null
+        runCatching { ds?.close() }
         tts?.stop()
         releaseFallbackTrack()
     }
