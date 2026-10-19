@@ -23,6 +23,8 @@
   let _wordAudioEnabled = true;
   let _autoplayGuard = false;
   const _audioCallbacks = new Map();
+  const _audioCandidatesCache = new Map();
+  const _pendingAudioRequests = new Map();
   let _listenersInstalled = false;
   let _lastAnkiDupAction = -1; // -1 = unknown/not set
   let _dictionaryMediaObserver = null;
@@ -1988,22 +1990,62 @@
   // WebView's own long-press text selection. The native bridge stays a thin "resolve + play" seam.
   const _audioNative = () => (typeof WordAudioBridge !== 'undefined' ? WordAudioBridge : null);
 
+  function audioKey(expression, reading) {
+    return (expression || '') + ':' + (reading || '');
+  }
+
   function requestAudioCandidates(expression, reading, handler) {
+    const key = audioKey(expression, reading);
+    if (_audioCandidatesCache.has(key)) {
+      if (typeof handler === 'function') {
+        handler(_audioCandidatesCache.get(key));
+      }
+      return;
+    }
+
+    if (_pendingAudioRequests.has(key)) {
+      if (typeof handler === 'function') {
+        _pendingAudioRequests.get(key).push(handler);
+      }
+      return;
+    }
+
+    const handlers = [];
+    if (typeof handler === 'function') handlers.push(handler);
+    _pendingAudioRequests.set(key, handlers);
+
     const bridge = _audioNative();
-    if (!bridge) return;
+    if (!bridge) {
+      _pendingAudioRequests.delete(key);
+      if (typeof handler === 'function') handler({ sources: [], candidates: [] });
+      return;
+    }
+
     const callbackId = 'audio_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
-    _audioCallbacks.set(callbackId, handler);
+    _audioCallbacks.set(callbackId, { key });
     bridge.fetchAudio(expression, reading, callbackId);
   }
 
-  function playAudioCandidate(url, button) {
+  function playAudioCandidateList(candidateUrls, button) {
     const bridge = _audioNative();
-    if (!bridge || !url) return;
+    if (!bridge || !candidateUrls || candidateUrls.length === 0) return;
     if (button) {
       button.classList.add('playing');
       setTimeout(() => button.classList.remove('playing'), 600);
     }
-    bridge.playAudio(url);
+    if (typeof bridge.playCandidates === 'function') {
+      bridge.playCandidates(JSON.stringify(candidateUrls));
+    } else if (typeof bridge.playAudio === 'function') {
+      bridge.playAudio(candidateUrls[0]);
+    }
+  }
+
+  function playAudioCandidate(url, button, fallbackUrls) {
+    if (fallbackUrls && Array.isArray(fallbackUrls) && fallbackUrls.length > 0) {
+      playAudioCandidateList(fallbackUrls, button);
+    } else {
+      playAudioCandidateList([url], button);
+    }
   }
 
   // Tolerates both the rich `{sources, candidates}` payload and a bare candidate array.
@@ -2180,6 +2222,9 @@
     audioBtn.dataset.expression = expression;
     audioBtn.dataset.reading = reading;
 
+    // Proactively pre-resolve and prefetch in background so audio is ready immediately
+    requestAudioCandidates(expression, reading, null);
+
     let longPressTimer = null;
     let longPressFired = false;
     let startX = 0;
@@ -2192,13 +2237,22 @@
     };
 
     const playDefault = () => {
+      const key = audioKey(expression, reading);
+      if (_audioCandidatesCache.has(key)) {
+        const {candidates} = audioPayload(_audioCandidatesCache.get(key));
+        const urls = candidates.map(c => c.url).filter(Boolean);
+        if (urls.length > 0) {
+          playAudioCandidateList(urls, audioBtn);
+          return;
+        }
+      }
       audioBtn.classList.add('loading');
       requestAudioCandidates(expression, reading, (payload) => {
         audioBtn.classList.remove('loading');
         const {candidates} = audioPayload(payload);
-        const first = candidates[0];
-        if (first && first.url) {
-          playAudioCandidate(first.url, audioBtn);
+        const urls = candidates.map(c => c.url).filter(Boolean);
+        if (urls.length > 0) {
+          playAudioCandidateList(urls, audioBtn);
         } else {
           if (typeof WordAudioBridge !== 'undefined' && WordAudioBridge.playFallback) {
             WordAudioBridge.playFallback();
@@ -2213,6 +2267,11 @@
       if (ev) {
         ev.preventDefault();
         ev.stopPropagation();
+      }
+      const key = audioKey(expression, reading);
+      if (_audioCandidatesCache.has(key)) {
+        showAudioMenu(audioBtn, _audioCandidatesCache.get(key));
+        return;
       }
       audioBtn.classList.add('loading');
       requestAudioCandidates(expression, reading, (payload) => {
@@ -3385,10 +3444,23 @@
     },
 
     onAudioResults: (id, payload) => {
-      const handler = _audioCallbacks.get(id);
-      if (handler) {
-        _audioCallbacks.delete(id);
-        handler(payload);
+      const entry = _audioCallbacks.get(id);
+      if (!entry) return;
+      _audioCallbacks.delete(id);
+      if (typeof entry === 'function') {
+        entry(payload);
+      } else if (entry && entry.key) {
+        const key = entry.key;
+        _audioCandidatesCache.set(key, payload);
+        const waiters = _pendingAudioRequests.get(key) || [];
+        _pendingAudioRequests.delete(key);
+        waiters.forEach((cb) => {
+          try {
+            cb(payload);
+          } catch (e) {
+            console.error('[DictionaryRenderJS] audio callback error:', e);
+          }
+        });
       }
     },
   };

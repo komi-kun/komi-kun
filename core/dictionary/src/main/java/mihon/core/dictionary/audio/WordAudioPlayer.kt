@@ -17,6 +17,15 @@ import android.os.Handler
 import android.os.Looper
 import android.speech.tts.TextToSpeech
 import android.util.Log
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
 import java.util.Locale
 import kotlin.math.PI
 import kotlin.math.cos
@@ -30,6 +39,8 @@ class WordAudioPlayer(
 ) {
 
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var currentPlayJob: Job? = null
     private var player: MediaPlayer? = null
     private var fallbackTrack: AudioTrack? = null
     private var tts: TextToSpeech? = null
@@ -46,7 +57,36 @@ class WordAudioPlayer(
     /** Play [url] at [volume] (0f..1f). Safe to call from any thread; work is posted to the main. */
     fun play(url: String, volume: Float) {
         if (url.isBlank()) return
-        mainHandler.post { playInternal(url, volume.coerceIn(0f, 1f)) }
+        playCandidateList(listOf(url), volume)
+    }
+
+    /**
+     * Play first playable candidate from [urls] at [volume] (0f..1f).
+     * If a cached local file exists for candidate 0, playback starts instantly (< 5ms).
+     * Otherwise, downloads via OkHttp in the background, falling back to next candidate on error.
+     */
+    fun playCandidateList(urls: List<String>, volume: Float) {
+        val validUrls = urls.filter { it.isNotBlank() }
+        if (validUrls.isEmpty()) return
+        mainHandler.post {
+            playCandidateListInternal(validUrls, volume.coerceIn(0f, 1f))
+        }
+    }
+
+    /** Prefetch [urls] to the local disk cache in the background. */
+    fun prefetch(urls: List<String>) {
+        val ctx = context ?: return
+        for (url in urls.take(3)) {
+            if (url.isNotBlank() && !url.startsWith("tts:")) {
+                AudioCache.prefetch(ctx, url, OkHttpAudioHttp.sharedClient, ioScope)
+            }
+        }
+    }
+
+    fun prefetch(url: String) {
+        if (url.isBlank() || url.startsWith("tts:")) return
+        val ctx = context ?: return
+        AudioCache.prefetch(ctx, url, OkHttpAudioHttp.sharedClient, ioScope)
     }
 
     /** Play fallback synthesized sound ([AudioFallbackSound]) at [volume]. */
@@ -56,12 +96,17 @@ class WordAudioPlayer(
 
     /** Stop and release the current clip. */
     fun stop() {
-        mainHandler.post { releaseInternal() }
+        mainHandler.post {
+            currentPlayJob?.cancel()
+            releaseInternal()
+        }
     }
 
     /** Release player and shutdown TTS resources. */
     fun destroy() {
         mainHandler.post {
+            currentPlayJob?.cancel()
+            ioScope.cancel()
             releaseInternal()
             tts?.shutdown()
             tts = null
@@ -69,12 +114,101 @@ class WordAudioPlayer(
         }
     }
 
-    private fun playInternal(url: String, volume: Float) {
+    private fun playCandidateListInternal(urls: List<String>, volume: Float) {
+        currentPlayJob?.cancel()
         releaseInternal()
-        if (url.startsWith("tts://speak?") || url.startsWith("tts:")) {
-            speakTts(url, volume)
+
+        // 1. Check if the first candidate is already cached on disk or is TTS
+        val firstUrl = urls.firstOrNull() ?: return
+        if (firstUrl.startsWith("tts://speak?") || firstUrl.startsWith("tts:")) {
+            speakTts(firstUrl, volume)
             return
         }
+
+        val ctx = context
+        val cachedFile = AudioCache.getCachedFile(ctx, firstUrl)
+        if (cachedFile != null) {
+            if (playFile(cachedFile, volume)) {
+                if (urls.size > 1) prefetch(urls.drop(1))
+                return
+            }
+        }
+
+        // 2. Not cached locally, or cached file was unplayable: download via coroutine
+        currentPlayJob = ioScope.launch {
+            val client = OkHttpAudioHttp.sharedClient
+            for (url in urls) {
+                if (!isActive) return@launch
+                if (url.startsWith("tts://speak?") || url.startsWith("tts:")) {
+                    withContext(Dispatchers.Main) {
+                        if (isActive) speakTts(url, volume)
+                    }
+                    return@launch
+                }
+
+                val file = if (ctx != null) {
+                    AudioCache.getOrDownload(ctx, url, client)
+                } else {
+                    null
+                }
+
+                if (file != null && isActive) {
+                    val played = withContext(Dispatchers.Main) {
+                        if (isActive) playFile(file, volume) else false
+                    }
+                    if (played) return@launch
+                } else if (ctx == null && isActive) {
+                    withContext(Dispatchers.Main) {
+                        if (isActive) playUrlDirect(url, volume)
+                    }
+                    return@launch
+                }
+            }
+
+            withContext(Dispatchers.Main) {
+                if (isActive) {
+                    onPlaybackError?.invoke()
+                }
+            }
+        }
+    }
+
+    private fun playFile(file: File, volume: Float): Boolean {
+        releaseInternal()
+        val mediaPlayer = MediaPlayer()
+        mediaPlayer.setAudioAttributes(
+            AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_MEDIA)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                .build(),
+        )
+        mediaPlayer.setVolume(volume, volume)
+        mediaPlayer.setOnCompletionListener {
+            Log.d(TAG, "MediaPlayer completed playback: ${file.name}")
+            releaseInternal()
+        }
+        mediaPlayer.setOnErrorListener { _, what, extra ->
+            Log.e(TAG, "MediaPlayer error what=$what extra=$extra for file: ${file.name}")
+            releaseInternal()
+            onPlaybackError?.invoke()
+            true
+        }
+        return try {
+            mediaPlayer.setDataSource(file.absolutePath)
+            mediaPlayer.prepare()
+            mediaPlayer.start()
+            player = mediaPlayer
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to play cached file: ${file.name}", e)
+            runCatching { file.delete() }
+            runCatching { mediaPlayer.release() }
+            false
+        }
+    }
+
+    private fun playUrlDirect(url: String, volume: Float) {
+        releaseInternal()
         val mediaPlayer = MediaPlayer()
         mediaPlayer.setAudioAttributes(
             AudioAttributes.Builder()
@@ -98,16 +232,11 @@ class WordAudioPlayer(
             true
         }
         try {
-            val ctx = context
-            if (ctx != null) {
-                mediaPlayer.setDataSource(ctx, Uri.parse(url))
-            } else {
-                mediaPlayer.setDataSource(url)
-            }
+            mediaPlayer.setDataSource(url)
             mediaPlayer.prepareAsync()
             player = mediaPlayer
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to start playback for url: $url", e)
+            Log.e(TAG, "Failed to start direct playback for url: $url", e)
             runCatching { mediaPlayer.release() }
             onPlaybackError?.invoke()
         }
