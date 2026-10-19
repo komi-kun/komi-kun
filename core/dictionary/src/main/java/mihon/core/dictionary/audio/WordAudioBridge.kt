@@ -37,6 +37,7 @@ class WordAudioBridge(
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val player = WordAudioPlayer()
+    private var cachedResolver: Pair<AudioHttp, AudioResolver>? = null
 
     init {
         player.onPlaybackError = {
@@ -45,6 +46,17 @@ class WordAudioBridge(
                 player.playFallback(config.fallbackSoundType, config.volumeFraction)
             }
         }
+    }
+
+    private fun getResolver(): AudioResolver {
+        val currentHttp = http
+        val cached = cachedResolver
+        if (cached != null && cached.first === currentHttp) {
+            return cached.second
+        }
+        val created = AudioResolver(currentHttp)
+        cachedResolver = currentHttp to created
+        return created
     }
 
     @JavascriptInterface
@@ -58,13 +70,19 @@ class WordAudioBridge(
         val language = (languageIsoProvider?.invoke() ?: "ja").ifBlank { "ja" }
         scope.launch {
             val resolution = withContext(Dispatchers.IO) {
-                AudioResolver(http).resolve(
+                getResolver().resolve(
                     sources = config.sources,
                     term = expression,
                     reading = reading,
                     languageIso = language,
                     enableDefaultSources = config.enableDefaultAudioSources,
                 )
+            }
+            val ctx = webView.context
+            player.attachContext(ctx)
+            val candidateUrls = resolution.candidates.map { it.url }.filter { it.isNotBlank() }
+            if (candidateUrls.isNotEmpty()) {
+                player.prefetch(candidateUrls)
             }
             deliver(webView, callbackId, resolution)
         }
@@ -77,6 +95,34 @@ class WordAudioBridge(
         val ctx = webViewProvider()?.context
         if (ctx != null) player.attachContext(ctx)
         player.play(url, config.volumeFraction)
+    }
+
+    @JavascriptInterface
+    fun playCandidates(urlsJson: String) {
+        val config = configProvider?.invoke() ?: AudioPreferences.DEFAULT
+        if (!config.enabled) return
+        val ctx = webViewProvider()?.context
+        if (ctx != null) player.attachContext(ctx)
+        val urls = runCatching {
+            val array = JSONArray(urlsJson)
+            (0 until array.length()).mapNotNull { array.optString(it).takeIf { s -> s.isNotBlank() } }
+        }.getOrDefault(emptyList())
+        if (urls.isNotEmpty()) {
+            player.playCandidateList(urls, config.volumeFraction)
+        }
+    }
+
+    @JavascriptInterface
+    fun prefetchAudio(urlsJson: String) {
+        val ctx = webViewProvider()?.context ?: return
+        player.attachContext(ctx)
+        val urls = runCatching {
+            val array = JSONArray(urlsJson)
+            (0 until array.length()).mapNotNull { array.optString(it).takeIf { s -> s.isNotBlank() } }
+        }.getOrDefault(emptyList())
+        if (urls.isNotEmpty()) {
+            player.prefetch(urls)
+        }
     }
 
     @JavascriptInterface
