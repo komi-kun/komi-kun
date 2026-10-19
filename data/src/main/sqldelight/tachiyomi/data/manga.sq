@@ -74,6 +74,7 @@ BEGIN
     WHERE id = new.id AND new.is_syncing = 0 AND (
         new.remote_url != old.remote_url OR
         new.remote_description != old.remote_description OR
+        new.remote_cover IS NOT old.remote_cover OR
         new.user_favorite_at IS NOT old.user_favorite_at
     );
 END;
@@ -339,8 +340,10 @@ UPDATE manga SET
 WHERE id = :mangaId;
 
 -- KUN -->
--- Only the URL changes. The timestamp is deliberately left alone so the already
--- decoded image keeps its Coil cache key for the rest of the session.
+-- Only remote_cover changes. state_cover_last_modified is deliberately left alone so the
+-- already decoded image keeps its Coil cache key for the rest of the session. The SyncYomi
+-- triggers still stamp last_modified_at and bump version for the URL change, so the new
+-- cover is uploaded and wins version-based reconciliation on other devices.
 updateCover:
 UPDATE manga SET
     remote_cover = :thumbnailUrl

@@ -118,7 +118,8 @@ class RefreshMangaCover(
 
             // The WHERE clause keeps a concurrent manual refresh from being overwritten even
             // if it happens between the checks above and the write. Only the URL changes:
-            // keeping the timestamp stable lets the already decoded image stay in Coil's cache.
+            // keeping the Coil cache timestamp stable lets the already decoded image stay in
+            // memory, while the SyncYomi triggers still record the change for the next sync.
             if (!mangaRepository.updateCover(mangaId, staleUrl, newUrl)) return false
             coverCache.deleteFromCache(manga, false)
             xLogI("Refreshed stale cover for manga $mangaId")

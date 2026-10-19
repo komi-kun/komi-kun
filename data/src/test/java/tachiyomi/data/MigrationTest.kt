@@ -142,6 +142,20 @@ class MigrationTest {
                 (driver.scalarLong("SELECT last_modified_at FROM manga WHERE id = 1") ?: 0) shouldBe
                     (driver.scalarLong("SELECT strftime('%s', 'now')") ?: 0)
                 (driver.scalarLong("SELECT version FROM manga WHERE id = 1") ?: 0) shouldBe 4
+
+                // A cover-only change must bump version too, otherwise sync peers keep the
+                // local row on a version tie and never apply the new URL. The local Coil
+                // timestamp must stay untouched.
+                val coverLastModifiedBefore =
+                    driver.scalarLong("SELECT state_cover_last_modified FROM manga WHERE id = 1")
+                driver.execute(null, "UPDATE manga SET remote_cover = 'https://new-cover' WHERE id = 1", 0).await()
+                (driver.scalarLong("SELECT version FROM manga WHERE id = 1") ?: 0) shouldBe 5
+                driver.scalarLong("SELECT state_cover_last_modified FROM manga WHERE id = 1") shouldBe
+                    coverLastModifiedBefore
+
+                // An unrelated update keeps the version unchanged.
+                driver.execute(null, "UPDATE manga SET remote_title = 'renamed' WHERE id = 1", 0).await()
+                (driver.scalarLong("SELECT version FROM manga WHERE id = 1") ?: 0) shouldBe 5
             } finally {
                 driver.close()
             }
