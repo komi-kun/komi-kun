@@ -154,6 +154,20 @@ object SettingsOcrScreen : SearchableSettings {
             Preference.PreferenceGroup(
                 title = stringResource(KMR.strings.pref_ocr_paddlevl_settings),
                 preferenceItems = listOf(
+                    Preference.PreferenceItem.ListPreference(
+                        preference = preferences.paddleVlExecutionMode,
+                        entries = mapOf(
+                            OcrPreferences.MODE_ON_DEVICE to stringResource(KMR.strings.pref_ocr_paddlevl_mode_on_device),
+                            OcrPreferences.MODE_SERVER to stringResource(KMR.strings.pref_ocr_paddlevl_mode_server),
+                        ),
+                        title = stringResource(KMR.strings.pref_ocr_paddlevl_mode),
+                        subtitle = "%s",
+                    ),
+                    Preference.PreferenceItem.EditTextPreference(
+                        preference = preferences.paddleVlModelPath,
+                        title = stringResource(KMR.strings.pref_ocr_paddlevl_model_path),
+                        subtitle = stringResource(KMR.strings.pref_ocr_paddlevl_model_path_summary),
+                    ),
                     Preference.PreferenceItem.EditTextPreference(
                         preference = preferences.paddleVlEndpoint,
                         title = stringResource(KMR.strings.pref_ocr_paddlevl_endpoint),

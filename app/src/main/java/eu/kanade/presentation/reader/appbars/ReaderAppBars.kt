@@ -99,6 +99,7 @@ fun ReaderAppBars(
     // KUN -->
     ocrEnabled: Boolean,
     onClickOcr: () -> Unit,
+    onLongClickOcr: (() -> Unit)? = null,
     // KUN <--
 ) {
     val backgroundColor = MaterialTheme.colorScheme
@@ -247,6 +248,7 @@ fun ReaderAppBars(
                     // KUN -->
                     ocrEnabled = ocrEnabled,
                     onClickOcr = onClickOcr,
+                    onLongClickOcr = onLongClickOcr,
                     // KUN <--
                 )
             }

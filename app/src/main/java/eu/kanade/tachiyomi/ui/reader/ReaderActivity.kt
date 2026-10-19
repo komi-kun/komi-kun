@@ -869,6 +869,9 @@ class ReaderActivity : BaseActivity() {
                 menuToggleToast?.cancel()
                 menuToggleToast = toast(if (enabled) MR.strings.on else MR.strings.off)
             },
+            onLongClickOcr = {
+                showRedoOcrDialog()
+            },
             // KUN <--
         )
     }
@@ -1348,6 +1351,42 @@ class ReaderActivity : BaseActivity() {
         val enabled = viewModel.toggleOcrOverlay()
         menuToggleToast?.cancel()
         menuToggleToast = toast(if (enabled) MR.strings.on else MR.strings.off)
+    }
+
+    /**
+     * Shows a dialog to force-redo OCR for the current page or the entire chapter,
+     * updating the cache and overriding any .mokuro sidecars in the archive.
+     */
+    private fun showRedoOcrDialog() {
+        val currentPage = exhCurrentpage() ?: return
+        val items = arrayOf(
+            stringResource(KMR.strings.action_redo_ocr_page),
+            stringResource(KMR.strings.action_redo_ocr_chapter),
+        )
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(stringResource(KMR.strings.action_redo_ocr))
+            .setItems(items) { _, which ->
+                when (which) {
+                    0 -> {
+                        toast(stringResource(KMR.strings.ocr_redoing_page, currentPage.index + 1))
+                        readerOcrHost.redoOcr(currentPage, chapter = false) {
+                            runOnUiThread {
+                                toast(stringResource(KMR.strings.ocr_redo_page_complete, currentPage.index + 1))
+                            }
+                        }
+                    }
+                    1 -> {
+                        toast(stringResource(KMR.strings.ocr_redoing_chapter))
+                        readerOcrHost.redoOcr(currentPage, chapter = true) {
+                            runOnUiThread {
+                                toast(stringResource(KMR.strings.ocr_redo_chapter_complete))
+                            }
+                        }
+                    }
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
     // KUN <--
 
