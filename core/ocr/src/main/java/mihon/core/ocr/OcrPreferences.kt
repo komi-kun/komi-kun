@@ -55,6 +55,33 @@ class OcrPreferences(
     val parallelOcrLimit: Preference<Int> = preferenceStore.getInt("pref_ocr_parallel_limit", 1)
 
     // KUN -->
+    /** Selected OCR Engine / Model type (PP-OCRv6 Small vs PaddleOCR-VL-1.6 VLM). */
+    val ocrEngineType: Preference<String> = preferenceStore.getString(
+        "pref_ocr_engine_type",
+        OcrEngineType.PP_OCRV6_SMALL.id,
+    )
+
+    val effectiveEngineType: OcrEngineType
+        get() = OcrEngineType.fromId(ocrEngineType.get())
+
+    /** Server endpoint for PaddleOCR-VL completions (e.g. http://127.0.0.1:8080). */
+    val paddleVlEndpoint: Preference<String> = preferenceStore.getString(
+        "pref_ocr_paddlevl_endpoint",
+        "http://127.0.0.1:8080",
+    )
+
+    /** Task prompt sent to PaddleOCR-VL (defaults to Spotting: for bounding boxes). */
+    val paddleVlPrompt: Preference<String> = preferenceStore.getString(
+        "pref_ocr_paddlevl_prompt",
+        "Spotting:",
+    )
+
+    /** Automatically fall back to local PP-OCRv6 if PaddleOCR-VL server fails. */
+    val paddleVlFallback: Preference<Boolean> = preferenceStore.getBoolean(
+        "pref_ocr_paddlevl_fallback",
+        true,
+    )
+
     // ------------------------------------------------------------------ engine tuning
     // The three detector knobs map 1:1 onto the JNI `nativeProcess` arguments and the native
     // `Options` (see `komi-kun-ocr-models` `src/ocr_engine.h`): they need no artefact change.
@@ -93,6 +120,7 @@ class OcrPreferences(
      * OCR manager combines it with its engine-generation key.
      */
     fun cacheSignature(): String {
+        val enginePrefix = if (effectiveEngineType == OcrEngineType.PADDLEOCR_VL) "vl-" else ""
         val pixel = detPixelThreshold.get()
         val box = detBoxThreshold.get()
         val unclip = detUnclipRatio.get()
@@ -100,9 +128,9 @@ class OcrPreferences(
         if (pixel == DEFAULT_DET_PIXEL && box == DEFAULT_DET_BOX &&
             unclip == DEFAULT_DET_UNCLIP && floor == DEFAULT_REC_FLOOR
         ) {
-            return ""
+            return enginePrefix.trimEnd('-')
         }
-        return "t${pixel}b${box}u${unclip}r$floor"
+        return "${enginePrefix}t${pixel}b${box}u${unclip}r$floor"
     }
 
     companion object {

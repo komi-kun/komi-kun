@@ -20,6 +20,7 @@ import eu.kanade.presentation.more.settings.Preference
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import kotlinx.coroutines.launch
 import mihon.app.di.appGraph
+import mihon.core.ocr.OcrEngineType
 import mihon.core.ocr.OcrPreferences
 import mihon.core.ocr.cache.OcrCacheManager
 import mihon.core.ocr.paddle.ModelDownloadState
@@ -136,6 +137,34 @@ object SettingsOcrScreen : SearchableSettings {
                     }
                     true
                 },
+            ),
+
+            // Engine selection: PP-OCRv6 Small (On-Device) vs PaddleOCR-VL-1.6 (VLM).
+            Preference.PreferenceItem.ListPreference(
+                preference = preferences.ocrEngineType,
+                entries = mapOf(
+                    OcrEngineType.PP_OCRV6_SMALL.id to stringResource(KMR.strings.pref_ocr_model_ppocrv6),
+                    OcrEngineType.PADDLEOCR_VL.id to stringResource(KMR.strings.pref_ocr_model_paddlevl),
+                ),
+                title = stringResource(KMR.strings.pref_ocr_engine_model),
+                subtitle = "%s",
+            ),
+
+            // PaddleOCR-VL settings.
+            Preference.PreferenceGroup(
+                title = stringResource(KMR.strings.pref_ocr_paddlevl_settings),
+                preferenceItems = listOf(
+                    Preference.PreferenceItem.EditTextPreference(
+                        preference = preferences.paddleVlEndpoint,
+                        title = stringResource(KMR.strings.pref_ocr_paddlevl_endpoint),
+                        subtitle = stringResource(KMR.strings.pref_ocr_paddlevl_endpoint_summary),
+                    ),
+                    Preference.PreferenceItem.SwitchPreference(
+                        preference = preferences.paddleVlFallback,
+                        title = stringResource(KMR.strings.pref_ocr_paddlevl_fallback),
+                        subtitle = stringResource(KMR.strings.pref_ocr_paddlevl_fallback_summary),
+                    ),
+                ),
             ),
 
             // Model download status (contract §1.7): a first-time download's progress and any
