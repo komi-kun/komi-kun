@@ -30,7 +30,7 @@ import mihon.core.dictionary.anki.AnkiScreenshotMode
 import mihon.core.dictionary.anki.LapisPreset
 import tachiyomi.core.common.preference.AndroidPreferenceStore
 import tachiyomi.i18n.MR
-import tachiyomi.i18n.kmk.KMR
+import tachiyomi.i18n.kun.KUNMR
 import tachiyomi.presentation.core.i18n.stringResource
 
 /**
@@ -44,7 +44,7 @@ object SettingsAnkiScreen : SearchableSettings {
 
     @ReadOnlyComposable
     @Composable
-    override fun getTitleRes() = KMR.strings.pref_category_anki
+    override fun getTitleRes() = KUNMR.strings.pref_category_anki
 
     @Composable
     override fun getPreferences(): List<Preference> {
@@ -95,7 +95,7 @@ object SettingsAnkiScreen : SearchableSettings {
                     OutlinedTextField(
                         value = mappingDialogValue,
                         onValueChange = { mappingDialogValue = it },
-                        label = { Text(text = stringResource(KMR.strings.pref_anki_field_mapping)) },
+                        label = { Text(text = stringResource(KUNMR.strings.pref_anki_field_mapping)) },
                     )
                 },
                 confirmButton = {
@@ -149,20 +149,20 @@ object SettingsAnkiScreen : SearchableSettings {
     @Composable
     private fun ankiStatusGroup(installed: Boolean, permitted: Boolean, prefs: AnkiPreferences): Preference =
         Preference.PreferenceGroup(
-            title = stringResource(KMR.strings.pref_category_anki),
+            title = stringResource(KUNMR.strings.pref_category_anki),
             preferenceItems = buildList {
                 add(
                     Preference.PreferenceItem.SwitchPreference(
                         preference = prefs.enabled(),
-                        title = stringResource(KMR.strings.pref_anki_enable),
+                        title = stringResource(KUNMR.strings.pref_anki_enable),
                     ),
                 )
                 if (!installed) {
-                    add(Preference.PreferenceItem.TextPreference(title = stringResource(KMR.strings.pref_anki_no_ankidroid)))
+                    add(Preference.PreferenceItem.TextPreference(title = stringResource(KUNMR.strings.pref_anki_no_ankidroid)))
                 } else if (!permitted) {
                     add(
                         Preference.PreferenceItem.TextPreference(
-                            title = stringResource(KMR.strings.pref_anki_permission_denied),
+                            title = stringResource(KUNMR.strings.pref_anki_permission_denied),
                         ),
                     )
                 }
@@ -177,20 +177,20 @@ object SettingsAnkiScreen : SearchableSettings {
         onSwitch: (String) -> Unit,
         onChanged: () -> Unit,
     ): Preference.PreferenceGroup = Preference.PreferenceGroup(
-        title = stringResource(KMR.strings.pref_anki_profiles),
+        title = stringResource(KUNMR.strings.pref_anki_profiles),
         preferenceItems = buildList {
             add(
                 Preference.PreferenceItem.BasicListPreference(
                     value = activeProfile.id,
                     entries = profileEntries,
-                    title = stringResource(KMR.strings.pref_anki_profile_active, activeProfile.name),
+                    title = stringResource(KUNMR.strings.pref_anki_profile_active, activeProfile.name),
                     subtitleProvider = { id, entries -> entries[id].orEmpty() },
                     onValueChanged = onSwitch,
                 ),
             )
             add(
                 Preference.PreferenceItem.TextPreference(
-                    title = stringResource(KMR.strings.pref_anki_profile_new),
+                    title = stringResource(KUNMR.strings.pref_anki_profile_new),
                     onClick = {
                         val profile = AnkiProfile.createDefault(defaultName = "Profile ${prefs.profiles().size + 1}")
                         prefs.profileStore.addProfile(profile)
@@ -201,7 +201,7 @@ object SettingsAnkiScreen : SearchableSettings {
             )
             add(
                 Preference.PreferenceItem.TextPreference(
-                    title = stringResource(KMR.strings.pref_anki_profile_clone),
+                    title = stringResource(KUNMR.strings.pref_anki_profile_clone),
                     onClick = {
                         val clone = activeProfile.copy(
                             id = java.util.UUID.randomUUID().toString(),
@@ -215,8 +215,8 @@ object SettingsAnkiScreen : SearchableSettings {
             )
             add(
                 Preference.PreferenceItem.TextPreference(
-                    title = stringResource(KMR.strings.pref_anki_profile_delete),
-                    subtitle = stringResource(KMR.strings.pref_anki_profile_cannot_delete_last),
+                    title = stringResource(KUNMR.strings.pref_anki_profile_delete),
+                    subtitle = stringResource(KUNMR.strings.pref_anki_profile_cannot_delete_last),
                     onClick = {
                         if (prefs.profileStore.deleteProfile(activeProfile.id)) {
                             prefs.writeFlatProfile(prefs.profileStore.getActiveProfile())
@@ -241,13 +241,13 @@ object SettingsAnkiScreen : SearchableSettings {
         val deckEntries = (decks + prefs.deck().get()).filter { it.isNotBlank() }.distinct().associateWith { it }
         val modelEntries = (models + prefs.model().get()).filter { it.isNotBlank() }.distinct().associateWith { it }
         return Preference.PreferenceGroup(
-            title = stringResource(KMR.strings.pref_anki_settings_summary),
+            title = stringResource(KUNMR.strings.pref_anki_settings_summary),
             preferenceItems = buildList {
                 add(
                     Preference.PreferenceItem.BasicListPreference(
                         value = prefs.deck().get(),
-                        entries = deckEntries.ifEmpty { mapOf("" to stringResource(KMR.strings.pref_anki_select_deck)) },
-                        title = stringResource(KMR.strings.pref_anki_deck),
+                        entries = deckEntries.ifEmpty { mapOf("" to stringResource(KUNMR.strings.pref_anki_select_deck)) },
+                        title = stringResource(KUNMR.strings.pref_anki_deck),
                         subtitleProvider = { v, e -> e[v] ?: v },
                         onValueChanged = {
                             prefs.deck().set(it)
@@ -258,8 +258,8 @@ object SettingsAnkiScreen : SearchableSettings {
                 add(
                     Preference.PreferenceItem.BasicListPreference(
                         value = prefs.model().get(),
-                        entries = modelEntries.ifEmpty { mapOf("" to stringResource(KMR.strings.pref_anki_select_model)) },
-                        title = stringResource(KMR.strings.pref_anki_model),
+                        entries = modelEntries.ifEmpty { mapOf("" to stringResource(KUNMR.strings.pref_anki_select_model)) },
+                        title = stringResource(KUNMR.strings.pref_anki_model),
                         subtitleProvider = { v, e -> e[v] ?: v },
                         onValueChanged = {
                             prefs.model().set(it)
@@ -271,7 +271,7 @@ object SettingsAnkiScreen : SearchableSettings {
                 add(
                     Preference.PreferenceItem.EditTextPreference(
                         preference = prefs.defaultTags(),
-                        title = stringResource(KMR.strings.pref_anki_default_tags),
+                        title = stringResource(KUNMR.strings.pref_anki_default_tags),
                         onValueChanged = {
                             onChanged()
                             true
@@ -296,22 +296,22 @@ object SettingsAnkiScreen : SearchableSettings {
     @Composable
     private fun duplicateGroup(prefs: AnkiPreferences, onChanged: () -> Unit): Preference.PreferenceGroup {
         val scopeEntries = linkedMapOf(
-            "deck" to stringResource(KMR.strings.pref_anki_deck),
-            "deck-root" to "${stringResource(KMR.strings.pref_anki_deck)} + children",
+            "deck" to stringResource(KUNMR.strings.pref_anki_deck),
+            "deck-root" to "${stringResource(KUNMR.strings.pref_anki_deck)} + children",
             "collection" to "Collection",
         )
         val actionEntries = linkedMapOf(
-            "prevent" to stringResource(KMR.strings.pref_anki_duplicate_prevent),
-            "add" to stringResource(KMR.strings.pref_anki_duplicate_add),
-            "overwrite" to stringResource(KMR.strings.pref_anki_duplicate_overwrite),
+            "prevent" to stringResource(KUNMR.strings.pref_anki_duplicate_prevent),
+            "add" to stringResource(KUNMR.strings.pref_anki_duplicate_add),
+            "overwrite" to stringResource(KUNMR.strings.pref_anki_duplicate_overwrite),
         )
         return Preference.PreferenceGroup(
-            title = stringResource(KMR.strings.pref_anki_check_duplicates),
+            title = stringResource(KUNMR.strings.pref_anki_check_duplicates),
             preferenceItems = buildList {
                 add(
                     Preference.PreferenceItem.SwitchPreference(
                         preference = prefs.duplicateCheck(),
-                        title = stringResource(KMR.strings.pref_anki_check_duplicates),
+                        title = stringResource(KUNMR.strings.pref_anki_check_duplicates),
                         onValueChanged = {
                             onChanged()
                             true
@@ -322,7 +322,7 @@ object SettingsAnkiScreen : SearchableSettings {
                     Preference.PreferenceItem.ListPreference(
                         preference = prefs.duplicateScope(),
                         entries = scopeEntries,
-                        title = stringResource(KMR.strings.pref_anki_duplicate_scope),
+                        title = stringResource(KUNMR.strings.pref_anki_duplicate_scope),
                         onValueChanged = {
                             onChanged()
                             true
@@ -333,7 +333,7 @@ object SettingsAnkiScreen : SearchableSettings {
                     Preference.PreferenceItem.ListPreference(
                         preference = prefs.duplicateAction(),
                         entries = actionEntries,
-                        title = stringResource(KMR.strings.pref_anki_duplicate_action),
+                        title = stringResource(KUNMR.strings.pref_anki_duplicate_action),
                         onValueChanged = {
                             onChanged()
                             true
@@ -350,15 +350,15 @@ object SettingsAnkiScreen : SearchableSettings {
             AnkiScreenshotMode.FULL.storageValue to "Full page",
             AnkiScreenshotMode.CROP.storageValue to "Crop to panel",
             AnkiScreenshotMode.NONE.storageValue to "No screenshot",
-            AnkiScreenshotMode.ANIMATED_SCENE.storageValue to stringResource(KMR.strings.pref_anki_screenshot_animated_scene),
+            AnkiScreenshotMode.ANIMATED_SCENE.storageValue to stringResource(KUNMR.strings.pref_anki_screenshot_animated_scene),
         )
         return Preference.PreferenceGroup(
-            title = stringResource(KMR.strings.anki_field_screenshot),
+            title = stringResource(KUNMR.strings.anki_field_screenshot),
             preferenceItems = listOf(
                 Preference.PreferenceItem.ListPreference(
                     preference = prefs.cropMode(),
                     entries = modeEntries,
-                    title = stringResource(KMR.strings.anki_field_screenshot),
+                    title = stringResource(KUNMR.strings.anki_field_screenshot),
                     onValueChanged = {
                         onChanged()
                         true

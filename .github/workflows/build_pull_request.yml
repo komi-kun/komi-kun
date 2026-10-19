@@ -13,6 +13,10 @@ on:
       - '!i18n-kmk/src/commonMain/moko-resources/**/plurals.xml'
       - 'i18n-kmk/src/commonMain/moko-resources/base/strings.xml'
       - 'i18n-kmk/src/commonMain/moko-resources/base/plurals.xml'
+      - '!i18n-kun/src/commonMain/moko-resources/**/strings.xml'
+      - '!i18n-kun/src/commonMain/moko-resources/**/plurals.xml'
+      - 'i18n-kun/src/commonMain/moko-resources/base/strings.xml'
+      - 'i18n-kun/src/commonMain/moko-resources/base/plurals.xml'
   # Dispatch or Manual triggers
   workflow_dispatch:
 

@@ -59,7 +59,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import mihon.core.dictionary.repository.DictionaryRepository
-import tachiyomi.i18n.kmk.KMR
+import tachiyomi.i18n.kun.KUNMR
 import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.i18n.stringResource
 
@@ -97,7 +97,7 @@ class DictionaryBackupImportScreen : Screen() {
         Scaffold(
             topBar = {
                 AppBar(
-                    title = stringResource(KMR.strings.pref_import_yomitan_backup),
+                    title = stringResource(KUNMR.strings.pref_import_yomitan_backup),
                     navigateUp = { if (running) confirmCancel = true else navigator.pop() },
                     scrollBehavior = it,
                 )
@@ -120,10 +120,10 @@ class DictionaryBackupImportScreen : Screen() {
                         if (inspection != null) Ready(inspection = inspection)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Button(onClick = viewModel::start) {
-                                Text(stringResource(KMR.strings.yomitan_backup_import))
+                                Text(stringResource(KUNMR.strings.yomitan_backup_import))
                             }
                             OutlinedButton(onClick = { picker.launch(BACKUP_MIME_TYPES) }) {
-                                Text(stringResource(KMR.strings.yomitan_backup_choose_file))
+                                Text(stringResource(KUNMR.strings.yomitan_backup_choose_file))
                             }
                         }
                     }
@@ -134,7 +134,7 @@ class DictionaryBackupImportScreen : Screen() {
                     DictionaryBackupImportViewModel.Phase.Done -> {
                         state.summary?.let { Done(summary = it) }
                         Button(onClick = navigator::pop) {
-                            Text(stringResource(KMR.strings.yomitan_backup_done))
+                            Text(stringResource(KUNMR.strings.yomitan_backup_done))
                         }
                     }
 
@@ -142,7 +142,7 @@ class DictionaryBackupImportScreen : Screen() {
                         Card(modifier = Modifier.fillMaxWidth()) {
                             Text(
                                 text = stringResource(
-                                    KMR.strings.yomitan_backup_error,
+                                    KUNMR.strings.yomitan_backup_error,
                                     state.error.orEmpty(),
                                 ),
                                 color = MaterialTheme.colorScheme.error,
@@ -150,10 +150,10 @@ class DictionaryBackupImportScreen : Screen() {
                             )
                         }
                         OutlinedButton(onClick = viewModel::reset) {
-                            Text(stringResource(KMR.strings.yomitan_backup_choose_file))
+                            Text(stringResource(KUNMR.strings.yomitan_backup_choose_file))
                         }
                         Button(onClick = navigator::pop) {
-                            Text(stringResource(KMR.strings.yomitan_backup_done))
+                            Text(stringResource(KUNMR.strings.yomitan_backup_done))
                         }
                     }
                 }
@@ -163,8 +163,8 @@ class DictionaryBackupImportScreen : Screen() {
         if (confirmCancel) {
             AlertDialog(
                 onDismissRequest = { confirmCancel = false },
-                title = { Text(stringResource(KMR.strings.yomitan_backup_cancel_confirm_title)) },
-                text = { Text(stringResource(KMR.strings.yomitan_backup_cancel_confirm_message)) },
+                title = { Text(stringResource(KUNMR.strings.yomitan_backup_cancel_confirm_title)) },
+                text = { Text(stringResource(KUNMR.strings.yomitan_backup_cancel_confirm_message)) },
                 confirmButton = {
                     TextButton(
                         onClick = {
@@ -172,11 +172,11 @@ class DictionaryBackupImportScreen : Screen() {
                             viewModel.cancel()
                             navigator.pop()
                         },
-                    ) { Text(stringResource(KMR.strings.yomitan_backup_cancel)) }
+                    ) { Text(stringResource(KUNMR.strings.yomitan_backup_cancel)) }
                 },
                 dismissButton = {
                     TextButton(onClick = { confirmCancel = false }) {
-                        Text(stringResource(KMR.strings.yomitan_backup_keep_importing))
+                        Text(stringResource(KUNMR.strings.yomitan_backup_keep_importing))
                     }
                 },
             )
@@ -185,9 +185,9 @@ class DictionaryBackupImportScreen : Screen() {
 
     @Composable
     private fun Intro(onChoose: () -> Unit) {
-        Text(stringResource(KMR.strings.yomitan_backup_intro))
+        Text(stringResource(KUNMR.strings.yomitan_backup_intro))
         Button(onClick = onChoose, modifier = Modifier.fillMaxWidth()) {
-            Text(stringResource(KMR.strings.yomitan_backup_choose_file))
+            Text(stringResource(KUNMR.strings.yomitan_backup_choose_file))
         }
     }
 
@@ -199,7 +199,7 @@ class DictionaryBackupImportScreen : Screen() {
                 Text(inspection.displayName, style = MaterialTheme.typography.titleMedium)
                 Text(
                     stringResource(
-                        KMR.strings.yomitan_backup_warning_space,
+                        KUNMR.strings.yomitan_backup_warning_space,
                         formatBytes(context, inspection.sizeBytes),
                         formatBytes(context, inspection.requiredBytes),
                         formatBytes(context, inspection.freeBytes),
@@ -208,14 +208,14 @@ class DictionaryBackupImportScreen : Screen() {
                 if (!inspection.hasRecommendedSpace) {
                     Text(
                         text = stringResource(
-                            KMR.strings.yomitan_backup_warning_low_space,
+                            KUNMR.strings.yomitan_backup_warning_low_space,
                             formatBytes(context, inspection.freeBytes),
                             formatBytes(context, inspection.requiredBytes),
                         ),
                         color = MaterialTheme.colorScheme.error,
                     )
                 }
-                Text(stringResource(KMR.strings.yomitan_backup_warning_no_styles))
+                Text(stringResource(KUNMR.strings.yomitan_backup_warning_no_styles))
             }
         }
     }
@@ -230,13 +230,13 @@ class DictionaryBackupImportScreen : Screen() {
         Text(
             if (state.currentTitle.isNotEmpty()) {
                 stringResource(
-                    KMR.strings.yomitan_backup_importing,
+                    KUNMR.strings.yomitan_backup_importing,
                     state.dictIndex,
                     state.dictTotal,
                     state.currentTitle,
                 )
             } else {
-                stringResource(KMR.strings.yomitan_backup_parsing, state.rowsRead, state.rowsTotal)
+                stringResource(KUNMR.strings.yomitan_backup_parsing, state.rowsRead, state.rowsTotal)
             },
         )
         if (progress != null) {
@@ -250,7 +250,7 @@ class DictionaryBackupImportScreen : Screen() {
         if (state.importedCount > 0 || state.failedCount > 0) {
             Text(
                 stringResource(
-                    KMR.strings.yomitan_backup_running_counts,
+                    KUNMR.strings.yomitan_backup_running_counts,
                     state.importedCount,
                     state.failedCount,
                 ),
@@ -258,19 +258,19 @@ class DictionaryBackupImportScreen : Screen() {
         }
         Spacer(Modifier.height(4.dp))
         OutlinedButton(onClick = onCancel) {
-            Text(stringResource(KMR.strings.yomitan_backup_cancel))
+            Text(stringResource(KUNMR.strings.yomitan_backup_cancel))
         }
     }
 
     @Composable
     private fun Done(summary: BackupImportSummary) {
         Text(
-            text = stringResource(KMR.strings.yomitan_backup_done_title),
+            text = stringResource(KUNMR.strings.yomitan_backup_done_title),
             style = MaterialTheme.typography.titleLarge,
         )
         Text(
             stringResource(
-                KMR.strings.yomitan_backup_summary,
+                KUNMR.strings.yomitan_backup_summary,
                 summary.imported.size,
                 summary.skipped.size,
                 summary.failed.size,
@@ -278,27 +278,27 @@ class DictionaryBackupImportScreen : Screen() {
             ),
         )
         if (summary.malformedRows > 0) {
-            Text(stringResource(KMR.strings.yomitan_backup_summary_malformed, summary.malformedRows))
+            Text(stringResource(KUNMR.strings.yomitan_backup_summary_malformed, summary.malformedRows))
         }
         if (summary.imported.isEmpty() && summary.skipped.isEmpty() && summary.failed.isEmpty()) {
-            Text(stringResource(KMR.strings.yomitan_backup_none))
+            Text(stringResource(KUNMR.strings.yomitan_backup_none))
         }
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             summary.imported.forEach { dictionary ->
                 Text(
                     stringResource(
-                        KMR.strings.yomitan_backup_imported_item,
+                        KUNMR.strings.yomitan_backup_imported_item,
                         dictionary.title,
                         dictionary.termCount,
                     ),
                 )
             }
             summary.skipped.forEach { title ->
-                Text(stringResource(KMR.strings.yomitan_backup_skipped_item, title))
+                Text(stringResource(KUNMR.strings.yomitan_backup_skipped_item, title))
             }
             summary.failed.forEach { failure ->
                 Text(
-                    text = stringResource(KMR.strings.yomitan_backup_failed_item, failure.title, failure.reason),
+                    text = stringResource(KUNMR.strings.yomitan_backup_failed_item, failure.title, failure.reason),
                     color = MaterialTheme.colorScheme.error,
                 )
             }

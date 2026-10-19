@@ -2,7 +2,7 @@ package eu.kanade.tachiyomi.ui.reader.setting
 
 import dev.icerock.moko.resources.StringResource
 import tachiyomi.i18n.MR
-import tachiyomi.i18n.kmk.KMR
+import tachiyomi.i18n.kun.KUNMR
 import tachiyomi.i18n.sy.SYMR
 
 enum class ReaderBottomButton(val value: String, val stringRes: StringResource) {
@@ -18,7 +18,7 @@ enum class ReaderBottomButton(val value: String, val stringRes: StringResource) 
     PageLayout("pl", SYMR.strings.page_layout),
 
     // KUN -->
-    Ocr("ocr", KMR.strings.pref_category_ocr),
+    Ocr("ocr", KUNMR.strings.pref_category_ocr),
     // KUN <--
     ;
 

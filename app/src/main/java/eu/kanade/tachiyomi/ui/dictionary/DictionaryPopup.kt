@@ -56,7 +56,7 @@ import mihon.core.dictionary.ui.TabInfo
 import mihon.core.dictionary.ui.orderLookupResultsForDisplay
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.Close
-import tachiyomi.i18n.kmk.KMR
+import tachiyomi.i18n.kun.KUNMR
 import tachiyomi.presentation.core.i18n.stringResource
 import kotlin.math.roundToInt
 
@@ -184,9 +184,9 @@ fun DictionaryPopup(
             it.pitchPaths.isNotEmpty() || it.kanjiPaths.isNotEmpty()
     }
     val placeholder = when {
-        !hasDictionaries -> stringResource(KMR.strings.dictionary_no_dictionaries)
+        !hasDictionaries -> stringResource(KUNMR.strings.dictionary_no_dictionaries)
         !loading && current != null && current.results.isEmpty() ->
-            stringResource(KMR.strings.dictionary_no_results, current.query)
+            stringResource(KUNMR.strings.dictionary_no_results, current.query)
         else -> ""
     }
 
@@ -257,7 +257,7 @@ fun DictionaryPopup(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            text = stringResource(KMR.strings.dictionary_selection_hint),
+                            text = stringResource(KUNMR.strings.dictionary_selection_hint),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.weight(1f),
@@ -272,7 +272,7 @@ fun DictionaryPopup(
                             Icon(
                                 imageVector = MaterialSymbols.Rounded.Close,
                                 contentDescription =
-                                stringResource(KMR.strings.dictionary_selection_hint_dismiss),
+                                stringResource(KUNMR.strings.dictionary_selection_hint_dismiss),
                                 modifier = Modifier.size(14.dp),
                             )
                         }
