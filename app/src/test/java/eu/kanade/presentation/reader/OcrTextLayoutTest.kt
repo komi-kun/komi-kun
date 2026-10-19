@@ -203,7 +203,7 @@ class OcrTextLayoutTest {
     }
 
     @Test
-    fun `kana and kanji stay upright while ascii latin and digits rotate`() {
+    fun `kana, kanji and digits stay upright while ascii latin rotates`() {
         val placed = layout(
             columns(listOf("A", "あ", "1", "０", "。")),
             rectRight = 100f,
@@ -212,12 +212,13 @@ class OcrTextLayoutTest {
 
         assertTrue(placed[0].rotated, "A is rotated")
         assertFalse(placed[1].rotated, "あ stays upright")
-        assertTrue(placed[2].rotated, "1 is rotated")
+        assertFalse(placed[2].rotated, "1 stays upright")
         assertFalse(placed[3].rotated, "the full-width digit ０ stays upright")
         assertFalse(placed[4].rotated, "。 stays upright")
 
         assertTrue(isRotatedInVertical("Hello"))
-        assertTrue(isRotatedInVertical("42"))
+        assertFalse(isRotatedInVertical("42"))
+        assertFalse(isRotatedInVertical("2"))
         assertFalse(isRotatedInVertical("あ"))
         assertFalse(isRotatedInVertical("漢"))
         assertFalse(isRotatedInVertical("０"))
