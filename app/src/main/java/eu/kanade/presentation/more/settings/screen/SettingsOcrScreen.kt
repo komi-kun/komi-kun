@@ -24,6 +24,7 @@ import mihon.core.ocr.OcrEngineType
 import mihon.core.ocr.OcrPreferences
 import mihon.core.ocr.cache.OcrCacheManager
 import mihon.core.ocr.paddle.ModelDownloadState
+import mihon.core.ocr.paddle.VlDownloadState
 import tachiyomi.core.common.ocr.ReaderOcrSource
 import tachiyomi.core.common.preference.AndroidPreferenceStore
 import tachiyomi.core.common.util.lang.withIOContext
@@ -64,13 +65,19 @@ object SettingsOcrScreen : SearchableSettings {
         // retry below coalesce into the same run (F1).
         val modelDownloader = context.appGraph.modelDownloader
         val downloadState by modelDownloader.state.collectAsStateWithLifecycle()
+        val vlDownloadState by modelDownloader.vlState.collectAsStateWithLifecycle()
         val scope = rememberCoroutineScope()
+        var refreshModelsCounter by remember { mutableStateOf(0) }
 
         // Runtime model-download status (contract §1.7). `isPaddleDownloaded` is a cheap synchronous
         // gate; the state flow adds live progress and makes a first-time failure visible instead of
         // silent (the download itself is triggered opt-in on Paddle selection below).
-        val modelsReady = remember(downloadState) {
-            downloadState == ModelDownloadState.Completed || modelDownloader.isPaddleDownloaded
+        val modelsReady = remember(downloadState, refreshModelsCounter) {
+            (downloadState == ModelDownloadState.Completed || modelDownloader.isPaddleDownloaded) &&
+                modelDownloader.modelsDir.exists()
+        }
+        val ppModelSize = remember(downloadState, refreshModelsCounter) {
+            modelDownloader.getModelsSizeReadable()
         }
         val modelStatus = when (val state = downloadState) {
             // Surface the actual reason instead of a constant "Error" (F8).
@@ -82,8 +89,38 @@ object SettingsOcrScreen : SearchableSettings {
                 if (modelsReady) stringResource(KMR.strings.ocr_ready) else stringResource(KMR.strings.ocr_not_ready)
         }
 
+        val isVlDownloaded = remember(vlDownloadState, refreshModelsCounter) {
+            modelDownloader.isVlDownloaded
+        }
+        val vlModelSize = remember(vlDownloadState, refreshModelsCounter) {
+            modelDownloader.getVlModelSizeReadable()
+        }
+        val vlStatus = when (val state = vlDownloadState) {
+            is VlDownloadState.Downloading -> {
+                val downloaded = state.bytesDownloaded / (1024.0 * 1024.0)
+                val total = state.totalBytes / (1024.0 * 1024.0)
+                val pct = if (state.totalBytes > 0) ((state.bytesDownloaded * 100) / state.totalBytes).toInt() else 0
+                stringResource(
+                    KMR.strings.ocr_paddlevl_status_downloading,
+                    "%.1f MB".format(downloaded),
+                    if (state.totalBytes > 0) "%.1f MB".format(total) else "...",
+                    pct,
+                )
+            }
+            is VlDownloadState.Failed -> stringResource(KMR.strings.ocr_status_error_reason, state.message)
+            VlDownloadState.Completed, VlDownloadState.Idle -> {
+                if (isVlDownloaded) {
+                    stringResource(KMR.strings.ocr_paddlevl_status_ready, vlModelSize ?: "")
+                } else {
+                    stringResource(KMR.strings.ocr_paddlevl_status_not_downloaded)
+                }
+            }
+        }
+
         var cacheSizeText by remember { mutableStateOf<String?>(null) }
         var showClearDialog by remember { mutableStateOf(false) }
+        var showDeletePpDialog by remember { mutableStateOf(false) }
+        var showDeleteVlDialog by remember { mutableStateOf(false) }
         var isClearing by remember { mutableStateOf(false) }
 
         LaunchedEffect(Unit) {
@@ -114,6 +151,55 @@ object SettingsOcrScreen : SearchableSettings {
                 },
                 dismissButton = {
                     TextButton(onClick = { showClearDialog = false }) {
+                        Text(text = stringResource(MR.strings.action_cancel))
+                    }
+                },
+            )
+        }
+
+        if (showDeletePpDialog) {
+            AlertDialog(
+                onDismissRequest = { showDeletePpDialog = false },
+                title = { Text(text = stringResource(KMR.strings.pref_ocr_delete_models)) },
+                text = { Text(text = stringResource(KMR.strings.confirm_delete_ocr_models)) },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showDeletePpDialog = false
+                            modelDownloader.deleteModels()
+                            refreshModelsCounter++
+                        },
+                    ) {
+                        Text(text = stringResource(MR.strings.action_ok))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeletePpDialog = false }) {
+                        Text(text = stringResource(MR.strings.action_cancel))
+                    }
+                },
+            )
+        }
+
+        if (showDeleteVlDialog) {
+            AlertDialog(
+                onDismissRequest = { showDeleteVlDialog = false },
+                title = { Text(text = stringResource(KMR.strings.pref_ocr_paddlevl_delete)) },
+                text = { Text(text = stringResource(KMR.strings.confirm_delete_paddlevl_model)) },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showDeleteVlDialog = false
+                            modelDownloader.deleteVlModel()
+                            preferences.paddleVlModelPath.set("")
+                            refreshModelsCounter++
+                        },
+                    ) {
+                        Text(text = stringResource(MR.strings.action_ok))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteVlDialog = false }) {
                         Text(text = stringResource(MR.strings.action_cancel))
                     }
                 },
@@ -153,41 +239,132 @@ object SettingsOcrScreen : SearchableSettings {
             // PaddleOCR-VL settings.
             Preference.PreferenceGroup(
                 title = stringResource(KMR.strings.pref_ocr_paddlevl_settings),
-                preferenceItems = listOf(
-                    Preference.PreferenceItem.ListPreference(
-                        preference = preferences.paddleVlExecutionMode,
-                        entries = mapOf(
-                            OcrPreferences.MODE_ON_DEVICE to stringResource(KMR.strings.pref_ocr_paddlevl_mode_on_device),
-                            OcrPreferences.MODE_SERVER to stringResource(KMR.strings.pref_ocr_paddlevl_mode_server),
+                preferenceItems = buildList {
+                    add(
+                        Preference.PreferenceItem.ListPreference(
+                            preference = preferences.paddleVlExecutionMode,
+                            entries = mapOf(
+                                OcrPreferences.MODE_ON_DEVICE to stringResource(KMR.strings.pref_ocr_paddlevl_mode_on_device),
+                                OcrPreferences.MODE_SERVER to stringResource(KMR.strings.pref_ocr_paddlevl_mode_server),
+                            ),
+                            title = stringResource(KMR.strings.pref_ocr_paddlevl_mode),
+                            subtitle = "%s",
                         ),
-                        title = stringResource(KMR.strings.pref_ocr_paddlevl_mode),
-                        subtitle = "%s",
-                    ),
-                    Preference.PreferenceItem.EditTextPreference(
-                        preference = preferences.paddleVlModelPath,
-                        title = stringResource(KMR.strings.pref_ocr_paddlevl_model_path),
-                        subtitle = stringResource(KMR.strings.pref_ocr_paddlevl_model_path_summary),
-                    ),
-                    Preference.PreferenceItem.EditTextPreference(
-                        preference = preferences.paddleVlEndpoint,
-                        title = stringResource(KMR.strings.pref_ocr_paddlevl_endpoint),
-                        subtitle = stringResource(KMR.strings.pref_ocr_paddlevl_endpoint_summary),
-                    ),
-                    Preference.PreferenceItem.SwitchPreference(
-                        preference = preferences.paddleVlFallback,
-                        title = stringResource(KMR.strings.pref_ocr_paddlevl_fallback),
-                        subtitle = stringResource(KMR.strings.pref_ocr_paddlevl_fallback_summary),
-                    ),
-                ),
+                    )
+                    add(
+                        Preference.PreferenceItem.EditTextPreference(
+                            preference = preferences.paddleVlDownloadUrl,
+                            title = stringResource(KMR.strings.pref_ocr_paddlevl_download_url),
+                            subtitle = stringResource(KMR.strings.pref_ocr_paddlevl_download_url_summary),
+                        ),
+                    )
+                    add(
+                        Preference.PreferenceItem.TextPreference(
+                            title = stringResource(KMR.strings.pref_ocr_paddlevl_status),
+                            subtitle = vlStatus,
+                            onClick = if (vlDownloadState is VlDownloadState.Downloading) {
+                                null
+                            } else {
+                                {
+                                    modelDownloader.triggerVlDownload(preferences.paddleVlDownloadUrl.get()) { file ->
+                                        preferences.paddleVlModelPath.set(file.absolutePath)
+                                        refreshModelsCounter++
+                                    }
+                                }
+                            },
+                        ),
+                    )
+                    if (isVlDownloaded) {
+                        add(
+                            Preference.PreferenceItem.TextPreference(
+                                title = stringResource(KMR.strings.pref_ocr_paddlevl_delete),
+                                subtitle = stringResource(KMR.strings.pref_ocr_paddlevl_delete_summary),
+                                onClick = { showDeleteVlDialog = true },
+                            ),
+                        )
+                    } else {
+                        add(
+                            Preference.PreferenceItem.TextPreference(
+                                title = stringResource(KMR.strings.pref_ocr_paddlevl_download),
+                                subtitle = stringResource(KMR.strings.pref_ocr_paddlevl_download_summary),
+                                onClick = if (vlDownloadState is VlDownloadState.Downloading) {
+                                    null
+                                } else {
+                                    {
+                                        modelDownloader.triggerVlDownload(preferences.paddleVlDownloadUrl.get()) { file ->
+                                            preferences.paddleVlModelPath.set(file.absolutePath)
+                                            refreshModelsCounter++
+                                        }
+                                    }
+                                },
+                            ),
+                        )
+                    }
+                    add(
+                        Preference.PreferenceItem.EditTextPreference(
+                            preference = preferences.paddleVlModelPath,
+                            title = stringResource(KMR.strings.pref_ocr_paddlevl_model_path),
+                            subtitle = stringResource(KMR.strings.pref_ocr_paddlevl_model_path_summary),
+                        ),
+                    )
+                    add(
+                        Preference.PreferenceItem.EditTextPreference(
+                            preference = preferences.paddleVlEndpoint,
+                            title = stringResource(KMR.strings.pref_ocr_paddlevl_endpoint),
+                            subtitle = stringResource(KMR.strings.pref_ocr_paddlevl_endpoint_summary),
+                        ),
+                    )
+                    add(
+                        Preference.PreferenceItem.SwitchPreference(
+                            preference = preferences.paddleVlFallback,
+                            title = stringResource(KMR.strings.pref_ocr_paddlevl_fallback),
+                            subtitle = stringResource(KMR.strings.pref_ocr_paddlevl_fallback_summary),
+                        ),
+                    )
+                },
             ),
 
-            // Model download status (contract §1.7): a first-time download's progress and any
-            // failure are surfaced here. Tapping retries — a failed run releases the single-flight
-            // gate, so re-tapping actually re-runs instead of being coalesced away (F8).
-            Preference.PreferenceItem.TextPreference(
+            // PP-OCRv6 model status and management.
+            Preference.PreferenceGroup(
                 title = stringResource(KMR.strings.pref_ocr_model_status),
-                subtitle = modelStatus,
-                onClick = { modelDownloader.triggerPaddleDownload() },
+                preferenceItems = buildList {
+                    add(
+                        Preference.PreferenceItem.TextPreference(
+                            title = stringResource(KMR.strings.pref_ocr_model_status),
+                            subtitle = if (modelsReady && ppModelSize != null) {
+                                "$modelStatus ($ppModelSize)"
+                            } else {
+                                modelStatus
+                            },
+                            onClick = if (downloadState is ModelDownloadState.Downloading) {
+                                null
+                            } else {
+                                { modelDownloader.triggerPaddleDownload() }
+                            },
+                        ),
+                    )
+                    if (modelsReady) {
+                        add(
+                            Preference.PreferenceItem.TextPreference(
+                                title = stringResource(KMR.strings.pref_ocr_delete_models),
+                                subtitle = stringResource(KMR.strings.pref_ocr_delete_models_summary),
+                                onClick = { showDeletePpDialog = true },
+                            ),
+                        )
+                    } else {
+                        add(
+                            Preference.PreferenceItem.TextPreference(
+                                title = stringResource(KMR.strings.pref_ocr_download_models),
+                                subtitle = stringResource(KMR.strings.pref_ocr_download_models_summary),
+                                onClick = if (downloadState is ModelDownloadState.Downloading) {
+                                    null
+                                } else {
+                                    { modelDownloader.triggerPaddleDownload() }
+                                },
+                            ),
+                        )
+                    }
+                },
             ),
 
             // Overlay master switch: the same key the reader gates on (fix B3).
