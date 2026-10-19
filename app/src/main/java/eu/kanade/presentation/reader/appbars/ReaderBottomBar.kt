@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -174,6 +175,8 @@ fun ReaderBottomBar(
                     .size(48.dp)
                     .clip(CircleShape)
                     .combinedClickable(
+                        interactionSource = null,
+                        indication = ripple(bounded = false),
                         onClick = onClickOcr,
                         onLongClick = onLongClickOcr?.let { action ->
                             {

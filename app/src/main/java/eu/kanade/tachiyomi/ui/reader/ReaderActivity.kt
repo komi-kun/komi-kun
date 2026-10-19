@@ -30,8 +30,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -436,7 +438,7 @@ class ReaderActivity : BaseActivity() {
             // KMK <--
 
             val onDismissRequest = viewModel::closeDialog
-            when (state.dialog) {
+            when (val dialog = state.dialog) {
                 is ReaderViewModel.Dialog.Loading -> {
                     AlertDialog(
                         onDismissRequest = {},
@@ -583,6 +585,62 @@ class ReaderActivity : BaseActivity() {
                     text = { Text(text = stringResource(SYMR.strings.eh_retry_all_help_message)) },
                 )
                 // SY <--
+
+                // KUN -->
+                is ReaderViewModel.Dialog.RedoOcr -> {
+                    val page = dialog.page
+                    AlertDialog(
+                        onDismissRequest = onDismissRequest,
+                        confirmButton = {
+                            TextButton(onClick = onDismissRequest) {
+                                Text(text = stringResource(MR.strings.action_cancel))
+                            }
+                        },
+                        title = { Text(text = stringResource(KMR.strings.action_redo_ocr)) },
+                        text = {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                TextButton(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    onClick = {
+                                        onDismissRequest()
+                                        toast(stringResource(KMR.strings.ocr_redoing_page, page.index + 1))
+                                        readerOcrHost.redoOcr(page, chapter = false) {
+                                            runOnUiThread {
+                                                toast(stringResource(KMR.strings.ocr_redo_page_complete, page.index + 1))
+                                            }
+                                        }
+                                    },
+                                ) {
+                                    Text(
+                                        text = stringResource(KMR.strings.action_redo_ocr_page),
+                                        style = MaterialTheme.typography.bodyLarge,
+                                    )
+                                }
+                                TextButton(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    onClick = {
+                                        onDismissRequest()
+                                        toast(stringResource(KMR.strings.ocr_redoing_chapter))
+                                        readerOcrHost.redoOcr(page, chapter = true) {
+                                            runOnUiThread {
+                                                toast(stringResource(KMR.strings.ocr_redo_chapter_complete))
+                                            }
+                                        }
+                                    },
+                                ) {
+                                    Text(
+                                        text = stringResource(KMR.strings.action_redo_ocr_chapter),
+                                        style = MaterialTheme.typography.bodyLarge,
+                                    )
+                                }
+                            }
+                        },
+                    )
+                }
+                // KUN <--
                 null -> {}
             }
 
@@ -991,8 +1049,19 @@ class ReaderActivity : BaseActivity() {
 
     private fun exhCurrentpage(): ReaderPage? {
         val viewer = viewModel.state.value.viewer
-        val currentPage = (((viewer as? PagerViewer)?.currentPage ?: (viewer as? WebtoonViewer)?.currentPage) as? ReaderPage)?.index
-        return currentPage?.let { viewModel.state.value.viewerChapters?.currChapter?.pages?.getOrNull(it) }
+        // KUN -->
+        val pageFromViewer = when (viewer) {
+            is PagerViewer -> viewer.currentPage as? ReaderPage
+            is WebtoonViewer -> viewer.currentPage as? ReaderPage
+            is WebGpuViewer -> (viewer.currentPage as? WebGpuViewer.ViewerReaderPage)?.page
+            else -> null
+        }
+        if (pageFromViewer != null) return pageFromViewer
+
+        val currPages = viewModel.state.value.viewerChapters?.currChapter?.pages.orEmpty()
+        val index = (viewModel.state.value.currentPage - 1).coerceIn(0, (currPages.size - 1).coerceAtLeast(0))
+        return currPages.getOrNull(index) ?: currPages.firstOrNull()
+        // KUN <--
     }
 
     fun reloadChapters(doublePages: Boolean, force: Boolean = false) {
@@ -1353,40 +1422,18 @@ class ReaderActivity : BaseActivity() {
         menuToggleToast = toast(if (enabled) MR.strings.on else MR.strings.off)
     }
 
+    // KUN -->
     /**
      * Shows a dialog to force-redo OCR for the current page or the entire chapter,
      * updating the cache and overriding any .mokuro sidecars in the archive.
      */
     private fun showRedoOcrDialog() {
-        val currentPage = exhCurrentpage() ?: return
-        val items = arrayOf(
-            stringResource(KMR.strings.action_redo_ocr_page),
-            stringResource(KMR.strings.action_redo_ocr_chapter),
-        )
-        androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle(stringResource(KMR.strings.action_redo_ocr))
-            .setItems(items) { _, which ->
-                when (which) {
-                    0 -> {
-                        toast(stringResource(KMR.strings.ocr_redoing_page, currentPage.index + 1))
-                        readerOcrHost.redoOcr(currentPage, chapter = false) {
-                            runOnUiThread {
-                                toast(stringResource(KMR.strings.ocr_redo_page_complete, currentPage.index + 1))
-                            }
-                        }
-                    }
-                    1 -> {
-                        toast(stringResource(KMR.strings.ocr_redoing_chapter))
-                        readerOcrHost.redoOcr(currentPage, chapter = true) {
-                            runOnUiThread {
-                                toast(stringResource(KMR.strings.ocr_redo_chapter_complete))
-                            }
-                        }
-                    }
-                }
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
+        val currentPage = exhCurrentpage()
+        if (currentPage != null) {
+            viewModel.openRedoOcrDialog(currentPage)
+        } else {
+            toast(KMR.strings.action_redo_ocr)
+        }
     }
     // KUN <--
 
