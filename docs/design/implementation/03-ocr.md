@@ -151,7 +151,8 @@ Ship a **`komi-kun/komi-kun-ocr-models`** release (or GitHub Packages) built by 
    `nativeInit`/`nativeProcess`/`nativeRelease` (`PaddleOcrEngine.kt:347-365`) against
    **ONNX Runtime** (MIT, loaded dynamically through its ABI-stable C API) + **PaddleOCR** deploy/lite
    post-processing (Apache-2.0), emitting the same `TIMING|`/`LINE|` text protocol (`:229-281`) so
-   `PaddleOcrEngine.kt` stays near-unchanged.
+   `PaddleOcrEngine.kt` stays near-unchanged. A forward-compatible `nativeGetOrtError(): String` accessor
+   is declared in Kotlin as a stub (catching `UnsatisfiedLinkError` until exported by the pinned native shim).
 2. `libonnxruntime.so`, `libomp.so` — ONNX Runtime's republished per-ABI shared library (MIT) and the
    Android NDK OpenMP runtime (`libomp.so`, Apache-2.0 WITH LLVM-exception; required by opencv-mobile's
    `parallel_for_`, not by ONNX Runtime). `libc++_shared.so` **is** shipped in the release but is
@@ -197,7 +198,8 @@ Ship a **`komi-kun/komi-kun-ocr-models`** release (or GitHub Packages) built by 
 
 ### 2.4 Kotlin side in komi-kun
 
-Keep `PaddleOcrEngine.kt` and its JNI signatures; **drop** `PaddleOcrBridge`'s reflection
+Keep `PaddleOcrEngine.kt` and its JNI signatures (`nativeInit`, `nativeProcess`, `nativeRelease`, plus
+the forward-compatible `nativeGetOrtError` stub); **drop** `PaddleOcrBridge`'s reflection
 (`PaddleOcrBridge.kt:24-31`) — with a compile-time module dependency we can call
 `PaddleOcrEngine(context)` directly. Keep the `OcrEngine` interface (`OcrEngine.kt:3-6`) and the
 `PaddleOcrOptions` defaults (`:25-31`).
@@ -229,12 +231,19 @@ with a `0.05 rad` deadband (`PaddleOcrEngine.quadRotation:304-317`). This decoup
 renderer/cache and lets `.mokuro` (pixels) share the same IR by dividing by `img_width/height`
 (`MokuroConverter.kt:24-27`).
 
-### 3.2 Cache DTO
+### 3.2 Cache DTO & key generation
 
 Persist `OcrBlockData`/`OcrPageData`/`OcrLineGeometry` (`OcrBlockData.kt:6-42`) via kotlinx
 serialization; mapper between DTO and the viewer's `OcrTextBlock`
 (`OcrCacheManager.kt:495-521`). Keep `language` on the page/block (needed for scan-resolution and
 language gating, §6).
+
+Cache keys are scoped with an engine generation suffix and threshold signature (`OcrManager.kt:388`):
+`<base>-v9[-<signature>]`. The `v9` generation token prevents stale caches from older engines/models
+(e.g. Paddle-Lite / PP-OCRv5 or pre-filter v6–v8) from masking current PP-OCRv6 results across app upgrades. Non-default detector
+thresholds (`DEFAULT_DET_PIXEL = 15`, `DEFAULT_DET_BOX = 25`, `DEFAULT_DET_UNCLIP = 140`) and
+the recognizer confidence floor (`recConfidenceFloor`, `DEFAULT_REC_FLOOR = 35` / `0.35f`, filtered in Kotlin post-processing)
+are appended to the variant so slider changes invalidate old results without manual cache clearing.
 
 ### 3.3 Merging (`OwOCRMerger`) — port behind a seam
 
@@ -354,14 +363,15 @@ Chimahon already reads page bytes through `ChapterImageProvider` (`OcrManager.kt
 bitmap). Reader-side OCR likewise decodes page bytes (`ReaderViewModel.kt:2329 fetchOcrBlocks`,
 `:1442 OcrBitmapDecoder.decode`). Do **not** introduce any `View.draw()`/bitmap-capture path.
 
-### 5.3 Per-manga OCR source preference
+### 5.3 Per-manga OCR source preference & thresholds
 
 Port `ReaderOcrSource` (`ReaderOcrSource.kt:5-53`) but **shrink** to `AUTOMATIC`, `MOKURO`,
 `PADDLE` (drop `GOOGLE_LENS`, `LOCAL`). Keep `usesMokuro`/`usesPersistentCache`/
-`persistentCacheVariant`. Per-manga key: `readerOcrSourcePreferenceKey(mangaId)`
+`persistentCacheVariant` (`<base>-v8[-<signature>]`). Per-manga key: `readerOcrSourcePreferenceKey(mangaId)`
 (`ReaderPreferences.kt:370`, app-state scoped). Add prefs to komi-kun `ReaderPreferences.kt`:
 `ocrOverlayEnabled` / `ocrSource(mangaId)` / `ocrOutlineVisible` / `ocrAutoOnDownload`
-(`ReaderPreferences.kt:117-127`).
+(`ReaderPreferences.kt:117-127`). Detector thresholds (thresh, box, unclip) and recognizer floor
+(`DEFAULT_REC_FLOOR = 35` / `0.35f`) are managed in `OcrPreferences.kt`.
 
 ### 5.4 Chapter OCR actions + progress
 

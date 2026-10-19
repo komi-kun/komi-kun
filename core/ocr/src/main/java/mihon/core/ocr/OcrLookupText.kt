@@ -31,13 +31,19 @@ fun isOcrLookupStartChar(char: Char): Boolean {
 
 /** Returns the lookup suffix beginning at [start], matching manga OCR behavior. */
 fun extractOcrLookupText(text: String, start: Int): String {
+    // KUN -->
+    if (start >= text.length) return ""
+    var index = start.coerceAtLeast(0)
+    while (index < text.length && !isOcrLookupStartChar(text[index])) {
+        index++
+    }
     val result = StringBuilder()
-    var index = start.coerceIn(0, text.length)
     while (index < text.length && isOcrLookupStartChar(text[index])) {
         result.append(text[index])
         index++
     }
     return result.toString()
+    // KUN <--
 }
 
 private val CJK_OcrLanguageCodes = setOf("ja", "zh", "yue", "ko")

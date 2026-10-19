@@ -34,6 +34,15 @@ class OcrLookupTextTest {
         extractOcrLookupText("abc", -5) shouldBe "abc"
     }
 
+    // KUN -->
+    @Test
+    fun `extract advances past leading punctuation`() {
+        extractOcrLookupText("…はい", 0) shouldBe "はい"
+        extractOcrLookupText("⋯はい", 0) shouldBe "はい"
+        extractOcrLookupText("「剣聖」", 0) shouldBe "剣聖"
+    }
+    // KUN <--
+
     @Test
     fun `extract from mid-text`() {
         extractOcrLookupText("tabc def", 1) shouldBe "abc"

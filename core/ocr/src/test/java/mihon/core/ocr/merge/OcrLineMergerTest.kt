@@ -270,4 +270,156 @@ class OcrLineMergerTest {
         blocks[0].lines shouldBe listOf("hello", "there")
         blocks[1].lines shouldBe listOf("world", "again")
     }
+
+    // KUN -->
+    @Test
+    fun `implausible Japanese noise reads are rejected`() {
+        val merger = OwOCRMerger()
+        val lines = listOf(
+            line("干S", 0.10, 0.10, 0.20, 0.20),
+            line("手15", 0.20, 0.10, 0.30, 0.20),
+            line("七5", 0.30, 0.10, 0.40, 0.20),
+            line("115", 0.40, 0.10, 0.50, 0.20),
+            line("415", 0.50, 0.10, 0.60, 0.20),
+            line("漢字", 0.60, 0.10, 0.70, 0.20),
+        )
+
+        val blocks = merger.merge(lines, imageW = 1000, imageH = 1000)
+
+        blocks shouldHaveSize 1
+        blocks.first().lines shouldBe listOf("漢字")
+    }
+
+    @Test
+    fun `plausible short Japanese reads are kept`() {
+        val merger = OwOCRMerger()
+        val lines = listOf(
+            line("ざわざわ", 0.10, 0.10, 0.30, 0.15),
+            line("あ", 0.10, 0.30, 0.20, 0.35),
+            line("第51話", 0.10, 0.50, 0.30, 0.55),
+            line("100円", 0.10, 0.70, 0.30, 0.75),
+        )
+
+        val blocks = merger.merge(lines, imageW = 1000, imageH = 1000)
+
+        blocks shouldHaveSize 4
+        blocks.map { it.lines.first() } shouldBe listOf("ざわざわ", "あ", "第51話", "100円")
+    }
+
+    @Test
+    fun `horizontal same-line fragments where right fragment is slightly higher still order left-to-right`() {
+        val merger = OwOCRMerger()
+        val lines = listOf(
+            line("あい", 0.10, 0.100, 0.30, 0.200),
+            line("うえ", 0.305, 0.099, 0.50, 0.199),
+        )
+
+        val blocks = merger.merge(lines, imageW = 1000, imageH = 1000)
+
+        blocks shouldHaveSize 1
+        blocks.first().lines shouldBe listOf("あい", "うえ")
+    }
+
+    @Test
+    fun `detector-split fragment inside a multi-line horizontal paragraph joins the paragraph in reading order`() {
+        val merger = OwOCRMerger()
+        val lines = listOf(
+            line("あい", 0.10, 0.10, 0.30, 0.20),
+            line("うえ", 0.305, 0.10, 0.50, 0.20),
+            line("かきくけ", 0.10, 0.21, 0.50, 0.31),
+        )
+
+        val blocks = merger.merge(lines, imageW = 1000, imageH = 1000)
+
+        blocks shouldHaveSize 1
+        blocks.first().lines shouldBe listOf("あい", "うえ", "かきくけ")
+    }
+
+    @Test
+    fun `detector-split fragment inside a multi-column vertical paragraph joins the paragraph in reading order`() {
+        val merger = OwOCRMerger()
+        val lines = listOf(
+            line("あい", 0.80, 0.10, 0.90, 0.30, direction = WritingDirection.TTB),
+            line("うえ", 0.80, 0.305, 0.90, 0.50, direction = WritingDirection.TTB),
+            line("かきくけ", 0.70, 0.10, 0.80, 0.50, direction = WritingDirection.TTB),
+        )
+
+        val blocks = merger.merge(lines, imageW = 1000, imageH = 1000)
+
+        blocks shouldHaveSize 1
+        blocks.first().vertical shouldBe true
+        blocks.first().lines shouldBe listOf("あい", "うえ", "かきくけ")
+    }
+
+    @Test
+    fun `single-character squareish line adopts vertical from multi-character neighbor`() {
+        val merger = OwOCRMerger()
+        // "同年" (vertical=true, right column) and "秋" (aspect ratio near 1.0, left column)
+        val lines = listOf(
+            line("同年", 0.80, 0.10, 0.839, 0.171, direction = WritingDirection.TTB),
+            line("秋", 0.75, 0.10, 0.792, 0.135, direction = WritingDirection.LTR),
+        )
+
+        val blocks = merger.merge(lines, imageW = 1000, imageH = 1000)
+
+        blocks shouldHaveSize 1
+        blocks.first().vertical shouldBe true
+        blocks.first().lines shouldBe listOf("同年", "秋")
+    }
+
+    @Test
+    fun `tilted and oversized single-character SFX noise is filtered out`() {
+        val merger = OwOCRMerger()
+        val lines = listOf(
+            // Normal dialogue lines (thickness ~0.038)
+            line("おはよう", 0.70, 0.10, 0.738, 0.30, direction = WritingDirection.TTB),
+            line("ございます", 0.65, 0.10, 0.688, 0.30, direction = WritingDirection.TTB),
+            line("きょうも", 0.60, 0.10, 0.638, 0.30, direction = WritingDirection.TTB),
+            // Legitimate 1-character line (thickness 0.035, rotation 0.0)
+            line("あ", 0.55, 0.10, 0.585, 0.135, direction = WritingDirection.TTB),
+            // Tilted 1-char SFX ("心" with rotation 0.20 rad)
+            EngineLine(
+                text = "心",
+                bbox = NormalizedBBox(0.40, 0.10, 0.52, 0.194, rotation = 0.20),
+                writingDirection = WritingDirection.LTR,
+                characterSize = 0.12,
+                hasJpText = true,
+                hasKanji = true,
+                rotation = 0.20,
+            ),
+            // Oversized 1-char SFX ("出", thickness 0.096 > 1.55 * 0.038)
+            EngineLine(
+                text = "出",
+                bbox = NormalizedBBox(0.20, 0.10, 0.31, 0.196, rotation = 0.0),
+                writingDirection = WritingDirection.LTR,
+                characterSize = 0.11,
+                hasJpText = true,
+                hasKanji = true,
+                rotation = 0.0,
+            ),
+        )
+
+        val blocks = merger.merge(lines, imageW = 1000, imageH = 1000)
+
+        // "心" and "出" must be dropped, while dialogue and "あ" are kept
+        val allLines = blocks.flatMap { it.lines }
+        allLines shouldBe listOf("おはよう", "ございます", "きょうも", "あ")
+    }
+
+    @Test
+    fun `short kanji furigana misread is filtered out`() {
+        val merger = OwOCRMerger()
+        val lines = listOf(
+            // Main kanji line (thickness 0.04)
+            line("剣聖", 0.50, 0.10, 0.54, 0.30, direction = WritingDirection.TTB),
+            // Tiny 1-char kanji misread furigana to the right of the column (thickness 0.0108 < 0.55 * 0.04 = 0.022)
+            line("会", 0.542, 0.10, 0.5528, 0.15, direction = WritingDirection.TTB),
+        )
+
+        val blocks = merger.merge(lines, imageW = 1000, imageH = 1000)
+
+        blocks shouldHaveSize 1
+        blocks.first().lines shouldBe listOf("剣聖")
+    }
+    // KUN <--
 }

@@ -38,6 +38,15 @@ class WordAudioBridge(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val player = WordAudioPlayer()
 
+    init {
+        player.onPlaybackError = {
+            val config = configProvider?.invoke() ?: AudioPreferences.DEFAULT
+            if (config.enabled) {
+                player.playFallback(config.fallbackSoundType, config.volumeFraction)
+            }
+        }
+    }
+
     @JavascriptInterface
     fun fetchAudio(expression: String, reading: String, callbackId: String) {
         val webView = webViewProvider() ?: return
@@ -65,12 +74,28 @@ class WordAudioBridge(
     fun playAudio(url: String) {
         val config = configProvider?.invoke() ?: AudioPreferences.DEFAULT
         if (!config.enabled) return
+        val ctx = webViewProvider()?.context
+        if (ctx != null) player.attachContext(ctx)
         player.play(url, config.volumeFraction)
+    }
+
+    @JavascriptInterface
+    fun playFallback() {
+        val config = configProvider?.invoke() ?: AudioPreferences.DEFAULT
+        if (!config.enabled) return
+        val ctx = webViewProvider()?.context
+        if (ctx != null) player.attachContext(ctx)
+        player.playFallback(config.fallbackSoundType, config.volumeFraction)
     }
 
     /** Stop any in-flight playback (called when the popup content is cleared/released). */
     fun stop() {
         player.stop()
+    }
+
+    /** Destroy player resources (called when popup bridge is torn down). */
+    fun destroy() {
+        player.destroy()
     }
 
     private fun deliver(webView: WebView, callbackId: String, resolution: AudioResolution) {

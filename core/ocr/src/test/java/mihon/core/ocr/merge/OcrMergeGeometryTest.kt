@@ -137,4 +137,58 @@ class OcrMergeGeometryTest {
         OcrMergeGeometry.nextLine(wide, narrow, vertical = false, allowCenteredRuns = true) shouldBe true
         OcrMergeGeometry.nextLine(wide, narrow, vertical = false, allowCenteredRuns = false) shouldBe false
     }
+
+    // KUN -->
+    @Test
+    fun `relaxed advance overlap accepts adjacent lines with moderate overlap`() {
+        val a = box(0.10, 0.10, 0.40, 0.20)
+        val b = box(0.10, 0.16, 0.40, 0.26)
+
+        OcrMergeGeometry.nextLine(a, b, vertical = false) shouldBe true
+    }
+
+    @Test
+    fun `relaxed run overlap accepts ragged dialogue lines`() {
+        val a = box(0.10, 0.10, 0.40, 0.20)
+        val b = box(0.12, 0.21, 0.35, 0.31)
+
+        OcrMergeGeometry.nextLine(a, b, vertical = false) shouldBe true
+    }
+
+    @Test
+    fun `same line fragments with slight vertical offset still form a fragment pair`() {
+        val left = box(0.10, 0.100, 0.30, 0.200)
+        val right = box(0.305, 0.099, 0.50, 0.199)
+
+        OcrMergeGeometry.sameLineFragment(left, right, vertical = false) shouldBe true
+    }
+
+    @Test
+    fun `staggered vertical columns do not pass nextLine even with run overlap`() {
+        // Shuffled / cross-bubble columns like Page 1:
+        // "よく言い聞かせ" (top=0.075, h=0.222, w=0.038) vs "まあそれでも" (top=0.125, h=0.207, w=0.038)
+        val col1 = box(0.612, 0.075, 0.650, 0.297)
+        val col2 = box(0.539, 0.125, 0.577, 0.332)
+
+        // Delta top = 0.050 (1.3 * thickness), Delta centerY = 0.0425 (1.1 * thickness)
+        OcrMergeGeometry.nextLine(col1, col2, vertical = true, allowCenteredRuns = true) shouldBe false
+
+        // Top-aligned column ("ます！") passes
+        val topAligned = box(0.580, 0.076, 0.618, 0.200)
+        OcrMergeGeometry.nextLine(col1, topAligned, vertical = true, allowCenteredRuns = true) shouldBe true
+
+        // Genuinely center-aligned column passes
+        val centerAligned = box(0.580, 0.090, 0.618, 0.282) // centerY = 0.186 matching col1
+        OcrMergeGeometry.nextLine(col1, centerAligned, vertical = true, allowCenteredRuns = true) shouldBe true
+    }
+
+    @Test
+    fun `tightened line gap ratio rejects column jumps`() {
+        // Gap = 0.035 > 0.50 * 0.038
+        val col1 = box(0.612, 0.075, 0.650, 0.297)
+        val colFar = box(0.539, 0.075, 0.577, 0.297)
+
+        OcrMergeGeometry.nextLine(col1, colFar, vertical = true) shouldBe false
+    }
+    // KUN <--
 }

@@ -50,4 +50,25 @@ class OcrPreprocessorTest {
         OcrPreprocessor.clean(null) shouldBe ""
         OcrPreprocessor.clean("") shouldBe ""
     }
+
+    // KUN -->
+    @Test
+    fun `detects implausible Japanese noise`() {
+        OcrPreprocessor.isImplausibleJapaneseNoise("干S") shouldBe true
+        OcrPreprocessor.isImplausibleJapaneseNoise("手15") shouldBe true
+        OcrPreprocessor.isImplausibleJapaneseNoise("七5") shouldBe true
+        OcrPreprocessor.isImplausibleJapaneseNoise("115") shouldBe true
+        OcrPreprocessor.isImplausibleJapaneseNoise("415") shouldBe true
+        OcrPreprocessor.isImplausibleJapaneseNoise(" ... ") shouldBe true
+    }
+
+    @Test
+    fun `keeps plausible Japanese reads`() {
+        OcrPreprocessor.isImplausibleJapaneseNoise("ざわざわ") shouldBe false
+        OcrPreprocessor.isImplausibleJapaneseNoise("あ") shouldBe false
+        OcrPreprocessor.isImplausibleJapaneseNoise("漢字") shouldBe false
+        OcrPreprocessor.isImplausibleJapaneseNoise("第51話") shouldBe false
+        OcrPreprocessor.isImplausibleJapaneseNoise("100円") shouldBe false
+    }
+    // KUN <--
 }

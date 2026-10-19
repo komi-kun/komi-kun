@@ -38,23 +38,31 @@ import kotlin.math.min
  */
 internal object OcrMergeGeometry {
 
+    // KUN -->
     /** Smaller/larger thickness needed to consider two boxes the same kind of text. */
-    const val MIN_THICKNESS_RATIO = 0.6
+    const val MIN_THICKNESS_RATIO = 0.65
+    // KUN <--
 
     /** Widest whitespace gap (as a fraction of thickness) that can join two line fragments. */
     private const val MAX_FRAGMENT_GAP_RATIO = 0.35
 
-    /** Wide whitespace that still counts as successive lines of one paragraph. */
-    private const val MAX_LINE_GAP_RATIO = 1.25
+    // KUN -->
+    /** Maximum whitespace gap along advance axis that still counts as successive lines of one paragraph. */
+    private const val MAX_LINE_GAP_RATIO = 0.50
+
+    /** Maximum alignment drift (as a fraction of thickness) between start or center edges of successive lines. */
+    private const val MAX_ALIGNMENT_DRIFT = 0.55
 
     /**
      * Overlap on the advance axis above which the boxes are on the same row/column rather
      * than one following the other. Same-row boxes must go through [sameLineFragment].
+     * Relaxed from 0.35 to 0.45 to account for detector unclip expansion (1.40).
      */
-    private const val MAX_ADVANCE_OVERLAP = 0.35
+    private const val MAX_ADVANCE_OVERLAP = 0.45
 
-    /** Overlap on the run axis needed for two boxes to count as successive lines. */
-    private const val MIN_RUN_OVERLAP = 0.5
+    /** Overlap on the run axis needed for two boxes to count as successive lines. Relaxed from 0.5 to 0.4 for ragged lines. */
+    private const val MIN_RUN_OVERLAP = 0.4
+    // KUN <--
 
     /** Overlap on the advance axis needed for two boxes to count as one line. */
     private const val MIN_FRAGMENT_ADVANCE_OVERLAP = 0.8
@@ -124,8 +132,12 @@ internal object OcrMergeGeometry {
         val maxGap = MAX_LINE_GAP_RATIO * minOf(thickness(a, vertical), thickness(b, vertical))
         if (advanceGap(a, b, vertical) > maxGap) return false
 
-        if (allowCenteredRuns && runOverlap(a, b, vertical) >= MIN_RUN_OVERLAP) return true
-        return edgeAligned(a, b, vertical)
+        // KUN -->
+        if (runOverlap(a, b, vertical) < MIN_RUN_OVERLAP) return false
+        if (startAligned(a, b, vertical)) return true
+        if (allowCenteredRuns && centerAligned(a, b, vertical)) return true
+        return false
+        // KUN <--
     }
 
     private fun sameThickness(
@@ -141,14 +153,21 @@ internal object OcrMergeGeometry {
         return minOf(ta, tb) / larger >= minRatio
     }
 
-    private fun edgeAligned(a: NormalizedBBox, b: NormalizedBBox, vertical: Boolean): Boolean {
+    // KUN -->
+    private fun startAligned(a: NormalizedBBox, b: NormalizedBBox, vertical: Boolean): Boolean {
         val aStart = if (vertical) a.top else a.left
-        val aEnd = if (vertical) a.bottom else a.right
         val bStart = if (vertical) b.top else b.left
-        val bEnd = if (vertical) b.bottom else b.right
-        val allowed = minOf(thickness(a, vertical), thickness(b, vertical))
-        return minOf(abs(aStart - bStart), abs(aEnd - bEnd)) <= allowed
+        val minT = minOf(thickness(a, vertical), thickness(b, vertical))
+        return abs(aStart - bStart) <= MAX_ALIGNMENT_DRIFT * minT
     }
+
+    private fun centerAligned(a: NormalizedBBox, b: NormalizedBBox, vertical: Boolean): Boolean {
+        val aCenter = if (vertical) a.centerY else a.centerX
+        val bCenter = if (vertical) b.centerY else b.centerX
+        val minT = minOf(thickness(a, vertical), thickness(b, vertical))
+        return abs(aCenter - bCenter) <= MAX_ALIGNMENT_DRIFT * minT
+    }
+    // KUN <--
 }
 
 // KUN -->
