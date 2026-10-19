@@ -1359,6 +1359,12 @@ class ReaderViewModel(
         mutableState.update { it.copy(dialog = null) }
     }
 
+    // KUN -->
+    fun openRedoOcrDialog(page: ReaderPage) {
+        mutableState.update { it.copy(dialog = Dialog.RedoOcr(page)) }
+    }
+    // KUN <--
+
     fun setBrightnessOverlayValue(value: Int) {
         mutableState.update { it.copy(brightnessOverlayValue = value) }
     }
@@ -1733,6 +1739,10 @@ class ReaderViewModel(
         data object RetryAllHelp : Dialog
         data object BoostPageHelp : Dialog
         // SY <--
+
+        // KUN -->
+        data class RedoOcr(val page: ReaderPage) : Dialog
+        // KUN <--
     }
 
     sealed interface Event {

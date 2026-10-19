@@ -218,17 +218,70 @@ class ReaderOcrBlockLoader(
             chapterId = chapter.id,
         )
 
+        // 1. Cached engine OCR results take top priority. This allows a forced OCR run
+        // to overwrite/supersede a .mokuro sidecar in the archive.
+        if (source.persistsOcrResults) {
+            ocrManager.cachedBlocks(key, page.index, source)?.let { return it }
+        }
+
+        // 2. Fall back to .mokuro sidecar if the source policy allows it.
         if (source.usesMokuro) {
             loadMokuroBlocks(page, manga)?.let { return it }
             // MOKURO-only: the sidecar *is* the cache and there is no engine fallback.
             if (!source.persistsOcrResults) return emptyList()
         }
 
-        if (source.persistsOcrResults) {
-            ocrManager.cachedBlocks(key, page.index, source)?.let { return it }
-        }
-
+        // 3. Fall back to running engine OCR on demand.
         return runEngineOcr(page, key, source, chapter.mangaId, manga.source)
+    }
+
+    /**
+     * Force re-runs OCR for [page] (or all pages in the chapter if [chapter] is true),
+     * overwriting the persisted cache and overriding any .mokuro sidecar in the archive.
+     */
+    fun redoOcr(page: ReaderPage, chapter: Boolean = false, onComplete: (() -> Unit)? = null) {
+        scope.launch(Dispatchers.IO) {
+            val pagesToRedo = if (chapter) {
+                page.chapter.pages.orEmpty()
+            } else {
+                listOf(page)
+            }
+            if (pagesToRedo.isEmpty()) return@launch
+
+            val ch = page.chapter.chapter
+            val manga = getManga.await(ch.mangaId) ?: return@launch
+            val source = ocrManager.sourceFor(ch.mangaId)
+            val cacheKey = ocrManager.cacheKey(
+                sourceId = manga.source,
+                mangaId = ch.mangaId,
+                chapterId = ch.id,
+            )
+            val language = resolveLanguage(ch.mangaId, manga.source)
+
+            for (p in pagesToRedo) {
+                val key = p.ocrKey()
+                _blocks.update { it - key }
+                inFlight.remove(key)
+                retryAfter.remove(key)
+                timeoutLogged.remove(key)
+
+                val bytes = pageBytes(p) ?: continue
+                try {
+                    val blocks = ocrManager.forceRecognizeAndCache(
+                        key = cacheKey,
+                        pageIndex = p.index,
+                        bytes = bytes,
+                        language = language,
+                        source = source,
+                    )
+                    _blocks.update { it + (key to blocks) }
+                } catch (e: Exception) {
+                    if (e is CancellationException) throw e
+                    logcat(LogPriority.WARN, e) { "ReaderOcr: redo OCR failed for page ${p.index}" }
+                }
+            }
+            onComplete?.invoke()
+        }
     }
 
     // ---------------------------------------------------------------- mokuro

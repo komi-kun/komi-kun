@@ -202,6 +202,22 @@ class OcrManager(
     }
 
     /**
+     * Force-recognizes one page and persists it under [key], overwriting any existing cache entry
+     * and ensuring it takes precedence over a .mokuro sidecar in the archive.
+     */
+    suspend fun forceRecognizeAndCache(
+        key: OcrCacheKey,
+        pageIndex: Int,
+        bytes: ByteArray,
+        language: OcrLanguage,
+        source: ReaderOcrSource,
+    ): List<OcrTextBlock> {
+        val blocks = recognizePage(bytes, language)
+        cacheManager.save(key, pageIndex, blocks, language.bcp47, cacheVariant(source))
+        return blocks
+    }
+
+    /**
      * Runs OCR for every page of [input], persisting each page (when the policy caches results) and
      * keeping the queue progress updated. Returns the terminal [OcrTaskResult].
      */

@@ -1,15 +1,24 @@
 package eu.kanade.presentation.reader.appbars
 
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.dp
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderBottomButton
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderOrientation
@@ -55,6 +64,7 @@ fun ReaderBottomBar(
     // KUN -->
     ocrEnabled: Boolean,
     onClickOcr: () -> Unit,
+    onLongClickOcr: (() -> Unit)? = null,
     // KUN <--
     modifier: Modifier = Modifier,
 ) {
@@ -159,7 +169,24 @@ fun ReaderBottomBar(
 
         // KUN -->
         if (ReaderBottomButton.Ocr.isIn(enabledButtons)) {
-            IconButton(onClick = onClickOcr) {
+            val haptic = LocalHapticFeedback.current
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .combinedClickable(
+                        interactionSource = null,
+                        indication = ripple(bounded = false),
+                        onClick = onClickOcr,
+                        onLongClick = onLongClickOcr?.let { action ->
+                            {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                action()
+                            }
+                        },
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
                 Icon(
                     imageVector = MaterialSymbols.Rounded.EditNote,
                     contentDescription = stringResource(KMR.strings.pref_category_ocr),
