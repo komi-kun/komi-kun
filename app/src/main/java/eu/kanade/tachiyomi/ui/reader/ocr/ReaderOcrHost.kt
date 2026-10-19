@@ -32,5 +32,11 @@ interface ReaderOcrHost {
      * single-tap lookup to move) from "the user tapped the page" (dismiss).
      */
     fun hitsBlock(overlayPoint: Offset): Boolean
+
+    /**
+     * Force re-runs OCR for [page] (or the entire chapter if [chapter] is true),
+     * updating the cache and overwriting any .mokuro sidecar in the archive.
+     */
+    fun redoOcr(page: ReaderPage, chapter: Boolean = false, onComplete: (() -> Unit)? = null)
     // KUN <--
 }

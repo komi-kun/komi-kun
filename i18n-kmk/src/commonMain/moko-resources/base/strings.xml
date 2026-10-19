@@ -482,4 +482,11 @@
     <string name="ocr_status_processing">Processing</string>
     <string name="ocr_status_error">Error</string>
     <string name="ocr_status_error_reason">Error: %s</string>
+    <string name="action_redo_ocr">Redo OCR</string>
+    <string name="action_redo_ocr_page">Redo OCR for this page</string>
+    <string name="action_redo_ocr_chapter">Redo OCR for this chapter</string>
+    <string name="ocr_redoing_page">Re-running OCR for page %1$d…</string>
+    <string name="ocr_redoing_chapter">Re-running OCR for chapter…</string>
+    <string name="ocr_redo_page_complete">OCR updated for page %1$d</string>
+    <string name="ocr_redo_chapter_complete">OCR updated for chapter</string>
 </resources>
