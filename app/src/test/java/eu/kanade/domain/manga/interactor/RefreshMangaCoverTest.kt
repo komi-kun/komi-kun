@@ -65,7 +65,7 @@ class RefreshMangaCoverTest {
 
         refreshMangaCover.findReplacement(mangaId, staleUrl) shouldBe newUrl
 
-        coVerify(exactly = 0) { repository.updateCover(any(), any(), any(), any()) }
+        coVerify(exactly = 0) { repository.updateCover(any(), any(), any()) }
         verify(exactly = 0) { coverCache.deleteFromCache(any(), any()) }
     }
 
@@ -76,17 +76,17 @@ class RefreshMangaCoverTest {
 
         refreshMangaCover.findReplacement(mangaId, staleUrl) shouldBe null
 
-        coVerify(exactly = 0) { repository.updateCover(any(), any(), any(), any()) }
+        coVerify(exactly = 0) { repository.updateCover(any(), any(), any()) }
     }
 
     @Test
     fun `persists only the cover fields`() = runTest {
         stubManga()
-        coEvery { repository.updateCover(mangaId, staleUrl, newUrl, any()) } returns true
+        coEvery { repository.updateCover(mangaId, staleUrl, newUrl) } returns true
 
         refreshMangaCover.persistReplacement(mangaId, staleUrl, newUrl) shouldBe true
 
-        coVerify(exactly = 1) { repository.updateCover(mangaId, staleUrl, newUrl, any()) }
+        coVerify(exactly = 1) { repository.updateCover(mangaId, staleUrl, newUrl) }
         verify(exactly = 1) { coverCache.deleteFromCache(manga, false) }
     }
 
@@ -96,7 +96,7 @@ class RefreshMangaCoverTest {
 
         refreshMangaCover.persistReplacement(mangaId, staleUrl, newUrl) shouldBe false
 
-        coVerify(exactly = 0) { repository.updateCover(any(), any(), any(), any()) }
+        coVerify(exactly = 0) { repository.updateCover(any(), any(), any()) }
     }
 
     @Test
@@ -106,7 +106,7 @@ class RefreshMangaCoverTest {
 
         refreshMangaCover.persistReplacement(mangaId, staleUrl, newUrl) shouldBe false
 
-        coVerify(exactly = 0) { repository.updateCover(any(), any(), any(), any()) }
+        coVerify(exactly = 0) { repository.updateCover(any(), any(), any()) }
     }
 
     @Test

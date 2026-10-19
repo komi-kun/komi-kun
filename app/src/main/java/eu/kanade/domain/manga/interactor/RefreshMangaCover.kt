@@ -19,7 +19,6 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import tachiyomi.domain.manga.repository.MangaRepository
 import tachiyomi.domain.source.service.SourceManager
 import java.util.concurrent.ConcurrentHashMap
-import kotlin.time.Clock
 
 /**
  * Recovers a stale source cover when loading the stored URL fails.
@@ -118,8 +117,9 @@ class RefreshMangaCover(
             if (coverCache.hasCustomCover(mangaId)) return false
 
             // The WHERE clause keeps a concurrent manual refresh from being overwritten even
-            // if it happens between the checks above and the write.
-            if (!mangaRepository.updateCover(mangaId, staleUrl, newUrl, Clock.System.now())) return false
+            // if it happens between the checks above and the write. Only the URL changes:
+            // keeping the timestamp stable lets the already decoded image stay in Coil's cache.
+            if (!mangaRepository.updateCover(mangaId, staleUrl, newUrl)) return false
             coverCache.deleteFromCache(manga, false)
             xLogI("Refreshed stale cover for manga $mangaId")
             true

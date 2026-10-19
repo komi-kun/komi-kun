@@ -339,10 +339,11 @@ UPDATE manga SET
 WHERE id = :mangaId;
 
 -- KUN -->
+-- Only the URL changes. The timestamp is deliberately left alone so the already
+-- decoded image keeps its Coil cache key for the rest of the session.
 updateCover:
 UPDATE manga SET
-    remote_cover = :thumbnailUrl,
-    state_cover_last_modified = coalesce(:coverLastModified, state_cover_last_modified)
+    remote_cover = :thumbnailUrl
 WHERE id = :mangaId AND remote_cover = :staleUrl
 RETURNING id;
 -- KUN <--

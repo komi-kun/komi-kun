@@ -30,7 +30,6 @@ import tachiyomi.domain.manga.model.MangaUpdate
 import tachiyomi.domain.manga.model.MangaWithChapterCount
 import tachiyomi.domain.manga.repository.MangaRepository
 import kotlin.time.Clock
-import kotlin.time.Instant
 
 @Inject
 @SingleIn(AppScope::class)
@@ -222,16 +221,10 @@ class MangaRepositoryImpl(
     }
 
     // KUN -->
-    override suspend fun updateCover(
-        mangaId: Long,
-        staleUrl: String,
-        thumbnailUrl: String,
-        coverLastModified: Instant?,
-    ): Boolean {
+    override suspend fun updateCover(mangaId: Long, staleUrl: String, thumbnailUrl: String): Boolean {
         return try {
             database.mangaQueries.updateCover(
                 thumbnailUrl = thumbnailUrl,
-                coverLastModified = coverLastModified,
                 mangaId = mangaId,
                 staleUrl = staleUrl,
             ).awaitAsOneOrNull() != null

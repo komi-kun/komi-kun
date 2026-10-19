@@ -243,6 +243,11 @@ class MangaCoverFetcher(
             if (refreshedUrl == activeUrl) throw e
             activeUrl = refreshedUrl
             val result = httpLoader()
+            // Keep the already decoded image under the key Coil used for this request, so the
+            // database update does not trigger a second decode of the same bitmap.
+            if (mangaCover.mangaId > 0) {
+                RecoveredCoverKeys.put(mangaCover.mangaId, mangaCover.lastModified, diskCacheKey)
+            }
             // Persist only after the replacement actually loaded, so a dead URL is never stored.
             persistCoverUrl(refreshedUrl)
             return result
