@@ -7,6 +7,7 @@ import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.datetime.TimeZone
@@ -29,6 +30,7 @@ import tachiyomi.domain.manga.model.MangaUpdate
 import tachiyomi.domain.manga.model.MangaWithChapterCount
 import tachiyomi.domain.manga.repository.MangaRepository
 import kotlin.time.Clock
+import kotlin.time.Instant
 
 @Inject
 @SingleIn(AppScope::class)
@@ -218,6 +220,29 @@ class MangaRepositoryImpl(
             false
         }
     }
+
+    // KUN -->
+    override suspend fun updateCover(
+        mangaId: Long,
+        staleUrl: String,
+        thumbnailUrl: String,
+        coverLastModified: Instant?,
+    ): Boolean {
+        return try {
+            database.mangaQueries.updateCover(
+                thumbnailUrl = thumbnailUrl,
+                coverLastModified = coverLastModified,
+                mangaId = mangaId,
+                staleUrl = staleUrl,
+            ).awaitAsOneOrNull() != null
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logcat(LogPriority.ERROR, e)
+            false
+        }
+    }
+    // KUN <--
 
     override suspend fun insertNetworkManga(
         manga: List<Manga>,

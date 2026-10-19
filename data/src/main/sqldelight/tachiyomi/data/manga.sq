@@ -338,6 +338,15 @@ UPDATE manga SET
     user_notes = coalesce(:notes, user_notes)
 WHERE id = :mangaId;
 
+-- KUN -->
+updateCover:
+UPDATE manga SET
+    remote_cover = :thumbnailUrl,
+    state_cover_last_modified = coalesce(:coverLastModified, state_cover_last_modified)
+WHERE id = :mangaId AND remote_cover = :staleUrl
+RETURNING id;
+-- KUN <--
+
 updateRemote:
 UPDATE manga SET
     remote_artist = coalesce(:artist, remote_artist),

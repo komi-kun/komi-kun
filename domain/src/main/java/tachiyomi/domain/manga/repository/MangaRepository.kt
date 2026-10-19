@@ -6,6 +6,7 @@ import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.manga.model.MangaRemoteUpdate
 import tachiyomi.domain.manga.model.MangaUpdate
 import tachiyomi.domain.manga.model.MangaWithChapterCount
+import kotlin.time.Instant
 
 interface MangaRepository {
 
@@ -52,6 +53,20 @@ interface MangaRepository {
     suspend fun update(update: MangaUpdate): Boolean
 
     suspend fun updateRemote(update: MangaRemoteUpdate): Boolean
+
+    // KUN -->
+    /**
+     * Updates only the source-owned cover URL (and its cache-busting timestamp) of [mangaId],
+     * leaving every other metadata field untouched. The write only succeeds while the entry
+     * still points at [staleUrl].
+     */
+    suspend fun updateCover(
+        mangaId: Long,
+        staleUrl: String,
+        thumbnailUrl: String,
+        coverLastModified: Instant?,
+    ): Boolean
+    // KUN <--
 
     suspend fun updateAll(mangaUpdates: List<MangaUpdate>): Boolean
 
