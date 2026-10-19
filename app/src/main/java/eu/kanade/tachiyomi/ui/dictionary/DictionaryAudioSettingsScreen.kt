@@ -63,7 +63,7 @@ import mihon.icons.materialsymbols.rounded.Add
 import mihon.icons.materialsymbols.rounded.ArrowDownward
 import mihon.icons.materialsymbols.rounded.ArrowUpward
 import mihon.icons.materialsymbols.rounded.Close
-import tachiyomi.i18n.kmk.KMR
+import tachiyomi.i18n.kun.KUNMR
 import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.i18n.stringResource
 
@@ -79,7 +79,7 @@ class DictionaryAudioSettingsScreen : Screen() {
         Scaffold(
             topBar = {
                 AppBar(
-                    title = stringResource(KMR.strings.pref_category_dictionary_audio),
+                    title = stringResource(KUNMR.strings.pref_category_dictionary_audio),
                     navigateUp = { navigator.pop() },
                     scrollBehavior = it,
                 )
@@ -94,51 +94,51 @@ class DictionaryAudioSettingsScreen : Screen() {
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 ToggleRow(
-                    label = stringResource(KMR.strings.pref_dict_audio_enabled),
-                    subtitle = stringResource(KMR.strings.pref_dict_audio_enabled_summary),
+                    label = stringResource(KUNMR.strings.pref_dict_audio_enabled),
+                    subtitle = stringResource(KUNMR.strings.pref_dict_audio_enabled_summary),
                     checked = state.enabled,
                     onCheckedChange = viewModel::setEnabled,
                 )
                 ToggleRow(
-                    label = stringResource(KMR.strings.pref_dict_audio_autoplay),
-                    subtitle = stringResource(KMR.strings.pref_dict_audio_autoplay_summary),
+                    label = stringResource(KUNMR.strings.pref_dict_audio_autoplay),
+                    subtitle = stringResource(KUNMR.strings.pref_dict_audio_autoplay_summary),
                     checked = state.autoPlay,
                     onCheckedChange = viewModel::setAutoPlay,
                 )
-                Text(stringResource(KMR.strings.pref_dict_audio_volume))
+                Text(stringResource(KUNMR.strings.pref_dict_audio_volume))
                 Slider(
                     value = state.volume.toFloat(),
                     onValueChange = { viewModel.setVolume(it.toInt()) },
                     valueRange = 0f..100f,
                 )
                 ToggleRow(
-                    label = stringResource(KMR.strings.pref_dict_audio_default_sources),
-                    subtitle = stringResource(KMR.strings.pref_dict_audio_default_sources_summary),
+                    label = stringResource(KUNMR.strings.pref_dict_audio_default_sources),
+                    subtitle = stringResource(KUNMR.strings.pref_dict_audio_default_sources_summary),
                     checked = state.enableDefaultSources,
                     onCheckedChange = viewModel::setDefaultSources,
                 )
 
-                Text(stringResource(KMR.strings.pref_dict_audio_fallback))
+                Text(stringResource(KUNMR.strings.pref_dict_audio_fallback))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FallbackChoice(
-                        label = stringResource(KMR.strings.pref_dict_audio_fallback_none),
+                        label = stringResource(KUNMR.strings.pref_dict_audio_fallback_none),
                         selected = state.fallbackSound == AudioFallbackSound.NONE,
                         onClick = { viewModel.setFallbackSound(AudioFallbackSound.NONE) },
                     )
                     FallbackChoice(
-                        label = stringResource(KMR.strings.pref_dict_audio_fallback_click),
+                        label = stringResource(KUNMR.strings.pref_dict_audio_fallback_click),
                         selected = state.fallbackSound == AudioFallbackSound.CLICK,
                         onClick = { viewModel.setFallbackSound(AudioFallbackSound.CLICK) },
                     )
                     FallbackChoice(
-                        label = stringResource(KMR.strings.pref_dict_audio_fallback_bloop),
+                        label = stringResource(KUNMR.strings.pref_dict_audio_fallback_bloop),
                         selected = state.fallbackSound == AudioFallbackSound.BLOOP,
                         onClick = { viewModel.setFallbackSound(AudioFallbackSound.BLOOP) },
                     )
                 }
 
                 Text(
-                    text = stringResource(KMR.strings.pref_dict_audio_sources),
+                    text = stringResource(KUNMR.strings.pref_dict_audio_sources),
                     style = MaterialTheme.typography.titleMedium,
                 )
                 state.sources.forEachIndexed { index, source ->
@@ -157,7 +157,7 @@ class DictionaryAudioSettingsScreen : Screen() {
                 Column {
                     OutlinedButton(onClick = { typeMenuExpanded = true }) {
                         Icon(MaterialSymbols.Rounded.Add, contentDescription = null)
-                        Text(stringResource(KMR.strings.pref_dict_audio_source_add))
+                        Text(stringResource(KUNMR.strings.pref_dict_audio_source_add))
                     }
                     DropdownMenu(expanded = typeMenuExpanded, onDismissRequest = { typeMenuExpanded = false }) {
                         AudioSourceTypes.ALL.forEach { type ->
@@ -178,13 +178,13 @@ class DictionaryAudioSettingsScreen : Screen() {
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         Text(
-                            text = stringResource(KMR.strings.pref_dict_audio_test),
+                            text = stringResource(KUNMR.strings.pref_dict_audio_test),
                             style = MaterialTheme.typography.titleMedium,
                         )
                         OutlinedTextField(
                             value = state.testTerm,
                             onValueChange = viewModel::setTestTerm,
-                            label = { Text(stringResource(KMR.strings.pref_dict_audio_test_term)) },
+                            label = { Text(stringResource(KUNMR.strings.pref_dict_audio_test_term)) },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                         )
@@ -195,9 +195,9 @@ class DictionaryAudioSettingsScreen : Screen() {
                             Text(
                                 stringResource(
                                     if (state.testing) {
-                                        KMR.strings.pref_dict_audio_test_playing
+                                        KUNMR.strings.pref_dict_audio_test_playing
                                     } else {
-                                        KMR.strings.pref_dict_audio_test_play
+                                        KUNMR.strings.pref_dict_audio_test_play
                                     },
                                 ),
                             )
@@ -206,9 +206,9 @@ class DictionaryAudioSettingsScreen : Screen() {
                             Text(
                                 text = when (result) {
                                     is DictionaryAudioSettingsViewModel.TestResult.Playing ->
-                                        stringResource(KMR.strings.pref_dict_audio_test_played, result.sourceName)
+                                        stringResource(KUNMR.strings.pref_dict_audio_test_played, result.sourceName)
                                     is DictionaryAudioSettingsViewModel.TestResult.NotFound ->
-                                        stringResource(KMR.strings.pref_dict_audio_test_none, result.term)
+                                        stringResource(KUNMR.strings.pref_dict_audio_test_none, result.term)
                                 },
                                 style = MaterialTheme.typography.bodySmall,
                             )
@@ -270,24 +270,24 @@ class DictionaryAudioSettingsScreen : Screen() {
                         modifier = Modifier.weight(1f),
                     )
                     IconButton(onClick = onMoveUp, enabled = canMoveUp) {
-                        Icon(MaterialSymbols.Rounded.ArrowUpward, contentDescription = stringResource(KMR.strings.pref_dict_audio_source_move_up))
+                        Icon(MaterialSymbols.Rounded.ArrowUpward, contentDescription = stringResource(KUNMR.strings.pref_dict_audio_source_move_up))
                     }
                     IconButton(onClick = onMoveDown, enabled = canMoveDown) {
-                        Icon(MaterialSymbols.Rounded.ArrowDownward, contentDescription = stringResource(KMR.strings.pref_dict_audio_source_move_down))
+                        Icon(MaterialSymbols.Rounded.ArrowDownward, contentDescription = stringResource(KUNMR.strings.pref_dict_audio_source_move_down))
                     }
                     IconButton(onClick = onRemove) {
-                        Icon(MaterialSymbols.Rounded.Close, contentDescription = stringResource(KMR.strings.pref_dict_audio_source_remove))
+                        Icon(MaterialSymbols.Rounded.Close, contentDescription = stringResource(KUNMR.strings.pref_dict_audio_source_remove))
                     }
                 }
                 if (source.type == AudioSourceTypes.CUSTOM || source.type == AudioSourceTypes.CUSTOM_JSON) {
                     OutlinedTextField(
                         value = source.url,
                         onValueChange = onUrlChange,
-                        label = { Text(stringResource(KMR.strings.pref_dict_audio_source_url)) },
+                        label = { Text(stringResource(KUNMR.strings.pref_dict_audio_source_url)) },
                         placeholder = {
                             Text(
                                 if (source.type == AudioSourceTypes.CUSTOM_JSON) {
-                                    stringResource(KMR.strings.pref_dict_audio_source_url_hint)
+                                    stringResource(KUNMR.strings.pref_dict_audio_source_url_hint)
                                 } else {
                                     "https://example.com/{term}.mp3"
                                 },
@@ -298,7 +298,7 @@ class DictionaryAudioSettingsScreen : Screen() {
                     )
                     if (source.type == AudioSourceTypes.CUSTOM_JSON) {
                         Text(
-                            text = stringResource(KMR.strings.pref_dict_audio_source_custom_json_hint),
+                            text = stringResource(KUNMR.strings.pref_dict_audio_source_custom_json_hint),
                             style = MaterialTheme.typography.bodySmall,
                         )
                     }

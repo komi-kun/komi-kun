@@ -27,7 +27,7 @@ import tachiyomi.core.common.ocr.ReaderOcrSource
 import tachiyomi.core.common.preference.AndroidPreferenceStore
 import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.i18n.MR
-import tachiyomi.i18n.kmk.KMR
+import tachiyomi.i18n.kun.KUNMR
 import tachiyomi.presentation.core.i18n.stringResource
 
 /**
@@ -47,7 +47,7 @@ object SettingsOcrScreen : SearchableSettings {
 
     @ReadOnlyComposable
     @Composable
-    override fun getTitleRes(): StringResource = KMR.strings.pref_category_ocr
+    override fun getTitleRes(): StringResource = KUNMR.strings.pref_category_ocr
 
     @Composable
     override fun getPreferences(): List<Preference> {
@@ -73,12 +73,12 @@ object SettingsOcrScreen : SearchableSettings {
         }
         val modelStatus = when (val state = downloadState) {
             // Surface the actual reason instead of a constant "Error" (F8).
-            is ModelDownloadState.Failed -> stringResource(KMR.strings.ocr_status_error_reason, state.message)
+            is ModelDownloadState.Failed -> stringResource(KUNMR.strings.ocr_status_error_reason, state.message)
             is ModelDownloadState.Downloading ->
-                stringResource(KMR.strings.ocr_running) + " (${state.downloaded}/${state.total})"
-            ModelDownloadState.Completed -> stringResource(KMR.strings.ocr_ready)
+                stringResource(KUNMR.strings.ocr_running) + " (${state.downloaded}/${state.total})"
+            ModelDownloadState.Completed -> stringResource(KUNMR.strings.ocr_ready)
             ModelDownloadState.Idle ->
-                if (modelsReady) stringResource(KMR.strings.ocr_ready) else stringResource(KMR.strings.ocr_not_ready)
+                if (modelsReady) stringResource(KUNMR.strings.ocr_ready) else stringResource(KUNMR.strings.ocr_not_ready)
         }
 
         var cacheSizeText by remember { mutableStateOf<String?>(null) }
@@ -92,8 +92,8 @@ object SettingsOcrScreen : SearchableSettings {
         if (showClearDialog) {
             AlertDialog(
                 onDismissRequest = { showClearDialog = false },
-                title = { Text(text = stringResource(KMR.strings.pref_ocr_clear_cache)) },
-                text = { Text(text = stringResource(KMR.strings.confirm_clear_ocr_cache)) },
+                title = { Text(text = stringResource(KUNMR.strings.pref_ocr_clear_cache)) },
+                text = { Text(text = stringResource(KUNMR.strings.confirm_clear_ocr_cache)) },
                 confirmButton = {
                     TextButton(
                         onClick = {
@@ -108,7 +108,7 @@ object SettingsOcrScreen : SearchableSettings {
                             }
                         },
                     ) {
-                        Text(text = stringResource(KMR.strings.action_clear_ocr_cache))
+                        Text(text = stringResource(KUNMR.strings.action_clear_ocr_cache))
                     }
                 },
                 dismissButton = {
@@ -124,11 +124,11 @@ object SettingsOcrScreen : SearchableSettings {
             Preference.PreferenceItem.ListPreference(
                 preference = preferences.defaultSource,
                 entries = mapOf(
-                    ReaderOcrSource.AUTOMATIC.name to stringResource(KMR.strings.ocr_source_automatic),
-                    ReaderOcrSource.MOKURO.name to stringResource(KMR.strings.ocr_source_mokuro),
-                    ReaderOcrSource.PADDLE.name to stringResource(KMR.strings.ocr_source_paddle),
+                    ReaderOcrSource.AUTOMATIC.name to stringResource(KUNMR.strings.ocr_source_automatic),
+                    ReaderOcrSource.MOKURO.name to stringResource(KUNMR.strings.ocr_source_mokuro),
+                    ReaderOcrSource.PADDLE.name to stringResource(KUNMR.strings.ocr_source_paddle),
                 ),
-                title = stringResource(KMR.strings.pref_category_ocr),
+                title = stringResource(KUNMR.strings.pref_category_ocr),
                 onValueChanged = { value ->
                     if (value == ReaderOcrSource.PADDLE.name) {
                         // Runtime, user-opt-in, checksum-verified model download (contract §1.7).
@@ -142,7 +142,7 @@ object SettingsOcrScreen : SearchableSettings {
             // failure are surfaced here. Tapping retries — a failed run releases the single-flight
             // gate, so re-tapping actually re-runs instead of being coalesced away (F8).
             Preference.PreferenceItem.TextPreference(
-                title = stringResource(KMR.strings.pref_ocr_model_status),
+                title = stringResource(KUNMR.strings.pref_ocr_model_status),
                 subtitle = modelStatus,
                 onClick = { modelDownloader.triggerPaddleDownload() },
             ),
@@ -150,40 +150,40 @@ object SettingsOcrScreen : SearchableSettings {
             // Overlay master switch: the same key the reader gates on (fix B3).
             Preference.PreferenceItem.SwitchPreference(
                 preference = readerPreferences.ocrOverlayEnabled,
-                title = stringResource(KMR.strings.pref_ocr_overlay_enabled),
+                title = stringResource(KUNMR.strings.pref_ocr_overlay_enabled),
             ),
 
             // Overlay behaviour.
             Preference.PreferenceGroup(
-                title = stringResource(KMR.strings.pref_category_ocr_boxes),
+                title = stringResource(KUNMR.strings.pref_category_ocr_boxes),
                 preferenceItems = listOf(
                     Preference.PreferenceItem.SwitchPreference(
                         preference = readerPreferences.ocrOutlineVisible,
-                        title = stringResource(KMR.strings.pref_show_ocr_outlines),
+                        title = stringResource(KUNMR.strings.pref_show_ocr_outlines),
                     ),
                     Preference.PreferenceItem.SwitchPreference(
                         preference = readerPreferences.ocrTextOverlayVisible,
-                        title = stringResource(KMR.strings.pref_show_ocr_text),
-                        subtitle = stringResource(KMR.strings.pref_show_ocr_text_summary),
+                        title = stringResource(KUNMR.strings.pref_show_ocr_text),
+                        subtitle = stringResource(KUNMR.strings.pref_show_ocr_text_summary),
                     ),
                     // Overlay text size: the calibrated default matches the printed lettering, and
                     // manga fonts vary enough that the reader needs a nudge (KUN).
                     Preference.PreferenceItem.SliderPreference(
                         preference = readerPreferences.ocrTextScale,
-                        title = stringResource(KMR.strings.pref_ocr_text_scale),
-                        subtitle = stringResource(KMR.strings.pref_ocr_text_scale_summary),
+                        title = stringResource(KUNMR.strings.pref_ocr_text_scale),
+                        subtitle = stringResource(KUNMR.strings.pref_ocr_text_scale_summary),
                         valueRange = 50..150,
                         valueText = { "$it%" },
                     ),
                     Preference.PreferenceItem.SwitchPreference(
                         preference = readerPreferences.ocrTwoFingerGestureEnabled,
-                        title = stringResource(KMR.strings.pref_ocr_two_finger_gesture),
-                        subtitle = stringResource(KMR.strings.pref_ocr_two_finger_gesture_summary),
+                        title = stringResource(KUNMR.strings.pref_ocr_two_finger_gesture),
+                        subtitle = stringResource(KUNMR.strings.pref_ocr_two_finger_gesture_summary),
                     ),
                     Preference.PreferenceItem.SwitchPreference(
                         preference = preferences.autoOnDownload,
-                        title = stringResource(KMR.strings.pref_ocr_auto_on_download),
-                        subtitle = stringResource(KMR.strings.pref_ocr_auto_on_download_summary),
+                        title = stringResource(KUNMR.strings.pref_ocr_auto_on_download),
+                        subtitle = stringResource(KUNMR.strings.pref_ocr_auto_on_download_summary),
                     ),
                 ),
             ),
@@ -193,38 +193,38 @@ object SettingsOcrScreen : SearchableSettings {
             // thresholds (no artefact change); the recognition floor is applied on the per-line
             // score the engine already emits. Defaults reproduce the previous hard-coded values.
             Preference.PreferenceGroup(
-                title = stringResource(KMR.strings.pref_ocr_detection),
+                title = stringResource(KUNMR.strings.pref_ocr_detection),
                 preferenceItems = listOf(
                     Preference.PreferenceItem.SliderPreference(
                         preference = preferences.detBoxThreshold,
-                        title = stringResource(KMR.strings.pref_ocr_det_box_threshold),
-                        subtitle = stringResource(KMR.strings.pref_ocr_det_box_threshold_summary),
+                        title = stringResource(KUNMR.strings.pref_ocr_det_box_threshold),
+                        subtitle = stringResource(KUNMR.strings.pref_ocr_det_box_threshold_summary),
                         valueRange = 5..95,
                         valueText = { "$it%" },
                     ),
                     Preference.PreferenceItem.SliderPreference(
                         preference = preferences.detPixelThreshold,
-                        title = stringResource(KMR.strings.pref_ocr_det_pixel_threshold),
-                        subtitle = stringResource(KMR.strings.pref_ocr_det_pixel_threshold_summary),
+                        title = stringResource(KUNMR.strings.pref_ocr_det_pixel_threshold),
+                        subtitle = stringResource(KUNMR.strings.pref_ocr_det_pixel_threshold_summary),
                         valueRange = 5..95,
                         valueText = { "$it%" },
                     ),
                     Preference.PreferenceItem.SliderPreference(
                         preference = preferences.detUnclipRatio,
-                        title = stringResource(KMR.strings.pref_ocr_det_unclip_ratio),
-                        subtitle = stringResource(KMR.strings.pref_ocr_det_unclip_ratio_summary),
+                        title = stringResource(KUNMR.strings.pref_ocr_det_unclip_ratio),
+                        subtitle = stringResource(KUNMR.strings.pref_ocr_det_unclip_ratio_summary),
                         valueRange = 100..300,
                         valueText = { "%.2f".format(it / 100f) },
                     ),
                     Preference.PreferenceItem.SliderPreference(
                         preference = preferences.recConfidenceFloor,
-                        title = stringResource(KMR.strings.pref_ocr_rec_confidence_floor),
-                        subtitle = stringResource(KMR.strings.pref_ocr_rec_confidence_floor_summary),
+                        title = stringResource(KUNMR.strings.pref_ocr_rec_confidence_floor),
+                        subtitle = stringResource(KUNMR.strings.pref_ocr_rec_confidence_floor_summary),
                         valueRange = 0..95,
                         valueText = { if (it == 0) "off" else "$it%" },
                     ),
                     Preference.PreferenceItem.TextPreference(
-                        title = stringResource(KMR.strings.pref_ocr_detection_apply_hint),
+                        title = stringResource(KUNMR.strings.pref_ocr_detection_apply_hint),
                     ),
                 ),
             ),
@@ -232,11 +232,11 @@ object SettingsOcrScreen : SearchableSettings {
 
             // Cache.
             Preference.PreferenceItem.TextPreference(
-                title = stringResource(KMR.strings.pref_ocr_cache_size),
+                title = stringResource(KUNMR.strings.pref_ocr_cache_size),
                 subtitle = cacheSizeText ?: "...",
             ),
             Preference.PreferenceItem.TextPreference(
-                title = stringResource(KMR.strings.pref_ocr_clear_cache),
+                title = stringResource(KUNMR.strings.pref_ocr_clear_cache),
                 onClick = { showClearDialog = true },
             ),
         )

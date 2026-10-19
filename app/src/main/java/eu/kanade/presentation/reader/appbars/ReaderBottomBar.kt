@@ -34,7 +34,7 @@ import mihon.icons.materialsymbols.rounded.Public
 import mihon.icons.materialsymbols.rounded.Settings
 import mihon.icons.materialsymbols.rounded.Share
 import tachiyomi.i18n.MR
-import tachiyomi.i18n.kmk.KMR
+import tachiyomi.i18n.kun.KUNMR
 import tachiyomi.i18n.sy.SYMR
 import tachiyomi.presentation.core.i18n.stringResource
 
@@ -189,7 +189,7 @@ fun ReaderBottomBar(
             ) {
                 Icon(
                     imageVector = MaterialSymbols.Rounded.EditNote,
-                    contentDescription = stringResource(KMR.strings.pref_category_ocr),
+                    contentDescription = stringResource(KUNMR.strings.pref_category_ocr),
                     tint = if (ocrEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }

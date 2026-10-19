@@ -88,7 +88,7 @@ import mihon.icons.materialsymbols.rounded.Delete
 import mihon.icons.materialsymbols.rounded.Edit
 import org.json.JSONObject
 import tachiyomi.i18n.MR
-import tachiyomi.i18n.kmk.KMR
+import tachiyomi.i18n.kun.KUNMR
 import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.i18n.stringResource
 import java.io.File
@@ -126,7 +126,7 @@ class DictionaryManagementScreen : Screen() {
         Scaffold(
             topBar = {
                 AppBar(
-                    title = stringResource(KMR.strings.pref_manage_dictionaries),
+                    title = stringResource(KUNMR.strings.pref_manage_dictionaries),
                     navigateUp = { navigator.pop() },
                     actions = {
                         IconButton(
@@ -136,7 +136,7 @@ class DictionaryManagementScreen : Screen() {
                         ) {
                             Icon(
                                 imageVector = MaterialSymbols.Rounded.Add,
-                                contentDescription = stringResource(KMR.strings.pref_import_dictionary),
+                                contentDescription = stringResource(KUNMR.strings.pref_import_dictionary),
                             )
                         }
                     },
@@ -239,13 +239,13 @@ class DictionaryManagementScreen : Screen() {
                                 ) {
                                     Icon(MaterialSymbols.Rounded.Add, contentDescription = null)
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text(stringResource(KMR.strings.pref_import_dictionary))
+                                    Text(stringResource(KUNMR.strings.pref_import_dictionary))
                                 }
                                 OutlinedButton(
                                     onClick = { navigator.push(DictionaryBackupImportScreen()) },
                                     modifier = Modifier.weight(1f),
                                 ) {
-                                    Text(stringResource(KMR.strings.pref_import_yomitan_backup))
+                                    Text(stringResource(KUNMR.strings.pref_import_yomitan_backup))
                                 }
                             }
                         }
@@ -291,7 +291,7 @@ class DictionaryManagementScreen : Screen() {
             )
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = stringResource(KMR.strings.pref_dict_none_imported),
+                text = stringResource(KUNMR.strings.pref_dict_none_imported),
                 style = MaterialTheme.typography.titleLarge,
                 textAlign = TextAlign.Center,
             )
@@ -299,11 +299,11 @@ class DictionaryManagementScreen : Screen() {
             Button(onClick = onImport) {
                 Icon(MaterialSymbols.Rounded.Add, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text(stringResource(KMR.strings.pref_import_dictionary))
+                Text(stringResource(KUNMR.strings.pref_import_dictionary))
             }
             Spacer(modifier = Modifier.height(8.dp))
             OutlinedButton(onClick = onImportBackup) {
-                Text(stringResource(KMR.strings.pref_import_yomitan_backup))
+                Text(stringResource(KUNMR.strings.pref_import_yomitan_backup))
             }
         }
     }
@@ -329,11 +329,11 @@ class DictionaryManagementScreen : Screen() {
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = stringResource(KMR.strings.pref_dictionary_profiles),
+                            text = stringResource(KUNMR.strings.pref_dictionary_profiles),
                             style = MaterialTheme.typography.titleMedium,
                         )
                         Text(
-                            text = stringResource(KMR.strings.pref_dict_active_profile, activeProfile.name),
+                            text = stringResource(KUNMR.strings.pref_dict_active_profile, activeProfile.name),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -378,17 +378,17 @@ class DictionaryManagementScreen : Screen() {
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = stringResource(KMR.strings.pref_dict_collapse_mode),
+                            text = stringResource(KUNMR.strings.pref_dict_collapse_mode),
                             style = MaterialTheme.typography.titleMedium,
                         )
                         Text(
                             text = when (activeMode) {
                                 DictionaryProfile.DICTIONARY_COLLAPSE_EXPAND_FIRST_AVAILABLE ->
-                                    stringResource(KMR.strings.pref_dict_collapse_mode_expand_first)
+                                    stringResource(KUNMR.strings.pref_dict_collapse_mode_expand_first)
                                 DictionaryProfile.DICTIONARY_COLLAPSE_COLLAPSE_ALL ->
-                                    stringResource(KMR.strings.pref_dict_collapse_mode_collapse_all)
+                                    stringResource(KUNMR.strings.pref_dict_collapse_mode_collapse_all)
                                 else ->
-                                    stringResource(KMR.strings.pref_dict_collapse_mode_expand_all)
+                                    stringResource(KUNMR.strings.pref_dict_collapse_mode_expand_all)
                             },
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -402,21 +402,21 @@ class DictionaryManagementScreen : Screen() {
                 onDismissRequest = { expanded = false },
             ) {
                 DropdownMenuItem(
-                    text = { Text(stringResource(KMR.strings.pref_dict_collapse_mode_expand_all)) },
+                    text = { Text(stringResource(KUNMR.strings.pref_dict_collapse_mode_expand_all)) },
                     onClick = {
                         onSelect(DictionaryProfile.DICTIONARY_COLLAPSE_EXPAND_ALL)
                         expanded = false
                     },
                 )
                 DropdownMenuItem(
-                    text = { Text(stringResource(KMR.strings.pref_dict_collapse_mode_expand_first)) },
+                    text = { Text(stringResource(KUNMR.strings.pref_dict_collapse_mode_expand_first)) },
                     onClick = {
                         onSelect(DictionaryProfile.DICTIONARY_COLLAPSE_EXPAND_FIRST_AVAILABLE)
                         expanded = false
                     },
                 )
                 DropdownMenuItem(
-                    text = { Text(stringResource(KMR.strings.pref_dict_collapse_mode_collapse_all)) },
+                    text = { Text(stringResource(KUNMR.strings.pref_dict_collapse_mode_collapse_all)) },
                     onClick = {
                         onSelect(DictionaryProfile.DICTIONARY_COLLAPSE_COLLAPSE_ALL)
                         expanded = false
@@ -473,7 +473,7 @@ class DictionaryManagementScreen : Screen() {
                         )
                         if (item.alias != null) {
                             Text(
-                                text = stringResource(KMR.strings.pref_dict_alias_original, item.title),
+                                text = stringResource(KUNMR.strings.pref_dict_alias_original, item.title),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 1,
@@ -494,28 +494,28 @@ class DictionaryManagementScreen : Screen() {
                 ) {
                     if ("term" in item.types) {
                         TypeBadge(
-                            label = stringResource(KMR.strings.pref_dict_type_term),
+                            label = stringResource(KUNMR.strings.pref_dict_type_term),
                             containerColor = MaterialTheme.colorScheme.primaryContainer,
                             contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                         )
                     }
                     if ("frequency" in item.types) {
                         TypeBadge(
-                            label = stringResource(KMR.strings.pref_dict_type_freq),
+                            label = stringResource(KUNMR.strings.pref_dict_type_freq),
                             containerColor = MaterialTheme.colorScheme.tertiaryContainer,
                             contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
                         )
                     }
                     if ("pitch" in item.types) {
                         TypeBadge(
-                            label = stringResource(KMR.strings.pref_dict_type_pitch),
+                            label = stringResource(KUNMR.strings.pref_dict_type_pitch),
                             containerColor = MaterialTheme.colorScheme.secondaryContainer,
                             contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
                         )
                     }
                     if ("kanji" in item.types) {
                         TypeBadge(
-                            label = stringResource(KMR.strings.pref_dict_type_kanji),
+                            label = stringResource(KUNMR.strings.pref_dict_type_kanji),
                             containerColor = MaterialTheme.colorScheme.surfaceVariant,
                             contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -554,7 +554,7 @@ class DictionaryManagementScreen : Screen() {
                         IconButton(onClick = onEditAlias) {
                             Icon(
                                 MaterialSymbols.Rounded.Edit,
-                                contentDescription = stringResource(KMR.strings.pref_dict_edit_alias),
+                                contentDescription = stringResource(KUNMR.strings.pref_dict_edit_alias),
                             )
                         }
                         IconButton(onClick = onDelete) {
@@ -599,19 +599,19 @@ class DictionaryManagementScreen : Screen() {
         var aliasText by remember { mutableStateOf(item.alias.orEmpty()) }
         AlertDialog(
             onDismissRequest = onDismiss,
-            title = { Text(text = stringResource(KMR.strings.pref_dict_edit_alias)) },
+            title = { Text(text = stringResource(KUNMR.strings.pref_dict_edit_alias)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        text = stringResource(KMR.strings.pref_dict_alias_original, item.title),
+                        text = stringResource(KUNMR.strings.pref_dict_alias_original, item.title),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     OutlinedTextField(
                         value = aliasText,
                         onValueChange = { aliasText = it },
-                        label = { Text(text = stringResource(KMR.strings.pref_dict_alias)) },
-                        placeholder = { Text(text = stringResource(KMR.strings.pref_dict_alias_hint)) },
+                        label = { Text(text = stringResource(KUNMR.strings.pref_dict_alias)) },
+                        placeholder = { Text(text = stringResource(KUNMR.strings.pref_dict_alias_hint)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -659,7 +659,7 @@ class DictionaryManagementScreen : Screen() {
             text = {
                 Text(
                     text = stringResource(
-                        KMR.strings.pref_dict_delete_confirm,
+                        KUNMR.strings.pref_dict_delete_confirm,
                         item.displayTitle,
                     ),
                 )

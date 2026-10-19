@@ -11,7 +11,7 @@ Features: configurable reader, downloads/offline reading, trackers (MyAnimeList,
 | Mihon | none (base code) | `MR` (`i18n/`) |
 | TachiyomiSY | `// SY -->` … `// SY <--` (legacy `// EXH` blocks also come from SY) | `SYMR` (`i18n-sy/`) |
 | Komikku (this fork's base upstream) | `// KMK -->` … `// KMK <--` | `KMR` (`i18n-kmk/`) |
-| **komi-kun** (this repo) | `// KUN -->` … `// KUN <--` | `KMR` (`i18n-kmk/`) |
+| **komi-kun** (this repo) | `// KUN -->` … `// KUN <--` | `KUNMR` (`i18n-kun/`) |
 
 Markers record **divergence from upstream**, never upstream code itself: Mihon is the base (unmarked); `// KMK` / `// SY` mark code inherited from the Komikku / TachiyomiSY upstreams; `// KUN` marks this fork's own code.
 
@@ -62,19 +62,18 @@ Markers record **what diverges from upstream** — they never mark upstream code
 
 | String kind | Module | Resource class | Base folder only |
 |-------------|--------|----------------|------------------|
-| **komi-kun / Komikku** new features (library-update errors, WebDAV, Discord, etc.) | `i18n-kmk/` | **`KMR`** | `i18n-kmk/src/commonMain/moko-resources/base/` |
+| **komi-kun** new features (Yomitan, dictionaries, OCR, Anki, etc.) | `i18n-kun/` | **`KUNMR`** | `i18n-kun/src/commonMain/moko-resources/base/` |
+| Komikku upstream (library-update errors, WebDAV, Discord, etc.) | `i18n-kmk/` | `KMR` | `i18n-kmk/src/commonMain/moko-resources/base/` |
 | Mihon upstream | `i18n/` | `MR` | `i18n/src/commonMain/moko-resources/base/` |
 | TachiyomiSY upstream | `i18n-sy/` | `SYMR` | `i18n-sy/src/commonMain/moko-resources/base/` |
 
 **Hard rules:**
 
-- **All new strings go to `i18n-kmk/`** (`import tachiyomi.i18n.kmk.KMR`). `MR` / `SYMR` are upstream-owned; reuse existing entries, but only add or change them when syncing upstream.
-- **Never** edit non-`base` locale `strings.xml` or `plurals.xml` files in `i18n-kmk/`, `i18n/`, or `i18n-sy/` — [Weblate](https://hosted.weblate.org/engage/komikku-app/) owns translations.
-- Inside a `// KUN` block (or Komikku's own `// KMK` behavior), default to **`KMR`** even if nearby code imports `MR`.
+- **All new komi-kun strings go to `i18n-kun/`** (`import tachiyomi.i18n.kun.KUNMR`). `KMR`, `MR`, and `SYMR` are upstream-owned; reuse existing entries, but add new strings to `i18n-kun/` so upstream merges never conflict.
+- Translations in `i18n-kun/` can be added directly for supported locales. Upstream `i18n/`, `i18n-sy/`, and `i18n-kmk/` remain upstream-owned.
+- Inside a `// KUN` block, default to **`KUNMR`** even if nearby code imports `KMR` or `MR`.
 
-**Examples (→ `i18n-kmk`, not `i18n`):** library update error UI, sync-before-update messages, WebDAV/Discord settings, updater notifications, `mihon/feature/*` screens.
-
-**Self-check before finishing:** `git diff` must not add new `<string name="…">` or `<plurals name="…">` entries under non-`base` locales in `i18n-kmk/src/`, `i18n/src/`, or `i18n-sy/src/`.
+**Examples (→ `i18n-kun`, not `i18n-kmk` or `i18n`):** dictionary settings & management, OCR settings/actions, AnkiDroid integration, Yomitan backup import.
 
 ### Formatting & build verification
 
@@ -123,7 +122,7 @@ Version catalogs in `gradle/`: `libs.versions.toml`, `kotlinx.versions.toml`, `a
 | `source-api/` / `source-local/` | Extension `Source` API + local source |
 | `presentation-core/` | Shared Compose components |
 | `presentation-widget/` | Home-screen Glance widget |
-| `i18n/` / `i18n-sy/` / `i18n-kmk/` | Strings → `MR` / `SYMR` / `KMR` (see [Internationalization](#internationalization-strings)) |
+| `i18n/` / `i18n-sy/` / `i18n-kmk/` / `i18n-kun/` | Strings → `MR` / `SYMR` / `KMR` / `KUNMR` (see [Internationalization](#internationalization-strings)) |
 | `flagkit/` | Country-flag drawables |
 | `icons:material-symbols/`, `icons:custom-material-symbols/`, `icons:simple-icons/` | Generated icon packs (`MaterialSymbols`, custom Material Symbols, Simple Icons) |
 | `telemetry/` | Firebase/Crashlytics (noop unless `-Pinclude-telemetry`) |
@@ -187,7 +186,7 @@ komi-kun's own code is Apache-2.0, but the Yomitan/dictionary/OCR port adds two 
 
 1. **Interactor:** `domain/src/main/java/tachiyomi/domain/<area>/interactor/MyFeature.kt`, annotated `@Inject` (Metro resolves it; add a `@Provides` / `@Binds` to `mihon/app/di/AppBindings.kt` — or a feature `@BindingContainer`, as the GPL dictionary/OCR modules do — only if it needs manual wiring)
 2. **UI:** Metro ViewModel + `Screen` under `app/src/main/java/eu/kanade/tachiyomi/ui/` (see [Architecture](#architecture))
-3. **Strings:** `i18n-kmk/src/commonMain/moko-resources/base/strings.xml`, referenced via `KMR`
+3. **Strings:** `i18n-kun/src/commonMain/moko-resources/base/strings.xml`, referenced via `KUNMR`
 4. **Markers:** wrap edits to existing files in `// KUN -->` / `// KUN <--`
 
 Reference: `domain/src/main/java/tachiyomi/domain/category/interactor/HideCategory.kt` (an `@Inject` interactor) and `app/src/main/java/eu/kanade/tachiyomi/ui/more/NewUpdateScreen.kt` + `NewUpdateViewModel.kt` (ViewModel + Screen).

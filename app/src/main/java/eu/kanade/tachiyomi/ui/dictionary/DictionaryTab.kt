@@ -37,7 +37,7 @@ import mihon.core.dictionary.ui.orderLookupResultsForDisplay
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.Close
 import mihon.icons.materialsymbols.rounded.Search
-import tachiyomi.i18n.kmk.KMR
+import tachiyomi.i18n.kun.KUNMR
 import tachiyomi.presentation.core.i18n.stringResource
 
 /**
@@ -54,7 +54,7 @@ data object DictionaryTab : Tab {
         @Composable
         get() = TabOptions(
             index = 4u,
-            title = stringResource(KMR.strings.label_dictionary),
+            title = stringResource(KUNMR.strings.label_dictionary),
             icon = rememberVectorPainter(MaterialSymbols.Rounded.Search),
         )
 

@@ -10,8 +10,8 @@ import eu.kanade.tachiyomi.util.system.buildNotificationChannel
 import eu.kanade.tachiyomi.util.system.buildNotificationChannelGroup
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.i18n.MR
-import tachiyomi.i18n.kmk.KMR
 import tachiyomi.i18n.kmk.R
+import tachiyomi.i18n.kun.KUNMR
 
 /**
  * Class to manage the basic information of all the notifications used in the app.
@@ -156,7 +156,7 @@ object Notifications {
                 },
                 // KUN -->
                 buildNotificationChannelGroup(GROUP_DICTIONARY_AND_OCR) {
-                    setName(context.stringResource(KMR.strings.pref_category_dictionaries_and_audio))
+                    setName(context.stringResource(KUNMR.strings.pref_category_dictionaries_and_audio))
                 },
                 // KUN <--
             ),
@@ -231,12 +231,12 @@ object Notifications {
                 // SY <--
                 // KUN -->
                 buildNotificationChannel(CHANNEL_DICTIONARY_UPDATE, IMPORTANCE_LOW) {
-                    setName(context.stringResource(KMR.strings.channel_dictionary_update))
+                    setName(context.stringResource(KUNMR.strings.channel_dictionary_update))
                     setGroup(GROUP_DICTIONARY_AND_OCR)
                     setShowBadge(false)
                 },
                 buildNotificationChannel(CHANNEL_OCR, IMPORTANCE_LOW) {
-                    setName(context.stringResource(KMR.strings.pref_category_ocr))
+                    setName(context.stringResource(KUNMR.strings.pref_category_ocr))
                     setGroup(GROUP_DICTIONARY_AND_OCR)
                     setShowBadge(false)
                 },
