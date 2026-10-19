@@ -219,10 +219,6 @@ internal class PermissionStep : OnboardingStep {
         )
     }
 
-    // KUN -->
-    // Ported from Mihon dfed97edc8 ("Address compose and xmlutil deprecations"): ListItem's
-    // headlineContent parameter is deprecated in favour of the trailing content overload.
-    // KUN <--
     @Composable
     private fun PermissionCheckbox(
         title: String,

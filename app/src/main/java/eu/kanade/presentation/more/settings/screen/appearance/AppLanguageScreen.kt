@@ -75,10 +75,6 @@ class AppLanguageScreen : Screen() {
                 modifier = Modifier.padding(contentPadding),
             ) {
                 items(langs) {
-                    // KUN -->
-                    // Ported from Mihon dfed97edc8 ("Address compose and xmlutil deprecations"):
-                    // use the ListItem overload with a trailing content lambda.
-                    // KUN <--
                     ListItem(
                         modifier = Modifier.clickable {
                             currentLanguage = it.langTag

@@ -225,10 +225,6 @@ object SettingsTrackingScreen : SearchableSettings {
         )
     }
 
-    // KUN -->
-    // Ported from Mihon 855918bbf4 ("Update dependency androidx.compose:compose-bom-alpha to
-    // v2026.09.00"): use the state-based text field APIs instead of the deprecated TextFieldValue.
-    // KUN <--
     @Composable
     private fun TrackingLoginDialog(
         tracker: Tracker,

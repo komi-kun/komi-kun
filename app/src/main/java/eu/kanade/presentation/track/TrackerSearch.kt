@@ -246,7 +246,6 @@ private fun SearchResultItem(
     val clipboard: Clipboard = LocalClipboard.current
     val focusManager = LocalFocusManager.current
     // KUN -->
-    // Ported from Mihon 6c1b0702ba ("Use the beta Compose BOM").
     val locale = LocalLocale.current
     val type = trackSearch.publishing_type.toLowerCase(locale).capitalize(locale)
     val status = trackSearch.publishing_status.toLowerCase(locale).capitalize(locale)

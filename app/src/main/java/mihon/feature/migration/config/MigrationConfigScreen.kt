@@ -352,10 +352,6 @@ class MigrationConfigScreen(private val mangaIds: Collection<Long>) : Screen() {
         }
     }
 
-    // KUN -->
-    // Ported from Mihon dfed97edc8 ("Address compose and xmlutil deprecations"): ListItem's
-    // headlineContent parameter is deprecated in favour of the trailing content overload.
-    // KUN <--
     @Composable
     private fun SourceItem(
         source: MigrationSource,
@@ -396,7 +392,7 @@ class MigrationConfigScreen(private val mangaIds: Collection<Long>) : Screen() {
                 if (showLanguage) {
                     Pill(
                         // KUN -->
-                        // Ported from Mihon dfed97edc8; keep the fork's KMK flag emoji text.
+                        // Keep the fork's KMK flag emoji text.
                         text = FlagEmoji.getEmojiLangFlag(source.shortLanguage) + " (${source.upperShortLanguage})",
                         // KUN <--
                         style = MaterialTheme.typography.bodySmall,

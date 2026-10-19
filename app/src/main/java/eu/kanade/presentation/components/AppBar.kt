@@ -309,10 +309,6 @@ fun AppBarActions(
  * @param searchQuery If null, use normal toolbar.
  * @param placeholderText If null, [MR.strings.action_search_hint] is used.
  */
-// KUN -->
-// Ported from Mihon 855918bbf4 ("Update dependency androidx.compose:compose-bom-alpha to
-// v2026.09.00"), which migrated SearchToolbar to the state-based BasicTextField API.
-// KUN <--
 @Composable
 fun SearchToolbar(
     searchQuery: String?,
@@ -446,7 +442,7 @@ fun SearchToolbar(
                     ) {
                         IconButton(
                             onClick = {
-                                // KUN --> Ported from Mihon 855918bbf4
+                                // KUN -->
                                 searchFieldState.clearText()
                                 // KUN <--
                                 onClick()
