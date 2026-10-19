@@ -11,6 +11,7 @@ import exh.log.xLogW
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
@@ -29,7 +30,8 @@ import kotlin.time.Clock
  *
  * Source calls are deliberately conservative:
  * - only one refresh per manga at a time, and at most one per [MANGA_COOLDOWN_MS];
- * - a small budget of attempts per source in [SOURCE_WINDOW_MS];
+ * - starts are paced per source ([SOURCE_MIN_INTERVAL_MS]), with a generous ceiling
+ *   ([MAX_ATTEMPTS_PER_SOURCE] per [SOURCE_WINDOW_MS]) as a safety valve;
  * - at most [MAX_CONCURRENT_REQUESTS] source requests in flight across the app.
  */
 @Inject
@@ -54,6 +56,7 @@ class RefreshMangaCover(
     private val lastReplacement = ConcurrentHashMap<Long, Replacement>()
     private val lastAttemptAt = ConcurrentHashMap<Long, Long>()
     private val sourceAttempts = HashMap<Long, ArrayDeque<Long>>()
+    private val sourceNextAttemptAt = HashMap<Long, Long>()
     private val sourceAttemptsLock = Any()
     private val sourceSemaphore = Semaphore(MAX_CONCURRENT_REQUESTS)
 
@@ -138,8 +141,10 @@ class RefreshMangaCover(
         if (coverCache.hasCustomCover(mangaId)) return null
 
         val source = sourceManager.get(manga.source) as? HttpSource ?: return null
-        val now = monotonicNow()
-        if (!tryReserveSourceAttempt(source.id, now)) return null
+        if (!awaitSourceSlot(source.id)) {
+            xLogW("Cover refresh for manga $mangaId skipped: source ${source.id} budget exhausted")
+            return null
+        }
 
         val remote = try {
             sourceSemaphore.withPermit {
@@ -179,16 +184,38 @@ class RefreshMangaCover(
         return monotonicNow() - lastAttempt < MANGA_COOLDOWN_MS
     }
 
-    private fun tryReserveSourceAttempt(sourceId: Long, now: Long): Boolean {
-        synchronized(sourceAttemptsLock) {
-            val attempts = sourceAttempts.getOrPut(sourceId) { ArrayDeque() }
-            while (attempts.isNotEmpty() && now - attempts.first() >= SOURCE_WINDOW_MS) {
-                attempts.removeFirst()
+    /**
+     * Waits until this source may be queried again. Requests are intentionally serialized per
+     * source: a host migration can leave many covers stale at once, and a one-time repair should
+     * still reach the source at a modest, steady rate instead of a burst.
+     */
+    private suspend fun awaitSourceSlot(sourceId: Long): Boolean {
+        while (true) {
+            val waitMs = synchronized(sourceAttemptsLock) {
+                val now = monotonicNow()
+                val next = sourceNextAttemptAt[sourceId] ?: 0L
+                if (now >= next) {
+                    if (!hasSourceBudget(sourceId, now)) return false
+                    sourceNextAttemptAt[sourceId] = now + SOURCE_MIN_INTERVAL_MS
+                    recordSourceAttempt(sourceId, now)
+                    return true
+                }
+                next - now
             }
-            if (attempts.size >= MAX_ATTEMPTS_PER_SOURCE) return false
-            attempts.addLast(now)
-            return true
+            delay(waitMs)
         }
+    }
+
+    private fun hasSourceBudget(sourceId: Long, now: Long): Boolean {
+        val attempts = sourceAttempts.getOrPut(sourceId) { ArrayDeque() }
+        while (attempts.isNotEmpty() && now - attempts.first() >= SOURCE_WINDOW_MS) {
+            attempts.removeFirst()
+        }
+        return attempts.size < MAX_ATTEMPTS_PER_SOURCE
+    }
+
+    private fun recordSourceAttempt(sourceId: Long, now: Long) {
+        sourceAttempts.getOrPut(sourceId) { ArrayDeque() }.addLast(now)
     }
 
     private fun monotonicNow(): Long = System.nanoTime() / 1_000_000
@@ -196,7 +223,10 @@ class RefreshMangaCover(
     private companion object {
         const val MAX_CONCURRENT_REQUESTS = 2
         const val MANGA_COOLDOWN_MS = 6 * 60 * 60 * 1000L // 6 hours
-        const val MAX_ATTEMPTS_PER_SOURCE = 10
+        // A one-time host migration can leave a whole library stale. These are a safety valve,
+        // not a typical limit: the per-manga cooldown is what prevents repeated requests.
+        const val MAX_ATTEMPTS_PER_SOURCE = 200
         const val SOURCE_WINDOW_MS = 10 * 60 * 1000L // 10 minutes
+        const val SOURCE_MIN_INTERVAL_MS = 300L
     }
 }
