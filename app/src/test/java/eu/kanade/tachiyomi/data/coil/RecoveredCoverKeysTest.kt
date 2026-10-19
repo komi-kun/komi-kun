@@ -11,14 +11,17 @@ import kotlin.time.Instant
 
 class RecoveredCoverKeysTest {
 
+    private val url = "https://old.example/cover.jpg"
+    private val newUrl = "https://new.example/cover.jpg"
+
     @Test
-    fun `returns the stored key while the cover timestamp is unchanged`() {
+    fun `returns the stored key while the cover timestamp and URL are unchanged`() {
         val mangaId = 42L
         val timestamp = Instant.fromEpochMilliseconds(1_000)
 
-        RecoveredCoverKeys.put(mangaId, timestamp, "old;1000")
+        RecoveredCoverKeys.put(mangaId, newUrl, timestamp, "old;1000")
 
-        RecoveredCoverKeys.get(mangaId, timestamp) shouldBe "old;1000"
+        RecoveredCoverKeys.get(mangaId, newUrl, timestamp) shouldBe "old;1000"
     }
 
     @Test
@@ -26,11 +29,44 @@ class RecoveredCoverKeysTest {
         val mangaId = 43L
         val timestamp = Instant.fromEpochMilliseconds(1_000)
 
-        RecoveredCoverKeys.put(mangaId, timestamp, "old;1000")
+        RecoveredCoverKeys.put(mangaId, newUrl, timestamp, "old;1000")
 
-        RecoveredCoverKeys.get(mangaId, Instant.fromEpochMilliseconds(2_000)) shouldBe null
+        RecoveredCoverKeys.get(mangaId, newUrl, Instant.fromEpochMilliseconds(2_000)) shouldBe null
         // The stale entry is dropped as well.
-        RecoveredCoverKeys.get(mangaId, timestamp) shouldBe null
+        RecoveredCoverKeys.get(mangaId, newUrl, timestamp) shouldBe null
+    }
+
+    @Test
+    fun `ignores and drops the stored key when the URL changes`() {
+        val mangaId = 45L
+        val timestamp = Instant.fromEpochMilliseconds(1_000)
+
+        RecoveredCoverKeys.put(mangaId, newUrl, timestamp, "old;1000")
+
+        RecoveredCoverKeys.get(mangaId, url, timestamp) shouldBe null
+        // The mismatching entry is dropped as well.
+        RecoveredCoverKeys.get(mangaId, newUrl, timestamp) shouldBe null
+    }
+
+    @Test
+    fun `normalized equivalent URLs still match`() {
+        val mangaId = 46L
+        val timestamp = Instant.fromEpochMilliseconds(1_000)
+
+        RecoveredCoverKeys.put(mangaId, "https://Example.com:443/cover.jpg", timestamp, "old;1000")
+
+        RecoveredCoverKeys.get(mangaId, "https://example.com/cover.jpg", timestamp) shouldBe "old;1000"
+    }
+
+    @Test
+    fun `removing a manga drops its stored key`() {
+        val mangaId = 47L
+        val timestamp = Instant.fromEpochMilliseconds(1_000)
+
+        RecoveredCoverKeys.put(mangaId, newUrl, timestamp, "old;1000")
+        RecoveredCoverKeys.remove(mangaId)
+
+        RecoveredCoverKeys.get(mangaId, newUrl, timestamp) shouldBe null
     }
 
     @Test
@@ -44,16 +80,15 @@ class RecoveredCoverKeysTest {
             mangaId = mangaId,
             sourceId = 1L,
             isMangaFavorite = true,
-            ogUrl = "https://new.example/cover.jpg",
+            ogUrl = newUrl,
             lastModified = timestamp,
         )
 
-        RecoveredCoverKeys.put(mangaId, timestamp, "old;1000")
+        RecoveredCoverKeys.put(mangaId, newUrl, timestamp, "old;1000")
         val keyer = MangaCoverKeyer(coverCache)
         val options = mockk<Options>()
 
         keyer.key(cover, options) shouldBe "old;1000"
-        keyer.key(cover.copy(lastModified = newTimestamp), options) shouldBe
-            "https://new.example/cover.jpg;$newTimestamp"
+        keyer.key(cover.copy(lastModified = newTimestamp), options) shouldBe "$newUrl;$newTimestamp"
     }
 }

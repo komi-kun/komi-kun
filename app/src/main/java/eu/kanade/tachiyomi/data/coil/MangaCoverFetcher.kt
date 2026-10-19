@@ -20,6 +20,7 @@ import eu.kanade.tachiyomi.network.HttpException
 import eu.kanade.tachiyomi.network.await
 import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.util.system.isOnline
+import exh.log.xLogW
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -72,7 +73,8 @@ class MangaCoverFetcher(
     private val uiPreferences: UiPreferences,
     private val coverCache: CoverCache,
     private val findReplacementCover: (suspend () -> String?)? = null,
-    private val persistReplacementCover: (suspend (String) -> Unit)? = null,
+    private val persistReplacementCover: (suspend (String) -> Boolean)? = null,
+    private val invalidateReplacementCover: ((String) -> Unit)? = null,
     // KUN <--
 ) : Fetcher {
 
@@ -242,14 +244,31 @@ class MangaCoverFetcher(
             val refreshedUrl = recoverCoverUrl(e) ?: throw e
             if (refreshedUrl == activeUrl) throw e
             activeUrl = refreshedUrl
-            val result = httpLoader()
-            // Keep the already decoded image under the key Coil used for this request, so the
-            // database update does not trigger a second decode of the same bitmap.
-            if (mangaCover.mangaId > 0) {
-                RecoveredCoverKeys.put(mangaCover.mangaId, mangaCover.lastModified, diskCacheKey)
+            val result = try {
+                httpLoader()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // The replacement did not actually load, so it must not stay eligible.
+                invalidateReplacement(refreshedUrl)
+                throw e
             }
-            // Persist only after the replacement actually loaded, so a dead URL is never stored.
-            persistCoverUrl(refreshedUrl)
+            // Keep the already decoded image under the key Coil used for this request, so the
+            // database update does not trigger a second decode of the same bitmap. Only remember
+            // it after the URL was actually persisted: a failed write (or a sync-applied cover)
+            // must not be masked by the session alias.
+            if (mangaCover.mangaId > 0) {
+                if (persistCoverUrl(refreshedUrl)) {
+                    RecoveredCoverKeys.put(
+                        mangaCover.mangaId,
+                        refreshedUrl,
+                        mangaCover.lastModified,
+                        diskCacheKey,
+                    )
+                } else {
+                    invalidateReplacement(refreshedUrl)
+                }
+            }
             return result
         }
     }
@@ -265,19 +284,27 @@ class MangaCoverFetcher(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            logcat(LogPriority.WARN, e) { "Cover refresh failed for manga ${mangaCover.mangaId}" }
+            xLogW("Cover refresh failed for manga ${mangaCover.mangaId}", e)
             null
         }
     }
 
-    private suspend fun persistCoverUrl(newUrl: String) {
-        val persistReplacement = persistReplacementCover ?: return
-        try {
+    private suspend fun persistCoverUrl(newUrl: String): Boolean {
+        val persistReplacement = persistReplacementCover ?: return false
+        return try {
             persistReplacement(newUrl)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            logcat(LogPriority.WARN, e) { "Could not persist cover refresh for manga ${mangaCover.mangaId}" }
+            xLogW("Could not persist cover refresh for manga ${mangaCover.mangaId}", e)
+            false
+        }
+    }
+
+    private fun invalidateReplacement(newUrl: String) {
+        invalidateReplacementCover?.invoke(newUrl)
+        if (mangaCover.mangaId > 0) {
+            RecoveredCoverKeys.remove(mangaCover.mangaId)
         }
     }
 
@@ -469,6 +496,9 @@ class MangaCoverFetcher(
                 persistReplacementCover = { newUrl ->
                     refreshMangaCover.persistReplacement(data.id, data.thumbnailUrl, newUrl)
                 },
+                invalidateReplacementCover = { newUrl ->
+                    refreshMangaCover.invalidateReplacement(data.id, newUrl)
+                },
                 // KUN <--
             )
         }
@@ -503,6 +533,9 @@ class MangaCoverFetcher(
                 findReplacementCover = { refreshMangaCover.findReplacement(data.mangaId, data.url) },
                 persistReplacementCover = { newUrl ->
                     refreshMangaCover.persistReplacement(data.mangaId, data.url, newUrl)
+                },
+                invalidateReplacementCover = { newUrl ->
+                    refreshMangaCover.invalidateReplacement(data.mangaId, newUrl)
                 },
                 // KUN <--
             )

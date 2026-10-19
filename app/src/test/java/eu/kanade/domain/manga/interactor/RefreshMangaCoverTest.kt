@@ -15,13 +15,16 @@ import io.mockk.unmockkStatic
 import io.mockk.verify
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.yield
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.manga.repository.MangaRepository
 import tachiyomi.domain.source.service.SourceManager
+import java.io.IOException
 
 class RefreshMangaCoverTest {
 
@@ -29,6 +32,11 @@ class RefreshMangaCoverTest {
     private val sourceId = 2L
     private val staleUrl = "https://old.example/cover.jpg"
     private val newUrl = "https://new.example/cover.jpg"
+
+    private val mangaCooldown = 6 * 60 * 60 * 1000L
+    private val transientCooldown = 10 * 60 * 1000L
+    private val deadReplacementCooldown = 15 * 60 * 1000L
+    private val sourceMinInterval = 300L
 
     private val manga = Manga.create().copy(
         id = mangaId,
@@ -43,7 +51,14 @@ class RefreshMangaCoverTest {
     private val coverCache = mockk<CoverCache>(relaxed = true)
     private val source = mockk<HttpSource>()
 
-    private val refreshMangaCover = RefreshMangaCover(repository, sourceManager, coverCache)
+    private var now = 0L
+
+    private val refreshMangaCover = RefreshMangaCover(
+        repository,
+        sourceManager,
+        coverCache,
+        now = { now },
+    )
 
     @BeforeEach
     fun setUpLogging() {
@@ -80,6 +95,16 @@ class RefreshMangaCoverTest {
     }
 
     @Test
+    fun `ignores a non-http replacement`() = runTest {
+        stubManga()
+        stubSource("not a url")
+
+        refreshMangaCover.findReplacement(mangaId, staleUrl) shouldBe null
+
+        coVerify(exactly = 0) { repository.updateCover(any(), any(), any()) }
+    }
+
+    @Test
     fun `persists only the cover fields`() = runTest {
         stubManga()
         coEvery { repository.updateCover(mangaId, staleUrl, newUrl) } returns true
@@ -88,6 +113,17 @@ class RefreshMangaCoverTest {
 
         coVerify(exactly = 1) { repository.updateCover(mangaId, staleUrl, newUrl) }
         verify(exactly = 1) { coverCache.deleteFromCache(manga, false) }
+    }
+
+    @Test
+    fun `does not evict the cover cache when the write fails`() = runTest {
+        stubManga()
+        coEvery { repository.updateCover(mangaId, staleUrl, newUrl) } returns false
+
+        refreshMangaCover.persistReplacement(mangaId, staleUrl, newUrl) shouldBe false
+
+        coVerify(exactly = 1) { repository.updateCover(mangaId, staleUrl, newUrl) }
+        verify(exactly = 0) { coverCache.deleteFromCache(any(), any()) }
     }
 
     @Test
@@ -110,6 +146,17 @@ class RefreshMangaCoverTest {
     }
 
     @Test
+    fun `does not touch the source for a custom cover`() = runTest {
+        stubManga()
+        every { coverCache.hasCustomCover(mangaId) } returns true
+
+        refreshMangaCover.findReplacement(mangaId, staleUrl) shouldBe null
+
+        coVerify(exactly = 0) { sourceManager.get(any()) }
+        coVerify(exactly = 0) { source.getMangaUpdate(any(), any(), true, false) }
+    }
+
+    @Test
     fun `reuses the discovered replacement without hitting the source again`() = runTest {
         stubManga()
         stubSource(newUrl)
@@ -118,6 +165,66 @@ class RefreshMangaCoverTest {
         refreshMangaCover.findReplacement(mangaId, staleUrl) shouldBe newUrl
 
         coVerify(exactly = 1) { source.getMangaUpdate(any(), any(), true, false) }
+    }
+
+    @Test
+    fun `cooldown prevents another source call and expiry allows a retry`() = runTest {
+        stubManga()
+        stubSource(newUrl)
+
+        refreshMangaCover.findReplacement(mangaId, staleUrl) shouldBe newUrl
+        refreshMangaCover.findReplacement(mangaId, staleUrl) shouldBe newUrl
+        coVerify(exactly = 1) { source.getMangaUpdate(any(), any(), true, false) }
+
+        now += mangaCooldown
+        refreshMangaCover.findReplacement(mangaId, staleUrl) shouldBe newUrl
+        coVerify(exactly = 2) { source.getMangaUpdate(any(), any(), true, false) }
+    }
+
+    @Test
+    fun `a different stale URL is not blocked by the old cooldown`() = runTest {
+        stubManga()
+        stubSource(newUrl)
+        refreshMangaCover.findReplacement(mangaId, staleUrl) shouldBe newUrl
+
+        val otherStaleUrl = "https://other-old.example/cover.jpg"
+        stubManga(ogThumbnailUrl = otherStaleUrl)
+        now += sourceMinInterval
+        refreshMangaCover.findReplacement(mangaId, otherStaleUrl) shouldBe newUrl
+
+        coVerify(exactly = 2) { source.getMangaUpdate(any(), any(), true, false) }
+    }
+
+    @Test
+    fun `a transient failure uses the short backoff before retrying`() = runTest {
+        stubManga()
+        every { source.id } returns sourceId
+        coEvery { sourceManager.get(sourceId) } returns source
+        coEvery { source.getMangaUpdate(any(), any(), true, false) } throws IOException("network down")
+
+        refreshMangaCover.findReplacement(mangaId, staleUrl) shouldBe null
+        refreshMangaCover.findReplacement(mangaId, staleUrl) shouldBe null
+        coVerify(exactly = 1) { source.getMangaUpdate(any(), any(), true, false) }
+
+        now += transientCooldown
+        stubSource(newUrl)
+        refreshMangaCover.findReplacement(mangaId, staleUrl) shouldBe newUrl
+        coVerify(exactly = 2) { source.getMangaUpdate(any(), any(), true, false) }
+    }
+
+    @Test
+    fun `invalidation removes the dead replacement and backs off briefly`() = runTest {
+        stubManga()
+        stubSource(newUrl)
+        refreshMangaCover.findReplacement(mangaId, staleUrl) shouldBe newUrl
+
+        refreshMangaCover.invalidateReplacement(mangaId, newUrl)
+        refreshMangaCover.findReplacement(mangaId, staleUrl) shouldBe null
+        coVerify(exactly = 1) { source.getMangaUpdate(any(), any(), true, false) }
+
+        now += deadReplacementCooldown
+        refreshMangaCover.findReplacement(mangaId, staleUrl) shouldBe newUrl
+        coVerify(exactly = 2) { source.getMangaUpdate(any(), any(), true, false) }
     }
 
     @Test
@@ -139,11 +246,39 @@ class RefreshMangaCoverTest {
         val first = async { refreshMangaCover.findReplacement(mangaId, staleUrl) }
         started.await()
         val second = async { refreshMangaCover.findReplacement(mangaId, staleUrl) }
+        // Let the follower join the in-flight leader before releasing it.
+        yield()
         release.complete(Unit)
 
         first.await() shouldBe newUrl
         second.await() shouldBe newUrl
         coVerify(exactly = 1) { source.getMangaUpdate(any(), any(), true, false) }
+    }
+
+    @Test
+    fun `a cancelled refresh does not set a cooldown`() = runTest {
+        stubManga()
+        val started = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        every { source.id } returns sourceId
+        coEvery { sourceManager.get(sourceId) } returns source
+        coEvery { source.getMangaUpdate(any(), any(), true, false) } coAnswers {
+            started.complete(Unit)
+            release.await()
+            SMangaUpdate(
+                manga = SManga.create().apply { thumbnail_url = newUrl },
+                chapters = emptyList(),
+            )
+        }
+
+        val leader = async { refreshMangaCover.findReplacement(mangaId, staleUrl) }
+        started.await()
+        leader.cancelAndJoin()
+
+        now += sourceMinInterval
+        stubSource(newUrl)
+        refreshMangaCover.findReplacement(mangaId, staleUrl) shouldBe newUrl
+        coVerify(exactly = 2) { source.getMangaUpdate(any(), any(), true, false) }
     }
 
     private fun stubManga(ogThumbnailUrl: String = staleUrl) {

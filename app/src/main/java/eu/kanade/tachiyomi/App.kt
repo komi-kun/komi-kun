@@ -1,3 +1,9 @@
+// KUN -->
+// The fork markers around the RefreshMangaCover import put comments in the import list, which
+// ktlint cannot order or autocorrect. Suppress the rule for this file only.
+@file:Suppress("ktlint:standard:import-ordering")
+// KUN <--
+
 package eu.kanade.tachiyomi
 
 import android.annotation.SuppressLint
@@ -36,7 +42,9 @@ import com.elvishew.xlog.printer.file.naming.DateFileNameGenerator
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.createGraphFactory
 import eu.kanade.domain.base.BasePreferences
+// KUN -->
 import eu.kanade.domain.manga.interactor.RefreshMangaCover
+// KUN <--
 import eu.kanade.domain.sync.SyncPreferences
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.domain.ui.model.setAppCompatDelegateThemeMode
@@ -314,7 +322,9 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
             val callFactoryLazy = lazy { networkHelper.value.client }
             val coverCache = coverCache.value
             val sourceManager = sourceManager.value
+            // KUN -->
             val coverRefresh = refreshMangaCover.value
+            // KUN <--
             components {
                 // NetworkFetcher.Factory
                 add(OkHttpNetworkFetcherFactory(callFactoryLazy::value))
@@ -322,8 +332,10 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
                 add(ImageDecoder.Factory(context))
                 // Fetcher.Factory
                 add(BufferedSourceFetcher.Factory())
+                // KUN -->
                 add(MangaCoverFetcher.MangaCoverFactory(callFactoryLazy, coverCache, sourceManager, uiPreferences, coverRefresh))
                 add(MangaCoverFetcher.MangaFactory(callFactoryLazy, coverCache, sourceManager, uiPreferences, coverRefresh))
+                // KUN <--
                 add(ExtensionIconFetcher.ExtensionFactory(context))
                 add(ExtensionIconFetcher.SourceFactory(context, extensionManager))
                 // Keyer

@@ -11,14 +11,18 @@ import exh.log.xLogW
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import tachiyomi.domain.manga.repository.MangaRepository
 import tachiyomi.domain.source.service.SourceManager
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.coroutines.coroutineContext
 
 /**
  * Recovers a stale source cover when loading the stored URL fails.
@@ -28,7 +32,8 @@ import java.util.concurrent.ConcurrentHashMap
  * refresh would fix, without turning a failed image load into a full entry refresh.
  *
  * Source calls are deliberately conservative:
- * - only one refresh per manga at a time, and at most one per [MANGA_COOLDOWN_MS];
+ * - only one refresh per manga at a time, and at most one per [MANGA_COOLDOWN_MS] for the same
+ *   stale URL;
  * - starts are paced per source ([SOURCE_MIN_INTERVAL_MS]), with a generous ceiling
  *   ([MAX_ATTEMPTS_PER_SOURCE] per [SOURCE_WINDOW_MS]) as a safety valve;
  * - at most [MAX_CONCURRENT_REQUESTS] source requests in flight across the app.
@@ -39,6 +44,8 @@ class RefreshMangaCover(
     private val mangaRepository: MangaRepository,
     private val sourceManager: SourceManager,
     private val coverCache: CoverCache,
+    // Injectable for deterministic tests; production uses a monotonic clock.
+    private val now: () -> Long = { System.nanoTime() / 1_000_000 },
 ) {
 
     private data class InFlightRefresh(
@@ -51,9 +58,15 @@ class RefreshMangaCover(
         val newUrl: String,
     )
 
+    private data class Attempt(
+        val staleUrl: String,
+        val at: Long,
+        val cooldownMs: Long,
+    )
+
     private val inFlight = ConcurrentHashMap<Long, InFlightRefresh>()
     private val lastReplacement = ConcurrentHashMap<Long, Replacement>()
-    private val lastAttemptAt = ConcurrentHashMap<Long, Long>()
+    private val lastAttemptAt = ConcurrentHashMap<Long, Attempt>()
     private val sourceAttempts = HashMap<Long, ArrayDeque<Long>>()
     private val sourceNextAttemptAt = HashMap<Long, Long>()
     private val sourceAttemptsLock = Any()
@@ -75,12 +88,6 @@ class RefreshMangaCover(
             return if (current.staleUrl == staleUrl) current.result.await() else null
         }
 
-        if (isCoolingDown(mangaId)) {
-            // Concurrent Coil requests may have missed the in-flight window. Give them the
-            // URL that was just discovered so they can load it without asking the source again.
-            return lastReplacement[mangaId]?.takeIf { it.staleUrl == staleUrl }?.newUrl
-        }
-
         val refresh = InFlightRefresh(staleUrl, CompletableDeferred())
         val leader = inFlight.putIfAbsent(mangaId, refresh)
         if (leader != null) {
@@ -88,7 +95,13 @@ class RefreshMangaCover(
         }
 
         try {
-            refresh.result.complete(fetchReplacement(mangaId, staleUrl))
+            // Re-check after becoming the leader: another request may have finished and recorded a
+            // cooldown between the lookup above and the putIfAbsent.
+            if (isCoolingDown(mangaId, staleUrl)) {
+                refresh.result.complete(lastReplacement[mangaId]?.takeIf { it.staleUrl == staleUrl }?.newUrl)
+            } else {
+                refresh.result.complete(fetchReplacement(mangaId, staleUrl))
+            }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -110,6 +123,8 @@ class RefreshMangaCover(
         return try {
             val manga = mangaRepository.getMangaById(mangaId)
 
+            // Non-library rows have no source cover to repair and would only cause source calls.
+            if (!manga.favorite) return false
             // A manual refresh may have updated the entry while the image was being fetched.
             if (manga.ogThumbnailUrl != staleUrl) return false
             // Never override a user-provided cover.
@@ -117,9 +132,11 @@ class RefreshMangaCover(
             if (coverCache.hasCustomCover(mangaId)) return false
 
             // The WHERE clause keeps a concurrent manual refresh from being overwritten even
-            // if it happens between the checks above and the write. Only the URL changes:
-            // keeping the Coil cache timestamp stable lets the already decoded image stay in
-            // memory, while the SyncYomi triggers still record the change for the next sync.
+            // if it happens between the checks above and the write. It also fails while a sync
+            // is applying (`is_syncing != 0`) so the recovery can be retried afterwards. Only the
+            // URL changes: keeping the Coil cache timestamp stable lets the already decoded image
+            // stay in memory. The write bumps `version` explicitly because routine cover churn no
+            // longer does; the triggers still stamp `last_modified_at` for the next sync.
             if (!mangaRepository.updateCover(mangaId, staleUrl, newUrl)) return false
             coverCache.deleteFromCache(manga, false)
             xLogI("Refreshed stale cover for manga $mangaId")
@@ -132,57 +149,88 @@ class RefreshMangaCover(
         }
     }
 
+    /**
+     * Marks [newUrl] as dead so it is not used again immediately. Called when persisting it
+     * failed or when loading it failed right after the source offered it.
+     */
+    fun invalidateReplacement(mangaId: Long, newUrl: String) {
+        if (mangaId <= 0) return
+        val replacement = lastReplacement[mangaId] ?: return
+        if (replacement.newUrl != newUrl) return
+        if (!lastReplacement.remove(mangaId, replacement)) return
+        recordAttempt(mangaId, replacement.staleUrl, DEAD_REPLACEMENT_COOLDOWN_MS)
+        xLogW("Cover replacement for manga $mangaId did not load; backing off")
+    }
+
     private suspend fun fetchReplacement(mangaId: Long, staleUrl: String): String? {
         val manga = mangaRepository.getMangaById(mangaId)
         val currentUrl = manga.thumbnailUrl
 
+        // Non-library rows have no source cover to repair and would only cause source calls.
+        if (!manga.favorite) return null
         // Never override a user-provided cover, and only act on the entry we failed to load.
         if (currentUrl == null || currentUrl != staleUrl) return null
         if (currentUrl != manga.ogThumbnailUrl) return null
         if (coverCache.hasCustomCover(mangaId)) return null
 
         val source = sourceManager.get(manga.source) as? HttpSource ?: return null
-        if (!awaitSourceSlot(source.id)) {
-            xLogW("Cover refresh for manga $mangaId skipped: source ${source.id} budget exhausted")
-            return null
-        }
-
         val remote = try {
             sourceSemaphore.withPermit {
+                // Pace at the actual request start, not when the caller started waiting for a slot.
+                if (!awaitSourceSlot(source.id)) {
+                    xLogW("Cover refresh for manga $mangaId skipped: source ${source.id} budget exhausted")
+                    return@withPermit null
+                }
                 withContext(Dispatchers.IO) {
-                    source.getMangaUpdate(
-                        manga = manga.toSManga(),
-                        chapters = emptyList(),
-                        fetchDetails = true,
-                        fetchChapters = false,
-                    )
+                    withTimeout(SOURCE_TIMEOUT_MS) {
+                        source.getMangaUpdate(
+                            manga = manga.toSManga(),
+                            chapters = emptyList(),
+                            fetchDetails = true,
+                            fetchChapters = false,
+                        )
+                    }
                 }
             }
+        } catch (e: TimeoutCancellationException) {
+            // If the outer request was cancelled at the same time, propagate that instead of
+            // treating the timeout as a transient source failure.
+            coroutineContext.ensureActive()
+            recordAttempt(mangaId, staleUrl, TRANSIENT_COOLDOWN_MS)
+            null
         } catch (e: CancellationException) {
             // A cancelled image request should not lock this entry out for the whole cooldown.
             throw e
         } catch (e: Exception) {
-            lastAttemptAt[mangaId] = monotonicNow()
+            recordAttempt(mangaId, staleUrl, TRANSIENT_COOLDOWN_MS)
             throw e
-        }.manga
-        lastAttemptAt[mangaId] = monotonicNow()
+        } ?: return null
 
-        val newUrl = remote.thumbnail_url
+        val newUrl = remote.manga.thumbnail_url
             ?.trim()
             ?.toHttpUrlOrNull()
             ?.toString()
-            ?: return null
 
-        // The source still advertises the URL that just failed; nothing useful to try.
-        if (newUrl == currentUrl) return null
+        // The source still advertises the URL that just failed (or gave nothing usable); nothing
+        // useful to try, but do not ask again for a while.
+        if (newUrl == null || newUrl == currentUrl) {
+            recordAttempt(mangaId, staleUrl, MANGA_COOLDOWN_MS)
+            return null
+        }
 
+        recordAttempt(mangaId, staleUrl, MANGA_COOLDOWN_MS)
         lastReplacement[mangaId] = Replacement(staleUrl, newUrl)
         return newUrl
     }
 
-    private fun isCoolingDown(mangaId: Long): Boolean {
-        val lastAttempt = lastAttemptAt[mangaId] ?: return false
-        return monotonicNow() - lastAttempt < MANGA_COOLDOWN_MS
+    private fun isCoolingDown(mangaId: Long, staleUrl: String): Boolean {
+        val attempt = lastAttemptAt[mangaId] ?: return false
+        if (attempt.staleUrl != staleUrl) return false
+        return now() - attempt.at < attempt.cooldownMs
+    }
+
+    private fun recordAttempt(mangaId: Long, staleUrl: String, cooldownMs: Long) {
+        lastAttemptAt[mangaId] = Attempt(staleUrl, now(), cooldownMs)
     }
 
     /**
@@ -193,15 +241,17 @@ class RefreshMangaCover(
     private suspend fun awaitSourceSlot(sourceId: Long): Boolean {
         while (true) {
             val waitMs = synchronized(sourceAttemptsLock) {
-                val now = monotonicNow()
+                val currentTime = now()
                 val next = sourceNextAttemptAt[sourceId] ?: 0L
-                if (now >= next) {
-                    if (!hasSourceBudget(sourceId, now)) return false
-                    sourceNextAttemptAt[sourceId] = now + SOURCE_MIN_INTERVAL_MS
-                    recordSourceAttempt(sourceId, now)
+                if (currentTime >= next) {
+                    if (!hasSourceBudget(sourceId, currentTime)) return false
+                    // Do not consume the budget when the caller was cancelled while waiting.
+                    coroutineContext.ensureActive()
+                    sourceNextAttemptAt[sourceId] = currentTime + SOURCE_MIN_INTERVAL_MS
+                    recordSourceAttempt(sourceId, currentTime)
                     return true
                 }
-                next - now
+                next - currentTime
             }
             delay(waitMs)
         }
@@ -219,11 +269,12 @@ class RefreshMangaCover(
         sourceAttempts.getOrPut(sourceId) { ArrayDeque() }.addLast(now)
     }
 
-    private fun monotonicNow(): Long = System.nanoTime() / 1_000_000
-
     private companion object {
         const val MAX_CONCURRENT_REQUESTS = 2
         const val MANGA_COOLDOWN_MS = 6 * 60 * 60 * 1000L // 6 hours
+        const val TRANSIENT_COOLDOWN_MS = 10 * 60 * 1000L // 10 minutes
+        const val DEAD_REPLACEMENT_COOLDOWN_MS = 15 * 60 * 1000L // 15 minutes
+        const val SOURCE_TIMEOUT_MS = 60_000L
         // A one-time host migration can leave a whole library stale. These are a safety valve,
         // not a typical limit: the per-manga cooldown is what prevents repeated requests.
         const val MAX_ATTEMPTS_PER_SOURCE = 200
