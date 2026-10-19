@@ -76,7 +76,19 @@ class OcrPreferences(
         "Spotting:",
     )
 
-    /** Automatically fall back to local PP-OCRv6 if PaddleOCR-VL server fails. */
+    /** PaddleOCR-VL execution mode ("on_device" vs "server"). */
+    val paddleVlExecutionMode: Preference<String> = preferenceStore.getString(
+        "pref_ocr_paddlevl_mode",
+        MODE_ON_DEVICE,
+    )
+
+    /** Custom path to the on-device PaddleOCR-VL .litertlm model file. */
+    val paddleVlModelPath: Preference<String> = preferenceStore.getString(
+        "pref_ocr_paddlevl_model_path",
+        "",
+    )
+
+    /** Automatically fall back to local PP-OCRv6 if PaddleOCR-VL server/device fails. */
     val paddleVlFallback: Preference<Boolean> = preferenceStore.getBoolean(
         "pref_ocr_paddlevl_fallback",
         true,
@@ -142,6 +154,9 @@ class OcrPreferences(
         const val DEFAULT_DET_BOX = 25
         const val DEFAULT_DET_UNCLIP = 140
         const val DEFAULT_REC_FLOOR = 35
+
+        const val MODE_ON_DEVICE = "on_device"
+        const val MODE_SERVER = "server"
     }
     // KUN <--
 }

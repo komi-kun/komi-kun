@@ -40,6 +40,8 @@ dependencies {
     implementation(kotlinx.coroutines.core)
     implementation(kotlinx.serialization.json)
 
+    implementation("com.google.ai.edge.litertlm:litertlm-android:0.18.0")
+
     testImplementation(libs.bundles.test)
     testRuntimeOnly(libs.junit.platform.launcher)
     // KUN <--
