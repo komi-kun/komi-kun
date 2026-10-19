@@ -245,11 +245,9 @@ private fun SearchResultItem(
     val context = LocalContext.current
     val clipboard: Clipboard = LocalClipboard.current
     val focusManager = LocalFocusManager.current
-    // KUN -->
     val locale = LocalLocale.current
     val type = trackSearch.publishing_type.toLowerCase(locale).capitalize(locale)
     val status = trackSearch.publishing_status.toLowerCase(locale).capitalize(locale)
-    // KUN <--
     val description = trackSearch.summary.trim()
     val shape = RoundedCornerShape(16.dp)
     val borderColor = if (selected) MaterialTheme.colorScheme.outline else Color.Transparent

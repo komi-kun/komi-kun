@@ -325,7 +325,6 @@ fun SearchToolbar(
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
 ) {
     val focusRequester = remember { FocusRequester() }
-    // KUN -->
     val searchFieldState = rememberTextFieldState(searchQuery.orEmpty())
     val currentOnChangeSearchQuery by rememberUpdatedState(onChangeSearchQuery)
     val searchOpen by rememberUpdatedState(searchQuery != null)
@@ -343,7 +342,6 @@ fun SearchToolbar(
             }
         }
     }
-    // KUN <--
 
     AppBar(
         modifier = modifier,
@@ -442,9 +440,7 @@ fun SearchToolbar(
                     ) {
                         IconButton(
                             onClick = {
-                                // KUN -->
                                 searchFieldState.clearText()
-                                // KUN <--
                                 onClick()
                                 focusRequester.requestFocus()
                             },

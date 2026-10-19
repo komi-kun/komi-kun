@@ -152,7 +152,7 @@ fun RelatedMangaTitle(
             ),
         ) {
             Text(
-                text = title.capitalize(LocalLocale.current), // KUN: was Locale.current (deprecated)
+                text = title.capitalize(LocalLocale.current),
                 style = MaterialTheme.typography.titleMedium,
             )
             if (subtitle != null) {
