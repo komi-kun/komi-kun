@@ -463,6 +463,15 @@
     <string name="pref_ocr_rec_confidence_floor">Recognition confidence floor</string>
     <string name="pref_ocr_rec_confidence_floor_summary">Drop recognised lines whose confidence is below this. 0 keeps everything; raise it to remove garbled or misread lines at the cost of losing faint ones.</string>
     <string name="pref_ocr_detection_apply_hint">Changes apply to pages processed after the change; already-cached pages keep their old results.</string>
+    <string name="pref_ocr_engine_model">OCR model</string>
+    <string name="pref_ocr_engine_model_summary">Select between the lightweight on-device PP-OCRv6 model or the high-precision PaddleOCR-VL-1.6 Vision-Language Model</string>
+    <string name="pref_ocr_model_ppocrv6">PP-OCRv6 Small (On-Device, ~50ms)</string>
+    <string name="pref_ocr_model_paddlevl">PaddleOCR-VL-1.6 (High-Precision VLM)</string>
+    <string name="pref_ocr_paddlevl_settings">PaddleOCR-VL settings</string>
+    <string name="pref_ocr_paddlevl_endpoint">PaddleOCR-VL endpoint</string>
+    <string name="pref_ocr_paddlevl_endpoint_summary">URL of the OpenAI-compatible vision completion endpoint (e.g. http://127.0.0.1:8080)</string>
+    <string name="pref_ocr_paddlevl_fallback">Fallback to PP-OCRv6</string>
+    <string name="pref_ocr_paddlevl_fallback_summary">Automatically use on-device PP-OCRv6 if the PaddleOCR-VL server is unreachable</string>
     <string name="ocr_source_automatic">Automatic</string>
     <string name="ocr_source_mokuro">Mokuro</string>
     <string name="ocr_source_paddle">Paddle OCR</string>

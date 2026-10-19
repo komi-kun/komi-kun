@@ -20,6 +20,8 @@ import mihon.core.ocr.merge.OcrLineMerger
 import mihon.core.ocr.merge.OwOCRMerger
 import mihon.core.ocr.paddle.ModelDownloader
 import mihon.core.ocr.paddle.PaddleOcrEngine
+import mihon.core.ocr.paddle.PaddleOcrVlEngine
+import mihon.core.ocr.paddle.RoutingOcrEngine
 import tachiyomi.core.common.preference.PreferenceStore
 
 /**
@@ -36,8 +38,21 @@ object OcrBindings {
 
     @Provides
     @SingleIn(AppScope::class)
-    fun providesOcrEngine(context: Context, preferences: OcrPreferences): OcrEngine =
+    fun providesPaddleOcrEngine(context: Context, preferences: OcrPreferences): PaddleOcrEngine =
         PaddleOcrEngine(context, preferences)
+
+    @Provides
+    @SingleIn(AppScope::class)
+    fun providesPaddleOcrVlEngine(preferences: OcrPreferences, networkHelper: NetworkHelper): PaddleOcrVlEngine =
+        PaddleOcrVlEngine(preferences, networkHelper.client)
+
+    @Provides
+    @SingleIn(AppScope::class)
+    fun providesOcrEngine(
+        preferences: OcrPreferences,
+        localEngine: PaddleOcrEngine,
+        vlEngine: PaddleOcrVlEngine,
+    ): OcrEngine = RoutingOcrEngine(preferences, localEngine, vlEngine)
 
     @Provides
     @SingleIn(AppScope::class)
