@@ -211,12 +211,16 @@ class SsivOcrViewport(
         val p1 = ssiv.sourceToViewCoord(display.left * ssiv.sWidth, display.top * ssiv.sHeight) ?: return null
         val p2 = ssiv.sourceToViewCoord(display.right * ssiv.sWidth, display.bottom * ssiv.sHeight) ?: return null
         val off = OcrOverlayCoords.offsetOf(ssiv, overlayView)
-        return RectF(
-            min(p1.x, p2.x) + off.x,
-            min(p1.y, p2.y) + off.y,
-            max(p1.x, p2.x) + off.x,
-            max(p1.y, p2.y) + off.y,
-        )
+        val left = min(p1.x, p2.x) + off.x
+        val top = min(p1.y, p2.y) + off.y
+        val right = max(p1.x, p2.x) + off.x
+        val bottom = max(p1.y, p2.y) + off.y
+        val overlayW = overlayView.width.toFloat()
+        val overlayH = overlayView.height.toFloat()
+        if (overlayW > 0f && overlayH > 0f) {
+            if (right <= 0f || left >= overlayW || bottom <= 0f || top >= overlayH) return null
+        }
+        return RectF(left, top, right, bottom)
     }
 
     override fun screenToImageNormalized(x: Float, y: Float): ImagePoint? {
@@ -301,14 +305,19 @@ class SsivOcrViewport(
         // Minimum scale that lets the block's source pixel reach the target row: with the page
         // fully inside the view (fit scale) the centre is pinned and cannot be panned.
         val sHeight = ssiv.sHeight.toFloat()
-        val scaleToReach =
-            if (sHeight - source.y > 1f) (viewH - targetViewY) / (sHeight - source.y) else Float.MAX_VALUE
+        val scaleBottom = if (sHeight - source.y > 1f) (viewH - targetViewY) / (sHeight - source.y) else ssiv.scale
+        val scaleTop = if (source.y > 1f) targetViewY / source.y else ssiv.scale
+        val scaleToReach = max(scaleBottom, scaleTop)
         val targetScale = max(ssiv.scale, scaleToReach * 1.02f)
             .coerceIn(ssiv.minScale, ssiv.maxScale)
         if (targetScale <= 0f) return false
         // Centre the page on a source point that puts the block at the target row (the animation
         // centres its source argument in the view). X centres the block horizontally.
         val targetCenter = PointF(source.x, source.y - delta / targetScale)
+
+        fit.settledScale = targetScale
+        fit.settledCenter = clampCenter(ssiv, targetScale, targetCenter)
+        fit.inFlight = true
 
         val sessionForListener = fit
         val builder = ssiv.animateScaleAndCenter(targetScale, targetCenter)
@@ -325,12 +334,14 @@ class SsivOcrViewport(
                         override fun onComplete() = recordSettled(ssiv, sessionForListener)
                         override fun onInterruptedByUser() {
                             sessionForListener.cancelled = true
+                            sessionForListener.inFlight = false
                         }
 
                         override fun onInterruptedByNewAnim() {
                             // A new (possibly ours) animation took over; leave `cancelled` alone so
                             // a user double-tap, which reports this way, is caught by the settled
                             // comparison in restoreFit instead.
+                            sessionForListener.inFlight = false
                         }
                     },
                 )
@@ -350,12 +361,18 @@ class SsivOcrViewport(
         // position (interrupted before the move finished) we do nothing rather than risk a yank.
         val settledScale = fit.settledScale ?: return
         val settledCenter = fit.settledCenter ?: return
-        val scaleSame = abs(ssiv.scale - settledScale) <= 0.01f * settledScale + 1e-3f
-        val center = ssiv.center
-        val centerSame = center != null &&
-            abs(center.x - settledCenter.x) <= 4f &&
-            abs(center.y - settledCenter.y) <= 4f
-        if (!scaleSame || !centerSame) return
+
+        // If the fit animation was still in flight (e.g. popup closed quickly before 220 ms elapsed)
+        // or settled near the expected target without user intervention, restore the pre-fit view.
+        if (!fit.inFlight) {
+            val scaleSame = abs(ssiv.scale - settledScale) <= 0.01f * settledScale + 1e-3f
+            val center = ssiv.center
+            val centerSame = center != null &&
+                abs(center.x - settledCenter.x) <= 4f &&
+                abs(center.y - settledCenter.y) <= 4f
+            if (!scaleSame || !centerSame) return
+        }
+
         val builder = ssiv.animateScaleAndCenter(fit.preScale, fit.preCenter)
         if (builder == null) {
             ssiv.setScaleAndCenter(fit.preScale, fit.preCenter)
@@ -366,8 +383,33 @@ class SsivOcrViewport(
 
     private fun recordSettled(ssiv: SubsamplingScaleImageView, fit: SsivFitSession) {
         if (session !== fit) return
+        fit.inFlight = false
         fit.settledScale = ssiv.scale
-        fit.settledCenter = ssiv.center?.let { PointF(it) }
+        fit.settledCenter = ssiv.center?.let { PointF(it) } ?: fit.settledCenter
+    }
+
+    private fun clampCenter(ssiv: SubsamplingScaleImageView, scale: Float, center: PointF): PointF {
+        val sWidth = ssiv.sWidth.toFloat()
+        val sHeight = ssiv.sHeight.toFloat()
+        val viewW = ssiv.width.toFloat()
+        val viewH = ssiv.height.toFloat()
+        if (scale <= 0f || sWidth <= 0f || sHeight <= 0f || viewW <= 0f || viewH <= 0f) return center
+
+        val halfW = viewW / (2f * scale)
+        val clampedX = if (sWidth * scale <= viewW) {
+            sWidth / 2f
+        } else {
+            center.x.coerceIn(halfW, sWidth - halfW)
+        }
+
+        val halfH = viewH / (2f * scale)
+        val clampedY = if (sHeight * scale <= viewH) {
+            sHeight / 2f
+        } else {
+            center.y.coerceIn(halfH, sHeight - halfH)
+        }
+
+        return PointF(clampedX, clampedY)
     }
 
     private class SsivFitSession(
@@ -376,6 +418,7 @@ class SsivOcrViewport(
         val preCenter: PointF,
         var settledScale: Float? = null,
         var settledCenter: PointF? = null,
+        var inFlight: Boolean = false,
         var cancelled: Boolean = false,
     )
 

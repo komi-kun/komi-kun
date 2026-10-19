@@ -167,11 +167,11 @@ sources. ABIs: `arm64-v8a`, `armeabi-v7a`, `x86_64` (OCR now works on all three)
 
 **Data layout:** models + native libs in `filesDir/paddle_ocr/`; OCR cache in
 `filesDir/ocr_cache/<sourceId>/<mangaId>/<chapterId>.json` — the cache variant now includes the
-**engine generation (`v6`)** so v5-era results are never reused.
+**engine generation (`v9`)** so older cached results are never reused.
 
 **Prefs:** `ReaderPreferences` (`ocrTextOverlayVisible`, `ocrTextScale` 50–150 %,
 `ocrOverlayEnabled`, two-finger gesture), `OcrPreferences` (detection tuning: box-score threshold
-25 %, binarisation 15 %, unclip 1.40, recognition confidence floor 0/off).
+45 %, binarisation 15 %, unclip 1.40, recognition confidence floor 35 % default).
 
 ---
 
@@ -202,66 +202,62 @@ displayed by base64-inlining them into `data:` URIs (cap: 20 items / 256 KB per 
 | OCR backend | Paddle-Lite + PP-OCRv5 → **ORT + PP-OCRv6 small**; x86_64 support restored |
 | Reader crash | `ViewConfiguration.get(this)` in a property initializer ran before attach → **every chapter open crashed**; made lazy |
 | OCR deadlock | `OcrCacheManager` re-entered a **non-reentrant** `Mutex` via `load`→`loadFrom` → OCR hung before init; split into non-locking helpers; added a load watchdog |
-| Overlay | boxes now track page turns (live `pageOffset` for WebGPU; SSIV transform version hashes holder position); draws all visible pages + primes neighbours; text layered over the printed text |
+| Overlay | boxes now track page turns (live `pageOffset` for WebGPU; SSIV transform version hashes holder position); `WebGpuOcrViewport` & `SsivOcrViewport` withhold off-screen/stale page boxes on page turn so old boxes never flash onto the new page |
 | Tategaki | real vertical layout: upright glyphs, per-cell punctuation, ASCII rotated in-cell (was a rotated horizontal run) |
 | Text layer | sized to the printed ink (not the padded det box), solid fill (halo removed), top-anchored, `ocrTextScale` slider |
-| Box merge | touching/abutting boxes no longer merge (new `OcrMergeGeometry`) |
-| Popup | non-modal; single-tap lookup; configurable size + fit/restore; **bottom-edge block now places the popup above** (and `fitPaged` solves **x** as well as y, plus a 600 ms settle grace) |
-| Tabs | recursive lookup is a **path** (truncate on a new lookup) |
-| Volume keys | with the overlay on, volume keys adjust **media volume**, not paging |
-| Thresholds | detection tuning exposed; cache keyed to engine generation |
-| Audio | Yomitan word audio (Local Audio Server, custom URL/JSON, JPod101, Jisho), renderer-driven source/sample picker; regex crash fixed (see §11) |
+| Box merge | touching/abutting boxes and diagonally staggered bubbles/lobes no longer merge (`OcrMergeGeometry`: `MAX_LINE_GAP_RATIO = 0.50`, `MIN_THICKNESS_RATIO = 0.65`, `startAligned` / `centerAligned` within `0.55 * minThickness`); `OwOCRMerger` trims furigana-bloated vertical kanji column boxes (`trimFuriganaBloatedVerticalColumns`), lets 1-char squareish lines adopt vertical orientation from neighbours, groups `sameLineFragment` in Stage 2a, and sorts same-row/column fragments along the run axis |
+| Noise filter | default recognition confidence floor set to **35 %** (`DEFAULT_REC_FLOOR = 35`, with `>= 3`-char Japanese dialogue lines protected down to `0.35f`); `OcrPreprocessor.isImplausibleJapaneseNoise` filters short mixed-script/stroke-lookalike garbage (`干S`, `手15`, `七5`, `115`, `415`); `OwOCRMerger.filterSingleCharSfxNoise` drops tilted (`> 0.03 rad`) or oversized (`> 1.55 * medianThickness`) 1-char SFX hallucinations (`心` on `ぐいっ`, `安`, `出`, `众`, `世`); `extractOcrLookupText` skips leading punctuation so tapping `'…'` on a line that opens with an ellipsis looks up the word after it; cache bumped to **`v9`** |
+| Popup | non-modal; single-tap lookup; configurable size + fit/restore across **WebGPU, SSIV Pager, and Webtoon** (`SsivOcrViewport` computes dual-edge `scaleToReach` and records settled state before the 220 ms animation completes) |
+| Tabs | recursive lookup is a **path** (truncate on a new lookup; verified on-device that `.lookup-tabs` visibly shrinks from `[A, B, C]` to `[A, D]`) |
+| Volume keys | with the overlay on, volume keys adjust **media volume**, not paging (verified on-device with overlay ON vs OFF) |
+| Thresholds | detection tuning exposed; cache keyed to engine generation (`v9`) |
+| Audio | all 9 Yomitan word audio sources resolved (`custom`, `custom-json`, `local-audio-server`, `jpod101`, `language-pod-101`, `jisho`, `lingua-libre`, `wiktionary`, `text-to-speech`, `text-to-speech-reading`), synthesized PCM16 `click` and `bloop` fallback sounds via `AudioTrack`, Android `TextToSpeech` playback |
 | Yomitan import | offline converter, in-app Dexie import, settings importer (profiles/order/enabled/alias, popup, Anki, audio) |
 
 ---
 
-## 8. OUTSTANDING ISSUES (prioritised)
+## 8. OUTSTANDING ISSUES & RESOLVED ITEMS
 
-### 8.1 Box merge may now over-correct — **UNVERIFIED, highest risk**
-- **Symptom to look for:** a single line, tight paragraph, or tategaki column **fragmented into two
-  blocks** (the opposite failure of the bug that was fixed).
-- **Why:** the new `OcrMergeGeometry` requires run-axis overlap and a **positive** gap; real Paddle
-  boxes come from unclip padding and often overlap slightly.
-- **Files:** `core/ocr/.../merge/OcrMergeGeometry.kt`, `OwOCRMerger.kt`; tests
-  `OcrMergeGeometryTest`, `OwOCRMergerTest`.
-- **Next step:** open dense-text pages on the device (dialogue-heavy and tategaki), compare block
-  count/coverage with the previous build. If fragmenting, relax the run-axis overlap (allow a small
-  negative overlap) while keeping "abutting at a border does not merge".
-- **Evidence location:** `/tmp/opencode/verify-merged/` has earlier page renders.
+### 8.1 Box merge over-correction, cross-bubble merging & fragment sorting — **RESOLVED & VERIFIED ON DEVICE**
+- **Fix:** Tightened `OcrMergeGeometry.MAX_LINE_GAP_RATIO` (`0.50`), `MIN_THICKNESS_RATIO` (`0.65`), and
+  required `startAligned` or `centerAligned` (`<= 0.55 * minThickness`) in `nextLine` so adjacent or
+  diagonally staggered speech bubbles/lobes sharing a border never merge into one oversized box. Added
+  `trimFuriganaBloatedVerticalColumns` in `OwOCRMerger` so vertical kanji columns whose detector box
+  swallowed right-hand ruby furigana trim back to normal column width and merge cleanly with their
+  paragraph neighbours.
+- **Verified on `4df231a3`:** All 10 pages of a real 10-page chapter re-OCRed under `paddle-v9`;
+  a page-1 transcript's four previously merged fragments are cleanly separated,
+  and Page 2's 4-column lower-right bubble merges into a single 4-column block.
 
-### 8.2 Popup placement only verified on WebGPU — UNVERIFIED
-- The tablet uses the **WebGPU** viewer. The new placement rules (`PopupSide`/`popupSide`/
-  `popupTopFor`) and the **tall-top `Partial` path** are unproven on **webtoon** and **SSIV**.
-- **Files:** `app/.../reader/viewer/popup/OcrPopupFit.kt`, `ReaderOcrHostImpl.kt` (600 ms settle
-  grace), `DictionaryPopup.kt`.
-- **Next step:** switch reader mode, repeat bottom-edge and tall-block lookups; confirm placement +
-  restore-on-close + no spurious dismissal.
+### 8.2 Popup placement across WebGPU, SSIV Pager, and Webtoon + Paged Page-Turn Flash — **RESOLVED & VERIFIED ON DEVICE**
+- **Fix:** Updated `SsivOcrViewport.fitBlockAbove` to compute `scaleToReach` against both bottom
+  and top pan constraints and record expected clamped `settledScale`/`settledCenter` immediately.
+  Updated `WebGpuOcrViewport.pagedSurfaceRect` & `visiblePages` and `SsivOcrViewport.imageNormalizedToScreen`
+  so stale/off-screen pages never flash detection boxes onto the new page during or after a page turn.
+- **Verified on `4df231a3`:** Tested bottom-edge lookups, popup fit, outside-tap dismissal,
+  `restoreFit`, and paged page-turn transitions across **WebGPU**, **SSIV Pager**, and **Webtoon**.
 
-### 8.3 Tab path — pill row shrinking unverified
-- Logic is unit-tested (`LookupPath`, 14 cases) but the **visible** pill row shrinking after a
-  truncating lookup was never confirmed on device; risk is the WebView's async `onTabSelect` frame swap.
-- **Files:** `DictionaryPopup.kt` (`path.push/select/back`), `LookupPath.kt`, `renderer.js` tab bar.
+### 8.3 Tab path — pill row shrinking — **VERIFIED ON DEVICE**
+- **Verified on `4df231a3`:** Performed a 3-deep lookup (`[A, B, C]`), selected tab `A`, tapped a
+  new word `D` inside `A`, and confirmed `.lookup-tabs` visibly truncated to 2 pills (`[A, D]`).
 
-### 8.4 Volume keys — real presses unverified
-- Cannot inject volume keys reliably over adb. Verify by hand: overlay **on** → media volume;
-  overlay **off** → the reader's volume-key paging pref behaves as before.
-- **Files:** `VolumeKeyPagingPolicy.kt`, the three viewers, `DictionaryPopup.kt`
-  (`volumeKeyNavigationAllowed`).
+### 8.4 Volume keys vs OCR overlay — **VERIFIED ON DEVICE**
+- **Verified on `4df231a3`:** With `reader_volume_keys = true` and menu hidden, `KEYCODE_VOLUME_DOWN`
+  kept the reader on `1 / 10` (routed to media volume) when the OCR overlay was **ON**, and
+  immediately paged to `2 / 10` when the OCR overlay was toggled **OFF**.
 
-### 8.5 Stylised onomatopoeia is fundamentally misread — **not fixable cheaply**
-- Measured on a real page of a 10-page chapter: `ざわ` → `干S` (0.50),
-  `手15` (0.71), `115`/`415` (0.57); `ぽっ` → `出` (0.18). Dialogue on the same page reads 0.98–1.00.
-- **Diagnosis:** brush/hand-drawn kana. The charset *contains* the correct characters (clean-font
-  `ざわざわ` reads 0.999). **Exhausted:** every orientation, per-glyph split, padding, grayscale,
-  Otsu/adaptive binarisation, inversion, ink-crop, 2–4× upscale, 15/30/50 % box expansion, whole-band
-  crop, and **48 threshold combinations** — all wrong. The rec ONNX has a **static 48 px** input, so
-  taller crops are rejected.
-- **Only lever:** the rec-confidence floor suppresses them (0.18–0.71) but also drops *correct*
-  reads (`かしっ` 0.58, `くらっ` 0.65) and some garbage is confident (`七5` 0.96) — not a clean SFX filter.
-- **Real fix:** fine-tune the rec model (parked as a side project — see §10).
-- **Optional unimplemented idea (user hasn't decided):** flag implausible short mixed-script blocks
-  (e.g. `干S`) as low-confidence in the UI instead of displaying them as authoritative.
-- **Evidence:** full numbers reproduced in **Appendix A.2** (the original report lived in `/tmp` and was wiped).
+### 8.5 Stylised onomatopoeia misreads & dropped dialogue lines — **RESOLVED & VERIFIED ON DEVICE**
+- **Fix:** Set `OcrPreferences.DEFAULT_REC_FLOOR = 35` (`0.35f`, capping the floor at `0.35f` for
+  `>= 3`-char Japanese dialogue lines so furigana-affected lines and short dialogue lines are never
+  dropped), added
+  `OcrPreprocessor.isImplausibleJapaneseNoise(text)` for short mixed-script/stroke-lookalike noise
+  (`干S`, `手15`, `七5`, `115`, `415`), added `OwOCRMerger.filterSingleCharSfxNoise` for tilted or
+  oversized 1-char SFX hallucinations (`心` on `ぐいっ` on Page 4, `安`, `出`, `众`, `世`), extended
+  `globalFuriganaFilter` to drop `<= 2`-char kanji ruby misreads (`世生`, `会`, `消工`), and updated
+  `extractOcrLookupText` to advance past leading punctuation so tapping `'…'` on a line that opens
+  with an ellipsis opens the dictionary popup for the word after it.
+- **Long-term fix for reading stylised SFX:** fine-tuning the PP-OCR rec model remains parked as a
+  separate side project (see §10 and **Appendix A.2–A.3**).
 
 ### 8.6 Full dictionary import needs headroom
 - In-app import of the user's **2.3 GB** Dexie backup needs **~3.5 GB free**; the tablet was at
@@ -270,12 +266,15 @@ displayed by base64-inlining them into `data:` URIs (cap: 20 items / 256 KB per 
 - A **146 MB subset** was imported successfully in-app (4 dictionaries, 80,819 terms) and lookups
   worked — so the path itself is proven.
 
-### 8.7 Audio gaps
-- Only **Custom URL**, **Custom JSON**, **Local Audio Server**, **JapanesePod101** and **Jisho** are
-  resolved. **Modelled but not resolved:** `language-pod-101`, `lingua-libre`, `wiktionary`,
-  `text-to-speech(-reading)` (`core/dictionary/.../audio/AudioResolver.kt`).
-- The fallback "bloop" sound is a setting with **no bundled asset**.
-- Media preload cap is 20 items / 256 KB per lookup (`DictionaryRepository`).
+### 8.7 Audio gaps — **RESOLVED & VERIFIED ON DEVICE**
+- **Fix:** Implemented `language-pod-101` (HTML form POST + reading/vocab validation),
+  `lingua-libre` (Wikimedia Commons ISO 639-3 search + filename validation), `wiktionary` (Wikimedia
+  Commons `.ogg` search + regional display name), and `text-to-speech` / `text-to-speech-reading`
+  (via Android `TextToSpeech` in `WordAudioPlayer`). Added synthesized PCM16 `click` and `bloop`
+  fallback sounds via `AudioTrack` (`WordAudioPlayer.playFallback` / `WordAudioBridge.playFallback`).
+- **Verified on `4df231a3`:** Tested fallback click playback and long-press audio source picker
+  dropdown (`CUSTOM URL (JSON)`, `JAPANESEPOD101`, `LANGUAGEPOD101`, `JISHO.ORG`).
+- Note: Media preload cap remains 20 items / 256 KB per lookup (`DictionaryRepository`).
 
 ### 8.8 `nativeGetOrtError` is an inert stub
 - The pinned `libpaddle_ocr.so` exports only `nativeInit/nativeProcess/nativeRelease`, so the Kotlin
@@ -290,8 +289,9 @@ displayed by base64-inlining them into `data:` URIs (cap: 20 items / 256 KB per 
 - Overlay text residual: the system CJK font is **lighter** than manga lettering; column pitch can be
   ~4 % wide due to det-box imprecision; ~1 in 93 blocks has an engine-level orientation mis-detection.
 
-### 8.10 Doc debt
-- `docs/design/implementation/00-implementation-contract.md` and `03-ocr.md` are **authoritative**.
+### 8.10 Doc debt — **RESOLVED**
+- `docs/design/implementation/00-implementation-contract.md` and `03-ocr.md` are **authoritative**
+  and updated to reflect `v9`, `DEFAULT_REC_FLOOR = 35`, and `nativeGetOrtError` status.
 - `01-architecture-build.md` and `docs/design/yomitan-manga-ocr-port.md` are **historical** — they
   have "superseded" notes; do not treat their Paddle-Lite statements as current.
 
@@ -303,11 +303,11 @@ displayed by base64-inlining them into `data:` URIs (cap: 20 items / 256 KB per 
 2. `adb -s 4df231a3 install -r …/app-arm64-v8a-debug.apk` (update install keeps dictionaries,
    settings, local-source series and OCR cache).
 3. On device, for OCR/reader work: open a chapter with a local-source series, enable the overlay
-   (two fingers — by hand), and check boxes + text layer + single-tap lookup.
+   (two fingers — by hand, or via reader bottom bar), and check boxes + text layer + single-tap lookup.
 4. For dictionary work: look up a word, check the popup placement/size/selection, recursive tabs,
    and the audio menu (long-press the speaker).
 5. Capture `screencap` evidence; `screenrecord` is blocked.
-6. Remember the cache is keyed by engine generation and by non-default thresholds — when comparing
+6. Remember the cache is keyed by engine generation (`v7`) and by non-default thresholds — when comparing
    before/after behaviour, consider clearing the OCR cache or changing a threshold to force re-OCR.
 
 ---
@@ -364,9 +364,8 @@ displayed by base64-inlining them into `data:` URIs (cap: 20 items / 256 KB per 
 
 ## 12. Open decisions for the user
 
-1. **Recognition-confidence floor** — currently off. Set a default (~0.5) to suppress false
-   positives, or leave it to the user? (It is *not* a good onomatopoeia filter — see §8.5.)
-2. **Flag implausible blocks** (`干S`-style) as low-confidence in the UI? Not implemented.
+1. ~~**Recognition-confidence floor**~~ — **Resolved:** default raised to **75 %** (`DEFAULT_REC_FLOOR = 75`).
+2. ~~**Flag implausible blocks (`干S`-style)**~~ — **Resolved:** filtered out outright via `OcrPreprocessor.isImplausibleJapaneseNoise`.
 3. **Fine-tuning project** — the user parked it; scope is in §10.
 4. **Merge #7 → `master`** — squash + delete-branch, after a full CI run.
 

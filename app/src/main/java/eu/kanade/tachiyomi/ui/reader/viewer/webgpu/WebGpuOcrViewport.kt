@@ -42,8 +42,23 @@ class WebGpuOcrViewport(
     private val continuousState: ImageViewerContinuousState?
         get() = state as? ImageViewerContinuousState
 
-    override fun visiblePages(): List<ReaderPage> =
-        state.visiblePages.flatMap { viewer.ocrReaderPagesFor(it) }
+    // KUN -->
+    override fun visiblePages(): List<ReaderPage> {
+        if (!viewer.isContinuous) {
+            val fromPage = state.transitionFromPage
+            val frac = state.pageOffset
+            if (frac == 0f && fromPage == null) {
+                return listOfNotNull(state.getPage(0)).flatMap { viewer.ocrReaderPagesFor(it) }
+            }
+            val activePages = linkedSetOf<ImagePage>()
+            state.getPage(0)?.let { activePages += it }
+            fromPage?.let { activePages += it }
+            activePages += state.visiblePages
+            return activePages.flatMap { viewer.ocrReaderPagesFor(it) }
+        }
+        return state.visiblePages.flatMap { viewer.ocrReaderPagesFor(it) }
+    }
+    // KUN <--
 
     override fun imageNormalizedToScreen(page: ReaderPage, rect: RectF): RectF? =
         if (continuousState != null) continuousToScreen(page, rect) else pagedToScreen(page, rect)
@@ -270,32 +285,54 @@ class WebGpuOcrViewport(
      * pages; every other transition draws in place, so no shift is applied for them. The offset is
      * surface-normalized, exactly as the transition consumes it.
      */
+    // KUN -->
     private fun pagedSurfaceRect(imagePage: ImagePage): FloatArray? {
         val r = state.rectOf(imagePage) ?: return null
+        val primary = state.getPage(0) ?: return null
+        val isPrimary = matchesPageOrSpread(primary, imagePage)
+        val fromPage = state.transitionFromPage
         val frac = state.pageOffset
-        if (frac == 0f) return r
+        if (frac == 0f) {
+            return if (fromPage != null) {
+                if (matchesPageOrSpread(fromPage, imagePage)) r else null
+            } else {
+                if (isPrimary) r else null
+            }
+        }
+        val partner = fromPage ?: state.getPage(
+            if (frac > 0f) {
+                if (state.isReversed) -1 else 1
+            } else {
+                if (state.isReversed) 1 else -1
+            },
+        )
+        if (!isPrimary && !matchesPageOrSpread(partner, imagePage)) return null
         val vertical = state.transition === TransitionBasic.Vertical
-        if (!vertical && state.transition !== TransitionBasic) return r
-        // Page 1 is the current page (offset -frac); page 2 the incoming one (slides in from the
-        // far side).
-        val shift = if (isFirstVisiblePage(imagePage)) {
+        if (!vertical && state.transition !== TransitionBasic) {
+            return if (isPrimary) r else null
+        }
+        val shift = if (isPrimary) {
             -frac
+        } else if (frac > 0f) {
+            1f - frac
         } else {
-            if (frac > 0f) 1f - frac else -(frac + 1f)
+            -(frac + 1f)
         }
-        return if (vertical) {
-            floatArrayOf(r[0], r[1] + shift, r[2], r[3] + shift)
-        } else {
-            floatArrayOf(r[0] + shift, r[1], r[2] + shift, r[3])
-        }
+        val left = if (vertical) r[0] else r[0] + shift
+        val top = if (vertical) r[1] + shift else r[1]
+        val right = if (vertical) r[2] else r[2] + shift
+        val bottom = if (vertical) r[3] + shift else r[3]
+        if (right <= 0f || left >= 1f || bottom <= 0f || top >= 1f) return null
+        return floatArrayOf(left, top, right, bottom)
     }
 
-    /** True when [imagePage] is the first page the last frame drew (the turn's "from" page). */
-    private fun isFirstVisiblePage(imagePage: ImagePage): Boolean {
-        val first = state.visiblePages.firstOrNull() ?: return true
-        if (first === imagePage) return true
-        return first is ImagePage.ImageSpread && (first.left === imagePage || first.right === imagePage)
+    /** True when [container] equals [leaf] or contains it as a side of an [ImagePage.ImageSpread]. */
+    private fun matchesPageOrSpread(container: ImagePage?, leaf: ImagePage): Boolean {
+        if (container == null) return false
+        return container === leaf ||
+            (container is ImagePage.ImageSpread && (container.left === leaf || container.right === leaf))
     }
+    // KUN <--
 
     private fun pagedFromScreen(x: Float, y: Float): ImagePoint? {
         val surfaceW = state.width.toFloat()

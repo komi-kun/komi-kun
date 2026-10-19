@@ -11,12 +11,20 @@ class AudioResolverTest {
 
     private class FakeHttp(
         private val responses: Map<String, AudioHttpResponse> = emptyMap(),
+        private val postResponses: Map<String, AudioHttpResponse> = emptyMap(),
         private val default: AudioHttpResponse = AudioHttpResponse(ok = false, status = 404, bodyText = ""),
     ) : AudioHttp {
         val requested = mutableListOf<String>()
+        val postedForms = mutableListOf<Pair<String, Map<String, String>>>()
+
         override suspend fun get(url: String): AudioHttpResponse {
             requested += url
             return responses[url] ?: default
+        }
+
+        override suspend fun postForm(url: String, formFields: Map<String, String>): AudioHttpResponse {
+            postedForms += url to formFields
+            return postResponses[url] ?: default
         }
     }
 
@@ -197,19 +205,200 @@ class AudioResolverTest {
         ).count { it.sourceType == AudioSourceTypes.JPOD_101 } shouldBe 1
     }
 
+    // --- language-pod-101 ----------------------------------------------------------------------
+
     @Test
-    fun `unresolved source types yield no candidates`() = runBlocking {
-        val resolver = AudioResolver(FakeHttp())
-        val types = listOf(
-            AudioSourceTypes.LANGUAGE_POD_101,
-            AudioSourceTypes.LINGUA_LIBRE,
-            AudioSourceTypes.WIKTIONARY,
-            AudioSourceTypes.TEXT_TO_SPEECH,
-            AudioSourceTypes.TEXT_TO_SPEECH_READING,
+    fun `language-pod-101 resolves Japanese by POST form and validates kana reading`() = runBlocking {
+        val postUrl = "https://www.japanesepod101.com/learningcenter/reference/dictionary_post"
+        val html = """
+            <div class="dc-result-row">
+              <span class="dc-vocab_kana">よむ</span>
+              <audio><source src="/audio/japanese/yomu.mp3"></audio>
+            </div>
+            <div class="dc-result-row">
+              <span class="dc-vocab_kana">ちがう</span>
+              <audio><source src="/audio/japanese/wrong.mp3"></audio>
+            </div>
+        """.trimIndent()
+        val http = FakeHttp(postResponses = mapOf(postUrl to ok(html)))
+        val result = AudioResolver(http).candidatesFor(
+            AudioSourceConfig(AudioSourceTypes.LANGUAGE_POD_101),
+            term = "読む",
+            reading = "よむ",
+            languageIso = "ja",
         )
-        for (type in types) {
-            resolver.candidatesFor(AudioSourceConfig(type), "a", "b", "ja") shouldBe emptyList()
-        }
+        http.postedForms.size shouldBe 1
+        val (url, fields) = http.postedForms.first()
+        url shouldBe postUrl
+        fields["search_query"] shouldBe "読む"
+        fields["match_type"] shouldBe "exact"
+        result shouldContainExactly listOf(
+            AudioCandidate(
+                url = "https://www.japanesepod101.com/audio/japanese/yomu.mp3",
+                sourceType = AudioSourceTypes.LANGUAGE_POD_101,
+            ),
+        )
+    }
+
+    @Test
+    fun `language-pod-101 uses class host for English and validates vocab text`() = runBlocking {
+        val postUrl = "https://www.englishclass101.com/learningcenter/reference/dictionary_post"
+        val html = """
+            <div class="dc-result-row">
+              <span class="dc-vocab">read</span>
+              <audio><source src="https://assets.languagepod101.com/audio/read.mp3"></audio>
+            </div>
+        """.trimIndent()
+        val http = FakeHttp(postResponses = mapOf(postUrl to ok(html)))
+        val result = AudioResolver(http).candidatesFor(
+            AudioSourceConfig(AudioSourceTypes.LANGUAGE_POD_101),
+            term = "read",
+            reading = "read",
+            languageIso = "en",
+        )
+        http.postedForms.first().first shouldBe postUrl
+        result shouldContainExactly listOf(
+            AudioCandidate(
+                url = "https://assets.languagepod101.com/audio/read.mp3",
+                sourceType = AudioSourceTypes.LANGUAGE_POD_101,
+            ),
+        )
+    }
+
+    // --- lingua-libre --------------------------------------------------------------------------
+
+    @Test
+    fun `lingua-libre searches Commons for iso639-3 and validates filename`() = runBlocking {
+        val searchUrl = "https://commons.wikimedia.org/w/api.php?action=query&format=json&list=search&srsearch=" +
+            AudioResolver.urlEncode("intitle:/-bonjour.wav/i incategory:\"Lingua_Libre_pronunciation-fra\"") +
+            "&srnamespace=6&origin=*"
+        val fileTitle = "File:LL-Q150 (fra)-User1-bonjour.wav"
+        val infoUrl = "https://commons.wikimedia.org/w/api.php?action=query&format=json&titles=" +
+            AudioResolver.urlEncode(fileTitle) +
+            "&prop=imageinfo&iiprop=user|url&origin=*"
+
+        val searchJson = """
+            {"query":{"search":[{"title":"$fileTitle"},{"title":"File:Other.wav"}]}}
+        """.trimIndent()
+        val infoJson = """
+            {"query":{"pages":{"123":{"imageinfo":[{"url":"https://upload.wikimedia.org/audio/bonjour.wav","user":"User1"}]}}}}
+        """.trimIndent()
+
+        val http = FakeHttp(responses = mapOf(searchUrl to ok(searchJson), infoUrl to ok(infoJson)))
+        val result = AudioResolver(http).candidatesFor(
+            AudioSourceConfig(AudioSourceTypes.LINGUA_LIBRE),
+            term = "bonjour",
+            reading = "bonjour",
+            languageIso = "fr",
+        )
+
+        result shouldContainExactly listOf(
+            AudioCandidate(
+                url = "https://upload.wikimedia.org/audio/bonjour.wav",
+                name = "User1",
+                sourceType = AudioSourceTypes.LINGUA_LIBRE,
+            ),
+        )
+    }
+
+    // --- wiktionary ----------------------------------------------------------------------------
+
+    @Test
+    fun `wiktionary searches Commons and formats regional display names`() = runBlocking {
+        val searchUrl = "https://commons.wikimedia.org/w/api.php?action=query&format=json&list=search&srsearch=" +
+            AudioResolver.urlEncode("intitle:/de(-[a-zA-Z]{2})?-Katze[0123456789]*.ogg/i") +
+            "&srnamespace=6&origin=*"
+        val titleAt = "File:de-AT-Katze.ogg"
+        val titleDe = "File:de-Katze.ogg"
+        val infoUrlAt = "https://commons.wikimedia.org/w/api.php?action=query&format=json&titles=" +
+            AudioResolver.urlEncode(titleAt) +
+            "&prop=imageinfo&iiprop=user|url&origin=*"
+        val infoUrlDe = "https://commons.wikimedia.org/w/api.php?action=query&format=json&titles=" +
+            AudioResolver.urlEncode(titleDe) +
+            "&prop=imageinfo&iiprop=user|url&origin=*"
+
+        val searchJson = """
+            {"query":{"search":[{"title":"$titleAt"},{"title":"$titleDe"}]}}
+        """.trimIndent()
+        val infoAtJson = """
+            {"query":{"pages":{"1":{"imageinfo":[{"url":"https://upload.wikimedia.org/at.ogg","user":"AustrianSpeaker"}]}}}}
+        """.trimIndent()
+        val infoDeJson = """
+            {"query":{"pages":{"2":{"imageinfo":[{"url":"https://upload.wikimedia.org/de.ogg","user":"GermanSpeaker"}]}}}}
+        """.trimIndent()
+
+        val http = FakeHttp(
+            responses = mapOf(
+                searchUrl to ok(searchJson),
+                infoUrlAt to ok(infoAtJson),
+                infoUrlDe to ok(infoDeJson),
+            ),
+        )
+        val result = AudioResolver(http).candidatesFor(
+            AudioSourceConfig(AudioSourceTypes.WIKTIONARY),
+            term = "Katze",
+            reading = "Katze",
+            languageIso = "de",
+        )
+
+        result shouldContainExactly listOf(
+            AudioCandidate(
+                url = "https://upload.wikimedia.org/at.ogg",
+                name = "(AT) AustrianSpeaker",
+                sourceType = AudioSourceTypes.WIKTIONARY,
+            ),
+            AudioCandidate(
+                url = "https://upload.wikimedia.org/de.ogg",
+                name = "GermanSpeaker",
+                sourceType = AudioSourceTypes.WIKTIONARY,
+            ),
+        )
+    }
+
+    // --- text-to-speech ------------------------------------------------------------------------
+
+    @Test
+    fun `text-to-speech builds synthetic tts url from term`() = runBlocking {
+        val result = AudioResolver(FakeHttp()).candidatesFor(
+            AudioSourceConfig(AudioSourceTypes.TEXT_TO_SPEECH, voice = "ja-JP-Standard-A"),
+            term = "猫",
+            reading = "ねこ",
+            languageIso = "ja",
+        )
+        result shouldContainExactly listOf(
+            AudioCandidate(
+                url = "tts://speak?text=%E7%8C%AB&lang=ja&voice=ja-JP-Standard-A",
+                name = "ja-JP-Standard-A",
+                sourceType = AudioSourceTypes.TEXT_TO_SPEECH,
+            ),
+        )
+    }
+
+    @Test
+    fun `text-to-speech-reading builds synthetic tts url from reading`() = runBlocking {
+        val result = AudioResolver(FakeHttp()).candidatesFor(
+            AudioSourceConfig(AudioSourceTypes.TEXT_TO_SPEECH_READING),
+            term = "猫",
+            reading = "ねこ",
+            languageIso = "ja",
+        )
+        result shouldContainExactly listOf(
+            AudioCandidate(
+                url = "tts://speak?text=%E3%81%AD%E3%81%93&lang=ja&voice=",
+                name = null,
+                sourceType = AudioSourceTypes.TEXT_TO_SPEECH_READING,
+            ),
+        )
+    }
+
+    @Test
+    fun `unknown source type yields no candidates`() = runBlocking {
+        AudioResolver(FakeHttp()).candidatesFor(
+            AudioSourceConfig("unknown-type"),
+            "a",
+            "b",
+            "ja",
+        ) shouldBe emptyList()
     }
 
     // --- picker metadata (source identity + order) --------------------------------------------

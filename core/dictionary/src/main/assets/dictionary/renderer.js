@@ -2200,6 +2200,9 @@
         if (first && first.url) {
           playAudioCandidate(first.url, audioBtn);
         } else {
+          if (typeof WordAudioBridge !== 'undefined' && WordAudioBridge.playFallback) {
+            WordAudioBridge.playFallback();
+          }
           audioBtn.classList.add('error');
           setTimeout(() => audioBtn.classList.remove('error'), 1000);
         }

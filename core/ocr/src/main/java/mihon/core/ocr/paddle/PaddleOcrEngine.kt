@@ -39,6 +39,7 @@ import mihon.core.ocr.OcrBitmapDecoder
 import mihon.core.ocr.OcrEngine
 import mihon.core.ocr.OcrLanguage
 import mihon.core.ocr.OcrPreferences
+import mihon.core.ocr.OcrPreprocessor
 import mihon.core.ocr.WritingDirection
 import tachiyomi.core.common.util.system.logcat
 import java.io.Closeable
@@ -365,8 +366,15 @@ class PaddleOcrEngine(
                     if (isFurigana) furiganaCount++
 
                     if (text.isBlank()) continue
-                    // KUN --> Recognition confidence floor (0 = keep every line).
-                    if (minRecScore > 0f && recScore < minRecScore) continue
+                    // KUN -->
+                    // Recognition confidence floor. Protect legitimate multi-character Japanese
+                    // dialogue lines (>= 3 kana/kanji and not noise) by capping effective floor at 0.35.
+                    val effectiveFloor = if (minRecScore > 0f && countJpChars(text) >= 3 && !OcrPreprocessor.isImplausibleJapaneseNoise(text)) {
+                        minOf(minRecScore, 0.35f)
+                    } else {
+                        minRecScore
+                    }
+                    if (effectiveFloor > 0f && recScore < effectiveFloor) continue
                     // KUN <--
 
                     if (bboxCoords.size == 4) {
@@ -520,4 +528,17 @@ class PaddleOcrEngine(
             return 4.coerceAtMost(Runtime.getRuntime().availableProcessors().coerceAtLeast(1))
         }
     }
+
+    // KUN -->
+    private fun countJpChars(text: String): Int {
+        var count = 0
+        for (i in 0 until text.length) {
+            val code = text[i].code
+            if ((code in 0x3041..0x3096) || (code in 0x30A1..0x30FA) || (code in 0x4E00..0x9FFF) || (code in 0x3400..0x4DBF)) {
+                count++
+            }
+        }
+        return count
+    }
+    // KUN <--
 }
