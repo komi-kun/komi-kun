@@ -1,9 +1,3 @@
-// KUN -->
-// The fork markers around the RefreshMangaCover import put comments in the import list, which
-// ktlint cannot order or autocorrect. Suppress the rule for this file only.
-@file:Suppress("ktlint:standard:import-ordering")
-// KUN <--
-
 package eu.kanade.tachiyomi
 
 import android.annotation.SuppressLint
@@ -42,9 +36,7 @@ import com.elvishew.xlog.printer.file.naming.DateFileNameGenerator
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.createGraphFactory
 import eu.kanade.domain.base.BasePreferences
-// KUN -->
 import eu.kanade.domain.manga.interactor.RefreshMangaCover
-// KUN <--
 import eu.kanade.domain.sync.SyncPreferences
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.domain.ui.model.setAppCompatDelegateThemeMode

@@ -109,7 +109,7 @@ class RefreshMangaCoverTest {
         stubManga()
         coEvery { repository.updateCover(mangaId, staleUrl, newUrl) } returns true
 
-        refreshMangaCover.persistReplacement(mangaId, staleUrl, newUrl) shouldBe true
+        refreshMangaCover.persistReplacement(mangaId, staleUrl, newUrl) shouldBe CoverPersistResult.Persisted
 
         coVerify(exactly = 1) { repository.updateCover(mangaId, staleUrl, newUrl) }
         verify(exactly = 1) { coverCache.deleteFromCache(manga, false) }
@@ -120,7 +120,7 @@ class RefreshMangaCoverTest {
         stubManga()
         coEvery { repository.updateCover(mangaId, staleUrl, newUrl) } returns false
 
-        refreshMangaCover.persistReplacement(mangaId, staleUrl, newUrl) shouldBe false
+        refreshMangaCover.persistReplacement(mangaId, staleUrl, newUrl) shouldBe CoverPersistResult.Failed
 
         coVerify(exactly = 1) { repository.updateCover(mangaId, staleUrl, newUrl) }
         verify(exactly = 0) { coverCache.deleteFromCache(any(), any()) }
@@ -131,7 +131,7 @@ class RefreshMangaCoverTest {
         // A concurrent recovery won the race and already wrote the same URL.
         stubManga(ogThumbnailUrl = newUrl)
 
-        refreshMangaCover.persistReplacement(mangaId, staleUrl, newUrl) shouldBe true
+        refreshMangaCover.persistReplacement(mangaId, staleUrl, newUrl) shouldBe CoverPersistResult.Persisted
 
         coVerify(exactly = 0) { repository.updateCover(any(), any(), any()) }
         // The winner already handled the cover cache.
@@ -139,10 +139,21 @@ class RefreshMangaCoverTest {
     }
 
     @Test
+    fun `skips the write while a sync is applying`() = runTest {
+        stubManga()
+        coEvery { repository.isSyncing(mangaId) } returns true
+
+        refreshMangaCover.persistReplacement(mangaId, staleUrl, newUrl) shouldBe
+            CoverPersistResult.SkippedWhileSyncing
+
+        coVerify(exactly = 0) { repository.updateCover(any(), any(), any()) }
+    }
+
+    @Test
     fun `does not persist when the entry changed meanwhile`() = runTest {
         stubManga(ogThumbnailUrl = "https://manual.example/cover.jpg")
 
-        refreshMangaCover.persistReplacement(mangaId, staleUrl, newUrl) shouldBe false
+        refreshMangaCover.persistReplacement(mangaId, staleUrl, newUrl) shouldBe CoverPersistResult.Obsolete
 
         coVerify(exactly = 0) { repository.updateCover(any(), any(), any()) }
     }
@@ -152,7 +163,7 @@ class RefreshMangaCoverTest {
         stubManga()
         every { coverCache.hasCustomCover(mangaId) } returns true
 
-        refreshMangaCover.persistReplacement(mangaId, staleUrl, newUrl) shouldBe false
+        refreshMangaCover.persistReplacement(mangaId, staleUrl, newUrl) shouldBe CoverPersistResult.Obsolete
 
         coVerify(exactly = 0) { repository.updateCover(any(), any(), any()) }
     }
@@ -293,8 +304,32 @@ class RefreshMangaCoverTest {
         coVerify(exactly = 2) { source.getMangaUpdate(any(), any(), true, false) }
     }
 
+    @Test
+    fun `five source failures open the breaker for that source`() = runTest {
+        every { source.id } returns sourceId
+        coEvery { sourceManager.get(sourceId) } returns source
+        coEvery { source.getMangaUpdate(any(), any(), true, false) } throws IOException("source down")
+
+        repeat(5) { index ->
+            val id = 100L + index
+            val stale = "https://old.example/$id.jpg"
+            coEvery { repository.getMangaById(id) } returns manga.copy(id = id, ogThumbnailUrl = stale)
+            refreshMangaCover.findReplacement(id, stale) shouldBe null
+            now += sourceMinInterval
+        }
+        coVerify(exactly = 5) { source.getMangaUpdate(any(), any(), true, false) }
+
+        val sixthId = 200L
+        val sixthStale = "https://old.example/6.jpg"
+        coEvery { repository.getMangaById(sixthId) } returns manga.copy(id = sixthId, ogThumbnailUrl = sixthStale)
+        refreshMangaCover.findReplacement(sixthId, sixthStale) shouldBe null
+
+        coVerify(exactly = 5) { source.getMangaUpdate(any(), any(), true, false) }
+    }
+
     private fun stubManga(ogThumbnailUrl: String = staleUrl) {
         coEvery { repository.getMangaById(mangaId) } returns manga.copy(ogThumbnailUrl = ogThumbnailUrl)
+        coEvery { repository.isSyncing(mangaId) } returns false
     }
 
     private fun stubSource(thumbnailUrl: String?) {

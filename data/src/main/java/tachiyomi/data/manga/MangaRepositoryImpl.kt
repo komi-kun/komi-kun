@@ -44,6 +44,16 @@ class MangaRepositoryImpl(
             .awaitAsOne()
     }
 
+    // KUN -->
+    override suspend fun isSyncing(mangaId: Long): Boolean {
+        return database.mangaQueries
+            .getMangaIsSyncing(mangaId)
+            .awaitAsOneOrNull()
+            ?.let { it != 0L }
+            ?: false
+    }
+    // KUN <--
+
     override fun getMangaByIdAsFlow(id: Long): Flow<Manga> {
         return database.mangaQueries
             .getMangaById(id, MangaMapper::mapManga)

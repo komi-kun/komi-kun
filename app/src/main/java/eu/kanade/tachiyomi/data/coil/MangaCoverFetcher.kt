@@ -12,6 +12,7 @@ import coil3.fetch.SourceFetchResult
 import coil3.getOrDefault
 import coil3.request.Options
 import com.hippo.unifile.UniFile
+import eu.kanade.domain.manga.interactor.CoverPersistResult
 import eu.kanade.domain.manga.interactor.RefreshMangaCover
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.tachiyomi.data.cache.CoverCache
@@ -43,6 +44,7 @@ import tachiyomi.domain.manga.model.MangaCover
 import tachiyomi.domain.manga.model.asMangaCover
 import tachiyomi.domain.source.service.SourceManager
 import java.io.File
+import java.io.IOException
 import java.net.ConnectException
 import java.net.UnknownHostException
 
@@ -73,8 +75,10 @@ class MangaCoverFetcher(
     private val uiPreferences: UiPreferences,
     private val coverCache: CoverCache,
     private val findReplacementCover: (suspend () -> String?)? = null,
-    private val persistReplacementCover: (suspend (String) -> Boolean)? = null,
+    private val persistReplacementCover: (suspend (String) -> CoverPersistResult)? = null,
     private val invalidateReplacementCover: ((String) -> Unit)? = null,
+    private val httpLoaderOverride: (suspend () -> FetchResult)? = null,
+    private val isOnlineOverride: (() -> Boolean)? = null,
     // KUN <--
 ) : Fetcher {
 
@@ -150,7 +154,7 @@ class MangaCoverFetcher(
         )
     }
 
-    private suspend fun httpLoader(): FetchResult {
+    private suspend fun httpLoaderDefault(): FetchResult {
         // Only cache separately if it's a library item
         val libraryCoverCacheFile = if (isLibraryManga) {
             // KUN -->
@@ -160,7 +164,13 @@ class MangaCoverFetcher(
             null
         }
         if (libraryCoverCacheFile?.exists() == true && options.diskCachePolicy.readEnabled) {
-            return fileLoader(libraryCoverCacheFile)
+            // KUN -->
+            if (CoverImageValidator.isImageFile(libraryCoverCacheFile)) {
+                return fileLoader(libraryCoverCacheFile)
+            }
+            // A previous recovery may have stored an error page. Drop it and fetch again.
+            libraryCoverCacheFile.delete()
+            // KUN <--
         }
 
         var snapshot = readFromDiskCache()
@@ -186,6 +196,14 @@ class MangaCoverFetcher(
 
             // Fetch from network
             val response = executeNetworkRequest()
+            // KUN -->
+            // Never cache an HTML/JSON error page as a cover. A full decode-success cleanup for
+            // truncated bodies is a follow-up.
+            if (!CoverImageValidator.isImageResponse(response)) {
+                response.close()
+                throw IOException("Cover response is not an image")
+            }
+            // KUN <--
             val responseBody = checkNotNull(response.body) { "Null response source" }
             try {
                 // Read from cover cache after library manga cover updated
@@ -233,7 +251,9 @@ class MangaCoverFetcher(
     }
 
     // KUN -->
-    private suspend fun httpLoaderWithRecovery(): FetchResult {
+    private suspend fun httpLoader(): FetchResult = httpLoaderOverride?.invoke() ?: httpLoaderDefault()
+
+    internal suspend fun httpLoaderWithRecovery(): FetchResult {
         return try {
             httpLoader()
         } catch (e: CancellationException) {
@@ -255,18 +275,21 @@ class MangaCoverFetcher(
             }
             // Keep the already decoded image under the key Coil used for this request, so the
             // database update does not trigger a second decode of the same bitmap. Only remember
-            // it after the URL was actually persisted: a failed write (or a sync-applied cover)
-            // must not be masked by the session alias.
+            // it when the URL was persisted or was already persisted by a concurrent recovery.
             if (mangaCover.mangaId > 0) {
-                if (persistCoverUrl(refreshedUrl)) {
-                    RecoveredCoverKeys.put(
+                when (persistCoverUrl(refreshedUrl)) {
+                    CoverPersistResult.Persisted -> RecoveredCoverKeys.put(
                         mangaCover.mangaId,
                         refreshedUrl,
                         mangaCover.lastModified,
                         diskCacheKey,
                     )
-                } else {
-                    invalidateReplacement(refreshedUrl)
+                    // The replacement is valid; persistence will be retried on a later load.
+                    CoverPersistResult.SkippedWhileSyncing,
+                    CoverPersistResult.Failed,
+                    -> RecoveredCoverKeys.remove(mangaCover.mangaId)
+                    // Someone else moved the entry on; this replacement is not useful anymore.
+                    CoverPersistResult.Obsolete -> invalidateReplacement(refreshedUrl)
                 }
             }
             return result
@@ -276,7 +299,7 @@ class MangaCoverFetcher(
     private suspend fun recoverCoverUrl(failure: Exception): String? {
         val findReplacement = findReplacementCover ?: return null
         if (!failure.isRecoverableCoverFailure()) return null
-        if (!options.context.isOnline()) return null
+        if (!(isOnlineOverride?.invoke() ?: options.context.isOnline())) return null
         // A user-provided cover must never be replaced by the source's cover.
         if (coverCache.hasCustomCover(mangaCover.mangaId)) return null
         return try {
@@ -289,15 +312,15 @@ class MangaCoverFetcher(
         }
     }
 
-    private suspend fun persistCoverUrl(newUrl: String): Boolean {
-        val persistReplacement = persistReplacementCover ?: return false
+    private suspend fun persistCoverUrl(newUrl: String): CoverPersistResult {
+        val persistReplacement = persistReplacementCover ?: return CoverPersistResult.Failed
         return try {
             persistReplacement(newUrl)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             xLogW("Could not persist cover refresh for manga ${mangaCover.mangaId}", e)
-            false
+            CoverPersistResult.Failed
         }
     }
 
@@ -315,10 +338,10 @@ class MangaCoverFetcher(
         val client = source?.client ?: callFactoryLazy.value
         val response = client.newCall(newRequest(source)).await()
         if (!response.isSuccessful && response.code != HTTP_NOT_MODIFIED) {
-            val code = response.code
-            response.close()
             // KUN -->
             // Keep the status code so stale-URL failures can be told apart from transient errors.
+            val code = response.code
+            response.close()
             throw HttpException(code)
             // KUN <--
         }
@@ -327,7 +350,9 @@ class MangaCoverFetcher(
 
     private fun newRequest(source: HttpSource?): Request {
         val request = Request.Builder().apply {
+            // KUN -->
             url(activeUrl!!)
+            // KUN <--
 
             val sourceHeaders = source?.headers
             if (sourceHeaders != null) {

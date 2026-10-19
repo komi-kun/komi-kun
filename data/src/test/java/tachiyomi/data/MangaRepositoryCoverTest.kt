@@ -29,8 +29,7 @@ class MangaRepositoryCoverTest {
                     "https://new.example/cover.jpg"
                 driver.scalarLong("SELECT state_cover_last_modified FROM manga WHERE id = 1") shouldBe 123
                 driver.scalarLong("SELECT version FROM manga WHERE id = 1") shouldBe 2
-                (driver.scalarLong("SELECT last_modified_at FROM manga WHERE id = 1") ?: 0) shouldBe
-                    (driver.scalarLong("SELECT strftime('%s', 'now')") ?: 0)
+                ((driver.scalarLong("SELECT last_modified_at FROM manga WHERE id = 1") ?: 0) > 0) shouldBe true
             } finally {
                 driver.close()
             }

@@ -24,6 +24,15 @@ import tachiyomi.domain.source.service.SourceManager
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.coroutines.coroutineContext
 
+// KUN -->
+enum class CoverPersistResult {
+    Persisted,
+    SkippedWhileSyncing,
+    Obsolete,
+    Failed,
+}
+// KUN <--
+
 /**
  * Recovers a stale source cover when loading the stored URL fails.
  *
@@ -34,8 +43,11 @@ import kotlin.coroutines.coroutineContext
  * Source calls are deliberately conservative:
  * - only one refresh per manga at a time, and at most one per [MANGA_COOLDOWN_MS] for the same
  *   stale URL;
- * - starts are paced per source ([SOURCE_MIN_INTERVAL_MS]), with a generous ceiling
- *   ([MAX_ATTEMPTS_PER_SOURCE] per [SOURCE_WINDOW_MS]) as a safety valve;
+ * - cooldowns are 6 hours for definitive answers, 10 minutes for transient source failures and
+ *   15 minutes for dead replacements;
+ * - starts are paced per source ([SOURCE_MIN_INTERVAL_MS]), with a safety-valve budget
+ *   ([MAX_ATTEMPTS_PER_SOURCE] per [SOURCE_WINDOW_MS]) and a per-source circuit breaker that
+ *   pauses a source after [SOURCE_FAILURE_THRESHOLD] consecutive failures;
  * - at most [MAX_CONCURRENT_REQUESTS] source requests in flight across the app.
  */
 @Inject
@@ -69,6 +81,8 @@ class RefreshMangaCover(
     private val lastAttemptAt = ConcurrentHashMap<Long, Attempt>()
     private val sourceAttempts = HashMap<Long, ArrayDeque<Long>>()
     private val sourceNextAttemptAt = HashMap<Long, Long>()
+    private val sourceConsecutiveFailures = HashMap<Long, Int>()
+    private val sourceBlockedUntil = HashMap<Long, Long>()
     private val sourceAttemptsLock = Any()
     private val sourceSemaphore = Semaphore(MAX_CONCURRENT_REQUESTS)
 
@@ -117,22 +131,29 @@ class RefreshMangaCover(
     /**
      * Persists [newUrl] for [mangaId], but only if the entry still points at [staleUrl].
      * Called after the replacement image has been fetched so a dead replacement is not stored.
+     *
+     * [CoverPersistResult.SkippedWhileSyncing] and [CoverPersistResult.Failed] leave the
+     * replacement eligible for a later retry; [CoverPersistResult.Obsolete] means the entry
+     * moved on and the replacement should be treated as dead.
      */
-    suspend fun persistReplacement(mangaId: Long, staleUrl: String?, newUrl: String): Boolean {
-        if (mangaId <= 0 || staleUrl.isNullOrBlank() || newUrl == staleUrl) return false
+    suspend fun persistReplacement(mangaId: Long, staleUrl: String?, newUrl: String): CoverPersistResult {
+        if (mangaId <= 0 || staleUrl.isNullOrBlank() || newUrl == staleUrl) {
+            return CoverPersistResult.Obsolete
+        }
         return try {
             val manga = mangaRepository.getMangaById(mangaId)
 
-            // Non-library rows have no source cover to repair and would only cause source calls.
-            if (!manga.favorite) return false
-            if (coverCache.hasCustomCover(mangaId)) return false
+            // Non-library rows have no source cover to repair, and a user-provided cover must
+            // never be replaced.
+            if (!manga.favorite) return CoverPersistResult.Obsolete
+            if (manga.thumbnailUrl != manga.ogThumbnailUrl) return CoverPersistResult.Obsolete
+            if (coverCache.hasCustomCover(mangaId)) return CoverPersistResult.Obsolete
             // A concurrent recovery may have already written the same URL. Treat it as success so
             // the caller can keep the winner's in-memory alias instead of invalidating it.
-            if (manga.ogThumbnailUrl == newUrl) return true
+            if (manga.ogThumbnailUrl == newUrl) return CoverPersistResult.Persisted
             // A manual refresh may have updated the entry while the image was being fetched.
-            if (manga.ogThumbnailUrl != staleUrl) return false
-            // Never override a user-provided cover.
-            if (manga.thumbnailUrl != manga.ogThumbnailUrl) return false
+            if (manga.ogThumbnailUrl != staleUrl) return CoverPersistResult.Obsolete
+            if (mangaRepository.isSyncing(mangaId)) return CoverPersistResult.SkippedWhileSyncing
 
             // The WHERE clause keeps a concurrent manual refresh from being overwritten even
             // if it happens between the checks above and the write. It also fails while a sync
@@ -140,15 +161,31 @@ class RefreshMangaCover(
             // URL changes: keeping the Coil cache timestamp stable lets the already decoded image
             // stay in memory. The write bumps `version` explicitly because routine cover churn no
             // longer does; the triggers still stamp `last_modified_at` for the next sync.
-            if (!mangaRepository.updateCover(mangaId, staleUrl, newUrl)) return false
+            if (!mangaRepository.updateCover(mangaId, staleUrl, newUrl)) {
+                return classifyFailedWrite(mangaId, staleUrl, newUrl)
+            }
             coverCache.deleteFromCache(manga, false)
             xLogI("Refreshed stale cover for manga $mangaId")
-            true
+            CoverPersistResult.Persisted
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             xLogW("Could not persist the refreshed cover of manga $mangaId", e)
-            false
+            CoverPersistResult.Failed
+        }
+    }
+
+    /**
+     * Explains an `updateCover` miss without treating a concurrent winner or an active sync as
+     * a dead replacement.
+     */
+    private suspend fun classifyFailedWrite(mangaId: Long, staleUrl: String, newUrl: String): CoverPersistResult {
+        val current = mangaRepository.getMangaById(mangaId)
+        return when {
+            current.ogThumbnailUrl == newUrl -> CoverPersistResult.Persisted
+            mangaRepository.isSyncing(mangaId) -> CoverPersistResult.SkippedWhileSyncing
+            current.ogThumbnailUrl != staleUrl -> CoverPersistResult.Obsolete
+            else -> CoverPersistResult.Failed
         }
     }
 
@@ -178,14 +215,16 @@ class RefreshMangaCover(
 
         val source = sourceManager.get(manga.source) as? HttpSource ?: return null
         val remote = try {
-            sourceSemaphore.withPermit {
-                // Pace at the actual request start, not when the caller started waiting for a slot.
-                if (!awaitSourceSlot(source.id)) {
-                    xLogW("Cover refresh for manga $mangaId skipped: source ${source.id} budget exhausted")
-                    return@withPermit null
-                }
-                withContext(Dispatchers.IO) {
-                    withTimeout(SOURCE_TIMEOUT_MS) {
+            // Time-box waiting for a permit and the pacing delay as well, not just the request.
+            // Run everything on IO so the timeout uses a real clock instead of a test scheduler.
+            withContext(Dispatchers.IO) {
+                withTimeout(SOURCE_TIMEOUT_MS) {
+                    sourceSemaphore.withPermit {
+                        // Pace at the actual request start, not when the caller started waiting for a slot.
+                        if (!awaitSourceSlot(source.id)) {
+                            xLogW("Cover refresh for manga $mangaId paused (budget/breaker) for source ${source.id}")
+                            return@withPermit null
+                        }
                         source.getMangaUpdate(
                             manga = manga.toSManga(),
                             chapters = emptyList(),
@@ -199,15 +238,18 @@ class RefreshMangaCover(
             // If the outer request was cancelled at the same time, propagate that instead of
             // treating the timeout as a transient source failure.
             coroutineContext.ensureActive()
+            recordSourceFailure(source.id)
             recordAttempt(mangaId, staleUrl, TRANSIENT_COOLDOWN_MS)
             null
         } catch (e: CancellationException) {
             // A cancelled image request should not lock this entry out for the whole cooldown.
             throw e
         } catch (e: Exception) {
+            recordSourceFailure(source.id)
             recordAttempt(mangaId, staleUrl, TRANSIENT_COOLDOWN_MS)
             throw e
         } ?: return null
+        recordSourceSuccess(source.id)
 
         val newUrl = remote.manga.thumbnail_url
             ?.trim()
@@ -245,9 +287,14 @@ class RefreshMangaCover(
         while (true) {
             val waitMs = synchronized(sourceAttemptsLock) {
                 val currentTime = now()
+                val blockedUntil = sourceBlockedUntil[sourceId] ?: 0L
+                if (currentTime < blockedUntil) return false
                 val next = sourceNextAttemptAt[sourceId] ?: 0L
                 if (currentTime >= next) {
-                    if (!hasSourceBudget(sourceId, currentTime)) return false
+                    if (!hasSourceBudget(sourceId, currentTime)) {
+                        sourceBlockedUntil[sourceId] = currentTime + SOURCE_BUSY_COOLDOWN_MS
+                        return false
+                    }
                     // Do not consume the budget when the caller was cancelled while waiting.
                     coroutineContext.ensureActive()
                     sourceNextAttemptAt[sourceId] = currentTime + SOURCE_MIN_INTERVAL_MS
@@ -257,6 +304,32 @@ class RefreshMangaCover(
                 next - currentTime
             }
             delay(waitMs)
+        }
+    }
+
+    private fun recordSourceSuccess(sourceId: Long) {
+        synchronized(sourceAttemptsLock) {
+            sourceConsecutiveFailures.remove(sourceId)
+            sourceBlockedUntil.remove(sourceId)
+        }
+    }
+
+    private fun recordSourceFailure(sourceId: Long) {
+        val blocked = synchronized(sourceAttemptsLock) {
+            val failures = (sourceConsecutiveFailures[sourceId] ?: 0) + 1
+            sourceConsecutiveFailures[sourceId] = failures
+            if (failures >= SOURCE_FAILURE_THRESHOLD) {
+                sourceBlockedUntil[sourceId] = now() + SOURCE_FAILURE_COOLDOWN_MS
+                true
+            } else {
+                false
+            }
+        }
+        if (blocked) {
+            xLogW(
+                "Cover recovery for source $sourceId paused after " +
+                    "$SOURCE_FAILURE_THRESHOLD consecutive failures",
+            )
         }
     }
 
@@ -278,6 +351,9 @@ class RefreshMangaCover(
         const val TRANSIENT_COOLDOWN_MS = 10 * 60 * 1000L // 10 minutes
         const val DEAD_REPLACEMENT_COOLDOWN_MS = 15 * 60 * 1000L // 15 minutes
         const val SOURCE_TIMEOUT_MS = 60_000L
+        const val SOURCE_FAILURE_THRESHOLD = 5
+        const val SOURCE_FAILURE_COOLDOWN_MS = 2 * 60 * 60 * 1000L // 2 hours
+        const val SOURCE_BUSY_COOLDOWN_MS = 60_000L
         // A one-time host migration can leave a whole library stale. These are a safety valve,
         // not a typical limit: the per-manga cooldown is what prevents repeated requests.
         const val MAX_ATTEMPTS_PER_SOURCE = 200

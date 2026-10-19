@@ -68,10 +68,8 @@ BEGIN
   WHERE id = new.id;
 END;
 
--- KUN -->
--- Routine cover URL churn (CDN rotation) must not inflate the whole-row sync version: it would
--- overwrite genuine edits on other devices. `remote_cover` is therefore deliberately not part of
--- this condition; the stale-cover recovery path bumps `version` explicitly in `updateCover`.
+-- Routine cover URL churn must not bump the whole-row sync version; the stale-cover recovery
+-- path bumps it explicitly in updateCover.
 CREATE TRIGGER update_manga_version AFTER UPDATE ON manga
 BEGIN
     UPDATE manga SET version = version + 1
@@ -81,7 +79,6 @@ BEGIN
         new.user_favorite_at IS NOT old.user_favorite_at
     );
 END;
--- KUN <--
 -- SY <--
 
 getMangaById:
@@ -94,6 +91,11 @@ SELECT
     favorite_modified_at
 FROM manga
 WHERE id = :id;
+
+-- KUN -->
+getMangaIsSyncing:
+SELECT is_syncing FROM manga WHERE id = :mangaId;
+-- KUN <--
 
 -- TODO: this should ideally never really have more than 1 result
 getMangaByUrlAndSource:
@@ -357,7 +359,10 @@ updateCover:
 UPDATE manga SET
     remote_cover = :thumbnailUrl,
     version = version + 1
-WHERE id = :mangaId AND remote_cover = :staleUrl AND is_syncing = 0
+WHERE id = :mangaId
+AND remote_cover = :staleUrl
+AND remote_cover != :thumbnailUrl
+AND is_syncing = 0
 RETURNING id;
 -- KUN <--
 
