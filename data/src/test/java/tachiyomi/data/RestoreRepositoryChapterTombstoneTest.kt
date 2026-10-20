@@ -60,7 +60,7 @@ class RestoreRepositoryChapterTombstoneTest {
                     ),
                     isSync = true,
                     restoreCategories = false,
-                    removeMissingChapters = true,
+                    removeMissingChaptersBefore = 1_000L,
                     update = { it.toMangaUpdate() },
                 )
 
@@ -105,7 +105,7 @@ class RestoreRepositoryChapterTombstoneTest {
                     ),
                     isSync = true,
                     restoreCategories = false,
-                    removeMissingChapters = true,
+                    removeMissingChaptersBefore = 1_000L,
                     update = { it.toMangaUpdate() },
                 )
 
@@ -117,7 +117,57 @@ class RestoreRepositoryChapterTombstoneTest {
     }
 
     @Test
-    fun `a regular restore keeps chapters the backup does not list`() {
+    fun `a sync restore keeps a chapter added after the upload snapshot`() {
+        runBlocking {
+            val driver = newDriver()
+            try {
+                val database = DatabaseBindings.providesDatabase(driver)
+                val mangaRepository = MangaRepositoryImpl(database)
+                val chapterRepository = ChapterRepositoryImpl(database)
+                val repository = RestoreRepositoryImpl(
+                    database = database,
+                    mangaRepository = mangaRepository,
+                    chapterRepository = chapterRepository,
+                    trackRepository = TrackRepositoryImpl(database),
+                    mangaMetadataRepository = mockk(relaxed = true),
+                    customMangaRepository = mockk(relaxed = true),
+                )
+
+                driver.insertManga()
+                chapterRepository.addAll(
+                    listOf(
+                        chapter("/c1"),
+                        // Added by a library update after the sync snapshot; not tombstoned.
+                        chapter("/c2", lastModifiedAt = 2_000L),
+                    ),
+                )
+
+                repository.restoreManga(
+                    entries = listOf(
+                        RestoredManga(
+                            manga = manga(),
+                            chapters = emptyList(),
+                            categoryIds = null,
+                            history = emptyList(),
+                            tracks = emptyList(),
+                            excludedScanlators = emptyList(),
+                        ),
+                    ),
+                    isSync = true,
+                    restoreCategories = false,
+                    removeMissingChaptersBefore = 1_000L,
+                    update = { it.toMangaUpdate() },
+                )
+
+                chapterRepository.getChapterByMangaId(1).map { it.url } shouldContainExactly listOf("/c2")
+            } finally {
+                driver.close()
+            }
+        }
+    }
+
+    @Test
+    fun `a v1 sync restore keeps chapters the response does not list`() {
         runBlocking {
             val driver = newDriver()
             try {
@@ -147,9 +197,9 @@ class RestoreRepositoryChapterTombstoneTest {
                             excludedScanlators = emptyList(),
                         ),
                     ),
-                    isSync = false,
+                    isSync = true,
                     restoreCategories = false,
-                    removeMissingChapters = false,
+                    removeMissingChaptersBefore = null,
                     update = { it.toMangaUpdate() },
                 )
 
@@ -160,12 +210,13 @@ class RestoreRepositoryChapterTombstoneTest {
         }
     }
 
-    private fun chapter(url: String) = Chapter.create().copy(
+    private fun chapter(url: String, lastModifiedAt: Long = 0L) = Chapter.create().copy(
         mangaId = 1L,
         url = url,
         name = url,
         version = 1L,
         dateFetch = Instant.fromEpochMilliseconds(1_000),
+        lastModifiedAt = lastModifiedAt,
     )
 
     private fun manga() = Manga(

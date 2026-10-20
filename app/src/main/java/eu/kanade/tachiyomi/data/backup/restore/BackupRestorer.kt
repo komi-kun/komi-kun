@@ -57,7 +57,7 @@ class BackupRestorer(
     @Assisted private val notifier: BackupNotifier,
     @Assisted private val isSync: Boolean,
     // KUN -->
-    @Assisted private val removeMissingChapters: Boolean,
+    @Assisted private val removeMissingChaptersBefore: Long?,
     // KUN <--
     private val context: Context,
     private val downloadCache: DownloadCache,
@@ -82,7 +82,7 @@ class BackupRestorer(
             notifier: BackupNotifier,
             isSync: Boolean,
             // KUN -->
-            removeMissingChapters: Boolean,
+            removeMissingChaptersBefore: Long?,
             // KUN <--
         ): BackupRestorer
     }
@@ -97,7 +97,7 @@ class BackupRestorer(
         categoriesRestorer.isSync = isSync
         // SY <--
         // KUN -->
-        mangaRestorer.removeMissingChapters = removeMissingChapters
+        mangaRestorer.removeMissingChaptersBefore = removeMissingChaptersBefore
         // KUN <--
     }
 

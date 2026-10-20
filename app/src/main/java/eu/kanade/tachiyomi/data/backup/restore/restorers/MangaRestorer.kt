@@ -24,8 +24,8 @@ class MangaRestorer(
 ) {
     var isSync: Boolean = false
     // KUN -->
-    /** Whether the incoming backup has each manga's complete chapter list (SyncYomi v2). */
-    var removeMissingChapters: Boolean = false
+    /** Epoch seconds of the upload snapshot; local chapters older than it absent from the response are pruned. */
+    var removeMissingChaptersBefore: Long? = null
     // KUN <--
     private val timeZone = TimeZone.currentSystemDefault()
     private val now = Clock.System.now().toLocalDateTime(timeZone)
@@ -122,7 +122,7 @@ class MangaRestorer(
             entries,
             isSync,
             restoreCategories,
-            removeMissingChapters,
+            removeMissingChaptersBefore,
         ) { manga ->
             // KUN <--
             val update = fetchInterval.withFetchInterval(manga, now, timeZone, currentFetchWindow)

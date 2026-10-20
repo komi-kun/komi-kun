@@ -10,6 +10,8 @@ import dev.zacsweers.metro.SingleIn
 import exh.metadata.metadata.base.FlatMetadata
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import logcat.LogPriority
+import tachiyomi.core.common.util.system.logcat
 import tachiyomi.data.Database
 import tachiyomi.data.manga.MangaMapper
 import tachiyomi.data.manga.MergedMangaMapper
@@ -57,7 +59,7 @@ class RestoreRepositoryImpl(
         isSync: Boolean,
         // KUN -->
         restoreCategories: Boolean,
-        removeMissingChapters: Boolean,
+        removeMissingChaptersBefore: Long?,
         // KUN <--
         update: suspend (Manga) -> MangaUpdate,
     ) {
@@ -77,7 +79,7 @@ class RestoreRepositoryImpl(
                             isSync,
                             syncingFlag,
                             restoreCategories,
-                            removeMissingChapters,
+                            removeMissingChaptersBefore,
                         ),
                     ),
                 )
@@ -100,7 +102,7 @@ class RestoreRepositoryImpl(
         syncingFlag: Long,
         // KUN -->
         restoreCategories: Boolean,
-        removeMissingChapters: Boolean,
+        removeMissingChaptersBefore: Long?,
         // KUN <--
     ): Manga {
         val dbManga = mangaRepository.getMangaByUrlAndSourceId(entry.manga.url, entry.manga.source)
@@ -134,7 +136,9 @@ class RestoreRepositoryImpl(
         }
         // KUN <--
         // SY <--
-        restoreChapters(manga, entry.chapters, isSync, syncingFlag, removeMissingChapters)
+        // KUN -->
+        restoreChapters(manga, entry.chapters, isSync, syncingFlag, removeMissingChaptersBefore)
+        // KUN <--
         restoreTracking(manga, entry.tracks)
         restoreHistory(manga, entry.history)
         restoreExcludedScanlators(manga, entry.excludedScanlators)
@@ -285,7 +289,7 @@ class RestoreRepositoryImpl(
         isSync: Boolean,
         syncingFlag: Long,
         // KUN -->
-        removeMissingChapters: Boolean,
+        removeMissingChaptersBefore: Long?,
         // KUN <--
     ) {
         val dbChaptersByUrl = chapterRepository.getChapterByMangaId(manga.id)
@@ -296,13 +300,27 @@ class RestoreRepositoryImpl(
         // chapter missing from it was deleted elsewhere (and tombstoned on the server). Restore
         // only upserts, so without this the other devices keep the chapter forever. An empty list
         // is authoritative: if the server has no live chapters left for the manga, drop them all.
-        if (removeMissingChapters) {
+        //
+        // Only chapters that existed before the upload snapshot are candidates. A library update
+        // can add a chapter while this sync is in flight; it is absent from both the upload and
+        // the response, but it was never tombstoned and must survive. Its lastModifiedAt is newer
+        // than the snapshot, so the next delta can upload it.
+        //
+        // Downloaded files are left on disk; BackupRestorer's cache invalidation surfaces them as
+        // invalid downloads, which the user can clear from storage settings.
+        if (removeMissingChaptersBefore != null) {
             val incomingUrls = restoredChapters.mapTo(mutableSetOf()) { it.url }
             val removedIds = dbChaptersByUrl.values
-                .filterNot { it.url in incomingUrls }
+                .filterNot { it.url in incomingUrls || it.lastModifiedAt >= removeMissingChaptersBefore }
                 .map { it.id }
             if (removedIds.isNotEmpty()) {
-                chapterRepository.removeChaptersWithIds(removedIds)
+                // One bind per id: SQLite below 3.32 (API 26-29) limits a statement to 999 variables.
+                removedIds.chunked(500).forEach { chunk ->
+                    chapterRepository.removeChaptersWithIds(chunk)
+                }
+                logcat(LogPriority.DEBUG) {
+                    "Sync dropped ${removedIds.size} tombstoned chapter(s) of manga ${manga.id}"
+                }
             }
         }
         // KUN <--

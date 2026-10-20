@@ -387,7 +387,9 @@ class SyncManager(
                 ),
                 // KUN -->
                 // Drop local chapters that the v2 server no longer returns (tombstoned there).
-                removeMissingChapters = completeChapterList,
+                // Chapters added after this snapshot survive; the restorer also skips everything
+                // when library entries are disabled, before it ever reaches this call.
+                removeMissingChaptersBefore = syncStart.takeIf { completeChapterList },
                 // KUN <--
             )
             // SY <--
@@ -515,11 +517,9 @@ class SyncManager(
         // missing from it was deleted on another device.
         completeChapterList: Boolean,
     ): Boolean {
-        // KUN -->
         if (!completeChapterList && remoteChapters.isEmpty()) {
             return false
         }
-        // KUN <--
         val localChapterMap = localChapters.associateBy { it.url }
         val remoteChapterUrls = remoteChapters.mapTo(mutableSetOf()) { it.url }
 

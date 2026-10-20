@@ -73,9 +73,9 @@ class MangaRestorerTest {
     }
 
     @Test
-    fun `restore forwards the remove-missing-chapters flag to the repository`() = runTest {
+    fun `restore forwards the chapter pruning snapshot to the repository`() = runTest {
         val restorer = createRestorer(isSync = true)
-        restorer.removeMissingChapters = true
+        restorer.removeMissingChaptersBefore = 1_000L
         coEvery { getCategories.await() } returns emptyList()
 
         coEvery {
@@ -83,7 +83,7 @@ class MangaRestorerTest {
                 any(),
                 isSync = true,
                 restoreCategories = true,
-                removeMissingChapters = true,
+                removeMissingChaptersBefore = 1_000L,
                 update = any(),
             )
         } returns Unit
@@ -98,7 +98,7 @@ class MangaRestorerTest {
                 any(),
                 isSync = true,
                 restoreCategories = true,
-                removeMissingChapters = true,
+                removeMissingChaptersBefore = 1_000L,
                 update = any(),
             )
         }
