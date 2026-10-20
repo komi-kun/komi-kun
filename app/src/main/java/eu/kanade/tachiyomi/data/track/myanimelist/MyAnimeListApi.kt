@@ -309,8 +309,10 @@ class MyAnimeListApi(
     }
 
     companion object {
-        // Registered under KMK's MAL account
-        private const val CLIENT_ID = "2be14959235191ece14eebdc2eea0466"
+        // KUN -->
+        // komi-kun's own MAL API app (redirect URI: komikun://myanimelist-auth)
+        internal const val CLIENT_ID = "ce29fce03218b930eb51d12c612c14ee"
+        // KUN <--
 
         private const val BASE_OAUTH_URL = "https://myanimelist.net/v1/oauth2"
         private const val BASE_API_URL = "https://api.myanimelist.net/v2"
