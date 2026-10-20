@@ -142,10 +142,10 @@ def describe_comment(finding: object, valid: dict[str, set[int]]) -> dict | None
     }
 
 
-def existing_comments(repo: str, pr: str) -> set[tuple[str | None, int | None, str | None]]:
+def existing_comments(repo: str, pr: str) -> set[tuple[str | None, int | None, str | None]] | None:
     result = gh("api", "--paginate", f"repos/{repo}/pulls/{pr}/comments", "--jq", ".[]")
     if result.returncode != 0:
-        return set()
+        return None
 
     seen: set[tuple[str | None, int | None, str | None]] = set()
     for line in result.stdout.splitlines():
@@ -252,15 +252,18 @@ def main() -> int:
     valid = parse_diff(diff)
     seen = existing_comments(repo, pr)
     comments: list[dict] = []
-    for finding in findings:
-        comment = describe_comment(finding, valid)
-        if comment is None:
-            continue
-        key = (comment["path"], comment["line"], comment["body"])
-        if key in seen:
-            continue
-        seen.add(key)
-        comments.append(comment)
+    if seen is None:
+        print("Could not list existing comments; skipping inline comments to avoid duplicates.")
+    else:
+        for finding in findings:
+            comment = describe_comment(finding, valid)
+            if comment is None:
+                continue
+            key = (comment["path"], comment["line"], comment["body"])
+            if key in seen:
+                continue
+            seen.add(key)
+            comments.append(comment)
 
     comments.sort(key=lambda c: SEVERITY_ORDER[c["severity"]])
     comments = comments[:MAX_COMMENTS]
