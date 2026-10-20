@@ -42,27 +42,52 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
-      # Reviews run against the initial checkout (default branch or the PR merge
-      # ref), not the untrusted head the action switches to afterwards.
+      # Fail closed: only same-repo PRs are reviewed, because the action checks
+      # out the PR head and runs the agent with the base repository's secrets.
       - name: Verify same-repo PR
         id: pr-source
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
         run: |
-          if [ "$(gh pr view "$PR_NUMBER" --json isCrossRepository --jq .isCrossRepository)" = "true" ]; then
+          if ! cross=$(gh pr view "$PR_NUMBER" --json isCrossRepository --jq .isCrossRepository); then
+            echo "same_repo=false" >> "$GITHUB_OUTPUT"
+            echo "::error::Could not determine whether PR #$PR_NUMBER is from a fork; skipping review."
+            exit 0
+          fi
+          if [ "$cross" = "true" ]; then
             echo "same_repo=false" >> "$GITHUB_OUTPUT"
             echo "::notice::Skipping fork PR: OpenCode reviews only same-repo branches."
           else
             echo "same_repo=true" >> "$GITHUB_OUTPUT"
           fi
 
-      # The action checks out the PR head, so stage the helper and the config in
-      # $RUNNER_TEMP first. Both then come from the trusted initial checkout.
+      # The action switches to the PR head, so stage the helper and the agent
+      # config from the base branch (or the default branch for comments) first.
+      # OPENCODE_CONFIG_CONTENT is merged last, so the PR cannot override the
+      # read-only agent through its own .opencode/ config.
       - name: Stage trusted review tooling
+        if: steps.pr-source.outputs.same_repo == 'true'
         run: |
-          cp .github/scripts/post_opencode_review.py "$RUNNER_TEMP/post_opencode_review.py"
-          cp .github/opencode-review.json "$RUNNER_TEMP/opencode-review.json"
+          base_ref="${{ github.event.pull_request.base.ref || github.event.repository.default_branch }}"
+
+          stage() {
+            if git show "origin/${base_ref}:$1" > "$2" 2>/dev/null; then
+              return 0
+            fi
+            # Bootstrap: the helper and config are introduced by this PR itself.
+            echo "::warning::$1 is not on origin/${base_ref} yet; using the checked-out copy."
+            cp "$1" "$2"
+          }
+
+          stage .github/scripts/post_opencode_review.py "$RUNNER_TEMP/post_opencode_review.py"
+          stage .github/opencode-review.json "$RUNNER_TEMP/opencode-review.json"
+
+          {
+            echo "OPENCODE_CONFIG_CONTENT<<__OPENCODE_CONFIG__"
+            cat "$RUNNER_TEMP/opencode-review.json"
+            echo "__OPENCODE_CONFIG__"
+          } >> "$GITHUB_ENV"
 
       # Automatic review: `prompt` supplies the review instructions because a
       # `pull_request` event has no comment body.
@@ -72,9 +97,6 @@ jobs:
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Makes the read-only `opencode-review` agent the server default. The
-          # action's `agent` input is not forwarded by every CLI version.
-          OPENCODE_CONFIG: ${{ runner.temp }}/opencode-review.json
         with:
           model: opencode-go/deepseek-v4.1-flash
           agent: opencode-review
@@ -101,7 +123,9 @@ jobs:
                - `line` is the line number in the new version of the file and must be a line present in the diff.
                - `severity` is one of `low`, `medium`, `high`, `critical`.
                - Omit findings you cannot pin to a changed line.
-            2. Reply with one short paragraph summarising the review. Do not repeat every finding, because they are posted as inline comments. If there are no findings, write {"findings":[]} and say so.
+            2. Reply with the overarching review comment: 2-4 sentences describing what the PR does, your overall judgement (for example "Direction is good, but the trust boundary needs work"), and the main themes. Do not mention `findings.json` or the review process, and do not repeat every finding because they are posted as inline threads. If there are no findings, say that the PR looks good.
+
+            When it genuinely helps explain the change (a new flow, call chain, state machine or architecture change), include a Mermaid diagram in the overarching comment as a ```mermaid fenced block; GitHub renders it in the PR conversation. Skip it for small or purely mechanical PRs.
 
       # Manual re-review: no `prompt`, so the action uses the triggering comment
       # body and any extra instructions the commenter added after `/oc review`.
@@ -111,9 +135,6 @@ jobs:
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Makes the read-only `opencode-review` agent the server default. The
-          # action's `agent` input is not forwarded by every CLI version.
-          OPENCODE_CONFIG: ${{ runner.temp }}/opencode-review.json
         with:
           model: opencode-go/deepseek-v4.1-flash
           agent: opencode-review
@@ -143,7 +164,9 @@ jobs:
                - `line` is the line number in the new version of the file and must be a line present in the diff.
                - `severity` is one of `low`, `medium`, `high`, `critical`.
                - Omit findings you cannot pin to a changed line.
-            2. Reply with one short paragraph summarising the review. Do not repeat every finding, because they are posted as inline comments. If there are no findings, write {"findings":[]} and say so.
+            2. Reply with the overarching review comment: 2-4 sentences describing what the PR does, your overall judgement (for example "Direction is good, but the trust boundary needs work"), and the main themes. Do not mention `findings.json` or the review process, and do not repeat every finding because they are posted as inline threads. If there are no findings, say that the PR looks good.
+
+            When it genuinely helps explain the change (a new flow, call chain, state machine or architecture change), include a Mermaid diagram in the overarching comment as a ```mermaid fenced block; GitHub renders it in the PR conversation. Skip it for small or purely mechanical PRs.
 
       - name: Post inline review comments
         if: always() && steps.pr-source.outputs.same_repo == 'true'
