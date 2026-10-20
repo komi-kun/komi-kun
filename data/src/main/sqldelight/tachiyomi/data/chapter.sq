@@ -239,6 +239,15 @@ SET user_read = coalesce(:read, user_read),
     user_last_page_read = coalesce(:lastPageRead, user_last_page_read),
     remote_order = coalesce(:sourceOrder, remote_order),
     remote_date_upload = coalesce(:dateUpload, remote_date_upload),
+    -- KUN -->
+    -- An existing chapter URL kept the metadata it was inserted with, so a restore only refreshed
+    -- new URLs. Direct assignment (not coalesce): the merged chapter is the version winner on a
+    -- sync restore, and a null scanlator must be able to clear a stale one.
+    remote_name = :name,
+    remote_scanlator = :scanlator,
+    remote_chapter_number = :chapterNumber,
+    state_date_fetch = :dateFetch,
+    -- KUN <--
     -- SY -->
     version = coalesce(:version, version),
     last_modified_at = coalesce(:lastModifiedAt, last_modified_at),

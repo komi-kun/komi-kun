@@ -479,6 +479,13 @@ class RestoreRepositoryImpl(
                     // KUN -->
                     sourceOrder = chapter.sourceOrder,
                     dateUpload = chapter.dateUpload,
+                    // Existing chapters kept their old title/scanlator/number/fetch date, so a restore
+                    // only refreshed new URLs. Direct assignment: the chapter passed here is the
+                    // version winner, and an explicit null must be able to clear a stale scanlator.
+                    name = chapter.name,
+                    scanlator = chapter.scanlator,
+                    chapterNumber = chapter.chapterNumber,
+                    dateFetch = chapter.dateFetch,
                     // KUN <--
                     chapterId = chapter.id,
                     version = chapter.version,
