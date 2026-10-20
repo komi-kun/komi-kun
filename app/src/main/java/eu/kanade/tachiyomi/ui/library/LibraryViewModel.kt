@@ -1438,7 +1438,12 @@ class LibraryViewModel(
         searchQuery.update { query }
     }
 
-    fun updateActiveCategoryIndex(index: Int, categoryId: Long) {
+    fun updateActiveCategoryIndex(
+        index: Int,
+        // KUN -->
+        categoryId: Long,
+        // KUN <--
+    ) {
         activeCategoryIndex.update { index }
         // KMK -->
         // KUN -->

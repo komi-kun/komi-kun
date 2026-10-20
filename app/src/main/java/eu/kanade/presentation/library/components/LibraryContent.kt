@@ -64,8 +64,9 @@ fun LibraryContent(
         var isRefreshing by remember(pagerState.currentPage) { mutableStateOf(false) }
 
         // KUN --> the pager must follow the coerced index even when the tab row is hidden
+        val categoryIds = categories.map { it.id }
         // KMK -->
-        LaunchedEffect(categories) {
+        LaunchedEffect(categoryIds) {
             val targetPage = when {
                 categories.isEmpty() -> 0
                 activeCategoryIndex != pagerState.currentPage -> activeCategoryIndex.coerceAtMost(categories.size - 1)
