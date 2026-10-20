@@ -173,15 +173,14 @@ class SyncManager(
         // merges locally, so there is nothing to make authoritative there. Probe v2 even though
         // force push already implies a full upload; `needsFullSync()` alone would short-circuit.
         //
-        // A pending force push is only meaningful for SyncYomi. If the user switched services the
-        // raised versions are local-only, so drop the flag and run a normal sync.
+        // A pending force push is only meaningful for SyncYomi. On another service it is ignored for
+        // this run but kept: a previous repair may already have written the database bump, and
+        // clearing the marker would let an ordinary SyncYomi sync later upload those still-high
+        // versions with empty disabled sections. Switching back to SyncYomi resumes the repair.
         val resumingForcePush = resumesPendingForcePush(
             pendingForcePush = pendingForcePush,
             isSyncYomi = syncService is SyncYomiSyncService,
         )
-        if (pendingForcePush && !resumingForcePush) {
-            syncPreferences.forcePushPending.set(false)
-        }
         if (resumingForcePush) {
             logcat(LogPriority.DEBUG) { "Resuming unfinished force push" }
         }
@@ -355,11 +354,10 @@ class SyncManager(
         if (remoteBackup == null) {
             logcat(LogPriority.DEBUG) { "Skip restore due to network issues" }
             // KUN -->
-            // The server never accepted the upload and no database bump was written, so drop the
-            // intent: a later ordinary sync is safe.
-            if (forcePushV2) {
-                syncPreferences.forcePushPending.set(false)
-            }
+            // Keep forcePushPending: a null result can mean the server accepted the merge and only
+            // the response was lost. Clearing it would let the next ordinary sync upload the still
+            // high local versions with empty disabled sections and roll the forced state back.
+            // Resuming is safe even when the upload truly failed before applying.
             notifier.showSyncError("Sync failed to get remote data")
             // KUN <--
             return
@@ -385,12 +383,8 @@ class SyncManager(
             // KUN -->
             commitRemoteState(result)
             markFullSyncCompleted(full, result)
-            // The repair is complete: the server has the forced state and the local bump is written.
-            if (forcePushV2) {
-                syncPreferences.forcePushPending.set(false)
-            }
             // KUN <--
-            finishWithSuccess(syncStart, "Sync completed successfully")
+            finishWithSuccess(syncStart, "Sync completed successfully", forcePushCompleted = forcePushV2)
             return
         }
 
@@ -453,6 +447,11 @@ class SyncManager(
         // The upload carried the server's values for disabled sections so the forced payload would
         // not blank them. They must not be written back locally either: the restorer has no
         // per-section flag for history, tracking or custom info, so it would apply them anyway.
+        //
+        // `newSyncData.backupManga` holds the same instances as `remoteBackup.backupManga`, so this
+        // mutates those too. It must run only after the upload; nothing below reads the cleared
+        // fields (the change checks look at list sizes and the category/preference sections, and the
+        // restore is what consumes this payload).
         if (forcePushV2) {
             clearDisabledSectionsForRestore(newSyncData, syncOptions)
         }
@@ -493,12 +492,8 @@ class SyncManager(
             // KUN -->
             commitRemoteState(result)
             markFullSyncCompleted(full, result)
-            // The forced state reached the server and the local bump is written; nothing to restore.
-            if (forcePushV2) {
-                syncPreferences.forcePushPending.set(false)
-            }
             // KUN <--
-            finishWithSuccess(syncStart, "Sync completed successfully")
+            finishWithSuccess(syncStart, "Sync completed successfully", forcePushCompleted = forcePushV2)
             return
         }
         // SY <--
@@ -604,10 +599,23 @@ class SyncManager(
     }
 
     // SY -->
-    private fun finishWithSuccess(syncStart: Long, message: String) {
+    private fun finishWithSuccess(
+        syncStart: Long,
+        message: String,
+        // KUN -->
+        // Clear the force-push marker only after the cursor advanced, so a crash between the two
+        // cannot leave the repair marked done while `lastPushedAt` still points at the old window.
+        forcePushCompleted: Boolean = false,
+        // KUN <--
+    ) {
         syncPreferences.lastSyncTimestamp.set(Date().time)
         // everything modified before this instant reached the server; the next delta starts here
         syncPreferences.lastPushedAt.set(syncStart)
+        // KUN -->
+        if (forcePushCompleted) {
+            syncPreferences.forcePushPending.set(false)
+        }
+        // KUN <--
         notifier.showSyncSuccess(message)
     }
     // SY <--

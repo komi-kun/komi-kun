@@ -244,9 +244,12 @@ class SyncYomiSyncService(
     /**
      * A full copy of the server's library, used by a force push to keep the sections the user
      * disabled syncing (history, tracking, categories, custom info) instead of replacing them with
-     * empty manga payloads. Null only when the server reports 404 (nothing stored yet); any other
-     * failure throws, and an empty body is treated as a failure so a broken response cannot make
-     * the caller upload empty sections over the server's data.
+     * empty manga payloads.
+     *
+     * Null means "the server has nothing to preserve": either 404 (no state stored yet) or a 200
+     * with a zero-byte body (an existing but empty `sync_state`, which is how an empty protobuf
+     * encodes). `SyncManager` then decides whether that is safe: a never-synced device proceeds,
+     * while a previously-synced one aborts. Any other failure throws.
      */
     suspend fun fetchSnapshot(): Backup? {
         val host = syncPreferences.clientHost.get()
@@ -261,9 +264,8 @@ class SyncYomiSyncService(
                 throw SyncYomiException("Failed to fetch sync snapshot: ${resp.code}")
             }
             val bytes = resp.body.bytes()
-            if (bytes.isEmpty()) {
-                throw SyncYomiException("Empty sync snapshot")
-            }
+            // 404 and an empty protobuf mean the same thing to the caller: no stored data.
+            if (bytes.isEmpty()) return null
             return protoBuf.decodeFromByteArray(Backup.serializer(), bytes)
         }
     }
