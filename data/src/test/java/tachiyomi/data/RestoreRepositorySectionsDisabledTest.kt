@@ -49,8 +49,8 @@ class RestoreRepositorySectionsDisabledTest {
 
                 val before = trackRepository.getTracksByMangaId(1L)
 
-                // A changed track, a new tracker and a missing tracker: the winning sync payload
-                // would replace everything if the section were enabled.
+                // A changed track, a new tracker and a missing tracker: nothing may be written
+                // while the section is disabled.
                 restore(
                     repository = repository,
                     isSync = true,
@@ -60,7 +60,7 @@ class RestoreRepositorySectionsDisabledTest {
                         track(trackerId = 30L, title = "New", lastChapterRead = 1.0),
                     ),
                 )
-                // ... and an empty payload would delete every track.
+                // ... and an empty payload is still a no-op.
                 restore(repository = repository, isSync = true, restoreTracking = false, tracks = emptyList())
 
                 trackRepository.getTracksByMangaId(1L) shouldBe before
@@ -99,7 +99,7 @@ class RestoreRepositorySectionsDisabledTest {
                     history = listOf(RestoredHistory("/c1", Instant.fromEpochMilliseconds(9_000), 200L)),
                     removeMissingChaptersBefore = 1_000L,
                 )
-                // An empty payload would tombstone every entry on a winning sync restore.
+                // An empty payload must not touch history either while the section is disabled.
                 restore(
                     repository = repository,
                     isSync = true,

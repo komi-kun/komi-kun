@@ -152,8 +152,6 @@ class RestoreRepositoryImpl(
         restoreTracking(
             manga,
             entry.tracks,
-            isSync,
-            incomingIsNewerOrEqual,
             restoreTracking,
         )
         restoreHistory(
@@ -162,9 +160,6 @@ class RestoreRepositoryImpl(
             isSync,
             incomingIsNewerOrEqual,
             restoreHistory,
-            // The upload snapshot is also the cutoff for history removals: a row read while the
-            // sync was in flight is absent from the response but must survive.
-            removeMissingChaptersBefore,
         )
         restoreExcludedScanlators(
             manga,
@@ -552,14 +547,13 @@ class RestoreRepositoryImpl(
         }
     }
 
+    // KUN -->
     private suspend fun restoreHistory(
         manga: Manga,
         restoredHistory: List<RestoredHistory>,
         isSync: Boolean,
         incomingIsNewerOrEqual: Boolean,
         restoreHistory: Boolean,
-        // Epoch seconds of the upload snapshot, or null when the payload is not a complete list.
-        syncSnapshotAt: Long?,
     ) {
         // A disabled section is a hard no-op: no reads, no writes, no version/timestamp changes.
         if (!restoreHistory) return
@@ -573,7 +567,7 @@ class RestoreRepositoryImpl(
 
         // A backup of a library that still had duplicate chapters carries a history entry for each
         // copy; they are one chapter now, read as late as any copy and for as long as all of them.
-        // A null readAt means the entry was removed, so it only wins when every copy agrees.
+        // A null readAt is an explicit tombstone for that entry, not an absent one.
         val incomingByChapterId = restoredHistory
             // The chapter is unknown locally; ignore it instead of guessing an id.
             .filter { it.chapterUrl in chapterIdsByUrl }
@@ -582,30 +576,19 @@ class RestoreRepositoryImpl(
                 copies.mapNotNull { it.readAt }.maxOrNull() to copies.sumOf { it.readDuration }
             }
 
-        // A winning sync payload carries the complete history for the manga, removals included.
-        // A manual restore or a losing payload only merges and never removes anything.
-        val authoritative = isSync && incomingIsNewerOrEqual
+        // Only an explicit tombstone (lastRead == 0 / readAt == null) removes an entry, and only a
+        // winning sync payload may write it. The payload is never treated as a complete list: the
+        // manga payload is versioned per manga rather than per history section, so a peer with
+        // history disabled can upload an empty section and any manga edit carries the whole
+        // section. Absent entries are therefore preserved; deletion propagation needs a
+        // protocol-level tombstone design.
+        val payloadWins = isSync && incomingIsNewerOrEqual
         database.transaction {
             applyHistoryEntries(
                 incomingByChapterId,
                 dbHistoryByChapterId,
-                allowRemoval = authoritative,
+                allowRemoval = payloadWins,
             )
-            if (!authoritative || syncSnapshotAt == null) return@transaction
-
-            // A chapter absent from the complete payload was removed on another device. Rows read
-            // at or after the upload snapshot happened while this sync was in flight and survive.
-            val snapshotMillis = syncSnapshotAt * 1000
-            val removedIds = dbHistoryByChapterId.values
-                .filter { row ->
-                    row.chapterId !in incomingByChapterId &&
-                        row.readAt?.toEpochMilliseconds()?.let { it < snapshotMillis } == true
-                }
-                .map { it.id }
-            // One bind per id: SQLite below 3.32 (API 26-29) limits a statement to 999 variables.
-            removedIds.chunked(500).forEach { chunk ->
-                database.historyQueries.markHistoryRemoved(manga.id, chunk)
-            }
         }
     }
 
@@ -630,9 +613,10 @@ class RestoreRepositoryImpl(
                 }
                 incomingReadAt == null -> {
                     if (allowRemoval) {
-                        // backup lastRead == 0 means removed. Write NULL, never epoch 0, and keep
-                        // the duration so the removal can be re-published instead of looking like
-                        // a chapter that was never read.
+                        // lastRead == 0 means this specific entry was removed. Write NULL, never
+                        // epoch 0, and keep the duration so the removal is not mistaken for a
+                        // chapter that was never read. Match on the chapter id, never the history
+                        // row id: the two differ.
                         database.historyQueries.setHistoryFromRestore(
                             readAt = null,
                             readDuration = incomingDuration,
@@ -656,50 +640,30 @@ class RestoreRepositoryImpl(
             }
         }
     }
+    // KUN <--
 
+    // KUN -->
     private suspend fun restoreTracking(
         manga: Manga,
         restoredTracks: List<Track>,
-        isSync: Boolean,
-        incomingIsNewerOrEqual: Boolean,
         restoreTracking: Boolean,
     ) {
         // A disabled section is a hard no-op: no reads, no writes, no version/timestamp changes.
         if (!restoreTracking) return
-        val dbTracks = trackRepository.getTracksByMangaId(manga.id)
-        val dbTrackByTrackerId = dbTracks.associateBy { it.trackerId }
+        val dbTrackByTrackerId = trackRepository.getTracksByMangaId(manga.id).associateBy { it.trackerId }
         // A backup may carry several rows for one tracker. Keep the last one and normalise the
         // legacy `libraryId = 0` placeholder to "not in a tracker list" (null).
-        val incomingTrackByTrackerId = restoredTracks
+        val incomingTracks = restoredTracks
             .map { it.copy(libraryId = it.libraryId.takeIf { id -> id != 0L }) }
             .associateBy { it.trackerId }
+            .values
 
-        if (isSync && incomingIsNewerOrEqual) {
-            // A winning sync payload is authoritative. Overwrite every non-identity field so a
-            // cleared score/finish date/private flag or lower progress propagates, and delete the
-            // trackers it no longer lists (an empty payload removes them all).
-            val toDelete = dbTracks
-                .map { it.trackerId }
-                .filterNot { it in incomingTrackByTrackerId }
-            val toUpsert = incomingTrackByTrackerId.values.map { track ->
-                track.copy(
-                    // Keep the identity column of an existing row so upsert updates instead of
-                    // trying to insert a second row for the same (manga, tracker) pair.
-                    id = dbTrackByTrackerId[track.trackerId]?.id ?: 0L,
-                    mangaId = manga.id,
-                )
-            }
-            database.transaction {
-                toDelete.forEach { trackRepository.delete(manga.id, it) }
-                if (toUpsert.isNotEmpty()) {
-                    trackRepository.upsertAll(toUpsert)
-                }
-            }
-            return
-        }
-
-        // Manual restore or a losing payload: merge monotonically and never delete.
-        val (existingTracks, newTracks) = incomingTrackByTrackerId.values
+        // Merge monotonically and never delete. Tracks absent from the payload are preserved: the
+        // manga payload is versioned per manga, not per tracking section, so a peer with tracking
+        // disabled can upload an empty section and any manga edit carries the whole section.
+        // Deletion propagation needs protocol tombstones/per-tracker versions; until then an empty
+        // or partial list must never be treated as delete-all.
+        val (existingTracks, newTracks) = incomingTracks
             .mapNotNull { track ->
                 val dbTrack = dbTrackByTrackerId[track.trackerId]
                     ?: // New track
@@ -767,6 +731,7 @@ class RestoreRepositoryImpl(
             }
         }
     }
+    // KUN <--
 
     private suspend fun restoreExcludedScanlators(
         manga: Manga,

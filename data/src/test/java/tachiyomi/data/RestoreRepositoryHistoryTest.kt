@@ -23,9 +23,11 @@ import tachiyomi.domain.manga.model.toMangaUpdate
 import kotlin.time.Instant
 
 /**
- * History restore semantics: a winning sync payload is authoritative (exact timestamps and
- * tombstones), while a manual restore or a losing payload only max-merges and never removes.
- * A removal is stored as `read_at IS NULL`, never epoch 0.
+ * History restore semantics. A winning sync payload applies exact timestamps and honours explicit
+ * tombstones (`lastRead == 0` / `readAt == null` for that entry), while a manual restore or a
+ * losing payload only max-merges. Absence from the payload never removes a local row: the manga
+ * payload is versioned per manga, not per history section, so an absent entry may just mean the
+ * peer had history disabled. A removal is stored as `read_at IS NULL`, never epoch 0.
  */
 class RestoreRepositoryHistoryTest {
 
@@ -45,7 +47,7 @@ class RestoreRepositoryHistoryTest {
                 restore(
                     repository = repository,
                     chapters = listOf(chapter("/c1")),
-                    // backup lastRead == 0 => readAt == null, i.e. removed.
+                    // backup lastRead == 0 => readAt == null, i.e. this entry was removed.
                     history = listOf(RestoredHistory("/c1", readAt = null, readDuration = 40L)),
                 )
 
@@ -74,7 +76,6 @@ class RestoreRepositoryHistoryTest {
                 restore(
                     repository = repository,
                     chapters = listOf(chapter("/c1")),
-                    // An older read still wins because the payload owns the value on a sync.
                     history = listOf(RestoredHistory("/c1", Instant.fromEpochMilliseconds(5_000), 40L)),
                 )
 
@@ -88,7 +89,7 @@ class RestoreRepositoryHistoryTest {
     }
 
     @Test
-    fun `a local row absent from the payload is removed unless it was read during the sync`() {
+    fun `a local row absent from a winning payload is preserved`() {
         runBlocking {
             val driver = newDriver()
             try {
@@ -101,25 +102,22 @@ class RestoreRepositoryHistoryTest {
                     listOf(chapter("/c1"), chapter("/c2"), chapter("/c3")),
                 )
                 driver.insertHistory(chapters[0].id, readAt = 500L, readDuration = 10L)
-                // Removed on another device: read before the snapshot, absent from the payload.
                 driver.insertHistory(chapters[1].id, readAt = 500L, readDuration = 20L)
-                // Read after the snapshot (sync in flight): absent from the payload but must stay.
-                driver.insertHistory(chapters[2].id, readAt = 2_000_000L, readDuration = 30L)
+                driver.insertHistory(chapters[2].id, readAt = 2_000L, readDuration = 30L)
 
                 restore(
                     repository = repository,
                     chapters = listOf(chapter("/c1"), chapter("/c2"), chapter("/c3")),
                     history = listOf(RestoredHistory("/c1", Instant.fromEpochMilliseconds(900), 10L)),
-                    // Epoch seconds. Rows read at/after 1_000_000 ms survive.
-                    syncSnapshotAt = 1_000L,
                 )
 
                 val rows = historyRows(database)
                 rows.getValue(chapters[0].id).read_at shouldBe Instant.fromEpochMilliseconds(900)
-                rows.getValue(chapters[1].id).read_at shouldBe null
-                // Duration is preserved so the removal can be re-published.
+                // The payload is not a complete list (the peer may have history disabled), so
+                // entries it does not mention survive instead of being tombstoned.
+                rows.getValue(chapters[1].id).read_at shouldBe Instant.fromEpochMilliseconds(500)
                 rows.getValue(chapters[1].id).read_duration shouldBe 20L
-                rows.getValue(chapters[2].id).read_at shouldBe Instant.fromEpochMilliseconds(2_000_000)
+                rows.getValue(chapters[2].id).read_at shouldBe Instant.fromEpochMilliseconds(2_000)
             } finally {
                 driver.close()
             }
@@ -127,7 +125,7 @@ class RestoreRepositoryHistoryTest {
     }
 
     @Test
-    fun `an empty winning payload tombstones every row`() {
+    fun `an empty winning payload preserves every local history row`() {
         runBlocking {
             val driver = newDriver()
             try {
@@ -138,16 +136,17 @@ class RestoreRepositoryHistoryTest {
                 driver.insertManga(version = 5L, lastModifiedAt = 10L)
                 val chapters = chapterRepository.addAll(listOf(chapter("/c1"), chapter("/c2")))
                 driver.insertHistory(chapters[0].id, readAt = 500L, readDuration = 10L)
-                driver.insertHistory(chapters[1].id, readAt = 500L, readDuration = 20L)
+                driver.insertHistory(chapters[1].id, readAt = 700L, readDuration = 20L)
 
                 restore(
                     repository = repository,
                     chapters = listOf(chapter("/c1"), chapter("/c2")),
                     history = emptyList(),
-                    syncSnapshotAt = 1_000L,
                 )
 
-                historyRows(database).values.forEach { it.read_at shouldBe null }
+                val rows = historyRows(database)
+                rows.getValue(chapters[0].id).read_at shouldBe Instant.fromEpochMilliseconds(500)
+                rows.getValue(chapters[1].id).read_at shouldBe Instant.fromEpochMilliseconds(700)
             } finally {
                 driver.close()
             }
@@ -179,7 +178,6 @@ class RestoreRepositoryHistoryTest {
                         // An older read keeps the local (later) timestamp.
                         RestoredHistory("/c2", Instant.fromEpochMilliseconds(3_000), 10L),
                     ),
-                    syncSnapshotAt = 1_000L,
                 )
 
                 val rows = historyRows(database)
@@ -215,8 +213,6 @@ class RestoreRepositoryHistoryTest {
                         RestoredHistory("/c1", readAt = null, readDuration = 10L),
                         RestoredHistory("/c2", Instant.fromEpochMilliseconds(3_000), 10L),
                     ),
-                    // A manual restore may not delete absent rows even with a snapshot present.
-                    syncSnapshotAt = 1_000L,
                 )
 
                 val rows = historyRows(database)
@@ -247,13 +243,52 @@ class RestoreRepositoryHistoryTest {
                     repository = repository,
                     chapters = listOf(chapter("/c1")),
                     history = listOf(RestoredHistory("/unknown", Instant.fromEpochMilliseconds(9_000), 10L)),
-                    syncSnapshotAt = 1_000L,
                 )
 
                 val rows = historyRows(database)
                 rows.keys shouldBe setOf(chapters[0].id)
-                // /c1 is absent from the payload, but it was read before the snapshot: tombstoned.
+                // An unknown URL is ignored, and the known row absent from the payload survives.
+                rows.getValue(chapters[0].id).read_at shouldBe Instant.fromEpochMilliseconds(5_000)
+            } finally {
+                driver.close()
+            }
+        }
+    }
+
+    @Test
+    fun `an explicit tombstone matches the chapter id even when the history row id differs`() {
+        runBlocking {
+            val driver = newDriver()
+            try {
+                val database = DatabaseBindings.providesDatabase(driver)
+                val mangaRepository = MangaRepositoryImpl(database)
+                val chapterRepository = ChapterRepositoryImpl(database)
+                val repository = restoreRepository(database, mangaRepository, chapterRepository)
+                driver.insertManga(version = 5L, lastModifiedAt = 10L)
+                val chapters = chapterRepository.addAll(listOf(chapter("/c1"), chapter("/c2")))
+                // History row ids deliberately differ from the chapter ids: a write keyed on the
+                // history row id would miss the chapter entirely.
+                val removedRowId = 900L
+                val keptRowId = 901L
+                driver.insertHistory(chapters[0].id, readAt = 5_000L, readDuration = 100L, id = removedRowId)
+                driver.insertHistory(chapters[1].id, readAt = 7_000L, readDuration = 200L, id = keptRowId)
+
+                restore(
+                    repository = repository,
+                    chapters = listOf(chapter("/c1"), chapter("/c2")),
+                    history = listOf(
+                        RestoredHistory("/c1", readAt = null, readDuration = 40L),
+                        RestoredHistory("/c2", readAt = null, readDuration = 50L),
+                    ),
+                )
+
+                val rows = historyRows(database)
+                rows.getValue(chapters[0].id).id shouldBe removedRowId
                 rows.getValue(chapters[0].id).read_at shouldBe null
+                rows.getValue(chapters[0].id).read_duration shouldBe 100L
+                rows.getValue(chapters[1].id).id shouldBe keptRowId
+                rows.getValue(chapters[1].id).read_at shouldBe null
+                rows.getValue(chapters[1].id).read_duration shouldBe 200L
             } finally {
                 driver.close()
             }
@@ -267,7 +302,6 @@ class RestoreRepositoryHistoryTest {
         lastModifiedAt: Long = 10L,
         chapters: List<Chapter>,
         history: List<RestoredHistory>,
-        syncSnapshotAt: Long? = null,
     ) {
         repository.restoreManga(
             entries = listOf(
@@ -285,7 +319,7 @@ class RestoreRepositoryHistoryTest {
             restoreTracking = true,
             restoreHistory = true,
             restoreCustomInfo = true,
-            removeMissingChaptersBefore = syncSnapshotAt,
+            removeMissingChaptersBefore = null,
             update = { it.toMangaUpdate() },
         )
     }
@@ -367,12 +401,19 @@ class RestoreRepositoryHistoryTest {
         ).await()
     }
 
-    private suspend fun SqlDriver.insertHistory(chapterId: Long, readAt: Long?, readDuration: Long) {
+    private suspend fun SqlDriver.insertHistory(
+        chapterId: Long,
+        readAt: Long?,
+        readDuration: Long,
+        id: Long? = null,
+    ) {
+        val idColumn = if (id == null) "" else "id, "
+        val idValue = if (id == null) "" else "$id, "
         execute(
             null,
             """
-            INSERT INTO history(manga_id, chapter_id, read_at, read_duration)
-            VALUES (1, $chapterId, ${readAt ?: "NULL"}, $readDuration)
+            INSERT INTO history(${idColumn}manga_id, chapter_id, read_at, read_duration)
+            VALUES (${idValue}1, $chapterId, ${readAt ?: "NULL"}, $readDuration)
             """.trimIndent(),
             0,
         ).await()

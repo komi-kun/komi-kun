@@ -23,13 +23,15 @@ import tachiyomi.domain.track.model.Track
 import kotlin.time.Instant
 
 /**
- * Tracking restore semantics: a winning sync payload is authoritative (exact overwrite and
- * removal), while a manual restore or a losing payload only merges monotonically and never deletes.
+ * Tracking restore semantics: every payload, winning or not, merges monotonically. Absence from the
+ * payload never deletes a local track and an empty list is not delete-all, because the manga payload
+ * is versioned per manga rather than per tracking section (a peer with tracking disabled can upload
+ * an empty section). Deletion propagation needs protocol tombstones/per-tracker versions.
  */
 class RestoreRepositoryTrackingTest {
 
     @Test
-    fun `a winning sync payload overwrites every non identity field`() {
+    fun `a winning sync payload merges monotonically and never clears local fields`() {
         runBlocking {
             val driver = newDriver()
             try {
@@ -54,8 +56,8 @@ class RestoreRepositoryTrackingTest {
                 )
                 driver.resetMangaSyncState(version = 5L, lastModifiedAt = 10L)
 
-                // A clearing payload: score 0, no finish date, not private, lower progress, no
-                // library id and a different remote id/url must all propagate.
+                // Even a winning payload must not clear a local score, finish date, private flag,
+                // library id or progress. Only non-blank/non-zero incoming values are merged in.
                 restore(
                     repository,
                     isSync = true,
@@ -81,14 +83,15 @@ class RestoreRepositoryTrackingTest {
                 track.title shouldBe "Remote"
                 track.remoteId shouldBe 99L
                 track.remoteUrl shouldBe "/remote"
-                track.libraryId.shouldBeNull()
-                track.lastChapterRead shouldBe 5.0
-                track.totalChapters shouldBe 20L
-                track.status shouldBe 1L
-                track.score shouldBe 0.0
-                track.startDate.shouldBeNull()
-                track.finishDate.shouldBeNull()
-                track.private shouldBe false
+                // null means "not in a tracker list" here, so it never clears a known id.
+                track.libraryId shouldBe 7L
+                track.lastChapterRead shouldBe 50.0
+                track.totalChapters shouldBe 50L
+                track.status shouldBe 2L
+                track.score shouldBe 8.0
+                track.startDate shouldBe Instant.fromEpochMilliseconds(1_000)
+                track.finishDate shouldBe Instant.fromEpochMilliseconds(2_000)
+                track.private shouldBe true
 
                 // Restoring the child table must not look like a user edit to delta sync.
                 val manga = mangaRepository.getMangaByUrlAndSourceId("/manga/1", 1L)!!
@@ -101,7 +104,7 @@ class RestoreRepositoryTrackingTest {
     }
 
     @Test
-    fun `a winning sync payload inserts new trackers and deletes absent ones`() {
+    fun `a winning sync payload inserts new trackers and preserves absent ones`() {
         runBlocking {
             val driver = newDriver()
             try {
@@ -111,7 +114,8 @@ class RestoreRepositoryTrackingTest {
                 val repository = restoreRepository(database, mangaRepository, trackRepository)
                 driver.insertManga(version = 5L, lastModifiedAt = 10L)
                 driver.insertTrack(trackerId = 10L, title = "Keep")
-                driver.insertTrack(trackerId = 20L, title = "Delete")
+                // Absent from the payload; a peer with tracking disabled may omit it.
+                driver.insertTrack(trackerId = 20L, title = "Keep Local")
                 driver.resetMangaSyncState(version = 5L, lastModifiedAt = 10L)
 
                 restore(
@@ -125,7 +129,7 @@ class RestoreRepositoryTrackingTest {
 
                 trackRepository.getTracksByMangaId(1L)
                     .map { it.trackerId }
-                    .shouldContainExactlyInAnyOrder(10L, 30L)
+                    .shouldContainExactlyInAnyOrder(10L, 20L, 30L)
             } finally {
                 driver.close()
             }
@@ -133,7 +137,7 @@ class RestoreRepositoryTrackingTest {
     }
 
     @Test
-    fun `an empty winning sync payload deletes every track`() {
+    fun `an empty tracking list preserves local tracks`() {
         runBlocking {
             val driver = newDriver()
             try {
@@ -148,7 +152,9 @@ class RestoreRepositoryTrackingTest {
 
                 restore(repository, isSync = true, tracks = emptyList())
 
-                trackRepository.getTracksByMangaId(1L) shouldBe emptyList()
+                trackRepository.getTracksByMangaId(1L)
+                    .map { it.trackerId }
+                    .shouldContainExactlyInAnyOrder(10L, 20L)
             } finally {
                 driver.close()
             }
