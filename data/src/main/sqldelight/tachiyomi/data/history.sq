@@ -60,6 +60,24 @@ ON CONFLICT(chapter_id) DO UPDATE SET
     read_duration = read_duration + excluded.read_duration;
 -- KUN <--
 
+-- KUN -->
+-- Exact history write for a restore that owns the row: the payload decides read_at (NULL means
+-- the entry was removed) while read_duration never moves backwards.
+setHistoryFromRestore:
+UPDATE history
+SET read_at = :readAt,
+    read_duration = max(read_duration, :readDuration)
+WHERE chapter_id = :chapterId;
+
+-- Mark history rows removed without deleting them, so the tombstone can be re-published instead
+-- of looking like a chapter that was never read.
+markHistoryRemoved:
+UPDATE history
+SET read_at = NULL
+WHERE manga_id = :mangaId
+AND chapter_id IN :chapterIds;
+-- KUN <--
+
 getReadDuration:
 SELECT coalesce(sum(read_duration), 0)
 FROM history;
