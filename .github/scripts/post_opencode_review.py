@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Post the findings written by the OpenCode review agent as inline PR threads.
+"""Post the schema-shaped review written by the OpenCode review agent.
 
-The agent writes ``build/opencode-review/findings.json`` (gitignored, so the
-OpenCode GitHub action does not try to commit it). The action itself posts the
-overarching summary comment; this script validates every finding against the
-pull request diff and posts each one as a review thread on the exact changed
-line, so they show up in the "Files changed" view.
+The agent writes ``build/opencode-review/findings.json`` (gitignored) with a
+``summary`` and a list of ``findings``. This script validates every finding
+against the pull request diff, then posts one review whose body is the summary
+and whose comments are threads on the exact changed lines. It removes the
+action's own short status comment so the PR shows a single review entry.
 """
 
 from __future__ import annotations
@@ -18,7 +18,14 @@ import sys
 from pathlib import Path
 
 FINDINGS_PATH = Path("build/opencode-review/findings.json")
+DIFF_PATH = Path("build/opencode-review/pr.diff")
 VALID_SEVERITIES = {"low", "medium", "high", "critical"}
+SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+MAX_COMMENTS = 50
+DEFAULT_SUMMARY = (
+    "Automated review by [OpenCode](https://opencode.ai/docs/github/). "
+    "These findings are advisory: verify them before changing code."
+)
 
 
 def gh(*args: str, stdin: str | None = None) -> subprocess.CompletedProcess[str]:
@@ -60,14 +67,13 @@ def parse_diff(diff: str) -> dict[str, set[int]]:
             state = "hunk"
         elif state == "hunk" and path is not None and new_line is not None:
             if raw.startswith("+") or raw.startswith(" "):
-                valid[path].add(new_line)
+                valid.get(path, set()).add(new_line)
                 new_line += 1
             elif raw.startswith("-") or raw.startswith("\\"):
                 continue
             else:
                 new_line = None
         elif state not in ("diff", "minus"):
-            # Unexpected line outside a hunk: stop trusting the current path.
             new_line = None
 
     return valid
@@ -78,22 +84,28 @@ def _hunk_start(header: str) -> int | None:
     return int(match.group(1)) if match else None
 
 
-def load_findings() -> list[dict]:
+def load_review() -> tuple[str, list]:
     if not FINDINGS_PATH.is_file():
-        print(f"No {FINDINGS_PATH}; skipping inline comments.")
-        return []
+        print(f"No {FINDINGS_PATH}; skipping review.")
+        return "", []
 
     try:
         data = json.loads(FINDINGS_PATH.read_text())
     except (OSError, json.JSONDecodeError) as exc:
         print(f"Could not read findings: {exc}")
-        return []
+        return "", []
 
-    findings = data.get("findings") if isinstance(data, dict) else None
+    if not isinstance(data, dict):
+        print("Findings file is not an object; skipping review.")
+        return "", []
+
+    summary = data.get("summary")
+    if not isinstance(summary, str):
+        summary = ""
+    findings = data.get("findings")
     if not isinstance(findings, list):
-        print("Findings file has no 'findings' list; skipping.")
-        return []
-    return findings
+        findings = []
+    return summary.strip(), findings
 
 
 def describe_comment(finding: object, valid: dict[str, set[int]]) -> dict | None:
@@ -125,37 +137,59 @@ def describe_comment(finding: object, valid: dict[str, set[int]]) -> dict | None
         "path": path,
         "line": line,
         "side": "RIGHT",
+        "severity": severity,
         "body": f"**[{severity}]** {body.strip()}",
     }
 
 
-def main() -> int:
-    findings = load_findings()
-    if not findings:
-        return 0
+def existing_comments(repo: str, pr: str) -> set[tuple[str | None, int | None, str | None]]:
+    result = gh("api", "--paginate", f"repos/{repo}/pulls/{pr}/comments", "--jq", ".[]")
+    if result.returncode != 0:
+        return set()
 
-    pr = os.environ.get("PR_NUMBER")
-    repo = os.environ.get("GITHUB_REPOSITORY")
-    if not pr or not repo:
-        print("PR_NUMBER and GITHUB_REPOSITORY are required.")
-        return 1
+    seen: set[tuple[str | None, int | None, str | None]] = set()
+    for line in result.stdout.splitlines():
+        try:
+            comment = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(comment, dict):
+            seen.add(
+                (
+                    comment.get("path"),
+                    comment.get("line") or comment.get("original_line"),
+                    comment.get("body"),
+                )
+            )
+    return seen
 
-    diff = gh("pr", "diff", pr).stdout
-    if not diff:
-        print("Could not read the pull request diff; skipping inline comments.")
-        return 0
 
-    valid = parse_diff(diff)
-    comments = [c for f in findings if (c := describe_comment(f, valid))]
-    if not comments:
-        print("No findings mapped to changed lines; skipping inline comments.")
-        return 0
+def review_comment(comment: dict) -> dict:
+    return {
+        "path": comment["path"],
+        "line": comment["line"],
+        "side": "RIGHT",
+        "body": comment["body"],
+    }
 
-    head = gh("pr", "view", pr, "--json", "headRefOid", "--jq", ".headRefOid").stdout.strip()
-    if not head:
-        print("Could not resolve the pull request head commit.")
-        return 0
 
+def post_summary(repo: str, pr: str, summary: str) -> None:
+    if not summary:
+        return
+    result = gh(
+        "api",
+        "--method",
+        "POST",
+        f"repos/{repo}/issues/{pr}/comments",
+        "--input",
+        "-",
+        stdin=json.dumps({"body": summary}),
+    )
+    if result.returncode != 0:
+        print(f"Could not post the summary comment: {result.stderr.strip()}")
+
+
+def post_individually(repo: str, pr: str, head: str, comments: list[dict]) -> int:
     posted = 0
     for comment in comments:
         result = gh(
@@ -165,14 +199,108 @@ def main() -> int:
             f"repos/{repo}/pulls/{pr}/comments",
             "--input",
             "-",
-            stdin=json.dumps({"commit_id": head, **comment}),
+            stdin=json.dumps({"commit_id": head, **review_comment(comment)}),
         )
         if result.returncode == 0:
             posted += 1
         else:
             print(f"Could not comment on {comment['path']}:{comment['line']}: {result.stderr.strip()}")
+    return posted
 
-    print(f"Posted {posted}/{len(comments)} inline comment(s).")
+
+def delete_action_comment(repo: str, pr: str) -> None:
+    """Remove the action's own short status comment for this run."""
+    run_id = os.environ.get("GITHUB_RUN_ID")
+    if not run_id:
+        return
+
+    result = gh("api", "--paginate", f"repos/{repo}/issues/{pr}/comments", "--jq", ".[]")
+    if result.returncode != 0:
+        return
+
+    for line in result.stdout.splitlines():
+        try:
+            comment = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(comment, dict):
+            continue
+        user = comment.get("user", {})
+        if not isinstance(user, dict) or user.get("login") != "github-actions[bot]":
+            continue
+        if f"/actions/runs/{run_id}" not in str(comment.get("body", "")):
+            continue
+        gh("api", "--method", "DELETE", f"repos/{repo}/issues/comments/{comment['id']}")
+
+
+def main() -> int:
+    summary, findings = load_review()
+    if not summary and not findings:
+        return 0
+
+    pr = os.environ.get("PR_NUMBER")
+    repo = os.environ.get("GITHUB_REPOSITORY")
+    if not pr or not repo:
+        print("PR_NUMBER and GITHUB_REPOSITORY are required.")
+        return 1
+
+    diff = DIFF_PATH.read_text() if DIFF_PATH.is_file() else gh("pr", "diff", pr).stdout
+    if not diff:
+        print("Could not read the pull request diff; skipping review.")
+        return 0
+
+    valid = parse_diff(diff)
+    seen = existing_comments(repo, pr)
+    comments: list[dict] = []
+    for finding in findings:
+        comment = describe_comment(finding, valid)
+        if comment is None:
+            continue
+        key = (comment["path"], comment["line"], comment["body"])
+        if key in seen:
+            continue
+        seen.add(key)
+        comments.append(comment)
+
+    comments.sort(key=lambda c: SEVERITY_ORDER[c["severity"]])
+    comments = comments[:MAX_COMMENTS]
+
+    if not summary and not comments:
+        print("Nothing new to post.")
+        return 0
+
+    head = gh("pr", "view", pr, "--json", "headRefOid", "--jq", ".headRefOid").stdout.strip()
+    if not head:
+        print("Could not resolve the pull request head commit.")
+        return 0
+
+    payload = {
+        "commit_id": head,
+        "event": "COMMENT",
+        "body": summary or DEFAULT_SUMMARY,
+        "comments": [review_comment(comment) for comment in comments],
+    }
+    result = gh(
+        "api",
+        "--method",
+        "POST",
+        f"repos/{repo}/pulls/{pr}/reviews",
+        "--input",
+        "-",
+        stdin=json.dumps(payload),
+    )
+    if result.returncode == 0:
+        print(f"Posted review with {len(comments)} inline comment(s).")
+        delete_action_comment(repo, pr)
+        return 0
+
+    # A single rejected line fails the whole review. Fall back to a summary
+    # comment plus individual threads so a bad line only loses that finding.
+    print(f"Review submission failed, falling back: {result.stderr.strip()}")
+    post_summary(repo, pr, summary or DEFAULT_SUMMARY)
+    posted = post_individually(repo, pr, head, comments)
+    print(f"Posted {posted}/{len(comments)} inline comment(s) individually.")
+    delete_action_comment(repo, pr)
     return 0
 
 

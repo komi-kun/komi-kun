@@ -332,16 +332,19 @@ signing secrets.
 
 1. Open a **draft** same-repo PR: the `OpenCode PR Review` run is created but
    the job is **skipped**, so no comment is posted.
-2. Mark it **ready for review**: the job runs and posts a review by
-   `github-actions[bot]` with inline comments in **Files changed** plus a short
-   summary comment.
+2. Mark it **ready for review**: the job runs and posts one review by
+   `github-actions[bot]`: an overarching summary in the review body (Mermaid
+   diagrams are allowed) and inline threads on the changed lines in **Files
+   changed**.
 3. Push a commit: no new review run starts (only `opened` and
    `ready_for_review` are wired).
 4. Comment `/oc review` (or `/opencode review`, optionally followed by
    instructions): the job runs again. The `issue_comment` path only picks up the
    workflow from the **default branch**, so this command works only after
-   `opencode_review.yml` is merged to `master`.
-5. Comment from a non-collaborator: the job is skipped.
+   `opencode_review.yml` is merged to `master`. The command must be lowercase
+   and must start the comment.
+5. Comment from a non-collaborator: the job is skipped. Fork PRs and PRs that
+   change `.opencode/` are skipped too.
 
 ---
 
