@@ -55,6 +55,9 @@ jobs:
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Makes the read-only `opencode-review` agent the server default. The
+          # action's `agent` input is not forwarded by every CLI version.
+          OPENCODE_CONFIG: ${{ github.workspace }}/.github/opencode-review.json
         with:
           model: opencode-go/deepseek-v4.1-flash
           agent: opencode-review
@@ -91,6 +94,9 @@ jobs:
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Makes the read-only `opencode-review` agent the server default. The
+          # action's `agent` input is not forwarded by every CLI version.
+          OPENCODE_CONFIG: ${{ github.workspace }}/.github/opencode-review.json
         with:
           model: opencode-go/deepseek-v4.1-flash
           agent: opencode-review

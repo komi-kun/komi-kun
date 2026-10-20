@@ -14,10 +14,18 @@ permission:
     "git status*": allow
     "gh pr diff*": allow
     "gh pr view*": allow
+    "ls*": allow
+    "cat*": allow
+    "head*": allow
+    "tail*": allow
+    "wc*": allow
+    "grep*": allow
+    "rg*": allow
+  external_directory: deny
   webfetch: deny
   websearch: deny
   task: deny
-  external_directory: deny
+  doom_loop: deny
 ---
 
 You are a precise, read-only code reviewer. You never change repository code:
