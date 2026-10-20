@@ -1,0 +1,77 @@
+name: OpenCode PR Review
+
+# Automatic review on the first non-draft PR event, plus manual re-reviews via
+# `/oc review` or `/opencode review` comments. Pushes (`synchronize`) do not
+# re-trigger the workflow.
+on:
+  pull_request:
+    types: [opened, ready_for_review]
+  issue_comment:
+    types: [created]
+
+concurrency:
+  group: opencode-review-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    name: Review PR
+    if: >-
+      (github.event_name == 'pull_request' && github.event.pull_request.draft == false) ||
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request &&
+       (github.event.comment.author_association == 'OWNER' ||
+        github.event.comment.author_association == 'MEMBER' ||
+        github.event.comment.author_association == 'COLLABORATOR') &&
+       (startsWith(github.event.comment.body, '/oc review') ||
+        startsWith(github.event.comment.body, '/opencode review')))
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Checkout target branch/PR
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      # Automatic review: `prompt` supplies the review instructions because a
+      # `pull_request` event has no comment body.
+      - name: Run OpenCode PR Review
+        if: github.event_name == 'pull_request'
+        uses: anomalyco/opencode/github@latest
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          model: opencode-go/deepseek-v4.1-flash
+          use_github_token: true
+          prompt: |
+            You are reviewing code for the Komikku Android application (Kotlin, Jetpack Compose, Coroutines/Flow, Android Architecture Components).
+
+            This is a read-only review. Do not modify files, create branches or commits, or push anything.
+
+            Review guidelines:
+            1. Concurrency: Check for Coroutine leaks, proper Dispatcher usage, race conditions, or unhandled exceptions.
+            2. Compose: Ensure state hoisting follows best practices, detect unnecessary recompositions, and verify proper remember/derivedStateOf usage.
+            3. Android Resources & Lifecycle: Check lifecycle scopes, memory leaks, and proper cleanup of resources.
+            4. Performance & DB: Look for unnecessary queries on the main thread, unindexed searches, or inefficient list processing.
+            5. Architecture: Ensure domain logic remains separated from UI components and adheres to existing Tachiyomi/Mihon conventions.
+            6. Brevity: Do not explain obvious language features. Provide clear, direct, and actionable findings with file references.
+
+            For every finding, include the exact `path:line` reference, the severity, and a concrete fix.
+            Do not post additional comments yourself; reply with one consolidated review.
+
+      # Manual re-review: no `prompt`, so the action uses the triggering comment
+      # body and any extra instructions the commenter added after `/oc review`.
+      - name: Run OpenCode PR Review (comment command)
+        if: github.event_name == 'issue_comment'
+        uses: anomalyco/opencode/github@latest
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          model: opencode-go/deepseek-v4.1-flash
+          use_github_token: true

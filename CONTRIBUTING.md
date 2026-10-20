@@ -28,6 +28,27 @@ Before you start, please note that the ability to use following technologies is 
 
 - Join [the Discord server](https://discord.gg/85jB7V5AJR) for online help and to ask questions while developing.
 
+## Automated code reviews
+
+Pull requests get an automated review from [OpenCode](https://opencode.ai/docs/github/) (posted by `github-actions[bot]`) when they are first opened as non-draft or marked ready for review. Pushing new commits does **not** re-trigger a review, so the bot does not comment on every push.
+
+To request a re-review or give the reviewer focused instructions, comment on the pull request with one of:
+
+```
+/oc review
+/opencode review
+```
+
+Anything you add after the command is passed to the reviewer, for example:
+
+```
+/oc review focus on the Compose recomposition and coroutine cancellation paths
+```
+
+Only repository owners, members and collaborators can trigger a review this way; comments from other users are ignored. The review is advisory, not a substitute for a human review: verify every finding before changing code.
+
+The workflow lives in [`.github/workflows/opencode_review.yml`](.github/workflows/opencode_review.yml).
+
 # Translations
 
 Translations are done externally via [Weblate](https://hosted.weblate.org/engage/komikku-app/). See [our website](https://komikku-app.github.io/docs/contribute#translation) for more details.
