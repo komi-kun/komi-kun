@@ -188,6 +188,8 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
         graph.inject(this)
         // KUN -->
         GetCustomMangaInfo.setInstance(getCustomMangaInfo)
+        // Drop MyAnimeList tokens issued to a different OAuth client before any tracker work starts.
+        graph.trackerManager.myAnimeList.invalidateOAuthIfClientChanged()
         // KUN <--
         Injekt.importModule(injektMetroInteropModule)
         // KUN -->
