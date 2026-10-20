@@ -24,8 +24,8 @@ current state in this repo.
 
 1. [ ] Enable Actions on the fork (one-time UI acknowledgement).
 2. [ ] Confirm default branch = `master`; make the repo public or enable Dependency Graph.
-3. [ ] Add the 4 signing secrets. The 2 Google secrets are **optional** — CI is
-   green without them.
+3. [ ] Add the 4 signing secrets and `OPENCODE_API_KEY` (for automated PR
+   reviews). The 2 Google secrets are **optional** — CI is green without them.
 4. [ ] Leave Actions workflow permissions at "Read repository contents".
 5. [ ] No environments / no Actions variables required.
 6. [ ] Test: same-repo PR → push to `master` → `Nightly Builder`. The nightly is

@@ -11,8 +11,8 @@ on:
 
 concurrency:
   group: opencode-review-${{ github.event.pull_request.number || github.event.issue.number }}
-  # Do not cancel a run midway: the action posts a placeholder comment that it
-  # only replaces when it finishes, so cancellation would leave it behind.
+  # Reviews are slow and expensive; queue one run and let the job timeout bound
+  # it instead of cancelling a review midway.
   cancel-in-progress: false
 
 jobs:
@@ -42,22 +42,39 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
-      # The action checks out the PR branch, which may not contain this helper
-      # (fork PRs, or a PR opened before the helper existed). Stage it first.
-      - name: Stage inline-comment helper
-        run: cp .github/scripts/post_opencode_review.py "$RUNNER_TEMP/post_opencode_review.py"
+      # Reviews run against the initial checkout (default branch or the PR merge
+      # ref), not the untrusted head the action switches to afterwards.
+      - name: Verify same-repo PR
+        id: pr-source
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+        run: |
+          if [ "$(gh pr view "$PR_NUMBER" --json isCrossRepository --jq .isCrossRepository)" = "true" ]; then
+            echo "same_repo=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping fork PR: OpenCode reviews only same-repo branches."
+          else
+            echo "same_repo=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # The action checks out the PR head, so stage the helper and the config in
+      # $RUNNER_TEMP first. Both then come from the trusted initial checkout.
+      - name: Stage trusted review tooling
+        run: |
+          cp .github/scripts/post_opencode_review.py "$RUNNER_TEMP/post_opencode_review.py"
+          cp .github/opencode-review.json "$RUNNER_TEMP/opencode-review.json"
 
       # Automatic review: `prompt` supplies the review instructions because a
       # `pull_request` event has no comment body.
       - name: Run OpenCode PR Review
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && steps.pr-source.outputs.same_repo == 'true'
         uses: anomalyco/opencode/github@5caf1f9f6f5f30e13fc50a788ad953d97ae3748f # github-v1.2.26
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Makes the read-only `opencode-review` agent the server default. The
           # action's `agent` input is not forwarded by every CLI version.
-          OPENCODE_CONFIG: ${{ github.workspace }}/.github/opencode-review.json
+          OPENCODE_CONFIG: ${{ runner.temp }}/opencode-review.json
         with:
           model: opencode-go/deepseek-v4.1-flash
           agent: opencode-review
@@ -67,7 +84,7 @@ jobs:
 
             This is a read-only review. Do not modify repository files. The only file you may write is `build/opencode-review/findings.json`.
 
-            Inspect the pull request diff with `git diff` (the appended PR context includes the base branch). Only report lines that are part of the diff.
+            Inspect the changes with `gh pr diff`, or `git diff origin/<base-branch>...HEAD` using the base branch from the appended PR context. A bare `git diff` is empty because the action checks out a clean branch. Only report lines that are part of the diff.
 
             Review guidelines:
             1. Concurrency: Check for Coroutine leaks, proper Dispatcher usage, race conditions, or unhandled exceptions.
@@ -89,14 +106,14 @@ jobs:
       # Manual re-review: no `prompt`, so the action uses the triggering comment
       # body and any extra instructions the commenter added after `/oc review`.
       - name: Run OpenCode PR Review (comment command)
-        if: github.event_name == 'issue_comment'
+        if: github.event_name == 'issue_comment' && steps.pr-source.outputs.same_repo == 'true'
         uses: anomalyco/opencode/github@5caf1f9f6f5f30e13fc50a788ad953d97ae3748f # github-v1.2.26
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Makes the read-only `opencode-review` agent the server default. The
           # action's `agent` input is not forwarded by every CLI version.
-          OPENCODE_CONFIG: ${{ github.workspace }}/.github/opencode-review.json
+          OPENCODE_CONFIG: ${{ runner.temp }}/opencode-review.json
         with:
           model: opencode-go/deepseek-v4.1-flash
           agent: opencode-review
@@ -106,7 +123,7 @@ jobs:
 
             This is a read-only review. Do not modify repository files. The only file you may write is `build/opencode-review/findings.json`.
 
-            Inspect the pull request diff with `git diff` (the appended PR context includes the base branch). Only report lines that are part of the diff.
+            Inspect the changes with `gh pr diff`, or `git diff origin/<base-branch>...HEAD` using the base branch from the appended PR context. A bare `git diff` is empty because the action checks out a clean branch. Only report lines that are part of the diff.
 
             Review guidelines:
             1. Concurrency: Check for Coroutine leaks, proper Dispatcher usage, race conditions, or unhandled exceptions.
@@ -129,7 +146,7 @@ jobs:
             2. Reply with one short paragraph summarising the review. Do not repeat every finding, because they are posted as inline comments. If there are no findings, write {"findings":[]} and say so.
 
       - name: Post inline review comments
-        if: always()
+        if: always() && steps.pr-source.outputs.same_repo == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}

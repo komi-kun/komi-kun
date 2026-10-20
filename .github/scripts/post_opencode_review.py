@@ -86,7 +86,10 @@ def load_findings() -> list[dict]:
     return findings
 
 
-def describe_comment(finding: dict, valid: dict[str, set[int]]) -> dict | None:
+def describe_comment(finding: object, valid: dict[str, set[int]]) -> dict | None:
+    if not isinstance(finding, dict):
+        return None
+
     path = finding.get("path")
     body = finding.get("body")
     line = finding.get("line")

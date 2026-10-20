@@ -32,7 +32,7 @@ Before you start, please note that the ability to use following technologies is 
 
 Pull requests get an automated review from [OpenCode](https://opencode.ai/docs/github/) when they are first opened as non-draft or marked ready for review. The findings are posted by `github-actions[bot]` as **inline comments on the changed lines** in the "Files changed" view, plus one short summary comment. Pushing new commits does **not** re-trigger a review, so the bot does not comment on every push.
 
-Automatic reviews only run for same-repo, non-bot pull requests (fork workflows do not receive repository secrets). For a fork PR, a collaborator can trigger a review with the command below.
+Reviews only run for same-repo, non-bot pull requests: fork workflows do not receive repository secrets, and the reviewer must not load configuration from an untrusted branch. For a fork PR, review the changes manually or port them to a branch in this repository.
 
 To request a re-review or give the reviewer focused instructions, comment on the pull request with one of:
 
