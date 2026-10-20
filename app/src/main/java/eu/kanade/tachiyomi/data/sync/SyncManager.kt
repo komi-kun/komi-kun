@@ -17,6 +17,7 @@ import eu.kanade.tachiyomi.data.sync.service.SyncData
 import eu.kanade.tachiyomi.data.sync.service.SyncResult
 import eu.kanade.tachiyomi.data.sync.service.SyncYomiSyncService
 import eu.kanade.tachiyomi.data.sync.service.WebDavSyncService
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.toList
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.protobuf.ProtoBuf
@@ -88,9 +89,12 @@ class SyncManager(
      * KUN -->
      * @param forceFull one-shot request to upload the whole library even when the service would accept
      * a delta. No-op for services that always upload everything (Google Drive, WebDAV, v1).
-     * @param forcePush one-shot SyncYomi v2 repair: raise the local sync versions so this device's
-     * state wins the version-first merge. Rejected when the service is not SyncYomi v2 or when a
-     * manga-payload section is disabled.
+     * @param forcePush one-shot SyncYomi v2 repair: raise this device's sync versions so its library,
+     * chapters and read state win the version-first merge. It requires library entries and chapters.
+     * Disabled manga-payload sections (history, tracking, custom info) and categories are copied from
+     * the server snapshot into the upload so the forced payloads do not blank them. The raised
+     * versions live only in the upload until the server accepts it; an interrupted run resumes on a
+     * later sync through [SyncPreferences.forcePushPending].
      * KUN <--
      */
     suspend fun syncData(
@@ -106,6 +110,12 @@ class SyncManager(
 
         // Reset isSyncing in case it was left over or failed syncing during restore.
         syncRepository.resetSyncing()
+
+        // KUN -->
+        // A force push interrupted after the server accepted it left this flag set. Resume it, so a
+        // later ordinary sync cannot upload the bumped rows with empty disabled sections.
+        val pendingForcePush = syncPreferences.forcePushPending.get()
+        // KUN <--
 
         val syncOptions = syncPreferences.getSyncSettings()
 
@@ -162,10 +172,24 @@ class SyncManager(
         // A force push is a SyncYomi v2-only repair: Drive/WebDAV always upload everything and v1
         // merges locally, so there is nothing to make authoritative there. Probe v2 even though
         // force push already implies a full upload; `needsFullSync()` alone would short-circuit.
+        //
+        // A pending force push is only meaningful for SyncYomi. If the user switched services the
+        // raised versions are local-only, so drop the flag and run a normal sync.
+        val resumingForcePush = resumesPendingForcePush(
+            pendingForcePush = pendingForcePush,
+            isSyncYomi = syncService is SyncYomiSyncService,
+        )
+        if (pendingForcePush && !resumingForcePush) {
+            syncPreferences.forcePushPending.set(false)
+        }
+        if (resumingForcePush) {
+            logcat(LogPriority.DEBUG) { "Resuming unfinished force push" }
+        }
+        val effectiveForcePush = forcePush || resumingForcePush
         var forcePushV2 = false
         val serviceNeedsFull = try {
             val service = syncService
-            if (forcePush && service is SyncYomiSyncService) {
+            if (effectiveForcePush && service is SyncYomiSyncService) {
                 forcePushV2 = service.supportsV2(forceProbe = true)
             }
             service?.needsFullSync() ?: true
@@ -178,10 +202,11 @@ class SyncManager(
         // KUN <--
 
         // KUN -->
-        // A one-shot force push is a SyncYomi v2-only repair, and it needs the library and
-        // chapters. Other manga-payload sections may stay disabled: their server-side values are
-        // copied into the upload below so the forced payloads do not replace them with empty data.
-        if (forcePush && !forcePushV2) {
+        // A force push is a SyncYomi v2-only repair, and it needs the library and chapters. Other
+        // manga-payload sections may stay disabled: their server-side values are copied into the
+        // upload below so the forced payloads do not replace them with empty data. An unresumable
+        // pending force push keeps its flag and uploads nothing.
+        if (effectiveForcePush && !forcePushV2) {
             notifier.showSyncError(context.stringResource(KMR.strings.pref_sync_force_push_requires_v2))
             return
         }
@@ -190,30 +215,9 @@ class SyncManager(
             return
         }
 
-        // Fetch the server's copy before raising any version. If this fails, the repair can still
-        // be retried without leaving half the local library force-authoritative.
-        var remoteSnapshot: Backup? = null
-        if (forcePushV2 && syncOptions.forcePushNeedsSnapshot) {
-            remoteSnapshot = try {
-                (syncService as SyncYomiSyncService).fetchSnapshot()
-            } catch (e: Exception) {
-                logcat(LogPriority.ERROR, e) { "Failed to fetch snapshot for force push" }
-                notifier.showSyncError(e.message)
-                return
-            }
-        }
-
-        // One-shot, before the upload snapshot is built: every library row now outranks a stale
-        // device's counter, so the server accepts this device's state. last_modified_at is set
-        // just before syncStart so this repair does not force a second full delta next run.
-        if (forcePushV2) {
-            syncRepository.markForForcePush(
-                version = Clock.System.now().toEpochMilliseconds(),
-                lastModifiedAt = (syncStart - 1).coerceAtLeast(0),
-                bumpCategories = syncOptions.categories,
-            )
-            logcat(LogPriority.DEBUG) { "Force push: local sync versions raised above every peer" }
-        }
+        // Shared by the in-memory upload bump and the database bump that server acceptance triggers.
+        var forceVersion = 0L
+        var forceModifiedAt = 0L
         // KUN <--
 
         val databaseManga = if (full) {
@@ -261,13 +265,64 @@ class SyncManager(
         logcat(LogPriority.DEBUG) { "End create backup" }
 
         // KUN -->
+        // Fetch the server's copy only once the upload snapshot is built, which keeps the window
+        // between reading the server and sending the forced payload short. It is still fetched
+        // before any DB mutation, so a failure can be retried without half a repair applied.
+        var remoteSnapshot: Backup? = null
+        if (forcePushV2 && syncOptions.forcePushNeedsSnapshot) {
+            remoteSnapshot = try {
+                (syncService as SyncYomiSyncService).fetchSnapshot()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                logcat(LogPriority.ERROR, e) { "Failed to fetch snapshot for force push" }
+                notifier.showSyncError(e.message)
+                return
+            }
+        }
+
+        // A 404 or empty snapshot means the server cannot tell us what to preserve. A brand-new
+        // server has nothing to lose; an established one would be wiped by the forced payloads, so
+        // fail closed instead of uploading.
+        if (forcePushV2 && syncOptions.forcePushNeedsSnapshot && remoteSnapshot == null) {
+            val hadRemoteSync = syncPreferences.syncCursor.get() != 0L ||
+                syncPreferences.lastFullSync.get() != 0L
+            if (forcePushMissingSnapshotIsFatal(
+                    needsSnapshot = syncOptions.forcePushNeedsSnapshot,
+                    snapshotAvailable = false,
+                    hadRemoteSync = hadRemoteSync,
+                )
+            ) {
+                logcat(LogPriority.ERROR) { "Force push aborted: server snapshot unavailable" }
+                notifier.showSyncError(
+                    context.stringResource(KMR.strings.pref_sync_force_push_snapshot_unavailable),
+                )
+                return
+            }
+        }
+
         // A forced payload replaces every manga field, so put the server's copy back for sections
         // the user deliberately does not sync.
-        if (forcePushV2 && remoteSnapshot != null) {
-            if (!syncOptions.categories) {
-                backup.backupCategories = remoteSnapshot.backupCategories
+        if (forcePushV2) {
+            if (remoteSnapshot != null) {
+                if (!syncOptions.categories) {
+                    backup.backupCategories = remoteSnapshot.backupCategories
+                }
+                preserveForcePushSections(backup.backupManga, remoteSnapshot.backupManga, syncOptions)
             }
-            preserveForcePushSections(backup.backupManga, remoteSnapshot.backupManga, syncOptions)
+
+            // Raise the versions in the upload only. The database is bumped once the server accepts
+            // it, so an interrupted run cannot leave epoch versions behind for an ordinary sync to
+            // upload with empty disabled sections.
+            forceVersion = Clock.System.now().toEpochMilliseconds()
+            forceModifiedAt = (syncStart - 1).coerceAtLeast(0)
+            applyForcePushVersions(
+                backup = backup,
+                forceVersion = forceVersion,
+                forceModifiedAt = forceModifiedAt,
+                forceFavoriteAt = Clock.System.now().epochSeconds,
+                bumpCategories = syncOptions.categories,
+            )
         }
         // KUN <--
 
@@ -283,6 +338,15 @@ class SyncManager(
         syncPreferences.forgetDeletedCategory(getCategories.await().map { it.uid })
         // KUN <--
 
+        // KUN -->
+        // Persist the intent before the upload: if the process dies after the server accepted it,
+        // the next run resumes the force push instead of uploading the raised versions as an
+        // ordinary delta with empty disabled sections.
+        if (forcePushV2) {
+            syncPreferences.forcePushPending.set(true)
+        }
+        // KUN <--
+
         // SY -->
         val result: SyncResult = syncService?.doSync(syncData, full) ?: return
         val remoteBackup = result.backup
@@ -291,10 +355,28 @@ class SyncManager(
         if (remoteBackup == null) {
             logcat(LogPriority.DEBUG) { "Skip restore due to network issues" }
             // KUN -->
+            // The server never accepted the upload and no database bump was written, so drop the
+            // intent: a later ordinary sync is safe.
+            if (forcePushV2) {
+                syncPreferences.forcePushPending.set(false)
+            }
             notifier.showSyncError("Sync failed to get remote data")
             // KUN <--
             return
         }
+
+        // KUN -->
+        // The server accepted the forced upload. Persist the raised versions now, before the
+        // restore branches, so the local rows keep outranking peers even if the restore fails.
+        if (forcePushV2) {
+            syncRepository.markForForcePush(
+                version = forceVersion,
+                lastModifiedAt = forceModifiedAt,
+                bumpCategories = syncOptions.categories,
+            )
+            logcat(LogPriority.DEBUG) { "Force push: local sync versions raised above every peer" }
+        }
+        // KUN <--
 
         // SY -->
         if (remoteBackup === syncData.backup || (result.protocolV2 && !result.changed)) {
@@ -303,6 +385,10 @@ class SyncManager(
             // KUN -->
             commitRemoteState(result)
             markFullSyncCompleted(full, result)
+            // The repair is complete: the server has the forced state and the local bump is written.
+            if (forcePushV2) {
+                syncPreferences.forcePushPending.set(false)
+            }
             // KUN <--
             finishWithSuccess(syncStart, "Sync completed successfully")
             return
@@ -363,6 +449,15 @@ class SyncManager(
             // KMK <--
         )
 
+        // KUN -->
+        // The upload carried the server's values for disabled sections so the forced payload would
+        // not blank them. They must not be written back locally either: the restorer has no
+        // per-section flag for history, tracking or custom info, so it would apply them anyway.
+        if (forcePushV2) {
+            clearDisabledSectionsForRestore(newSyncData, syncOptions)
+        }
+        // KUN <--
+
         // SY -->
         val hasMangaChanges = filteredFavorites.isNotEmpty()
         // KUN -->
@@ -398,6 +493,10 @@ class SyncManager(
             // KUN -->
             commitRemoteState(result)
             markFullSyncCompleted(full, result)
+            // The forced state reached the server and the local bump is written; nothing to restore.
+            if (forcePushV2) {
+                syncPreferences.forcePushPending.set(false)
+            }
             // KUN <--
             finishWithSuccess(syncStart, "Sync completed successfully")
             return
@@ -430,6 +529,10 @@ class SyncManager(
             // KUN -->
             commitRemoteState(result)
             markFullSyncCompleted(full, result)
+            // The forced state reached the server and the local bump is written; nothing to restore.
+            if (forcePushV2) {
+                syncPreferences.forcePushPending.set(false)
+            }
             // KUN <--
             finishWithSuccess(syncStart, "Sync completed successfully")
             return
@@ -476,6 +579,12 @@ class SyncManager(
                 // KUN -->
                 commitRemoteState(result)
                 markFullSyncCompleted(full, result)
+                // The repair is complete: the server has the forced state and the local bump is
+                // written. A failed restore or cache write below leaves the flag set so the next run
+                // resumes the force push instead of doing an ordinary delta.
+                if (forcePushV2) {
+                    syncPreferences.forcePushPending.set(false)
+                }
                 // KUN <--
             } else {
                 // SY -->
@@ -589,13 +698,8 @@ class SyncManager(
         }
 
         // These fields feed the version trigger, so an equal-version response that still differs
-        // must be restored instead of being skipped as "up-to-date". The legacy `viewer` field is
-        // mode-only, so only compare it when the payload did not carry `viewer_flags`.
-        val remoteViewerFlags = remoteManga.viewer_flags
-        if ((remoteViewerFlags != null && remoteViewerFlags.toLong() != localManga.viewerFlags) ||
-            remoteManga.chapterFlags.toLong() != localManga.chapterFlags ||
-            remoteManga.notes != localManga.notes
-        ) {
+        // must be restored instead of being skipped as "up-to-date".
+        if (mangaPayloadFieldsDiffer(localManga, remoteManga)) {
             return true
         }
         // KUN <--

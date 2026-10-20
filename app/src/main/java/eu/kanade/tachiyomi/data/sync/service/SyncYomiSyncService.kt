@@ -134,7 +134,16 @@ class SyncYomiSyncService(
         submitDeletedChapters(host, apiKey)
         // SY <--
 
-        val pendingDeleted = syncPreferences.pendingDeletedCategoryUids.get()
+        // KUN -->
+        // A disabled category sync must not tombstone the server's categories: a force push uploads
+        // the server's copy, and an ordinary sync does not manage them either. Report nothing as
+        // sent (so the pending set survives) and leave it for a later categories-enabled sync.
+        val pendingDeleted = if (syncPreferences.getSyncSettings().categories) {
+            syncPreferences.pendingDeletedCategoryUids.get()
+        } else {
+            emptySet()
+        }
+        // KUN <--
         val headersBuilder = baseHeaders(apiKey)
             .add("X-Sync-Cursor", syncPreferences.syncCursor.get().toString())
             .add("X-Sync-Full", full.toString())
@@ -197,14 +206,22 @@ class SyncYomiSyncService(
      * Probes the server once per host for protocol v2 support (`GET /api/sync/v2/capabilities`).
      * 200 means v2, 404 means an old server; anything else is a transient failure and is not cached.
      *
+     * KUN -->
      * [forceProbe] bypasses the cached host result for explicit repair actions, so a server that
      * was upgraded in place is detected without waiting for a cache invalidation.
+     * KUN <--
      */
-    suspend fun supportsV2(forceProbe: Boolean = false): Boolean {
+    suspend fun supportsV2(
+        // KUN -->
+        forceProbe: Boolean = false,
+        // KUN <--
+    ): Boolean {
         val host = syncPreferences.clientHost.get()
+        // KUN -->
         if (!forceProbe && syncPreferences.v2ProbedHost.get() == host) {
             return syncPreferences.serverSupportsV2.get()
         }
+        // KUN <--
 
         val request = GET(
             url = "$host/api/sync/v2/capabilities",
@@ -223,12 +240,14 @@ class SyncYomiSyncService(
         return supported
     }
 
+    // KUN -->
     /**
      * A full copy of the server's library, used by a force push to keep the sections the user
      * disabled syncing (history, tracking, categories, custom info) instead of replacing them with
-     * empty manga payloads. Null when the server has no data yet.
+     * empty manga payloads. Null only when the server reports 404 (nothing stored yet); any other
+     * failure throws, and an empty body is treated as a failure so a broken response cannot make
+     * the caller upload empty sections over the server's data.
      */
-    // KUN -->
     suspend fun fetchSnapshot(): Backup? {
         val host = syncPreferences.clientHost.get()
         val request = GET(
@@ -241,7 +260,11 @@ class SyncYomiSyncService(
             if (!resp.isSuccessful) {
                 throw SyncYomiException("Failed to fetch sync snapshot: ${resp.code}")
             }
-            return protoBuf.decodeFromByteArray(Backup.serializer(), resp.body.bytes())
+            val bytes = resp.body.bytes()
+            if (bytes.isEmpty()) {
+                throw SyncYomiException("Empty sync snapshot")
+            }
+            return protoBuf.decodeFromByteArray(Backup.serializer(), bytes)
         }
     }
     // KUN <--

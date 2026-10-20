@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import tachiyomi.domain.manga.model.Manga
 
 /**
  * Ported from TachiyomiSY (jobobby04/TachiyomiSY#1648).
@@ -328,6 +329,200 @@ class SyncDeltaTest {
         assertTrue(local.tracking.isEmpty())
         assertTrue(local.categories.isEmpty())
         assertEquals(null, local.customTitle)
+    }
+
+    @Test
+    fun `a force push raises manga, chapter and category versions in the upload`() {
+        val category = BackupCategory(name = "Reading", uid = 7, version = 2, lastModifiedAt = 10)
+        val backup = Backup(
+            backupManga = listOf(
+                BackupManga(
+                    source = 1,
+                    url = "/m",
+                    version = 3,
+                    lastModifiedAt = 10,
+                    favoriteModifiedAt = 20,
+                    chapters = listOf(BackupChapter(url = "/m/1", lastModifiedAt = 5)),
+                ),
+            ),
+            backupCategories = listOf(category),
+        )
+
+        applyForcePushVersions(
+            backup = backup,
+            forceVersion = 1_700_000_000_000,
+            forceModifiedAt = 1_600_000_000,
+            forceFavoriteAt = 1_700_000_001,
+            bumpCategories = true,
+        )
+
+        val manga = backup.backupManga.single()
+        assertEquals(1_700_000_000_000L, manga.version)
+        assertEquals(1_600_000_000L, manga.lastModifiedAt)
+        assertEquals(1_700_000_001L, manga.favoriteModifiedAt)
+        assertEquals(1_700_000_000_000L, manga.chapters.single().version)
+        assertEquals(1_600_000_000L, manga.chapters.single().lastModifiedAt)
+        assertEquals(1_700_000_000_000L, category.version)
+        assertEquals(1_600_000_000L, category.lastModifiedAt)
+    }
+
+    @Test
+    fun `a force push leaves categories alone when category sync is disabled`() {
+        val category = BackupCategory(name = "Reading", uid = 7, version = 42, lastModifiedAt = 99)
+        val backup = Backup(
+            backupManga = listOf(BackupManga(source = 1, url = "/m", version = 9, lastModifiedAt = 99)),
+            backupCategories = listOf(category),
+        )
+
+        applyForcePushVersions(
+            backup = backup,
+            forceVersion = 1_700_000_000_000,
+            forceModifiedAt = 1_600_000_000,
+            forceFavoriteAt = 1_700_000_001,
+            bumpCategories = false,
+        )
+
+        // The upload carries the server's categories as-is; only the manga/chapter rows are raised.
+        assertEquals(42L, category.version)
+        assertEquals(99L, category.lastModifiedAt)
+        assertEquals(1_700_000_000_000L, backup.backupManga.single().version)
+        assertEquals(1_600_000_000L, backup.backupManga.single().lastModifiedAt)
+    }
+
+    @Test
+    fun `clearing disabled sections keeps the enabled ones for the restore`() {
+        val manga = BackupManga(
+            source = 1,
+            url = "/m",
+            history = listOf(BackupHistory(url = "/m/1", lastRead = 10)),
+            tracking = listOf(BackupTracking(syncId = 2, title = "track")),
+            categories = listOf(3),
+            customTitle = "Custom title",
+            customArtist = "Artist",
+            customAuthor = "Author",
+            customThumbnailUrl = "https://example.com/cover.jpg",
+            customDescription = "Description",
+            customGenre = listOf("Action"),
+            customStatus = 2,
+        )
+        val backup = Backup(backupManga = listOf(manga))
+
+        // History and custom info are disabled; tracking and categories are enabled.
+        clearDisabledSectionsForRestore(
+            backup,
+            SyncSettings(history = false, tracking = true, customInfo = false, categories = true),
+        )
+
+        assertTrue(manga.history.isEmpty())
+        assertEquals(listOf(BackupTracking(syncId = 2, title = "track")), manga.tracking)
+        assertEquals(listOf(3L), manga.categories)
+        assertEquals(null, manga.customTitle)
+        assertEquals(null, manga.customArtist)
+        assertEquals(null, manga.customAuthor)
+        assertEquals(null, manga.customThumbnailUrl)
+        assertEquals(null, manga.customDescription)
+        assertEquals(null, manga.customGenre)
+        assertEquals(0, manga.customStatus)
+    }
+
+    @Test
+    fun `clearing nothing keeps every section`() {
+        val manga = BackupManga(
+            source = 1,
+            url = "/m",
+            history = listOf(BackupHistory(url = "/m/1", lastRead = 10)),
+            tracking = listOf(BackupTracking(syncId = 2, title = "track")),
+            customTitle = "Custom title",
+            customStatus = 2,
+        )
+
+        clearDisabledSectionsForRestore(Backup(backupManga = listOf(manga)), SyncSettings())
+
+        assertEquals(1, manga.history.size)
+        assertEquals(1, manga.tracking.size)
+        assertEquals("Custom title", manga.customTitle)
+        assertEquals(2, manga.customStatus)
+    }
+
+    @Test
+    fun `an older payload that omits chapter flags and notes is not a change`() {
+        val local = Manga.create().copy(chapterFlags = 5, notes = "local note", version = 10, lastModifiedAt = 100)
+        // An older client never sent these fields, so they decode as defaults.
+        val remote = BackupManga(source = 1, url = "/m", version = 10, lastModifiedAt = 100)
+
+        assertFalse(mangaPayloadFieldsDiffer(local, remote))
+    }
+
+    @Test
+    fun `a newer payload that clears chapter flags and notes is a change`() {
+        val local = Manga.create().copy(chapterFlags = 5, notes = "local note", version = 10, lastModifiedAt = 100)
+        val remote = BackupManga(source = 1, url = "/m", version = 11, lastModifiedAt = 100)
+
+        assertTrue(mangaPayloadFieldsDiffer(local, remote))
+    }
+
+    @Test
+    fun `a non-default payload field is a change even at the same version`() {
+        val local = Manga.create().copy(chapterFlags = 0, notes = "", version = 10, lastModifiedAt = 100)
+        val remote = BackupManga(
+            source = 1,
+            url = "/m",
+            chapterFlags = 5,
+            notes = "remote note",
+            version = 10,
+            lastModifiedAt = 50,
+        )
+
+        assertTrue(mangaPayloadFieldsDiffer(local, remote))
+    }
+
+    @Test
+    fun `a different viewer flags field is always a change`() {
+        val local = Manga.create().copy(viewerFlags = 1, version = 10)
+        val remote = BackupManga(source = 1, url = "/m", viewer_flags = 2, version = 5)
+
+        assertTrue(mangaPayloadFieldsDiffer(local, remote))
+    }
+
+    @Test
+    fun `only a SyncYomi run resumes a pending force push`() {
+        assertTrue(resumesPendingForcePush(pendingForcePush = true, isSyncYomi = true))
+        assertFalse(resumesPendingForcePush(pendingForcePush = true, isSyncYomi = false))
+        assertFalse(resumesPendingForcePush(pendingForcePush = false, isSyncYomi = true))
+    }
+
+    @Test
+    fun `a missing snapshot only aborts an established server that needs preservation`() {
+        assertTrue(
+            forcePushMissingSnapshotIsFatal(
+                needsSnapshot = true,
+                snapshotAvailable = false,
+                hadRemoteSync = true,
+            ),
+        )
+        // A brand-new server has nothing to preserve.
+        assertFalse(
+            forcePushMissingSnapshotIsFatal(
+                needsSnapshot = true,
+                snapshotAvailable = false,
+                hadRemoteSync = false,
+            ),
+        )
+        // Nothing was disabled, so no snapshot was needed.
+        assertFalse(
+            forcePushMissingSnapshotIsFatal(
+                needsSnapshot = false,
+                snapshotAvailable = false,
+                hadRemoteSync = true,
+            ),
+        )
+        assertFalse(
+            forcePushMissingSnapshotIsFatal(
+                needsSnapshot = true,
+                snapshotAvailable = true,
+                hadRemoteSync = true,
+            ),
+        )
     }
     // KUN <--
 }

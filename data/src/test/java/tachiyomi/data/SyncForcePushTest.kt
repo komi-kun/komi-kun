@@ -111,6 +111,67 @@ class SyncForcePushTest {
         }
     }
 
+    @Test
+    fun `categories are left untouched when category sync is disabled`() {
+        runBlocking {
+            val driver = newDriver()
+            try {
+                val repository = SyncRepositoryImpl(DatabaseBindings.providesDatabase(driver))
+
+                driver.insertManga(id = 1, userFavoriteAt = 1_000, favoriteModifiedAt = 500)
+                driver.insertChapter(id = 1, mangaId = 1)
+                driver.insertCategory(id = 1)
+                // The insert trigger already stamps the category; the force push must leave both alone.
+                val categoryVersion = driver.scalarLong("SELECT version FROM category WHERE id = 1")
+                val categoryModifiedAt = driver.scalarLong("SELECT last_modified_at FROM category WHERE id = 1")
+
+                repository.markForForcePush(
+                    version = 1_700_000_000_000,
+                    lastModifiedAt = 1_600_000_000,
+                    bumpCategories = false,
+                )
+
+                // Manga and chapters still win the merge; categories keep the server's copy.
+                driver.scalarLong("SELECT version FROM manga WHERE id = 1") shouldBe 1_700_000_000_000
+                driver.scalarLong("SELECT version FROM chapter WHERE id = 1") shouldBe 1_700_000_000_000
+                driver.scalarLong("SELECT version FROM category WHERE id = 1") shouldBe categoryVersion
+                driver.scalarLong("SELECT last_modified_at FROM category WHERE id = 1") shouldBe categoryModifiedAt
+            } finally {
+                driver.close()
+            }
+        }
+    }
+
+    @Test
+    fun `a timestamp newer than the force push is kept`() {
+        runBlocking {
+            val driver = newDriver()
+            try {
+                val repository = SyncRepositoryImpl(DatabaseBindings.providesDatabase(driver))
+
+                driver.insertManga(id = 1, userFavoriteAt = 1_000, favoriteModifiedAt = 500)
+                driver.insertChapter(id = 1, mangaId = 1)
+                // An edit made while the forced upload was in flight.
+                driver.execute(null, "UPDATE manga SET last_modified_at = 1700000000 WHERE id = 1", 0).await()
+                driver.execute(null, "UPDATE chapter SET last_modified_at = 1700000000 WHERE id = 1", 0).await()
+
+                repository.markForForcePush(
+                    version = 1_700_000_000_000,
+                    lastModifiedAt = 1_600_000_000,
+                    bumpCategories = false,
+                )
+
+                // The next delta (which starts at the sync's start time) must still carry the edit:
+                // the force stamp never moves a newer timestamp backwards.
+                (driver.scalarLong("SELECT last_modified_at FROM manga WHERE id = 1")!! > 1_600_000_000) shouldBe true
+                (driver.scalarLong("SELECT last_modified_at FROM chapter WHERE id = 1")!! > 1_600_000_000) shouldBe true
+                driver.scalarLong("SELECT version FROM manga WHERE id = 1") shouldBe 1_700_000_000_000
+            } finally {
+                driver.close()
+            }
+        }
+    }
+
     private suspend fun newDriver(): SqlDriver {
         return JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY).also {
             Database.Schema.create(it).await()

@@ -1,9 +1,11 @@
 package eu.kanade.tachiyomi.data.sync
 
 import eu.kanade.domain.sync.models.SyncSettings
+import eu.kanade.tachiyomi.data.backup.models.Backup
 import eu.kanade.tachiyomi.data.backup.models.BackupCategory
 import eu.kanade.tachiyomi.data.backup.models.BackupExtensionStore
 import eu.kanade.tachiyomi.data.backup.models.BackupManga
+import tachiyomi.domain.manga.model.Manga
 
 /**
  * Keeps only manga (and their chapters) modified at or after the last successful upload, which is all a
@@ -92,6 +94,105 @@ internal fun preserveForcePushSections(
         }
     }
 }
+
+/**
+ * Raises every manga, its chapters and (when [bumpCategories]) the categories to the forced sync
+ * versions in the upload. Only the payload is changed: `SyncManager` bumps the database once the
+ * server accepts it, so an interrupted run cannot leave epoch versions behind for an ordinary sync
+ * to upload with empty disabled sections.
+ *
+ * Categories are left alone when their sync is disabled: the upload carries the server's copy
+ * instead, and bumping it would make that copy win over the server's own version.
+ */
+internal fun applyForcePushVersions(
+    backup: Backup,
+    forceVersion: Long,
+    forceModifiedAt: Long,
+    forceFavoriteAt: Long,
+    bumpCategories: Boolean,
+) {
+    backup.backupManga.forEach { manga ->
+        manga.version = maxOf(manga.version, forceVersion)
+        manga.lastModifiedAt = maxOf(manga.lastModifiedAt, forceModifiedAt)
+        manga.favoriteModifiedAt = maxOf(manga.favoriteModifiedAt ?: 0L, forceFavoriteAt)
+        manga.chapters.forEach { chapter ->
+            chapter.version = maxOf(chapter.version, forceVersion)
+            chapter.lastModifiedAt = maxOf(chapter.lastModifiedAt, forceModifiedAt)
+        }
+    }
+    if (bumpCategories) {
+        backup.backupCategories.forEach { category ->
+            category.version = maxOf(category.version, forceVersion)
+            category.lastModifiedAt = maxOf(category.lastModifiedAt, forceModifiedAt)
+        }
+    }
+}
+
+/**
+ * Removes the manga-payload sections the user disabled from the restore half of a force push.
+ *
+ * The server's values for those sections were copied into the upload so the forced payloads would
+ * not blank them, but they must not be written back locally either: `RestoreOptions` has no flag
+ * for history, tracking or custom info, so the restorer would apply them anyway. Categories are
+ * already gated by `RestoreOptions.categories`.
+ */
+internal fun clearDisabledSectionsForRestore(backup: Backup, settings: SyncSettings) {
+    backup.backupManga.forEach { manga ->
+        if (!settings.history) manga.history = emptyList()
+        if (!settings.tracking) manga.tracking = emptyList()
+        if (!settings.customInfo) {
+            manga.customTitle = null
+            manga.customArtist = null
+            manga.customAuthor = null
+            manga.customThumbnailUrl = null
+            manga.customDescription = null
+            manga.customGenre = null
+            manga.customStatus = 0
+        }
+    }
+}
+
+/**
+ * Whether a remote payload differs in the fields that feed the sync version trigger.
+ *
+ * `chapterFlags` and `notes` are newer payload fields: an older client omits them, so they decode
+ * as `0`/empty. Treating those as a change would clear the local value just because the field was
+ * never sent, so a default only counts when the remote payload is genuinely newer. Every non-default
+ * value that differs is a real change.
+ */
+internal fun mangaPayloadFieldsDiffer(local: Manga, remote: BackupManga): Boolean {
+    // The legacy `viewer` field is mode-only, so only compare it when the payload carried `viewer_flags`.
+    val remoteViewerFlags = remote.viewer_flags
+    if (remoteViewerFlags != null && remoteViewerFlags.toLong() != local.viewerFlags) {
+        return true
+    }
+
+    val remoteIsNewer = remote.version > local.version ||
+        (remote.version == local.version && remote.lastModifiedAt > local.lastModifiedAt)
+    val chapterFlagsDiffer = remote.chapterFlags.toLong() != local.chapterFlags &&
+        (remote.chapterFlags != 0 || remoteIsNewer)
+    val notesDiffer = remote.notes != local.notes &&
+        (remote.notes.isNotEmpty() || remoteIsNewer)
+    return chapterFlagsDiffer || notesDiffer
+}
+
+/**
+ * A pending force push can only resume on SyncYomi: the raised versions mean nothing to Drive,
+ * WebDAV or a v1 SyncYomi server, which would treat them as ordinary local edits.
+ */
+internal fun resumesPendingForcePush(pendingForcePush: Boolean, isSyncYomi: Boolean): Boolean =
+    pendingForcePush && isSyncYomi
+
+/**
+ * Whether a force push that needs the server snapshot must stop instead of uploading. An
+ * established server (a non-zero cursor or a recorded full sync) has sections to preserve, so a
+ * 404/empty snapshot is a hard failure; a brand-new server has nothing to lose.
+ */
+internal fun forcePushMissingSnapshotIsFatal(
+    needsSnapshot: Boolean,
+    snapshotAvailable: Boolean,
+    hadRemoteSync: Boolean,
+): Boolean = needsSnapshot && !snapshotAvailable && hadRemoteSync
 // KUN <--
 
 /**

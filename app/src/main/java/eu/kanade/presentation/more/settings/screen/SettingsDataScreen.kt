@@ -638,9 +638,9 @@ object SettingsDataScreen : SearchableSettings {
         // KUN -->
         val syncSettings = syncPreferences.getSyncSettings()
         // Hiding the force actions when library entries are not synced avoids sending an empty
-        // "full" upload while the server still returns (and restores) the library. Force push
-        // additionally needs every manga-payload section, or it would overwrite those sections
-        // with empty values library-wide.
+        // "full" upload while the server still returns (and restores) the library. Force push also
+        // needs chapters; the manga-payload sections it can leave disabled (history, tracking,
+        // custom info) and categories are preserved from the server snapshot instead.
         return listOf(
             getSyncNowPref(syncServiceType, syncSettings.libraryEntries, syncSettings.supportsForcePush),
             // KUN <--
