@@ -23,9 +23,10 @@ import tachiyomi.domain.manga.model.toMangaUpdate
 import kotlin.time.Instant
 
 /**
- * History restore semantics. A winning sync payload applies exact timestamps and honours explicit
- * tombstones (`lastRead == 0` / `readAt == null` for that entry), while a manual restore or a
- * losing payload only max-merges. Absence from the payload never removes a local row: the manga
+ * History restore semantics. Read timestamps are always monotonic: even a winning sync payload
+ * keeps `max(local, incoming)` for a non-tombstone entry, while explicit tombstones
+ * (`lastRead == 0` / `readAt == null` for that entry) only apply on a winning payload. A manual
+ * restore or a losing payload only max-merges. Absence from the payload never removes a local row: the manga
  * payload is versioned per manga, not per history section, so an absent entry may just mean the
  * peer had history disabled. A removal is stored as `read_at IS NULL`, never epoch 0.
  */
@@ -61,7 +62,7 @@ class RestoreRepositoryHistoryTest {
     }
 
     @Test
-    fun `a winning sync payload writes the exact timestamp and keeps the longest duration`() {
+    fun `a winning sync payload never moves a read timestamp backwards and keeps the longest duration`() {
         runBlocking {
             val driver = newDriver()
             try {
@@ -76,12 +77,49 @@ class RestoreRepositoryHistoryTest {
                 restore(
                     repository = repository,
                     chapters = listOf(chapter("/c1")),
+                    // Older than the local read: a winning payload must not roll it back.
                     history = listOf(RestoredHistory("/c1", Instant.fromEpochMilliseconds(5_000), 40L)),
                 )
 
                 val row = historyRows(database).getValue(chapters[0].id)
-                row.read_at shouldBe Instant.fromEpochMilliseconds(5_000)
+                row.read_at shouldBe Instant.fromEpochMilliseconds(9_000)
                 row.read_duration shouldBe 100L
+            } finally {
+                driver.close()
+            }
+        }
+    }
+
+    @Test
+    fun `a winning payload keeps the later local read and an explicit tombstone still clears it`() {
+        runBlocking {
+            val driver = newDriver()
+            try {
+                val database = DatabaseBindings.providesDatabase(driver)
+                val mangaRepository = MangaRepositoryImpl(database)
+                val chapterRepository = ChapterRepositoryImpl(database)
+                val repository = restoreRepository(database, mangaRepository, chapterRepository)
+                driver.insertManga(version = 5L, lastModifiedAt = 10L)
+                val chapters = chapterRepository.addAll(listOf(chapter("/c1"), chapter("/c2")))
+                driver.insertHistory(chapters[0].id, readAt = 200L, readDuration = 10L)
+                driver.insertHistory(chapters[1].id, readAt = 200L, readDuration = 20L)
+
+                restore(
+                    repository = repository,
+                    chapters = listOf(chapter("/c1"), chapter("/c2")),
+                    history = listOf(
+                        // An older non-tombstone entry must keep the local timestamp.
+                        RestoredHistory("/c1", Instant.fromEpochMilliseconds(100), 5L),
+                        // An explicit removal still wins.
+                        RestoredHistory("/c2", readAt = null, readDuration = 5L),
+                    ),
+                )
+
+                val rows = historyRows(database)
+                rows.getValue(chapters[0].id).read_at shouldBe Instant.fromEpochMilliseconds(200)
+                rows.getValue(chapters[0].id).read_duration shouldBe 10L
+                rows.getValue(chapters[1].id).read_at shouldBe null
+                rows.getValue(chapters[1].id).read_duration shouldBe 20L
             } finally {
                 driver.close()
             }

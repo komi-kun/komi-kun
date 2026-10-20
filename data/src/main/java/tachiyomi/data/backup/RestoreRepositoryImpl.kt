@@ -627,12 +627,9 @@ class RestoreRepositoryImpl(
                 }
                 else -> {
                     database.historyQueries.setHistoryFromRestore(
-                        // A winning payload writes the exact timestamp; otherwise keep the latest.
-                        readAt = if (allowRemoval) {
-                            incomingReadAt
-                        } else {
-                            listOfNotNull(incomingReadAt, dbHistory.readAt).maxOrNull()
-                        },
+                        // Never move a read timestamp backwards, even when the payload wins: an
+                        // older payload could otherwise overwrite a newer local read date.
+                        readAt = listOfNotNull(incomingReadAt, dbHistory.readAt).maxOrNull(),
                         readDuration = incomingDuration,
                         chapterId = chapterId,
                     )
