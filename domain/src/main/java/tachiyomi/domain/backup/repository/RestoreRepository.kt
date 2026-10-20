@@ -21,6 +21,9 @@ interface RestoreRepository {
         // KMK/SY <--
         // KUN -->
         restoreCategories: Boolean = true,
+        // A SyncYomi v2 response carries each manga's complete chapter list, so local chapters
+        // missing from it were tombstoned on the server and have to be dropped here.
+        removeMissingChapters: Boolean = false,
         // KUN <--
         update: suspend (Manga) -> MangaUpdate,
     )

@@ -57,6 +57,7 @@ class RestoreRepositoryImpl(
         isSync: Boolean,
         // KUN -->
         restoreCategories: Boolean,
+        removeMissingChapters: Boolean,
         // KUN <--
         update: suspend (Manga) -> MangaUpdate,
     ) {
@@ -69,7 +70,17 @@ class RestoreRepositoryImpl(
                 // A cancelled restore stops between entries and rolls the whole batch back
                 currentCoroutineContext().ensureActive()
                 // KUN -->
-                mangaRepository.update(update(restore(entry, isSync, syncingFlag, restoreCategories)))
+                mangaRepository.update(
+                    update(
+                        restore(
+                            entry,
+                            isSync,
+                            syncingFlag,
+                            restoreCategories,
+                            removeMissingChapters,
+                        ),
+                    ),
+                )
                 // KUN <--
             }
             if (isSync) {
@@ -89,6 +100,7 @@ class RestoreRepositoryImpl(
         syncingFlag: Long,
         // KUN -->
         restoreCategories: Boolean,
+        removeMissingChapters: Boolean,
         // KUN <--
     ): Manga {
         val dbManga = mangaRepository.getMangaByUrlAndSourceId(entry.manga.url, entry.manga.source)
@@ -122,7 +134,7 @@ class RestoreRepositoryImpl(
         }
         // KUN <--
         // SY <--
-        restoreChapters(manga, entry.chapters, isSync, syncingFlag)
+        restoreChapters(manga, entry.chapters, isSync, syncingFlag, removeMissingChapters)
         restoreTracking(manga, entry.tracks)
         restoreHistory(manga, entry.history)
         restoreExcludedScanlators(manga, entry.excludedScanlators)
@@ -272,9 +284,28 @@ class RestoreRepositoryImpl(
         restoredChapters: List<Chapter>,
         isSync: Boolean,
         syncingFlag: Long,
+        // KUN -->
+        removeMissingChapters: Boolean,
+        // KUN <--
     ) {
         val dbChaptersByUrl = chapterRepository.getChapterByMangaId(manga.id)
             .associateBy { it.url }
+
+        // KUN -->
+        // In a SyncYomi v2 response every manga carries its complete chapter list, so a local
+        // chapter missing from it was deleted elsewhere (and tombstoned on the server). Restore
+        // only upserts, so without this the other devices keep the chapter forever. An empty list
+        // is authoritative: if the server has no live chapters left for the manga, drop them all.
+        if (removeMissingChapters) {
+            val incomingUrls = restoredChapters.mapTo(mutableSetOf()) { it.url }
+            val removedIds = dbChaptersByUrl.values
+                .filterNot { it.url in incomingUrls }
+                .map { it.id }
+            if (removedIds.isNotEmpty()) {
+                chapterRepository.removeChaptersWithIds(removedIds)
+            }
+        }
+        // KUN <--
 
         val (existingChapters, newChapters) = restoredChapters
             .groupBy { it.url }
