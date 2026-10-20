@@ -50,6 +50,13 @@
     <string name="pref_sync_force_full_confirmation_title">強制フル同期を実行しますか？</string>
     <string name="pref_sync_force_full_confirmation_message">ライブラリ全体が同期サーバーにアップロードされます。通常の同期より時間と通信量が多くかかる場合があります。</string>
     <string name="pref_sync_force_full_started">フル同期を開始しました</string>
+    <string name="pref_sync_force_push">ローカル状態を強制プッシュ</string>
+    <string name="pref_sync_force_push_summary">この端末のライブラリで同期サーバーを置き換えます</string>
+    <string name="pref_sync_force_push_confirmation_title">この端末の状態を強制プッシュしますか？</string>
+    <string name="pref_sync_force_push_confirmation_message">この端末のライブラリ、読書進捗、ブックマーク、カテゴリ、設定で同期サーバーと他のすべての端末が上書きされます。この端末に保持したい状態がある場合にのみ使用してください。この操作は元に戻せません。</string>
+    <string name="pref_sync_force_push_started">強制プッシュを開始しました</string>
+    <string name="pref_sync_force_push_requires_sections">強制プッシュする前に、「同期する項目を選択」でライブラリ項目、カテゴリ、章、トラッキング、履歴、カスタム情報を有効にしてください。</string>
+    <string name="pref_sync_force_push_requires_v2">強制プッシュには SyncYomi v2 サーバーが必要です。</string>
     <string name="saved_searches_feeds">保存された検索 &amp; フィード</string>
     <string name="onboarding_permission_external_storage">メディアファイルへのアクセス許可</string>
     <string name="onboarding_permission_external_storage_description">エントリの編集情報でカスタムカバーの使用を許可する</string>

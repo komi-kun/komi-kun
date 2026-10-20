@@ -163,6 +163,16 @@ SET flags = :flags
 WHERE id = :categoryId;
 
 -- SY -->
+-- KUN -->
+-- One-shot force push: every user category wins the version-first merge. The system category
+-- (id 0) is not synced, so it is excluded.
+forcePushVersions:
+UPDATE category
+SET version = max(version, :version),
+    last_modified_at = :lastModifiedAt
+WHERE id > 0;
+-- KUN <--
+
 resetIsSyncing:
 UPDATE category
 SET is_syncing = 0

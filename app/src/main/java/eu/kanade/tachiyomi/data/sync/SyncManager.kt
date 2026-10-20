@@ -24,6 +24,7 @@ import logcat.LogPriority
 import logcat.logcat
 import okio.buffer
 import okio.sink
+import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.domain.category.repository.CategoryRepository
@@ -33,6 +34,7 @@ import tachiyomi.domain.download.service.DownloadPreferences
 import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.sync.repository.SyncRepository
+import tachiyomi.i18n.kmk.KMR
 import java.io.File
 import java.io.IOException
 import java.util.Date
@@ -86,11 +88,15 @@ class SyncManager(
      * KUN -->
      * @param forceFull one-shot request to upload the whole library even when the service would accept
      * a delta. No-op for services that always upload everything (Google Drive, WebDAV, v1).
+     * @param forcePush one-shot SyncYomi v2 repair: raise the local sync versions so this device's
+     * state wins the version-first merge. Rejected when the service is not SyncYomi v2 or when a
+     * manga-payload section is disabled.
      * KUN <--
      */
     suspend fun syncData(
         // KUN -->
         forceFull: Boolean = false,
+        forcePush: Boolean = false,
         // KUN <--
     ) {
         // SY -->
@@ -152,16 +158,49 @@ class SyncManager(
 
         // SY -->
         // Whether to upload the whole library or only what changed since the last successful sync (SyncYomi v2).
-        val full = try {
-            // KUN -->
-            // `forceFull` is the user's one-shot request; `needsFullSync()` is the server's own flag.
-            shouldUploadFullLibrary(forceFull, syncService?.needsFullSync() ?: true)
-            // KUN <--
+        // KUN -->
+        // A force push is a SyncYomi v2-only repair: Drive/WebDAV always upload everything and v1
+        // merges locally, so there is nothing to make authoritative there. Probe v2 even though
+        // force push already implies a full upload; `needsFullSync()` alone would short-circuit.
+        var forcePushV2 = false
+        val serviceNeedsFull = try {
+            val service = syncService
+            if (forcePush && service is SyncYomiSyncService) {
+                forcePushV2 = service.supportsV2(forceProbe = true)
+            }
+            service?.needsFullSync() ?: true
         } catch (e: Exception) {
             logcat(LogPriority.ERROR, e) { "Failed to probe sync server" }
             notifier.showSyncError(e.message)
             return
         }
+        val full = forcePushV2 || shouldUploadFullLibrary(forceFull, serviceNeedsFull)
+        // KUN <--
+
+        // KUN -->
+        // A one-shot force push is a SyncYomi v2-only repair, and only when every section that
+        // lives inside a manga payload is enabled: a force push re-uploads those payloads as-is,
+        // so an omitted section would replace the server's data with empty values library-wide.
+        if (forcePush && !forcePushV2) {
+            notifier.showSyncError(context.stringResource(KMR.strings.pref_sync_force_push_requires_v2))
+            return
+        }
+        if (forcePushV2 && !syncOptions.supportsForcePush) {
+            notifier.showSyncError(context.stringResource(KMR.strings.pref_sync_force_push_requires_sections))
+            return
+        }
+
+        // One-shot, before the upload snapshot is built: every library row now outranks a stale
+        // device's counter, so the server accepts this device's state. last_modified_at is set
+        // just before syncStart so this repair does not force a second full delta next run.
+        if (forcePushV2) {
+            syncRepository.markForForcePush(
+                version = Clock.System.now().toEpochMilliseconds(),
+                lastModifiedAt = (syncStart - 1).coerceAtLeast(0),
+            )
+            logcat(LogPriority.DEBUG) { "Force push: local sync versions raised above every peer" }
+        }
+        // KUN <--
 
         val databaseManga = if (full) {
             getAllMangaThatNeedsSync()
@@ -521,6 +560,17 @@ class SyncManager(
 
         // KUN -->
         if (localManga.favorite != remoteManga.favorite) {
+            return true
+        }
+
+        // These fields feed the version trigger, so an equal-version response that still differs
+        // must be restored instead of being skipped as "up-to-date". The legacy `viewer` field is
+        // mode-only, so only compare it when the payload did not carry `viewer_flags`.
+        val remoteViewerFlags = remoteManga.viewer_flags
+        if ((remoteViewerFlags != null && remoteViewerFlags.toLong() != localManga.viewerFlags) ||
+            remoteManga.chapterFlags.toLong() != localManga.chapterFlags ||
+            remoteManga.notes != localManga.notes
+        ) {
             return true
         }
         // KUN <--

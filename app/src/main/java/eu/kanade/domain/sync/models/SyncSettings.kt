@@ -16,4 +16,13 @@ data class SyncSettings(
     val readEntries: Boolean = true,
     val savedSearchesFeeds: Boolean = true,
     // SY <--
-)
+) {
+    // KUN -->
+    /**
+     * A force push uploads every manga payload as-is, so sections omitted from that payload would
+     * replace the server's data with empty values library-wide. Require all of them to be enabled.
+     */
+    val supportsForcePush: Boolean
+        get() = libraryEntries && categories && chapters && tracking && history && customInfo
+    // KUN <--
+}

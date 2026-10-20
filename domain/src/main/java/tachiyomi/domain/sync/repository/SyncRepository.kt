@@ -29,4 +29,15 @@ interface SyncRepository {
      * Every manga (or with a chapter) modified at or after [since], for a delta upload.
      */
     suspend fun getMangasModifiedSince(since: Long): List<Manga>
+
+    // KUN -->
+    /**
+     * One-shot repair for a stale device: raises the sync version of every library manga, its
+     * chapters and every user category to at least [version] in a single transaction, and moves
+     * their `last_modified_at` to [lastModifiedAt]. SyncYomi v2 picks the higher per-device counter
+     * first, so this makes the local state authoritative for the next upload without bumping rows
+     * that are not part of the library.
+     */
+    suspend fun markForForcePush(version: Long, lastModifiedAt: Long)
+    // KUN <--
 }

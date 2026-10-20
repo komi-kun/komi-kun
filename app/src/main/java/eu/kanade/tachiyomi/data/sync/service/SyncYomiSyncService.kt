@@ -196,10 +196,13 @@ class SyncYomiSyncService(
     /**
      * Probes the server once per host for protocol v2 support (`GET /api/sync/v2/capabilities`).
      * 200 means v2, 404 means an old server; anything else is a transient failure and is not cached.
+     *
+     * [forceProbe] bypasses the cached host result for explicit repair actions, so a server that
+     * was upgraded in place is detected without waiting for a cache invalidation.
      */
-    suspend fun supportsV2(): Boolean {
+    suspend fun supportsV2(forceProbe: Boolean = false): Boolean {
         val host = syncPreferences.clientHost.get()
-        if (syncPreferences.v2ProbedHost.get() == host) {
+        if (!forceProbe && syncPreferences.v2ProbedHost.get() == host) {
             return syncPreferences.serverSupportsV2.get()
         }
 

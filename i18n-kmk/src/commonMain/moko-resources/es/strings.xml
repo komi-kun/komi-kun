@@ -52,6 +52,13 @@
     <string name="pref_sync_force_full_confirmation_title">¿Forzar sincronización completa?</string>
     <string name="pref_sync_force_full_confirmation_message">Se subirá toda tu biblioteca al servidor de sincronización. Puede ser más lento y consumir más datos que una sincronización normal.</string>
     <string name="pref_sync_force_full_started">Sincronización completa iniciada</string>
+    <string name="pref_sync_force_push">Forzar carga del estado local</string>
+    <string name="pref_sync_force_push_summary">Reemplaza el servidor de sincronización con la biblioteca de este dispositivo</string>
+    <string name="pref_sync_force_push_confirmation_title">¿Forzar el estado de este dispositivo?</string>
+    <string name="pref_sync_force_push_confirmation_message">Esto sobrescribe el servidor de sincronización y todos los demás dispositivos con la biblioteca, el progreso de lectura, los marcadores, las categorías y los ajustes de este dispositivo. Úsalo solo si este dispositivo tiene el estado que quieres conservar. No se puede deshacer.</string>
+    <string name="pref_sync_force_push_started">Carga forzada iniciada</string>
+    <string name="pref_sync_force_push_requires_sections">Activa entradas de biblioteca, categorías, capítulos, seguimiento, historial e información personalizada en Elegir qué sincronizar antes de forzar el envío.</string>
+    <string name="pref_sync_force_push_requires_v2">Forzar el envío requiere un servidor SyncYomi v2.</string>
     <string name="saved_searches_feeds">Búsquedas guardadas &amp; Menos</string>
     <string name="onboarding_permission_external_storage">Acceso a archivos multimedia</string>
     <string name="onboarding_permission_external_storage_description">Permitir el uso de portadas personalizadas en la información de edición de la entrada</string>

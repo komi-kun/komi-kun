@@ -49,6 +49,13 @@
     <string name="pref_sync_force_full_confirmation_title">Wymusić pełną synchronizację?</string>
     <string name="pref_sync_force_full_confirmation_message">Cała biblioteka zostanie przesłana na serwer synchronizacji. Może to być wolniejsze i zużywać więcej danych niż zwykła synchronizacja.</string>
     <string name="pref_sync_force_full_started">Rozpoczęto pełną synchronizację</string>
+    <string name="pref_sync_force_push">Wymuś wysłanie stanu lokalnego</string>
+    <string name="pref_sync_force_push_summary">Zastępuje serwer synchronizacji biblioteką tego urządzenia</string>
+    <string name="pref_sync_force_push_confirmation_title">Wymusić wysłanie stanu tego urządzenia?</string>
+    <string name="pref_sync_force_push_confirmation_message">Spowoduje to nadpisanie serwera synchronizacji i wszystkich innych urządzeń biblioteką, postępem czytania, zakładkami, kategoriami i ustawieniami tego urządzenia. Używaj tylko, jeśli to urządzenie ma stan, który chcesz zachować. Tej operacji nie można cofnąć.</string>
+    <string name="pref_sync_force_push_started">Rozpoczęto wymuszone wysyłanie</string>
+    <string name="pref_sync_force_push_requires_sections">Przed wymuszeniem wysyłania włącz wpisy biblioteki, kategorie, rozdziały, śledzenie, historię i informacje niestandardowe w opcji Wybierz, co synchronizować.</string>
+    <string name="pref_sync_force_push_requires_v2">Wymuszenie wysyłania wymaga serwera SyncYomi v2.</string>
     <string name="saved_searches_feeds">Zapisane wyszukiwania &amp; Kanały</string>
     <string name="onboarding_permission_external_storage">Dostęp do plików multimedialnych</string>
     <string name="onboarding_permission_external_storage_description">Zezwalaj na używanie własnych okładek w informacjach edycji wpisu</string>

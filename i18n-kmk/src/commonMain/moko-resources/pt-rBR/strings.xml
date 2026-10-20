@@ -51,6 +51,13 @@
     <string name="pref_sync_force_full_confirmation_title">Forçar sincronização completa?</string>
     <string name="pref_sync_force_full_confirmation_message">Sua biblioteca completa será enviada ao servidor de sincronização. Isso pode ser mais lento e consumir mais dados do que uma sincronização normal.</string>
     <string name="pref_sync_force_full_started">Sincronização completa iniciada</string>
+    <string name="pref_sync_force_push">Forçar envio do estado local</string>
+    <string name="pref_sync_force_push_summary">Substitui o servidor de sincronização pela biblioteca deste dispositivo</string>
+    <string name="pref_sync_force_push_confirmation_title">Forçar o estado deste dispositivo?</string>
+    <string name="pref_sync_force_push_confirmation_message">Isso sobrescreve o servidor de sincronização e todos os outros dispositivos com a biblioteca, o progresso de leitura, os favoritos, as categorias e as configurações deste dispositivo. Use apenas se este dispositivo tiver o estado que você quer manter. Isso não pode ser desfeito.</string>
+    <string name="pref_sync_force_push_started">Envio forçado iniciado</string>
+    <string name="pref_sync_force_push_requires_sections">Ative entradas da biblioteca, categorias, capítulos, rastreamento, histórico e informações personalizadas em Escolher o que sincronizar antes de forçar o envio.</string>
+    <string name="pref_sync_force_push_requires_v2">Forçar o envio requer um servidor SyncYomi v2.</string>
     <string name="saved_searches_feeds">Pesquisas Salvas &amp; Feeds</string>
     <string name="onboarding_permission_external_storage">Permissão de acesso a arquivos de mídia</string>
     <string name="onboarding_permission_external_storage_description">Permitir usar capas personalizadas na edição de informações da entrada</string>
