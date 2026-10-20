@@ -91,6 +91,34 @@ class RestoreRepositoryFavoriteModifiedAtTest {
     }
 
     @Test
+    fun `an ordinary insert lets the trigger stamp the current time`() {
+        runBlocking {
+            val driver = newDriver()
+            try {
+                val database = DatabaseBindings.providesDatabase(driver)
+                val mangaRepository = MangaRepositoryImpl(database)
+                val repository = restoreRepository(database, mangaRepository)
+
+                repository.restoreManga(
+                    entries = listOf(restoredManga(manga(favorite = true, version = 1L, favoriteModifiedAt = 2_000L))),
+                    isSync = false,
+                    restoreCategories = false,
+                    removeMissingChaptersBefore = null,
+                    update = { it.toMangaUpdate() },
+                )
+
+                val restored = mangaRepository.getMangaByUrlAndSourceId("/manga/1", 1)!!
+                // Ordinary restore does not carry an authoritative favorite timestamp, so the
+                // insert trigger stamps `now` instead of persisting the backup's stale value.
+                restored.favoriteModifiedAt shouldNotBe 2_000L
+                restored.favoriteModifiedAt!! shouldBeGreaterThan 1_000_000_000L
+            } finally {
+                driver.close()
+            }
+        }
+    }
+
+    @Test
     fun `a normal favorite change still stamps the current time`() {
         runBlocking {
             val driver = newDriver()

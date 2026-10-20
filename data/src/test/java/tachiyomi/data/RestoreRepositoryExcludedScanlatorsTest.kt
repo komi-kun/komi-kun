@@ -45,8 +45,72 @@ class RestoreRepositoryExcludedScanlatorsTest {
                 restore(repository, listOf("B", "C"), isSync = true)
                 mangaRepository.getExcludedScanlators(1L) shouldBe setOf("B", "C")
 
-                restore(repository, emptyList(), isSync = true)
+                // Clearing requires a strictly newer payload.
+                restore(repository, emptyList(), isSync = true, version = 2L)
                 mangaRepository.getExcludedScanlators(1L) shouldBe emptySet()
+            } finally {
+                driver.close()
+            }
+        }
+    }
+
+    @Test
+    fun `a losing sync payload cannot delete local exclusions`() {
+        runBlocking {
+            val driver = newDriver()
+            try {
+                val database = DatabaseBindings.providesDatabase(driver)
+                val mangaRepository = MangaRepositoryImpl(database)
+                val repository = restoreRepository(database, mangaRepository)
+                driver.insertManga(version = 6L, lastModifiedAt = 20L)
+                driver.insertExcludedScanlator("A")
+
+                // The incoming manga lost the version comparison, so its empty filter must not
+                // erase the local edit.
+                restore(repository, emptyList(), isSync = true, version = 5L, lastModifiedAt = 10L)
+
+                mangaRepository.getExcludedScanlators(1L) shouldBe setOf("A")
+            } finally {
+                driver.close()
+            }
+        }
+    }
+
+    @Test
+    fun `a winning empty sync payload still clears local exclusions`() {
+        runBlocking {
+            val driver = newDriver()
+            try {
+                val database = DatabaseBindings.providesDatabase(driver)
+                val mangaRepository = MangaRepositoryImpl(database)
+                val repository = restoreRepository(database, mangaRepository)
+                driver.insertManga(version = 5L, lastModifiedAt = 10L)
+                driver.insertExcludedScanlator("A")
+
+                restore(repository, emptyList(), isSync = true, version = 6L, lastModifiedAt = 20L)
+
+                mangaRepository.getExcludedScanlators(1L) shouldBe emptySet()
+            } finally {
+                driver.close()
+            }
+        }
+    }
+
+    @Test
+    fun `a losing non-empty sync payload unions instead of replacing`() {
+        runBlocking {
+            val driver = newDriver()
+            try {
+                val database = DatabaseBindings.providesDatabase(driver)
+                val mangaRepository = MangaRepositoryImpl(database)
+                val repository = restoreRepository(database, mangaRepository)
+                driver.insertManga(version = 6L, lastModifiedAt = 20L)
+                driver.insertExcludedScanlator("A")
+
+                restore(repository, listOf("B"), isSync = true, version = 5L, lastModifiedAt = 10L)
+
+                // A stale payload may add an exclusion but never removes the local one.
+                mangaRepository.getExcludedScanlators(1L) shouldBe setOf("A", "B")
             } finally {
                 driver.close()
             }
@@ -109,11 +173,13 @@ class RestoreRepositoryExcludedScanlatorsTest {
         repository: RestoreRepositoryImpl,
         excludedScanlators: List<String>,
         isSync: Boolean,
+        version: Long = 1L,
+        lastModifiedAt: Long = 10L,
     ) {
         repository.restoreManga(
             entries = listOf(
                 RestoredManga(
-                    manga = manga(),
+                    manga = manga(version = version, lastModifiedAt = lastModifiedAt),
                     chapters = emptyList(),
                     categoryIds = null,
                     history = emptyList(),
@@ -138,7 +204,7 @@ class RestoreRepositoryExcludedScanlatorsTest {
             customMangaRepository = mockk(relaxed = true),
         )
 
-    private fun manga() = Manga.create().copy(
+    private fun manga(version: Long = 1L, lastModifiedAt: Long = 10L) = Manga.create().copy(
         id = 1L,
         source = 1L,
         favorite = true,
@@ -153,9 +219,9 @@ class RestoreRepositoryExcludedScanlatorsTest {
         ogStatus = 0L,
         updateStrategy = UpdateStrategy.ALWAYS_UPDATE,
         initialized = true,
-        lastModifiedAt = 10L,
+        lastModifiedAt = lastModifiedAt,
         favoriteModifiedAt = 500L,
-        version = 1L,
+        version = version,
         notes = "",
         memo = JsonObject(emptyMap()),
     )

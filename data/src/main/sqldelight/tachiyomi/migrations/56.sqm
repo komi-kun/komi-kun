@@ -8,7 +8,6 @@ DROP TRIGGER IF EXISTS update_last_favorited_at_mangas;
 
 CREATE TRIGGER update_last_favorited_at_mangas
 AFTER UPDATE OF user_favorite_at ON manga
-FOR EACH ROW
 WHEN new.is_syncing = 0 AND (
     new.user_favorite_at IS NOT old.user_favorite_at
     OR (new.user_favorite_at IS NOT NULL AND old.favorite_modified_at IS NULL)

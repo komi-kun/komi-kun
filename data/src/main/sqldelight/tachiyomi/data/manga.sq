@@ -62,12 +62,11 @@ END;
 -- touch it, so the timestamp keeps meaning "the user favorited/unfavorited this".
 CREATE TRIGGER update_last_favorited_at_mangas
 AFTER UPDATE OF user_favorite_at ON manga
-FOR EACH ROW
 -- KUN -->
 -- A sync restore writes the backup timestamp itself (updateFromBackup), so it must not be
 -- overwritten with `now`. `new.is_syncing = 1` covers both the real favorite-state change and the
 -- `old.favorite_modified_at IS NULL` backfill below. Ordinary user changes (is_syncing = 0) still
--- stamp now, including a favorite added to a row whose timestamp was never set.
+-- stamp now, including a favorite added to an entry whose timestamp was never set.
 WHEN new.is_syncing = 0 AND (
     new.user_favorite_at IS NOT old.user_favorite_at
     OR (new.user_favorite_at IS NOT NULL AND old.favorite_modified_at IS NULL)

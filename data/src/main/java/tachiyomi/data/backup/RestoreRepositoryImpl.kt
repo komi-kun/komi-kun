@@ -107,7 +107,7 @@ class RestoreRepositoryImpl(
     ): Manga {
         val dbManga = mangaRepository.getMangaByUrlAndSourceId(entry.manga.url, entry.manga.source)
         val manga = if (dbManga == null) {
-            entry.manga.copy(id = insertManga(entry.manga, syncingFlag))
+            entry.manga.copy(id = insertManga(entry.manga, isSync, syncingFlag))
         } else {
             restoreExistingManga(entry.manga, dbManga, isSync, syncingFlag)
         }
@@ -141,7 +141,15 @@ class RestoreRepositoryImpl(
         // KUN <--
         restoreTracking(manga, entry.tracks)
         restoreHistory(manga, entry.history)
-        restoreExcludedScanlators(manga, entry.excludedScanlators, isSync)
+        // KUN -->
+        restoreExcludedScanlators(
+            manga,
+            entry.excludedScanlators,
+            isSync,
+            incomingIsNewerOrEqual,
+            incomingIsStrictlyNewer,
+        )
+        // KUN <--
         // SY -->
         restoreMergedMangaReferencesForManga(manga.id, entry.mergedMangaReferences)
         entry.flatMetadata?.let { restoreFlatMetadata(manga.id, it) }
@@ -260,7 +268,7 @@ class RestoreRepositoryImpl(
      *
      * @return id of [Manga], null if not found
      */
-    private suspend fun insertManga(manga: Manga, syncingFlag: Long): Long {
+    private suspend fun insertManga(manga: Manga, isSync: Boolean, syncingFlag: Long): Long {
         return database.mangaQueries.insert(
             sourceId = manga.source,
             remoteUrl = manga.url,
@@ -290,9 +298,9 @@ class RestoreRepositoryImpl(
             isSyncing = syncingFlag,
             // SY <--
             // KUN -->
-            // Keep the backup's favorite timestamp on insert; the insert trigger only stamps `now`
-            // when the payload has none.
-            favoriteModifiedAt = manga.favoriteModifiedAt,
+            // Only a sync restore carries an authoritative favorite timestamp. An ordinary restore
+            // passes NULL so the insert trigger stamps `now`, matching `updateManga`.
+            favoriteModifiedAt = if (isSync) manga.favoriteModifiedAt else null,
             // KUN <--
         )
             .awaitAsOne()
@@ -645,7 +653,11 @@ class RestoreRepositoryImpl(
     private suspend fun restoreExcludedScanlators(
         manga: Manga,
         excludedScanlators: List<String>,
+        // KUN -->
         isSync: Boolean,
+        incomingIsNewerOrEqual: Boolean,
+        incomingIsStrictlyNewer: Boolean,
+        // KUN <--
     ) {
         val existingExcludedScanlators = database.excluded_scanlatorQueries
             .getExcludedScanlatorsByMangaId(manga.id)
@@ -656,26 +668,32 @@ class RestoreRepositoryImpl(
         // KUN -->
         if (isSync) {
             // A sync response carries the complete filter for the manga, including an empty list
-            // when the user cleared it. Replace the local set so removing an exclusion propagates.
-            // Restores write the child table directly (no manga version bump), so this cannot echo
-            // back as a new local edit.
-            val toAdd = incoming.subtract(existingExcludedScanlators)
-            val toRemove = existingExcludedScanlators.subtract(incoming)
-            if (toAdd.isEmpty() && toRemove.isEmpty()) return
-            database.transaction {
-                if (toRemove.isNotEmpty()) {
-                    database.excluded_scanlatorQueries.remove(manga.id, toRemove)
+            // when the user cleared it. Replacing is only safe when the incoming payload wins the
+            // version comparison: a stale payload must never delete a filter the user edited
+            // locally. Restores write the child table directly (no manga version bump), so this
+            // cannot echo back as a new local edit.
+            when {
+                // Non-empty payload that wins (or ties): make the local set match it.
+                incoming.isNotEmpty() && incomingIsNewerOrEqual -> {
+                    replaceExcludedScanlators(manga, existingExcludedScanlators, incoming)
+                    return
                 }
-                toAdd.forEach {
-                    database.excluded_scanlatorQueries.insert(manga.id, it)
+                // Empty payload only clears when it is strictly newer (explicitly filtered out on
+                // another device); a tie may merely mean both devices already saw the same state.
+                incoming.isEmpty() && incomingIsStrictlyNewer -> {
+                    replaceExcludedScanlators(manga, existingExcludedScanlators, emptySet())
+                    return
                 }
+                // Otherwise this payload lost the comparison: fall through to the add-only union
+                // below, which never deletes local exclusions.
             }
-            return
         }
         // KUN <--
 
-        // An ordinary backup is not authoritative for removals: older backups predate exclusions the
-        // user added later, so only add (never delete) local exclusions.
+        // KUN -->
+        // An ordinary backup is not authoritative for removals: older backups predate exclusions
+        // the user added later, so only add (never delete) local exclusions.
+        // KUN <--
         if (incoming.isEmpty()) return
         val toInsert = incoming.subtract(existingExcludedScanlators)
         if (toInsert.isNotEmpty()) {
@@ -686,6 +704,26 @@ class RestoreRepositoryImpl(
             }
         }
     }
+
+    // KUN -->
+    private suspend fun replaceExcludedScanlators(
+        manga: Manga,
+        existingExcludedScanlators: Set<String>,
+        incoming: Set<String>,
+    ) {
+        val toAdd = incoming.subtract(existingExcludedScanlators)
+        val toRemove = existingExcludedScanlators.subtract(incoming)
+        if (toAdd.isEmpty() && toRemove.isEmpty()) return
+        database.transaction {
+            if (toRemove.isNotEmpty()) {
+                database.excluded_scanlatorQueries.remove(manga.id, toRemove)
+            }
+            toAdd.forEach {
+                database.excluded_scanlatorQueries.insert(manga.id, it)
+            }
+        }
+    }
+    // KUN <--
 
     // SY -->
     /**
