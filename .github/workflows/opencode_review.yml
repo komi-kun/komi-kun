@@ -11,13 +11,18 @@ on:
 
 concurrency:
   group: opencode-review-${{ github.event.pull_request.number || github.event.issue.number }}
-  cancel-in-progress: true
+  # Do not cancel a run midway: the action posts a placeholder comment that it
+  # only replaces when it finishes, so cancellation would leave it behind.
+  cancel-in-progress: false
 
 jobs:
   review:
     name: Review PR
     if: >-
-      (github.event_name == 'pull_request' && github.event.pull_request.draft == false) ||
+      (github.event_name == 'pull_request' &&
+       github.event.pull_request.draft == false &&
+       github.event.pull_request.head.repo.full_name == github.repository &&
+       github.event.pull_request.user.type != 'Bot') ||
       (github.event_name == 'issue_comment' && github.event.issue.pull_request &&
        (github.event.comment.author_association == 'OWNER' ||
         github.event.comment.author_association == 'MEMBER' ||
@@ -37,21 +42,29 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
+      # The action checks out the PR branch, which may not contain this helper
+      # (fork PRs, or a PR opened before the helper existed). Stage it first.
+      - name: Stage inline-comment helper
+        run: cp .github/scripts/post_opencode_review.py "$RUNNER_TEMP/post_opencode_review.py"
+
       # Automatic review: `prompt` supplies the review instructions because a
       # `pull_request` event has no comment body.
       - name: Run OpenCode PR Review
         if: github.event_name == 'pull_request'
-        uses: anomalyco/opencode/github@latest
+        uses: anomalyco/opencode/github@5caf1f9f6f5f30e13fc50a788ad953d97ae3748f # github-v1.2.26
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           model: opencode-go/deepseek-v4.1-flash
+          agent: opencode-review
           use_github_token: true
           prompt: |
             You are reviewing code for the Komikku Android application (Kotlin, Jetpack Compose, Coroutines/Flow, Android Architecture Components).
 
-            This is a read-only review. Do not modify files, create branches or commits, or push anything.
+            This is a read-only review. Do not modify repository files. The only file you may write is `build/opencode-review/findings.json`.
+
+            Inspect the pull request diff with `git diff` (the appended PR context includes the base branch). Only report lines that are part of the diff.
 
             Review guidelines:
             1. Concurrency: Check for Coroutine leaks, proper Dispatcher usage, race conditions, or unhandled exceptions.
@@ -61,17 +74,62 @@ jobs:
             5. Architecture: Ensure domain logic remains separated from UI components and adheres to existing Tachiyomi/Mihon conventions.
             6. Brevity: Do not explain obvious language features. Provide clear, direct, and actionable findings with file references.
 
-            For every finding, include the exact `path:line` reference, the severity, and a concrete fix.
-            Do not post additional comments yourself; reply with one consolidated review.
+            Output:
+            1. Write `build/opencode-review/findings.json` with exactly this shape:
+               {"findings":[{"path":"app/src/main/java/.../Foo.kt","line":123,"severity":"high","body":"What is wrong, why it matters, and the concrete fix."}]}
+               - `path` is relative to the repository root.
+               - `line` is the line number in the new version of the file and must be a line present in the diff.
+               - `severity` is one of `low`, `medium`, `high`, `critical`.
+               - Omit findings you cannot pin to a changed line.
+            2. Reply with one short paragraph summarising the review. Do not repeat every finding, because they are posted as inline comments. If there are no findings, write {"findings":[]} and say so.
 
       # Manual re-review: no `prompt`, so the action uses the triggering comment
       # body and any extra instructions the commenter added after `/oc review`.
       - name: Run OpenCode PR Review (comment command)
         if: github.event_name == 'issue_comment'
-        uses: anomalyco/opencode/github@latest
+        uses: anomalyco/opencode/github@5caf1f9f6f5f30e13fc50a788ad953d97ae3748f # github-v1.2.26
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           model: opencode-go/deepseek-v4.1-flash
+          agent: opencode-review
           use_github_token: true
+          prompt: |
+            You are reviewing code for the Komikku Android application (Kotlin, Jetpack Compose, Coroutines/Flow, Android Architecture Components).
+
+            This is a read-only review. Do not modify repository files. The only file you may write is `build/opencode-review/findings.json`.
+
+            Inspect the pull request diff with `git diff` (the appended PR context includes the base branch). Only report lines that are part of the diff.
+
+            Review guidelines:
+            1. Concurrency: Check for Coroutine leaks, proper Dispatcher usage, race conditions, or unhandled exceptions.
+            2. Compose: Ensure state hoisting follows best practices, detect unnecessary recompositions, and verify proper remember/derivedStateOf usage.
+            3. Android Resources & Lifecycle: Check lifecycle scopes, memory leaks, and proper cleanup of resources.
+            4. Performance & DB: Look for unnecessary queries on the main thread, unindexed searches, or inefficient list processing.
+            5. Architecture: Ensure domain logic remains separated from UI components and adheres to existing Tachiyomi/Mihon conventions.
+            6. Brevity: Do not explain obvious language features. Provide clear, direct, and actionable findings with file references.
+
+            Additional instructions from the commenter:
+            ${{ github.event.comment.body }}
+
+            Output:
+            1. Write `build/opencode-review/findings.json` with exactly this shape:
+               {"findings":[{"path":"app/src/main/java/.../Foo.kt","line":123,"severity":"high","body":"What is wrong, why it matters, and the concrete fix."}]}
+               - `path` is relative to the repository root.
+               - `line` is the line number in the new version of the file and must be a line present in the diff.
+               - `severity` is one of `low`, `medium`, `high`, `critical`.
+               - Omit findings you cannot pin to a changed line.
+            2. Reply with one short paragraph summarising the review. Do not repeat every finding, because they are posted as inline comments. If there are no findings, write {"findings":[]} and say so.
+
+      - name: Post inline review comments
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+        run: |
+          if [ -f "$RUNNER_TEMP/post_opencode_review.py" ]; then
+            python3 "$RUNNER_TEMP/post_opencode_review.py"
+          else
+            echo "Inline-comment helper was not staged; skipping."
+          fi
