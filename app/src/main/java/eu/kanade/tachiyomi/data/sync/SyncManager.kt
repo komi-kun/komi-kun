@@ -354,10 +354,21 @@ class SyncManager(
         if (remoteBackup == null) {
             logcat(LogPriority.DEBUG) { "Skip restore due to network issues" }
             // KUN -->
-            // Keep forcePushPending: a null result can mean the server accepted the merge and only
-            // the response was lost. Clearing it would let the next ordinary sync upload the still
-            // high local versions with empty disabled sections and roll the forced state back.
-            // Resuming is safe even when the upload truly failed before applying.
+            // Keep forcePushPending for transient failures: a null result can mean the server
+            // accepted the merge and only the response was lost. A permanent rejection (the forced
+            // payload can never fit, bad credentials) would otherwise retry forever, so drop it.
+            if (forcePushV2) {
+                if (isPermanentForcePushFailure(result.failureStatus, result.permanentFailure)) {
+                    syncPreferences.forcePushPending.set(false)
+                    logcat(LogPriority.WARN) {
+                        "Force push permanently rejected (status=${result.failureStatus}); dropping resume state"
+                    }
+                } else {
+                    logcat(LogPriority.DEBUG) {
+                        "Force push not completed (status=${result.failureStatus}); keeping resume state"
+                    }
+                }
+            }
             notifier.showSyncError("Sync failed to get remote data")
             // KUN <--
             return
@@ -524,12 +535,8 @@ class SyncManager(
             // KUN -->
             commitRemoteState(result)
             markFullSyncCompleted(full, result)
-            // The forced state reached the server and the local bump is written; nothing to restore.
-            if (forcePushV2) {
-                syncPreferences.forcePushPending.set(false)
-            }
             // KUN <--
-            finishWithSuccess(syncStart, "Sync completed successfully")
+            finishWithSuccess(syncStart, "Sync completed successfully", forcePushCompleted = forcePushV2)
             return
         }
         // SY <--

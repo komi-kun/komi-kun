@@ -54,7 +54,14 @@ class SyncYomiSyncService(
     }
     // KMK <--
 
-    private class SyncYomiException(message: String?) : Exception(message)
+    private class SyncYomiException(
+        message: String?,
+        // KUN -->
+        // The HTTP status of a failed request, when there was one. SyncManager uses it to tell a
+        // permanent rejection (a force push that can never fit) from a transient failure.
+        val statusCode: Int? = null,
+        // KUN <--
+    ) : Exception(message)
 
     @Serializable
     private data class SyncEvent(
@@ -165,7 +172,9 @@ class SyncYomiSyncService(
             val responseBody = response.body.string()
             logcat(LogPriority.ERROR) { "SyncError (${response.code}): $responseBody" }
             reportSyncEvent(SyncEventStatus.SYNC_FAILED, "Server answered ${response.code}")
-            throw SyncYomiException("Failed to sync: ${response.code} $responseBody")
+            // KUN -->
+            throw SyncYomiException("Failed to sync: ${response.code} $responseBody", statusCode = response.code)
+            // KUN <--
         }
 
         val bytes = response.body.bytes()
@@ -305,12 +314,22 @@ class SyncYomiSyncService(
             logcat(LogPriority.ERROR) { "Error syncing: ${e.message}" }
             notifier.showSyncError(e.message)
             reportSyncEvent(SyncEventStatus.SYNC_ERROR, e.message)
-            return SyncResult(null, changed = false, protocolV2 = v2)
+            // KUN -->
+            return SyncResult(
+                null,
+                changed = false,
+                protocolV2 = v2,
+                failureStatus = (e as? SyncYomiException)?.statusCode,
+            )
+            // KUN <--
         } catch (e: OutOfMemoryError) {
             logcat(LogPriority.ERROR) { "Out of memory while syncing" }
             notifier.showSyncError("Not enough memory to sync this library")
             reportSyncEvent(SyncEventStatus.SYNC_ERROR, "OutOfMemoryError")
-            return SyncResult(null, changed = false, protocolV2 = v2)
+            // KUN -->
+            // A forced full upload that runs out of memory will do it again; a later delta may fit.
+            return SyncResult(null, changed = false, protocolV2 = v2, permanentFailure = true)
+            // KUN <--
         }
     }
     // SY <--

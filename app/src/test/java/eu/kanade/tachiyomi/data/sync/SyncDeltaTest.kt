@@ -524,5 +524,22 @@ class SyncDeltaTest {
             ),
         )
     }
+
+    @Test
+    fun `only client errors that cannot succeed by retrying are permanent force push failures`() {
+        assertTrue(isPermanentForcePushFailure(400, permanent = false))
+        assertTrue(isPermanentForcePushFailure(401, permanent = false))
+        assertTrue(isPermanentForcePushFailure(403, permanent = false))
+        assertTrue(isPermanentForcePushFailure(413, permanent = false))
+        assertTrue(isPermanentForcePushFailure(422, permanent = false))
+        // Request timeout and rate limiting are transient.
+        assertFalse(isPermanentForcePushFailure(408, permanent = false))
+        assertFalse(isPermanentForcePushFailure(429, permanent = false))
+        // The server may have committed before a 5xx, and an unknown failure may be a lost response.
+        assertFalse(isPermanentForcePushFailure(500, permanent = false))
+        assertFalse(isPermanentForcePushFailure(null, permanent = false))
+        assertTrue(isPermanentForcePushFailure(null, permanent = true))
+        assertTrue(isPermanentForcePushFailure(413, permanent = true))
+    }
     // KUN <--
 }

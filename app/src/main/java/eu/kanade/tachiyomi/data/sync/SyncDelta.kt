@@ -193,6 +193,17 @@ internal fun forcePushMissingSnapshotIsFatal(
     snapshotAvailable: Boolean,
     hadRemoteSync: Boolean,
 ): Boolean = needsSnapshot && !snapshotAvailable && hadRemoteSync
+
+/**
+ * Whether a failed force-push upload will never succeed by retrying the same request, so keeping
+ * the resume marker would retry forever.
+ *
+ * Client errors are permanent (413 when the full upload exceeds the body limit, 400/401/403/422)
+ * except a request timeout (408) and rate limiting (429), which are transient. Server errors,
+ * timeouts and failures without a status are transient because the server may have committed.
+ */
+internal fun isPermanentForcePushFailure(status: Int?, permanent: Boolean): Boolean =
+    permanent || (status != null && status in 400..499 && status != 408 && status != 429)
 // KUN <--
 
 /**
