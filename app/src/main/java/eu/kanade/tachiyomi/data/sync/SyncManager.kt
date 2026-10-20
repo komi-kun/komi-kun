@@ -178,9 +178,9 @@ class SyncManager(
         // KUN <--
 
         // KUN -->
-        // A one-shot force push is a SyncYomi v2-only repair, and only when every section that
-        // lives inside a manga payload is enabled: a force push re-uploads those payloads as-is,
-        // so an omitted section would replace the server's data with empty values library-wide.
+        // A one-shot force push is a SyncYomi v2-only repair, and it needs the library and
+        // chapters. Other manga-payload sections may stay disabled: their server-side values are
+        // copied into the upload below so the forced payloads do not replace them with empty data.
         if (forcePush && !forcePushV2) {
             notifier.showSyncError(context.stringResource(KMR.strings.pref_sync_force_push_requires_v2))
             return
@@ -190,6 +190,19 @@ class SyncManager(
             return
         }
 
+        // Fetch the server's copy before raising any version. If this fails, the repair can still
+        // be retried without leaving half the local library force-authoritative.
+        var remoteSnapshot: Backup? = null
+        if (forcePushV2 && syncOptions.forcePushNeedsSnapshot) {
+            remoteSnapshot = try {
+                (syncService as SyncYomiSyncService).fetchSnapshot()
+            } catch (e: Exception) {
+                logcat(LogPriority.ERROR, e) { "Failed to fetch snapshot for force push" }
+                notifier.showSyncError(e.message)
+                return
+            }
+        }
+
         // One-shot, before the upload snapshot is built: every library row now outranks a stale
         // device's counter, so the server accepts this device's state. last_modified_at is set
         // just before syncStart so this repair does not force a second full delta next run.
@@ -197,6 +210,7 @@ class SyncManager(
             syncRepository.markForForcePush(
                 version = Clock.System.now().toEpochMilliseconds(),
                 lastModifiedAt = (syncStart - 1).coerceAtLeast(0),
+                bumpCategories = syncOptions.categories,
             )
             logcat(LogPriority.DEBUG) { "Force push: local sync versions raised above every peer" }
         }
@@ -245,6 +259,17 @@ class SyncManager(
             // KMK <--
         )
         logcat(LogPriority.DEBUG) { "End create backup" }
+
+        // KUN -->
+        // A forced payload replaces every manga field, so put the server's copy back for sections
+        // the user deliberately does not sync.
+        if (forcePushV2 && remoteSnapshot != null) {
+            if (!syncOptions.categories) {
+                backup.backupCategories = remoteSnapshot.backupCategories
+            }
+            preserveForcePushSections(backup.backupManga, remoteSnapshot.backupManga, syncOptions)
+        }
+        // KUN <--
 
         // Create the SyncData object
         val syncData = SyncData(

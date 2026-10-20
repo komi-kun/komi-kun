@@ -44,11 +44,13 @@ class SyncRepositoryImpl(
     }
 
     // KUN -->
-    override suspend fun markForForcePush(version: Long, lastModifiedAt: Long) {
+    override suspend fun markForForcePush(version: Long, lastModifiedAt: Long, bumpCategories: Boolean) {
         database.transaction {
             database.mangaQueries.forcePushVersions(version, lastModifiedAt)
             database.chapterQueries.forcePushVersions(version, lastModifiedAt)
-            database.categoryQueries.forcePushVersions(version, lastModifiedAt)
+            if (bumpCategories) {
+                database.categoryQueries.forcePushVersions(version, lastModifiedAt)
+            }
         }
     }
     // KUN <--

@@ -144,7 +144,7 @@
     <string name="pref_sync_force_push_confirmation_title">Force push this device\'s state?</string>
     <string name="pref_sync_force_push_confirmation_message">This overwrites the sync server and every other device with this device\'s library, read progress, bookmarks, categories and settings. Only use it if this device has the state you want to keep. This cannot be undone.</string>
     <string name="pref_sync_force_push_started">Force push started</string>
-    <string name="pref_sync_force_push_requires_sections">Enable library entries, categories, chapters, tracking, history and custom info in Choose what to sync before force pushing.</string>
+    <string name="pref_sync_force_push_requires_sections">Enable library entries and chapters in Choose what to sync before force pushing.</string>
     <string name="pref_sync_force_push_requires_v2">Force push requires a SyncYomi v2 server.</string>
     <!-- Advanced section -->
     <string name="pref_clean_invalid_downloads">Clean invalid downloads</string>

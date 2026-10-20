@@ -30,7 +30,11 @@ class SyncForcePushTest {
                 driver.insertChapter(id = 3, mangaId = 3)
                 driver.insertCategory(id = 1)
 
-                repository.markForForcePush(version = 1_700_000_000_000, lastModifiedAt = 1_600_000_000)
+                repository.markForForcePush(
+                    version = 1_700_000_000_000,
+                    lastModifiedAt = 1_600_000_000,
+                    bumpCategories = true,
+                )
 
                 driver.scalarLong("SELECT version FROM manga WHERE id = 1") shouldBe 1_700_000_000_000
                 driver.scalarLong("SELECT version FROM chapter WHERE id = 1") shouldBe 1_700_000_000_000
@@ -60,7 +64,11 @@ class SyncForcePushTest {
                 driver.insertChapter(id = 2, mangaId = 2)
                 // The system category (id 0) exists from the schema and is never synced.
 
-                repository.markForForcePush(version = 1_700_000_000_000, lastModifiedAt = 1_600_000_000)
+                repository.markForForcePush(
+                    version = 1_700_000_000_000,
+                    lastModifiedAt = 1_600_000_000,
+                    bumpCategories = true,
+                )
 
                 driver.scalarLong("SELECT version FROM manga WHERE id = 2") shouldBe 1
                 driver.scalarLong("SELECT version FROM chapter WHERE id = 2") shouldBe 1
@@ -88,7 +96,11 @@ class SyncForcePushTest {
                     version = 2_000_000_000_000,
                 )
 
-                repository.markForForcePush(version = 1_700_000_000_000, lastModifiedAt = 1_600_000_000)
+                repository.markForForcePush(
+                    version = 1_700_000_000_000,
+                    lastModifiedAt = 1_600_000_000,
+                    bumpCategories = true,
+                )
 
                 driver.scalarLong("SELECT version FROM manga WHERE id = 1") shouldBe 2_000_000_000_000
                 // The favorite timestamp is raised, never lowered.

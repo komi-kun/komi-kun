@@ -55,7 +55,7 @@
     <string name="pref_sync_force_push_confirmation_title">この端末の状態を強制プッシュしますか？</string>
     <string name="pref_sync_force_push_confirmation_message">この端末のライブラリ、読書進捗、ブックマーク、カテゴリ、設定で同期サーバーと他のすべての端末が上書きされます。この端末に保持したい状態がある場合にのみ使用してください。この操作は元に戻せません。</string>
     <string name="pref_sync_force_push_started">強制プッシュを開始しました</string>
-    <string name="pref_sync_force_push_requires_sections">強制プッシュする前に、「同期する項目を選択」でライブラリ項目、カテゴリ、章、トラッキング、履歴、カスタム情報を有効にしてください。</string>
+    <string name="pref_sync_force_push_requires_sections">強制プッシュする前に、「同期する項目を選択」でライブラリ項目と章を有効にしてください。</string>
     <string name="pref_sync_force_push_requires_v2">強制プッシュには SyncYomi v2 サーバーが必要です。</string>
     <string name="saved_searches_feeds">保存された検索 &amp; フィード</string>
     <string name="onboarding_permission_external_storage">メディアファイルへのアクセス許可</string>

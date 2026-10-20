@@ -57,7 +57,7 @@
     <string name="pref_sync_force_push_confirmation_title">Forzare lo stato di questo dispositivo?</string>
     <string name="pref_sync_force_push_confirmation_message">Questa operazione sovrascrive il server di sincronizzazione e tutti gli altri dispositivi con la libreria, i progressi di lettura, i segnalibri, le categorie e le impostazioni di questo dispositivo. Usala solo se questo dispositivo ha lo stato che vuoi conservare. Non può essere annullata.</string>
     <string name="pref_sync_force_push_started">Invio forzato avviato</string>
-    <string name="pref_sync_force_push_requires_sections">Abilita voci della libreria, categorie, capitoli, tracking, cronologia e informazioni personalizzate in Scegli cosa sincronizzare prima di forzare l’invio.</string>
+    <string name="pref_sync_force_push_requires_sections">Abilita voci della libreria e capitoli in Scegli cosa sincronizzare prima di forzare l’invio.</string>
     <string name="pref_sync_force_push_requires_v2">Forzare l’invio richiede un server SyncYomi v2.</string>
     <string name="saved_searches_feeds">Ricerche Salvate &amp; Feeds</string>
     <string name="onboarding_permission_external_storage">Accesso ai file multimediali</string>

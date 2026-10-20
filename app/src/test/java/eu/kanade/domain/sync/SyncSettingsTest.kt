@@ -9,19 +9,29 @@ import org.junit.jupiter.api.Test
 class SyncSettingsTest {
 
     @Test
-    fun `force push requires every section stored in the manga payload`() {
+    fun `force push requires library entries and chapters`() {
         assertTrue(SyncSettings().supportsForcePush)
-        assertFalse(SyncSettings(categories = false).supportsForcePush)
         assertFalse(SyncSettings(chapters = false).supportsForcePush)
-        assertFalse(SyncSettings(tracking = false).supportsForcePush)
-        assertFalse(SyncSettings(history = false).supportsForcePush)
-        assertFalse(SyncSettings(customInfo = false).supportsForcePush)
         assertFalse(SyncSettings(libraryEntries = false).supportsForcePush)
     }
 
     @Test
-    fun `sections outside the manga payload do not block force push`() {
-        assertTrue(SyncSettings(appSettings = false, extensionStores = false, sourceSettings = false).supportsForcePush)
+    fun `disabled manga payload sections are preserved instead of blocking force push`() {
+        val settings = SyncSettings(
+            categories = false,
+            tracking = false,
+            history = false,
+            customInfo = false,
+            appSettings = false,
+            sourceSettings = false,
+            privateSettings = false,
+            extensionStores = false,
+            savedSearchesFeeds = false,
+        )
+
+        assertTrue(settings.supportsForcePush)
+        assertTrue(settings.forcePushNeedsSnapshot)
+        assertFalse(SyncSettings().forcePushNeedsSnapshot)
     }
 }
 // KUN <--

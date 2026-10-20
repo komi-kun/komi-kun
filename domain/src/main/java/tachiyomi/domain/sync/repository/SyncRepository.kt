@@ -34,10 +34,11 @@ interface SyncRepository {
     /**
      * One-shot repair for a stale device: raises the sync version of every library manga, its
      * chapters and every user category to at least [version] in a single transaction, and moves
-     * their `last_modified_at` to [lastModifiedAt]. SyncYomi v2 picks the higher per-device counter
+     * their `last_modified_at` to [lastModifiedAt]. Categories are only bumped when
+     * [bumpCategories] is set, because a disabled category sync uploads the server copy instead.
      * first, so this makes the local state authoritative for the next upload without bumping rows
      * that are not part of the library.
      */
-    suspend fun markForForcePush(version: Long, lastModifiedAt: Long)
+    suspend fun markForForcePush(version: Long, lastModifiedAt: Long, bumpCategories: Boolean)
     // KUN <--
 }

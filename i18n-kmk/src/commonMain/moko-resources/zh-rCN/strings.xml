@@ -58,7 +58,7 @@
     <string name="pref_sync_force_push_confirmation_title">强制推送此设备的状态？</string>
     <string name="pref_sync_force_push_confirmation_message">这会用此设备的书库、阅读进度、书签、分类和设置覆盖同步服务器及其他所有设备。仅在确定要保留此设备的状态时使用。此操作无法撤销。</string>
     <string name="pref_sync_force_push_started">已开始强制推送</string>
-    <string name="pref_sync_force_push_requires_sections">强制推送前，请在“选择要同步的内容”中启用书库条目、分类、章节、追踪、历史记录和自定义信息。</string>
+    <string name="pref_sync_force_push_requires_sections">强制推送前，请在“选择要同步的内容”中启用书库条目和章节。</string>
     <string name="pref_sync_force_push_requires_v2">强制推送需要 SyncYomi v2 服务器。</string>
     <string name="saved_searches_feeds">保存搜索 &amp; 订阅</string>
     <string name="onboarding_permission_external_storage">访问媒体文件权限</string>

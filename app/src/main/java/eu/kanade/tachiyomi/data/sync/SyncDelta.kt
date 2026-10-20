@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.data.sync
 
+import eu.kanade.domain.sync.models.SyncSettings
 import eu.kanade.tachiyomi.data.backup.models.BackupCategory
 import eu.kanade.tachiyomi.data.backup.models.BackupExtensionStore
 import eu.kanade.tachiyomi.data.backup.models.BackupManga
@@ -63,6 +64,34 @@ internal fun missingRemoteChapterUrls(
  */
 internal fun shouldUploadFullLibrary(forceFull: Boolean, serviceNeedsFullSync: Boolean): Boolean =
     forceFull || serviceNeedsFullSync
+
+/**
+ * A force push sends every manga payload, so a disabled manga-payload section would otherwise
+ * replace the server's copy with empty values. Copy the server's fields for the disabled sections
+ * into the upload; enabled sections keep the local values.
+ */
+internal fun preserveForcePushSections(
+    localManga: List<BackupManga>,
+    remoteManga: List<BackupManga>,
+    settings: SyncSettings,
+) {
+    val remoteByKey = remoteManga.associateBy { it.source to it.url }
+    localManga.forEach { local ->
+        val remote = remoteByKey[local.source to local.url] ?: return@forEach
+        if (!settings.history) local.history = remote.history
+        if (!settings.tracking) local.tracking = remote.tracking
+        if (!settings.categories) local.categories = remote.categories
+        if (!settings.customInfo) {
+            local.customTitle = remote.customTitle
+            local.customArtist = remote.customArtist
+            local.customAuthor = remote.customAuthor
+            local.customThumbnailUrl = remote.customThumbnailUrl
+            local.customDescription = remote.customDescription
+            local.customGenre = remote.customGenre
+            local.customStatus = remote.customStatus
+        }
+    }
+}
 // KUN <--
 
 /**

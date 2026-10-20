@@ -1,11 +1,14 @@
 package eu.kanade.tachiyomi.data.sync
 
+import eu.kanade.domain.sync.models.SyncSettings
 import eu.kanade.tachiyomi.data.backup.models.Backup
 import eu.kanade.tachiyomi.data.backup.models.BackupCategory
 import eu.kanade.tachiyomi.data.backup.models.BackupChapter
 import eu.kanade.tachiyomi.data.backup.models.BackupExtensionStore
 import eu.kanade.tachiyomi.data.backup.models.BackupFeed
+import eu.kanade.tachiyomi.data.backup.models.BackupHistory
 import eu.kanade.tachiyomi.data.backup.models.BackupManga
+import eu.kanade.tachiyomi.data.backup.models.BackupTracking
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
@@ -270,6 +273,61 @@ class SyncDeltaTest {
         assertEquals(1, decoded.backupFeeds.size)
         assertEquals(100L, decoded.backupFeeds[0].source)
         assertTrue(decoded.backupFeeds[0].global)
+    }
+
+    @Test
+    fun `force push preserves disabled manga payload sections from the server`() {
+        val remote = BackupManga(
+            source = 1,
+            url = "/m",
+            history = listOf(BackupHistory(url = "/m/1", lastRead = 10)),
+            tracking = listOf(BackupTracking(syncId = 2, title = "remote track")),
+            categories = listOf(3),
+            customTitle = "Remote title",
+            customStatus = 2,
+        )
+        val local = BackupManga(source = 1, url = "/m", title = "Local title")
+
+        preserveForcePushSections(
+            localManga = listOf(local),
+            remoteManga = listOf(remote),
+            settings = SyncSettings(
+                categories = false,
+                tracking = false,
+                history = false,
+                customInfo = false,
+            ),
+        )
+
+        assertEquals(remote.history, local.history)
+        assertEquals(remote.tracking, local.tracking)
+        assertEquals(remote.categories, local.categories)
+        assertEquals("Remote title", local.customTitle)
+        assertEquals(2, local.customStatus)
+    }
+
+    @Test
+    fun `force push keeps local manga payload sections when they are enabled`() {
+        val remote = BackupManga(
+            source = 1,
+            url = "/m",
+            history = listOf(BackupHistory(url = "/m/1", lastRead = 10)),
+            tracking = listOf(BackupTracking(syncId = 2, title = "remote track")),
+            categories = listOf(3),
+            customTitle = "Remote title",
+        )
+        val local = BackupManga(source = 1, url = "/m", title = "Local title")
+
+        preserveForcePushSections(
+            localManga = listOf(local),
+            remoteManga = listOf(remote),
+            settings = SyncSettings(),
+        )
+
+        assertTrue(local.history.isEmpty())
+        assertTrue(local.tracking.isEmpty())
+        assertTrue(local.categories.isEmpty())
+        assertEquals(null, local.customTitle)
     }
     // KUN <--
 }

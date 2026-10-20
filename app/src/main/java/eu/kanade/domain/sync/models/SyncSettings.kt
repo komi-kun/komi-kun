@@ -19,10 +19,18 @@ data class SyncSettings(
 ) {
     // KUN -->
     /**
-     * A force push uploads every manga payload as-is, so sections omitted from that payload would
-     * replace the server's data with empty values library-wide. Require all of them to be enabled.
+     * A force push needs the library and chapters: it exists to push manga/chapter/read state.
+     * Categories, tracking, history and custom info can stay disabled; their server-side values are
+     * copied into the upload so the forced manga payloads do not replace them with empty data.
      */
     val supportsForcePush: Boolean
-        get() = libraryEntries && categories && chapters && tracking && history && customInfo
+        get() = libraryEntries && chapters
+
+    /**
+     * A force push must copy the server's values for any manga-payload section that is disabled,
+     * or the forced payloads would replace them with empty data library-wide.
+     */
+    val forcePushNeedsSnapshot: Boolean
+        get() = !categories || !tracking || !history || !customInfo
     // KUN <--
 }

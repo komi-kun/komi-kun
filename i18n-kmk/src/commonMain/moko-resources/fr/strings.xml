@@ -55,7 +55,7 @@
     <string name="pref_sync_force_push_confirmation_title">Forcer l\'état de cet appareil ?</string>
     <string name="pref_sync_force_push_confirmation_message">Cela écrase le serveur de synchronisation et tous les autres appareils avec la bibliothèque, la progression de lecture, les signets, les catégories et les paramètres de cet appareil. À utiliser uniquement si cet appareil contient l\'état que vous souhaitez conserver. Cette action est irréversible.</string>
     <string name="pref_sync_force_push_started">Envoi forcé démarré</string>
-    <string name="pref_sync_force_push_requires_sections">Activez les entrées de bibliothèque, les catégories, les chapitres, le suivi, l’historique et les informations personnalisées dans Choisir quoi synchroniser avant de forcer l’envoi.</string>
+    <string name="pref_sync_force_push_requires_sections">Activez les entrées de bibliothèque et les chapitres dans Choisir quoi synchroniser avant de forcer l’envoi.</string>
     <string name="pref_sync_force_push_requires_v2">Forcer l’envoi nécessite un serveur SyncYomi v2.</string>
     <string name="saved_searches_feeds">Recherches Sauvegardées &amp; Feeds</string>
     <string name="onboarding_permission_external_storage">Autorisation d\'accès aux fichiers médias</string>

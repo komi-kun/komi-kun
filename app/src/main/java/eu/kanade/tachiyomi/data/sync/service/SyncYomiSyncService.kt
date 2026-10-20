@@ -223,6 +223,29 @@ class SyncYomiSyncService(
         return supported
     }
 
+    /**
+     * A full copy of the server's library, used by a force push to keep the sections the user
+     * disabled syncing (history, tracking, categories, custom info) instead of replacing them with
+     * empty manga payloads. Null when the server has no data yet.
+     */
+    // KUN -->
+    suspend fun fetchSnapshot(): Backup? {
+        val host = syncPreferences.clientHost.get()
+        val request = GET(
+            url = "$host/api/sync/v2/snapshot",
+            headers = baseHeaders(syncPreferences.clientAPIKey.get()).build(),
+        )
+        val response = syncClient().newCall(request).await()
+        response.use { resp ->
+            if (resp.code == HttpStatus.SC_NOT_FOUND) return null
+            if (!resp.isSuccessful) {
+                throw SyncYomiException("Failed to fetch sync snapshot: ${resp.code}")
+            }
+            return protoBuf.decodeFromByteArray(Backup.serializer(), resp.body.bytes())
+        }
+    }
+    // KUN <--
+
     private fun baseHeaders(apiKey: String): Headers.Builder = Headers.Builder()
         .add("X-API-Token", apiKey)
         .add("X-Device-ID", syncPreferences.uniqueDeviceID())

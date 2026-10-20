@@ -78,7 +78,7 @@
     <string name="pref_sync_force_push_confirmation_title">이 기기의 상태를 강제로 푸시할까요?</string>
     <string name="pref_sync_force_push_confirmation_message">이 기기의 라이브러리, 읽기 진행률, 북마크, 카테고리 및 설정으로 동기화 서버와 다른 모든 기기를 덮어씁니다. 이 기기에 유지하려는 상태가 있을 때만 사용하세요. 이 작업은 되돌릴 수 없습니다.</string>
     <string name="pref_sync_force_push_started">강제 푸시가 시작되었습니다</string>
-    <string name="pref_sync_force_push_requires_sections">강제 푸시 전에 '동기화할 항목 선택'에서 라이브러리 항목, 카테고리, 챕터, 트래킹, 기록 및 사용자 지정 정보를 활성화하세요.</string>
+    <string name="pref_sync_force_push_requires_sections">강제 푸시 전에 '동기화할 항목 선택'에서 라이브러리 항목과 챕터를 활성화하세요.</string>
     <string name="pref_sync_force_push_requires_v2">강제 푸시에는 SyncYomi v2 서버가 필요합니다.</string>
     <string name="preload_library_cover_color">Preload library\'s cover color</string>
     <string name="onboarding_permission_external_storage">Access media files permission</string>
