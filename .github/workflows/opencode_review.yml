@@ -44,8 +44,8 @@ jobs:
 
       # Fail closed: only same-repo PRs are reviewed, because the action checks
       # out the PR head and runs the agent with the base repository's secrets.
-      # PRs that change `.opencode/` are skipped so they cannot load a plugin
-      # or agent override from the PR checkout.
+      # PRs that change `.opencode/` or the root opencode config are skipped so
+      # they cannot load a plugin or agent override from the PR checkout.
       - name: Verify PR is safe to review
         id: pr-source
         env:
