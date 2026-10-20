@@ -24,8 +24,8 @@ current state in this repo.
 
 1. [ ] Enable Actions on the fork (one-time UI acknowledgement).
 2. [ ] Confirm default branch = `master`; make the repo public or enable Dependency Graph.
-3. [ ] Add the 4 signing secrets. The 2 Google secrets are **optional** — CI is
-   green without them.
+3. [ ] Add the 4 signing secrets and `OPENCODE_API_KEY` (for automated PR
+   reviews). The 2 Google secrets are **optional** — CI is green without them.
 4. [ ] Leave Actions workflow permissions at "Read repository contents".
 5. [ ] No environments / no Actions variables required.
 6. [ ] Test: same-repo PR → push to `master` → `Nightly Builder`. The nightly is
@@ -96,10 +96,11 @@ variables.
 
 **Settings → Secrets and variables → Actions → New repository secret.**
 
-Add the **4 signing secrets** below. The **2 Google secrets are optional**: the
-workflows check for `GOOGLE_SERVICES_JSON` at runtime and, when it is absent,
-skip writing the Google files and pass `-Pinclude-telemetry=false` so the build
-stays green (see [§7](#7-what-each--pdist-does)).
+Add the **4 signing secrets** and the **OpenCode API key** below. The **2 Google
+secrets are optional**: the workflows check for `GOOGLE_SERVICES_JSON` at
+runtime and, when it is absent, skip writing the Google files and pass
+`-Pinclude-telemetry=false` so the build stays green (see
+[§7](#7-what-each--pdist-does)).
 
 | # | Secret name | Required? | Used by | What it is |
 |---|-------------|-----------|---------|------------|
@@ -107,12 +108,14 @@ stays green (see [§7](#7-what-each--pdist-does)).
 | 2 | `KEY_STORE_PASSWORD` | **Yes** | all signing | keystore password |
 | 3 | `ALIAS` | **Yes** | all signing | key alias |
 | 4 | `KEY_PASSWORD` | **Yes** | all signing | key password |
-| 5 | `GOOGLE_SERVICES_JSON` | No | push, PR (same-repo), nightly, release | Firebase `google-services.json` for `app.komikun` |
-| 6 | `GOOGLE_CLIENT_SECRETS_JSON` | No | push, PR (same-repo), nightly, release | OAuth client secrets (trackers) |
+| 5 | `OPENCODE_API_KEY` | **Yes** for reviews | `opencode_review.yml` | OpenCode Go API key (`opencode-go` provider) |
+| 6 | `GOOGLE_SERVICES_JSON` | No | push, PR (same-repo), nightly, release | Firebase `google-services.json` for `app.komikun` |
+| 7 | `GOOGLE_CLIENT_SECRETS_JSON` | No | push, PR (same-repo), nightly, release | OAuth client secrets (trackers) |
 
-> **Current state of this fork:** the four signing secrets are set; neither
-> Google secret is set yet (no Firebase project exists). That is why the
-> telemetry flag is `-Pinclude-telemetry=false` and CI is green. See
+> **Current state of this fork:** the four signing secrets and
+> `OPENCODE_API_KEY` are set; neither Google secret is set yet (no Firebase
+> project exists). That is why the telemetry flag is
+> `-Pinclude-telemetry=false` and CI is green. See
 > [`GOOGLE_SERVICES_SETUP.md`](GOOGLE_SERVICES_SETUP.md) if you later want to
 > enable telemetry or Google Drive backup.
 
@@ -204,7 +207,10 @@ gh secret set KEY_STORE_PASSWORD --repo "$REPO" --body 'YOUR_STORE_PASSWORD'
 gh secret set KEY_PASSWORD       --repo "$REPO" --body 'YOUR_KEY_PASSWORD'   # same as the store password for PKCS12
 gh secret set ALIAS              --repo "$REPO" --body 'komikun'
 
-# 5-6 (optional): Google JSON files -- pipe the file's exact bytes as the secret value.
+# 5: OpenCode Go API key used by the automated PR review.
+gh secret set OPENCODE_API_KEY --repo "$REPO" --body 'YOUR_OPENCODE_API_KEY'
+
+# 6-7 (optional): Google JSON files -- pipe the file's exact bytes as the secret value.
 gh secret set GOOGLE_SERVICES_JSON       --repo "$REPO" < app/google-services.json
 gh secret set GOOGLE_CLIENT_SECRETS_JSON --repo "$REPO" < path/to/client_secrets.json
 
@@ -242,6 +248,7 @@ Do not add these unless you deliberately re-purpose those workflows.
 | `build_release.yml` (Release Builder) | **Keep** (dormant) | `v*` tag → non-draft prerelease, 5 APKs, AGP signing. Only fires on `v*` tags; this fork ships nightlies, not stable releases, so it is normally unused. Needs a Crashlytics-capable config for `-Pdist=github` (or telemetry off). |
 | `build_benchmark.yml` (Benchmark Builder) | **Keep** (optional) | Manual benchmark build; needs only the 4 signing secrets. Niche. |
 | `pr_label.yml` (Label PRs) | **Keep** (low value) | Labels Weblate-authored PRs `translations`. Harmless, safe. |
+| `opencode_review.yml` (OpenCode PR Review) | **Keep** | Reviews non-draft same-repo PRs on open/ready-for-review and on `/oc review` comments. Needs `OPENCODE_API_KEY`. Pushes do not re-trigger it. |
 | `build_dispatch_preview.yml.disabled` | **Disabled** | Cross-repo dispatch to upstream `komikku-app/komikku-preview` with `BOT_PAT` — cannot work on the fork. |
 | `codeberg_mirror.yml.disabled` | **Disabled** | Guarded `github.repository == 'komikku-app/komikku'` → permanent no-op; mirrors to an upstream Codeberg repo. |
 | `update_website.yml.disabled` | **Disabled** | Cross-repo dispatch to upstream `komikku-app/komikku-app.github.io` with `BOT_PAT` — cannot work. |
@@ -321,6 +328,25 @@ first. Then walk through these in order.
 signs with `r0adkll`, uploads APK artifacts (retained 30 days). Needs only the 4
 signing secrets.
 
+### 5.6 OpenCode review (exercises `opencode_review.yml`)
+
+1. Open a **draft** same-repo PR: the `OpenCode PR Review` run is created but
+   the job is **skipped**, so no comment is posted.
+2. Mark it **ready for review**: the job runs and posts one review by
+   `github-actions[bot]`: an overarching summary in the review body (Mermaid
+   diagrams are allowed) and inline threads on the changed lines in **Files
+   changed**.
+3. Push a commit: no new review run starts (only `opened` and
+   `ready_for_review` are wired).
+4. Comment `/oc review` (or `/opencode review`, optionally followed by
+   instructions): the job runs again. The `issue_comment` path only picks up the
+   workflow from the **default branch**, so this command works only after
+   `opencode_review.yml` is merged to `master`. The command must be lowercase
+   and must start the comment.
+5. Comment from a non-collaborator: the job is skipped. Fork PRs and PRs that
+   change `.opencode/` or the root `opencode.json`/`opencode.jsonc` are skipped
+   too, so a PR cannot load a plugin before the read-only agent starts.
+
 ---
 
 ## 6. Common failure modes
@@ -332,6 +358,9 @@ signing secrets.
 | Release job fails **uploading the Crashlytics mapping** | `-Pdist=github` sets `uploadCrashlyticsMapping=true`, but the Firebase project has no Crashlytics | Enable Crashlytics in Firebase, switch the release build to `-Pdist=ci`, or leave `GOOGLE_SERVICES_JSON` unset. |
 | Build fails **signing** | Wrong `SIGNING_KEY` (not `base64 -w0`), or wrong password/alias | Regenerate: `base64 -w0 release.keystore`; verify `KEY_STORE_PASSWORD`/`ALIAS`/`KEY_PASSWORD` match the keystore. |
 | Nightly/release job fails at **Sign APK** | The 4 signing secrets are missing | Add `SIGNING_KEY`, `KEY_STORE_PASSWORD`, `ALIAS`, `KEY_PASSWORD`. |
+| **OpenCode PR Review** fails during `opencode github run` | `OPENCODE_API_KEY` missing or invalid | Set the secret (`gh secret set OPENCODE_API_KEY --repo komi-kun/komi-kun`). |
+| **OpenCode PR Review** job is **skipped** | PR is from a fork, authored by a bot, changes `.opencode/` or the root `opencode.json(c)`, or is a draft | Expected. Port fork PRs to a same-repo branch (or review them manually); bot-authored same-repo PRs can be re-reviewed with `/oc review`. |
+| OpenCode posts a summary but **no inline comments** | The agent did not write `build/opencode-review/findings.json`, or its findings were not on lines present in the diff | Check the `Post review` step log; findings outside the diff are skipped by design. |
 | Google Drive backup broken at runtime (not a build failure) | `GOOGLE_CLIENT_SECRETS_JSON` missing | Add the client-secrets JSON; see [`GOOGLE_SERVICES_SETUP.md`](GOOGLE_SERVICES_SETUP.md). |
 | Nightly/release `workflow_dispatch` does nothing | Triggered from a non-`master` branch | Run from `master`. |
 | Release workflow doesn't run on a tag | Tag doesn't start with `v` | Use `v*` tags. |
