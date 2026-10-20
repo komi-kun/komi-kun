@@ -141,7 +141,7 @@ class RestoreRepositoryImpl(
         // KUN <--
         restoreTracking(manga, entry.tracks)
         restoreHistory(manga, entry.history)
-        restoreExcludedScanlators(manga, entry.excludedScanlators)
+        restoreExcludedScanlators(manga, entry.excludedScanlators, isSync)
         // SY -->
         restoreMergedMangaReferencesForManga(manga.id, entry.mergedMangaReferences)
         entry.flatMetadata?.let { restoreFlatMetadata(manga.id, it) }
@@ -184,14 +184,19 @@ class RestoreRepositoryImpl(
             },
             // SY -->
             // KUN -->
-            ogTitle = newer.ogTitle.ifBlank { newer.title.ifBlank { this.ogTitle } },
+            // Read the raw remote fields, not the custom-info aware accessors (`title`, `author`,
+            // ...). This merge also runs for the local-wins branch with a Manga loaded from the
+            // database, whose accessors may return custom metadata; writing that back would copy
+            // the user's overrides into the remote columns, which a later refresh could then
+            // propagate to the source or to other devices.
+            ogTitle = newer.ogTitle.ifBlank { this.ogTitle },
+            ogAuthor = newer.ogAuthor,
+            ogArtist = newer.ogArtist,
+            ogDescription = newer.ogDescription,
+            ogGenre = newer.ogGenre,
+            ogThumbnailUrl = newer.ogThumbnailUrl,
+            ogStatus = newer.ogStatus,
             // KUN <--
-            ogAuthor = newer.author,
-            ogArtist = newer.artist,
-            ogDescription = newer.description,
-            ogGenre = newer.genre,
-            ogThumbnailUrl = newer.thumbnailUrl,
-            ogStatus = newer.status,
             // SY <--
             initialized = this.initialized || newer.initialized,
             version = newer.version,
@@ -241,6 +246,11 @@ class RestoreRepositoryImpl(
             // SY <--
             notes = manga.notes,
             memo = manga.memo,
+            // KUN -->
+            // Only a sync restore carries an authoritative favorite timestamp. Ordinary restore keeps
+            // the existing timestamp so it does not look like a fresh favorite change.
+            favoriteModifiedAt = if (isSync) manga.favoriteModifiedAt else null,
+            // KUN <--
         )
         return manga
     }
@@ -279,6 +289,11 @@ class RestoreRepositoryImpl(
             version = manga.version,
             isSyncing = syncingFlag,
             // SY <--
+            // KUN -->
+            // Keep the backup's favorite timestamp on insert; the insert trigger only stamps `now`
+            // when the payload has none.
+            favoriteModifiedAt = manga.favoriteModifiedAt,
+            // KUN <--
         )
             .awaitAsOne()
     }
@@ -412,6 +427,10 @@ class RestoreRepositoryImpl(
                     bookmark = chapter.bookmark || dbChapter.bookmark,
                     sourceOrder = max(chapter.sourceOrder, dbChapter.sourceOrder),
                     dateUpload = listOfNotNull(chapter.dateUpload, dbChapter.dateUpload).minOrNull(),
+                    // An ordinary restore merges backup state but must not move the sync version
+                    // backwards: an older backup would otherwise leave a newer stored timestamp next
+                    // to an old version, and the next sync would treat that stale version as newer.
+                    version = max(chapter.version, dbChapter.version),
                 )
                 // KUN <--
                 .let {
@@ -623,13 +642,42 @@ class RestoreRepositoryImpl(
         }
     }
 
-    private suspend fun restoreExcludedScanlators(manga: Manga, excludedScanlators: List<String>) {
-        if (excludedScanlators.isEmpty()) return
+    private suspend fun restoreExcludedScanlators(
+        manga: Manga,
+        excludedScanlators: List<String>,
+        isSync: Boolean,
+    ) {
         val existingExcludedScanlators = database.excluded_scanlatorQueries
             .getExcludedScanlatorsByMangaId(manga.id)
             .awaitAsList()
             .toSet()
-        val toInsert = excludedScanlators.toSet().subtract(existingExcludedScanlators)
+        val incoming = excludedScanlators.toSet()
+
+        // KUN -->
+        if (isSync) {
+            // A sync response carries the complete filter for the manga, including an empty list
+            // when the user cleared it. Replace the local set so removing an exclusion propagates.
+            // Restores write the child table directly (no manga version bump), so this cannot echo
+            // back as a new local edit.
+            val toAdd = incoming.subtract(existingExcludedScanlators)
+            val toRemove = existingExcludedScanlators.subtract(incoming)
+            if (toAdd.isEmpty() && toRemove.isEmpty()) return
+            database.transaction {
+                if (toRemove.isNotEmpty()) {
+                    database.excluded_scanlatorQueries.remove(manga.id, toRemove)
+                }
+                toAdd.forEach {
+                    database.excluded_scanlatorQueries.insert(manga.id, it)
+                }
+            }
+            return
+        }
+        // KUN <--
+
+        // An ordinary backup is not authoritative for removals: older backups predate exclusions the
+        // user added later, so only add (never delete) local exclusions.
+        if (incoming.isEmpty()) return
+        val toInsert = incoming.subtract(existingExcludedScanlators)
         if (toInsert.isNotEmpty()) {
             database.transaction {
                 toInsert.forEach {
