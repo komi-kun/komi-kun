@@ -344,7 +344,8 @@ signing secrets.
    `opencode_review.yml` is merged to `master`. The command must be lowercase
    and must start the comment.
 5. Comment from a non-collaborator: the job is skipped. Fork PRs and PRs that
-   change `.opencode/` are skipped too.
+   change `.opencode/` or the root `opencode.json`/`opencode.jsonc` are skipped
+   too, so a PR cannot load a plugin before the read-only agent starts.
 
 ---
 
@@ -358,7 +359,7 @@ signing secrets.
 | Build fails **signing** | Wrong `SIGNING_KEY` (not `base64 -w0`), or wrong password/alias | Regenerate: `base64 -w0 release.keystore`; verify `KEY_STORE_PASSWORD`/`ALIAS`/`KEY_PASSWORD` match the keystore. |
 | Nightly/release job fails at **Sign APK** | The 4 signing secrets are missing | Add `SIGNING_KEY`, `KEY_STORE_PASSWORD`, `ALIAS`, `KEY_PASSWORD`. |
 | **OpenCode PR Review** fails during `opencode github run` | `OPENCODE_API_KEY` missing or invalid, or the PR is from a fork / authored by a bot (reviews are gated to same-repo, non-bot PRs) | Set `OPENCODE_API_KEY`. Port fork PRs to a same-repo branch (or review them manually); bot-authored same-repo PRs can be re-reviewed with `/oc review`. |
-| OpenCode posts a summary but **no inline comments** | The agent did not write `build/opencode-review/findings.json`, or its findings were not on lines present in the diff | Check the `Post inline review comments` step log; findings outside the diff are skipped by design. |
+| OpenCode posts a summary but **no inline comments** | The agent did not write `build/opencode-review/findings.json`, or its findings were not on lines present in the diff | Check the `Post review` step log; findings outside the diff are skipped by design. |
 | Google Drive backup broken at runtime (not a build failure) | `GOOGLE_CLIENT_SECRETS_JSON` missing | Add the client-secrets JSON; see [`GOOGLE_SERVICES_SETUP.md`](GOOGLE_SERVICES_SETUP.md). |
 | Nightly/release `workflow_dispatch` does nothing | Triggered from a non-`master` branch | Run from `master`. |
 | Release workflow doesn't run on a tag | Tag doesn't start with `v` | Use `v*` tags. |
