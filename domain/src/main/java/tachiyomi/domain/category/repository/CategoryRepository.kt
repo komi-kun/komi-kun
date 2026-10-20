@@ -41,4 +41,9 @@ interface CategoryRepository {
     suspend fun updatePartial(updates: List<CategoryUpdate>)
 
     suspend fun delete(categoryId: Long)
+
+    // KUN -->
+    /** Deletes [categoryIds] in a single transaction so observers see one list update. */
+    suspend fun delete(categoryIds: List<Long>)
+    // KUN <--
 }
