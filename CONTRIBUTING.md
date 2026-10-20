@@ -28,6 +28,29 @@ Before you start, please note that the ability to use following technologies is 
 
 - Join [the Discord server](https://discord.gg/85jB7V5AJR) for online help and to ask questions while developing.
 
+## Automated code reviews
+
+Pull requests get an automated review from [OpenCode](https://opencode.ai/docs/github/) when they are first opened as non-draft or marked ready for review. The review starts with an overarching summary and overall judgement; each finding is then posted by `github-actions[bot]` as an **inline thread on the changed line** in the "Files changed" view. The summary may include a Mermaid diagram when the change is easier to understand visually. Pushing new commits does **not** re-trigger a review, so the bot does not comment on every push.
+
+Automatic reviews only run for same-repo, non-bot pull requests: fork workflows do not receive repository secrets, and the reviewer must not load configuration from an untrusted branch. For a fork PR, review the changes manually or port them to a branch in this repository. Bot-authored same-repo PRs can still be re-reviewed with the command below.
+
+To request a re-review or give the reviewer focused instructions, comment on the pull request with one of:
+
+```
+/oc review
+/opencode review
+```
+
+Anything you add after the command is passed to the reviewer, for example:
+
+```
+/oc review focus on the Compose recomposition and coroutine cancellation paths
+```
+
+The command must be lowercase and must start the comment (leading whitespace or `/OC review` is not recognised). Only repository owners, members and collaborators can trigger a review this way; comments from other users are ignored. The review is advisory, not a substitute for a human review: verify every finding before changing code.
+
+The workflow lives in [`.github/workflows/opencode_review.yml`](.github/workflows/opencode_review.yml).
+
 # Translations
 
 Translations are done externally via [Weblate](https://hosted.weblate.org/engage/komikku-app/). See [our website](https://komikku-app.github.io/docs/contribute#translation) for more details.

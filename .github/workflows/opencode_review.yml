@@ -1,0 +1,240 @@
+name: OpenCode PR Review
+
+# Automatic review on the first non-draft PR event, plus manual re-reviews via
+# `/oc review` or `/opencode review` comments. Pushes (`synchronize`) do not
+# re-trigger the workflow.
+on:
+  pull_request:
+    types: [opened, ready_for_review]
+  issue_comment:
+    types: [created]
+
+concurrency:
+  group: opencode-review-${{ github.event.pull_request.number || github.event.issue.number }}
+  # Reviews are slow and expensive; queue one run and let the job timeout bound
+  # it instead of cancelling a review midway.
+  cancel-in-progress: false
+
+jobs:
+  review:
+    name: Review PR
+    if: >-
+      (github.event_name == 'pull_request' &&
+       github.event.pull_request.draft == false &&
+       github.event.pull_request.head.repo.full_name == github.repository &&
+       github.event.pull_request.user.type != 'Bot') ||
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request &&
+       (github.event.comment.author_association == 'OWNER' ||
+        github.event.comment.author_association == 'MEMBER' ||
+        github.event.comment.author_association == 'COLLABORATOR') &&
+       (startsWith(github.event.comment.body, '/oc review') ||
+        startsWith(github.event.comment.body, '/opencode review')))
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Checkout target branch/PR
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      # Fail closed: only same-repo PRs are reviewed, because the action checks
+      # out the PR head and runs the agent with the base repository's secrets.
+      # PRs that change `.opencode/` or the root opencode config are skipped so
+      # they cannot load a plugin or agent override from the PR checkout.
+      - name: Verify PR is safe to review
+        id: pr-source
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+        run: |
+          if ! cross=$(gh pr view "$PR_NUMBER" --json isCrossRepository --jq .isCrossRepository); then
+            echo "same_repo=false" >> "$GITHUB_OUTPUT"
+            echo "::error::Could not determine whether PR #$PR_NUMBER is from a fork; skipping review."
+            exit 0
+          fi
+          if [ "$cross" = "true" ]; then
+            echo "same_repo=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping fork PR: OpenCode reviews only same-repo branches."
+            exit 0
+          fi
+          if ! changed=$(gh pr diff "$PR_NUMBER" --name-only); then
+            echo "same_repo=false" >> "$GITHUB_OUTPUT"
+            echo "::error::Could not read the diff for PR #$PR_NUMBER; skipping review."
+            exit 0
+          fi
+          if [ -z "$changed" ]; then
+            echo "same_repo=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::PR #$PR_NUMBER has no diff; skipping review."
+            exit 0
+          fi
+          if printf '%s\n' "$changed" | grep -qE '^(\.opencode(/|$)|opencode\.jsonc?$)'; then
+            echo "same_repo=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping PR that changes OpenCode config or plugins."
+            exit 0
+          fi
+          echo "same_repo=true" >> "$GITHUB_OUTPUT"
+
+      # The action switches to the PR head, so stage the helper and the agent
+      # config from the base branch (or the default branch for comments) first.
+      # OPENCODE_CONFIG_CONTENT is merged last, so the PR cannot override the
+      # read-only agent through its own .opencode/ config.
+      - name: Stage trusted review tooling
+        if: steps.pr-source.outputs.same_repo == 'true'
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref || github.event.repository.default_branch }}
+        run: |
+          if ! git rev-parse --verify "origin/${BASE_REF}" >/dev/null 2>&1; then
+            echo "::error::Base ref origin/${BASE_REF} is not available; failing instead of using the PR checkout."
+            exit 1
+          fi
+
+          stage() {
+            if git cat-file -e "origin/${BASE_REF}:$1" 2>/dev/null; then
+              git show "origin/${BASE_REF}:$1" > "$2"
+              return 0
+            fi
+            # Bootstrap: the helper and config are introduced by this PR itself.
+            echo "::warning::$1 is not on origin/${BASE_REF} yet; using the checked-out copy."
+            cp "$1" "$2"
+          }
+
+          stage .github/scripts/post_opencode_review.py "$RUNNER_TEMP/post_opencode_review.py"
+          stage .github/opencode-review.json "$RUNNER_TEMP/opencode-review.json"
+
+          {
+            echo "OPENCODE_CONFIG_CONTENT<<__OPENCODE_CONFIG__"
+            cat "$RUNNER_TEMP/opencode-review.json"
+            echo "__OPENCODE_CONFIG__"
+          } >> "$GITHUB_ENV"
+
+      # Give the agent the diff as a file too, so it does not depend on git/gh.
+      - name: Prepare pull request diff
+        if: steps.pr-source.outputs.same_repo == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+        run: |
+          mkdir -p build/opencode-review
+          gh pr diff "$PR_NUMBER" > build/opencode-review/pr.diff
+
+      # Automatic review: `prompt` supplies the review instructions because a
+      # `pull_request` event has no comment body.
+      - name: Run OpenCode PR Review
+        if: github.event_name == 'pull_request' && steps.pr-source.outputs.same_repo == 'true'
+        uses: anomalyco/opencode/github@5caf1f9f6f5f30e13fc50a788ad953d97ae3748f # github-v1.2.26
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          model: opencode-go/deepseek-v4.1-flash
+          agent: opencode-review
+          use_github_token: true
+          prompt: |
+            You are reviewing code for the Komikku Android application (Kotlin, Jetpack Compose, Coroutines/Flow, Android Architecture Components).
+
+            This is a read-only review. The bash tool is unavailable: use only the read, grep and glob tools. Read `build/opencode-review/pr.diff` for the pull request diff before reviewing, and use the same tools for the surrounding source. Only report lines that are part of the diff.
+
+            Review guidelines:
+            1. Concurrency: Check for Coroutine leaks, proper Dispatcher usage, race conditions, or unhandled exceptions.
+            2. Compose: Ensure state hoisting follows best practices, detect unnecessary recompositions, and verify proper remember/derivedStateOf usage.
+            3. Android Resources & Lifecycle: Check lifecycle scopes, memory leaks, and proper cleanup of resources.
+            4. Performance & DB: Look for unnecessary queries on the main thread, unindexed searches, or inefficient list processing.
+            5. Architecture: Ensure domain logic remains separated from UI components and adheres to existing Tachiyomi/Mihon conventions.
+            6. Brevity: Do not explain obvious language features. Provide clear, direct, and actionable findings with file references.
+
+            Write `build/opencode-review/findings.json` with exactly this JSON shape:
+            {
+              "summary": "Markdown overarching review comment: 2-4 sentences on what the PR does, your overall judgement, and the main themes. You may include a ```mermaid diagram when it genuinely helps explain a flow, call chain or architecture change; skip it for small or mechanical PRs.",
+              "findings": [
+                {
+                  "path": "app/src/main/java/.../Foo.kt",
+                  "line": 123,
+                  "severity": "high",
+                  "body": "What is wrong, why it matters, and the concrete fix."
+                }
+              ]
+            }
+
+            Schema requirements:
+            - `path` is relative to the repository root.
+            - `line` is a line number in the new version of the file and must be part of the diff.
+            - `severity` is one of `low`, `medium`, `high`, `critical`.
+            - Omit findings you cannot pin to a changed line.
+            - `summary` is always present; use an empty `findings` array when the PR looks good.
+
+            Reply with one short sentence only; the workflow posts `summary` and the findings.
+
+      # Manual re-review: the comment body and any extra instructions are added
+      # to the same schema-backed prompt.
+      - name: Run OpenCode PR Review (comment command)
+        if: github.event_name == 'issue_comment' && steps.pr-source.outputs.same_repo == 'true'
+        uses: anomalyco/opencode/github@5caf1f9f6f5f30e13fc50a788ad953d97ae3748f # github-v1.2.26
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          model: opencode-go/deepseek-v4.1-flash
+          agent: opencode-review
+          use_github_token: true
+          prompt: |
+            You are reviewing code for the Komikku Android application (Kotlin, Jetpack Compose, Coroutines/Flow, Android Architecture Components).
+
+            This is a read-only review. The bash tool is unavailable: use only the read, grep and glob tools. Read `build/opencode-review/pr.diff` for the pull request diff before reviewing, and use the same tools for the surrounding source. Only report lines that are part of the diff.
+
+            Review guidelines:
+            1. Concurrency: Check for Coroutine leaks, proper Dispatcher usage, race conditions, or unhandled exceptions.
+            2. Compose: Ensure state hoisting follows best practices, detect unnecessary recompositions, and verify proper remember/derivedStateOf usage.
+            3. Android Resources & Lifecycle: Check lifecycle scopes, memory leaks, and proper cleanup of resources.
+            4. Performance & DB: Look for unnecessary queries on the main thread, unindexed searches, or inefficient list processing.
+            5. Architecture: Ensure domain logic remains separated from UI components and adheres to existing Tachiyomi/Mihon conventions.
+            6. Brevity: Do not explain obvious language features. Provide clear, direct, and actionable findings with file references.
+
+            Additional instructions from the commenter:
+            ${{ github.event.comment.body }}
+
+            Write `build/opencode-review/findings.json` with exactly this JSON shape:
+            {
+              "summary": "Markdown overarching review comment: 2-4 sentences on what the PR does, your overall judgement, and the main themes. You may include a ```mermaid diagram when it genuinely helps explain a flow, call chain or architecture change; skip it for small or mechanical PRs.",
+              "findings": [
+                {
+                  "path": "app/src/main/java/.../Foo.kt",
+                  "line": 123,
+                  "severity": "high",
+                  "body": "What is wrong, why it matters, and the concrete fix."
+                }
+              ]
+            }
+
+            Schema requirements:
+            - `path` is relative to the repository root.
+            - `line` is a line number in the new version of the file and must be part of the diff.
+            - `severity` is one of `low`, `medium`, `high`, `critical`.
+            - Omit findings you cannot pin to a changed line.
+            - `summary` is always present; use an empty `findings` array when the PR looks good.
+
+            Reply with one short sentence only; the workflow posts `summary` and the findings.
+
+      - name: Post review
+        if: always() && steps.pr-source.outputs.same_repo == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+          BASE_REF: ${{ github.event.pull_request.base.ref || github.event.repository.default_branch }}
+        run: |
+          # Re-stage after the agent ran, so shell redirection during the review
+          # cannot replace the helper that executes with the write token.
+          helper="$RUNNER_TEMP/post_opencode_review.py"
+          if git cat-file -e "origin/${BASE_REF}:.github/scripts/post_opencode_review.py" 2>/dev/null; then
+            git show "origin/${BASE_REF}:.github/scripts/post_opencode_review.py" > "$helper"
+          fi
+
+          if [ -f "$helper" ]; then
+            python3 "$helper"
+          else
+            echo "Review helper was not staged; skipping."
+          fi
