@@ -63,20 +63,23 @@ fun LibraryContent(
         val scope = rememberCoroutineScope()
         var isRefreshing by remember(pagerState.currentPage) { mutableStateOf(false) }
 
-        if (showPageTabs && categories.isNotEmpty() && (categories.size > 1 || !categories.first().isSystemCategory)) {
-            LaunchedEffect(categories) {
-                // KMK -->
-                val targetPage = when {
-                    categories.isEmpty() -> 0
-                    activeCategoryIndex != pagerState.currentPage -> activeCategoryIndex.coerceAtMost(categories.size - 1)
-                    pagerState.currentPage >= categories.size -> categories.size - 1
-                    else -> pagerState.currentPage
-                }
-                if (targetPage != pagerState.currentPage) {
-                    pagerState.scrollToPage(targetPage)
-                }
-                // KMK <--
+        // KUN --> the pager must follow the coerced index even when the tab row is hidden
+        // KMK -->
+        LaunchedEffect(categories) {
+            val targetPage = when {
+                categories.isEmpty() -> 0
+                activeCategoryIndex != pagerState.currentPage -> activeCategoryIndex.coerceAtMost(categories.size - 1)
+                pagerState.currentPage >= categories.size -> categories.size - 1
+                else -> pagerState.currentPage
             }
+            if (targetPage != pagerState.currentPage) {
+                pagerState.scrollToPage(targetPage)
+            }
+        }
+        // KMK <--
+        // KUN <--
+
+        if (showPageTabs && categories.isNotEmpty() && (categories.size > 1 || !categories.first().isSystemCategory)) {
             LibraryTabs(
                 categories = categories,
                 pagerState = pagerState,
@@ -125,14 +128,14 @@ fun LibraryContent(
             )
         }
 
-        val currentPage = pagerState.currentPage
-        LaunchedEffect(currentPage) {
-            // KUN -->
-            // Resolve the id from the list this composition is actually rendering. Reading it back off
-            // the ViewModel's state raced with the category list updates that follow a sync restore and
-            // could latch the id of whichever category used to sit at this index.
-            categories.getOrNull(currentPage)?.let { onChangeCurrentPage(currentPage, it.id) }
-            // KUN <--
+        // KUN -->
+        // Resolve the id from the list this composition is actually rendering. Reading it back off
+        // the ViewModel's state raced with the category list updates that follow a sync restore and
+        // could latch the id of whichever category used to sit at this index.
+        val renderedPage = pagerState.currentPage
+        LaunchedEffect(renderedPage) {
+            categories.getOrNull(renderedPage)?.let { onChangeCurrentPage(renderedPage, it.id) }
         }
+        // KUN <--
     }
 }

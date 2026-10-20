@@ -155,7 +155,6 @@ class CategoryRepositoryImpl(
                     }
 
                     if (dbCategory != null) {
-                        // KUN -->
                         // A user-initiated (non-sync) restore only inserts new categories and leaves
                         // existing ones untouched, matching master's CategoriesRestorer; updating them
                         // would rewrite order, flags and the sync counters (`version`/`last_modified_at`).
@@ -164,7 +163,6 @@ class CategoryRepositoryImpl(
                         val order = if (category.order !in usedOrders) category.order else freeOrder()
                         usedOrders.add(order)
                         val canonicalUid = if (category.uid != 0L) category.uid else dbCategory.uid
-                        // KUN <--
                         database.categoryQueries.update(
                             name = category.name,
                             order = order,
@@ -175,25 +173,19 @@ class CategoryRepositoryImpl(
                             hidden = if (category.hidden) 1L else 0L,
                             // KMK <--
                             version = category.version,
-                            // KUN -->
                             uid = canonicalUid,
-                            // KUN <--
                             lastModifiedAt = category.lastModifiedAt,
                             isSyncing = 1,
                             categoryId = dbCategory.id,
                         )
-                        // KUN -->
-                        return@map dbCategory.copy(order = order, uid = canonicalUid)
-                        // KUN <--
+                        return@map category.copy(id = dbCategory.id, order = order, uid = canonicalUid)
                     }
 
                     // A sync delta is a converging replica, not an import: new
                     // categories must land at the position the server holds or
                     // reorders never converge across devices.
-                    // KUN -->
                     val order = if (isSync && category.order !in usedOrders) category.order else freeOrder()
                     usedOrders.add(order)
-                    // KUN <--
                     database.categoryQueries.insert(
                         name = category.name,
                         order = order,

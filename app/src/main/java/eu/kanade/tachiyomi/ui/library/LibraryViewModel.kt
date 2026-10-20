@@ -1449,9 +1449,9 @@ class LibraryViewModel(
         // KUN <--
         // KMK <--
         // KUN -->
-        // The index comes from the pager, so it is already valid for the rendered category list.
-        // [State.coercedActiveCategoryIndex] coerces it again on read if the list shrank.
-        libraryPreferences.lastUsedCategory.set(index.coerceAtLeast(0))
+        // The index comes from the pager via the rendered category list, so it is never negative.
+        // [State.coercedActiveCategoryIndex] coerces it on read if the list later shrank.
+        libraryPreferences.lastUsedCategory.set(index)
         // KUN <--
     }
 

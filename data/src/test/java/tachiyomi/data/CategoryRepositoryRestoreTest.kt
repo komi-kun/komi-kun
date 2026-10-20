@@ -67,6 +67,9 @@ class CategoryRepositoryRestoreTest {
                 val repository = CategoryRepositoryImpl(database)
                 driver.insertCategory(id = 1L, name = "Action", order = 0L)
                 driver.insertCategory(id = 2L, name = "Drama", order = 1L)
+                // The seeds leave the sync counters alone, so the version assertion below is
+                // meaningful: only a non-syncing change to name/order/flags/hidden bumps `version`.
+                driver.scalarLong("SELECT max(version) FROM category WHERE id > 0") shouldBe 0L
 
                 repository.restoreCategories(
                     categories = listOf(
@@ -79,6 +82,8 @@ class CategoryRepositoryRestoreTest {
 
                 (driver.scalarLong("SELECT min(`order`) FROM category WHERE id > 0") ?: -1L) shouldBe 0L
                 driver.scalarLong("SELECT count(*) FROM category WHERE is_syncing != 0") shouldBe 0L
+                // A sync restore is a replica, not a user edit: it must not age the rows it writes.
+                driver.scalarLong("SELECT max(version) FROM category WHERE id > 0") shouldBe 0L
                 // No `freeOrder()` fallbacks: the user-visible orders are the incoming ones.
                 driver.categoryNamesInOrder() shouldBe listOf("Drama", "Action", "Comedy")
                 driver.categoryOrdersInOrder() shouldBe listOf(0L, 1L, 2L)
@@ -147,18 +152,92 @@ class CategoryRepositoryRestoreTest {
         }
     }
 
+    @Test
+    fun `restore never touches existing categories outside sync`() {
+        runBlocking {
+            val driver = newDriver()
+            try {
+                val database = DatabaseBindings.providesDatabase(driver)
+                val repository = CategoryRepositoryImpl(database)
+                // Seeded with is_syncing = 0 so the version trigger is live: a non-sync restore must
+                // not trip it, because it never updates the row at all.
+                driver.insertCategory(
+                    id = 1L,
+                    name = "Action",
+                    order = 0L,
+                    flags = 8L,
+                    version = 5L,
+                    lastModifiedAt = 1_700_000_000L,
+                )
+
+                var notifications = 0
+                database.categoryQueries
+                    .getCategories(CategoryMapper::mapCategory)
+                    .addListener { notifications++ }
+
+                repository.restoreCategories(
+                    categories = listOf(
+                        // Same category, different name casing, order and flags: ignored on purpose.
+                        category(name = "action", order = 5L, flags = 2L),
+                        category(name = "Comedy", order = 7L),
+                    ),
+                    isSync = false,
+                )
+
+                driver.categoryNamesInOrder() shouldBe listOf("Action", "Comedy")
+                driver.scalarLong("SELECT `order` FROM category WHERE id = 1") shouldBe 0L
+                driver.scalarLong("SELECT flags FROM category WHERE id = 1") shouldBe 8L
+                driver.scalarLong("SELECT version FROM category WHERE id = 1") shouldBe 5L
+                driver.scalarLong("SELECT last_modified_at FROM category WHERE id = 1") shouldBe
+                    1_700_000_000L
+                // The new category is appended past the existing max, not at its incoming order.
+                driver.scalarLong("SELECT `order` FROM category WHERE name = 'Comedy'") shouldBe 1L
+                driver.scalarLong("SELECT is_syncing FROM category WHERE name = 'Comedy'") shouldBe 0L
+                notifications shouldBe 1
+            } finally {
+                driver.close()
+            }
+        }
+    }
+
+    @Test
+    fun `deleting a batch commits once`() {
+        runBlocking {
+            val driver = newDriver()
+            try {
+                val database = DatabaseBindings.providesDatabase(driver)
+                val repository = CategoryRepositoryImpl(database)
+                driver.insertCategory(id = 1L, name = "Action", order = 0L)
+                driver.insertCategory(id = 2L, name = "Drama", order = 1L)
+                driver.insertCategory(id = 3L, name = "Comedy", order = 2L)
+
+                var notifications = 0
+                database.categoryQueries
+                    .getCategories(CategoryMapper::mapCategory)
+                    .addListener { notifications++ }
+
+                repository.delete(listOf(1L, 3L))
+
+                notifications shouldBe 1
+                driver.categoryNamesInOrder() shouldBe listOf("Drama")
+            } finally {
+                driver.close()
+            }
+        }
+    }
+
     private suspend fun newDriver(): SqlDriver {
         return JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY).also {
             Database.Schema.create(it).await()
         }
     }
 
-    private fun category(name: String, order: Long, uid: Long = 0L): Category {
+    private fun category(name: String, order: Long, uid: Long = 0L, flags: Long = 0L): Category {
         return Category(
             id = 0L,
             name = name,
             order = order,
-            flags = 0L,
+            flags = flags,
             hidden = false,
             uid = uid,
         )
@@ -170,12 +249,15 @@ class CategoryRepositoryRestoreTest {
         order: Long,
         uid: Long = Category.nameToUid(name),
         isSyncing: Int = 0,
+        flags: Long = 0L,
+        version: Long = 0L,
+        lastModifiedAt: Long = 0L,
     ) {
         execute(
             null,
             """
             INSERT INTO category(id, name, `order`, flags, hidden, version, uid, last_modified_at, is_syncing)
-            VALUES ($id, '$name', $order, 0, 0, 0, $uid, 0, $isSyncing)
+            VALUES ($id, '$name', $order, $flags, 0, $version, $uid, $lastModifiedAt, $isSyncing)
             """.trimIndent(),
             0,
         ).await()
