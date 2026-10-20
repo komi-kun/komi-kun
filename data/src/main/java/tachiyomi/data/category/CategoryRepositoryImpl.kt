@@ -270,6 +270,7 @@ class CategoryRepositoryImpl(
 
     // KUN -->
     override suspend fun delete(categoryIds: List<Long>) {
+        if (categoryIds.isEmpty()) return
         database.transaction {
             categoryIds.forEach { database.categoryQueries.delete(categoryId = it) }
         }
