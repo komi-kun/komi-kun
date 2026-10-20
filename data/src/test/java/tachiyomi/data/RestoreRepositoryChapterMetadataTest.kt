@@ -217,12 +217,66 @@ class RestoreRepositoryChapterMetadataTest {
         }
     }
 
+    @Test
+    fun `an ordinary restore keeps the local dateFetch`() {
+        runBlocking {
+            val driver = newDriver()
+            try {
+                val database = DatabaseBindings.providesDatabase(driver)
+                val mangaRepository = MangaRepositoryImpl(database)
+                val chapterRepository = ChapterRepositoryImpl(database)
+                val repository = RestoreRepositoryImpl(
+                    database = database,
+                    mangaRepository = mangaRepository,
+                    chapterRepository = chapterRepository,
+                    trackRepository = TrackRepositoryImpl(database),
+                    mangaMetadataRepository = mockk(relaxed = true),
+                    customMangaRepository = mockk(relaxed = true),
+                )
+
+                driver.insertManga()
+                chapterRepository.addAll(
+                    listOf(chapter("/c1", dateFetch = 2_000L, bookmark = false, version = 1L, lastModifiedAt = 10L)),
+                )
+
+                repository.restoreManga(
+                    entries = listOf(
+                        RestoredManga(
+                            manga = manga(),
+                            // An older backup whose state still has to be merged; its fetch date must
+                            // not move the chapter backwards in the Updates feed.
+                            chapters = listOf(
+                                chapter("/c1", dateFetch = 1_000L, bookmark = true, version = 2L, lastModifiedAt = 20L),
+                            ),
+                            categoryIds = null,
+                            history = emptyList(),
+                            tracks = emptyList(),
+                            excludedScanlators = emptyList(),
+                        ),
+                    ),
+                    isSync = false,
+                    restoreCategories = false,
+                    removeMissingChaptersBefore = null,
+                    update = { it.toMangaUpdate() },
+                )
+
+                val restored = chapterRepository.getChapterByMangaId(1).single { it.url == "/c1" }
+                restored.dateFetch shouldBe Instant.fromEpochMilliseconds(2_000L)
+                // The rest of the backup state is still merged, so this is not a skipped row.
+                restored.bookmark shouldBe true
+            } finally {
+                driver.close()
+            }
+        }
+    }
+
     private fun chapter(
         url: String,
         name: String = url,
         chapterNumber: Double = -1.0,
         scanlator: String? = null,
         dateFetch: Long = 1_000L,
+        bookmark: Boolean = false,
         version: Long = 1L,
         lastModifiedAt: Long = 0L,
     ) = Chapter.create().copy(
@@ -232,6 +286,7 @@ class RestoreRepositoryChapterMetadataTest {
         chapterNumber = chapterNumber,
         scanlator = scanlator,
         dateFetch = Instant.fromEpochMilliseconds(dateFetch),
+        bookmark = bookmark,
         version = version,
         lastModifiedAt = lastModifiedAt,
     )
