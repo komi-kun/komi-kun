@@ -47,7 +47,9 @@ def parse_diff(diff: str) -> dict[str, set[int]]:
     # only treat "---"/"+++" as file headers in the two lines after "diff --git".
     state = "outside"
 
-    for raw in diff.splitlines():
+    # Split on "\n" rather than splitlines(): the latter also splits on
+    # vertical tabs, form feeds and U+2028, which can occur inside a source line.
+    for raw in diff.split("\n"):
         if raw.startswith("diff --git "):
             path = None
             new_line = None
