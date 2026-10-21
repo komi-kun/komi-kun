@@ -419,10 +419,13 @@ def find_action_comment(repo: str, pr: str) -> dict | None:
     return matches[-1] if matches else None
 
 
-def delete_action_comment(repo: str, pr: str) -> None:
-    """Remove every action comment for this run."""
-    for comment in find_action_comments(repo, pr):
-        gh("api", "--method", "DELETE", f"repos/{repo}/issues/comments/{comment['id']}")
+def delete_action_comment(repo: str, pr: str, extra_id: int | None = None) -> None:
+    """Remove every action comment for this run, plus the selected fallback."""
+    ids = {comment["id"] for comment in find_action_comments(repo, pr)}
+    if extra_id is not None:
+        ids.add(extra_id)
+    for comment_id in ids:
+        gh("api", "--method", "DELETE", f"repos/{repo}/issues/comments/{comment_id}")
 
 
 def main() -> int:
@@ -442,12 +445,15 @@ def main() -> int:
         return 1
 
     review = None
+    selected = None
     for comment in reversed(candidates):
         review = extract_review(str(comment.get("body", "")))
         if review is not None:
+            selected = comment
             break
     if review is None:
-        body = str(candidates[-1].get("body", ""))
+        selected = candidates[-1]
+        body = str(selected.get("body", ""))
         if body.strip():
             print("Final message is not valid review JSON; asking the repair model.")
             review = repair_review(body)
@@ -510,7 +516,7 @@ def main() -> int:
     )
     if result.returncode == 0:
         print(f"Posted review with {len(comments)} inline comment(s).")
-        delete_action_comment(repo, pr)
+        delete_action_comment(repo, pr, selected["id"] if selected else None)
         return 0
 
     # A single rejected line fails the whole review. Fall back to a summary
@@ -519,7 +525,7 @@ def main() -> int:
     post_summary(repo, pr, summary or DEFAULT_SUMMARY)
     posted = post_individually(repo, pr, head, comments)
     print(f"Posted {posted}/{len(comments)} inline comment(s) individually.")
-    delete_action_comment(repo, pr)
+    delete_action_comment(repo, pr, selected["id"] if selected else None)
     return 0
 
 

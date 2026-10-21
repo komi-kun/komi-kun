@@ -37,8 +37,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          # For comments, test the PR's tooling rather than the default branch.
-          ref: ${{ github.event_name == 'issue_comment' && format('refs/pull/{0}/merge', github.event.issue.number) || '' }}
+          # The PR head ref exists for conflicted PRs too, unlike the merge ref.
+          ref: ${{ format('refs/pull/{0}/head', github.event.pull_request.number || github.event.issue.number) }}
       - name: Run helper tests
         run: python3 .github/scripts/test_post_opencode_review.py
 
@@ -68,9 +68,8 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-          # For comments, start from the PR merge ref so a labelled tooling PR
-          # can exercise its own helper/config.
-          ref: ${{ github.event_name == 'issue_comment' && format('refs/pull/{0}/merge', github.event.issue.number) || '' }}
+          # The PR head ref exists for conflicted PRs too, unlike the merge ref.
+          ref: ${{ format('refs/pull/{0}/head', github.event.pull_request.number || github.event.issue.number) }}
 
       - name: Record run start
         run: echo "RUN_STARTED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
@@ -126,7 +125,8 @@ jobs:
           echo "same_repo=true" >> "$GITHUB_OUTPUT"
 
       # The action switches to the PR head, so stage the helper and the agent
-      # config from the base branch (or the default branch for comments) first.
+      # config from the default branch first. A non-default PR base could carry
+      # a modified helper.
       # OPENCODE_CONFIG_CONTENT is merged last, so the PR cannot override the
       # read-only agent through its own .opencode/ config.
       - name: Stage trusted review tooling
@@ -134,12 +134,12 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
-          BASE_REF: ${{ github.event.pull_request.base.ref || github.event.repository.default_branch }}
+          BASE_REF: ${{ github.event.repository.default_branch }}
         run: |
           set -euo pipefail
 
           if ! git rev-parse --verify "origin/${BASE_REF}" >/dev/null 2>&1; then
-            echo "::error::Base ref origin/${BASE_REF} is not available; failing instead of using the PR checkout."
+            echo "::error::Default ref origin/${BASE_REF} is not available; failing instead of using the PR checkout."
             exit 1
           fi
 
