@@ -103,11 +103,13 @@ def load_review_file() -> tuple[str, list] | None:
 
     summary = data.get("summary")
     findings = data.get("findings")
-    if not isinstance(findings, list):
-        print("Findings file has no 'findings' list.")
+    if not isinstance(summary, str) and not isinstance(findings, list):
+        print("Findings file does not match the review schema.")
         return None
     if not isinstance(summary, str):
         summary = ""
+    if not isinstance(findings, list):
+        findings = []
     return summary.strip(), findings
 
 
@@ -142,8 +144,12 @@ def _json_objects(text: str):
 
 
 def extract_review(text: str) -> tuple[str, list] | None:
-    """Recover a review object from prose or a ```json fenced block."""
-    for candidate in _json_objects(text):
+    """Recover a review object from prose or a ```json fenced block.
+
+    Prefer the last matching object: a step-limited agent may restate the
+    schema before emitting the real review, so the example would otherwise win.
+    """
+    for candidate in reversed(list(_json_objects(text))):
         try:
             data = json.loads(candidate)
         except json.JSONDecodeError:

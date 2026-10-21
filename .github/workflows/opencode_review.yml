@@ -120,7 +120,7 @@ jobs:
           lines=$((additions + deletions))
           extra_files=$((files * 2))
           extra_lines=$((lines / 50))
-          extra=$((extra_files > extra_lines ? extra_files : extra_lines))
+          extra=$((extra_files + extra_lines))
           if [ "$extra" -gt 60 ]; then extra=60; fi
           steps=$((40 + extra))
           echo "::notice::Review step budget: ${steps} (files=${files}, lines=${lines})"
