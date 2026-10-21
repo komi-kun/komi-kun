@@ -37,6 +37,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          # For comments, test the PR's tooling rather than the default branch.
+          ref: ${{ github.event_name == 'issue_comment' && format('refs/pull/{0}/merge', github.event.issue.number) || '' }}
       - name: Run helper tests
         run: python3 .github/scripts/test_post_opencode_review.py
 
@@ -166,17 +168,21 @@ jobs:
           # Scale the step budget with the diff: 40 base steps, +2 per changed
           # file and +1 per 50 changed lines, capped at 100 total so a huge PR
           # cannot run for the whole 30-minute job timeout.
-          stats=$(gh pr view "$PR_NUMBER" --json changedFiles,additions,deletions \
-            --jq '[.changedFiles, .additions, .deletions] | @tsv' || printf '0\t0\t0')
-          read -r files additions deletions <<< "$stats"
-          files=${files:-0}
-          additions=${additions:-0}
-          deletions=${deletions:-0}
-          lines=$((additions + deletions))
-          extra_files=$((files * 2))
-          extra_lines=$((lines / 50))
-          extra=$((extra_files + extra_lines))
-          if [ "$extra" -gt 60 ]; then extra=60; fi
+          if stats=$(gh pr view "$PR_NUMBER" --json changedFiles,additions,deletions \
+            --jq '[.changedFiles, .additions, .deletions] | @tsv'); then
+            read -r files additions deletions <<< "$stats"
+            files=${files:-0}
+            additions=${additions:-0}
+            deletions=${deletions:-0}
+            lines=$((additions + deletions))
+            extra=$((files * 2 + lines / 50))
+            if [ "$extra" -gt 60 ]; then extra=60; fi
+          else
+            echo "::warning::Could not read PR size; using the maximum step budget."
+            files=0
+            lines=0
+            extra=60
+          fi
           steps=$((40 + extra))
           echo "::notice::Review step budget: ${steps} (files=${files}, lines=${lines})"
 

@@ -38,6 +38,7 @@ OPENCODE_API_URL = os.environ.get(
     "https://opencode.ai/inference/go/openai/v1/chat/completions",
 )
 PLACEHOLDER_SUMMARY = "markdown overarching review comment"
+PLACEHOLDER_SUMMARIES = {"string", "summary", "..."}
 PLACEHOLDER_LINE = 123
 REPAIR_INSTRUCTION = """\
 Convert the code-review text below into one JSON object. Output only the JSON object.
@@ -141,8 +142,10 @@ def _json_objects(text: str):
 def _is_placeholder(data: dict) -> bool:
     """Reject the schema example an agent may echo after hitting its limit."""
     summary = data.get("summary")
-    if isinstance(summary, str) and summary.strip().lower().startswith(PLACEHOLDER_SUMMARY):
-        return True
+    if isinstance(summary, str):
+        normalized = summary.strip().lower()
+        if normalized in PLACEHOLDER_SUMMARIES or normalized.startswith(PLACEHOLDER_SUMMARY):
+            return True
 
     findings = data.get("findings")
     if isinstance(findings, list) and findings:
@@ -157,13 +160,14 @@ def _is_placeholder(data: dict) -> bool:
     return False
 
 
-def extract_review(text: str) -> tuple[str, list] | None:
-    """Recover a review object from prose or a ```json fenced block.
+def _fenced_objects(text: str):
+    """Yield objects that follow a ```json marker, inner Mermaid fences aside."""
+    for match in re.finditer(r"```json\s*", text, re.IGNORECASE):
+        yield from _json_objects(text[match.end() :])
 
-    Prefer the last matching object: a step-limited agent may restate the
-    schema before emitting the real review, so the example would otherwise win.
-    """
-    for candidate in reversed(list(_json_objects(text))):
+
+def _pick_review(candidates: list[str]) -> tuple[str, list] | None:
+    for candidate in reversed(candidates):
         try:
             data = json.loads(candidate)
         except json.JSONDecodeError:
@@ -178,6 +182,18 @@ def extract_review(text: str) -> tuple[str, list] | None:
             findings = []
         return summary.strip(), findings
     return None
+
+
+def extract_review(text: str) -> tuple[str, list] | None:
+    """Recover a review object from a ```json fence or raw JSON.
+
+    Fenced blocks win over bare objects: a step-limited agent may end with a
+    short shape echo, which must not replace the real fenced review.
+    """
+    review = _pick_review(list(_fenced_objects(text)))
+    if review is not None:
+        return review
+    return _pick_review(list(_json_objects(text)))
 
 
 def repair_review(text: str) -> tuple[str, list] | None:
@@ -334,12 +350,8 @@ def post_individually(repo: str, pr: str, head: str, comments: list[dict]) -> in
     return posted
 
 
-def find_action_comments(repo: str, pr: str) -> list[dict]:
-    """Return every action comment for this run, oldest first."""
-    run_id = os.environ.get("GITHUB_RUN_ID")
-    if not run_id:
-        return []
-
+def bot_comments(repo: str, pr: str) -> list[dict]:
+    """Return all github-actions[bot] comments on the PR, oldest first."""
     result = gh("api", "--paginate", f"repos/{repo}/issues/{pr}/comments", "--jq", ".[]")
     if result.returncode != 0:
         return []
@@ -353,11 +365,21 @@ def find_action_comments(repo: str, pr: str) -> list[dict]:
         if not isinstance(comment, dict):
             continue
         user = comment.get("user", {})
-        if not isinstance(user, dict) or user.get("login") != "github-actions[bot]":
-            continue
-        if f"/actions/runs/{run_id}" in str(comment.get("body", "")):
+        if isinstance(user, dict) and user.get("login") == "github-actions[bot]":
             matches.append(comment)
     return matches
+
+
+def find_action_comments(repo: str, pr: str) -> list[dict]:
+    """Return every action comment for this run, oldest first."""
+    run_id = os.environ.get("GITHUB_RUN_ID")
+    if not run_id:
+        return []
+    return [
+        comment
+        for comment in bot_comments(repo, pr)
+        if f"/actions/runs/{run_id}" in str(comment.get("body", ""))
+    ]
 
 
 def find_action_comment(repo: str, pr: str) -> dict | None:
@@ -379,18 +401,26 @@ def main() -> int:
         print("PR_NUMBER and GITHUB_REPOSITORY are required.")
         return 1
 
-    comment = find_action_comment(repo, pr)
-    if comment is None:
-        print("::error::No action comment found for this run; the review was not posted.")
+    candidates = find_action_comments(repo, pr)
+    if not candidates:
+        print("No action comment for this run; trying the newest bot comment.")
+        candidates = bot_comments(repo, pr)
+    if not candidates:
+        print("::error::No bot comment found; the review was not posted.")
         return 1
 
-    body = str(comment.get("body", ""))
-    review = extract_review(body)
-    if review is None and body.strip():
-        print("Final message is not valid review JSON; asking the repair model.")
-        review = repair_review(body)
+    review = None
+    for comment in reversed(candidates):
+        review = extract_review(str(comment.get("body", "")))
+        if review is not None:
+            break
     if review is None:
-        print("::error::Could not parse or repair the review; leaving the action comment in place.")
+        body = str(candidates[-1].get("body", ""))
+        if body.strip():
+            print("Final message is not valid review JSON; asking the repair model.")
+            review = repair_review(body)
+    if review is None:
+        print("::error::Could not parse or repair the review; leaving the comment in place.")
         return 1
 
     summary, findings = review
