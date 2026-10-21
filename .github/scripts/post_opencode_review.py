@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
-"""Post the schema-shaped review written by the OpenCode review agent.
+"""Post the schema-shaped review returned by the pinned OpenCode CLI.
 
-The agent writes ``build/opencode-review/findings.json`` (gitignored) with a
-``summary`` and a list of ``findings``. This script validates every finding
-against the pull request diff, then posts one review whose body is the summary
-and whose comments are threads on the exact changed lines. It removes the
-action's own short status comment so the PR shows a single review entry.
+The workflow runs ``opencode run --format json`` and captures its JSONL event
+stream. This script reads the assistant's final text from that stream, validates
+every finding against the pull request diff, then posts one review whose body is
+the summary and whose comments are threads on the exact changed lines. No issue
+comment is created by the CLI, so there is nothing to clean up.
+
+If the assistant text is not valid JSON (for example because the agent hit its
+step budget and replied with prose), a second CLI run with the ``opencode-repair``
+agent turns it into the expected shape before posting.
 """
 
 from __future__ import annotations
@@ -17,7 +21,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-FINDINGS_PATH = Path("build/opencode-review/findings.json")
 DIFF_PATH = Path("build/opencode-review/pr.diff")
 VALID_SEVERITIES = {"low", "medium", "high", "critical"}
 SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3}
@@ -26,6 +29,23 @@ DEFAULT_SUMMARY = (
     "Automated review by [OpenCode](https://opencode.ai/docs/github/). "
     "These findings are advisory: verify them before changing code."
 )
+PLACEHOLDER_SUMMARY = "markdown overarching review comment"
+PLACEHOLDER_SUMMARIES = {
+    "string",
+    "summary",
+    "...",
+    "markdown summary",
+    "markdown summary, keep any mermaid block",
+}
+
+
+def read_text(path: Path) -> str:
+    """Read a file tolerantly: an advisory review must not crash on bad bytes."""
+    try:
+        return path.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        print(f"Could not read {path}: {exc}")
+        return ""
 
 
 def gh(*args: str, stdin: str | None = None) -> subprocess.CompletedProcess[str]:
@@ -36,6 +56,37 @@ def gh(*args: str, stdin: str | None = None) -> subprocess.CompletedProcess[str]
         capture_output=True,
         check=False,
     )
+
+
+def load_assistant_text(jsonl: str) -> str:
+    """Return the final assistant message's text from an `opencode run` stream.
+
+    Steps before the final answer are ignored, so earlier narration or quoted
+    examples cannot be mistaken for the review.
+    """
+    messages: dict[str, list[str]] = {}
+    last_message_id = ""
+    for line in jsonl.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(event, dict) or event.get("type") != "text":
+            continue
+        part = event.get("part")
+        if not isinstance(part, dict) or part.get("type") != "text":
+            continue
+        text = part.get("text")
+        if not isinstance(text, str):
+            continue
+        message_id = str(part.get("messageID", ""))
+        messages.setdefault(message_id, []).append(text)
+        last_message_id = message_id
+
+    return "\n".join(messages.get(last_message_id, []))
 
 
 def parse_diff(diff: str) -> dict[str, set[int]]:
@@ -86,28 +137,178 @@ def _hunk_start(header: str) -> int | None:
     return int(match.group(1)) if match else None
 
 
-def load_review() -> tuple[str, list]:
-    if not FINDINGS_PATH.is_file():
-        print(f"No {FINDINGS_PATH}; skipping review.")
-        return "", []
+def _json_objects(text: str):
+    """Yield balanced {...} substrings, ignoring braces inside JSON strings."""
+    start = None
+    depth = 0
+    in_string = False
+    escaped = False
 
-    try:
-        data = json.loads(FINDINGS_PATH.read_text())
-    except (OSError, json.JSONDecodeError) as exc:
-        print(f"Could not read findings: {exc}")
-        return "", []
+    for index, char in enumerate(text):
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
 
-    if not isinstance(data, dict):
-        print("Findings file is not an object; skipping review.")
-        return "", []
+        if char == '"':
+            in_string = True
+        elif char == "{":
+            if depth == 0:
+                start = index
+            depth += 1
+        elif char == "}" and depth > 0:
+            depth -= 1
+            if depth == 0 and start is not None:
+                yield text[start : index + 1]
+                start = None
 
+
+def _fenced_objects(text: str):
+    """Yield the first object after each ```json marker, not trailing objects."""
+    for match in re.finditer(r"```json\s*", text, re.IGNORECASE):
+        first = next(_json_objects(text[match.end() :]), None)
+        if first is not None:
+            yield first
+
+
+def _is_placeholder(data: dict) -> bool:
+    """Reject the schema example an agent may echo after hitting its limit.
+
+    Only the summary is checked: a genuine summary with copied schema findings
+    is still useful, and `describe_comment` drops the placeholder findings.
+    """
     summary = data.get("summary")
     if not isinstance(summary, str):
-        summary = ""
+        return False
+    normalized = summary.strip().lower()
+    return normalized in PLACEHOLDER_SUMMARIES or normalized.startswith(PLACEHOLDER_SUMMARY)
+
+
+def _score_findings(data: dict, valid: dict[str, set[int]] | None) -> int:
+    """Count findings that land on a line present in the pull request diff."""
+    if not valid:
+        return 0
     findings = data.get("findings")
     if not isinstance(findings, list):
-        findings = []
-    return summary.strip(), findings
+        return 0
+
+    score = 0
+    for finding in findings:
+        if not isinstance(finding, dict):
+            continue
+        path = finding.get("path")
+        if not isinstance(path, str):
+            continue
+        try:
+            line = int(finding.get("line"))
+        except (TypeError, ValueError):
+            continue
+        if line in valid.get(path, set()):
+            score += 1
+    return score
+
+
+def _pick_review(
+    candidates: list[tuple[int, int, str]], valid: dict[str, set[int]] | None
+) -> tuple[str, list] | None:
+    """Pick the best candidate: diff-valid findings, then substance, then order."""
+    best: tuple[str, list] | None = None
+    best_rank: tuple[int, int, int, int] | None = None
+
+    for kind, index, candidate in candidates:
+        try:
+            data = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(data, dict) or _is_placeholder(data):
+            continue
+        summary = data.get("summary")
+        if not isinstance(summary, str):
+            continue
+        findings = data.get("findings")
+        if not isinstance(findings, list):
+            findings = []
+        summary = summary.strip()
+
+        # A trailing shape echo or empty object must not replace a substantive
+        # review, so rank by diff-valid findings, then by summary substance,
+        # then by fenced-over-raw and later position.
+        rank = (
+            _score_findings(data, valid),
+            len(summary),
+            kind,
+            index,
+        )
+        if best_rank is None or rank >= best_rank:
+            best = (summary, findings)
+            best_rank = rank
+    return best
+
+
+def extract_review(
+    text: str, valid: dict[str, set[int]] | None = None
+) -> tuple[str, list] | None:
+    """Recover a review object from a ```json fence or raw JSON.
+
+    A trailing shape echo or empty placeholder must not replace a substantive
+    review, so candidates are scored against the diff and the best wins.
+    """
+    fenced = [(1, index, candidate) for index, candidate in enumerate(_fenced_objects(text))]
+    raw = [(0, index, candidate) for index, candidate in enumerate(_json_objects(text))]
+    return _pick_review(fenced + raw, valid)
+
+
+def repair_review(
+    text: str, valid: dict[str, set[int]] | None = None
+) -> tuple[str, list] | None:
+    """Ask the pinned CLI's repair agent to turn a malformed message into JSON."""
+    binary = os.environ.get("OPENCODE_BIN")
+    model = os.environ.get("OPENCODE_MODEL", "opencode-go/deepseek-v4.1-flash")
+    if not binary or not text.strip():
+        print("Cannot repair the review: missing CLI or text.")
+        return None
+
+    broken = Path("build/opencode-review/broken-review.txt")
+    try:
+        broken.parent.mkdir(parents=True, exist_ok=True)
+        broken.write_text(text)
+    except OSError as exc:
+        print(f"Could not write the broken review: {exc}")
+        return None
+
+    command = [
+        binary,
+        "run",
+        "--standalone",
+        "--format",
+        "json",
+        "--agent",
+        "opencode-repair",
+        "--model",
+        model,
+        "--file",
+        str(broken),
+        "Convert the attached review text into the required JSON object.",
+    ]
+    try:
+        result = subprocess.run(command, text=True, capture_output=True, timeout=300)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        print(f"Repair run failed: {exc}")
+        return None
+
+    if result.returncode != 0:
+        print(f"Repair run failed: {result.stderr.strip()}")
+        return None
+
+    repaired = load_assistant_text(result.stdout)
+    review = extract_review(repaired, valid) if repaired else None
+    if review is None:
+        print("Repair agent did not return valid review JSON.")
+    return review
 
 
 def describe_comment(finding: object, valid: dict[str, set[int]]) -> dict | None:
@@ -210,62 +411,53 @@ def post_individually(repo: str, pr: str, head: str, comments: list[dict]) -> in
     return posted
 
 
-def delete_action_comment(repo: str, pr: str) -> None:
-    """Remove the action's own short status comment for this run."""
-    run_id = os.environ.get("GITHUB_RUN_ID")
-    if not run_id:
-        return
-
-    result = gh("api", "--paginate", f"repos/{repo}/issues/{pr}/comments", "--jq", ".[]")
-    if result.returncode != 0:
-        return
-
-    for line in result.stdout.splitlines():
-        try:
-            comment = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if not isinstance(comment, dict):
-            continue
-        user = comment.get("user", {})
-        if not isinstance(user, dict) or user.get("login") != "github-actions[bot]":
-            continue
-        if f"/actions/runs/{run_id}" not in str(comment.get("body", "")):
-            continue
-        gh("api", "--method", "DELETE", f"repos/{repo}/issues/comments/{comment['id']}")
-
-
 def main() -> int:
-    summary, findings = load_review()
-    if not summary and not findings:
-        return 0
-
     pr = os.environ.get("PR_NUMBER")
     repo = os.environ.get("GITHUB_REPOSITORY")
     if not pr or not repo:
         print("PR_NUMBER and GITHUB_REPOSITORY are required.")
         return 1
 
-    diff = DIFF_PATH.read_text() if DIFF_PATH.is_file() else gh("pr", "diff", pr).stdout
-    if not diff:
-        print("Could not read the pull request diff; skipping review.")
+    output = Path(os.environ.get("OPENCODE_OUTPUT", "opencode-review.jsonl"))
+    raw = read_text(output) if output.is_file() else ""
+    text = load_assistant_text(raw)
+    if not text.strip():
+        # The review is advisory: surface the failure but do not red the check.
+        print("::warning::The OpenCode run produced no assistant text; no review was posted.")
         return 0
 
+    diff = read_text(DIFF_PATH) if DIFF_PATH.is_file() else gh("pr", "diff", pr).stdout
+    if not diff:
+        print("::warning::Could not read the pull request diff; no review was posted.")
+        return 0
     valid = parse_diff(diff)
+
+    review = extract_review(text, valid)
+    if review is None:
+        print("Final message is not valid review JSON; asking the repair agent.")
+        review = repair_review(text, valid)
+    if review is None:
+        print("::warning::Could not parse or repair the review; no review was posted.")
+        return 0
+
+    summary, findings = review
+    if not summary and not findings:
+        print("::warning::Recovered review is empty; no review was posted.")
+        return 0
     seen = existing_comments(repo, pr)
     comments: list[dict] = []
     if seen is None:
         print("Could not list existing comments; skipping inline comments to avoid duplicates.")
     else:
         for finding in findings:
-            comment = describe_comment(finding, valid)
-            if comment is None:
+            parsed = describe_comment(finding, valid)
+            if parsed is None:
                 continue
-            key = (comment["path"], comment["line"], comment["body"])
+            key = (parsed["path"], parsed["line"], parsed["body"])
             if key in seen:
                 continue
             seen.add(key)
-            comments.append(comment)
+            comments.append(parsed)
 
     comments.sort(key=lambda c: SEVERITY_ORDER[c["severity"]])
     comments = comments[:MAX_COMMENTS]
@@ -276,7 +468,7 @@ def main() -> int:
 
     head = gh("pr", "view", pr, "--json", "headRefOid", "--jq", ".headRefOid").stdout.strip()
     if not head:
-        print("Could not resolve the pull request head commit.")
+        print("::warning::Could not resolve the pull request head commit; no review was posted.")
         return 0
 
     payload = {
@@ -296,7 +488,6 @@ def main() -> int:
     )
     if result.returncode == 0:
         print(f"Posted review with {len(comments)} inline comment(s).")
-        delete_action_comment(repo, pr)
         return 0
 
     # A single rejected line fails the whole review. Fall back to a summary
@@ -305,7 +496,6 @@ def main() -> int:
     post_summary(repo, pr, summary or DEFAULT_SUMMARY)
     posted = post_individually(repo, pr, head, comments)
     print(f"Posted {posted}/{len(comments)} inline comment(s) individually.")
-    delete_action_comment(repo, pr)
     return 0
 
 
