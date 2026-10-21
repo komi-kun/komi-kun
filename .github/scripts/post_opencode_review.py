@@ -15,6 +15,7 @@ expected shape before posting.
 
 from __future__ import annotations
 
+import http.client
 import json
 import os
 import re
@@ -36,7 +37,6 @@ OPENCODE_API_URL = os.environ.get(
     "OPENCODE_API_URL",
     "https://opencode.ai/inference/go/openai/v1/chat/completions",
 )
-REPAIR_HINTS = re.compile(r"finding|summary|review|severity|path:", re.IGNORECASE)
 REPAIR_INSTRUCTION = """\
 Convert the code-review text below into one JSON object. Output only the JSON object.
 
@@ -191,7 +191,7 @@ def repair_review(text: str) -> tuple[str, list] | None:
     try:
         with urllib.request.urlopen(request, timeout=120) as response:
             data = json.loads(response.read())
-    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
+    except (OSError, http.client.HTTPException, json.JSONDecodeError) as exc:
         print(f"Repair request failed: {exc}")
         return None
 
@@ -359,7 +359,7 @@ def main() -> int:
 
     body = str(comment.get("body", ""))
     review = extract_review(body)
-    if review is None and REPAIR_HINTS.search(body):
+    if review is None and body.strip():
         print("Final message is not valid review JSON; asking the repair model.")
         review = repair_review(body)
     if review is None:

@@ -16,8 +16,29 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Runs the parser/repair tests in a job with no secrets, so PR-controlled
+  # test code cannot influence the review step or read the API key.
+  test-review-helper:
+    name: Test review helper
+    if: >-
+      (github.event_name == 'pull_request' && github.event.pull_request.draft == false) ||
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request &&
+       (startsWith(github.event.comment.body, '/oc review') ||
+        startsWith(github.event.comment.body, '/opencode review')))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Run helper tests
+        run: python3 .github/scripts/test_post_opencode_review.py
+
   review:
     name: Review PR
+    needs: test-review-helper
     if: >-
       (github.event_name == 'pull_request' &&
        github.event.pull_request.draft == false &&
@@ -41,9 +62,6 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-
-      - name: Test review helper
-        run: python3 .github/scripts/test_post_opencode_review.py
 
       # Fail closed: only same-repo PRs are reviewed, because the action checks
       # out the PR head and runs the agent with the base repository's secrets.
@@ -118,7 +136,20 @@ jobs:
           }
 
           stage .github/scripts/post_opencode_review.py "$RUNNER_TEMP/post_opencode_review.py"
-          stage .github/opencode-review.json "$RUNNER_TEMP/opencode-review.json"
+
+          if [ "$tooling_changed" = "true" ] && git cat-file -e "origin/${BASE_REF}:.github/opencode-review.json" 2>/dev/null; then
+            # Take the base config (providers, no MCP/plugins) and only the PR's
+            # prompt, so a tooling PR can test prompt changes without widening
+            # the agent's access.
+            echo "::notice::Using the base review config with the PR prompt."
+            git show "origin/${BASE_REF}:.github/opencode-review.json" > "$RUNNER_TEMP/opencode-review.json"
+            jq --slurpfile pr ".github/opencode-review.json" \
+              '.agent["opencode-review"].prompt = $pr[0].agent["opencode-review"].prompt' \
+              "$RUNNER_TEMP/opencode-review.json" > "$RUNNER_TEMP/opencode-review.json.tmp"
+            mv "$RUNNER_TEMP/opencode-review.json.tmp" "$RUNNER_TEMP/opencode-review.json"
+          else
+            stage .github/opencode-review.json "$RUNNER_TEMP/opencode-review.json"
+          fi
 
           # Scale the step budget with the diff: 40 base steps, +2 per changed
           # file and +1 per 50 changed lines, capped at 100 total so a huge PR
@@ -142,7 +173,11 @@ jobs:
           jq --argjson steps "$steps" '
             .default_agent = "opencode-review"
             | .plugin = []
+            | del(.mcp)
+            | del(.provider)
             | .agent["opencode-review"].steps = $steps
+            | del(.agent["opencode-review"].tools)
+            | del(.agent["opencode-review"].model)
             | .agent["opencode-review"].permission = {
                 "edit": "deny",
                 "bash": "deny",
