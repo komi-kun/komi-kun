@@ -133,6 +133,20 @@ class ExtractReviewTest(unittest.TestCase):
     def test_short_shape_echo_is_rejected(self) -> None:
         self.assertIsNone(review.extract_review(json.dumps({"summary": "string"})))
 
+    def test_repair_schema_placeholder_is_ignored(self) -> None:
+        placeholder = {
+            "summary": "markdown summary, keep any Mermaid block",
+            "findings": [
+                {
+                    "path": "repo/relative/path",
+                    "line": 123,
+                    "severity": "high",
+                    "body": "concise finding and fix",
+                }
+            ],
+        }
+        self.assertIsNone(review.extract_review(json.dumps(placeholder)))
+
     def test_real_finding_on_line_123_is_accepted(self) -> None:
         real = {
             "summary": "A real finding.",

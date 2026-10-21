@@ -72,6 +72,9 @@ jobs:
           # can exercise its own helper/config.
           ref: ${{ github.event_name == 'issue_comment' && format('refs/pull/{0}/merge', github.event.issue.number) || '' }}
 
+      - name: Record run start
+        run: echo "RUN_STARTED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
+
       # Fail closed: only same-repo PRs are reviewed, because the action checks
       # out the PR head and runs the agent with the base repository's secrets.
       # PRs that change `.opencode/` or the root opencode config are skipped so

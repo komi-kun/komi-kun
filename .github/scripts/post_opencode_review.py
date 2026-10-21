@@ -38,7 +38,14 @@ OPENCODE_API_URL = os.environ.get(
     "https://opencode.ai/inference/go/openai/v1/chat/completions",
 )
 PLACEHOLDER_SUMMARY = "markdown overarching review comment"
-PLACEHOLDER_SUMMARIES = {"string", "summary", "..."}
+PLACEHOLDER_SUMMARIES = {
+    "string",
+    "summary",
+    "...",
+    "markdown summary",
+    "markdown summary, keep any mermaid block",
+}
+PLACEHOLDER_PATHS = ("...", "repo/relative/path")
 PLACEHOLDER_LINE = 123
 REPAIR_INSTRUCTION = """\
 Convert the code-review text below into one JSON object. Output only the JSON object.
@@ -153,7 +160,10 @@ def _is_placeholder(data: dict) -> bool:
             isinstance(finding, dict)
             and (
                 finding.get("line") == PLACEHOLDER_LINE
-                and "..." in str(finding.get("path", ""))
+                and any(
+                    placeholder in str(finding.get("path", ""))
+                    for placeholder in PLACEHOLDER_PATHS
+                )
             )
             for finding in findings
         )
@@ -372,6 +382,20 @@ def bot_comments(repo: str, pr: str) -> list[dict]:
     return matches
 
 
+def run_started_at() -> str | None:
+    value = os.environ.get("RUN_STARTED_AT", "").strip()
+    return value or None
+
+
+def comments_since(repo: str, pr: str, since: str) -> list[dict]:
+    """Bot comments created during this workflow run (not previous runs)."""
+    return [
+        comment
+        for comment in bot_comments(repo, pr)
+        if str(comment.get("created_at", "")) >= since
+    ]
+
+
 def find_action_comments(repo: str, pr: str) -> list[dict]:
     """Return every action comment for this run, oldest first."""
     run_id = os.environ.get("GITHUB_RUN_ID")
@@ -404,12 +428,12 @@ def main() -> int:
         return 1
 
     candidates = find_action_comments(repo, pr)
-    from_run = bool(candidates)
     if not candidates:
-        print("No action comment for this run; trying to parse a previous bot comment.")
-        candidates = bot_comments(repo, pr)
+        print("No action comment for this run; trying comments created during this run.")
+        since = run_started_at()
+        candidates = comments_since(repo, pr, since) if since else []
     if not candidates:
-        print("::error::No bot comment found; the review was not posted.")
+        print("::error::No bot comment found for this run; the review was not posted.")
         return 1
 
     review = None
@@ -417,7 +441,7 @@ def main() -> int:
         review = extract_review(str(comment.get("body", "")))
         if review is not None:
             break
-    if review is None and from_run:
+    if review is None:
         body = str(candidates[-1].get("body", ""))
         if body.strip():
             print("Final message is not valid review JSON; asking the repair model.")
