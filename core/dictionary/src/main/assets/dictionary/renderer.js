@@ -3231,7 +3231,7 @@
         const fragment = document.createDocumentFragment();
         for (const result of results) {
           if (result.kanji) {
-            fragment.appendChild(KanjiRenderer.renderEntry(result.kanji, result.matched));
+            fragment.appendChild(KanjiRenderer.renderEntry(result.kanji, result.matched, mediaMap));
             continue;
           }
           const diagram = payload.showPitchDiagram !== false;

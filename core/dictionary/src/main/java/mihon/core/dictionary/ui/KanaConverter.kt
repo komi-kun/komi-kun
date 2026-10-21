@@ -445,7 +445,11 @@ object KanaConverter {
 
     private fun hiraganaToKatakana(text: String): String {
         return text.map { c ->
-            if (c in HIRAGANA_RANGE) c + KATAKANA_OFFSET else c
+            when {
+                c in HIRAGANA_RANGE -> c + KATAKANA_OFFSET
+                c in 'a'..'z' -> c.uppercaseChar()
+                else -> c
+            }
         }.joinToString("")
     }
 
