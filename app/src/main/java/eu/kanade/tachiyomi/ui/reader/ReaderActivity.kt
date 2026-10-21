@@ -227,7 +227,7 @@ class ReaderActivity : BaseActivity() {
     private val ocrTwoFingerTapDetector by lazy {
         OcrTwoFingerTapDetector(
             touchSlop = ViewConfiguration.get(this).scaledTouchSlop.toFloat(),
-            tapTimeoutMillis = ViewConfiguration.getLongPressTimeout().toLong(),
+            tapTimeoutMillis = ViewConfiguration.getLongPressTimeout().toLong().coerceAtLeast(600L),
         ).apply {
             isEnabled = { readerPreferences.ocrTwoFingerGestureEnabled.get() }
             onTap = { onOcrTwoFingerTap() }
