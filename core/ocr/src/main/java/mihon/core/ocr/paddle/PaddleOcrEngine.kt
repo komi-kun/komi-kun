@@ -270,6 +270,24 @@ class PaddleOcrEngine(
         }
     }
 
+    // KUN -->
+    override suspend fun recognize(
+        bitmap: Bitmap,
+        language: OcrLanguage,
+    ): List<EngineLine> {
+        inferPermits.acquire()
+        try {
+            if (!isInitialized) {
+                init()
+            }
+            if (!isInitialized) return emptyList()
+            return recognizeLocked(bitmap, preferences.detectionOptions(deviceThreads), language).lines
+        } finally {
+            inferPermits.release()
+        }
+    }
+    // KUN <--
+
     /**
      * Bitmap inference. Must only be called while holding an [inferPermits]
      * permit (see [recognize]); takes [lock] briefly for lazy init, which

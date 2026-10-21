@@ -213,7 +213,19 @@ object AnkiCardCreator {
 
                 val noteId = when (finalDecision) {
                     is AnkiDuplicateDecision.Overwrite -> {
-                        activeBridge.updateNoteFields(finalDecision.noteId, fields)
+                        // KUN --> Granular per-field merging support
+                        val existingFields = activeBridge.getNoteFields(finalDecision.noteId)
+                        val mergedFields = if (existingFields.isNotEmpty() && profile.ankiFieldOverwriteModes.isNotEmpty()) {
+                            fields.mapValues { (fieldName, newValue) ->
+                                val existingValue = existingFields[fieldName] ?: ""
+                                val mode = profile.ankiFieldOverwriteModes[fieldName] ?: "overwrite"
+                                mergeFieldValue(existingValue, newValue, mode)
+                            }
+                        } else {
+                            fields
+                        }
+                        activeBridge.updateNoteFields(finalDecision.noteId, mergedFields)
+                        // KUN <--
                         finalDecision.noteId
                     }
 
@@ -413,5 +425,21 @@ object AnkiCardCreator {
 
     /** Blank a `chrome-extension:` context URL (`builder:83-91`). */
     fun blankExtensionUrl(url: String): String = if (url.startsWith("chrome-extension:")) "" else url
+
+    // KUN -->
+    /** Merges an existing card field value with a new field value according to [mode]. */
+    internal fun mergeFieldValue(existing: String, new: String, mode: String): String {
+        if (new.isBlank()) return existing
+        if (existing.isBlank()) return new
+        return when (mode.lowercase()) {
+            "append" -> "$existing<br>$new"
+            "prepend" -> "$new<br>$existing"
+            "if_empty", "ifempty" -> existing
+            "skip" -> existing
+            "overwrite" -> new
+            else -> new
+        }
+    }
+    // KUN <--
 }
 // KUN <--

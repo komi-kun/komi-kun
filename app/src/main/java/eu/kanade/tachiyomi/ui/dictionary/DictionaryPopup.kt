@@ -3,9 +3,11 @@ package eu.kanade.tachiyomi.ui.dictionary
 
 import android.graphics.RectF
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -46,13 +48,16 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import mihon.app.di.appGraph
+import mihon.core.dictionary.model.DictionaryPaths
 import mihon.core.dictionary.model.DictionaryProfile
 import mihon.core.dictionary.model.DictionaryStyle
 import mihon.core.dictionary.model.LookupResult
 import mihon.core.dictionary.model.getDictionaryPaths
+import mihon.core.dictionary.repository.DictionaryRepository
 import mihon.core.dictionary.ui.KanaConverter
 import mihon.core.dictionary.ui.LookupPath
 import mihon.core.dictionary.ui.TabInfo
+import mihon.core.dictionary.ui.buildKanjiEntryJsonStrings
 import mihon.core.dictionary.ui.orderLookupResultsForDisplay
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.Close
@@ -67,6 +72,9 @@ internal data class LookupFrame(
     val styles: List<DictionaryStyle>,
     val mediaDataUris: Map<String, String>,
     val existingExpressions: Set<String> = emptySet(),
+    // KUN -->
+    val entryJsons: List<String>? = null,
+    // KUN <--
 )
 
 /**
@@ -103,10 +111,26 @@ fun DictionaryPopup(
     var path by remember { mutableStateOf(LookupPath<LookupFrame>()) }
     var loading by remember { mutableStateOf(false) }
 
-    suspend fun performLookup(query: String, resetPath: Boolean) {
+    suspend fun performLookup(query: String, resetPath: Boolean, lookupType: String? = null) {
         loading = true
         val frame = withContext(Dispatchers.Default) {
             val paths = getDictionaryPaths(context, profile)
+            // KUN --> Kanji lookup path
+            if (lookupType == "kanji" || (query.length == 1 && isKanji(query.first()) && paths.kanjiPaths.isNotEmpty() && lookupType != "term")) {
+                val kanjiChar = query.first().toString()
+                val kanjiResult = repository.queryKanji(kanjiChar)
+                if (kanjiResult != null && kanjiResult.entries.isNotEmpty()) {
+                    val entryJsons = buildKanjiEntryJsonStrings(kanjiResult)
+                    return@withContext LookupFrame(
+                        query = query,
+                        results = emptyList(),
+                        styles = emptyList(),
+                        mediaDataUris = emptyMap(),
+                        entryJsons = entryJsons,
+                    )
+                }
+            }
+            // KUN <--
             val lookup = repository.lookup(query, paths, profile.languageCode)
             val ordered = orderLookupResultsForDisplay(
                 lookup.results,
@@ -114,7 +138,25 @@ fun DictionaryPopup(
                 context,
                 displayNameProvider = { prefs.getDisplayName(it) },
             )
-            LookupFrame(query, ordered, lookup.styles, emptyMap())
+            // KUN --> Fallback to kanji if single kanji character yielded no term results
+            if (ordered.isEmpty() && query.length == 1 && isKanji(query.first()) && paths.kanjiPaths.isNotEmpty()) {
+                val kanjiResult = repository.queryKanji(query.first().toString())
+                if (kanjiResult != null && kanjiResult.entries.isNotEmpty()) {
+                    val entryJsons = buildKanjiEntryJsonStrings(kanjiResult)
+                    return@withContext LookupFrame(
+                        query = query,
+                        results = emptyList(),
+                        styles = emptyList(),
+                        mediaDataUris = emptyMap(),
+                        entryJsons = entryJsons,
+                    )
+                }
+            }
+            // KUN --> Compound word breakdown for multi-word / compound expressions
+            val breakdown = findCompoundBreakdown(query, ordered, paths, repository, profile.languageCode)
+            val finalResults = if (breakdown.isNotEmpty()) ordered + breakdown else ordered
+            // KUN <--
+            LookupFrame(query, finalResults, lookup.styles, emptyMap())
         }
         if (resetPath) {
             path = path.start(frame)
@@ -125,12 +167,14 @@ fun DictionaryPopup(
         // KUN <--
         loading = false
         // Media loads off the critical path (02 §3.5).
-        scope.launch {
-            val media = withContext(Dispatchers.IO) { repository.loadMediaAsync(frame.results) }
-            if (media.isNotEmpty()) {
-                path = path.copy(
-                    entries = path.entries.map { if (it === frame) it.copy(mediaDataUris = media) else it },
-                )
+        if (frame.results.isNotEmpty()) {
+            scope.launch {
+                val media = withContext(Dispatchers.IO) { repository.loadMediaAsync(frame.results) }
+                if (media.isNotEmpty()) {
+                    path = path.copy(
+                        entries = path.entries.map { if (it === frame) it.copy(mediaDataUris = media) else it },
+                    )
+                }
             }
         }
     }
@@ -196,6 +240,12 @@ fun DictionaryPopup(
     val popupWidthPx = with(density) { popupWidth.toPx() }
     val popupHeightPx = with(density) { popupHeight.toPx() }
 
+    // KUN --> Swipe-to-dismiss gesture support
+    val swipeToDismiss = prefs.popupSwipeToDismiss().get()
+    val thresholdPx = with(density) { prefs.popupSwipeThreshold().get().dp.toPx() }
+    val dragOffsetY = remember { Animatable(0f) }
+    // KUN <--
+
     Box(modifier = modifier.fillMaxSize()) {
         // Non-modal (plan 04 §2.1, revised): there is deliberately NO full-screen scrim here. A
         // scrim would swallow every touch and stop the page from scrolling/zooming/paging while the
@@ -221,7 +271,7 @@ fun DictionaryPopup(
                     // KUN <--
                     IntOffset(
                         clampToScreen(anchorX, popupWidthPx, screenWidthPx),
-                        clampToScreen(anchorY, popupHeightPx, screenHeightPx),
+                        clampToScreen(anchorY, popupHeightPx, screenHeightPx) + dragOffsetY.value.roundToInt(),
                     )
                 }
                 .width(popupWidth)
@@ -238,10 +288,46 @@ fun DictionaryPopup(
                 }
                 // KUN <--
                 // Consume taps on the popup chrome without dismissing; only outside taps dismiss.
-                .pointerInput(Unit) { detectTapGestures { } },
+                .pointerInput(swipeToDismiss) {
+                    if (swipeToDismiss) {
+                        detectVerticalDragGestures(
+                            onDragEnd = {
+                                if (dragOffsetY.value > thresholdPx) {
+                                    onDismiss()
+                                } else {
+                                    scope.launch { dragOffsetY.animateTo(0f) }
+                                }
+                            },
+                            onDragCancel = { scope.launch { dragOffsetY.animateTo(0f) } },
+                            onVerticalDrag = { change, dragAmount ->
+                                if (dragAmount > 0 || dragOffsetY.value > 0f) {
+                                    val newOffset = (dragOffsetY.value + dragAmount).coerceAtLeast(0f)
+                                    scope.launch { dragOffsetY.snapTo(newOffset) }
+                                    change.consume()
+                                }
+                            },
+                        )
+                    } else {
+                        detectTapGestures { }
+                    }
+                },
             color = bg,
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
+                // KUN --> Visual drag handle indicator for swipe-to-dismiss
+                if (swipeToDismiss) {
+                    Box(
+                        modifier = Modifier
+                            .padding(top = 6.dp, bottom = 2.dp)
+                            .size(width = 36.dp, height = 4.dp)
+                            .align(Alignment.CenterHorizontally)
+                            .background(
+                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                RoundedCornerShape(2.dp),
+                            ),
+                    )
+                }
+                // KUN <--
                 // KUN -->
                 // Discoverability affordance: the entry text *is* selectable (the WebView's own
                 // long-press starts a selection and shows the system selection toolbar), but the
@@ -297,11 +383,16 @@ fun DictionaryPopup(
                         fontSize = prefs.fontSize().get(),
                         existingExpressions = current?.existingExpressions.orEmpty(),
                         tabs = tabs,
+                        // KUN -->
+                        entryJsons = current?.entryJsons,
+                        // KUN <--
                         customCss = prefs.customCss().get(),
                         modifier = Modifier.fillMaxSize(),
-                        onRecursiveLookup = { query, _, _, _, _, _ ->
-                            if (query.isNotBlank()) scope.launch { performLookup(query, resetPath = false) }
+                        // KUN -->
+                        onRecursiveLookup = { query, _, _, _, _, type ->
+                            if (query.isNotBlank()) scope.launch { performLookup(query, resetPath = false, lookupType = type) }
                         },
+                        // KUN <--
                         onTabSelect = { index -> path = path.select(index) },
                         onBack = { if (path.canGoBack) path = path.back() else onDismiss() },
                         isLoading = loading,
@@ -329,6 +420,41 @@ fun DictionaryPopup(
         }
     }
 }
+
+// KUN -->
+/** Scans subsequent substrings to discover sub-word / compound components for multi-character words. */
+private suspend fun findCompoundBreakdown(
+    query: String,
+    primaryResults: List<LookupResult>,
+    paths: DictionaryPaths,
+    repository: DictionaryRepository,
+    languageCode: String,
+): List<LookupResult> {
+    if (query.length < 3) return emptyList()
+    val existingKeys = primaryResults.map { it.term.expression to it.term.reading }.toMutableSet()
+    val breakdown = mutableListOf<LookupResult>()
+
+    for (startIdx in 1 until query.length) {
+        val sub = query.substring(startIdx)
+        if (sub.length < 2 && (sub.isEmpty() || !isKanji(sub.first()))) continue
+        val subLookup = repository.lookup(sub, paths, languageCode)
+        for (res in subLookup.results) {
+            val key = res.term.expression to res.term.reading
+            if (key !in existingKeys && res.term.glossaries.isNotEmpty()) {
+                existingKeys.add(key)
+                breakdown.add(res)
+                if (breakdown.size >= 4) return breakdown
+            }
+        }
+    }
+    return breakdown
+}
+
+private fun isKanji(c: Char): Boolean {
+    val code = c.code
+    return code in 0x4E00..0x9FFF || code in 0x3400..0x4DBF
+}
+// KUN <--
 
 /** Clamps the popup's anchor so the popup is always fully on screen. */
 private fun clampToScreen(anchor: Float, sizePx: Float, screenPx: Float): Int {

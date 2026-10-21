@@ -103,6 +103,15 @@ class LookupOrderingTest {
     }
 
     @Test
+    fun `rule 6 - occurrence-based frequency ranks higher count first`() {
+        setFrequencyModeForTesting("OccurrenceDict", "occurrence-based")
+        val rare = result(matched = "abc", frequencies = listOf(FrequencyEntry("OccurrenceDict", listOf(Frequency(100, "100")))))
+        val common = result(matched = "abc", frequencies = listOf(FrequencyEntry("OccurrenceDict", listOf(Frequency(50000, "50000")))))
+        orderLookupResultsForDisplay(listOf(rare, common), profile, context, displayName)
+            .map { it.term.frequencies.firstOrNull()?.frequencies?.first()?.value } shouldBe listOf(50000, 100)
+    }
+
+    @Test
     fun `rule 7 - higher-priority dictionary ranks first`() {
         val lowPriority = result(matched = "abc", glossaries = listOf(glossary(dict = "B")))
         val highPriority = result(matched = "abc", glossaries = listOf(glossary(dict = "A")))

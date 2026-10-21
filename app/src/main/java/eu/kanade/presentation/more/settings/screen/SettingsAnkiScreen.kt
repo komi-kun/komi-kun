@@ -6,7 +6,13 @@
 // the W5 report — add KMR keys if translations are wanted).
 package eu.kanade.presentation.more.settings.screen
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -18,10 +24,14 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import eu.kanade.presentation.more.settings.Preference
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import mihon.core.dictionary.anki.AnkiDroidBridge
 import mihon.core.dictionary.anki.AnkiMarkerEngine
 import mihon.core.dictionary.anki.AnkiPreferences
@@ -60,6 +70,7 @@ object SettingsAnkiScreen : SearchableSettings {
         var permitted by remember { mutableStateOf(bridge.hasPermission()) }
         var mappingDialogField by remember { mutableStateOf<String?>(null) }
         var mappingDialogValue by remember { mutableStateOf("") }
+        var mappingDialogMode by remember { mutableStateOf("overwrite") }
 
         LaunchedEffect(refresh) {
             prefs.migrateIfEmpty()
@@ -88,21 +99,57 @@ object SettingsAnkiScreen : SearchableSettings {
 
         if (mappingDialogField != null) {
             val field = mappingDialogField!!
+            val modeLabels = listOf(
+                "overwrite" to "Overwrite",
+                "append" to "Append",
+                "prepend" to "Prepend",
+                "if_empty" to "If Empty",
+                "skip" to "Skip",
+            )
             AlertDialog(
                 onDismissRequest = { mappingDialogField = null },
                 title = { Text(text = field) },
                 text = {
-                    OutlinedTextField(
-                        value = mappingDialogValue,
-                        onValueChange = { mappingDialogValue = it },
-                        label = { Text(text = stringResource(KUNMR.strings.pref_anki_field_mapping)) },
-                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        OutlinedTextField(
+                            value = mappingDialogValue,
+                            onValueChange = { mappingDialogValue = it },
+                            label = { Text(text = stringResource(KUNMR.strings.pref_anki_field_mapping)) },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Text(
+                            text = "Duplicate card update mode:",
+                            style = MaterialTheme.typography.labelMedium,
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            modeLabels.forEach { (modeKey, modeLabel) ->
+                                val isSelected = mappingDialogMode.equals(modeKey, ignoreCase = true)
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = { mappingDialogMode = modeKey },
+                                    label = { Text(modeLabel, style = MaterialTheme.typography.labelSmall) },
+                                )
+                            }
+                        }
+                    }
                 },
                 confirmButton = {
                     TextButton(
                         onClick = {
                             val updated = fieldMap.toMutableMap().apply { put(field, mappingDialogValue) }
                             prefs.fieldMap().set(mapToJson(updated))
+                            val updatedModes = activeProfile.ankiFieldOverwriteModes.toMutableMap().apply {
+                                put(field, mappingDialogMode)
+                            }
+                            prefs.profileStore.updateProfile(activeProfile.copy(ankiFieldOverwriteModes = updatedModes))
+                            prefs.fieldOverwriteModes().set(
+                                buildJsonObject {
+                                    for ((k, v) in updatedModes) put(k, v)
+                                }.toString(),
+                            )
                             mappingDialogField = null
                             persistAndRefresh()
                         },
@@ -135,9 +182,11 @@ object SettingsAnkiScreen : SearchableSettings {
                 models = models,
                 modelFields = modelFields,
                 fieldMap = fieldMap,
+                overwriteModes = activeProfile.ankiFieldOverwriteModes,
                 onEditField = { field ->
                     mappingDialogField = field
                     mappingDialogValue = fieldMap[field].orEmpty()
+                    mappingDialogMode = activeProfile.ankiFieldOverwriteModes[field] ?: "overwrite"
                 },
                 onChanged = persistAndRefresh,
             ),
@@ -235,6 +284,7 @@ object SettingsAnkiScreen : SearchableSettings {
         models: List<String>,
         modelFields: List<String>,
         fieldMap: Map<String, String>,
+        overwriteModes: Map<String, String>,
         onEditField: (String) -> Unit,
         onChanged: () -> Unit,
     ): Preference.PreferenceGroup {
@@ -280,10 +330,17 @@ object SettingsAnkiScreen : SearchableSettings {
                 )
                 if (modelFields.isNotEmpty()) {
                     modelFields.forEach { field ->
+                        val template = fieldMap[field].orEmpty()
+                        val mode = overwriteModes[field] ?: "overwrite"
+                        val subtitle = if (mode != "overwrite") {
+                            if (template.isNotBlank()) "$template • [$mode]" else "[$mode]"
+                        } else {
+                            template
+                        }
                         add(
                             Preference.PreferenceItem.TextPreference(
                                 title = field,
-                                subtitle = fieldMap[field] ?: "",
+                                subtitle = subtitle,
                                 onClick = { onEditField(field) },
                             ),
                         )
