@@ -26,9 +26,11 @@ current state in this repo.
 2. [ ] Confirm default branch = `master`; make the repo public or enable Dependency Graph.
 3. [ ] Add the 4 signing secrets and `OPENCODE_API_KEY` (for automated PR
    reviews). The 2 Google secrets are **optional** — CI is green without them.
-4. [ ] Leave Actions workflow permissions at "Read repository contents".
-5. [ ] No environments / no Actions variables required.
-6. [ ] Test: same-repo PR → push to `master` → `Nightly Builder`. The nightly is
+4. [ ] Install the [Renovate app](https://github.com/apps/renovate) for
+   dependency PRs (it replaces Dependabot; see [§2.6](#26-dependency-updates-renovate)).
+5. [ ] Leave Actions workflow permissions at "Read repository contents".
+6. [ ] No environments / no Actions variables required.
+7. [ ] Test: same-repo PR → push to `master` → `Nightly Builder`. The nightly is
    **the release path** here; the `v*` tag release is optional and normally unused
    (see [§4](#4-which-workflows-are-active-disabled-and-why)).
 
@@ -89,6 +91,36 @@ there are no environment-scoped secrets or protection rules to configure.
 **None required.** All build flags (`-Pdist=…`, `-Pinclude-telemetry`,
 `-Penable-updater`, …) are passed inline in the workflow commands, not via repo
 variables.
+
+### 2.6 Dependency updates (Renovate)
+
+Dependency PRs come from the hosted [Renovate app](https://github.com/apps/renovate),
+not from a workflow and not from Dependabot.
+
+- **Install:** open <https://github.com/apps/renovate> → **Configure** → grant it
+  access to `komi-kun/komi-kun`. No repository secrets are needed; the app
+  authenticates through its GitHub App installation.
+- **Config:** `.github/renovate.json5`, modelled on Mihon's file. The deleted
+  root `renovate.json` came from Komikku and pulled Mihon's settings in by remote
+  preset (`github>mihonapp/mihon//.github/renovate.json5`); those settings are now
+  inlined: `config:recommended`, `Dependencies` label, no semantic-commit
+  prefixes, and GitHub Actions grouped with pinned digests. It targets `master`
+  (the default branch) and lets Renovate manage the Gradle version catalogs under
+  `gradle/`, the Gradle wrapper, and workflow action digests.
+- **Behaviour:** the app maintains a "Dependency Dashboard" issue that lists
+  pending updates and lets you trigger or ignore them. Nothing runs until the app
+  is installed; until then dependency updates must be done by hand.
+- Mihon is the reference for these settings; TachiyomiSY uses the same file
+  location with the older `config:base` preset.
+- Renovate-authored commits are excluded from `cherrypick_log.md`
+  (`exclude_identity_regex` in `.agents/skills/cherrypick-log/config.json`).
+
+The `Dependencies` label must exist in the repository for Renovate to apply it;
+create it once with:
+
+```bash
+gh label create Dependencies --color D1E0A7 --description "Dependency updates"
+```
 
 ---
 
@@ -233,6 +265,8 @@ Notes:
 
 - `BOT_PAT` — belonged to the disabled upstream-dispatch workflows.
 - `CODEBERG_SSH` — belonged to the disabled mirror workflow.
+- No Renovate secrets — the hosted app authenticates via its GitHub App
+  installation.
 
 Do not add these unless you deliberately re-purpose those workflows.
 
@@ -252,11 +286,14 @@ Do not add these unless you deliberately re-purpose those workflows.
 | `build_dispatch_preview.yml.disabled` | **Disabled** | Cross-repo dispatch to upstream `komikku-app/komikku-preview` with `BOT_PAT` — cannot work on the fork. |
 | `codeberg_mirror.yml.disabled` | **Disabled** | Guarded `github.repository == 'komikku-app/komikku'` → permanent no-op; mirrors to an upstream Codeberg repo. |
 | `update_website.yml.disabled` | **Disabled** | Cross-repo dispatch to upstream `komikku-app/komikku-app.github.io` with `BOT_PAT` — cannot work. |
-| `.github/dependabot.yml` | **Keep** | Opens weekly GitHub Actions dependency PRs against `master`. |
 
 Renaming to `*.yml.disabled` keeps the file in git but out of GitHub Actions,
 which only loads `.yml`/`.yaml` files in `.github/workflows/`. To re-enable one,
 rename it back to `.yml` **and** fix its upstream URLs/guards first.
+
+Dependency updates are not a workflow either: the hosted Renovate app opens them
+against `master` (see [§2.6](#26-dependency-updates-renovate)). Dependabot is no
+longer configured, so GitHub Actions bumps are not opened twice.
 
 ---
 
