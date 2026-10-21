@@ -93,10 +93,14 @@ class MangaMergeRepositoryImpl(
             val mergeIds = mutableSetOf<Long>()
             values.forEach { value ->
                 // KUN -->
-                database.mergedQueries
-                    .selectMergeIdById(value.id)
+                // Write only when a provided value actually changes. A blanket bump would raise the
+                // merge parent's version for a no-op save and make every peer re-merge for nothing.
+                val dbReference = database.mergedQueries
+                    .selectById(value.id, MergedMangaMapper::map)
                     .awaitAsOneOrNull()
-                    ?.let(mergeIds::add)
+                    ?: return@forEach
+                if (!value.changesAgainst(dbReference)) return@forEach
+                dbReference.mergeId?.let(mergeIds::add)
                 // KUN <--
                 database.mergedQueries.updateSettingsById(
                     id = value.id,
@@ -114,6 +118,16 @@ class MangaMergeRepositoryImpl(
             // KUN <--
         }
     }
+
+    // KUN -->
+    /** Mirrors `updateSettingsById`'s `coalesce`: only a provided (non-null) value can change. */
+    private fun MergeMangaSettingsUpdate.changesAgainst(reference: MergedMangaReference): Boolean =
+        (getChapterUpdates != null && getChapterUpdates != reference.getChapterUpdates) ||
+            (downloadChapters != null && downloadChapters != reference.downloadChapters) ||
+            (isInfoManga != null && isInfoManga != reference.isInfoManga) ||
+            (chapterPriority != null && chapterPriority != reference.chapterPriority) ||
+            (chapterSortMode != null && chapterSortMode != reference.chapterSortMode)
+    // KUN <--
 
     override suspend fun insert(reference: MergedMangaReference): Long? {
         return database.transactionWithResult {

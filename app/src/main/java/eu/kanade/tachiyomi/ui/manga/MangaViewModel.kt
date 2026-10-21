@@ -872,13 +872,13 @@ class MangaViewModel(
                 status.takeUnless { it == state.manga.ogStatus },
             )
             // KUN -->
-            // Custom info lives outside the manga row, so the sync triggers never see this edit;
-            // remember the stored value and bump the manga after the write (gated by sync settings).
+            // The bump must survive leaving the screen right after the edit: the view model scope is
+            // cancelled then. The app-wide, non-cancellable launch still runs off the UI thread.
             val previousCustomInfo = getCustomMangaInfo.get(state.manga.id)
             // KUN <--
             setCustomMangaInfo.set(customInfo)
             // KUN -->
-            viewModelScope.launch(Dispatchers.IO) {
+            appScope.launchNonCancellable {
                 syncStateBumper.bumpForCustomInfoEdit(customInfo.id, previousCustomInfo, customInfo)
             }
             // KUN <--

@@ -100,6 +100,7 @@ import tachiyomi.core.common.preference.TriState
 import tachiyomi.core.common.util.lang.SubscriberGate
 import tachiyomi.core.common.util.lang.compareToWithCollator
 import tachiyomi.core.common.util.lang.launchIO
+import tachiyomi.core.common.util.lang.launchNonCancellable
 import tachiyomi.core.common.util.lang.pausedWhileUnsubscribed
 import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.domain.category.interactor.GetCategories
@@ -1092,7 +1093,9 @@ class LibraryViewModel(
         }
         // KUN -->
         if (customInfoEdits.isNotEmpty()) {
-            viewModelScope.launch(Dispatchers.IO) {
+            // The bump must survive leaving the screen right after the edit: the view model scope is
+            // cancelled then. The app-wide, non-cancellable launch still runs off the UI thread.
+            appScope.launchNonCancellable {
                 customInfoEdits.forEach { (before, after) ->
                     syncStateBumper.bumpForCustomInfoEdit(after.id, before, after)
                 }
@@ -1139,7 +1142,9 @@ class LibraryViewModel(
         // Clearing the overrides is a real edit: bump so the empty custom-info block is uploaded and
         // the restore path can remove the overrides on the other devices.
         if (customInfoEdits.isNotEmpty()) {
-            viewModelScope.launch(Dispatchers.IO) {
+            // The bump must survive leaving the screen right after the edit: the view model scope is
+            // cancelled then. The app-wide, non-cancellable launch still runs off the UI thread.
+            appScope.launchNonCancellable {
                 customInfoEdits.forEach { (before, after) ->
                     syncStateBumper.bumpForCustomInfoEdit(after.id, before, after)
                 }

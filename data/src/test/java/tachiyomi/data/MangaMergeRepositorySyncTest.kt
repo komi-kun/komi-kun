@@ -103,6 +103,43 @@ class MangaMergeRepositorySyncTest {
     }
 
     @Test
+    fun `saving unchanged reference settings does not bump the merge parent`() {
+        runBlocking {
+            val driver = newDriver()
+            try {
+                val database = DatabaseBindings.providesDatabase(driver)
+                val repository = MangaMergeRepositoryImpl(database)
+                driver.insertManga(id = 1L, sourceId = MERGED_SOURCE, url = "/merge", version = 5L, lastModifiedAt = 10L)
+                driver.insertManga(id = 2L, sourceId = SOURCE, url = "/child/a")
+                val referenceId = driver.insertReference(mergeId = 1L, mangaId = 2L, mangaUrl = "/child/a")
+                driver.resetManga(version = 5L, lastModifiedAt = 10L)
+                val before = database.mangaQueries.getMangaById(1L, MangaMapper::mapManga).awaitAsOne()
+
+                // Exactly the settings the reference already has.
+                val updated = repository.updateSettings(
+                    MergeMangaSettingsUpdate(
+                        id = referenceId,
+                        isInfoManga = false,
+                        getChapterUpdates = true,
+                        chapterPriority = 1,
+                        downloadChapters = false,
+                        chapterSortMode = 0,
+                    ),
+                )
+
+                updated shouldBe true
+                // A no-op save must not raise the parent version: every peer would re-merge for
+                // nothing and the delta would carry an unchanged entry.
+                val parent = database.mangaQueries.getMangaById(1L, MangaMapper::mapManga).awaitAsOne()
+                parent.version shouldBe before.version
+                parent.lastModifiedAt shouldBe before.lastModifiedAt
+            } finally {
+                driver.close()
+            }
+        }
+    }
+
+    @Test
     fun `deleting a reference bumps the merge parent`() {
         runBlocking {
             val driver = newDriver()

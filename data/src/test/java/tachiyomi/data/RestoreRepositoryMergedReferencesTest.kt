@@ -242,6 +242,42 @@ class RestoreRepositoryMergedReferencesTest {
     }
 
     @Test
+    fun `a winning payload refreshes the child id after the child was deleted and re-added`() {
+        runBlocking {
+            val driver = newDriver()
+            try {
+                val database = DatabaseBindings.providesDatabase(driver)
+                val repository = restoreRepository(database)
+                driver.insertManga(id = 1L, sourceId = MERGED_SOURCE, url = "/merge", version = 5L)
+                driver.insertManga(id = 2L, sourceId = SOURCE, url = "/child/a")
+                driver.insertReference(
+                    mergeId = 1L,
+                    mergeUrl = "/merge",
+                    mangaId = 2L,
+                    mangaUrl = "/child/a",
+                    chapterPriority = 1,
+                )
+                // The child was removed and added again as a new row; the FK nulled the old id.
+                driver.execute(null, "DELETE FROM manga WHERE id = 2", 0).await()
+                driver.execute(null, "UPDATE merged SET manga_id = NULL WHERE merge_id = 1", 0).await()
+                driver.insertManga(id = 7L, sourceId = SOURCE, url = "/child/a")
+
+                restore(
+                    repository = repository,
+                    references = listOf(reference(mangaUrl = "/child/a", chapterPriority = 5)),
+                )
+
+                val ref = references(database, mergeId = 1L).single()
+                // The reference now points at the re-added child, not at NULL or the stale id.
+                ref.mangaId shouldBe 7L
+                ref.chapterPriority shouldBe 5
+            } finally {
+                driver.close()
+            }
+        }
+    }
+
+    @Test
     fun `an unresolvable incoming reference prevents destructive changes`() {
         runBlocking {
             val driver = newDriver()

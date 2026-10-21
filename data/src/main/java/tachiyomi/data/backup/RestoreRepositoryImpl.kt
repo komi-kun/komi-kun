@@ -850,16 +850,18 @@ class RestoreRepositoryImpl(
         // KUN <--
     ) {
         // KUN -->
+        // A merge reference lives outside the manga row, so the payload needs a marker of its own
+        // before it may delete anything. Absence from a losing/manual payload is not a removal.
+        val payloadWins = isSync && incomingIsNewerOrEqual
+        // Nothing to add and no ownership of the entry: skip the per-manga query entirely.
+        if (!payloadWins && mergedMangaReferences.isEmpty()) return
+
         // Only this merge entry's references: the `merged` table is shared by every merge, so reading
         // (and reconciling against) the whole table would touch unrelated merges.
         val dbMergedMangaReferences = database.mergedQueries
             .selectByMergeId(mergeMangaId, MergedMangaMapper::map)
             .awaitAsList()
-        // A merge reference lives outside the manga row, so the payload needs a marker of its own
-        // before it may delete anything. Absence from a losing/manual payload is not a removal.
-        val payloadWins = isSync && incomingIsNewerOrEqual
         if (!payloadWins) {
-            if (mergedMangaReferences.isEmpty()) return
             insertMissingMergedMangaReferences(mergeMangaId, mergedMangaReferences, dbMergedMangaReferences)
             return
         }
@@ -892,22 +894,27 @@ class RestoreRepositoryImpl(
             }
             incomingByKey.forEach { (key, incoming) ->
                 val dbReference = dbByKey[key]
+                val resolvedMangaId = resolvedMangaIds.getValue(key)!!
                 if (dbReference == null) {
-                    insertMergedMangaReference(mergeMangaId, incoming, resolvedMangaIds.getValue(key)!!)
+                    insertMergedMangaReference(mergeMangaId, incoming, resolvedMangaId)
                 } else if (
+                    // Refresh the resolved child id too: a child that was deleted and re-added
+                    // leaves `merged.manga_id = NULL` (ON DELETE SET NULL) until this write.
+                    dbReference.mangaId != resolvedMangaId ||
                     dbReference.isInfoManga != incoming.isInfoManga ||
                     dbReference.getChapterUpdates != incoming.getChapterUpdates ||
                     dbReference.chapterSortMode != incoming.chapterSortMode ||
                     dbReference.chapterPriority != incoming.chapterPriority ||
                     dbReference.downloadChapters != incoming.downloadChapters
                 ) {
-                    database.mergedQueries.updateSettingsById(
+                    database.mergedQueries.updateFromRestore(
                         id = dbReference.id,
-                        getChapterUpdates = incoming.getChapterUpdates,
-                        downloadChapters = incoming.downloadChapters,
                         infoManga = incoming.isInfoManga,
-                        chapterPriority = incoming.chapterPriority.toLong(),
+                        getChapterUpdates = incoming.getChapterUpdates,
                         chapterSortMode = incoming.chapterSortMode.toLong(),
+                        chapterPriority = incoming.chapterPriority.toLong(),
+                        downloadChapters = incoming.downloadChapters,
+                        mangaId = resolvedMangaId,
                     )
                 }
             }
