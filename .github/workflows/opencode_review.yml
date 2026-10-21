@@ -213,6 +213,11 @@ jobs:
             review_agent=.github/opencode-review/opencode-review.md
             repair_agent=.github/opencode-review/opencode-repair.md
           else
+            if ! git cat-file -e "origin/${BASE_REF}:.github/opencode-review/opencode-review.md" 2>/dev/null || \
+               ! git cat-file -e "origin/${BASE_REF}:.github/opencode-review/opencode-repair.md" 2>/dev/null; then
+              echo "::error::The default branch does not contain .github/opencode-review/*.md; cannot stage trusted agents."
+              exit 1
+            fi
             mkdir -p "$RUNNER_TEMP/trusted-agents"
             git show "origin/${BASE_REF}:.github/opencode-review/opencode-review.md" > "$RUNNER_TEMP/trusted-agents/opencode-review.md"
             git show "origin/${BASE_REF}:.github/opencode-review/opencode-repair.md" > "$RUNNER_TEMP/trusted-agents/opencode-repair.md"

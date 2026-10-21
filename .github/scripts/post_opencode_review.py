@@ -37,8 +37,15 @@ PLACEHOLDER_SUMMARIES = {
     "markdown summary",
     "markdown summary, keep any mermaid block",
 }
-PLACEHOLDER_PATHS = ("...", "repo/relative/path")
-PLACEHOLDER_LINE = 123
+
+
+def read_text(path: Path) -> str:
+    """Read a file tolerantly: an advisory review must not crash on bad bytes."""
+    try:
+        return path.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        print(f"Could not read {path}: {exc}")
+        return ""
 
 
 def gh(*args: str, stdin: str | None = None) -> subprocess.CompletedProcess[str]:
@@ -58,7 +65,7 @@ def load_assistant_text(jsonl: str) -> str:
     examples cannot be mistaken for the review.
     """
     messages: dict[str, list[str]] = {}
-    order: list[str] = []
+    last_message_id = ""
     for line in jsonl.splitlines():
         line = line.strip()
         if not line:
@@ -76,14 +83,10 @@ def load_assistant_text(jsonl: str) -> str:
         if not isinstance(text, str):
             continue
         message_id = str(part.get("messageID", ""))
-        if message_id not in messages:
-            messages[message_id] = []
-            order.append(message_id)
-        messages[message_id].append(text)
+        messages.setdefault(message_id, []).append(text)
+        last_message_id = message_id
 
-    if not order:
-        return ""
-    return "\n".join(messages[order[-1]])
+    return "\n".join(messages.get(last_message_id, []))
 
 
 def parse_diff(diff: str) -> dict[str, set[int]]:
@@ -173,27 +176,16 @@ def _fenced_objects(text: str):
 
 
 def _is_placeholder(data: dict) -> bool:
-    """Reject the schema example an agent may echo after hitting its limit."""
-    summary = data.get("summary")
-    if isinstance(summary, str):
-        normalized = summary.strip().lower()
-        if normalized in PLACEHOLDER_SUMMARIES or normalized.startswith(PLACEHOLDER_SUMMARY):
-            return True
+    """Reject the schema example an agent may echo after hitting its limit.
 
-    findings = data.get("findings")
-    if isinstance(findings, list) and findings:
-        return all(
-            isinstance(finding, dict)
-            and (
-                finding.get("line") == PLACEHOLDER_LINE
-                and any(
-                    placeholder in str(finding.get("path", ""))
-                    for placeholder in PLACEHOLDER_PATHS
-                )
-            )
-            for finding in findings
-        )
-    return False
+    Only the summary is checked: a genuine summary with copied schema findings
+    is still useful, and `describe_comment` drops the placeholder findings.
+    """
+    summary = data.get("summary")
+    if not isinstance(summary, str):
+        return False
+    normalized = summary.strip().lower()
+    return normalized in PLACEHOLDER_SUMMARIES or normalized.startswith(PLACEHOLDER_SUMMARY)
 
 
 def _score_findings(data: dict, valid: dict[str, set[int]] | None) -> int:
@@ -428,14 +420,14 @@ def main() -> int:
         return 1
 
     output = Path(os.environ.get("OPENCODE_OUTPUT", "opencode-review.jsonl"))
-    raw = output.read_text() if output.is_file() else ""
+    raw = read_text(output) if output.is_file() else ""
     text = load_assistant_text(raw)
     if not text.strip():
         # The review is advisory: surface the failure but do not red the check.
         print("::warning::The OpenCode run produced no assistant text; no review was posted.")
         return 0
 
-    diff = DIFF_PATH.read_text() if DIFF_PATH.is_file() else gh("pr", "diff", pr).stdout
+    diff = read_text(DIFF_PATH) if DIFF_PATH.is_file() else gh("pr", "diff", pr).stdout
     if not diff:
         print("::warning::Could not read the pull request diff; no review was posted.")
         return 0
