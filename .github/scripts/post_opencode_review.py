@@ -396,8 +396,12 @@ def comments_since(repo: str, pr: str, since: str) -> list[dict]:
     ]
 
 
-def find_action_comments(repo: str, pr: str) -> list[dict]:
-    """Return every action comment for this run, oldest first."""
+def find_action_comments(repo: str, pr: str, since: str | None = None) -> list[dict]:
+    """Return action comments for this run, oldest first.
+
+    ``since`` limits the result to the current attempt; callers that clean up
+    omit it so comments from earlier attempts are removed too.
+    """
     run_id = os.environ.get("GITHUB_RUN_ID")
     if not run_id:
         return []
@@ -405,6 +409,7 @@ def find_action_comments(repo: str, pr: str) -> list[dict]:
         comment
         for comment in bot_comments(repo, pr)
         if f"/actions/runs/{run_id}" in str(comment.get("body", ""))
+        and (since is None or str(comment.get("created_at", "")) >= since)
     ]
 
 
@@ -427,10 +432,10 @@ def main() -> int:
         print("PR_NUMBER and GITHUB_REPOSITORY are required.")
         return 1
 
-    candidates = find_action_comments(repo, pr)
+    since = run_started_at()
+    candidates = find_action_comments(repo, pr, since)
     if not candidates:
         print("No action comment for this run; trying comments created during this run.")
-        since = run_started_at()
         candidates = comments_since(repo, pr, since) if since else []
     if not candidates:
         print("::error::No bot comment found for this run; the review was not posted.")
