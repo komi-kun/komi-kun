@@ -165,8 +165,8 @@ class RestoreRepositoryMergedReferencesTest {
                 driver.insertManga(id = 2L, sourceId = SOURCE, url = "/child/a")
                 driver.insertReference(mergeId = 1L, mergeUrl = "/merge", mangaId = 2L, mangaUrl = "/child/a")
 
-                // A legacy payload omits field 605 entirely: an empty list is "unknown", not "no
-                // children", so the local reference survives.
+                // A legacy payload omits the merged-reference marker (proto 10001) entirely: an
+                // empty list is "unknown", not "no children", so the local reference survives.
                 restore(repository = repository, mergedMangaReferencesIncluded = null, references = emptyList())
 
                 references(database, mergeId = 1L).map { it.mangaUrl } shouldBe listOf("/child/a")
