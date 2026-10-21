@@ -7,6 +7,7 @@ import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.datetime.TimeZone
@@ -42,6 +43,19 @@ class MangaRepositoryImpl(
             .getMangaById(id, MangaMapper::mapManga)
             .awaitAsOne()
     }
+
+    // KUN -->
+    override suspend fun isSyncing(mangaId: Long): Boolean {
+        return database.mangaQueries
+            .getMangaIsSyncing(mangaId)
+            .awaitAsOneOrNull()
+            ?.let { it != 0L }
+            ?: false
+    }
+    override suspend fun bumpSyncVersion(mangaId: Long) {
+        database.mangaQueries.bumpSyncVersion(mangaId)
+    }
+    // KUN <--
 
     override fun getMangaByIdAsFlow(id: Long): Flow<Manga> {
         return database.mangaQueries
@@ -173,6 +187,14 @@ class MangaRepositoryImpl(
             }
             val toRemove = currentExcluded.minus(excludedScanlators)
             database.excluded_scanlatorQueries.remove(mangaId, toRemove)
+            // KUN -->
+            // The filter is stored in a child table, so the manga row (and its version/timestamp)
+            // would not change and delta sync would never upload the edit. Bump both explicitly;
+            // restore writes the child rows directly and deliberately does not call this path.
+            if (toAdd.isNotEmpty() || toRemove.isNotEmpty()) {
+                database.mangaQueries.bumpSyncVersion(mangaId)
+            }
+            // KUN <--
         }
     }
 
@@ -218,6 +240,23 @@ class MangaRepositoryImpl(
             false
         }
     }
+
+    // KUN -->
+    override suspend fun updateCover(mangaId: Long, staleUrl: String, thumbnailUrl: String): Boolean {
+        return try {
+            database.mangaQueries.updateCover(
+                thumbnailUrl = thumbnailUrl,
+                mangaId = mangaId,
+                staleUrl = staleUrl,
+            ).awaitAsOneOrNull() != null
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logcat(LogPriority.ERROR, e)
+            false
+        }
+    }
+    // KUN <--
 
     override suspend fun insertNetworkManga(
         manga: List<Manga>,

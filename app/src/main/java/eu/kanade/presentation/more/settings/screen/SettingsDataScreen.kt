@@ -593,7 +593,9 @@ object SettingsDataScreen : SearchableSettings {
         val basePreferences = getBasePreferences(syncServiceType, syncPreferences)
 
         return if (syncServiceType != SyncManager.SyncService.NONE) {
-            basePreferences + getAdditionalPreferences(syncPreferences)
+            // KUN -->
+            basePreferences + getAdditionalPreferences(syncPreferences, syncServiceType)
+            // KUN <--
         } else {
             basePreferences
         }
@@ -627,10 +629,34 @@ object SettingsDataScreen : SearchableSettings {
     }
 
     @Composable
-    private fun getAdditionalPreferences(syncPreferences: SyncPreferences): List<Preference> {
+    private fun getAdditionalPreferences(
+        syncPreferences: SyncPreferences,
+        // KUN -->
+        syncServiceType: SyncManager.SyncService,
+        // KUN <--
+    ): List<Preference> {
+        // KUN -->
+        val syncSettings = syncPreferences.getSyncSettings()
+        // Hiding the force actions when library entries are not synced avoids sending an empty
+        // "full" upload while the server still returns (and restores) the library. Force push also
+        // needs chapters; the manga-payload sections it can leave disabled (history, tracking,
+        // custom info) and categories are preserved from the server snapshot instead.
         return listOf(
-            getSyncNowPref(),
+            getSyncNowPref(syncServiceType, syncSettings.libraryEntries, syncSettings.supportsForcePush),
+            // KUN <--
             getAutomaticSyncGroup(syncPreferences),
+            // KUN -->
+            // Pinned sources are restored with app settings, and replacing the local set is only
+            // safe when the server merges the upload for us (SyncYomi v2). Drive, WebDAV and v1
+            // keep the stored set, so the switch is not offered there; the cached capability
+            // probe is used so opening settings never performs a network request.
+            Preference.PreferenceItem.SwitchPreference(
+                preference = syncPreferences.syncPinnedSources,
+                title = stringResource(KMR.strings.pref_sync_pinned_sources),
+                subtitle = stringResource(KMR.strings.pref_sync_pinned_sources_summary),
+                visible = syncSettings.appSettings && syncPreferences.isSyncYomiV2(),
+            ),
+            // KUN <--
             // KMK -->
             Preference.PreferenceItem.SwitchPreference(
                 preference = syncPreferences.showSyncingProgressBanner,
@@ -852,13 +878,19 @@ object SettingsDataScreen : SearchableSettings {
     // KMK <--
 
     @Composable
-    private fun getSyncNowPref(): Preference.PreferenceGroup {
+    private fun getSyncNowPref(
+        // KUN -->
+        syncServiceType: SyncManager.SyncService,
+        libraryEntries: Boolean,
+        forcePushAllowed: Boolean,
+        // KUN <--
+    ): Preference.PreferenceGroup {
         val context = LocalContext.current
         val scope = rememberCoroutineScope()
-        return Preference.PreferenceGroup(
-            title = stringResource(SYMR.strings.pref_sync_now_group_title),
-            preferenceItems = listOf(
-                getSyncOptionsPref(),
+        // KUN -->
+        val preferenceItems = buildList {
+            add(getSyncOptionsPref())
+            add(
                 Preference.PreferenceItem.TextPreference(
                     title = stringResource(SYMR.strings.pref_sync_now),
                     subtitle = stringResource(SYMR.strings.pref_sync_now_subtitle),
@@ -872,9 +904,130 @@ object SettingsDataScreen : SearchableSettings {
                         }
                     },
                 ),
-            ),
+            )
+            if (syncServiceType == SyncManager.SyncService.SYNCYOMI) {
+                if (libraryEntries) {
+                    add(getForceFullSyncPref())
+                }
+                if (libraryEntries && forcePushAllowed) {
+                    add(getForcePushPref())
+                }
+            }
+        }
+        // KUN <--
+        return Preference.PreferenceGroup(
+            title = stringResource(SYMR.strings.pref_sync_now_group_title),
+            // KUN -->
+            preferenceItems = preferenceItems,
+            // KUN <--
         )
     }
+
+    // KUN -->
+    @Composable
+    private fun getForceFullSyncPref(): Preference.PreferenceItem.TextPreference {
+        val context = LocalContext.current
+        val scope = rememberCoroutineScope()
+        var showConfirmationDialog by remember { mutableStateOf(false) }
+
+        if (showConfirmationDialog) {
+            ForceFullSyncConfirmationDialog(
+                onConfirm = {
+                    showConfirmationDialog = false
+                    scope.launch {
+                        if (!SyncDataJob.isRunning(context)) {
+                            SyncDataJob.startNow(context, manual = true, forceFull = true)
+                            context.toast(KMR.strings.pref_sync_force_full_started)
+                        } else {
+                            context.toast(SYMR.strings.sync_in_progress)
+                        }
+                    }
+                },
+                onDismissRequest = { showConfirmationDialog = false },
+            )
+        }
+
+        return Preference.PreferenceItem.TextPreference(
+            title = stringResource(KMR.strings.pref_sync_force_full),
+            subtitle = stringResource(KMR.strings.pref_sync_force_full_summary),
+            onClick = { showConfirmationDialog = true },
+        )
+    }
+
+    @Composable
+    private fun ForceFullSyncConfirmationDialog(
+        onConfirm: () -> Unit,
+        onDismissRequest: () -> Unit,
+    ) {
+        AlertDialog(
+            onDismissRequest = onDismissRequest,
+            title = { Text(text = stringResource(KMR.strings.pref_sync_force_full_confirmation_title)) },
+            text = { Text(text = stringResource(KMR.strings.pref_sync_force_full_confirmation_message)) },
+            dismissButton = {
+                TextButton(onClick = onDismissRequest) {
+                    Text(text = stringResource(MR.strings.action_cancel))
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = onConfirm) {
+                    Text(text = stringResource(MR.strings.action_ok))
+                }
+            },
+        )
+    }
+
+    @Composable
+    private fun getForcePushPref(): Preference.PreferenceItem.TextPreference {
+        val context = LocalContext.current
+        val scope = rememberCoroutineScope()
+        var showConfirmationDialog by remember { mutableStateOf(false) }
+
+        if (showConfirmationDialog) {
+            ForcePushConfirmationDialog(
+                onConfirm = {
+                    showConfirmationDialog = false
+                    scope.launch {
+                        if (!SyncDataJob.isRunning(context)) {
+                            SyncDataJob.startNow(context, manual = true, forcePush = true)
+                            context.toast(KMR.strings.pref_sync_force_push_started)
+                        } else {
+                            context.toast(SYMR.strings.sync_in_progress)
+                        }
+                    }
+                },
+                onDismissRequest = { showConfirmationDialog = false },
+            )
+        }
+
+        return Preference.PreferenceItem.TextPreference(
+            title = stringResource(KMR.strings.pref_sync_force_push),
+            subtitle = stringResource(KMR.strings.pref_sync_force_push_summary),
+            onClick = { showConfirmationDialog = true },
+        )
+    }
+
+    @Composable
+    private fun ForcePushConfirmationDialog(
+        onConfirm: () -> Unit,
+        onDismissRequest: () -> Unit,
+    ) {
+        AlertDialog(
+            onDismissRequest = onDismissRequest,
+            title = { Text(text = stringResource(KMR.strings.pref_sync_force_push_confirmation_title)) },
+            text = { Text(text = stringResource(KMR.strings.pref_sync_force_push_confirmation_message)) },
+            dismissButton = {
+                TextButton(onClick = onDismissRequest) {
+                    Text(text = stringResource(MR.strings.action_cancel))
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = onConfirm) {
+                    Text(text = stringResource(MR.strings.action_ok))
+                }
+            },
+        )
+    }
+    // KUN <--
 
     @Composable
     private fun getSyncOptionsPref(): Preference.PreferenceItem.TextPreference {

@@ -1,0 +1,20 @@
+// Renovate config for komi-kun.
+//
+// Mirrors upstream Mihon's `.github/renovate.json5` (the source of truth for
+// these settings): recommended defaults, a `Dependencies` label, no
+// semantic-commit prefixes, and one grouped PR for pinned GitHub Actions
+// digests. Kept in-repo instead of extending Mihon's file by remote preset, so
+// an upstream edit cannot silently change this fork's dependency policy.
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "labels": ["Dependencies"],
+  "semanticCommits": "disabled",
+  "packageRules": [
+    {
+      "groupName": "GitHub Actions",
+      "matchManagers": ["github-actions"],
+      "pinDigests": true,
+    },
+  ],
+}

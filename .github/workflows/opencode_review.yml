@@ -1,0 +1,307 @@
+name: OpenCode PR Review
+
+# Automatic review on the first non-draft PR event, plus manual re-reviews via
+# `/oc review` or `/opencode review` comments. Pushes (`synchronize`) do not
+# re-trigger the workflow.
+on:
+  pull_request:
+    types: [opened, ready_for_review]
+  issue_comment:
+    types: [created]
+
+concurrency:
+  group: opencode-review-${{ github.event.pull_request.number || github.event.issue.number }}
+  # Reviews are slow and expensive; queue one run and let the job timeout bound
+  # it instead of cancelling a review midway.
+  cancel-in-progress: false
+
+jobs:
+  # Runs the parser/repair tests in a job with no secrets, so PR-controlled
+  # test code cannot influence the review step or read the API key.
+  test-review-helper:
+    name: Test review helper
+    if: >-
+      (github.event_name == 'pull_request' && github.event.pull_request.draft == false) ||
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request &&
+       (github.event.comment.author_association == 'OWNER' ||
+        github.event.comment.author_association == 'MEMBER' ||
+        github.event.comment.author_association == 'COLLABORATOR') &&
+       (startsWith(github.event.comment.body, '/oc review') ||
+        startsWith(github.event.comment.body, '/opencode review')))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          # The PR head ref exists for conflicted PRs too, unlike the merge ref.
+          ref: ${{ format('refs/pull/{0}/head', github.event.pull_request.number || github.event.issue.number) }}
+      - name: Run helper tests
+        env:
+          DEFAULT_REF: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+
+          helper=.github/scripts/post_opencode_review.py
+          tests=.github/scripts/test_post_opencode_review.py
+
+          if [ -f "$tests" ]; then
+            python3 "$tests"
+          elif git cat-file -e "origin/${DEFAULT_REF}:${tests}" 2>/dev/null; then
+            # Older PR branches predate the test file; use the default branch's.
+            mkdir -p "$RUNNER_TEMP/trusted-tests"
+            git show "origin/${DEFAULT_REF}:${helper}" > "$RUNNER_TEMP/trusted-tests/post_opencode_review.py"
+            git show "origin/${DEFAULT_REF}:${tests}" > "$RUNNER_TEMP/trusted-tests/test_post_opencode_review.py"
+            python3 "$RUNNER_TEMP/trusted-tests/test_post_opencode_review.py"
+          else
+            echo "::warning::No review helper tests found; skipping."
+          fi
+
+  review:
+    name: Review PR
+    needs: test-review-helper
+    if: >-
+      (github.event_name == 'pull_request' &&
+       github.event.pull_request.draft == false &&
+       github.event.pull_request.head.repo.full_name == github.repository &&
+       github.event.pull_request.user.type != 'Bot') ||
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request &&
+       (github.event.comment.author_association == 'OWNER' ||
+        github.event.comment.author_association == 'MEMBER' ||
+        github.event.comment.author_association == 'COLLABORATOR') &&
+       (startsWith(github.event.comment.body, '/oc review') ||
+        startsWith(github.event.comment.body, '/opencode review')))
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    env:
+      # Pinned CLI artifact: version plus the npm sha512 integrity. A tampered
+      # tarball fails the check instead of being executed.
+      OPENCODE_VERSION: 2.1.2
+      OPENCODE_SHA512_LINUX_X64: O8/8JT8SNmMReDmpYDsm04KmkrQQ2dzaKgaw06zCoUfh50ARGHs58E6zCh16GIUyEL8abrdSe268K5/ExE89Gw==
+      OPENCODE_SHA512_LINUX_ARM64: 294IA9S1sXOAzOBRPMcnFuYpXlFeUaKTlpTk0a7TMvuc7cJbfS52poTw3AlIu7ycbn8TGmTmj27OOxsMmBCLEg==
+      OPENCODE_MODEL: opencode-go/deepseek-v4.1-flash
+    steps:
+      - name: Checkout target branch/PR
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          # The PR head ref exists for conflicted PRs too, unlike the merge ref.
+          ref: ${{ format('refs/pull/{0}/head', github.event.pull_request.number || github.event.issue.number) }}
+
+      # Fail closed: only same-repo PRs are reviewed, because the CLI runs on
+      # the PR checkout with the repository's API key.
+      - name: Verify PR is safe to review
+        id: pr-source
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+        run: |
+          if ! cross=$(gh pr view "$PR_NUMBER" --json isCrossRepository --jq .isCrossRepository); then
+            echo "same_repo=false" >> "$GITHUB_OUTPUT"
+            echo "::error::Could not determine whether PR #$PR_NUMBER is from a fork; skipping review."
+            exit 0
+          fi
+          if [ "$cross" = "true" ]; then
+            echo "same_repo=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping fork PR: OpenCode reviews only same-repo branches."
+            exit 0
+          fi
+          if ! changed=$(gh pr diff "$PR_NUMBER" --name-only); then
+            echo "same_repo=false" >> "$GITHUB_OUTPUT"
+            echo "::error::Could not read the diff for PR #$PR_NUMBER; skipping review."
+            exit 0
+          fi
+          if [ -z "$changed" ]; then
+            echo "same_repo=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::PR #$PR_NUMBER has no diff; skipping review."
+            exit 0
+          fi
+          if printf '%s\n' "$changed" | grep -qE '^(\.opencode(/|$)|opencode\.jsonc?$)'; then
+            echo "same_repo=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping PR that changes OpenCode config or plugins."
+            exit 0
+          fi
+          if printf '%s\n' "$changed" | grep -qE '^(\.github/opencode-review/|\.github/scripts/post_opencode_review\.py$|\.github/scripts/test_post_opencode_review\.py$|\.github/workflows/opencode_review\.yml$)'; then
+            # A tooling PR may only run its own agent definitions when a
+            # maintainer opts in. For `pull_request` events GitHub loads this
+            # workflow from the PR head, so a same-repo PR that edits this file
+            # necessarily runs its own copy; the label is an audit convention,
+            # not an enforced boundary. Fork PRs are skipped above.
+            if ! gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name' | grep -qx 'review-tooling'; then
+              echo "same_repo=false" >> "$GITHUB_OUTPUT"
+              echo "::notice::Skipping review-tooling PR without the review-tooling label."
+              exit 0
+            fi
+            echo "tooling_changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "tooling_changed=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "same_repo=true" >> "$GITHUB_OUTPUT"
+
+      # Download the pinned CLI and verify its sha512 before extracting it.
+      - name: Install pinned OpenCode
+        if: steps.pr-source.outputs.same_repo == 'true'
+        run: |
+          set -euo pipefail
+
+          case "$(uname -m)" in
+            x86_64) target="linux-x64"; integrity="$OPENCODE_SHA512_LINUX_X64" ;;
+            aarch64|arm64) target="linux-arm64"; integrity="$OPENCODE_SHA512_LINUX_ARM64" ;;
+            *) echo "::error::Unsupported architecture $(uname -m)"; exit 1 ;;
+          esac
+
+          url="https://registry.npmjs.org/@opencode/cli-${target}/-/cli-${target}-${OPENCODE_VERSION}.tgz"
+          mkdir -p "$RUNNER_TEMP/opencode-install"
+          curl -fsSL "$url" -o "$RUNNER_TEMP/opencode-install/opencode.tgz"
+
+          actual="$(openssl dgst -sha512 -binary "$RUNNER_TEMP/opencode-install/opencode.tgz" | base64 -w0)"
+          if [ "$actual" != "$integrity" ]; then
+            echo "::error::sha512 mismatch for opencode ${OPENCODE_VERSION} (${target}); refusing to install."
+            exit 1
+          fi
+
+          tar -xzf "$RUNNER_TEMP/opencode-install/opencode.tgz" -C "$RUNNER_TEMP/opencode-install"
+          mkdir -p "$RUNNER_TEMP/opencode-bin"
+          mv "$RUNNER_TEMP/opencode-install/package/bin/opencode" "$RUNNER_TEMP/opencode-bin/opencode"
+          chmod 755 "$RUNNER_TEMP/opencode-bin/opencode"
+          echo "OPENCODE_BIN=$RUNNER_TEMP/opencode-bin/opencode" >> "$GITHUB_ENV"
+          "$RUNNER_TEMP/opencode-bin/opencode" --version
+
+      # Write the trusted v2 agent definitions into the checkout and stage the
+      # post-processing helper from the default branch (or the PR for a labelled
+      # tooling change).
+      - name: Stage trusted review tooling
+        if: steps.pr-source.outputs.same_repo == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+          BASE_REF: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+
+          if ! git rev-parse --verify "origin/${BASE_REF}" >/dev/null 2>&1; then
+            echo "::error::Default ref origin/${BASE_REF} is not available; failing instead of using the PR checkout."
+            exit 1
+          fi
+
+          tooling_changed="${{ steps.pr-source.outputs.tooling_changed }}"
+
+          stage() {
+            if [ "$tooling_changed" = "false" ] && git cat-file -e "origin/${BASE_REF}:$1" 2>/dev/null; then
+              git show "origin/${BASE_REF}:$1" > "$2"
+              return 0
+            fi
+            echo "::warning::Using the checked-out $1 (bootstrap or review-tooling change)."
+            cp "$1" "$2"
+          }
+
+          stage .github/scripts/post_opencode_review.py "$RUNNER_TEMP/post_opencode_review.py"
+
+          # Scale the step budget with the diff: 50 base steps, +3 per changed
+          # file and +1 per 50 changed lines, capped at 120.
+          if stats=$(gh pr view "$PR_NUMBER" --json changedFiles,additions,deletions \
+            --jq '[.changedFiles, .additions, .deletions] | @tsv'); then
+            read -r files additions deletions <<< "$stats"
+            files=${files:-0}
+            additions=${additions:-0}
+            deletions=${deletions:-0}
+            lines=$((additions + deletions))
+            extra=$((files * 3 + lines / 50))
+            if [ "$extra" -gt 70 ]; then extra=70; fi
+          else
+            echo "::warning::Could not read PR size; using the maximum step budget."
+            files=0
+            lines=0
+            extra=70
+          fi
+          steps=$((50 + extra))
+          echo "::notice::Review step budget: ${steps} (files=${files}, lines=${lines})"
+
+          mkdir -p .opencode/agents
+          if [ "$tooling_changed" = "true" ]; then
+            echo "::notice::Using the PR's review agent definitions."
+            review_agent=.github/opencode-review/opencode-review.md
+            repair_agent=.github/opencode-review/opencode-repair.md
+          else
+            if ! git cat-file -e "origin/${BASE_REF}:.github/opencode-review/opencode-review.md" 2>/dev/null || \
+               ! git cat-file -e "origin/${BASE_REF}:.github/opencode-review/opencode-repair.md" 2>/dev/null; then
+              echo "::error::The default branch does not contain .github/opencode-review/*.md; cannot stage trusted agents."
+              exit 1
+            fi
+            mkdir -p "$RUNNER_TEMP/trusted-agents"
+            git show "origin/${BASE_REF}:.github/opencode-review/opencode-review.md" > "$RUNNER_TEMP/trusted-agents/opencode-review.md"
+            git show "origin/${BASE_REF}:.github/opencode-review/opencode-repair.md" > "$RUNNER_TEMP/trusted-agents/opencode-repair.md"
+            review_agent="$RUNNER_TEMP/trusted-agents/opencode-review.md"
+            repair_agent="$RUNNER_TEMP/trusted-agents/opencode-repair.md"
+          fi
+
+          sed "s/__STEPS__/${steps}/" "$review_agent" > .opencode/agents/opencode-review.md
+          cp "$repair_agent" .opencode/agents/opencode-repair.md
+
+      # Give the agent the diff as a file so it does not depend on git/gh.
+      - name: Prepare pull request diff
+        if: steps.pr-source.outputs.same_repo == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+        run: |
+          mkdir -p build/opencode-review
+          gh pr diff "$PR_NUMBER" > build/opencode-review/pr.diff
+
+      # The CLI writes a JSONL event stream to stdout; the post step parses the
+      # assistant's final text from it. No issue comment is created.
+      - name: Run OpenCode review
+        id: opencode
+        if: steps.pr-source.outputs.same_repo == 'true'
+        continue-on-error: true
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+        run: |
+          message="Review the pull request. The diff is at build/opencode-review/pr.diff. Return the JSON object."
+          if [ "${{ github.event_name }}" = "issue_comment" ]; then
+            message="${message}
+
+          Additional instructions from the commenter:
+          ${COMMENT_BODY}"
+          fi
+          "$OPENCODE_BIN" run --standalone --format json \
+            --agent opencode-review --model "$OPENCODE_MODEL" "$message" \
+            > "$RUNNER_TEMP/opencode-review.jsonl" 2> "$RUNNER_TEMP/opencode-review.stderr"
+
+      - name: Post review
+        if: always() && steps.pr-source.outputs.same_repo == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+          OPENCODE_OUTPUT: ${{ runner.temp }}/opencode-review.jsonl
+          BASE_REF: ${{ github.event.repository.default_branch }}
+        run: |
+          if [ -s "$RUNNER_TEMP/opencode-review.stderr" ]; then
+            echo "::group::OpenCode CLI stderr"
+            tail -50 "$RUNNER_TEMP/opencode-review.stderr"
+            echo "::endgroup::"
+          fi
+
+          # Re-stage the helper after the agent ran (defence in depth; the agent
+          # has no write permissions). Labelled tooling PRs keep their own copy.
+          if [ "${{ steps.pr-source.outputs.tooling_changed }}" = "false" ] && \
+             git cat-file -e "origin/${BASE_REF}:.github/scripts/post_opencode_review.py" 2>/dev/null; then
+            git show "origin/${BASE_REF}:.github/scripts/post_opencode_review.py" > "$RUNNER_TEMP/post_opencode_review.py"
+          fi
+
+          if [ -f "$RUNNER_TEMP/post_opencode_review.py" ]; then
+            python3 "$RUNNER_TEMP/post_opencode_review.py"
+          else
+            echo "Review helper was not staged; skipping."
+          fi

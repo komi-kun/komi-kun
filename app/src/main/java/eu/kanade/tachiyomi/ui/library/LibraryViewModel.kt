@@ -23,6 +23,7 @@ import eu.kanade.domain.manga.interactor.SmartSearchMerge
 import eu.kanade.domain.manga.interactor.UpdateManga
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.domain.sync.SyncPreferences
+import eu.kanade.domain.sync.SyncStateBumper
 import eu.kanade.presentation.library.components.LibraryToolbarTitle
 import eu.kanade.presentation.manga.DownloadAction
 import eu.kanade.tachiyomi.data.cache.CoverCache
@@ -99,6 +100,7 @@ import tachiyomi.core.common.preference.TriState
 import tachiyomi.core.common.util.lang.SubscriberGate
 import tachiyomi.core.common.util.lang.compareToWithCollator
 import tachiyomi.core.common.util.lang.launchIO
+import tachiyomi.core.common.util.lang.launchNonCancellable
 import tachiyomi.core.common.util.lang.pausedWhileUnsubscribed
 import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.domain.category.interactor.GetCategories
@@ -116,6 +118,7 @@ import tachiyomi.domain.library.model.LibraryManga
 import tachiyomi.domain.library.model.LibrarySort
 import tachiyomi.domain.library.model.sort
 import tachiyomi.domain.library.service.LibraryPreferences
+import tachiyomi.domain.manga.interactor.GetCustomMangaInfo
 import tachiyomi.domain.manga.interactor.GetFlatMetadataById
 import tachiyomi.domain.manga.interactor.GetIdsOfFavoriteMangaWithMetadata
 import tachiyomi.domain.manga.interactor.GetLibraryManga
@@ -165,6 +168,10 @@ class LibraryViewModel(
     private val getMergedMangaById: GetMergedMangaById,
     private val getTracks: GetTracks,
     private val setCustomMangaInfo: SetCustomMangaInfo,
+    // KUN -->
+    private val getCustomMangaInfo: GetCustomMangaInfo,
+    private val syncStateBumper: SyncStateBumper,
+    // KUN <--
     private val getMergedChaptersByMangaId: GetMergedChaptersByMangaId,
     syncPreferences: SyncPreferences,
     val favoritesSync: FavoritesSyncHelper,
@@ -499,7 +506,9 @@ class LibraryViewModel(
 
         // SY -->
         val filterLewd = preferences.filterLewd
-        val sourceNames = sourceManager.getAll().associate { it.id to it.name }
+        // KUN --> already resolved without blocking on the extension scan, so reuse it here
+        val sourceNames = associate { it.libraryManga.manga.source to it.sourceName }
+        // KUN <--
         // SY <--
 
         val filterFnDownloaded: (LibraryItem) -> Boolean = {
@@ -817,10 +826,24 @@ class LibraryViewModel(
             getLibraryManga.subscribe(),
             getLibraryItemPreferencesFlow(),
             downloadCache.changes.pausedWhileUnsubscribed(),
-        ) { libraryManga, preferences, _ ->
+            // KUN -->
+            // Recompute when the loaded sources change, so entries restored on a blank install stop
+            // showing a stub source (and the warning badge) once their extension is installed.
+            // `sources` emits an empty snapshot while the extensions load, and the resolution below never
+            // suspends, so a slow or failing extension scan can't leave the library stuck on its spinner.
+            sourceManager.sources,
+            // KUN <--
+        ) { libraryManga, preferences, _, loadedSources ->
+            // KUN -->
+            val loadedSourcesById = loadedSources.associateBy { it.id }
             val sources = libraryManga
                 .mapTo(mutableSetOf()) { it.manga.source }
-                .associateWith { sourceManager.getOrStub(it) }
+                .associateWith { sourceKey ->
+                    loadedSourcesById[sourceKey]
+                        ?: sourceManager.getOrStubOrNull(sourceKey)
+                        ?: StubSource(sourceKey, lang = "", name = "")
+                }
+            // KUN <--
             val downloadCounts = downloadManager.getDownloadCounts(libraryManga.map { it.manga })
             libraryManga.map { manga ->
                 // SY -->
@@ -1031,6 +1054,11 @@ class LibraryViewModel(
         val regex2 = "\\(.*?\\)".toRegex()
         val regex3 = "\\{.*?\\}".toRegex()
         val regex4 = ".*\\|".toRegex()
+        // KUN -->
+        // Custom info lives outside the manga row, so the sync triggers never see the edit. Remember
+        // what was stored before each write and bump the manga afterwards (gated by sync settings).
+        val customInfoEdits = mutableListOf<Pair<CustomMangaInfo?, CustomMangaInfo>>()
+        // KUN <--
         state.value.selectedManga.fastFilter {
             it.isEhBasedManga() ||
                 it.source in nHentaiSourceIds
@@ -1058,8 +1086,22 @@ class LibraryViewModel(
                 status = manga.status.takeUnless { it == manga.ogStatus },
             )
 
+            // KUN -->
+            customInfoEdits += getCustomMangaInfo.get(manga.id) to mangaInfo
+            // KUN <--
             setCustomMangaInfo.set(mangaInfo)
         }
+        // KUN -->
+        if (customInfoEdits.isNotEmpty()) {
+            // The bump must survive leaving the screen right after the edit: the view model scope is
+            // cancelled then. The app-wide, non-cancellable launch still runs off the UI thread.
+            appScope.launchNonCancellable {
+                customInfoEdits.forEach { (before, after) ->
+                    syncStateBumper.bumpForCustomInfoEdit(after.id, before, after)
+                }
+            }
+        }
+        // KUN <--
         clearSelection()
     }
 
@@ -1076,6 +1118,9 @@ class LibraryViewModel(
     }
 
     fun resetInfo() {
+        // KUN -->
+        val customInfoEdits = mutableListOf<Pair<CustomMangaInfo?, CustomMangaInfo>>()
+        // KUN <--
         state.value.selection.forEach { id ->
             val mangaInfo = CustomMangaInfo(
                 id = id,
@@ -1088,8 +1133,24 @@ class LibraryViewModel(
                 status = null,
             )
 
+            // KUN -->
+            customInfoEdits += getCustomMangaInfo.get(id) to mangaInfo
+            // KUN <--
             setCustomMangaInfo.set(mangaInfo)
         }
+        // KUN -->
+        // Clearing the overrides is a real edit: bump so the empty custom-info block is uploaded and
+        // the restore path can remove the overrides on the other devices.
+        if (customInfoEdits.isNotEmpty()) {
+            // The bump must survive leaving the screen right after the edit: the view model scope is
+            // cancelled then. The app-wide, non-cancellable launch still runs off the UI thread.
+            appScope.launchNonCancellable {
+                customInfoEdits.forEach { (before, after) ->
+                    syncStateBumper.bumpForCustomInfoEdit(after.id, before, after)
+                }
+            }
+        }
+        // KUN <--
         clearSelection()
     }
     // SY <--
@@ -1422,15 +1483,26 @@ class LibraryViewModel(
         searchQuery.update { query }
     }
 
-    fun updateActiveCategoryIndex(index: Int) {
+    fun updateActiveCategoryIndex(
+        index: Int,
+        // KUN -->
+        categoryId: Long,
+        // KUN <--
+    ) {
         activeCategoryIndex.update { index }
         // KMK -->
-        activeCategoryId.update { state.value.displayedCategories.getOrNull(index)?.id }
+        // KUN -->
+        // The caller resolves the id from the list it rendered. Reading it back off [state] raced
+        // with category list updates (e.g. during a sync restore) and could latch the id of the
+        // category that used to be at this index.
+        activeCategoryId.update { categoryId }
+        // KUN <--
         // KMK <--
-        // Coerce here rather than reading it back off [state], which is derived asynchronously
-        // and would still hold the previous index at this point.
-        val lastIndex = state.value.displayedCategories.lastIndex.coerceAtLeast(0)
-        libraryPreferences.lastUsedCategory.set(index.coerceIn(0, lastIndex))
+        // KUN -->
+        // The index comes from the pager via the rendered category list, so it is never negative.
+        // [State.coercedActiveCategoryIndex] coerces it on read if the list later shrank.
+        libraryPreferences.lastUsedCategory.set(index)
+        // KUN <--
     }
 
     fun openChangeCategoryDialog() {
@@ -1534,27 +1606,36 @@ class LibraryViewModel(
                 forEach { item ->
                     groupCache.getOrPut(item.libraryManga.manga.source) { mutableListOf() }.add(item.id)
                 }
+                // KUN -->
+                // Use the non-suspending snapshot: this runs while the library is being built, so awaiting
+                // the extension scan here would keep the whole library on its spinner.
                 val sources = groupCache.keys
-                    .map { sourceManager.getOrStub(it) }
-                    .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name.ifBlank { it.id.toString() } })
-                val sourceOrderMap = sources.withIndex().associate { (index, source) -> source.id to index.toLong() }
+                    .map { sourceId ->
+                        val knownName = sourceManager.getOrStubOrNull(sourceId)?.name
+                            ?.takeIf { it.isNotBlank() }
+                            ?: firstOrNull { it.libraryManga.manga.source == sourceId }?.sourceName.orEmpty()
+                        sourceId to knownName
+                    }
+                    .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { (id, name) -> name.ifBlank { id.toString() } })
+                val sourceOrderMap = sources.withIndex().associate { (index, source) -> source.first to index.toLong() }
 
-                sources.associate {
+                sources.associate { (sourceId, sourceName) ->
                     val category = Category(
-                        id = it.id,
-                        name = if (it.id == LocalSource.ID) {
+                        id = sourceId,
+                        name = if (sourceId == LocalSource.ID) {
                             context.stringResource(MR.strings.local_source)
                         } else {
-                            it.name.ifBlank { it.id.toString() }
+                            sourceName.ifBlank { sourceId.toString() }
                         },
-                        order = sourceOrderMap[it.id] ?: Long.MAX_VALUE,
+                        order = sourceOrderMap[sourceId] ?: Long.MAX_VALUE,
                         flags = 0,
                         // KMK -->
                         hidden = false,
                         // KMK <--
                     )
-                    category to groupCache[it.id].orEmpty()
+                    category to groupCache[sourceId].orEmpty()
                 }
+                // KUN <--
                 // KMK <--
             }
             LibraryGroup.BY_STATUS -> {

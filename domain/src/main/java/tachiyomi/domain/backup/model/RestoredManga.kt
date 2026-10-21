@@ -11,7 +11,9 @@ import kotlin.time.Instant
 data class RestoredManga(
     val manga: Manga,
     val chapters: List<Chapter>,
-    val categoryIds: List<Long>,
+    // KUN -->
+    val categoryIds: List<Long>?,
+    // KUN <--
     val history: List<RestoredHistory>,
     val tracks: List<Track>,
     val excludedScanlators: List<String>,
@@ -20,6 +22,20 @@ data class RestoredManga(
     val flatMetadata: FlatMetadata? = null,
     val customMangaInfo: CustomMangaInfo? = null,
     // KMK/SY <--
+    // KUN -->
+    /**
+     * Whether the payload carried the custom-info section at all. `true` with an all-null
+     * [customMangaInfo] means the user cleared every override and a winning restore may remove them
+     * locally; `null`/`false` only allows merging the non-null overrides.
+     */
+    val customInfoIncluded: Boolean? = null,
+    /**
+     * Whether the payload carried the merged-reference list for this entry. `true` means the list is
+     * complete and a winning restore may delete local references; `null`/`false` is a legacy or
+     * partial payload and only allows adding/updating.
+     */
+    val mergedMangaReferencesIncluded: Boolean? = null,
+    // KUN <--
 )
 
 data class RestoredHistory(

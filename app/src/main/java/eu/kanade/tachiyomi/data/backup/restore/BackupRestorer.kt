@@ -56,6 +56,9 @@ import kotlin.concurrent.atomics.incrementAndFetch
 class BackupRestorer(
     @Assisted private val notifier: BackupNotifier,
     @Assisted private val isSync: Boolean,
+    // KUN -->
+    @Assisted private val removeMissingChaptersBefore: Long?,
+    // KUN <--
     private val context: Context,
     private val downloadCache: DownloadCache,
     private val categoriesRestorer: CategoriesRestorer,
@@ -75,7 +78,13 @@ class BackupRestorer(
 
     @AssistedFactory
     fun interface Factory {
-        fun create(notifier: BackupNotifier, isSync: Boolean): BackupRestorer
+        fun create(
+            notifier: BackupNotifier,
+            isSync: Boolean,
+            // KUN -->
+            removeMissingChaptersBefore: Long?,
+            // KUN <--
+        ): BackupRestorer
     }
 
     private var restoreAmount = 0
@@ -87,6 +96,9 @@ class BackupRestorer(
         mangaRestorer.isSync = isSync
         categoriesRestorer.isSync = isSync
         // SY <--
+        // KUN -->
+        mangaRestorer.removeMissingChaptersBefore = removeMissingChaptersBefore
+        // KUN <--
     }
 
     /**
@@ -176,6 +188,9 @@ class BackupRestorer(
                     backup.backupPreferences,
                     backup.backupCategories.takeIf { options.categories },
                     categoriesRestoreJob,
+                    // KUN -->
+                    options,
+                    // KUN <--
                 )
             }
             if (options.sourceSettings) {
@@ -183,11 +198,17 @@ class BackupRestorer(
             }
             if (options.libraryEntries) {
                 // SY -->
+                // KUN -->
                 restoreManga(
-                    uri,
-                    if (options.categories) backup.backupCategories else emptyList(),
-                    categoriesRestoreJob,
+                    uri = uri,
+                    backupCategories = if (options.categories) backup.backupCategories else emptyList(),
+                    restoreCategories = options.categories,
+                    restoreTracking = options.tracking,
+                    restoreHistory = options.history,
+                    restoreCustomInfo = options.customInfo,
+                    categoriesRestoreJob = categoriesRestoreJob,
                 )
+                // KUN <--
                 // SY <--
             }
             if (options.extensionStores) {
@@ -258,6 +279,12 @@ class BackupRestorer(
     private fun CoroutineScope.restoreManga(
         uri: Uri,
         backupCategories: List<BackupCategory>,
+        // KUN -->
+        restoreCategories: Boolean,
+        restoreTracking: Boolean,
+        restoreHistory: Boolean,
+        restoreCustomInfo: Boolean,
+        // KUN <--
         // SY -->
         categoriesRestoreJob: Job? = null,
         // SY <--
@@ -296,7 +323,16 @@ class BackupRestorer(
             .collect { chunk ->
                 val restoredAsBatch = try {
                     ensureActive()
-                    mangaRestorer.restore(chunk, backupCategories)
+                    // KUN -->
+                    mangaRestorer.restore(
+                        chunk,
+                        backupCategories,
+                        restoreCategories,
+                        restoreTracking,
+                        restoreHistory,
+                        restoreCustomInfo,
+                    )
+                    // KUN <--
                     true
                 } catch (e: Exception) {
                     ensureActive()
@@ -311,7 +347,16 @@ class BackupRestorer(
                         ensureActive()
 
                         try {
-                            mangaRestorer.restore(listOf(it), backupCategories)
+                            // KUN -->
+                            mangaRestorer.restore(
+                                listOf(it),
+                                backupCategories,
+                                restoreCategories,
+                                restoreTracking,
+                                restoreHistory,
+                                restoreCustomInfo,
+                            )
+                            // KUN <--
                         } catch (e: Exception) {
                             ensureActive()
                             val sourceName = sourceMapping[it.source] ?: it.source.toString()
@@ -334,12 +379,18 @@ class BackupRestorer(
         preferences: List<BackupPreference>,
         categories: List<BackupCategory>?,
         categoriesRestoreJob: Job?,
+        // KUN -->
+        options: RestoreOptions,
+        // KUN <--
     ) = launch {
         ensureActive()
         categoriesRestoreJob?.join()
         preferenceRestorer.restoreApp(
             preferences,
             categories,
+            // KUN -->
+            options,
+            // KUN <--
         )
 
         val progress = restoreProgress.incrementAndFetch()
