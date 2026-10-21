@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
-"""Post the schema-shaped review written by the OpenCode review agent.
+"""Post the schema-shaped review returned by the OpenCode review agent.
 
-The agent writes ``build/opencode-review/findings.json`` (gitignored) with a
-``summary`` and a list of ``findings``. This script validates every finding
-against the pull request diff, then posts one review whose body is the summary
-and whose comments are threads on the exact changed lines. It removes the
-action's own short status comment so the PR shows a single review entry.
+The agent is asked to answer with one JSON object (``summary`` plus a list of
+``findings``); the GitHub action posts that final message as a comment. This
+script reads the comment, validates every finding against the pull request
+diff, then posts one review whose body is the summary and whose comments are
+threads on the exact changed lines. It removes the action's comment so the PR
+shows a single review entry.
+
+If the final message is not valid JSON (for example because the agent hit its
+step budget and replied with prose), a cheap repair model turns it into the
+expected shape before posting.
 """
 
 from __future__ import annotations
@@ -15,9 +20,10 @@ import os
 import re
 import subprocess
 import sys
+import urllib.error
+import urllib.request
 from pathlib import Path
 
-FINDINGS_PATH = Path("build/opencode-review/findings.json")
 DIFF_PATH = Path("build/opencode-review/pr.diff")
 VALID_SEVERITIES = {"low", "medium", "high", "critical"}
 SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3}
@@ -26,6 +32,20 @@ DEFAULT_SUMMARY = (
     "Automated review by [OpenCode](https://opencode.ai/docs/github/). "
     "These findings are advisory: verify them before changing code."
 )
+OPENCODE_API_URL = os.environ.get(
+    "OPENCODE_API_URL",
+    "https://opencode.ai/inference/go/openai/v1/chat/completions",
+)
+REPAIR_HINTS = re.compile(r"finding|summary|review|severity|path:", re.IGNORECASE)
+REPAIR_INSTRUCTION = """\
+Convert the code-review text below into one JSON object. Output only the JSON object.
+
+Schema:
+{"summary": "markdown summary, keep any Mermaid block", "findings": [{"path": "repo/relative/path", "line": 123, "severity": "low|medium|high|critical", "body": "concise finding and fix"}]}
+
+Use only findings present in the text. Drop findings without a concrete path and line.
+Do not invent code or findings. If the text is not a review, return {"summary": "", "findings": []}.
+"""
 
 
 def gh(*args: str, stdin: str | None = None) -> subprocess.CompletedProcess[str]:
@@ -86,33 +106,6 @@ def _hunk_start(header: str) -> int | None:
     return int(match.group(1)) if match else None
 
 
-def load_review_file() -> tuple[str, list] | None:
-    if not FINDINGS_PATH.is_file():
-        print(f"No {FINDINGS_PATH}.")
-        return None
-
-    try:
-        data = json.loads(FINDINGS_PATH.read_text())
-    except (OSError, json.JSONDecodeError) as exc:
-        print(f"Could not read findings: {exc}")
-        return None
-
-    if not isinstance(data, dict):
-        print("Findings file is not an object.")
-        return None
-
-    summary = data.get("summary")
-    findings = data.get("findings")
-    if not isinstance(summary, str) and not isinstance(findings, list):
-        print("Findings file does not match the review schema.")
-        return None
-    if not isinstance(summary, str):
-        summary = ""
-    if not isinstance(findings, list):
-        findings = []
-    return summary.strip(), findings
-
-
 def _json_objects(text: str):
     """Yield balanced {...} substrings, ignoring braces inside JSON strings."""
     start = None
@@ -161,6 +154,60 @@ def extract_review(text: str) -> tuple[str, list] | None:
         if isinstance(summary, str) and isinstance(findings, list):
             return summary.strip(), findings
     return None
+
+
+def repair_review(text: str) -> tuple[str, list] | None:
+    """Ask a cheap model to turn a malformed final message into review JSON."""
+    api_key = os.environ.get("OPENCODE_API_KEY")
+    model = os.environ.get("OPENCODE_REPAIR_MODEL", "mimo-v2.6-flash")
+    if not api_key:
+        print("OPENCODE_API_KEY is not set; cannot repair the review.")
+        return None
+
+    payload = {
+        "model": model,
+        "temperature": 0,
+        "messages": [
+            {
+                "role": "system",
+                "content": "You convert code-review text into strict JSON. Output only the JSON object.",
+            },
+            {"role": "user", "content": f"{REPAIR_INSTRUCTION}\n\nReview text:\n{text}"},
+        ],
+    }
+    request = urllib.request.Request(
+        OPENCODE_API_URL,
+        data=json.dumps(payload).encode(),
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(request, timeout=120) as response:
+            data = json.loads(response.read())
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
+        print(f"Repair request failed: {exc}")
+        return None
+
+    try:
+        content = data["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, TypeError):
+        print("Repair response did not contain an assistant message.")
+        return None
+    if isinstance(content, list):
+        content = "".join(
+            str(part.get("text", "")) for part in content if isinstance(part, dict)
+        )
+    if not isinstance(content, str):
+        return None
+
+    review = extract_review(content)
+    if review is None:
+        print("Repair model did not return valid review JSON.")
+    return review
 
 
 def describe_comment(finding: object, valid: dict[str, set[int]]) -> dict | None:
@@ -264,7 +311,7 @@ def post_individually(repo: str, pr: str, head: str, comments: list[dict]) -> in
 
 
 def find_action_comment(repo: str, pr: str) -> dict | None:
-    """Return the action's status comment for this run, if it exists."""
+    """Return the action's comment for this run, if it exists."""
     run_id = os.environ.get("GITHUB_RUN_ID")
     if not run_id:
         return None
@@ -289,7 +336,7 @@ def find_action_comment(repo: str, pr: str) -> dict | None:
 
 
 def delete_action_comment(repo: str, pr: str) -> None:
-    """Remove the action's own status comment for this run."""
+    """Remove the action's own comment for this run."""
     comment = find_action_comment(repo, pr)
     if comment is not None:
         gh("api", "--method", "DELETE", f"repos/{repo}/issues/comments/{comment['id']}")
@@ -302,23 +349,23 @@ def main() -> int:
         print("PR_NUMBER and GITHUB_REPOSITORY are required.")
         return 1
 
-    review = load_review_file()
+    comment = find_action_comment(repo, pr)
+    if comment is None:
+        print("No action comment for this run; nothing to post.")
+        return 0
+
+    body = str(comment.get("body", ""))
+    review = extract_review(body)
+    if review is None and len(body) > 200 and REPAIR_HINTS.search(body):
+        print("Final message is not valid review JSON; asking the repair model.")
+        review = repair_review(body)
     if review is None:
-        # The agent can hit its step budget before writing the file. Its final
-        # message is posted as a comment, so recover the JSON from there.
-        print("Trying to recover the review JSON from the action's final message.")
-        comment = find_action_comment(repo, pr)
-        if comment is not None:
-            review = extract_review(str(comment.get("body", "")))
-            if review is not None:
-                print("Recovered the review JSON from the action comment.")
-        if review is None:
-            print("Could not recover a review; leaving the action comment in place.")
-            return 0
+        print("Could not parse or repair the review; leaving the action comment in place.")
+        return 0
 
     summary, findings = review
     if not summary and not findings:
-        print("No summary or findings; leaving the action comment in place.")
+        print("Recovered review is empty; leaving the action comment in place.")
         return 0
 
     diff = DIFF_PATH.read_text() if DIFF_PATH.is_file() else gh("pr", "diff", pr).stdout
@@ -333,20 +380,20 @@ def main() -> int:
         print("Could not list existing comments; skipping inline comments to avoid duplicates.")
     else:
         for finding in findings:
-            comment = describe_comment(finding, valid)
-            if comment is None:
+            parsed = describe_comment(finding, valid)
+            if parsed is None:
                 continue
-            key = (comment["path"], comment["line"], comment["body"])
+            key = (parsed["path"], parsed["line"], parsed["body"])
             if key in seen:
                 continue
             seen.add(key)
-            comments.append(comment)
+            comments.append(parsed)
 
     comments.sort(key=lambda c: SEVERITY_ORDER[c["severity"]])
     comments = comments[:MAX_COMMENTS]
 
     if not summary and not comments:
-        print("Nothing new to post.")
+        print("Nothing new to post; leaving the action comment in place.")
         return 0
 
     head = gh("pr", "view", pr, "--json", "headRefOid", "--jq", ".headRefOid").stdout.strip()

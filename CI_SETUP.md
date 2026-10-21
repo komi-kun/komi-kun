@@ -336,7 +336,9 @@ signing secrets.
    `github-actions[bot]`: an overarching summary in the review body (Mermaid
    diagrams are allowed) and inline threads on the changed lines in **Files
    changed**. The agent's step budget scales with the diff: 40 base steps, plus
-   2 per changed file and 1 per 50 changed lines, capped at 100 total.
+   2 per changed file and 1 per 50 changed lines, capped at 100 total. The
+   agent returns the review as its final JSON message; the post-script repairs
+   it with `mimo-v2.6-flash` if it is not valid JSON.
 3. Push a commit: no new review run starts (only `opened` and
    `ready_for_review` are wired).
 4. Comment `/oc review` (or `/opencode review`, optionally followed by
@@ -361,8 +363,8 @@ signing secrets.
 | Nightly/release job fails at **Sign APK** | The 4 signing secrets are missing | Add `SIGNING_KEY`, `KEY_STORE_PASSWORD`, `ALIAS`, `KEY_PASSWORD`. |
 | **OpenCode PR Review** fails during `opencode github run` | `OPENCODE_API_KEY` missing or invalid | Set the secret (`gh secret set OPENCODE_API_KEY --repo komi-kun/komi-kun`). |
 | **OpenCode PR Review** job is **skipped** | PR is from a fork, authored by a bot, changes `.opencode/` or the root `opencode.json(c)`, or is a draft | Expected. Port fork PRs to a same-repo branch (or review them manually); bot-authored same-repo PRs can be re-reviewed with `/oc review`. |
-| OpenCode posts a summary but **no inline comments** | The agent did not write `build/opencode-review/findings.json`, or its findings were not on lines present in the diff | Check the `Post review` step log; findings outside the diff are skipped by design. If the file is missing, the script tries to recover the JSON from the agent's final message. |
-| The review says **"Maximum steps reached"** | The agent used its step budget before finishing the review | The budget now scales with the PR (40–100 steps), and the script recovers the JSON from the final message; re-run `/oc review` if it still happens. |
+| OpenCode posts a summary but **no inline comments** | The final message was not valid review JSON, or its findings were not on lines present in the diff | Check the `Post review` step log; findings outside the diff are skipped by design. A malformed final message is repaired with `mimo-v2.6-flash` before posting. |
+| The review says **"Maximum steps reached"** | The agent used its step budget before finishing the review | The budget scales with the PR (40–100 steps), and the script repairs the final message into the review JSON; re-run `/oc review` if it still happens. |
 | Google Drive backup broken at runtime (not a build failure) | `GOOGLE_CLIENT_SECRETS_JSON` missing | Add the client-secrets JSON; see [`GOOGLE_SERVICES_SETUP.md`](GOOGLE_SERVICES_SETUP.md). |
 | Nightly/release `workflow_dispatch` does nothing | Triggered from a non-`master` branch | Run from `master`. |
 | Release workflow doesn't run on a tag | Tag doesn't start with `v` | Use `v*` tags. |

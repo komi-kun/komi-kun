@@ -170,9 +170,7 @@ jobs:
             5. Architecture: Ensure domain logic remains separated from UI components and adheres to existing Tachiyomi/Mihon conventions.
             6. Brevity: Do not explain obvious language features. Provide clear, direct, and actionable findings with file references.
 
-            Write the findings file early: create `build/opencode-review/findings.json` as soon as you have a first finding and update it as you go; never leave the write until the end. If you are running low on steps, stop investigating and write what you have. If you cannot write the file, put the complete review object in a ```json fenced block in your final message. For large PRs, prioritize the diff and only open the source files needed to confirm a finding.
-
-            Write `build/opencode-review/findings.json` with exactly this JSON shape:
+            Return exactly one JSON object in your final message, with this shape (no prose and no markdown fence):
             {
               "summary": "Markdown overarching review comment: 2-4 sentences on what the PR does, your overall judgement, and the main themes. You may include a ```mermaid diagram when it genuinely helps explain a flow, call chain or architecture change; skip it for small or mechanical PRs.",
               "findings": [
@@ -192,7 +190,7 @@ jobs:
             - Omit findings you cannot pin to a changed line.
             - `summary` is always present; use an empty `findings` array when the PR looks good.
 
-            Normally reply with one short sentence only; the workflow posts `summary` and the findings. If you could not write `build/opencode-review/findings.json`, reply with the complete review object in a ```json fenced block instead.
+            Return only the JSON object. If you are running low on steps, return what you have; do not omit `summary` or `findings`.
 
       # Manual re-review: the comment body and any extra instructions are added
       # to the same schema-backed prompt.
@@ -222,9 +220,7 @@ jobs:
             Additional instructions from the commenter:
             ${{ github.event.comment.body }}
 
-            Write the findings file early: create `build/opencode-review/findings.json` as soon as you have a first finding and update it as you go; never leave the write until the end. If you are running low on steps, stop investigating and write what you have. If you cannot write the file, put the complete review object in a ```json fenced block in your final message. For large PRs, prioritize the diff and only open the source files needed to confirm a finding.
-
-            Write `build/opencode-review/findings.json` with exactly this JSON shape:
+            Return exactly one JSON object in your final message, with this shape (no prose and no markdown fence):
             {
               "summary": "Markdown overarching review comment: 2-4 sentences on what the PR does, your overall judgement, and the main themes. You may include a ```mermaid diagram when it genuinely helps explain a flow, call chain or architecture change; skip it for small or mechanical PRs.",
               "findings": [
@@ -244,12 +240,16 @@ jobs:
             - Omit findings you cannot pin to a changed line.
             - `summary` is always present; use an empty `findings` array when the PR looks good.
 
-            Normally reply with one short sentence only; the workflow posts `summary` and the findings. If you could not write `build/opencode-review/findings.json`, reply with the complete review object in a ```json fenced block instead.
+            Return only the JSON object. If you are running low on steps, return what you have; do not omit `summary` or `findings`.
 
       - name: Post review
         if: always() && steps.pr-source.outputs.same_repo == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          # Cheapest paid OpenCode Go model with a 1M context; the free preview
+          # models are cheaper but less reliable for strict JSON repair.
+          OPENCODE_REPAIR_MODEL: mimo-v2.6-flash
           PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
           BASE_REF: ${{ github.event.pull_request.base.ref || github.event.repository.default_branch }}
         run: |
