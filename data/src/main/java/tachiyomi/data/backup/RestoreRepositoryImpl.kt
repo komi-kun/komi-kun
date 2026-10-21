@@ -201,9 +201,9 @@ class RestoreRepositoryImpl(
                     customMangaRepository.set(incomingValue)
                 }
             } else if (incomingIsNewerOrEqual) {
-                // Existing behaviour for an unmarked/legacy payload: merge the non-null overrides
-                // only. A null value has nothing to write and must never clear.
-                restoreEditedInfo(incomingCustomInfo?.takeIf { it.hasOverrides() })
+                // A legacy/unmarked payload is partial, not authoritative: merge field by field with
+                // what is stored, so omitting a field never drops a local override.
+                mergeEditedInfo(manga.id, incomingCustomInfo)
             }
         }
         // KUN <--
@@ -1014,10 +1014,34 @@ class RestoreRepositoryImpl(
         // KUN <--
     }
 
-    private fun restoreEditedInfo(mangaInfo: CustomMangaInfo?) {
-        mangaInfo ?: return
-        customMangaRepository.set(mangaInfo)
+    // KUN -->
+    /**
+     * Field-by-field merge for a legacy/unmarked payload. `CustomMangaRepository.set` replaces the
+     * whole entry, so writing the incoming value directly would drop every local override the payload
+     * omitted (it may have been produced by a client that never synced custom info). A null incoming
+     * field keeps the local one, including the genre list.
+     */
+    private fun mergeEditedInfo(mangaId: Long, incoming: CustomMangaInfo?) {
+        incoming ?: return
+        // An all-null value from an unmarked payload says nothing: it must not clear anything.
+        if (!incoming.hasOverrides()) return
+        val stored = customMangaRepository.get(mangaId)
+        val merged = CustomMangaInfo(
+            id = mangaId,
+            title = incoming.title ?: stored?.title,
+            author = incoming.author ?: stored?.author,
+            artist = incoming.artist ?: stored?.artist,
+            thumbnailUrl = incoming.thumbnailUrl ?: stored?.thumbnailUrl,
+            description = incoming.description ?: stored?.description,
+            genre = incoming.genre ?: stored?.genre,
+            status = incoming.status ?: stored?.status,
+        )
+        // `set` rewrites the whole edits.json; skip a merge that reproduces the stored value.
+        if (merged.normalized(mangaId) != stored.normalized(mangaId)) {
+            customMangaRepository.set(merged)
+        }
     }
+    // KUN <--
 
     // KUN -->
     /** Mirrors `CustomMangaRepository.set`, which treats an all-null value as "remove the entry". */

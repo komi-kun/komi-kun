@@ -41,6 +41,7 @@ import tachiyomi.core.common.preference.CheckboxState
 import tachiyomi.core.common.preference.TriState
 import tachiyomi.core.common.preference.mapAsCheckboxState
 import tachiyomi.core.common.util.lang.SubscriberGate
+import tachiyomi.core.common.util.lang.launchNonCancellable
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.domain.category.interactor.SetMangaCategories
@@ -189,25 +190,27 @@ class HistoryViewModel(
 
     // KMK -->
     fun removeFromHistory(toDelete: List<HistoryWithRelations>) {
-        viewModelScope.launch(Dispatchers.IO) {
+        // KUN -->
+        // App-wide + non-cancellable: the reset writes `read_at = NULL`, and the following bump is
+        // what makes that tombstone reach the server. Navigating away must not cancel the pair.
+        appScope.launchNonCancellable {
             removeHistory.await(toDelete.map { it.id })
-            // KUN -->
             // A history reset only writes `read_at = NULL` on the history rows, which does not touch
             // the manga row, so the sync delta would never upload the removal. History sync only:
             // uploading an empty history section while it is disabled would wipe the server history.
             syncStateBumper.bumpForHistoryRemoval(toDelete.map { it.mangaId })
-            // KUN <--
         }
+        // KUN <--
         toggleSelectionMode(false)
     }
 
     fun removeAllFromHistory(toDelete: List<HistoryWithRelations>) {
-        viewModelScope.launch(Dispatchers.IO) {
+        // KUN -->
+        appScope.launchNonCancellable {
             removeHistory.awaitManga(toDelete.map { it.mangaId })
-            // KUN -->
             syncStateBumper.bumpForHistoryRemoval(toDelete.map { it.mangaId })
-            // KUN <--
         }
+        // KUN <--
         toggleSelectionMode(false)
     }
     // KMK <--

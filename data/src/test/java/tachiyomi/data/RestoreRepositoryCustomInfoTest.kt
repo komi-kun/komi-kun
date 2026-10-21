@@ -88,12 +88,110 @@ class RestoreRepositoryCustomInfoTest {
     }
 
     @Test
+    fun `an unmarked payload merges with the stored overrides instead of replacing them`() {
+        runBlocking {
+            val driver = newDriver()
+            try {
+                val database = DatabaseBindings.providesDatabase(driver)
+                val customMangaRepository = mockk<CustomMangaRepository>(relaxed = true)
+                every { customMangaRepository.get(1L) } returns CustomMangaInfo(id = 1L, title = "Local title")
+                val repository = restoreRepository(database, customMangaRepository)
+                driver.insertManga(version = 5L, lastModifiedAt = 10L)
+
+                restore(
+                    repository = repository,
+                    isSync = true,
+                    customInfoIncluded = null,
+                    customMangaInfo = CustomMangaInfo(id = 0L, title = null, author = "Incoming author"),
+                )
+
+                // A partial legacy payload must add its field without dropping the local one.
+                verify(exactly = 1) {
+                    customMangaRepository.set(
+                        CustomMangaInfo(id = 1L, title = "Local title", author = "Incoming author"),
+                    )
+                }
+            } finally {
+                driver.close()
+            }
+        }
+    }
+
+    @Test
+    fun `an unmarked payload keeps the local genre when it omits the list`() {
+        runBlocking {
+            val driver = newDriver()
+            try {
+                val database = DatabaseBindings.providesDatabase(driver)
+                val customMangaRepository = mockk<CustomMangaRepository>(relaxed = true)
+                every { customMangaRepository.get(1L) } returns CustomMangaInfo(
+                    id = 1L,
+                    title = "Local title",
+                    genre = listOf("Action"),
+                )
+                val repository = restoreRepository(database, customMangaRepository)
+                driver.insertManga(version = 5L, lastModifiedAt = 10L)
+
+                restore(
+                    repository = repository,
+                    isSync = true,
+                    customInfoIncluded = null,
+                    customMangaInfo = CustomMangaInfo(id = 0L, title = null, description = "Incoming description"),
+                )
+
+                verify(exactly = 1) {
+                    customMangaRepository.set(
+                        CustomMangaInfo(
+                            id = 1L,
+                            title = "Local title",
+                            description = "Incoming description",
+                            genre = listOf("Action"),
+                        ),
+                    )
+                }
+            } finally {
+                driver.close()
+            }
+        }
+    }
+
+    @Test
+    fun `an explicitly excluded section merges into the stored overrides instead of replacing`() {
+        runBlocking {
+            val driver = newDriver()
+            try {
+                val database = DatabaseBindings.providesDatabase(driver)
+                val customMangaRepository = mockk<CustomMangaRepository>(relaxed = true)
+                every { customMangaRepository.get(1L) } returns CustomMangaInfo(id = 1L, title = "Local title")
+                val repository = restoreRepository(database, customMangaRepository)
+                driver.insertManga(version = 5L, lastModifiedAt = 10L)
+
+                restore(
+                    repository = repository,
+                    isSync = true,
+                    customInfoIncluded = false,
+                    customMangaInfo = CustomMangaInfo(id = 0L, title = null, author = "Incoming author"),
+                )
+
+                verify(exactly = 1) {
+                    customMangaRepository.set(
+                        CustomMangaInfo(id = 1L, title = "Local title", author = "Incoming author"),
+                    )
+                }
+            } finally {
+                driver.close()
+            }
+        }
+    }
+
+    @Test
     fun `an unmarked all-null payload never clears the stored override`() {
         runBlocking {
             val driver = newDriver()
             try {
                 val database = DatabaseBindings.providesDatabase(driver)
                 val customMangaRepository = mockk<CustomMangaRepository>(relaxed = true)
+                every { customMangaRepository.get(1L) } returns CustomMangaInfo(id = 1L, title = "Local title")
                 val repository = restoreRepository(database, customMangaRepository)
                 driver.insertManga(version = 5L, lastModifiedAt = 10L)
 
@@ -118,6 +216,7 @@ class RestoreRepositoryCustomInfoTest {
             try {
                 val database = DatabaseBindings.providesDatabase(driver)
                 val customMangaRepository = mockk<CustomMangaRepository>(relaxed = true)
+                every { customMangaRepository.get(1L) } returns CustomMangaInfo(id = 1L, title = "Local title")
                 val repository = restoreRepository(database, customMangaRepository)
                 driver.insertManga(version = 5L, lastModifiedAt = 10L)
 
