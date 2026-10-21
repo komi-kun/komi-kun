@@ -6,6 +6,11 @@
 // dictionary profiles (`DictionaryPreferences.rawProfiles()`).
 package mihon.core.dictionary.anki
 
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 import tachiyomi.core.common.preference.PreferenceStore
 
 /**
@@ -26,6 +31,9 @@ class AnkiPreferences(
     fun cropMode() = preferenceStore.getString("pref_anki_crop_mode", "full")
     fun cropPreset() = preferenceStore.getString("pref_anki_crop_preset", "full")
     fun syncOnCreate() = preferenceStore.getBoolean("pref_anki_sync_on_create", false)
+    // KUN -->
+    fun fieldOverwriteModes() = preferenceStore.getString("pref_anki_field_overwrite_modes", "{}")
+    // KUN <--
 
     private fun rawProfiles() = preferenceStore.getString("pref_anki_mining_profiles", "[]")
     private fun rawActiveProfileId() = preferenceStore.getString("pref_anki_mining_active_profile_id", "")
@@ -93,6 +101,14 @@ class AnkiPreferences(
         ankiCropMode = cropMode().get(),
         ankiCropPreset = cropPreset().get(),
         ankiSyncOnCreate = syncOnCreate().get(),
+        // KUN -->
+        ankiFieldOverwriteModes = runCatching {
+            val raw = fieldOverwriteModes().get()
+            AnkiJson.parseToJsonElement(raw).jsonObject.mapNotNull { (k, v) ->
+                v.jsonPrimitive.contentOrNull?.let { k to it }
+            }.toMap()
+        }.getOrNull().orEmpty(),
+        // KUN <--
     )
 
     /** Write [profile] back to the flat keys. */
@@ -108,6 +124,13 @@ class AnkiPreferences(
         cropMode().set(profile.ankiCropMode)
         cropPreset().set(profile.ankiCropPreset)
         syncOnCreate().set(profile.ankiSyncOnCreate)
+        // KUN -->
+        fieldOverwriteModes().set(
+            buildJsonObject {
+                for ((k, v) in profile.ankiFieldOverwriteModes) put(k, v)
+            }.toString(),
+        )
+        // KUN <--
     }
 }
 // KUN <--

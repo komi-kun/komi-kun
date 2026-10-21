@@ -5,6 +5,8 @@
 // KUN <--
 package mihon.core.ocr
 
+import android.graphics.Bitmap
+
 /**
  * The single engine seam. Implementations decode [bytes] (a page image) and return the
  * engine-agnostic [EngineLine] IR; everything downstream (merging, caching, overlay) is
@@ -12,4 +14,5 @@ package mihon.core.ocr
  */
 interface OcrEngine {
     suspend fun recognize(bytes: ByteArray, language: OcrLanguage): List<EngineLine>
+    suspend fun recognize(bitmap: Bitmap, language: OcrLanguage): List<EngineLine> = emptyList()
 }

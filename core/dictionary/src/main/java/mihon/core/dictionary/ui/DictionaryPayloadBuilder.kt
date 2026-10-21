@@ -13,6 +13,7 @@ import mihon.core.dictionary.model.DictionaryStyle
 import mihon.core.dictionary.model.FrequencyEntry
 import mihon.core.dictionary.model.GlossaryEntry
 import mihon.core.dictionary.model.KanjiEntry
+import mihon.core.dictionary.model.KanjiResult
 import mihon.core.dictionary.model.LookupResult
 import mihon.core.dictionary.model.dictionariesDir
 import java.io.File
@@ -172,20 +173,20 @@ fun orderLookupResultsForDisplay(
     val priorityMap = dictionaryPriorityMap(profile, context, displayNameProvider)
     val ordered = results.map { it.withOrderedDictionaries(priorityMap) }
     if (ordered.size <= 1) return ordered
-    return ordered.sortedWith(lookupDisplayComparator(priorityMap))
+    return ordered.sortedWith(lookupDisplayComparator(priorityMap, context))
 }
 
 /**
  * Yomitan's `_sortTermDictionaryEntries` comparator (`translator.js:2184-2234`), highest
  * priority first. Deferred/approximated rules are noted inline.
  */
-private fun lookupDisplayComparator(priorityMap: Map<String, Int>): Comparator<LookupResult> {
+private fun lookupDisplayComparator(priorityMap: Map<String, Int>, context: Context): Comparator<LookupResult> {
     val collator = Collator.getInstance(Locale.US)
     return compareByDescending<LookupResult> { it.matched.length } // 2. larger maxOriginalTextLength
         .thenBy { it.preprocessorSteps } // 3. shorter text-processor chain
         .thenBy { it.process.size } // 4. shorter inflection chain
         .thenByDescending { exactTermMatch(it) } // 5. larger sourceTermExactMatchCount (proxy)
-        .thenBy { frequencyOrder(it) } // 6. lower frequencyOrder (proxy)
+        .thenBy { frequencyOrder(it, context) } // 6. frequencyOrder (rank vs occurrence)
         .thenBy { dictionaryIndex(priorityMap, it) } // 7. lower dictionaryIndex
         .thenByDescending { it.term.score } // 8. higher score
         .thenByDescending { it.term.expression.length } // 9. headword longer first …
@@ -201,16 +202,61 @@ private fun lookupDisplayComparator(priorityMap: Map<String, Int>): Comparator<L
 private fun exactTermMatch(result: LookupResult): Int =
     if (result.deinflected == result.term.expression) 1 else 0
 
+// KUN -->
+private val frequencyModeCache = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+fun setFrequencyModeForTesting(dictTitleOrDir: String, mode: String) {
+    frequencyModeCache[dictTitleOrDir] = mode
+}
+
+fun clearFrequencyModeCacheForTesting() {
+    frequencyModeCache.clear()
+}
+
+fun getFrequencyMode(context: Context, dictTitleOrDir: String): String {
+    return frequencyModeCache.getOrPut(dictTitleOrDir) {
+        runCatching {
+            val dictionariesDir = dictionariesDir(context)
+            val freqDir = File(dictionariesDir, "frequency")
+            if (freqDir.exists()) {
+                val subdirs = freqDir.listFiles() ?: emptyArray()
+                for (sub in subdirs) {
+                    val indexFile = File(sub, "index.json")
+                    if (indexFile.exists()) {
+                        val json = org.json.JSONObject(indexFile.readText())
+                        val title = json.optString("title", sub.name)
+                        if (title == dictTitleOrDir || sub.name == dictTitleOrDir) {
+                            return@getOrPut json.optString("frequencyMode", "rank-based")
+                        }
+                    }
+                }
+            }
+        }
+        "rank-based"
+    }
+}
+
 /**
- * Rule 6 proxy for `frequencyOrder`: the lowest positive frequency value across the term's
- * frequency dictionaries (`Int.MAX_VALUE` when there is no usable frequency). Yomitan computes it
- * from the configured frequency dictionaries; hoshidicts exposes the per-dictionary values only.
+ * Rule 6: `frequencyOrder` respecting frequencyMode (rank-based vs occurrence-based).
+ * - Rank-based: lower rank = more frequent (rank 1 is top), so smaller value is better.
+ * - Occurrence-based: higher count = more frequent (100,000 count is top), so inverted (-count) is better.
  */
-private fun frequencyOrder(result: LookupResult): Int = result.term.frequencies
-    .asSequence()
-    .flatMap { it.frequencies.asSequence() }
-    .filter { it.value >= 0 }
-    .minOfOrNull { it.value } ?: Int.MAX_VALUE
+private fun frequencyOrder(result: LookupResult, context: Context): Int {
+    var bestScore = Int.MAX_VALUE
+    for (group in result.term.frequencies) {
+        val mode = getFrequencyMode(context, group.dictName)
+        val isOccurrence = mode.contains("occurrence", ignoreCase = true)
+        for (freq in group.frequencies) {
+            if (freq.value <= 0) continue
+            val score = if (isOccurrence) -freq.value else freq.value
+            if (score < bestScore) {
+                bestScore = score
+            }
+        }
+    }
+    return bestScore
+}
+// KUN <--
 
 /** Rule 7: the lowest dictionary priority index across the term's glossaries. */
 private fun dictionaryIndex(priorityMap: Map<String, Int>, result: LookupResult): Int {
@@ -314,6 +360,39 @@ fun buildResultEntryJsonStrings(
         buildResultEntryJson(result, index, priorityMap, groupPitches).toString()
     }
 }
+
+// KUN -->
+fun buildKanjiEntryJsonStrings(kanjiResult: KanjiResult): List<String> {
+    return kanjiResult.entries.map { entry ->
+        buildJsonObject {
+            put("matched", kanjiResult.character)
+            put(
+                "kanji",
+                buildJsonObject {
+                    put("dictName", entry.dictName)
+                    putJsonArray("definitions") {
+                        for (d in entry.definitions) add(JsonPrimitive(d))
+                    }
+                    val onyomiList = entry.onyomi.split("\\s+".toRegex()).filter { it.isNotBlank() }
+                    putJsonArray("onyomi") {
+                        for (o in onyomiList) add(JsonPrimitive(o))
+                    }
+                    val kunyomiList = entry.kunyomi.split("\\s+".toRegex()).filter { it.isNotBlank() }
+                    putJsonArray("kunyomi") {
+                        for (k in kunyomiList) add(JsonPrimitive(k))
+                    }
+                    put("tags", entry.tags)
+                    putJsonObject("stats") {
+                        for ((k, v) in entry.stats) {
+                            put(k, v)
+                        }
+                    }
+                },
+            )
+        }.toString()
+    }
+}
+// KUN <--
 
 fun String.toJavascriptExpression(): String =
     replace("\u2028", "\\u2028").replace("\u2029", "\\u2029")

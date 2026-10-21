@@ -70,8 +70,8 @@
     }
 
     // ── Readings ──
-    var onyomi = Array.isArray(entry.onyomi) ? entry.onyomi : [];
-    var kunyomi = Array.isArray(entry.kunyomi) ? entry.kunyomi : [];
+    var onyomi = Array.isArray(entry.onyomi) ? entry.onyomi : (typeof entry.onyomi === 'string' && entry.onyomi ? entry.onyomi.trim().split(/\s+/) : []);
+    var kunyomi = Array.isArray(entry.kunyomi) ? entry.kunyomi : (typeof entry.kunyomi === 'string' && entry.kunyomi ? entry.kunyomi.trim().split(/\s+/) : []);
     if (onyomi.length > 0 || kunyomi.length > 0) {
       var readingsHeader = document.createElement('div');
       readingsHeader.className = 'kanji-section-header';

@@ -31,8 +31,10 @@ import mihon.core.ocr.OcrBitmapDecoder
 import mihon.core.ocr.OcrEngine
 import mihon.core.ocr.OcrLanguage
 import mihon.core.ocr.OcrPreferences
+import mihon.core.ocr.TILE_TRIGGER_DIMENSION
 import mihon.core.ocr.merge.OcrLineMerger
 import mihon.core.ocr.model.OcrTextBlock
+import mihon.core.ocr.processImageWithChunks
 import tachiyomi.core.common.ocr.ReaderOcrSource
 import tachiyomi.core.common.util.system.ImageUtil
 import tachiyomi.core.common.util.system.logcat
@@ -171,13 +173,32 @@ class OcrManager(
 
     // ---------------------------------------------------------------- running OCR
 
+    // KUN -->
     /** Runs the engine over one page's bytes and merges the lines into viewer blocks. */
     suspend fun recognizePage(bytes: ByteArray, language: OcrLanguage): List<OcrTextBlock> {
+        val (width, height) = imageDimensions(bytes)
+        if (width > TILE_TRIGGER_DIMENSION || height > TILE_TRIGGER_DIMENSION) {
+            val bitmap = try {
+                OcrBitmapDecoder.decode(bytes)
+            } catch (e: Exception) {
+                logcat(LogPriority.WARN, e) { "Failed to decode image for chunked OCR" }
+                null
+            }
+            if (bitmap != null) {
+                try {
+                    return processImageWithChunks(bitmap, language) { chunk ->
+                        engine.recognize(chunk.bitmap, language)
+                    }
+                } finally {
+                    bitmap.recycle()
+                }
+            }
+        }
         val lines = engine.recognize(bytes, language)
         if (lines.isEmpty()) return emptyList()
-        val (width, height) = imageDimensions(bytes)
         return merger.merge(lines, width, height)
     }
+    // KUN <--
 
     /**
      * Recognizes one page on demand and persists it under [key] when the [source] policy caches

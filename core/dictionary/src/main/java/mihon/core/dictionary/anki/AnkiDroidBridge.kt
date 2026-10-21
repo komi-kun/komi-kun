@@ -46,6 +46,10 @@ interface AnkiCardBridge {
 
     suspend fun updateNoteFields(noteId: Long, fields: Map<String, String>): Any?
 
+    // KUN -->
+    suspend fun getNoteFields(noteId: Long): Map<String, String> = emptyMap()
+    // KUN <--
+
     suspend fun storeMedia(filename: String, data: ByteArray): String
 
     suspend fun storeMedia(source: AnkiSentenceAudioSource): String
@@ -317,6 +321,22 @@ class AnkiDroidBridge(private val context: Context) : AnkiCardBridge {
                 context.contentResolver.update(uri, cv, null, null)
             }
         }
+
+    // KUN -->
+    override suspend fun getNoteFields(noteId: Long): Map<String, String> =
+        withContext(Dispatchers.IO) {
+            val uri = Uri.withAppendedPath(NOTES_URI, noteId.toString())
+            context.contentResolver.query(uri, arrayOf(NOTE_MID, NOTE_FLDS), null, null, null)?.use { c ->
+                if (!c.moveToFirst()) return@withContext emptyMap()
+                val modelId = c.getLong(0)
+                val oldFields = splitFields(c.getString(1))
+                val fieldNames = getModelFields(modelId)
+                fieldNames.mapIndexed { i, name ->
+                    name to (if (i < oldFields.size) oldFields[i] else "")
+                }.toMap()
+            } ?: emptyMap()
+        }
+    // KUN <--
 
     fun guiBrowse(query: String) {
         try {
