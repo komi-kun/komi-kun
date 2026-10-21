@@ -170,8 +170,8 @@ jobs:
             stage .github/opencode-review.json "$RUNNER_TEMP/opencode-review.json"
           fi
 
-          # Scale the step budget with the diff: 40 base steps, +2 per changed
-          # file and +1 per 50 changed lines, capped at 100 total so a huge PR
+          # Scale the step budget with the diff: 50 base steps, +3 per changed
+          # file and +1 per 50 changed lines, capped at 120 total so a huge PR
           # cannot run for the whole 30-minute job timeout.
           if stats=$(gh pr view "$PR_NUMBER" --json changedFiles,additions,deletions \
             --jq '[.changedFiles, .additions, .deletions] | @tsv'); then
@@ -180,15 +180,15 @@ jobs:
             additions=${additions:-0}
             deletions=${deletions:-0}
             lines=$((additions + deletions))
-            extra=$((files * 2 + lines / 50))
-            if [ "$extra" -gt 60 ]; then extra=60; fi
+            extra=$((files * 3 + lines / 50))
+            if [ "$extra" -gt 70 ]; then extra=70; fi
           else
             echo "::warning::Could not read PR size; using the maximum step budget."
             files=0
             lines=0
-            extra=60
+            extra=70
           fi
-          steps=$((40 + extra))
+          steps=$((50 + extra))
           echo "::notice::Review step budget: ${steps} (files=${files}, lines=${lines})"
 
           # Even when a tooling PR supplies its own config, force the read-only
@@ -259,6 +259,8 @@ jobs:
             5. Architecture: Ensure domain logic remains separated from UI components and adheres to existing Tachiyomi/Mihon conventions.
             6. Brevity: Do not explain obvious language features. Provide clear, direct, and actionable findings with file references.
 
+            Do not re-read files the diff already shows; only open a source file when a finding depends on its surrounding context. Skip unrelated docs and repository-wide greps.
+
             Return exactly one JSON object in your final message, with this shape (no prose and no markdown fence):
             {
               "summary": "Markdown overarching review comment: 2-4 sentences on what the PR does, your overall judgement, and the main themes. You may include a ```mermaid diagram when it genuinely helps explain a flow, call chain or architecture change; skip it for small or mechanical PRs.",
@@ -309,6 +311,8 @@ jobs:
             Additional instructions from the commenter:
             ${{ github.event.comment.body }}
 
+            Do not re-read files the diff already shows; only open a source file when a finding depends on its surrounding context. Skip unrelated docs and repository-wide greps.
+
             Return exactly one JSON object in your final message, with this shape (no prose and no markdown fence):
             {
               "summary": "Markdown overarching review comment: 2-4 sentences on what the PR does, your overall judgement, and the main themes. You may include a ```mermaid diagram when it genuinely helps explain a flow, call chain or architecture change; skip it for small or mechanical PRs.",
@@ -336,9 +340,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-          # Cheapest paid OpenCode Go model with a 1M context; the free preview
-          # models are cheaper but less reliable for strict JSON repair.
-          OPENCODE_REPAIR_MODEL: mimo-v2.6-flash
+          # Same model the action uses, so the key is known to be entitled.
+          # The cheaper mimo-v2.6-flash returned 403 on the Go plan.
+          OPENCODE_REPAIR_MODEL: deepseek-v4.1-flash
           PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
         run: |
           # The agent has no shell or edit access, so the pre-staged helper

@@ -201,7 +201,7 @@ def extract_review(text: str) -> tuple[str, list] | None:
 def repair_review(text: str) -> tuple[str, list] | None:
     """Ask a cheap model to turn a malformed final message into review JSON."""
     api_key = os.environ.get("OPENCODE_API_KEY")
-    model = os.environ.get("OPENCODE_REPAIR_MODEL", "mimo-v2.6-flash")
+    model = os.environ.get("OPENCODE_REPAIR_MODEL", "deepseek-v4.1-flash")
     if not api_key:
         print("OPENCODE_API_KEY is not set; cannot repair the review.")
         return None
