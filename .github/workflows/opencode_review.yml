@@ -95,13 +95,22 @@ jobs:
             exit 1
           fi
 
+          # A PR that changes the review tooling itself must run its own copy;
+          # otherwise normal PRs use the trusted base-branch copy.
+          tooling_changed=false
+          if ! git diff --quiet "origin/${BASE_REF}" -- \
+            .github/opencode-review.json .github/scripts/post_opencode_review.py; then
+            tooling_changed=true
+            echo "::notice::PR changes the review tooling; using its checked-out copy."
+          fi
+
           stage() {
-            if git cat-file -e "origin/${BASE_REF}:$1" 2>/dev/null; then
+            if [ "$tooling_changed" = "false" ] && git cat-file -e "origin/${BASE_REF}:$1" 2>/dev/null; then
               git show "origin/${BASE_REF}:$1" > "$2"
               return 0
             fi
-            # Bootstrap: the helper and config are introduced by this PR itself.
-            echo "::warning::$1 is not on origin/${BASE_REF} yet; using the checked-out copy."
+            # Bootstrap, or the PR is changing the tooling itself.
+            echo "::warning::Using the checked-out $1 (bootstrap or review-tooling change)."
             cp "$1" "$2"
           }
 
@@ -251,15 +260,10 @@ jobs:
           # models are cheaper but less reliable for strict JSON repair.
           OPENCODE_REPAIR_MODEL: mimo-v2.6-flash
           PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
-          BASE_REF: ${{ github.event.pull_request.base.ref || github.event.repository.default_branch }}
         run: |
-          # Re-stage after the agent ran, so shell redirection during the review
-          # cannot replace the helper that executes with the write token.
+          # The agent has no shell or edit access, so the pre-staged helper
+          # cannot have been modified during the review.
           helper="$RUNNER_TEMP/post_opencode_review.py"
-          if git cat-file -e "origin/${BASE_REF}:.github/scripts/post_opencode_review.py" 2>/dev/null; then
-            git show "origin/${BASE_REF}:.github/scripts/post_opencode_review.py" > "$helper"
-          fi
-
           if [ -f "$helper" ]; then
             python3 "$helper"
           else
