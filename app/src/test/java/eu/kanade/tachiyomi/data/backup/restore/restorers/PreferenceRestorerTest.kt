@@ -100,6 +100,47 @@ class PreferenceRestorerTest {
     }
 
     @Test
+    fun `sync restore without protocol v2 unions and preserves local pins`() {
+        // Drive, WebDAV and SyncYomi v1 keep the remote preference when both sides carry it, so the
+        // restore must not treat the synced set as authoritative.
+        val store = StringSetPreferenceStore(pinnedKey to setOf("local"))
+
+        val result = restorePins(
+            store,
+            setOf("synced"),
+            RestoreOptions(skipPinnedSources = false, replacePinnedSources = false),
+        )
+
+        assertEquals(setOf("local", "synced"), result)
+    }
+
+    @Test
+    fun `sync restore without protocol v2 keeps local pins when the synced set is empty`() {
+        val store = StringSetPreferenceStore(pinnedKey to setOf("local"))
+
+        val result = restorePins(
+            store,
+            emptySet(),
+            RestoreOptions(skipPinnedSources = false, replacePinnedSources = false),
+        )
+
+        assertEquals(setOf("local"), result)
+    }
+
+    @Test
+    fun `sync restore on protocol v2 applies the synced set exactly`() {
+        val store = StringSetPreferenceStore(pinnedKey to setOf("local"))
+
+        val result = restorePins(
+            store,
+            setOf("synced"),
+            RestoreOptions(skipPinnedSources = false, replacePinnedSources = true),
+        )
+
+        assertEquals(setOf("synced"), result)
+    }
+
+    @Test
     fun `replace option still migrates legacy source ids`() {
         val store = StringSetPreferenceStore(pinnedKey to setOf("local"))
 

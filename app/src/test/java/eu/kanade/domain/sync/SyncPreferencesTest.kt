@@ -78,5 +78,14 @@ class SyncPreferencesTest {
         )
         assertTrue(Preference.isAppState(prefs.syncPinnedSources.key()))
     }
+
+    @Test
+    fun `cached protocol v2 needs the SyncYomi service and the probed host`() {
+        assertTrue(syncPreferences(syncService = 1).isSyncYomiV2())
+        assertFalse(syncPreferences(syncService = 2).isSyncYomiV2())
+        assertFalse(syncPreferences(syncService = 0).isSyncYomiV2())
+        assertFalse(syncPreferences(syncService = 1, serverSupportsV2 = false).isSyncYomiV2())
+        assertFalse(syncPreferences(syncService = 1, probedHost = "https://other").isSyncYomiV2())
+    }
     // KUN <--
 }

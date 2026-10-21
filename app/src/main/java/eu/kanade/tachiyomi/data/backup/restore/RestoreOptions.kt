@@ -26,8 +26,10 @@ data class RestoreOptions(
     val skipPinnedSources: Boolean = false,
     /**
      * Sync-only: set the synced pinned sources exactly instead of unioning them with the local
-     * pins, so an un-pin propagates and an empty synced set clears the local pins. Only meaningful
-     * when the set is synced at all. Manual/file restores keep the union behaviour (false).
+     * pins, so an un-pin propagates and an empty synced set clears the local pins. Only set by
+     * SyncManager for SyncYomi protocol v2, where the server merges the upload; Drive, WebDAV
+     * and v1 keep the stored value, so they use the union instead. Manual/file restores also keep
+     * the union behaviour (false).
      */
     val replacePinnedSources: Boolean = false,
     // KUN <--

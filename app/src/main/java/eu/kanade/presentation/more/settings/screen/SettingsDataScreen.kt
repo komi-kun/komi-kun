@@ -646,13 +646,15 @@ object SettingsDataScreen : SearchableSettings {
             // KUN <--
             getAutomaticSyncGroup(syncPreferences),
             // KUN -->
-            // Only meaningful when app settings are synced: the pinned-source set is restored with
-            // them.
+            // Pinned sources are restored with app settings, and replacing the local set is only
+            // safe when the server merges the upload for us (SyncYomi v2). Drive, WebDAV and v1
+            // keep the stored set, so the switch is not offered there; the cached capability
+            // probe is used so opening settings never performs a network request.
             Preference.PreferenceItem.SwitchPreference(
                 preference = syncPreferences.syncPinnedSources,
                 title = stringResource(KMR.strings.pref_sync_pinned_sources),
                 subtitle = stringResource(KMR.strings.pref_sync_pinned_sources_summary),
-                visible = syncSettings.appSettings,
+                visible = syncSettings.appSettings && syncPreferences.isSyncYomiV2(),
             ),
             // KUN <--
             // KMK -->

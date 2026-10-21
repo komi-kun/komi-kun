@@ -123,8 +123,11 @@ class SyncPreferences(
      *
      * [serverSupportsV2] is the persisted flag that SyncYomiSyncService sets when the capability
      * probe succeeds; it is only meaningful for the host it was probed against, so require a match.
+     *
+     * This is the cached probe result, not a live check: the settings UI uses it to decide whether
+     * pinned-source replacement can be offered, without probing the server on every screen open.
      */
-    private fun isSyncYomiV2(): Boolean {
+    fun isSyncYomiV2(): Boolean {
         return syncService.get() == SyncManager.SyncService.SYNCYOMI.value &&
             v2ProbedHost.get() == clientHost.get() &&
             serverSupportsV2.get()

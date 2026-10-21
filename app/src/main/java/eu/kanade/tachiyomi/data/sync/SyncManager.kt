@@ -552,24 +552,10 @@ class SyncManager(
                 sync = true,
                 // KUN -->
                 // Honour the user's "choose what to sync" flags instead of forcing everything on.
+                // Pinned sources are only replaced when the server merged the upload for us
+                // (SyncYomi v2); see [syncRestoreOptions].
                 // KUN <--
-                options = RestoreOptions(
-                    appSettings = syncOptions.appSettings,
-                    sourceSettings = syncOptions.sourceSettings,
-                    libraryEntries = syncOptions.libraryEntries,
-                    categories = syncOptions.categories,
-                    extensionStores = syncOptions.extensionStores,
-                    // KMK -->
-                    savedSearchesFeeds = syncOptions.savedSearchesFeeds,
-                    // KMK <--
-                    // KUN -->
-                    tracking = syncOptions.tracking,
-                    history = syncOptions.history,
-                    customInfo = syncOptions.customInfo,
-                    skipPinnedSources = !syncOptions.syncPinnedSources,
-                    replacePinnedSources = syncOptions.syncPinnedSources,
-                    // KUN <--
-                ),
+                options = syncRestoreOptions(syncOptions, result.protocolV2),
                 // KUN -->
                 // Drop local chapters that the v2 server no longer returns (tombstoned there).
                 // Chapters added after this snapshot survive; the restorer also skips everything
@@ -933,6 +919,32 @@ class SyncManager(
             "connection_sync_client_host",
             "connection_sync_client_api_key",
         )
+
+        /**
+         * Restore options for a sync run.
+         *
+         * Pinned sources are only replaced when the server merged the upload for us (SyncYomi
+         * protocol v2): Google Drive, WebDAV and SyncYomi v1 merge preferences locally with the
+         * remote value winning whenever both sides carry the key, so a local pin or un-pin is
+         * discarded there and the server's set is the only one the restore sees. Replacing in that
+         * case would delete local pins the server does not know about; the restorer therefore
+         * unions instead, which never removes a local pin.
+         */
+        internal fun syncRestoreOptions(syncOptions: SyncSettings, protocolV2: Boolean): RestoreOptions {
+            return RestoreOptions(
+                appSettings = syncOptions.appSettings,
+                sourceSettings = syncOptions.sourceSettings,
+                libraryEntries = syncOptions.libraryEntries,
+                categories = syncOptions.categories,
+                extensionStores = syncOptions.extensionStores,
+                savedSearchesFeeds = syncOptions.savedSearchesFeeds,
+                tracking = syncOptions.tracking,
+                history = syncOptions.history,
+                customInfo = syncOptions.customInfo,
+                skipPinnedSources = !syncOptions.syncPinnedSources,
+                replacePinnedSources = syncOptions.syncPinnedSources && protocolV2,
+            )
+        }
 
         /**
          * App preferences that are safe to upload in a sync. Pinned sources are device-local unless

@@ -2,9 +2,11 @@
 package eu.kanade.tachiyomi.data.sync
 
 import eu.kanade.domain.source.service.SourcePreferences
+import eu.kanade.domain.sync.models.SyncSettings
 import eu.kanade.tachiyomi.data.backup.models.BackupPreference
 import eu.kanade.tachiyomi.data.backup.models.BooleanPreferenceValue
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
@@ -46,6 +48,39 @@ class SyncManagerPreferencesTest {
 
         // Only the (enabled) pinned-source key survives the device-local exclusions.
         assertEquals(listOf(pinnedKey), filtered.map { it.key })
+    }
+
+    @Test
+    fun `non-v2 sync restores union the synced pins instead of replacing them`() {
+        val options = SyncManager.syncRestoreOptions(
+            SyncSettings(syncPinnedSources = true),
+            protocolV2 = false,
+        )
+
+        assertFalse(options.skipPinnedSources)
+        assertFalse(options.replacePinnedSources)
+    }
+
+    @Test
+    fun `v2 sync restores replace the local pins`() {
+        val options = SyncManager.syncRestoreOptions(
+            SyncSettings(syncPinnedSources = true),
+            protocolV2 = true,
+        )
+
+        assertFalse(options.skipPinnedSources)
+        assertTrue(options.replacePinnedSources)
+    }
+
+    @Test
+    fun `sync with pinned sources off skips the restore`() {
+        val options = SyncManager.syncRestoreOptions(
+            SyncSettings(syncPinnedSources = false),
+            protocolV2 = true,
+        )
+
+        assertTrue(options.skipPinnedSources)
+        assertFalse(options.replacePinnedSources)
     }
 }
 // KUN <--

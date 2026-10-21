@@ -18,8 +18,9 @@ data class SyncSettings(
     // SY <--
     // KUN -->
     // Pinned sources are usually device-specific, so they are not synced by default: the key is
-    // excluded from the sync upload and skipped on restore. Enabling this syncs the set and makes
-    // the synced value replace the local pins instead of being added to them.
+    // excluded from the sync upload and skipped on restore. Enabling this syncs the set; on
+    // SyncYomi protocol v2, where the server merges the upload, the synced value then replaces the
+    // local pins instead of being added to them. Other backends keep the union.
     val syncPinnedSources: Boolean = false,
     // KUN <--
 ) {
