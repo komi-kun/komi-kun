@@ -8,7 +8,74 @@
 (function() {
   'use strict';
 
-  function createEntryArticle(character, entry) {
+  function resolveKanjiMediaSrc(mediaMap, dictName, path) {
+    if (!path || !mediaMap) return null;
+    var candidates = [path, path.replace(/\\/g, '/')];
+    if (path.startsWith('./')) candidates.push(path.slice(2));
+    if (path.startsWith('/')) candidates.push(path.slice(1));
+    for (var i = 0; i < candidates.length; i++) {
+      var key = (dictName || '') + '\u0000' + candidates[i];
+      if (Object.prototype.hasOwnProperty.call(mediaMap, key)) {
+        return mediaMap[key];
+      }
+    }
+    return null;
+  }
+
+  function renderKanjiContentOrMedia(container, rawText, dictName, mediaMap) {
+    if (rawText == null) return;
+    var text = String(rawText).trim();
+    if (text.startsWith('<svg') && text.endsWith('</svg>')) {
+      container.innerHTML = text;
+      return;
+    }
+    if (text.startsWith('data:image/')) {
+      var img = document.createElement('img');
+      img.src = text;
+      img.className = 'gloss-image';
+      img.style.maxWidth = '100%';
+      container.appendChild(img);
+      return;
+    }
+    var path = '';
+    if ((text.startsWith('{') || text.startsWith('[')) && (text.includes('"img"') || text.includes('"image"'))) {
+      try {
+        var parsed = JSON.parse(text);
+        var node = Array.isArray(parsed) ? parsed[0] : parsed;
+        if (node && (node.tag === 'img' || node.type === 'image')) {
+          path = node.path || node.src || '';
+        }
+      } catch (e) {}
+    } else if (/\.(svg|png|jpg|jpeg|gif|webp)$/i.test(text) && !text.includes('\n')) {
+      path = text;
+    }
+
+    if (path) {
+      var link = document.createElement('span');
+      link.className = 'gloss-image-link';
+      link.dataset.path = path;
+      link.dataset.dictName = dictName || '';
+      link.dataset.imageLoadState = 'unloaded';
+
+      var linkImg = document.createElement('img');
+      linkImg.className = 'gloss-image';
+      linkImg.loading = 'lazy';
+      linkImg.style.maxWidth = '100%';
+
+      var resolved = resolveKanjiMediaSrc(mediaMap, dictName, path);
+      if (resolved) {
+        linkImg.src = resolved;
+        link.dataset.imageLoadState = 'loaded';
+      }
+      link.appendChild(linkImg);
+      container.appendChild(link);
+      return;
+    }
+
+    container.textContent = text;
+  }
+
+  function createEntryArticle(character, entry, mediaMap) {
     var article = document.createElement('article');
     article.className = 'entry kanji-entry';
 
@@ -62,7 +129,7 @@
         li.className = 'kanji-gloss-item';
         var gc = document.createElement('div');
         gc.className = 'kanji-gloss-content';
-        gc.textContent = definitions[di];
+        renderKanjiContentOrMedia(gc, definitions[di], entry.dictName, mediaMap);
         li.appendChild(gc);
         glossList.appendChild(li);
       }
@@ -135,7 +202,7 @@
         nameCell.textContent = stat[0];
         var valueCell = document.createElement('td');
         valueCell.className = 'kanji-info-table-item-value';
-        valueCell.textContent = String(stat[1] != null ? stat[1] : '');
+        renderKanjiContentOrMedia(valueCell, stat[1], entry.dictName, mediaMap);
         tr.appendChild(nameCell);
         tr.appendChild(valueCell);
         tbody.appendChild(tr);
@@ -147,7 +214,7 @@
   }
 
   window.KanjiRenderer = {
-    render: function(kanjiResult) {
+    render: function(kanjiResult, mediaMap) {
       if (!kanjiResult) return;
       var container = document.getElementById('entries');
       if (!container) return;
@@ -156,12 +223,12 @@
       var entries = Array.isArray(kanjiResult.entries) ? kanjiResult.entries : [];
 
       for (var ei = 0; ei < entries.length; ei++) {
-        container.appendChild(createEntryArticle(character, entries[ei]));
+        container.appendChild(createEntryArticle(character, entries[ei], mediaMap));
       }
     },
 
-    renderEntry: function(kanjiData, character) {
-      return createEntryArticle(character, kanjiData);
+    renderEntry: function(kanjiData, character, mediaMap) {
+      return createEntryArticle(character, kanjiData, mediaMap);
     },
 
     clear: function() {

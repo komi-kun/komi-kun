@@ -74,11 +74,13 @@ class DictionaryRepository(
         return LookupResult2(results = results, styles = cachedStyles, mediaDataUris = emptyMap(), error = null)
     }
 
+    // KUN -->
     @Synchronized
-    fun loadMediaAsync(results: List<LookupResult>): Map<String, String> {
+    fun loadMediaAsync(results: List<LookupResult>, kanjiResult: KanjiResult? = null): Map<String, String> {
         val active = session ?: return emptyMap()
-        return buildMediaDataUris(active, results)
+        return buildMediaDataUris(active, results, kanjiResult)
     }
+    // KUN <--
 
     @Synchronized
     fun queryKanji(char: String): KanjiResult? {
@@ -100,6 +102,9 @@ class DictionaryRepository(
     private fun buildMediaDataUris(
         activeSession: DictionarySession,
         results: List<LookupResult>,
+        // KUN -->
+        kanjiResult: KanjiResult? = null,
+        // KUN <--
     ): Map<String, String> {
         val requested = linkedSetOf<Pair<String, String>>()
         run loop@{
@@ -111,6 +116,22 @@ class DictionaryRepository(
                     }
                 }
             }
+            // KUN --> Support images/diagrams referenced in kanji entries
+            kanjiResult?.entries?.forEach { entry ->
+                entry.definitions.forEach { def ->
+                    extractImagePaths(def).forEach { path ->
+                        requested += entry.dictName to path
+                        if (requested.size >= MAX_PRELOADED_MEDIA_ITEMS) return@loop
+                    }
+                }
+                entry.stats.values.forEach { statVal ->
+                    extractImagePaths(statVal).forEach { path ->
+                        requested += entry.dictName to path
+                        if (requested.size >= MAX_PRELOADED_MEDIA_ITEMS) return@loop
+                    }
+                }
+            }
+            // KUN <--
         }
 
         val limitedRequested = requested.take(MAX_PRELOADED_MEDIA_ITEMS)
@@ -129,7 +150,19 @@ class DictionaryRepository(
 
     private fun extractImagePaths(glossary: String): Set<String> {
         val text = glossary.trim()
-        if (text.isEmpty() || !(text.startsWith("{") || text.startsWith("["))) return emptySet()
+        if (text.isEmpty()) return emptySet()
+        // KUN --> Direct image/SVG path support (e.g. stroke order diagram file paths)
+        val lower = text.lowercase()
+        if ((
+                lower.endsWith(".svg") || lower.endsWith(".png") || lower.endsWith(".jpg") ||
+                    lower.endsWith(".jpeg") || lower.endsWith(".gif") || lower.endsWith(".webp")
+                ) &&
+            !text.contains("\n") && text.length < 256 && !text.startsWith("<")
+        ) {
+            return setOf(text)
+        }
+        // KUN <--
+        if (!(text.startsWith("{") || text.startsWith("["))) return emptySet()
         if (!text.contains("\"img\"") && !text.contains("\"image\"")) return emptySet()
         return runCatching {
             val root: Any = if (text.startsWith("[")) JSONArray(text) else JSONObject(text)

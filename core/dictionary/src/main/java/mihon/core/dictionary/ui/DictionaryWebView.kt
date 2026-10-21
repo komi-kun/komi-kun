@@ -303,12 +303,18 @@ class DictionaryWebViewState(
 
     private fun updateAnkiStatus(webView: WebView, expressions: Set<String>) {
         val json = org.json.JSONArray(expressions).toString()
-        webView.evaluateJavascript("DictionaryRenderer.updateAnkiStatus(${json.toJavascriptExpression()})", null)
+        webView.evaluateJavascript(
+            "if(window.DictionaryRenderer){window.DictionaryRenderer.updateAnkiStatus(${json.toJavascriptExpression()});}",
+            null,
+        )
     }
 
     private fun updateMedia(webView: WebView, mediaDataUris: Map<String, String>) {
         val json = org.json.JSONObject(mediaDataUris).toString()
-        webView.evaluateJavascript("DictionaryRenderer.updateMediaDataUris(${json.toJavascriptExpression()})", null)
+        webView.evaluateJavascript(
+            "if(window.DictionaryRenderer){window.DictionaryRenderer.updateMediaDataUris(${json.toJavascriptExpression()});}",
+            null,
+        )
     }
 
     private fun clearPendingPayload() {
