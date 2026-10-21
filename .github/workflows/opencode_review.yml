@@ -42,6 +42,9 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
+      - name: Test review helper
+        run: python3 .github/scripts/test_post_opencode_review.py
+
       # Fail closed: only same-repo PRs are reviewed, because the action checks
       # out the PR head and runs the agent with the base repository's secrets.
       # PRs that change `.opencode/` or the root opencode config are skipped so
@@ -134,8 +137,22 @@ jobs:
           steps=$((40 + extra))
           echo "::notice::Review step budget: ${steps} (files=${files}, lines=${lines})"
 
-          jq --argjson steps "$steps" '.["agent"]["opencode-review"].steps = $steps' \
-            "$RUNNER_TEMP/opencode-review.json" > "$RUNNER_TEMP/opencode-review.json.tmp"
+          # Even when a tooling PR supplies its own config, force the read-only
+          # agent and permissions that the workflow guarantees.
+          jq --argjson steps "$steps" '
+            .default_agent = "opencode-review"
+            | .plugin = []
+            | .agent["opencode-review"].steps = $steps
+            | .agent["opencode-review"].permission = {
+                "edit": "deny",
+                "bash": "deny",
+                "external_directory": "deny",
+                "webfetch": "deny",
+                "websearch": "deny",
+                "task": "deny",
+                "doom_loop": "allow"
+              }
+          ' "$RUNNER_TEMP/opencode-review.json" > "$RUNNER_TEMP/opencode-review.json.tmp"
           mv "$RUNNER_TEMP/opencode-review.json.tmp" "$RUNNER_TEMP/opencode-review.json"
 
           {

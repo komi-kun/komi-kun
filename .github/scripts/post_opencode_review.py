@@ -150,9 +150,12 @@ def extract_review(text: str) -> tuple[str, list] | None:
         if not isinstance(data, dict):
             continue
         summary = data.get("summary")
+        if not isinstance(summary, str):
+            continue
         findings = data.get("findings")
-        if isinstance(summary, str) and isinstance(findings, list):
-            return summary.strip(), findings
+        if not isinstance(findings, list):
+            findings = []
+        return summary.strip(), findings
     return None
 
 
@@ -351,27 +354,27 @@ def main() -> int:
 
     comment = find_action_comment(repo, pr)
     if comment is None:
-        print("No action comment for this run; nothing to post.")
-        return 0
+        print("::error::No action comment found for this run; the review was not posted.")
+        return 1
 
     body = str(comment.get("body", ""))
     review = extract_review(body)
-    if review is None and len(body) > 200 and REPAIR_HINTS.search(body):
+    if review is None and REPAIR_HINTS.search(body):
         print("Final message is not valid review JSON; asking the repair model.")
         review = repair_review(body)
     if review is None:
-        print("Could not parse or repair the review; leaving the action comment in place.")
-        return 0
+        print("::error::Could not parse or repair the review; leaving the action comment in place.")
+        return 1
 
     summary, findings = review
     if not summary and not findings:
-        print("Recovered review is empty; leaving the action comment in place.")
+        print("::warning::Recovered review is empty; leaving the action comment in place.")
         return 0
 
     diff = DIFF_PATH.read_text() if DIFF_PATH.is_file() else gh("pr", "diff", pr).stdout
     if not diff:
-        print("Could not read the pull request diff; skipping review.")
-        return 0
+        print("::error::Could not read the pull request diff; the review was not posted.")
+        return 1
 
     valid = parse_diff(diff)
     seen = existing_comments(repo, pr)
