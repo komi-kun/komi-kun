@@ -34,6 +34,10 @@ Pull requests get an automated review from [OpenCode](https://opencode.ai/docs/g
 
 Automatic reviews only run for same-repo, non-bot pull requests: fork workflows do not receive repository secrets, and the reviewer must not load configuration from an untrusted branch. For a fork PR, review the changes manually or port them to a branch in this repository. Bot-authored same-repo PRs can still be re-reviewed with the command below.
 
+Pull requests that change the review tooling itself (the workflow, `post_opencode_review.py`, its tests, or `.github/opencode-review/*.md`) are skipped unless a maintainer adds the **`review-tooling`** label. The helper tests still run in a separate job without secrets. The label is an audit convention, not an enforced boundary: same-repo collaborators are trusted, and for `pull_request` events GitHub loads the workflow from the PR head, so a PR that edits the workflow necessarily runs its own copy.
+
+The reviewer runs a pinned OpenCode CLI (`opencode run`) and captures its output directly, so it does not post a separate bot comment — only the final review and its inline threads appear on the PR.
+
 To request a re-review or give the reviewer focused instructions, comment on the pull request with one of:
 
 ```

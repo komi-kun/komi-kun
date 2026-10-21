@@ -248,7 +248,7 @@ Do not add these unless you deliberately re-purpose those workflows.
 | `build_release.yml` (Release Builder) | **Keep** (dormant) | `v*` tag → non-draft prerelease, 5 APKs, AGP signing. Only fires on `v*` tags; this fork ships nightlies, not stable releases, so it is normally unused. Needs a Crashlytics-capable config for `-Pdist=github` (or telemetry off). |
 | `build_benchmark.yml` (Benchmark Builder) | **Keep** (optional) | Manual benchmark build; needs only the 4 signing secrets. Niche. |
 | `pr_label.yml` (Label PRs) | **Keep** (low value) | Labels Weblate-authored PRs `translations`. Harmless, safe. |
-| `opencode_review.yml` (OpenCode PR Review) | **Keep** | Reviews non-draft same-repo PRs on open/ready-for-review and on `/oc review` comments. Needs `OPENCODE_API_KEY`. Pushes do not re-trigger it. |
+| `opencode_review.yml` (OpenCode PR Review) | **Keep** | Reviews non-draft same-repo PRs on open/ready-for-review and on `/oc review` comments. Installs a pinned OpenCode v2 CLI (version + npm sha512) and runs `opencode run` directly, so no bot issue comment is created. Needs `OPENCODE_API_KEY`. Pushes do not re-trigger it. |
 | `build_dispatch_preview.yml.disabled` | **Disabled** | Cross-repo dispatch to upstream `komikku-app/komikku-preview` with `BOT_PAT` — cannot work on the fork. |
 | `codeberg_mirror.yml.disabled` | **Disabled** | Guarded `github.repository == 'komikku-app/komikku'` → permanent no-op; mirrors to an upstream Codeberg repo. |
 | `update_website.yml.disabled` | **Disabled** | Cross-repo dispatch to upstream `komikku-app/komikku-app.github.io` with `BOT_PAT` — cannot work. |
@@ -332,10 +332,16 @@ signing secrets.
 
 1. Open a **draft** same-repo PR: the `OpenCode PR Review` run is created but
    the job is **skipped**, so no comment is posted.
-2. Mark it **ready for review**: the job runs and posts one review by
+2. Mark it **ready for review**: the job installs a **pinned OpenCode v2 CLI**
+   (version + npm sha512; no `@latest` action) and runs `opencode run --format
+   json` with the read-only `opencode-review` agent, then posts one review by
    `github-actions[bot]`: an overarching summary in the review body (Mermaid
    diagrams are allowed) and inline threads on the changed lines in **Files
-   changed**.
+   changed**. The CLI writes its JSONL stream to the step, so **no bot issue
+   comment is created**. The agent's step budget scales with the diff: 50 base
+   steps, plus 3 per changed file and 1 per 50 changed lines, capped at 120
+   total; the `opencode-repair` agent converts a malformed final message into
+   the review JSON.
 3. Push a commit: no new review run starts (only `opened` and
    `ready_for_review` are wired).
 4. Comment `/oc review` (or `/opencode review`, optionally followed by
@@ -346,6 +352,12 @@ signing secrets.
 5. Comment from a non-collaborator: the job is skipped. Fork PRs and PRs that
    change `.opencode/` or the root `opencode.json`/`opencode.jsonc` are skipped
    too, so a PR cannot load a plugin before the read-only agent starts.
+6. A PR that changes the review tooling itself (the workflow, the helper, its
+   tests, or `.github/opencode-review/*.md`) is skipped unless a maintainer adds
+   the **`review-tooling`** label. The label is an audit convention, not an
+   enforced boundary: same-repo collaborators are trusted, and for `pull_request`
+   events GitHub loads the workflow from the PR head. The no-secret `Test review
+   helper` job always runs the parser tests.
 
 ---
 
@@ -358,9 +370,12 @@ signing secrets.
 | Release job fails **uploading the Crashlytics mapping** | `-Pdist=github` sets `uploadCrashlyticsMapping=true`, but the Firebase project has no Crashlytics | Enable Crashlytics in Firebase, switch the release build to `-Pdist=ci`, or leave `GOOGLE_SERVICES_JSON` unset. |
 | Build fails **signing** | Wrong `SIGNING_KEY` (not `base64 -w0`), or wrong password/alias | Regenerate: `base64 -w0 release.keystore`; verify `KEY_STORE_PASSWORD`/`ALIAS`/`KEY_PASSWORD` match the keystore. |
 | Nightly/release job fails at **Sign APK** | The 4 signing secrets are missing | Add `SIGNING_KEY`, `KEY_STORE_PASSWORD`, `ALIAS`, `KEY_PASSWORD`. |
-| **OpenCode PR Review** fails during `opencode github run` | `OPENCODE_API_KEY` missing or invalid | Set the secret (`gh secret set OPENCODE_API_KEY --repo komi-kun/komi-kun`). |
-| **OpenCode PR Review** job is **skipped** | PR is from a fork, authored by a bot, changes `.opencode/` or the root `opencode.json(c)`, or is a draft | Expected. Port fork PRs to a same-repo branch (or review them manually); bot-authored same-repo PRs can be re-reviewed with `/oc review`. |
-| OpenCode posts a summary but **no inline comments** | The agent did not write `build/opencode-review/findings.json`, or its findings were not on lines present in the diff | Check the `Post review` step log; findings outside the diff are skipped by design. |
+| **OpenCode PR Review** fails during `opencode run` | `OPENCODE_API_KEY` missing or invalid | Set the secret (`gh secret set OPENCODE_API_KEY --repo komi-kun/komi-kun`). |
+| **OpenCode PR Review** fails installing the CLI | The pinned npm tarball sha512 does not match, or the pinned version was unpublished | Check `OPENCODE_VERSION`/`OPENCODE_SHA512_*` in `opencode_review.yml` against `https://registry.npmjs.org/@opencode/cli-linux-x64`; the integrity check is intentionally fail-closed. |
+| **OpenCode PR Review** job is **skipped** | PR is from a fork, authored by a bot, changes `.opencode/` or the root `opencode.json(c)`, is a draft, or changes the review tooling without the `review-tooling` label | Expected. Port fork PRs to a same-repo branch (or review them manually); bot-authored same-repo PRs can be re-reviewed with `/oc review`; add `review-tooling` deliberately to self-review a tooling change. |
+| OpenCode posts a summary but **no inline comments** | The final message was not valid review JSON, or its findings were not on lines present in the diff | Check the `Post review` step log; findings outside the diff are skipped by design. A malformed final message is repaired by the `opencode-repair` agent before posting. |
+| The review says **"Maximum steps reached"** | The agent used its step budget before finishing the review | The budget scales with the PR (50–120 steps), and the `opencode-repair` agent converts the final message into the review JSON; re-run `/oc review` if it still happens. |
+| The job **succeeds with a warning and no review** | The model produced no/partial output (API outage, quota, step limit) | The review is advisory and does not red the check. Check the `Post review` log (the CLI stderr is printed) and re-run `/oc review`. |
 | Google Drive backup broken at runtime (not a build failure) | `GOOGLE_CLIENT_SECRETS_JSON` missing | Add the client-secrets JSON; see [`GOOGLE_SERVICES_SETUP.md`](GOOGLE_SERVICES_SETUP.md). |
 | Nightly/release `workflow_dispatch` does nothing | Triggered from a non-`master` branch | Run from `master`. |
 | Release workflow doesn't run on a tag | Tag doesn't start with `v` | Use `v*` tags. |
