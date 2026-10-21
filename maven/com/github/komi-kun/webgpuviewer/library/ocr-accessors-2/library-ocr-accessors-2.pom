@@ -9,7 +9,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>com.github.komi-kun.webgpuviewer</groupId>
   <artifactId>library</artifactId>
-  <version>ocr-accessors-1</version>
+  <version>ocr-accessors-2</version>
   <packaging>aar</packaging>
   <name>webgpuviewer</name>
   <description>webgpuviewer</description>
@@ -74,6 +74,18 @@
       <groupId>androidx.compose.foundation</groupId>
       <artifactId>foundation</artifactId>
       <version>1.12.1</version>
+      <scope>runtime</scope>
+    </dependency>
+    <dependency>
+      <groupId>androidx.lifecycle</groupId>
+      <artifactId>lifecycle-viewmodel</artifactId>
+      <version>2.10.0</version>
+      <scope>runtime</scope>
+    </dependency>
+    <dependency>
+      <groupId>androidx.savedstate</groupId>
+      <artifactId>savedstate</artifactId>
+      <version>1.4.0</version>
       <scope>runtime</scope>
     </dependency>
     <dependency>
