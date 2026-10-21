@@ -103,15 +103,18 @@ not from a workflow and not from Dependabot.
 - **Config:** `.github/renovate.json5`, modelled on Mihon's file. The deleted
   root `renovate.json` came from Komikku and pulled Mihon's settings in by remote
   preset (`github>mihonapp/mihon//.github/renovate.json5`); those settings are now
-  inlined: `config:recommended`, `Dependencies` label, no semantic-commit
-  prefixes, and GitHub Actions grouped with pinned digests. It targets `master`
-  (the default branch) and lets Renovate manage the Gradle version catalogs under
-  `gradle/`, the Gradle wrapper, and workflow action digests.
+  inlined: `config:recommended`, `Dependencies` label, semantic-commit prefixes
+  (`chore(deps):`, matching the rest of the history), and GitHub Actions grouped
+  with pinned digests. It targets `master` (the default branch) and lets Renovate
+  manage the Gradle version catalogs under `gradle/`, the Gradle wrapper, and
+  workflow action digests.
 - **Behaviour:** the app maintains a "Dependency Dashboard" issue that lists
   pending updates and lets you trigger or ignore them. Nothing runs until the app
   is installed; until then dependency updates must be done by hand.
-- Mihon is the reference for these settings; TachiyomiSY uses the same file
-  location with the older `config:base` preset.
+- Mihon is the reference for these settings, except semantic commits, which are
+  enabled here so dependency PRs read `chore(deps): …` like the rest of this
+  repo's history. TachiyomiSY uses the same file location with the older
+  `config:base` preset.
 - Renovate-authored commits are excluded from `cherrypick_log.md`
   (`exclude_identity_regex` in `.agents/skills/cherrypick-log/config.json`).
 
