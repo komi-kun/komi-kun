@@ -62,6 +62,16 @@ class SyncPreferences(
         Preference.appStateKey("sync_force_push_pending"),
         false,
     )
+
+    /**
+     * Whether a sync restore should replace the local pinned sources with the synced set instead of
+     * adding the synced pins to the local ones. Off by default: pinned sources are usually
+     * device-specific.
+     */
+    val replacePinnedSources = preferenceStore.getBoolean(
+        "sync_replace_pinned_sources",
+        false,
+    )
     // KUN <--
 
     val syncInterval = preferenceStore.getInt("sync_interval", 0)
@@ -196,6 +206,9 @@ class SyncPreferences(
             readEntries = preferenceStore.getBoolean("sync_readEntries", true).get(),
             savedSearchesFeeds = preferenceStore.getBoolean("sync_savedSearchesFeeds", true).get(),
             // SY <--
+            // KUN -->
+            replacePinnedSources = this.replacePinnedSources.get(),
+            // KUN <--
         )
     }
 
@@ -215,6 +228,9 @@ class SyncPreferences(
         preferenceStore.getBoolean("sync_readEntries", true).set(syncSettings.readEntries)
         preferenceStore.getBoolean("sync_savedSearchesFeeds", true).set(syncSettings.savedSearchesFeeds)
         // SY <--
+        // KUN -->
+        replacePinnedSources.set(syncSettings.replacePinnedSources)
+        // KUN <--
     }
 
     fun getSyncTriggerOptions(): SyncTriggerOptions {

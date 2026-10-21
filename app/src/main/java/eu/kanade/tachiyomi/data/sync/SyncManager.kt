@@ -567,6 +567,7 @@ class SyncManager(
                     tracking = syncOptions.tracking,
                     history = syncOptions.history,
                     customInfo = syncOptions.customInfo,
+                    replacePinnedSources = syncOptions.replacePinnedSources,
                     // KUN <--
                 ),
                 // KUN -->

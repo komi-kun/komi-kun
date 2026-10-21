@@ -16,6 +16,12 @@ data class SyncSettings(
     val readEntries: Boolean = true,
     val savedSearchesFeeds: Boolean = true,
     // SY <--
+    // KUN -->
+    // Pinned sources are usually device-specific, so a restore unions the incoming set with the
+    // local pins by default and an un-pin never propagates. Opting in makes the synced set replace
+    // the local one instead (including an empty set, which clears the pins).
+    val replacePinnedSources: Boolean = false,
+    // KUN <--
 ) {
     // KUN -->
     /**

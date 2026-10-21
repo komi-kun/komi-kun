@@ -195,4 +195,6 @@
     <string name="pref_discord_show_download_button">Mostrar botón de descarga</string>
     <string name="pref_discord_show_download_button_summary">Muestra un botón para descargar la aplicación</string>
     <string name="pref_discord_show_discord_button">Mostrar botón de Discord</string>
+    <string name="pref_sync_replace_pinned_sources">Reemplazar fuentes fijadas</string>
+    <string name="pref_sync_replace_pinned_sources_summary">Las fuentes fijadas suelen ser específicas de cada dispositivo. Si se activa, el conjunto sincronizado sustituye a las fuentes fijadas de este dispositivo en lugar de añadirse a ellas, de modo que desfijar una fuente en un dispositivo también la desfija aquí.</string>
 </resources>

@@ -645,6 +645,13 @@ object SettingsDataScreen : SearchableSettings {
             getSyncNowPref(syncServiceType, syncSettings.libraryEntries, syncSettings.supportsForcePush),
             // KUN <--
             getAutomaticSyncGroup(syncPreferences),
+            // KUN -->
+            Preference.PreferenceItem.SwitchPreference(
+                preference = syncPreferences.replacePinnedSources,
+                title = stringResource(KMR.strings.pref_sync_replace_pinned_sources),
+                subtitle = stringResource(KMR.strings.pref_sync_replace_pinned_sources_summary),
+            ),
+            // KUN <--
             // KMK -->
             Preference.PreferenceItem.SwitchPreference(
                 preference = syncPreferences.showSyncingProgressBanner,

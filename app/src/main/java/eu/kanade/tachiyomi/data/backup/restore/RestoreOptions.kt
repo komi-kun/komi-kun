@@ -19,6 +19,13 @@ data class RestoreOptions(
     val tracking: Boolean = true,
     val history: Boolean = true,
     val customInfo: Boolean = true,
+    // KUN -->
+    /**
+     * Sync-only: set the synced pinned sources exactly instead of unioning them with the local
+     * pins, so an un-pin propagates and an empty synced set clears the local pins. Manual restore
+     * keeps the historical union behaviour (false).
+     */
+    val replacePinnedSources: Boolean = false,
     // KUN <--
 ) {
 
@@ -35,6 +42,7 @@ data class RestoreOptions(
         tracking,
         history,
         customInfo,
+        replacePinnedSources,
         // KUN <--
     )
 
@@ -99,6 +107,7 @@ data class RestoreOptions(
             tracking = array.getOrElse(6) { true },
             history = array.getOrElse(7) { true },
             customInfo = array.getOrElse(8) { true },
+            replacePinnedSources = array.getOrElse(9) { false },
             // KUN <--
         )
     }

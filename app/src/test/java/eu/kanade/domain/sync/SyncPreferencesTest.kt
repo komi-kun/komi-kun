@@ -1,6 +1,8 @@
 package eu.kanade.domain.sync
 
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import tachiyomi.core.common.preference.InMemoryPreferenceStore
 import tachiyomi.core.common.preference.InMemoryPreferenceStore.InMemoryPreference
@@ -44,4 +46,25 @@ class SyncPreferencesTest {
 
         assertEquals(emptySet<String>(), prefs.pendingDeletedChapterKeys.get())
     }
+
+    // KUN -->
+    @Test
+    fun `pinned source replacement is off by default`() {
+        val prefs = SyncPreferences(InMemoryPreferenceStore())
+
+        assertFalse(prefs.getSyncSettings().replacePinnedSources)
+    }
+
+    @Test
+    fun `pinned source replacement round-trips through the sync settings`() {
+        val prefs = SyncPreferences(InMemoryPreferenceStore())
+        assertFalse(prefs.getSyncSettings().replacePinnedSources)
+
+        prefs.setSyncSettings(prefs.getSyncSettings().copy(replacePinnedSources = true))
+        assertTrue(prefs.getSyncSettings().replacePinnedSources)
+
+        prefs.setSyncSettings(prefs.getSyncSettings().copy(replacePinnedSources = false))
+        assertFalse(prefs.getSyncSettings().replacePinnedSources)
+    }
+    // KUN <--
 }

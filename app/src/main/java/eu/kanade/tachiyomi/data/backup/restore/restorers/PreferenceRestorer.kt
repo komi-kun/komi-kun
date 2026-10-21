@@ -13,6 +13,7 @@ import eu.kanade.tachiyomi.data.backup.models.IntPreferenceValue
 import eu.kanade.tachiyomi.data.backup.models.LongPreferenceValue
 import eu.kanade.tachiyomi.data.backup.models.StringPreferenceValue
 import eu.kanade.tachiyomi.data.backup.models.StringSetPreferenceValue
+import eu.kanade.tachiyomi.data.backup.restore.RestoreOptions
 import eu.kanade.tachiyomi.data.library.LibraryUpdateWorker
 import eu.kanade.tachiyomi.data.updater.AppUpdateJob
 import eu.kanade.tachiyomi.source.sourcePreferences
@@ -35,11 +36,17 @@ class PreferenceRestorer(
     suspend fun restoreApp(
         preferences: List<BackupPreference>,
         backupCategories: List<BackupCategory>?,
+        // KUN -->
+        options: RestoreOptions = RestoreOptions(),
+        // KUN <--
     ) {
         restorePreferences(
             preferences,
             preferenceStore,
             backupCategories,
+            // KUN -->
+            options,
+            // KUN <--
         )
 
         LibraryUpdateWorker.setupTask(context)
@@ -56,10 +63,13 @@ class PreferenceRestorer(
         }
     }
 
-    private suspend fun restorePreferences(
+    internal suspend fun restorePreferences(
         toRestore: List<BackupPreference>,
         preferenceStore: PreferenceStore,
         backupCategories: List<BackupCategory>? = null,
+        // KUN -->
+        options: RestoreOptions = RestoreOptions(),
+        // KUN <--
     ) {
         val allCategories = if (backupCategories != null) getCategories.await() else emptyList()
         val categoriesByName = allCategories.associateBy { it.name }
@@ -117,6 +127,9 @@ class PreferenceRestorer(
                                             key,
                                             value.value,
                                             preferenceStore,
+                                            // KUN -->
+                                            options,
+                                            // KUN <--
                                         )
                                     else ->
                                         // KMK <--
@@ -158,15 +171,26 @@ class PreferenceRestorer(
         return true
     }
 
-    private fun restorePinnedSourcesPreference(
+    internal fun restorePinnedSourcesPreference(
         key: String,
         value: Set<String>,
         preferenceStore: PreferenceStore,
+        // KUN -->
+        options: RestoreOptions,
+        // KUN <--
     ) {
         // KUN -->
         val valueToSet = EXHMigrations.migrateSourceIds(value)
-        val existing = preferenceStore.getStringSet(key).get()
-        preferenceStore.getStringSet(key).set(existing + valueToSet)
+        if (options.replacePinnedSources) {
+            // Opted in: the synced set is authoritative, so an un-pin propagates to this device and
+            // an empty set clears the local pins.
+            preferenceStore.getStringSet(key).set(valueToSet)
+        } else {
+            // Default: pinned sources are usually device-specific, so keep the local pins and add
+            // the synced ones.
+            val existing = preferenceStore.getStringSet(key).get()
+            preferenceStore.getStringSet(key).set(existing + valueToSet)
+        }
         // KUN <--
     }
 }
