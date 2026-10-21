@@ -126,12 +126,21 @@ class ExtractReviewTest(unittest.TestCase):
         self.assertEqual(review.extract_review(text), (REVIEW["summary"], REVIEW["findings"]))
 
     def test_fenced_review_wins_over_trailing_shape_echo(self) -> None:
-        shape = {"summary": "string", "findings": []}
-        text = f"```json\n{json.dumps(REVIEW)}\n```\nI will output: {json.dumps(shape)}"
+        echo = {"summary": "echo summary", "findings": []}
+        text = f"```json\n{json.dumps(REVIEW)}\n```\nI will output: {json.dumps(echo)}"
         self.assertEqual(review.extract_review(text), (REVIEW["summary"], REVIEW["findings"]))
 
     def test_short_shape_echo_is_rejected(self) -> None:
         self.assertIsNone(review.extract_review(json.dumps({"summary": "string"})))
+
+    def test_real_finding_on_line_123_is_accepted(self) -> None:
+        real = {
+            "summary": "A real finding.",
+            "findings": [
+                {"path": "a.kt", "line": 123, "severity": "low", "body": "Fix it."}
+            ],
+        }
+        self.assertEqual(review.extract_review(json.dumps(real)), (real["summary"], real["findings"]))
 
 
 class ActionCommentTest(unittest.TestCase):

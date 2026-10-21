@@ -68,6 +68,9 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
+          # For comments, start from the PR merge ref so a labelled tooling PR
+          # can exercise its own helper/config.
+          ref: ${{ github.event_name == 'issue_comment' && format('refs/pull/{0}/merge', github.event.issue.number) || '' }}
 
       # Fail closed: only same-repo PRs are reviewed, because the action checks
       # out the PR head and runs the agent with the base repository's secrets.
@@ -130,6 +133,8 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
           BASE_REF: ${{ github.event.pull_request.base.ref || github.event.repository.default_branch }}
         run: |
+          set -euo pipefail
+
           if ! git rev-parse --verify "origin/${BASE_REF}" >/dev/null 2>&1; then
             echo "::error::Base ref origin/${BASE_REF} is not available; failing instead of using the PR checkout."
             exit 1
@@ -159,8 +164,8 @@ jobs:
             git show "origin/${BASE_REF}:.github/opencode-review.json" > "$RUNNER_TEMP/opencode-review.json"
             jq --slurpfile pr ".github/opencode-review.json" \
               '.agent["opencode-review"].prompt = $pr[0].agent["opencode-review"].prompt' \
-              "$RUNNER_TEMP/opencode-review.json" > "$RUNNER_TEMP/opencode-review.json.tmp"
-            mv "$RUNNER_TEMP/opencode-review.json.tmp" "$RUNNER_TEMP/opencode-review.json"
+              "$RUNNER_TEMP/opencode-review.json" > "$RUNNER_TEMP/opencode-review.json.tmp" \
+              && mv "$RUNNER_TEMP/opencode-review.json.tmp" "$RUNNER_TEMP/opencode-review.json"
           else
             stage .github/opencode-review.json "$RUNNER_TEMP/opencode-review.json"
           fi
@@ -205,8 +210,13 @@ jobs:
                 "task": "deny",
                 "doom_loop": "allow"
               }
-          ' "$RUNNER_TEMP/opencode-review.json" > "$RUNNER_TEMP/opencode-review.json.tmp"
-          mv "$RUNNER_TEMP/opencode-review.json.tmp" "$RUNNER_TEMP/opencode-review.json"
+          ' "$RUNNER_TEMP/opencode-review.json" > "$RUNNER_TEMP/opencode-review.json.tmp" \
+            && mv "$RUNNER_TEMP/opencode-review.json.tmp" "$RUNNER_TEMP/opencode-review.json"
+
+          jq -e '.default_agent == "opencode-review"
+                 and .agent["opencode-review"].permission.edit == "deny"
+                 and .agent["opencode-review"].permission.bash == "deny"' \
+            "$RUNNER_TEMP/opencode-review.json" >/dev/null
 
           {
             echo "OPENCODE_CONFIG_CONTENT<<__OPENCODE_CONFIG__"

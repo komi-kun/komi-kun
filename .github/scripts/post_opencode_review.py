@@ -153,7 +153,7 @@ def _is_placeholder(data: dict) -> bool:
             isinstance(finding, dict)
             and (
                 finding.get("line") == PLACEHOLDER_LINE
-                or "..." in str(finding.get("path", ""))
+                and "..." in str(finding.get("path", ""))
             )
             for finding in findings
         )
@@ -161,9 +161,11 @@ def _is_placeholder(data: dict) -> bool:
 
 
 def _fenced_objects(text: str):
-    """Yield objects that follow a ```json marker, inner Mermaid fences aside."""
+    """Yield the first object after each ```json marker, not trailing objects."""
     for match in re.finditer(r"```json\s*", text, re.IGNORECASE):
-        yield from _json_objects(text[match.end() :])
+        first = next(_json_objects(text[match.end() :]), None)
+        if first is not None:
+            yield first
 
 
 def _pick_review(candidates: list[str]) -> tuple[str, list] | None:
@@ -402,8 +404,9 @@ def main() -> int:
         return 1
 
     candidates = find_action_comments(repo, pr)
+    from_run = bool(candidates)
     if not candidates:
-        print("No action comment for this run; trying the newest bot comment.")
+        print("No action comment for this run; trying to parse a previous bot comment.")
         candidates = bot_comments(repo, pr)
     if not candidates:
         print("::error::No bot comment found; the review was not posted.")
@@ -414,7 +417,7 @@ def main() -> int:
         review = extract_review(str(comment.get("body", "")))
         if review is not None:
             break
-    if review is None:
+    if review is None and from_run:
         body = str(candidates[-1].get("body", ""))
         if body.strip():
             print("Final message is not valid review JSON; asking the repair model.")
