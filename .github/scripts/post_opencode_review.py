@@ -37,6 +37,8 @@ OPENCODE_API_URL = os.environ.get(
     "OPENCODE_API_URL",
     "https://opencode.ai/inference/go/openai/v1/chat/completions",
 )
+PLACEHOLDER_SUMMARY = "markdown overarching review comment"
+PLACEHOLDER_LINE = 123
 REPAIR_INSTRUCTION = """\
 Convert the code-review text below into one JSON object. Output only the JSON object.
 
@@ -136,6 +138,25 @@ def _json_objects(text: str):
                 start = None
 
 
+def _is_placeholder(data: dict) -> bool:
+    """Reject the schema example an agent may echo after hitting its limit."""
+    summary = data.get("summary")
+    if isinstance(summary, str) and summary.strip().lower().startswith(PLACEHOLDER_SUMMARY):
+        return True
+
+    findings = data.get("findings")
+    if isinstance(findings, list) and findings:
+        return all(
+            isinstance(finding, dict)
+            and (
+                finding.get("line") == PLACEHOLDER_LINE
+                or "..." in str(finding.get("path", ""))
+            )
+            for finding in findings
+        )
+    return False
+
+
 def extract_review(text: str) -> tuple[str, list] | None:
     """Recover a review object from prose or a ```json fenced block.
 
@@ -147,7 +168,7 @@ def extract_review(text: str) -> tuple[str, list] | None:
             data = json.loads(candidate)
         except json.JSONDecodeError:
             continue
-        if not isinstance(data, dict):
+        if not isinstance(data, dict) or _is_placeholder(data):
             continue
         summary = data.get("summary")
         if not isinstance(summary, str):
@@ -313,16 +334,17 @@ def post_individually(repo: str, pr: str, head: str, comments: list[dict]) -> in
     return posted
 
 
-def find_action_comment(repo: str, pr: str) -> dict | None:
-    """Return the action's comment for this run, if it exists."""
+def find_action_comments(repo: str, pr: str) -> list[dict]:
+    """Return every action comment for this run, oldest first."""
     run_id = os.environ.get("GITHUB_RUN_ID")
     if not run_id:
-        return None
+        return []
 
     result = gh("api", "--paginate", f"repos/{repo}/issues/{pr}/comments", "--jq", ".[]")
     if result.returncode != 0:
-        return None
+        return []
 
+    matches: list[dict] = []
     for line in result.stdout.splitlines():
         try:
             comment = json.loads(line)
@@ -334,14 +356,19 @@ def find_action_comment(repo: str, pr: str) -> dict | None:
         if not isinstance(user, dict) or user.get("login") != "github-actions[bot]":
             continue
         if f"/actions/runs/{run_id}" in str(comment.get("body", "")):
-            return comment
-    return None
+            matches.append(comment)
+    return matches
+
+
+def find_action_comment(repo: str, pr: str) -> dict | None:
+    """Return the newest action comment for this run (re-runs share a run id)."""
+    matches = find_action_comments(repo, pr)
+    return matches[-1] if matches else None
 
 
 def delete_action_comment(repo: str, pr: str) -> None:
-    """Remove the action's own comment for this run."""
-    comment = find_action_comment(repo, pr)
-    if comment is not None:
+    """Remove every action comment for this run."""
+    for comment in find_action_comments(repo, pr):
         gh("api", "--method", "DELETE", f"repos/{repo}/issues/comments/{comment['id']}")
 
 
@@ -368,8 +395,8 @@ def main() -> int:
 
     summary, findings = review
     if not summary and not findings:
-        print("::warning::Recovered review is empty; leaving the action comment in place.")
-        return 0
+        print("::error::Recovered review is empty; leaving the action comment in place.")
+        return 1
 
     diff = DIFF_PATH.read_text() if DIFF_PATH.is_file() else gh("pr", "diff", pr).stdout
     if not diff:

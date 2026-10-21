@@ -349,6 +349,10 @@ signing secrets.
 5. Comment from a non-collaborator: the job is skipped. Fork PRs and PRs that
    change `.opencode/` or the root `opencode.json`/`opencode.jsonc` are skipped
    too, so a PR cannot load a plugin before the read-only agent starts.
+6. A PR that changes the review tooling itself is skipped unless a maintainer
+   adds the **`review-tooling`** label. The label opts into running that PR's
+   helper/config with the review token; the no-secret `Test review helper` job
+   always runs the parser tests.
 
 ---
 
@@ -362,7 +366,7 @@ signing secrets.
 | Build fails **signing** | Wrong `SIGNING_KEY` (not `base64 -w0`), or wrong password/alias | Regenerate: `base64 -w0 release.keystore`; verify `KEY_STORE_PASSWORD`/`ALIAS`/`KEY_PASSWORD` match the keystore. |
 | Nightly/release job fails at **Sign APK** | The 4 signing secrets are missing | Add `SIGNING_KEY`, `KEY_STORE_PASSWORD`, `ALIAS`, `KEY_PASSWORD`. |
 | **OpenCode PR Review** fails during `opencode github run` | `OPENCODE_API_KEY` missing or invalid | Set the secret (`gh secret set OPENCODE_API_KEY --repo komi-kun/komi-kun`). |
-| **OpenCode PR Review** job is **skipped** | PR is from a fork, authored by a bot, changes `.opencode/` or the root `opencode.json(c)`, or is a draft | Expected. Port fork PRs to a same-repo branch (or review them manually); bot-authored same-repo PRs can be re-reviewed with `/oc review`. |
+| **OpenCode PR Review** job is **skipped** | PR is from a fork, authored by a bot, changes `.opencode/` or the root `opencode.json(c)`, is a draft, or changes the review tooling without the `review-tooling` label | Expected. Port fork PRs to a same-repo branch (or review them manually); bot-authored same-repo PRs can be re-reviewed with `/oc review`; add `review-tooling` deliberately to self-review a tooling change. |
 | OpenCode posts a summary but **no inline comments** | The final message was not valid review JSON, or its findings were not on lines present in the diff | Check the `Post review` step log; findings outside the diff are skipped by design. A malformed final message is repaired with `mimo-v2.6-flash` before posting. |
 | The review says **"Maximum steps reached"** | The agent used its step budget before finishing the review | The budget scales with the PR (40–100 steps), and the script repairs the final message into the review JSON; re-run `/oc review` if it still happens. |
 | Google Drive backup broken at runtime (not a build failure) | `GOOGLE_CLIENT_SECRETS_JSON` missing | Add the client-secrets JSON; see [`GOOGLE_SERVICES_SETUP.md`](GOOGLE_SERVICES_SETUP.md). |

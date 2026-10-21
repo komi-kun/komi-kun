@@ -23,9 +23,13 @@ jobs:
     if: >-
       (github.event_name == 'pull_request' && github.event.pull_request.draft == false) ||
       (github.event_name == 'issue_comment' && github.event.issue.pull_request &&
+       (github.event.comment.author_association == 'OWNER' ||
+        github.event.comment.author_association == 'MEMBER' ||
+        github.event.comment.author_association == 'COLLABORATOR') &&
        (startsWith(github.event.comment.body, '/oc review') ||
         startsWith(github.event.comment.body, '/opencode review')))
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
     steps:
@@ -98,6 +102,19 @@ jobs:
             echo "::notice::Skipping PR that changes OpenCode config or plugins."
             exit 0
           fi
+          if printf '%s\n' "$changed" | grep -qE '^(\.github/opencode-review\.json|\.github/scripts/post_opencode_review\.py|\.github/scripts/test_post_opencode_review\.py|\.github/workflows/opencode_review\.yml)$'; then
+            # A tooling PR may only run its own helper/config when a maintainer
+            # deliberately opts in; otherwise it could execute PR code with the
+            # review job's write token and API key.
+            if ! gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name' | grep -qx 'review-tooling'; then
+              echo "same_repo=false" >> "$GITHUB_OUTPUT"
+              echo "::notice::Skipping review-tooling PR without the review-tooling label."
+              exit 0
+            fi
+            echo "tooling_changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "tooling_changed=false" >> "$GITHUB_OUTPUT"
+          fi
           echo "same_repo=true" >> "$GITHUB_OUTPUT"
 
       # The action switches to the PR head, so stage the helper and the agent
@@ -116,14 +133,9 @@ jobs:
             exit 1
           fi
 
-          # A PR that changes the review tooling itself must run its own copy;
+          # Set by the safety check: a labelled tooling PR may run its own copy,
           # otherwise normal PRs use the trusted base-branch copy.
-          tooling_changed=false
-          if ! git diff --quiet "origin/${BASE_REF}" -- \
-            .github/opencode-review.json .github/scripts/post_opencode_review.py; then
-            tooling_changed=true
-            echo "::notice::PR changes the review tooling; using its checked-out copy."
-          fi
+          tooling_changed="${{ steps.pr-source.outputs.tooling_changed }}"
 
           stage() {
             if [ "$tooling_changed" = "false" ] && git cat-file -e "origin/${BASE_REF}:$1" 2>/dev/null; then

@@ -103,6 +103,44 @@ class ExtractReviewTest(unittest.TestCase):
     def test_prose_without_json(self) -> None:
         self.assertIsNone(review.extract_review("Maximum steps reached. No JSON here."))
 
+    def test_placeholder_schema_is_ignored(self) -> None:
+        placeholder = {
+            "summary": "Markdown overarching review comment: 2-4 sentences on what the PR does.",
+            "findings": [
+                {
+                    "path": "app/src/main/java/.../Foo.kt",
+                    "line": 123,
+                    "severity": "high",
+                    "body": "What is wrong, why it matters, and the concrete fix.",
+                }
+            ],
+        }
+        self.assertIsNone(review.extract_review(json.dumps(placeholder)))
+
+    def test_real_review_wins_over_placeholder(self) -> None:
+        placeholder = {
+            "summary": "Markdown overarching review comment: 2-4 sentences.",
+            "findings": [],
+        }
+        text = f"{json.dumps(placeholder)}\n{json.dumps(REVIEW)}"
+        self.assertEqual(review.extract_review(text), (REVIEW["summary"], REVIEW["findings"]))
+
+
+class ActionCommentTest(unittest.TestCase):
+    def test_newest_matching_comment_wins(self) -> None:
+        old = {"id": 1, "user": {"login": "github-actions[bot]"}, "body": "old /actions/runs/123"}
+        new = {"id": 2, "user": {"login": "github-actions[bot]"}, "body": "new /actions/runs/123"}
+        output = f"{json.dumps(old)}\n{json.dumps(new)}"
+        result = mock.Mock(returncode=0, stdout=output)
+        with mock.patch.dict(os.environ, {"GITHUB_RUN_ID": "123"}), mock.patch.object(
+            review, "gh", return_value=result
+        ):
+            self.assertEqual(review.find_action_comment("o/r", "1")["id"], 2)
+            self.assertEqual(
+                [comment["id"] for comment in review.find_action_comments("o/r", "1")],
+                [1, 2],
+            )
+
 
 class RepairReviewTest(unittest.TestCase):
     def test_repair_returns_review(self) -> None:
