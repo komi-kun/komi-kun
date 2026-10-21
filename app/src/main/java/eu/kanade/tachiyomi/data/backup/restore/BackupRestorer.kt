@@ -188,6 +188,9 @@ class BackupRestorer(
                     backup.backupPreferences,
                     backup.backupCategories.takeIf { options.categories },
                     categoriesRestoreJob,
+                    // KUN -->
+                    options,
+                    // KUN <--
                 )
             }
             if (options.sourceSettings) {
@@ -376,12 +379,18 @@ class BackupRestorer(
         preferences: List<BackupPreference>,
         categories: List<BackupCategory>?,
         categoriesRestoreJob: Job?,
+        // KUN -->
+        options: RestoreOptions,
+        // KUN <--
     ) = launch {
         ensureActive()
         categoriesRestoreJob?.join()
         preferenceRestorer.restoreApp(
             preferences,
             categories,
+            // KUN -->
+            options,
+            // KUN <--
         )
 
         val progress = restoreProgress.incrementAndFetch()
