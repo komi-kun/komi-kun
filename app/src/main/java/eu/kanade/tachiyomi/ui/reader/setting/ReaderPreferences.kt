@@ -252,7 +252,7 @@ class ReaderPreferences(
     val ocrTextScale = preferenceStore.getInt("pref_reader_ocr_text_scale", 100)
 
     /** Allow a two-finger tap to toggle the OCR overlay. */
-    val ocrTwoFingerGestureEnabled = preferenceStore.getBoolean("pref_reader_ocr_two_finger_gesture", false)
+    val ocrTwoFingerGestureEnabled = preferenceStore.getBoolean("pref_reader_ocr_two_finger_gesture", true)
 
     // endregion
     // KUN <--

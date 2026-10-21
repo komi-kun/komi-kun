@@ -64,6 +64,19 @@ data object DictionaryTab : Tab {
     @Composable
     override fun Content() {
         val context = LocalContext.current
+        // KUN -->
+        // Ensure volume keys adjust media (audio) volume while viewing the dictionary tab.
+        androidx.compose.runtime.DisposableEffect(context) {
+            val activity = context as? android.app.Activity
+            val prevStream = activity?.volumeControlStream
+            activity?.volumeControlStream = android.media.AudioManager.STREAM_MUSIC
+            onDispose {
+                if (prevStream != null) {
+                    activity.volumeControlStream = prevStream
+                }
+            }
+        }
+        // KUN <--
         val repository = remember(context) { context.appGraph.dictionaryRepository }
         val prefs = remember(context) { context.appGraph.dictionaryPreferences }
         val scope = rememberCoroutineScope()
@@ -222,6 +235,9 @@ data object DictionaryTab : Tab {
                         textFieldValue = TextFieldValue(q, TextRange(q.length))
                         search(q)
                     },
+                    // On the dictionary search screen, volume keys must adjust media volume (for word audio),
+                    // not scroll the entry list.
+                    volumeKeyNavigationAllowed = { false },
                     // KUN <--
                     isLoading = loading,
                     modifier = Modifier.fillMaxSize(),
