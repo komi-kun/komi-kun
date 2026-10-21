@@ -47,6 +47,7 @@ class PreferenceRestorer(
             backupCategories,
             // KUN -->
             options,
+            isAppPreferences = true,
             // KUN <--
         )
 
@@ -70,6 +71,7 @@ class PreferenceRestorer(
         backupCategories: List<BackupCategory>? = null,
         // KUN -->
         options: RestoreOptions = RestoreOptions(),
+        isAppPreferences: Boolean = false,
         // KUN <--
     ) {
         val allCategories = if (backupCategories != null) getCategories.await() else emptyList()
@@ -79,9 +81,10 @@ class PreferenceRestorer(
         toRestore.forEach { (key, value) ->
             // KUN -->
             // App-state keys are device-local state (sync cursors, the pinned-source choice, ...)
-            // and are already excluded from newly created backups; never restore them from an
-            // older or hand-edited payload.
-            if (Preference.isAppState(key)) return@forEach
+            // and are already excluded from newly created app-preference backups; never restore
+            // them from an older or hand-edited payload. Source preferences are namespaced
+            // separately and keep whatever keys their source uses.
+            if (isAppPreferences && Preference.isAppState(key)) return@forEach
             // KUN <--
             try {
                 when (value) {

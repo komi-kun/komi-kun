@@ -181,7 +181,7 @@ class PreferenceRestorerTest {
     }
 
     @Test
-    fun `device-local app state is not restored from a payload`() = runTest {
+    fun `device-local app state is not restored from an app preference payload`() = runTest {
         val key = Preference.appStateKey("sync_pinned_sources")
         val store = mockk<PreferenceStore>(relaxed = true)
         every { store.getAll() } returns mapOf(key to true)
@@ -191,9 +191,31 @@ class PreferenceRestorerTest {
             store,
             backupCategories = null,
             options = RestoreOptions(),
+            isAppPreferences = true,
         )
 
         verify(exactly = 0) { store.getBoolean(key, any()) }
+    }
+
+    @Test
+    fun `app-state-like source preference keys are still restored`() = runTest {
+        // Source preferences are namespaced separately; the app-state guard must not drop them.
+        val key = Preference.appStateKey("source_option")
+        val store = mockk<PreferenceStore>(relaxed = true)
+        val preference = mockk<Preference<Boolean>>()
+        every { store.getAll() } returns mapOf(key to true)
+        every { store.getBoolean(key, any()) } returns preference
+        every { preference.set(any()) } returns Unit
+
+        restorer(store).restorePreferences(
+            listOf(BackupPreference(key, BooleanPreferenceValue(true))),
+            store,
+            backupCategories = null,
+            options = RestoreOptions(),
+            isAppPreferences = false,
+        )
+
+        verify(exactly = 1) { preference.set(true) }
     }
 }
 

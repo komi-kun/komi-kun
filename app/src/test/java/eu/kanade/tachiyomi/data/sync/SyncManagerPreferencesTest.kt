@@ -82,5 +82,65 @@ class SyncManagerPreferencesTest {
         assertTrue(options.skipPinnedSources)
         assertFalse(options.replacePinnedSources)
     }
+
+    @Test
+    fun `stale remote pinned key does not count as a preference change when pins are device-local`() {
+        val remote = preferences(pinnedKey, "sync_library_entries")
+        val upload = preferences("sync_library_entries")
+
+        assertFalse(
+            SyncManager.hasSyncPreferenceChanges(
+                remotePreferences = remote,
+                uploadedPreferences = upload,
+                syncPinnedSources = false,
+            ),
+        )
+    }
+
+    @Test
+    fun `a remote payload with only the stale pinned key counts as no change`() {
+        assertFalse(
+            SyncManager.hasSyncPreferenceChanges(
+                remotePreferences = preferences(pinnedKey),
+                uploadedPreferences = emptyList(),
+                syncPinnedSources = false,
+            ),
+        )
+    }
+
+    @Test
+    fun `real preference changes are still detected when pins are device-local`() {
+        val remote = preferences(pinnedKey, "sync_library_entries", "sync_new_flag")
+        val upload = preferences("sync_library_entries")
+
+        assertTrue(
+            SyncManager.hasSyncPreferenceChanges(
+                remotePreferences = remote,
+                uploadedPreferences = upload,
+                syncPinnedSources = false,
+            ),
+        )
+    }
+
+    @Test
+    fun `pinned source changes still count when pins are synced`() {
+        assertTrue(
+            SyncManager.hasSyncPreferenceChanges(
+                remotePreferences = preferences(pinnedKey),
+                uploadedPreferences = emptyList(),
+                syncPinnedSources = true,
+            ),
+        )
+    }
+
+    @Test
+    fun `restored preference list drops the device-local pinned key`() {
+        val stripped = SyncManager.withoutDeviceLocalPinnedSources(
+            preferences(pinnedKey, "sync_library_entries"),
+            syncPinnedSources = false,
+        )
+
+        assertEquals(listOf("sync_library_entries"), stripped.map { it.key })
+    }
 }
 // KUN <--

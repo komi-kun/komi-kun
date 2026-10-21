@@ -440,7 +440,14 @@ class SyncManager(
             // a v2 delta only carries changed sources
             backupSources = remoteBackup.backupSources.ifEmpty { backup.backupSources },
             // SY <--
-            backupPreferences = remoteBackup.backupPreferences,
+            // KUN -->
+            // The server may still carry the device-local pinned-source key from when it was
+            // synced; drop it when the set is not synced so the comparison below converges.
+            backupPreferences = withoutDeviceLocalPinnedSources(
+                remoteBackup.backupPreferences,
+                syncOptions.syncPinnedSources,
+            ),
+            // KUN <--
             backupSourcePreferences = remoteBackup.backupSourcePreferences,
             backupExtensionStores = remoteBackup.backupExtensionStores,
 
@@ -480,8 +487,15 @@ class SyncManager(
         // KUN <--
         // a v2 delta leaves out the sections nothing changed in; an absent section is not a change
         val hasSourceChanges = newSyncData.backupSources != backup.backupSources
-        val hasPreferenceChanges = remoteBackup.backupPreferences.isNotEmpty() &&
-            remoteBackup.backupPreferences != backup.backupPreferences
+        // KUN -->
+        // Compare the same filtered view the upload used, or a server that still carries the
+        // device-local pinned key would look changed on every sync and force the restore path.
+        val hasPreferenceChanges = hasSyncPreferenceChanges(
+            remotePreferences = remoteBackup.backupPreferences,
+            uploadedPreferences = backup.backupPreferences,
+            syncPinnedSources = syncOptions.syncPinnedSources,
+        )
+        // KUN <--
         val hasSourcePreferenceChanges = remoteBackup.backupSourcePreferences.isNotEmpty() &&
             remoteBackup.backupSourcePreferences != backup.backupSourcePreferences
         val hasExtensionRepoChanges = remoteBackup.backupExtensionStores.isNotEmpty() &&
@@ -963,6 +977,30 @@ class SyncManager(
                     it.key in DownloadPreferences.categoryPreferenceKeys ||
                     (!syncPinnedSources && it.key == SourcePreferences.PINNED_SOURCES_PREF_KEY)
             }
+        }
+
+        /**
+         * Drops the pinned-source preference from a server preference list when this device does
+         * not sync it. Applying the same filter to the uploaded list and to the server payload
+         * makes the change comparison converge after one sync instead of reporting the stale remote
+         * key as a difference forever.
+         */
+        internal fun withoutDeviceLocalPinnedSources(
+            preferences: List<BackupPreference>,
+            syncPinnedSources: Boolean,
+        ): List<BackupPreference> {
+            if (syncPinnedSources) return preferences
+            return preferences.filterNot { it.key == SourcePreferences.PINNED_SOURCES_PREF_KEY }
+        }
+
+        /** Whether the server's app preferences differ from what this device uploaded. */
+        internal fun hasSyncPreferenceChanges(
+            remotePreferences: List<BackupPreference>,
+            uploadedPreferences: List<BackupPreference>,
+            syncPinnedSources: Boolean,
+        ): Boolean {
+            val remote = withoutDeviceLocalPinnedSources(remotePreferences, syncPinnedSources)
+            return remote.isNotEmpty() && remote != uploadedPreferences
         }
     }
     // KUN <--
