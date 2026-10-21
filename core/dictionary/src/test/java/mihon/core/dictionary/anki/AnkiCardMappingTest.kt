@@ -80,5 +80,17 @@ class AnkiCardMappingTest {
         AnkiCardCreator.normalizeAnkiTag(" a b ") shouldBe "a_b"
         AnkiCardCreator.normalizeAnkiTag("   ") shouldBe null
     }
+
+    @Test
+    fun `mergeFieldValue respects overwrite modes`() {
+        AnkiCardCreator.mergeFieldValue("old", "new", "overwrite") shouldBe "new"
+        AnkiCardCreator.mergeFieldValue("old", "new", "append") shouldBe "old<br>new"
+        AnkiCardCreator.mergeFieldValue("old", "new", "prepend") shouldBe "new<br>old"
+        AnkiCardCreator.mergeFieldValue("old", "new", "if_empty") shouldBe "old"
+        AnkiCardCreator.mergeFieldValue("", "new", "if_empty") shouldBe "new"
+        AnkiCardCreator.mergeFieldValue("old", "new", "skip") shouldBe "old"
+        AnkiCardCreator.mergeFieldValue("old", "", "append") shouldBe "old"
+        AnkiCardCreator.mergeFieldValue("", "new", "append") shouldBe "new"
+    }
 }
 // KUN <--

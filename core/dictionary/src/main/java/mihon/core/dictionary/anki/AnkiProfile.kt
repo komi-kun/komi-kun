@@ -33,6 +33,9 @@ data class AnkiProfile(
     val ankiCropMode: String = "full",
     val ankiCropPreset: String = "full",
     val ankiSyncOnCreate: Boolean = false,
+    // KUN -->
+    val ankiFieldOverwriteModes: Map<String, String> = emptyMap(),
+    // KUN <--
 ) {
     fun toJson(): JsonObject = buildJsonObject {
         put("id", id)
@@ -48,6 +51,16 @@ data class AnkiProfile(
         put("ankiCropMode", ankiCropMode)
         put("ankiCropPreset", ankiCropPreset)
         put("ankiSyncOnCreate", ankiSyncOnCreate)
+        // KUN -->
+        if (ankiFieldOverwriteModes.isNotEmpty()) {
+            put(
+                "ankiFieldOverwriteModes",
+                buildJsonObject {
+                    for ((k, v) in ankiFieldOverwriteModes) put(k, v)
+                },
+            )
+        }
+        // KUN <--
     }
 
     /** Serialise to a compact JSON string (the value stored by the preference layer). */
@@ -80,6 +93,13 @@ data class AnkiProfile(
             ankiCropMode = json.str("ankiCropMode", "full"),
             ankiCropPreset = json.str("ankiCropPreset", "full"),
             ankiSyncOnCreate = json.bool("ankiSyncOnCreate", false),
+            // KUN -->
+            ankiFieldOverwriteModes = runCatching {
+                json["ankiFieldOverwriteModes"]?.jsonObject?.mapNotNull { (k, v) ->
+                    v.jsonPrimitive.contentOrNull?.let { k to it }
+                }?.toMap()
+            }.getOrNull().orEmpty(),
+            // KUN <--
         )
 
         /** Parse a profile from a stored JSON string; malformed input degrades to [EMPTY]. */
