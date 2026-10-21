@@ -99,6 +99,10 @@ class MangaBackupCreator(
                 mangaObject.mergedMangaReferences = mangaMergeRepository
                     .getReferencesById(manga.id)
                     .map { it.toBackupMergedMangaReference() }
+                // KUN -->
+                // The list is complete for this entry, so a winning receiver may reconcile removals.
+                mangaObject.mergedMangaReferencesIncluded = true
+                // KUN <--
             }
 
             val source = sourceManager.get(manga.source)?.getMainSource<MetadataSource<*, *>>()

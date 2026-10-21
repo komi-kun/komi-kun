@@ -114,6 +114,9 @@ class MangaRestorer(
                 mergedMangaReferences = backupManga.mergedMangaReferences.map {
                     EXHMigrations.migrateBackupMergedMangaReference(it).getMergedMangaReference()
                 },
+                // KUN -->
+                mergedMangaReferencesIncluded = backupManga.mergedMangaReferencesIncluded,
+                // KUN <--
                 flatMetadata = backupManga.flatMetadata?.getFlatMetadata(mangaId = 0L),
                 customMangaInfo = backupManga.getCustomMangaInfo(),
                 // KUN -->

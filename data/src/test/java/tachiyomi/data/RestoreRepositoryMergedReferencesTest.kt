@@ -84,6 +84,7 @@ class RestoreRepositoryMergedReferencesTest {
 
                 restore(
                     repository = repository,
+                    mergedMangaReferencesIncluded = true,
                     references = listOf(
                         // Existing child, new settings.
                         reference(
@@ -139,10 +140,83 @@ class RestoreRepositoryMergedReferencesTest {
                     mangaUrl = "/child/d",
                 )
 
-                restore(repository = repository, references = emptyList())
+                restore(
+                    repository = repository,
+                    mergedMangaReferencesIncluded = true,
+                    references = emptyList(),
+                )
 
                 references(database, mergeId = 1L).shouldBeEmpty()
                 references(database, mergeId = 5L).map { it.mangaUrl } shouldBe listOf("/child/d")
+            } finally {
+                driver.close()
+            }
+        }
+    }
+
+    @Test
+    fun `an unmarked winning empty payload preserves this entry's references`() {
+        runBlocking {
+            val driver = newDriver()
+            try {
+                val database = DatabaseBindings.providesDatabase(driver)
+                val repository = restoreRepository(database)
+                driver.insertManga(id = 1L, sourceId = MERGED_SOURCE, url = "/merge", version = 5L)
+                driver.insertManga(id = 2L, sourceId = SOURCE, url = "/child/a")
+                driver.insertReference(mergeId = 1L, mergeUrl = "/merge", mangaId = 2L, mangaUrl = "/child/a")
+
+                // A legacy payload omits field 605 entirely: an empty list is "unknown", not "no
+                // children", so the local reference survives.
+                restore(repository = repository, mergedMangaReferencesIncluded = null, references = emptyList())
+
+                references(database, mergeId = 1L).map { it.mangaUrl } shouldBe listOf("/child/a")
+            } finally {
+                driver.close()
+            }
+        }
+    }
+
+    @Test
+    fun `an unmarked winning payload updates and inserts but never deletes`() {
+        runBlocking {
+            val driver = newDriver()
+            try {
+                val database = DatabaseBindings.providesDatabase(driver)
+                val repository = restoreRepository(database)
+                driver.insertManga(id = 1L, sourceId = MERGED_SOURCE, url = "/merge", version = 5L)
+                driver.insertManga(id = 2L, sourceId = SOURCE, url = "/child/a")
+                driver.insertManga(id = 3L, sourceId = SOURCE, url = "/child/b")
+                driver.insertManga(id = 4L, sourceId = SOURCE, url = "/child/c")
+                driver.insertReference(
+                    mergeId = 1L,
+                    mergeUrl = "/merge",
+                    mangaId = 2L,
+                    mangaUrl = "/child/a",
+                    chapterPriority = 1,
+                )
+                driver.insertReference(
+                    mergeId = 1L,
+                    mergeUrl = "/merge",
+                    mangaId = 3L,
+                    mangaUrl = "/child/b",
+                    chapterPriority = 2,
+                )
+
+                restore(
+                    repository = repository,
+                    mergedMangaReferencesIncluded = null,
+                    references = listOf(
+                        reference(mangaUrl = "/child/a", chapterPriority = 9),
+                        reference(mangaUrl = "/child/c"),
+                    ),
+                )
+
+                val refs = references(database, mergeId = 1L).associateBy { it.mangaUrl }
+                // The unmarked payload may refresh settings and add a child, but it cannot delete the
+                // child it never knew about.
+                refs.keys shouldBe setOf("/child/a", "/child/b", "/child/c")
+                refs.getValue("/child/a").chapterPriority shouldBe 9
+                refs.getValue("/child/b").chapterPriority shouldBe 2
             } finally {
                 driver.close()
             }
@@ -264,6 +338,7 @@ class RestoreRepositoryMergedReferencesTest {
 
                 restore(
                     repository = repository,
+                    mergedMangaReferencesIncluded = true,
                     references = listOf(reference(mangaUrl = "/child/a", chapterPriority = 5)),
                 )
 
@@ -304,6 +379,7 @@ class RestoreRepositoryMergedReferencesTest {
 
                 restore(
                     repository = repository,
+                    mergedMangaReferencesIncluded = true,
                     references = listOf(
                         reference(mangaUrl = "/child/a", chapterPriority = 9),
                         // This child does not exist locally, so the payload cannot authorise deletes.
@@ -326,6 +402,7 @@ class RestoreRepositoryMergedReferencesTest {
         isSync: Boolean = true,
         version: Long = 5L,
         lastModifiedAt: Long = 10L,
+        mergedMangaReferencesIncluded: Boolean? = null,
         references: List<MergedMangaReference>,
     ) {
         repository.restoreManga(
@@ -338,6 +415,7 @@ class RestoreRepositoryMergedReferencesTest {
                     tracks = emptyList(),
                     excludedScanlators = emptyList(),
                     mergedMangaReferences = references,
+                    mergedMangaReferencesIncluded = mergedMangaReferencesIncluded,
                 ),
             ),
             isSync = isSync,

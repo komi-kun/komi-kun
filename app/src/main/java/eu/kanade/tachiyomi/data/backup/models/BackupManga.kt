@@ -62,6 +62,10 @@ class BackupManga(
     // peer or backup that never sent the field is "unknown" (merge only): `true` with every
     // override empty is an explicit clear, while an absent marker must never clear anything.
     @ProtoNumber(604) var customInfoIncluded: Boolean? = null,
+    // Whether the sender included the merged-reference list for this entry. Nullable so a legacy
+    // payload that never sent the field is not mistaken for "this merge has no children": only
+    // `true` lets a winning payload delete local references.
+    @ProtoNumber(605) var mergedMangaReferencesIncluded: Boolean? = null,
     // KUN <--
 
     // J2K specific values

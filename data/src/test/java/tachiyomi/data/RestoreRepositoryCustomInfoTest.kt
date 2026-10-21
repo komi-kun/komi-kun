@@ -5,6 +5,7 @@ import app.cash.sqldelight.async.coroutines.await
 import app.cash.sqldelight.db.SqlDriver
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import eu.kanade.tachiyomi.source.model.UpdateStrategy
+import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.runBlocking
@@ -39,6 +40,7 @@ class RestoreRepositoryCustomInfoTest {
             try {
                 val database = DatabaseBindings.providesDatabase(driver)
                 val customMangaRepository = mockk<CustomMangaRepository>(relaxed = true)
+                every { customMangaRepository.get(1L) } returns CustomMangaInfo(id = 1L, title = "Stored")
                 val repository = restoreRepository(database, customMangaRepository)
                 driver.insertManga(version = 5L, lastModifiedAt = 10L)
 
@@ -65,6 +67,7 @@ class RestoreRepositoryCustomInfoTest {
             try {
                 val database = DatabaseBindings.providesDatabase(driver)
                 val customMangaRepository = mockk<CustomMangaRepository>(relaxed = true)
+                every { customMangaRepository.get(1L) } returns CustomMangaInfo(id = 1L, title = "Old")
                 val repository = restoreRepository(database, customMangaRepository)
                 driver.insertManga(version = 5L, lastModifiedAt = 10L)
 
@@ -166,6 +169,7 @@ class RestoreRepositoryCustomInfoTest {
             try {
                 val database = DatabaseBindings.providesDatabase(driver)
                 val customMangaRepository = mockk<CustomMangaRepository>(relaxed = true)
+                every { customMangaRepository.get(1L) } returns CustomMangaInfo(id = 1L, title = "Stored")
                 val repository = restoreRepository(database, customMangaRepository)
                 driver.insertManga(version = 5L, lastModifiedAt = 10L)
 
@@ -179,6 +183,63 @@ class RestoreRepositoryCustomInfoTest {
                 verify(exactly = 1) {
                     customMangaRepository.set(CustomMangaInfo(id = 1L, title = null))
                 }
+            } finally {
+                driver.close()
+            }
+        }
+    }
+
+    @Test
+    fun `a marked but unchanged payload does not rewrite the custom info file`() {
+        runBlocking {
+            val driver = newDriver()
+            try {
+                val database = DatabaseBindings.providesDatabase(driver)
+                val customMangaRepository = mockk<CustomMangaRepository>(relaxed = true)
+                every { customMangaRepository.get(1L) } returns CustomMangaInfo(
+                    id = 1L,
+                    title = "Custom",
+                    author = "Author",
+                )
+                val repository = restoreRepository(database, customMangaRepository)
+                driver.insertManga(version = 5L, lastModifiedAt = 10L)
+
+                restore(
+                    repository = repository,
+                    isSync = true,
+                    customInfoIncluded = true,
+                    customMangaInfo = CustomMangaInfo(id = 0L, title = "Custom", author = "Author"),
+                )
+
+                // `set` rewrites the whole edits.json; every synced manga carries the marker, so an
+                // unchanged value must not trigger a write.
+                verify(exactly = 0) { customMangaRepository.set(any()) }
+            } finally {
+                driver.close()
+            }
+        }
+    }
+
+    @Test
+    fun `a marked blank value equal to no stored override does not rewrite the file`() {
+        runBlocking {
+            val driver = newDriver()
+            try {
+                val database = DatabaseBindings.providesDatabase(driver)
+                val customMangaRepository = mockk<CustomMangaRepository>(relaxed = true)
+                // No stored entry, and the incoming value normalizes to no override either.
+                every { customMangaRepository.get(1L) } returns null
+                val repository = restoreRepository(database, customMangaRepository)
+                driver.insertManga(version = 5L, lastModifiedAt = 10L)
+
+                restore(
+                    repository = repository,
+                    isSync = true,
+                    customInfoIncluded = true,
+                    customMangaInfo = CustomMangaInfo(id = 0L, title = "  ", status = 0L),
+                )
+
+                verify(exactly = 0) { customMangaRepository.set(any()) }
             } finally {
                 driver.close()
             }

@@ -176,6 +176,7 @@ class RestoreRepositoryImpl(
             // KUN -->
             isSync,
             incomingIsNewerOrEqual,
+            entry.mergedMangaReferencesIncluded,
             // KUN <--
         )
         entry.flatMetadata?.let { restoreFlatMetadata(manga.id, it) }
@@ -192,7 +193,13 @@ class RestoreRepositoryImpl(
             if (replaceOverrides) {
                 // `CustomMangaRepository.set` removes an entry whose overrides are all null, so the
                 // all-null value here is exactly the "clear the file entry" write.
-                customMangaRepository.set(incomingCustomInfo ?: CustomMangaInfo(id = manga.id, title = null))
+                val incomingValue = incomingCustomInfo ?: CustomMangaInfo(id = manga.id, title = null)
+                // `set` deletes and rewrites the whole edits.json. A marked-but-unchanged entry is the
+                // common case (every synced manga carries the marker), so skip the rewrite unless the
+                // normalized value actually differs from what is stored.
+                if (incomingValue.normalized(manga.id) != customMangaRepository.get(manga.id).normalized(manga.id)) {
+                    customMangaRepository.set(incomingValue)
+                }
             } else if (incomingIsNewerOrEqual) {
                 // Existing behaviour for an unmarked/legacy payload: merge the non-null overrides
                 // only. A null value has nothing to write and must never clear.
@@ -833,10 +840,12 @@ class RestoreRepositoryImpl(
      * Restore the merged manga references for the merged manga.
      *
      * An ordinary restore and a losing sync payload only add missing references: an older payload
-     * cannot know which children the user merged afterwards. A winning sync payload owns the merge
-     * entry and replaces its references, but only when every incoming reference resolves to a local
-     * child: an unresolvable reference means the payload was built against a library this device does
-     * not have, so it cannot authorise destructive changes.
+     * cannot know which children the user merged afterwards. A winning sync payload can also update
+     * settings, and may replace the entry's references only when its marker says the list is complete
+     * ([mergedMangaReferencesIncluded]). A legacy payload that omitted the field entirely must never
+     * delete: absence is "unknown", not "no children". Even a complete payload only deletes when every
+     * incoming reference resolves to a local child, because an unresolvable reference means the
+     * payload was built against a library this device does not have.
      *
      * @param mergeMangaId the merged manga for the references
      * @param mergedMangaReferences the references for the merged manga
@@ -847,14 +856,22 @@ class RestoreRepositoryImpl(
         // KUN -->
         isSync: Boolean,
         incomingIsNewerOrEqual: Boolean,
+        mergedMangaReferencesIncluded: Boolean?,
         // KUN <--
     ) {
         // KUN -->
-        // A merge reference lives outside the manga row, so the payload needs a marker of its own
-        // before it may delete anything. Absence from a losing/manual payload is not a removal.
+        // A merge reference lives outside the manga row, so the payload needs its own marker before
+        // it may delete anything. Absence from a losing/manual payload is not a removal either.
         val payloadWins = isSync && incomingIsNewerOrEqual
-        // Nothing to add and no ownership of the entry: skip the per-manga query entirely.
-        if (!payloadWins && mergedMangaReferences.isEmpty()) return
+        val mayDelete = mergedMangaReferencesIncluded == true
+        if (!payloadWins) {
+            // Nothing to add: skip the per-manga query entirely.
+            if (mergedMangaReferences.isEmpty()) return
+        } else if (!mayDelete && mergedMangaReferences.isEmpty()) {
+            // An unmarked empty list says nothing about the entry's children. Preserve local
+            // references and skip the query, which also keeps the common non-merged entry cheap.
+            return
+        }
 
         // Only this merge entry's references: the `merged` table is shared by every merge, so reading
         // (and reconciling against) the whole table would touch unrelated merges.
@@ -886,10 +903,13 @@ class RestoreRepositoryImpl(
 
         val dbByKey = dbMergedMangaReferences.associateBy { it.mangaSourceId to it.mangaUrl }
         database.transaction {
-            // Delete the local references this merge no longer has.
-            dbByKey.forEach { (key, reference) ->
-                if (key !in incomingByKey) {
-                    database.mergedQueries.deleteById(reference.id)
+            // Delete the local references this merge no longer has, but only when the payload said its
+            // list is complete. A legacy payload is add/update-only.
+            if (mayDelete) {
+                dbByKey.forEach { (key, reference) ->
+                    if (key !in incomingByKey) {
+                        database.mergedQueries.deleteById(reference.id)
+                    }
                 }
             }
             incomingByKey.forEach { (key, incoming) ->
@@ -1009,6 +1029,20 @@ class RestoreRepositoryImpl(
             description != null ||
             genre != null ||
             status != null
+
+    /**
+     * Value identity for a custom-info write: a blank title and a zero status do not count as
+     * overrides, and an entry with no override at all is the same as no stored entry.
+     */
+    private fun CustomMangaInfo?.normalized(mangaId: Long): CustomMangaInfo? {
+        val info = this ?: return null
+        val normalized = info.copy(
+            id = mangaId,
+            title = info.title?.takeUnless { it.isBlank() },
+            status = info.status?.takeUnless { it == 0L },
+        )
+        return normalized.takeIf { it.hasOverrides() }
+    }
     // KUN <--
     // SY <--
 }

@@ -308,6 +308,54 @@ class MangaRestorerTest {
     }
 
     @Test
+    fun `restore forwards the merged reference marker`() = runTest {
+        val restorer = createRestorer(isSync = true)
+        coEvery { getCategories.await() } returns emptyList()
+
+        val entriesSlot = slot<List<RestoredManga>>()
+        coEvery {
+            restoreRepository.restoreManga(
+                capture(entriesSlot),
+                isSync = true,
+                restoreCategories = true,
+                update = any(),
+            )
+        } returns Unit
+
+        restorer.restore(
+            backupMangas = listOf(
+                BackupManga(url = "/merge", title = "Merged", mergedMangaReferencesIncluded = true),
+            ),
+            backupCategories = emptyList(),
+        )
+
+        assertEquals(true, entriesSlot.captured.single().mergedMangaReferencesIncluded)
+    }
+
+    @Test
+    fun `restore keeps an unmarked merged reference section as unknown`() = runTest {
+        val restorer = createRestorer(isSync = true)
+        coEvery { getCategories.await() } returns emptyList()
+
+        val entriesSlot = slot<List<RestoredManga>>()
+        coEvery {
+            restoreRepository.restoreManga(
+                capture(entriesSlot),
+                isSync = true,
+                restoreCategories = true,
+                update = any(),
+            )
+        } returns Unit
+
+        restorer.restore(
+            backupMangas = listOf(BackupManga(url = "/merge", title = "Merged")),
+            backupCategories = emptyList(),
+        )
+
+        assertEquals(null, entriesSlot.captured.single().mergedMangaReferencesIncluded)
+    }
+
+    @Test
     fun `Category nameToUid generates deterministic positive 63-bit UIDs`() {
         val uid1 = Category.nameToUid("Action")
         val uid2 = Category.nameToUid("action ")
