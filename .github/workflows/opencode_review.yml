@@ -86,6 +86,8 @@ jobs:
       - name: Stage trusted review tooling
         if: steps.pr-source.outputs.same_repo == 'true'
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
           BASE_REF: ${{ github.event.pull_request.base.ref || github.event.repository.default_branch }}
         run: |
           if ! git rev-parse --verify "origin/${BASE_REF}" >/dev/null 2>&1; then
@@ -105,6 +107,27 @@ jobs:
 
           stage .github/scripts/post_opencode_review.py "$RUNNER_TEMP/post_opencode_review.py"
           stage .github/opencode-review.json "$RUNNER_TEMP/opencode-review.json"
+
+          # Scale the step budget with the diff: 40 base steps, +2 per changed
+          # file and +1 per 50 changed lines, capped at 100 total so a huge PR
+          # cannot run for the whole 30-minute job timeout.
+          stats=$(gh pr view "$PR_NUMBER" --json changedFiles,additions,deletions \
+            --jq '[.changedFiles, .additions, .deletions] | @tsv' || printf '0\t0\t0')
+          read -r files additions deletions <<< "$stats"
+          files=${files:-0}
+          additions=${additions:-0}
+          deletions=${deletions:-0}
+          lines=$((additions + deletions))
+          extra_files=$((files * 2))
+          extra_lines=$((lines / 50))
+          extra=$((extra_files > extra_lines ? extra_files : extra_lines))
+          if [ "$extra" -gt 60 ]; then extra=60; fi
+          steps=$((40 + extra))
+          echo "::notice::Review step budget: ${steps} (files=${files}, lines=${lines})"
+
+          jq --argjson steps "$steps" '.["agent"]["opencode-review"].steps = $steps' \
+            "$RUNNER_TEMP/opencode-review.json" > "$RUNNER_TEMP/opencode-review.json.tmp"
+          mv "$RUNNER_TEMP/opencode-review.json.tmp" "$RUNNER_TEMP/opencode-review.json"
 
           {
             echo "OPENCODE_CONFIG_CONTENT<<__OPENCODE_CONFIG__"
@@ -147,6 +170,8 @@ jobs:
             5. Architecture: Ensure domain logic remains separated from UI components and adheres to existing Tachiyomi/Mihon conventions.
             6. Brevity: Do not explain obvious language features. Provide clear, direct, and actionable findings with file references.
 
+            Write the findings file early: create `build/opencode-review/findings.json` as soon as you have a first finding and update it as you go; never leave the write until the end. If you are running low on steps, stop investigating and write what you have. If you cannot write the file, put the complete review object in a ```json fenced block in your final message. For large PRs, prioritize the diff and only open the source files needed to confirm a finding.
+
             Write `build/opencode-review/findings.json` with exactly this JSON shape:
             {
               "summary": "Markdown overarching review comment: 2-4 sentences on what the PR does, your overall judgement, and the main themes. You may include a ```mermaid diagram when it genuinely helps explain a flow, call chain or architecture change; skip it for small or mechanical PRs.",
@@ -167,7 +192,7 @@ jobs:
             - Omit findings you cannot pin to a changed line.
             - `summary` is always present; use an empty `findings` array when the PR looks good.
 
-            Reply with one short sentence only; the workflow posts `summary` and the findings.
+            Normally reply with one short sentence only; the workflow posts `summary` and the findings. If you could not write `build/opencode-review/findings.json`, reply with the complete review object in a ```json fenced block instead.
 
       # Manual re-review: the comment body and any extra instructions are added
       # to the same schema-backed prompt.
@@ -197,6 +222,8 @@ jobs:
             Additional instructions from the commenter:
             ${{ github.event.comment.body }}
 
+            Write the findings file early: create `build/opencode-review/findings.json` as soon as you have a first finding and update it as you go; never leave the write until the end. If you are running low on steps, stop investigating and write what you have. If you cannot write the file, put the complete review object in a ```json fenced block in your final message. For large PRs, prioritize the diff and only open the source files needed to confirm a finding.
+
             Write `build/opencode-review/findings.json` with exactly this JSON shape:
             {
               "summary": "Markdown overarching review comment: 2-4 sentences on what the PR does, your overall judgement, and the main themes. You may include a ```mermaid diagram when it genuinely helps explain a flow, call chain or architecture change; skip it for small or mechanical PRs.",
@@ -217,7 +244,7 @@ jobs:
             - Omit findings you cannot pin to a changed line.
             - `summary` is always present; use an empty `findings` array when the PR looks good.
 
-            Reply with one short sentence only; the workflow posts `summary` and the findings.
+            Normally reply with one short sentence only; the workflow posts `summary` and the findings. If you could not write `build/opencode-review/findings.json`, reply with the complete review object in a ```json fenced block instead.
 
       - name: Post review
         if: always() && steps.pr-source.outputs.same_repo == 'true'

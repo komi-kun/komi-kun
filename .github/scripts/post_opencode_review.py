@@ -86,28 +86,75 @@ def _hunk_start(header: str) -> int | None:
     return int(match.group(1)) if match else None
 
 
-def load_review() -> tuple[str, list]:
+def load_review_file() -> tuple[str, list] | None:
     if not FINDINGS_PATH.is_file():
-        print(f"No {FINDINGS_PATH}; skipping review.")
-        return "", []
+        print(f"No {FINDINGS_PATH}.")
+        return None
 
     try:
         data = json.loads(FINDINGS_PATH.read_text())
     except (OSError, json.JSONDecodeError) as exc:
         print(f"Could not read findings: {exc}")
-        return "", []
+        return None
 
     if not isinstance(data, dict):
-        print("Findings file is not an object; skipping review.")
-        return "", []
+        print("Findings file is not an object.")
+        return None
 
     summary = data.get("summary")
-    if not isinstance(summary, str):
-        summary = ""
     findings = data.get("findings")
     if not isinstance(findings, list):
-        findings = []
+        print("Findings file has no 'findings' list.")
+        return None
+    if not isinstance(summary, str):
+        summary = ""
     return summary.strip(), findings
+
+
+def _json_objects(text: str):
+    """Yield balanced {...} substrings, ignoring braces inside JSON strings."""
+    start = None
+    depth = 0
+    in_string = False
+    escaped = False
+
+    for index, char in enumerate(text):
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+
+        if char == '"':
+            in_string = True
+        elif char == "{":
+            if depth == 0:
+                start = index
+            depth += 1
+        elif char == "}" and depth > 0:
+            depth -= 1
+            if depth == 0 and start is not None:
+                yield text[start : index + 1]
+                start = None
+
+
+def extract_review(text: str) -> tuple[str, list] | None:
+    """Recover a review object from prose or a ```json fenced block."""
+    for candidate in _json_objects(text):
+        try:
+            data = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(data, dict):
+            continue
+        summary = data.get("summary")
+        findings = data.get("findings")
+        if isinstance(summary, str) and isinstance(findings, list):
+            return summary.strip(), findings
+    return None
 
 
 def describe_comment(finding: object, valid: dict[str, set[int]]) -> dict | None:
@@ -210,15 +257,15 @@ def post_individually(repo: str, pr: str, head: str, comments: list[dict]) -> in
     return posted
 
 
-def delete_action_comment(repo: str, pr: str) -> None:
-    """Remove the action's own short status comment for this run."""
+def find_action_comment(repo: str, pr: str) -> dict | None:
+    """Return the action's status comment for this run, if it exists."""
     run_id = os.environ.get("GITHUB_RUN_ID")
     if not run_id:
-        return
+        return None
 
     result = gh("api", "--paginate", f"repos/{repo}/issues/{pr}/comments", "--jq", ".[]")
     if result.returncode != 0:
-        return
+        return None
 
     for line in result.stdout.splitlines():
         try:
@@ -230,21 +277,43 @@ def delete_action_comment(repo: str, pr: str) -> None:
         user = comment.get("user", {})
         if not isinstance(user, dict) or user.get("login") != "github-actions[bot]":
             continue
-        if f"/actions/runs/{run_id}" not in str(comment.get("body", "")):
-            continue
+        if f"/actions/runs/{run_id}" in str(comment.get("body", "")):
+            return comment
+    return None
+
+
+def delete_action_comment(repo: str, pr: str) -> None:
+    """Remove the action's own status comment for this run."""
+    comment = find_action_comment(repo, pr)
+    if comment is not None:
         gh("api", "--method", "DELETE", f"repos/{repo}/issues/comments/{comment['id']}")
 
 
 def main() -> int:
-    summary, findings = load_review()
-    if not summary and not findings:
-        return 0
-
     pr = os.environ.get("PR_NUMBER")
     repo = os.environ.get("GITHUB_REPOSITORY")
     if not pr or not repo:
         print("PR_NUMBER and GITHUB_REPOSITORY are required.")
         return 1
+
+    review = load_review_file()
+    if review is None:
+        # The agent can hit its step budget before writing the file. Its final
+        # message is posted as a comment, so recover the JSON from there.
+        print("Trying to recover the review JSON from the action's final message.")
+        comment = find_action_comment(repo, pr)
+        if comment is not None:
+            review = extract_review(str(comment.get("body", "")))
+            if review is not None:
+                print("Recovered the review JSON from the action comment.")
+        if review is None:
+            print("Could not recover a review; leaving the action comment in place.")
+            return 0
+
+    summary, findings = review
+    if not summary and not findings:
+        print("No summary or findings; leaving the action comment in place.")
+        return 0
 
     diff = DIFF_PATH.read_text() if DIFF_PATH.is_file() else gh("pr", "diff", pr).stdout
     if not diff:
