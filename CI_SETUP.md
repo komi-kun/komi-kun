@@ -354,8 +354,9 @@ signing secrets.
    too, so a PR cannot load a plugin before the read-only agent starts.
 6. A PR that changes the review tooling itself (the workflow, the helper, its
    tests, or `.github/opencode-review/*.md`) is skipped unless a maintainer adds
-   the **`review-tooling`** label. The label opts into running that PR's helper
-   and agent definitions with the review token; the no-secret `Test review
+   the **`review-tooling`** label. The label is an audit convention, not an
+   enforced boundary: same-repo collaborators are trusted, and for `pull_request`
+   events GitHub loads the workflow from the PR head. The no-secret `Test review
    helper` job always runs the parser tests.
 
 ---
@@ -374,6 +375,7 @@ signing secrets.
 | **OpenCode PR Review** job is **skipped** | PR is from a fork, authored by a bot, changes `.opencode/` or the root `opencode.json(c)`, is a draft, or changes the review tooling without the `review-tooling` label | Expected. Port fork PRs to a same-repo branch (or review them manually); bot-authored same-repo PRs can be re-reviewed with `/oc review`; add `review-tooling` deliberately to self-review a tooling change. |
 | OpenCode posts a summary but **no inline comments** | The final message was not valid review JSON, or its findings were not on lines present in the diff | Check the `Post review` step log; findings outside the diff are skipped by design. A malformed final message is repaired by the `opencode-repair` agent before posting. |
 | The review says **"Maximum steps reached"** | The agent used its step budget before finishing the review | The budget scales with the PR (50–120 steps), and the `opencode-repair` agent converts the final message into the review JSON; re-run `/oc review` if it still happens. |
+| The job **succeeds with a warning and no review** | The model produced no/partial output (API outage, quota, step limit) | The review is advisory and does not red the check. Check the `Post review` log (the CLI stderr is printed) and re-run `/oc review`. |
 | Google Drive backup broken at runtime (not a build failure) | `GOOGLE_CLIENT_SECRETS_JSON` missing | Add the client-secrets JSON; see [`GOOGLE_SERVICES_SETUP.md`](GOOGLE_SERVICES_SETUP.md). |
 | Nightly/release `workflow_dispatch` does nothing | Triggered from a non-`master` branch | Run from `master`. |
 | Release workflow doesn't run on a tag | Tag doesn't start with `v` | Use `v*` tags. |

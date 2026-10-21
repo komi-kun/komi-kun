@@ -431,13 +431,14 @@ def main() -> int:
     raw = output.read_text() if output.is_file() else ""
     text = load_assistant_text(raw)
     if not text.strip():
-        print("::error::The OpenCode run produced no assistant text.")
-        return 1
+        # The review is advisory: surface the failure but do not red the check.
+        print("::warning::The OpenCode run produced no assistant text; no review was posted.")
+        return 0
 
     diff = DIFF_PATH.read_text() if DIFF_PATH.is_file() else gh("pr", "diff", pr).stdout
     if not diff:
-        print("::error::Could not read the pull request diff; the review was not posted.")
-        return 1
+        print("::warning::Could not read the pull request diff; no review was posted.")
+        return 0
     valid = parse_diff(diff)
 
     review = extract_review(text, valid)
@@ -445,13 +446,13 @@ def main() -> int:
         print("Final message is not valid review JSON; asking the repair agent.")
         review = repair_review(text, valid)
     if review is None:
-        print("::error::Could not parse or repair the review.")
-        return 1
+        print("::warning::Could not parse or repair the review; no review was posted.")
+        return 0
 
     summary, findings = review
     if not summary and not findings:
-        print("::error::Recovered review is empty.")
-        return 1
+        print("::warning::Recovered review is empty; no review was posted.")
+        return 0
     seen = existing_comments(repo, pr)
     comments: list[dict] = []
     if seen is None:
@@ -476,8 +477,8 @@ def main() -> int:
 
     head = gh("pr", "view", pr, "--json", "headRefOid", "--jq", ".headRefOid").stdout.strip()
     if not head:
-        print("::error::Could not resolve the pull request head commit.")
-        return 1
+        print("::warning::Could not resolve the pull request head commit; no review was posted.")
+        return 0
 
     payload = {
         "commit_id": head,
