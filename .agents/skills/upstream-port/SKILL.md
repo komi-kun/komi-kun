@@ -56,8 +56,9 @@ git cherry-pick -x <sha>        # chronological order; earlier commits unblock l
 
 ## 4. Strings and translations
 
-New user-facing strings go to `i18n-kmk/.../base/strings.xml` and are referenced via `KMR` — not
-`MR`/`SYMR` (`AGENTS.md`).
+All new komi-kun strings go to `i18n-kun/src/commonMain/moko-resources/base/strings.xml` and are referenced
+via `KUNMR` (`AGENTS.md`). Upstream Komikku strings belong in `i18n-kmk/` (`KMR`), while ported Mihon/SY
+strings stay in `i18n/` (`MR`) and `i18n-sy/` (`SYMR`).
 
 **Translate them yourself.** Weblate is not connected to this repo, so a new base string would stay
 English forever unless you translate it. Add the string to the non-`base` locales you can translate
