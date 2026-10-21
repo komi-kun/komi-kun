@@ -195,6 +195,6 @@
     <string name="pref_discord_show_download_button">Mostrar botón de descarga</string>
     <string name="pref_discord_show_download_button_summary">Muestra un botón para descargar la aplicación</string>
     <string name="pref_discord_show_discord_button">Mostrar botón de Discord</string>
-    <string name="pref_sync_replace_pinned_sources">Reemplazar fuentes fijadas</string>
-    <string name="pref_sync_replace_pinned_sources_summary">Las fuentes fijadas suelen ser específicas de cada dispositivo. Si se activa, el conjunto sincronizado sustituye a las fuentes fijadas de este dispositivo en lugar de añadirse a ellas. En SyncYomi v2, desfijar una fuente también la desfija en otros dispositivos.</string>
+    <string name="pref_sync_pinned_sources">Sincronizar fuentes fijadas</string>
+    <string name="pref_sync_pinned_sources_summary">Las fuentes fijadas suelen ser específicas de cada dispositivo. Si está desactivado, permanecen en este dispositivo. Si está activado, el conjunto sincronizado sustituye a las fuentes fijadas; en SyncYomi v2, desfijar una fuente también se aplica a otros dispositivos.</string>
 </resources>

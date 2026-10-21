@@ -64,6 +64,24 @@ class PreferenceRestorerTest {
     }
 
     @Test
+    fun `skip option leaves the local pins untouched`() {
+        val store = StringSetPreferenceStore(pinnedKey to setOf("local"))
+
+        val result = restorePins(store, setOf("synced"), RestoreOptions(skipPinnedSources = true))
+
+        assertEquals(setOf("local"), result)
+    }
+
+    @Test
+    fun `skip option ignores an empty synced set`() {
+        val store = StringSetPreferenceStore(pinnedKey to setOf("local"))
+
+        val result = restorePins(store, emptySet(), RestoreOptions(skipPinnedSources = true))
+
+        assertEquals(setOf("local"), result)
+    }
+
+    @Test
     fun `replace option sets the synced pins exactly`() {
         val store = StringSetPreferenceStore(pinnedKey to setOf("local"))
 
@@ -123,7 +141,7 @@ class PreferenceRestorerTest {
 
     @Test
     fun `device-local app state is not restored from a payload`() = runTest {
-        val key = Preference.appStateKey("sync_replace_pinned_sources")
+        val key = Preference.appStateKey("sync_pinned_sources")
         val store = mockk<PreferenceStore>(relaxed = true)
         every { store.getAll() } returns mapOf(key to true)
 

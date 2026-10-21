@@ -108,7 +108,7 @@ internal class SyncSettingsSelectorModel(
             // checkboxes rebuild the SyncSettings.
             syncPreferences.setSyncSettings(
                 backupOptionsToSyncOptions(updatedOptions)
-                    .copy(replacePinnedSources = syncPreferences.replacePinnedSources.get()),
+                    .copy(syncPinnedSources = syncPreferences.syncPinnedSources.get()),
             )
             // KUN <--
             it.copy(options = updatedOptions)

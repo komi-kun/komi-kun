@@ -20,9 +20,14 @@ data class RestoreOptions(
     val history: Boolean = true,
     val customInfo: Boolean = true,
     /**
+     * Sync-only: leave the local pinned sources untouched and ignore the synced set, so pinned
+     * sources stay device-local. Manual/file restores keep the union behaviour (false).
+     */
+    val skipPinnedSources: Boolean = false,
+    /**
      * Sync-only: set the synced pinned sources exactly instead of unioning them with the local
-     * pins, so an un-pin propagates and an empty synced set clears the local pins. Manual restore
-     * keeps the historical union behaviour (false).
+     * pins, so an un-pin propagates and an empty synced set clears the local pins. Only meaningful
+     * when the set is synced at all. Manual/file restores keep the union behaviour (false).
      */
     val replacePinnedSources: Boolean = false,
     // KUN <--
@@ -41,7 +46,9 @@ data class RestoreOptions(
         tracking,
         history,
         customInfo,
+        // Index 9 is replace (kept stable for queued work from the earlier revision); skip is 10.
         replacePinnedSources,
+        skipPinnedSources,
         // KUN <--
     )
 
@@ -107,6 +114,7 @@ data class RestoreOptions(
             history = array.getOrElse(7) { true },
             customInfo = array.getOrElse(8) { true },
             replacePinnedSources = array.getOrElse(9) { false },
+            skipPinnedSources = array.getOrElse(10) { false },
             // KUN <--
         )
     }

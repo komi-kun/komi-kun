@@ -2,12 +2,15 @@ package eu.kanade.tachiyomi.data.sync
 
 import android.content.Context
 import android.net.Uri
+import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.domain.sync.SyncPreferences
+import eu.kanade.domain.sync.models.SyncSettings
 import eu.kanade.tachiyomi.data.backup.create.BackupCreator
 import eu.kanade.tachiyomi.data.backup.create.BackupOptions
 import eu.kanade.tachiyomi.data.backup.models.Backup
 import eu.kanade.tachiyomi.data.backup.models.BackupChapter
 import eu.kanade.tachiyomi.data.backup.models.BackupManga
+import eu.kanade.tachiyomi.data.backup.models.BackupPreference
 import eu.kanade.tachiyomi.data.backup.restore.BackupRestoreWorker
 import eu.kanade.tachiyomi.data.backup.restore.RestoreOptions
 import eu.kanade.tachiyomi.data.backup.restore.restorers.MangaRestorer
@@ -240,14 +243,10 @@ class SyncManager(
             // KUN -->
             // Exclude derived flags, unmapped category IDs, device-specific hardware/layout settings,
             // and credentials to prevent cross-device ping-pong and corruption.
-            backupPreferences = backupCreator.backupAppPreferences(backupOptions)
-                .filterNot {
-                    it.key in NON_SYNCABLE_PREFERENCE_KEYS ||
-                        it.key.startsWith("connection_webdav_") ||
-                        it.key.startsWith("pref_connections_password_") ||
-                        it.key in LibraryPreferences.categoryPreferenceKeys ||
-                        it.key in DownloadPreferences.categoryPreferenceKeys
-                },
+            backupPreferences = filterSyncableAppPreferences(
+                backupCreator.backupAppPreferences(backupOptions),
+                syncOptions.syncPinnedSources,
+            ),
             // KUN <--
             // SY <--
             backupSourcePreferences = backupCreator.backupSourcePreferences(backupOptions),
@@ -567,7 +566,8 @@ class SyncManager(
                     tracking = syncOptions.tracking,
                     history = syncOptions.history,
                     customInfo = syncOptions.customInfo,
-                    replacePinnedSources = syncOptions.replacePinnedSources,
+                    skipPinnedSources = !syncOptions.syncPinnedSources,
+                    replacePinnedSources = syncOptions.syncPinnedSources,
                     // KUN <--
                 ),
                 // KUN -->
@@ -933,6 +933,25 @@ class SyncManager(
             "connection_sync_client_host",
             "connection_sync_client_api_key",
         )
+
+        /**
+         * App preferences that are safe to upload in a sync. Pinned sources are device-local unless
+         * the user enabled [SyncSettings.syncPinnedSources]; manual/file backups do not use this
+         * filter and still contain them.
+         */
+        internal fun filterSyncableAppPreferences(
+            preferences: List<BackupPreference>,
+            syncPinnedSources: Boolean,
+        ): List<BackupPreference> {
+            return preferences.filterNot {
+                it.key in NON_SYNCABLE_PREFERENCE_KEYS ||
+                    it.key.startsWith("connection_webdav_") ||
+                    it.key.startsWith("pref_connections_password_") ||
+                    it.key in LibraryPreferences.categoryPreferenceKeys ||
+                    it.key in DownloadPreferences.categoryPreferenceKeys ||
+                    (!syncPinnedSources && it.key == SourcePreferences.PINNED_SOURCES_PREF_KEY)
+            }
+        }
     }
     // KUN <--
 }

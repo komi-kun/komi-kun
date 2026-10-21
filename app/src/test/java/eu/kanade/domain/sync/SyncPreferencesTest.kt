@@ -50,33 +50,33 @@ class SyncPreferencesTest {
 
     // KUN -->
     @Test
-    fun `pinned source replacement is off by default`() {
+    fun `pinned source sync is off by default`() {
         val prefs = SyncPreferences(InMemoryPreferenceStore())
 
-        assertFalse(prefs.getSyncSettings().replacePinnedSources)
+        assertFalse(prefs.getSyncSettings().syncPinnedSources)
     }
 
     @Test
-    fun `pinned source replacement round-trips through the sync settings`() {
+    fun `pinned source sync round-trips through the sync settings`() {
         val prefs = SyncPreferences(InMemoryPreferenceStore())
-        assertFalse(prefs.getSyncSettings().replacePinnedSources)
+        assertFalse(prefs.getSyncSettings().syncPinnedSources)
 
-        prefs.setSyncSettings(prefs.getSyncSettings().copy(replacePinnedSources = true))
-        assertTrue(prefs.getSyncSettings().replacePinnedSources)
+        prefs.setSyncSettings(prefs.getSyncSettings().copy(syncPinnedSources = true))
+        assertTrue(prefs.getSyncSettings().syncPinnedSources)
 
-        prefs.setSyncSettings(prefs.getSyncSettings().copy(replacePinnedSources = false))
-        assertFalse(prefs.getSyncSettings().replacePinnedSources)
+        prefs.setSyncSettings(prefs.getSyncSettings().copy(syncPinnedSources = false))
+        assertFalse(prefs.getSyncSettings().syncPinnedSources)
     }
 
     @Test
-    fun `pinned source replacement is device-local app state`() {
+    fun `pinned source sync is device-local app state`() {
         val prefs = SyncPreferences(InMemoryPreferenceStore())
 
         assertEquals(
-            Preference.appStateKey("sync_replace_pinned_sources"),
-            prefs.replacePinnedSources.key(),
+            Preference.appStateKey("sync_pinned_sources"),
+            prefs.syncPinnedSources.key(),
         )
-        assertTrue(Preference.isAppState(prefs.replacePinnedSources.key()))
+        assertTrue(Preference.isAppState(prefs.syncPinnedSources.key()))
     }
     // KUN <--
 }

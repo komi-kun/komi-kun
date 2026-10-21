@@ -187,14 +187,17 @@ class PreferenceRestorer(
         // KUN <--
     ) {
         // KUN -->
+        // Pinned sources are device-local unless the user opted into syncing them: leave both the
+        // local pins and the synced set alone in that case.
+        if (options.skipPinnedSources) return
+
         val valueToSet = EXHMigrations.migrateSourceIds(value)
         if (options.replacePinnedSources) {
-            // Opted in: the synced set is authoritative, so an un-pin propagates to this device and
+            // Synced: the incoming set is authoritative, so an un-pin propagates to this device and
             // an empty set clears the local pins.
             preferenceStore.getStringSet(key).set(valueToSet)
         } else {
-            // Default: pinned sources are usually device-specific, so keep the local pins and add
-            // the synced ones.
+            // Manual/file restore keeps the historical union behaviour.
             val existing = preferenceStore.getStringSet(key).get()
             preferenceStore.getStringSet(key).set(existing + valueToSet)
         }

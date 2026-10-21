@@ -223,6 +223,6 @@
     <string name="pref_fetch_manga_metadata_on_add_description">Автоматически загружать обложку, описание и другую информацию при добавлении манги в библиотеку</string>
     <string name="pref_fetch_manga_chapters_on_add">Получать главы при добавлении</string>
     <string name="pref_fetch_manga_chapters_on_add_description">Автоматически обновлять список глав при добавлении манги в библиотеку</string>
-    <string name="pref_sync_replace_pinned_sources">Заменять закреплённые источники</string>
-    <string name="pref_sync_replace_pinned_sources_summary">Закреплённые источники обычно зависят от устройства. Если включено, синхронизированный набор заменяет закреплённые источники на этом устройстве, а не добавляется к ним. В SyncYomi v2 открепление источника также открепляет его на других устройствах.</string>
+    <string name="pref_sync_pinned_sources">Синхронизировать закреплённые источники</string>
+    <string name="pref_sync_pinned_sources_summary">Закреплённые источники обычно зависят от устройства. Если выключено, они остаются на этом устройстве. Если включено, синхронизированный набор заменяет закреплённые источники; в SyncYomi v2 открепление также применяется к другим устройствам.</string>
 </resources>

@@ -649,9 +649,9 @@ object SettingsDataScreen : SearchableSettings {
             // Only meaningful when app settings are synced: the pinned-source set is restored with
             // them.
             Preference.PreferenceItem.SwitchPreference(
-                preference = syncPreferences.replacePinnedSources,
-                title = stringResource(KMR.strings.pref_sync_replace_pinned_sources),
-                subtitle = stringResource(KMR.strings.pref_sync_replace_pinned_sources_summary),
+                preference = syncPreferences.syncPinnedSources,
+                title = stringResource(KMR.strings.pref_sync_pinned_sources),
+                subtitle = stringResource(KMR.strings.pref_sync_pinned_sources_summary),
                 visible = syncSettings.appSettings,
             ),
             // KUN <--

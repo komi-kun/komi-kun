@@ -223,6 +223,6 @@
     <string name="discord_app_description">Komikku - 一款漫画阅读应用</string>
     <string name="pref_discord_show_progress_summary">显示当前阅读章节</string>
     <string name="pref_discord_show_timestamp_summary">显示活动时间</string>
-    <string name="pref_sync_replace_pinned_sources">替换固定来源</string>
-    <string name="pref_sync_replace_pinned_sources_summary">固定来源通常因设备而异。启用后，同步的集合会替换此设备上固定的来源，而不是添加到其中。在 SyncYomi v2 上，取消固定某个来源也会在其他设备上取消固定。</string>
+    <string name="pref_sync_pinned_sources">同步固定来源</string>
+    <string name="pref_sync_pinned_sources_summary">固定来源通常因设备而异。关闭时，它们仅保留在此设备上。开启时，同步的集合会替换固定的来源；在 SyncYomi v2 上，取消固定也会应用到其他设备。</string>
 </resources>
