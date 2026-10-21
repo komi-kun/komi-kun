@@ -37,10 +37,29 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
           # The PR head ref exists for conflicted PRs too, unlike the merge ref.
           ref: ${{ format('refs/pull/{0}/head', github.event.pull_request.number || github.event.issue.number) }}
       - name: Run helper tests
-        run: python3 .github/scripts/test_post_opencode_review.py
+        env:
+          DEFAULT_REF: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+
+          helper=.github/scripts/post_opencode_review.py
+          tests=.github/scripts/test_post_opencode_review.py
+
+          if [ -f "$tests" ]; then
+            python3 "$tests"
+          elif git cat-file -e "origin/${DEFAULT_REF}:${tests}" 2>/dev/null; then
+            # Older PR branches predate the test file; use the default branch's.
+            mkdir -p "$RUNNER_TEMP/trusted-tests"
+            git show "origin/${DEFAULT_REF}:${helper}" > "$RUNNER_TEMP/trusted-tests/post_opencode_review.py"
+            git show "origin/${DEFAULT_REF}:${tests}" > "$RUNNER_TEMP/trusted-tests/test_post_opencode_review.py"
+            python3 "$RUNNER_TEMP/trusted-tests/test_post_opencode_review.py"
+          else
+            echo "::warning::No review helper tests found; skipping."
+          fi
 
   review:
     name: Review PR

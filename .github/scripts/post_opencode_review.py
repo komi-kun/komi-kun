@@ -217,7 +217,7 @@ def _pick_review(
 ) -> tuple[str, list] | None:
     """Pick the best candidate: diff-valid findings, then substance, then order."""
     best: tuple[str, list] | None = None
-    best_rank: tuple[int, int, int, int, int] | None = None
+    best_rank: tuple[int, int, int, int] | None = None
 
     for kind, index, candidate in candidates:
         try:
@@ -235,11 +235,10 @@ def _pick_review(
         summary = summary.strip()
 
         # A trailing shape echo or empty object must not replace a substantive
-        # review, so rank by diff-valid findings, then by finding count and
-        # summary length, then by fenced-over-raw and later position.
+        # review, so rank by diff-valid findings, then by summary substance,
+        # then by fenced-over-raw and later position.
         rank = (
             _score_findings(data, valid),
-            len(findings),
             len(summary),
             kind,
             index,
