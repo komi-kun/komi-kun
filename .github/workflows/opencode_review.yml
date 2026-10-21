@@ -238,10 +238,17 @@ jobs:
         continue-on-error: true
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
         run: |
+          message="Review the pull request. The diff is at build/opencode-review/pr.diff. Return the JSON object."
+          if [ "${{ github.event_name }}" = "issue_comment" ]; then
+            message="${message}
+
+          Additional instructions from the commenter:
+          ${COMMENT_BODY}"
+          fi
           "$OPENCODE_BIN" run --standalone --format json \
-            --agent opencode-review --model "$OPENCODE_MODEL" \
-            "Review the pull request. The diff is at build/opencode-review/pr.diff. Return the JSON object." \
+            --agent opencode-review --model "$OPENCODE_MODEL" "$message" \
             > "$RUNNER_TEMP/opencode-review.jsonl" 2> "$RUNNER_TEMP/opencode-review.stderr"
 
       - name: Post review
@@ -252,6 +259,11 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
           OPENCODE_OUTPUT: ${{ runner.temp }}/opencode-review.jsonl
         run: |
+          if [ -s "$RUNNER_TEMP/opencode-review.stderr" ]; then
+            echo "::group::OpenCode CLI stderr"
+            tail -50 "$RUNNER_TEMP/opencode-review.stderr"
+            echo "::endgroup::"
+          fi
           if [ -f "$RUNNER_TEMP/post_opencode_review.py" ]; then
             python3 "$RUNNER_TEMP/post_opencode_review.py"
           else

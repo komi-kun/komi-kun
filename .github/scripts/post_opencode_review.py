@@ -52,8 +52,13 @@ def gh(*args: str, stdin: str | None = None) -> subprocess.CompletedProcess[str]
 
 
 def load_assistant_text(jsonl: str) -> str:
-    """Concatenate the assistant text parts from an `opencode run` JSONL stream."""
-    parts: list[str] = []
+    """Return the final assistant message's text from an `opencode run` stream.
+
+    Steps before the final answer are ignored, so earlier narration or quoted
+    examples cannot be mistaken for the review.
+    """
+    messages: dict[str, list[str]] = {}
+    order: list[str] = []
     for line in jsonl.splitlines():
         line = line.strip()
         if not line:
@@ -68,9 +73,17 @@ def load_assistant_text(jsonl: str) -> str:
         if not isinstance(part, dict) or part.get("type") != "text":
             continue
         text = part.get("text")
-        if isinstance(text, str):
-            parts.append(text)
-    return "".join(parts)
+        if not isinstance(text, str):
+            continue
+        message_id = str(part.get("messageID", ""))
+        if message_id not in messages:
+            messages[message_id] = []
+            order.append(message_id)
+        messages[message_id].append(text)
+
+    if not order:
+        return ""
+    return "\n".join(messages[order[-1]])
 
 
 def parse_diff(diff: str) -> dict[str, set[int]]:
@@ -183,8 +196,38 @@ def _is_placeholder(data: dict) -> bool:
     return False
 
 
-def _pick_review(candidates: list[str]) -> tuple[str, list] | None:
-    for candidate in reversed(candidates):
+def _score_findings(data: dict, valid: dict[str, set[int]] | None) -> int:
+    """Count findings that land on a line present in the pull request diff."""
+    if not valid:
+        return 0
+    findings = data.get("findings")
+    if not isinstance(findings, list):
+        return 0
+
+    score = 0
+    for finding in findings:
+        if not isinstance(finding, dict):
+            continue
+        path = finding.get("path")
+        if not isinstance(path, str):
+            continue
+        try:
+            line = int(finding.get("line"))
+        except (TypeError, ValueError):
+            continue
+        if line in valid.get(path, set()):
+            score += 1
+    return score
+
+
+def _pick_review(
+    candidates: list[tuple[int, int, str]], valid: dict[str, set[int]] | None
+) -> tuple[str, list] | None:
+    """Pick the best candidate: diff-valid findings, then substance, then order."""
+    best: tuple[str, list] | None = None
+    best_rank: tuple[int, int, int, int, int] | None = None
+
+    for kind, index, candidate in candidates:
         try:
             data = json.loads(candidate)
         except json.JSONDecodeError:
@@ -197,23 +240,40 @@ def _pick_review(candidates: list[str]) -> tuple[str, list] | None:
         findings = data.get("findings")
         if not isinstance(findings, list):
             findings = []
-        return summary.strip(), findings
-    return None
+        summary = summary.strip()
+
+        # A trailing shape echo or empty object must not replace a substantive
+        # review, so rank by diff-valid findings, then by finding count and
+        # summary length, then by fenced-over-raw and later position.
+        rank = (
+            _score_findings(data, valid),
+            len(findings),
+            len(summary),
+            kind,
+            index,
+        )
+        if best_rank is None or rank >= best_rank:
+            best = (summary, findings)
+            best_rank = rank
+    return best
 
 
-def extract_review(text: str) -> tuple[str, list] | None:
+def extract_review(
+    text: str, valid: dict[str, set[int]] | None = None
+) -> tuple[str, list] | None:
     """Recover a review object from a ```json fence or raw JSON.
 
-    Fenced blocks win over bare objects: a step-limited agent may end with a
-    short shape echo, which must not replace the real fenced review.
+    A trailing shape echo or empty placeholder must not replace a substantive
+    review, so candidates are scored against the diff and the best wins.
     """
-    review = _pick_review(list(_fenced_objects(text)))
-    if review is not None:
-        return review
-    return _pick_review(list(_json_objects(text)))
+    fenced = [(1, index, candidate) for index, candidate in enumerate(_fenced_objects(text))]
+    raw = [(0, index, candidate) for index, candidate in enumerate(_json_objects(text))]
+    return _pick_review(fenced + raw, valid)
 
 
-def repair_review(text: str) -> tuple[str, list] | None:
+def repair_review(
+    text: str, valid: dict[str, set[int]] | None = None
+) -> tuple[str, list] | None:
     """Ask the pinned CLI's repair agent to turn a malformed message into JSON."""
     binary = os.environ.get("OPENCODE_BIN")
     model = os.environ.get("OPENCODE_MODEL", "opencode-go/deepseek-v4.1-flash")
@@ -254,7 +314,7 @@ def repair_review(text: str) -> tuple[str, list] | None:
         return None
 
     repaired = load_assistant_text(result.stdout)
-    review = extract_review(repaired) if repaired else None
+    review = extract_review(repaired, valid) if repaired else None
     if review is None:
         print("Repair agent did not return valid review JSON.")
     return review
@@ -374,10 +434,16 @@ def main() -> int:
         print("::error::The OpenCode run produced no assistant text.")
         return 1
 
-    review = extract_review(text)
+    diff = DIFF_PATH.read_text() if DIFF_PATH.is_file() else gh("pr", "diff", pr).stdout
+    if not diff:
+        print("::error::Could not read the pull request diff; the review was not posted.")
+        return 1
+    valid = parse_diff(diff)
+
+    review = extract_review(text, valid)
     if review is None:
         print("Final message is not valid review JSON; asking the repair agent.")
-        review = repair_review(text)
+        review = repair_review(text, valid)
     if review is None:
         print("::error::Could not parse or repair the review.")
         return 1
@@ -386,13 +452,6 @@ def main() -> int:
     if not summary and not findings:
         print("::error::Recovered review is empty.")
         return 1
-
-    diff = DIFF_PATH.read_text() if DIFF_PATH.is_file() else gh("pr", "diff", pr).stdout
-    if not diff:
-        print("::error::Could not read the pull request diff; the review was not posted.")
-        return 1
-
-    valid = parse_diff(diff)
     seen = existing_comments(repo, pr)
     comments: list[dict] = []
     if seen is None:

@@ -29,14 +29,14 @@ REVIEW = {
 }
 
 
-def jsonl(*texts: str) -> str:
+def jsonl(*texts: str, message_id: str = "msg_0") -> str:
     lines = [json.dumps({"type": "step_start", "part": {"type": "step-start"}})]
-    for index, text in enumerate(texts):
+    for text in texts:
         lines.append(
             json.dumps(
                 {
                     "type": "text",
-                    "part": {"type": "text", "messageID": f"msg_{index}", "text": text},
+                    "part": {"type": "text", "messageID": message_id, "text": text},
                 }
             )
         )
@@ -81,8 +81,12 @@ class LoadAssistantTextTest(unittest.TestCase):
     def test_single_text_event(self) -> None:
         self.assertEqual(review.load_assistant_text(jsonl("hello")), "hello")
 
-    def test_multiple_text_events_are_concatenated(self) -> None:
-        self.assertEqual(review.load_assistant_text(jsonl("one ", "two")), "one two")
+    def test_multiple_text_events_in_one_message_are_joined(self) -> None:
+        self.assertEqual(review.load_assistant_text(jsonl("one", "two")), "one\ntwo")
+
+    def test_last_message_wins(self) -> None:
+        text = jsonl("first answer", message_id="msg_1") + "\n" + jsonl("final answer", message_id="msg_2")
+        self.assertEqual(review.load_assistant_text(text), "final answer")
 
     def test_non_text_events_are_ignored(self) -> None:
         self.assertEqual(review.load_assistant_text(jsonl()), "")
@@ -168,6 +172,11 @@ class ExtractReviewTest(unittest.TestCase):
             ],
         }
         self.assertEqual(review.extract_review(json.dumps(real)), (real["summary"], real["findings"]))
+
+    def test_substantive_review_beats_trailing_empty_object(self) -> None:
+        valid = {"a.kt": {3}}
+        text = f"{json.dumps(REVIEW)}\n{json.dumps({'summary': 'No findings.', 'findings': []})}"
+        self.assertEqual(review.extract_review(text, valid), (REVIEW["summary"], REVIEW["findings"]))
 
 
 class RepairReviewTest(unittest.TestCase):
