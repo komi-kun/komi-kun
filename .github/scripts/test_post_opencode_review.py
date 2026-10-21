@@ -7,7 +7,6 @@ import importlib.util
 import json
 import os
 import unittest
-import urllib.error
 from pathlib import Path
 from unittest import mock
 
@@ -30,18 +29,18 @@ REVIEW = {
 }
 
 
-class FakeResponse:
-    def __init__(self, body: bytes) -> None:
-        self._body = body
-
-    def __enter__(self) -> FakeResponse:
-        return self
-
-    def __exit__(self, *args: object) -> bool:
-        return False
-
-    def read(self) -> bytes:
-        return self._body
+def jsonl(*texts: str) -> str:
+    lines = [json.dumps({"type": "step_start", "part": {"type": "step-start"}})]
+    for index, text in enumerate(texts):
+        lines.append(
+            json.dumps(
+                {
+                    "type": "text",
+                    "part": {"type": "text", "messageID": f"msg_{index}", "text": text},
+                }
+            )
+        )
+    return "\n".join(lines)
 
 
 class ParseDiffTest(unittest.TestCase):
@@ -78,9 +77,23 @@ diff --git a/bar.kt b/bar.kt
         self.assertEqual(review.parse_diff(diff), {})
 
 
+class LoadAssistantTextTest(unittest.TestCase):
+    def test_single_text_event(self) -> None:
+        self.assertEqual(review.load_assistant_text(jsonl("hello")), "hello")
+
+    def test_multiple_text_events_are_concatenated(self) -> None:
+        self.assertEqual(review.load_assistant_text(jsonl("one ", "two")), "one two")
+
+    def test_non_text_events_are_ignored(self) -> None:
+        self.assertEqual(review.load_assistant_text(jsonl()), "")
+
+    def test_malformed_lines_are_ignored(self) -> None:
+        self.assertEqual(review.load_assistant_text("not json\n" + jsonl("ok")), "ok")
+
+
 class ExtractReviewTest(unittest.TestCase):
     def test_fenced_json_with_mermaid_braces(self) -> None:
-        text = f"Review:\n```json\n{json.dumps(REVIEW)}\n```\n\n[github run](/x)"
+        text = f"Review:\n```json\n{json.dumps(REVIEW)}\n```\n"
         self.assertEqual(review.extract_review(text), (REVIEW["summary"], REVIEW["findings"]))
 
     def test_raw_json(self) -> None:
@@ -157,50 +170,28 @@ class ExtractReviewTest(unittest.TestCase):
         self.assertEqual(review.extract_review(json.dumps(real)), (real["summary"], real["findings"]))
 
 
-class ActionCommentTest(unittest.TestCase):
-    def test_newest_matching_comment_wins(self) -> None:
-        old = {"id": 1, "user": {"login": "github-actions[bot]"}, "body": "old /actions/runs/123"}
-        new = {"id": 2, "user": {"login": "github-actions[bot]"}, "body": "new /actions/runs/123"}
-        output = f"{json.dumps(old)}\n{json.dumps(new)}"
-        result = mock.Mock(returncode=0, stdout=output)
-        with mock.patch.dict(os.environ, {"GITHUB_RUN_ID": "123"}), mock.patch.object(
-            review, "gh", return_value=result
-        ):
-            self.assertEqual(review.find_action_comment("o/r", "1")["id"], 2)
-            self.assertEqual(
-                [comment["id"] for comment in review.find_action_comments("o/r", "1")],
-                [1, 2],
-            )
-
-
 class RepairReviewTest(unittest.TestCase):
-    def test_repair_returns_review(self) -> None:
-        payload = {"choices": [{"message": {"content": json.dumps(REVIEW)}}]}
-        response = FakeResponse(json.dumps(payload).encode())
-        with mock.patch.dict(os.environ, {"OPENCODE_API_KEY": "test"}), mock.patch.object(
-            review.urllib.request, "urlopen", return_value=response
-        ):
-            self.assertEqual(review.repair_review("broken text"), (REVIEW["summary"], REVIEW["findings"]))
-
-    def test_repair_handles_content_parts(self) -> None:
-        payload = {
-            "choices": [
-                {"message": {"content": [{"type": "text", "text": json.dumps(REVIEW)}]}}
-            ]
+    def setUp(self) -> None:
+        self.env = {
+            "OPENCODE_BIN": "/bin/opencode",
+            "OPENCODE_MODEL": "opencode-go/deepseek-v4.1-flash",
         }
-        response = FakeResponse(json.dumps(payload).encode())
-        with mock.patch.dict(os.environ, {"OPENCODE_API_KEY": "test"}), mock.patch.object(
-            review.urllib.request, "urlopen", return_value=response
+
+    def test_repair_returns_review(self) -> None:
+        result = mock.Mock(returncode=0, stdout=jsonl(json.dumps(REVIEW)), stderr="")
+        with mock.patch.dict(os.environ, self.env), mock.patch.object(
+            review.subprocess, "run", return_value=result
         ):
             self.assertEqual(review.repair_review("broken text"), (REVIEW["summary"], REVIEW["findings"]))
 
     def test_repair_failure_is_not_fatal(self) -> None:
-        with mock.patch.dict(os.environ, {"OPENCODE_API_KEY": "test"}), mock.patch.object(
-            review.urllib.request, "urlopen", side_effect=urllib.error.URLError("offline")
+        result = mock.Mock(returncode=1, stdout="", stderr="boom")
+        with mock.patch.dict(os.environ, self.env), mock.patch.object(
+            review.subprocess, "run", return_value=result
         ):
             self.assertIsNone(review.repair_review("broken text"))
 
-    def test_repair_without_api_key(self) -> None:
+    def test_repair_without_binary(self) -> None:
         with mock.patch.dict(os.environ, {}, clear=True):
             self.assertIsNone(review.repair_review("broken text"))
 

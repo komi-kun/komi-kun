@@ -62,6 +62,13 @@ jobs:
       contents: read
       pull-requests: write
       issues: write
+    env:
+      # Pinned CLI artifact: version plus the npm sha512 integrity. A tampered
+      # tarball fails the check instead of being executed.
+      OPENCODE_VERSION: 2.1.2
+      OPENCODE_SHA512_LINUX_X64: O8/8JT8SNmMReDmpYDsm04KmkrQQ2dzaKgaw06zCoUfh50ARGHs58E6zCh16GIUyEL8abrdSe268K5/ExE89Gw==
+      OPENCODE_SHA512_LINUX_ARM64: 294IA9S1sXOAzOBRPMcnFuYpXlFeUaKTlpTk0a7TMvuc7cJbfS52poTw3AlIu7ycbn8TGmTmj27OOxsMmBCLEg==
+      OPENCODE_MODEL: opencode-go/deepseek-v4.1-flash
     steps:
       - name: Checkout target branch/PR
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -71,13 +78,8 @@ jobs:
           # The PR head ref exists for conflicted PRs too, unlike the merge ref.
           ref: ${{ format('refs/pull/{0}/head', github.event.pull_request.number || github.event.issue.number) }}
 
-      - name: Record run start
-        run: echo "RUN_STARTED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
-
-      # Fail closed: only same-repo PRs are reviewed, because the action checks
-      # out the PR head and runs the agent with the base repository's secrets.
-      # PRs that change `.opencode/` or the root opencode config are skipped so
-      # they cannot load a plugin or agent override from the PR checkout.
+      # Fail closed: only same-repo PRs are reviewed, because the CLI runs on
+      # the PR checkout with the repository's API key.
       - name: Verify PR is safe to review
         id: pr-source
         env:
@@ -109,10 +111,9 @@ jobs:
             echo "::notice::Skipping PR that changes OpenCode config or plugins."
             exit 0
           fi
-          if printf '%s\n' "$changed" | grep -qE '^(\.github/opencode-review\.json|\.github/scripts/post_opencode_review\.py|\.github/scripts/test_post_opencode_review\.py|\.github/workflows/opencode_review\.yml)$'; then
-            # A tooling PR may only run its own helper/config when a maintainer
-            # deliberately opts in; otherwise it could execute PR code with the
-            # review job's write token and API key.
+          if printf '%s\n' "$changed" | grep -qE '^(\.github/opencode-review/|\.github/scripts/post_opencode_review\.py$|\.github/scripts/test_post_opencode_review\.py$|\.github/workflows/opencode_review\.yml$)'; then
+            # A tooling PR may only run its own agent definitions when a
+            # maintainer deliberately opts in.
             if ! gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name' | grep -qx 'review-tooling'; then
               echo "same_repo=false" >> "$GITHUB_OUTPUT"
               echo "::notice::Skipping review-tooling PR without the review-tooling label."
@@ -124,11 +125,38 @@ jobs:
           fi
           echo "same_repo=true" >> "$GITHUB_OUTPUT"
 
-      # The action switches to the PR head, so stage the helper and the agent
-      # config from the default branch first. A non-default PR base could carry
-      # a modified helper.
-      # OPENCODE_CONFIG_CONTENT is merged last, so the PR cannot override the
-      # read-only agent through its own .opencode/ config.
+      # Download the pinned CLI and verify its sha512 before extracting it.
+      - name: Install pinned OpenCode
+        if: steps.pr-source.outputs.same_repo == 'true'
+        run: |
+          set -euo pipefail
+
+          case "$(uname -m)" in
+            x86_64) target="linux-x64"; integrity="$OPENCODE_SHA512_LINUX_X64" ;;
+            aarch64|arm64) target="linux-arm64"; integrity="$OPENCODE_SHA512_LINUX_ARM64" ;;
+            *) echo "::error::Unsupported architecture $(uname -m)"; exit 1 ;;
+          esac
+
+          url="https://registry.npmjs.org/@opencode/cli-${target}/-/cli-${target}-${OPENCODE_VERSION}.tgz"
+          mkdir -p "$RUNNER_TEMP/opencode-install"
+          curl -fsSL "$url" -o "$RUNNER_TEMP/opencode-install/opencode.tgz"
+
+          actual="$(openssl dgst -sha512 -binary "$RUNNER_TEMP/opencode-install/opencode.tgz" | base64 -w0)"
+          if [ "$actual" != "$integrity" ]; then
+            echo "::error::sha512 mismatch for opencode ${OPENCODE_VERSION} (${target}); refusing to install."
+            exit 1
+          fi
+
+          tar -xzf "$RUNNER_TEMP/opencode-install/opencode.tgz" -C "$RUNNER_TEMP/opencode-install"
+          mkdir -p "$RUNNER_TEMP/opencode-bin"
+          mv "$RUNNER_TEMP/opencode-install/package/bin/opencode" "$RUNNER_TEMP/opencode-bin/opencode"
+          chmod 755 "$RUNNER_TEMP/opencode-bin/opencode"
+          echo "OPENCODE_BIN=$RUNNER_TEMP/opencode-bin/opencode" >> "$GITHUB_ENV"
+          "$RUNNER_TEMP/opencode-bin/opencode" --version
+
+      # Write the trusted v2 agent definitions into the checkout and stage the
+      # post-processing helper from the default branch (or the PR for a labelled
+      # tooling change).
       - name: Stage trusted review tooling
         if: steps.pr-source.outputs.same_repo == 'true'
         env:
@@ -143,8 +171,6 @@ jobs:
             exit 1
           fi
 
-          # Set by the safety check: a labelled tooling PR may run its own copy,
-          # otherwise normal PRs use the trusted base-branch copy.
           tooling_changed="${{ steps.pr-source.outputs.tooling_changed }}"
 
           stage() {
@@ -152,30 +178,14 @@ jobs:
               git show "origin/${BASE_REF}:$1" > "$2"
               return 0
             fi
-            # Bootstrap, or the PR is changing the tooling itself.
             echo "::warning::Using the checked-out $1 (bootstrap or review-tooling change)."
             cp "$1" "$2"
           }
 
           stage .github/scripts/post_opencode_review.py "$RUNNER_TEMP/post_opencode_review.py"
 
-          if [ "$tooling_changed" = "true" ] && git cat-file -e "origin/${BASE_REF}:.github/opencode-review.json" 2>/dev/null; then
-            # Take the base config (providers, no MCP/plugins) and only the PR's
-            # prompt, so a tooling PR can test prompt changes without widening
-            # the agent's access.
-            echo "::notice::Using the base review config with the PR prompt."
-            git show "origin/${BASE_REF}:.github/opencode-review.json" > "$RUNNER_TEMP/opencode-review.json"
-            jq --slurpfile pr ".github/opencode-review.json" \
-              '.agent["opencode-review"].prompt = $pr[0].agent["opencode-review"].prompt' \
-              "$RUNNER_TEMP/opencode-review.json" > "$RUNNER_TEMP/opencode-review.json.tmp" \
-              && mv "$RUNNER_TEMP/opencode-review.json.tmp" "$RUNNER_TEMP/opencode-review.json"
-          else
-            stage .github/opencode-review.json "$RUNNER_TEMP/opencode-review.json"
-          fi
-
           # Scale the step budget with the diff: 50 base steps, +3 per changed
-          # file and +1 per 50 changed lines, capped at 120 total so a huge PR
-          # cannot run for the whole 30-minute job timeout.
+          # file and +1 per 50 changed lines, capped at 120.
           if stats=$(gh pr view "$PR_NUMBER" --json changedFiles,additions,deletions \
             --jq '[.changedFiles, .additions, .deletions] | @tsv'); then
             read -r files additions deletions <<< "$stats"
@@ -194,40 +204,23 @@ jobs:
           steps=$((50 + extra))
           echo "::notice::Review step budget: ${steps} (files=${files}, lines=${lines})"
 
-          # Even when a tooling PR supplies its own config, force the read-only
-          # agent and permissions that the workflow guarantees.
-          jq --argjson steps "$steps" '
-            .default_agent = "opencode-review"
-            | .plugin = []
-            | del(.mcp)
-            | del(.provider)
-            | .agent["opencode-review"].steps = $steps
-            | del(.agent["opencode-review"].tools)
-            | del(.agent["opencode-review"].model)
-            | .agent["opencode-review"].permission = {
-                "edit": "deny",
-                "bash": "deny",
-                "external_directory": "deny",
-                "webfetch": "deny",
-                "websearch": "deny",
-                "task": "deny",
-                "doom_loop": "allow"
-              }
-          ' "$RUNNER_TEMP/opencode-review.json" > "$RUNNER_TEMP/opencode-review.json.tmp" \
-            && mv "$RUNNER_TEMP/opencode-review.json.tmp" "$RUNNER_TEMP/opencode-review.json"
+          mkdir -p .opencode/agents
+          if [ "$tooling_changed" = "true" ]; then
+            echo "::notice::Using the PR's review agent definitions."
+            review_agent=.github/opencode-review/opencode-review.md
+            repair_agent=.github/opencode-review/opencode-repair.md
+          else
+            mkdir -p "$RUNNER_TEMP/trusted-agents"
+            git show "origin/${BASE_REF}:.github/opencode-review/opencode-review.md" > "$RUNNER_TEMP/trusted-agents/opencode-review.md"
+            git show "origin/${BASE_REF}:.github/opencode-review/opencode-repair.md" > "$RUNNER_TEMP/trusted-agents/opencode-repair.md"
+            review_agent="$RUNNER_TEMP/trusted-agents/opencode-review.md"
+            repair_agent="$RUNNER_TEMP/trusted-agents/opencode-repair.md"
+          fi
 
-          jq -e '.default_agent == "opencode-review"
-                 and .agent["opencode-review"].permission.edit == "deny"
-                 and .agent["opencode-review"].permission.bash == "deny"' \
-            "$RUNNER_TEMP/opencode-review.json" >/dev/null
+          sed "s/__STEPS__/${steps}/" "$review_agent" > .opencode/agents/opencode-review.md
+          cp "$repair_agent" .opencode/agents/opencode-repair.md
 
-          {
-            echo "OPENCODE_CONFIG_CONTENT<<__OPENCODE_CONFIG__"
-            cat "$RUNNER_TEMP/opencode-review.json"
-            echo "__OPENCODE_CONFIG__"
-          } >> "$GITHUB_ENV"
-
-      # Give the agent the diff as a file too, so it does not depend on git/gh.
+      # Give the agent the diff as a file so it does not depend on git/gh.
       - name: Prepare pull request diff
         if: steps.pr-source.outputs.same_repo == 'true'
         env:
@@ -237,122 +230,30 @@ jobs:
           mkdir -p build/opencode-review
           gh pr diff "$PR_NUMBER" > build/opencode-review/pr.diff
 
-      # Automatic review: `prompt` supplies the review instructions because a
-      # `pull_request` event has no comment body.
-      - name: Run OpenCode PR Review
-        if: github.event_name == 'pull_request' && steps.pr-source.outputs.same_repo == 'true'
-        uses: anomalyco/opencode/github@5caf1f9f6f5f30e13fc50a788ad953d97ae3748f # github-v1.2.26
+      # The CLI writes a JSONL event stream to stdout; the post step parses the
+      # assistant's final text from it. No issue comment is created.
+      - name: Run OpenCode review
+        id: opencode
+        if: steps.pr-source.outputs.same_repo == 'true'
+        continue-on-error: true
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          model: opencode-go/deepseek-v4.1-flash
-          agent: opencode-review
-          use_github_token: true
-          prompt: |
-            You are reviewing code for the Komikku Android application (Kotlin, Jetpack Compose, Coroutines/Flow, Android Architecture Components).
-
-            This is a read-only review. The bash tool is unavailable: use only the read, grep and glob tools. Read `build/opencode-review/pr.diff` for the pull request diff before reviewing, and use the same tools for the surrounding source. Only report lines that are part of the diff.
-
-            Review guidelines:
-            1. Concurrency: Check for Coroutine leaks, proper Dispatcher usage, race conditions, or unhandled exceptions.
-            2. Compose: Ensure state hoisting follows best practices, detect unnecessary recompositions, and verify proper remember/derivedStateOf usage.
-            3. Android Resources & Lifecycle: Check lifecycle scopes, memory leaks, and proper cleanup of resources.
-            4. Performance & DB: Look for unnecessary queries on the main thread, unindexed searches, or inefficient list processing.
-            5. Architecture: Ensure domain logic remains separated from UI components and adheres to existing Tachiyomi/Mihon conventions.
-            6. Brevity: Do not explain obvious language features. Provide clear, direct, and actionable findings with file references.
-
-            Do not re-read files the diff already shows; only open a source file when a finding depends on its surrounding context. Skip unrelated docs and repository-wide greps.
-
-            Return exactly one JSON object in your final message, with this shape (no prose and no markdown fence):
-            {
-              "summary": "Markdown overarching review comment: 2-4 sentences on what the PR does, your overall judgement, and the main themes. You may include a ```mermaid diagram when it genuinely helps explain a flow, call chain or architecture change; skip it for small or mechanical PRs.",
-              "findings": [
-                {
-                  "path": "app/src/main/java/.../Foo.kt",
-                  "line": 123,
-                  "severity": "high",
-                  "body": "What is wrong, why it matters, and the concrete fix."
-                }
-              ]
-            }
-
-            Schema requirements:
-            - `path` is relative to the repository root.
-            - `line` is a line number in the new version of the file and must be part of the diff.
-            - `severity` is one of `low`, `medium`, `high`, `critical`.
-            - Omit findings you cannot pin to a changed line.
-            - `summary` is always present; use an empty `findings` array when the PR looks good.
-
-            Return only the JSON object. If you are running low on steps, return what you have; do not omit `summary` or `findings`.
-
-      # Manual re-review: the comment body and any extra instructions are added
-      # to the same schema-backed prompt.
-      - name: Run OpenCode PR Review (comment command)
-        if: github.event_name == 'issue_comment' && steps.pr-source.outputs.same_repo == 'true'
-        uses: anomalyco/opencode/github@5caf1f9f6f5f30e13fc50a788ad953d97ae3748f # github-v1.2.26
-        env:
-          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          model: opencode-go/deepseek-v4.1-flash
-          agent: opencode-review
-          use_github_token: true
-          prompt: |
-            You are reviewing code for the Komikku Android application (Kotlin, Jetpack Compose, Coroutines/Flow, Android Architecture Components).
-
-            This is a read-only review. The bash tool is unavailable: use only the read, grep and glob tools. Read `build/opencode-review/pr.diff` for the pull request diff before reviewing, and use the same tools for the surrounding source. Only report lines that are part of the diff.
-
-            Review guidelines:
-            1. Concurrency: Check for Coroutine leaks, proper Dispatcher usage, race conditions, or unhandled exceptions.
-            2. Compose: Ensure state hoisting follows best practices, detect unnecessary recompositions, and verify proper remember/derivedStateOf usage.
-            3. Android Resources & Lifecycle: Check lifecycle scopes, memory leaks, and proper cleanup of resources.
-            4. Performance & DB: Look for unnecessary queries on the main thread, unindexed searches, or inefficient list processing.
-            5. Architecture: Ensure domain logic remains separated from UI components and adheres to existing Tachiyomi/Mihon conventions.
-            6. Brevity: Do not explain obvious language features. Provide clear, direct, and actionable findings with file references.
-
-            Additional instructions from the commenter:
-            ${{ github.event.comment.body }}
-
-            Do not re-read files the diff already shows; only open a source file when a finding depends on its surrounding context. Skip unrelated docs and repository-wide greps.
-
-            Return exactly one JSON object in your final message, with this shape (no prose and no markdown fence):
-            {
-              "summary": "Markdown overarching review comment: 2-4 sentences on what the PR does, your overall judgement, and the main themes. You may include a ```mermaid diagram when it genuinely helps explain a flow, call chain or architecture change; skip it for small or mechanical PRs.",
-              "findings": [
-                {
-                  "path": "app/src/main/java/.../Foo.kt",
-                  "line": 123,
-                  "severity": "high",
-                  "body": "What is wrong, why it matters, and the concrete fix."
-                }
-              ]
-            }
-
-            Schema requirements:
-            - `path` is relative to the repository root.
-            - `line` is a line number in the new version of the file and must be part of the diff.
-            - `severity` is one of `low`, `medium`, `high`, `critical`.
-            - Omit findings you cannot pin to a changed line.
-            - `summary` is always present; use an empty `findings` array when the PR looks good.
-
-            Return only the JSON object. If you are running low on steps, return what you have; do not omit `summary` or `findings`.
+        run: |
+          "$OPENCODE_BIN" run --standalone --format json \
+            --agent opencode-review --model "$OPENCODE_MODEL" \
+            "Review the pull request. The diff is at build/opencode-review/pr.diff. Return the JSON object." \
+            > "$RUNNER_TEMP/opencode-review.jsonl" 2> "$RUNNER_TEMP/opencode-review.stderr"
 
       - name: Post review
         if: always() && steps.pr-source.outputs.same_repo == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-          # Same model the action uses, so the key is known to be entitled.
-          # The cheaper mimo-v2.6-flash returned 403 on the Go plan.
-          OPENCODE_REPAIR_MODEL: deepseek-v4.1-flash
           PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+          OPENCODE_OUTPUT: ${{ runner.temp }}/opencode-review.jsonl
         run: |
-          # The agent has no shell or edit access, so the pre-staged helper
-          # cannot have been modified during the review.
-          helper="$RUNNER_TEMP/post_opencode_review.py"
-          if [ -f "$helper" ]; then
-            python3 "$helper"
+          if [ -f "$RUNNER_TEMP/post_opencode_review.py" ]; then
+            python3 "$RUNNER_TEMP/post_opencode_review.py"
           else
             echo "Review helper was not staged; skipping."
           fi
