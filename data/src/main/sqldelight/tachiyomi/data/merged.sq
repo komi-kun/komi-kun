@@ -29,6 +29,13 @@ SELECT * FROM merged WHERE merge_url = ?;
 deleteByMergeId:
 DELETE FROM merged WHERE merge_id = ?;
 
+-- KUN -->
+-- Resolves the merge entry a reference belongs to. A user edit of a reference changes a child row,
+-- so no manga trigger fires on the merge parent; the repository bumps it explicitly.
+selectMergeIdById:
+SELECT merge_id FROM merged WHERE _id = ?;
+-- KUN <--
+
 selectMergedMangasById:
 SELECT manga.*
 FROM (

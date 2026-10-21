@@ -5,6 +5,7 @@ import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import eu.kanade.domain.manga.interactor.UpdateManga
+import eu.kanade.domain.sync.SyncStateBumper
 import exh.metadata.metadata.EHentaiSearchMetadata
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -49,6 +50,9 @@ class EHentaiUpdateHelper(
     private val removeHistory: RemoveHistory,
     private val getHistory: GetHistory,
     private val insertFavoriteEntryAlternative: InsertFavoriteEntryAlternative,
+    // KUN -->
+    private val syncStateBumper: SyncStateBumper,
+    // KUN <--
 ) {
     val parentLookupTable =
         MemAutoFlushingLookupTable(
@@ -136,6 +140,15 @@ class EHentaiUpdateHelper(
             // KMK -->
             removeHistory.await(deleteHistory)
             // KMK <--
+            // KUN -->
+            // The reset rows are tombstones (`read_at = NULL`) on the manga the duplicate chapters
+            // belonged to; without a bump their manga row is unchanged and the delta would skip them.
+            syncStateBumper.bumpForHistoryRemoval(
+                chains
+                    .filter { chain -> chain.history.any { it.id in deleteHistory } }
+                    .map { it.manga.id },
+            )
+            // KUN <--
 
             // Insert new history
             newHistory.forEach {

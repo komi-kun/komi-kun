@@ -23,6 +23,7 @@ import eu.kanade.domain.manga.interactor.SmartSearchMerge
 import eu.kanade.domain.manga.interactor.UpdateManga
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.domain.sync.SyncPreferences
+import eu.kanade.domain.sync.SyncStateBumper
 import eu.kanade.presentation.library.components.LibraryToolbarTitle
 import eu.kanade.presentation.manga.DownloadAction
 import eu.kanade.tachiyomi.data.cache.CoverCache
@@ -116,6 +117,7 @@ import tachiyomi.domain.library.model.LibraryManga
 import tachiyomi.domain.library.model.LibrarySort
 import tachiyomi.domain.library.model.sort
 import tachiyomi.domain.library.service.LibraryPreferences
+import tachiyomi.domain.manga.interactor.GetCustomMangaInfo
 import tachiyomi.domain.manga.interactor.GetFlatMetadataById
 import tachiyomi.domain.manga.interactor.GetIdsOfFavoriteMangaWithMetadata
 import tachiyomi.domain.manga.interactor.GetLibraryManga
@@ -165,6 +167,10 @@ class LibraryViewModel(
     private val getMergedMangaById: GetMergedMangaById,
     private val getTracks: GetTracks,
     private val setCustomMangaInfo: SetCustomMangaInfo,
+    // KUN -->
+    private val getCustomMangaInfo: GetCustomMangaInfo,
+    private val syncStateBumper: SyncStateBumper,
+    // KUN <--
     private val getMergedChaptersByMangaId: GetMergedChaptersByMangaId,
     syncPreferences: SyncPreferences,
     val favoritesSync: FavoritesSyncHelper,
@@ -1047,6 +1053,11 @@ class LibraryViewModel(
         val regex2 = "\\(.*?\\)".toRegex()
         val regex3 = "\\{.*?\\}".toRegex()
         val regex4 = ".*\\|".toRegex()
+        // KUN -->
+        // Custom info lives outside the manga row, so the sync triggers never see the edit. Remember
+        // what was stored before each write and bump the manga afterwards (gated by sync settings).
+        val customInfoEdits = mutableListOf<Pair<CustomMangaInfo?, CustomMangaInfo>>()
+        // KUN <--
         state.value.selectedManga.fastFilter {
             it.isEhBasedManga() ||
                 it.source in nHentaiSourceIds
@@ -1074,8 +1085,20 @@ class LibraryViewModel(
                 status = manga.status.takeUnless { it == manga.ogStatus },
             )
 
+            // KUN -->
+            customInfoEdits += getCustomMangaInfo.get(manga.id) to mangaInfo
+            // KUN <--
             setCustomMangaInfo.set(mangaInfo)
         }
+        // KUN -->
+        if (customInfoEdits.isNotEmpty()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                customInfoEdits.forEach { (before, after) ->
+                    syncStateBumper.bumpForCustomInfoEdit(after.id, before, after)
+                }
+            }
+        }
+        // KUN <--
         clearSelection()
     }
 
@@ -1092,6 +1115,9 @@ class LibraryViewModel(
     }
 
     fun resetInfo() {
+        // KUN -->
+        val customInfoEdits = mutableListOf<Pair<CustomMangaInfo?, CustomMangaInfo>>()
+        // KUN <--
         state.value.selection.forEach { id ->
             val mangaInfo = CustomMangaInfo(
                 id = id,
@@ -1104,8 +1130,22 @@ class LibraryViewModel(
                 status = null,
             )
 
+            // KUN -->
+            customInfoEdits += getCustomMangaInfo.get(id) to mangaInfo
+            // KUN <--
             setCustomMangaInfo.set(mangaInfo)
         }
+        // KUN -->
+        // Clearing the overrides is a real edit: bump so the empty custom-info block is uploaded and
+        // the restore path can remove the overrides on the other devices.
+        if (customInfoEdits.isNotEmpty()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                customInfoEdits.forEach { (before, after) ->
+                    syncStateBumper.bumpForCustomInfoEdit(after.id, before, after)
+                }
+            }
+        }
+        // KUN <--
         clearSelection()
     }
     // SY <--

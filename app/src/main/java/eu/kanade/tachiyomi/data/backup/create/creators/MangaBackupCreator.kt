@@ -87,6 +87,11 @@ class MangaBackupCreator(
                 },
                 // SY <--
             )
+            // KUN -->
+            // Marks whether this entry carries the custom-info section, so a receiver can tell
+            // "the user cleared every override" from "this payload never spoke about them".
+            mangaObject.customInfoIncluded = options.customInfo
+            // KUN <--
             val chapters = chaptersByMangaId[manga.id].orEmpty()
 
             // SY -->

@@ -57,6 +57,12 @@ class BackupManga(
     @ProtoNumber(601) var flatMetadata: BackupFlatMetadata? = null,
     @ProtoNumber(602) var customStatus: Int = 0,
     @ProtoNumber(603) var customThumbnailUrl: String? = null,
+    // KUN -->
+    // Whether the sender included the custom-info overrides in this entry. Nullable so an older
+    // peer or backup that never sent the field is "unknown" (merge only): `true` with every
+    // override empty is an explicit clear, while an absent marker must never clear anything.
+    @ProtoNumber(604) var customInfoIncluded: Boolean? = null,
+    // KUN <--
 
     // J2K specific values
     @ProtoNumber(800) var customTitle: String? = null,

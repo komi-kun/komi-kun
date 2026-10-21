@@ -22,6 +22,14 @@ data class RestoredManga(
     val flatMetadata: FlatMetadata? = null,
     val customMangaInfo: CustomMangaInfo? = null,
     // KMK/SY <--
+    // KUN -->
+    /**
+     * Whether the payload carried the custom-info section at all. `true` with an all-null
+     * [customMangaInfo] means the user cleared every override and a winning restore may remove them
+     * locally; `null`/`false` only allows merging the non-null overrides.
+     */
+    val customInfoIncluded: Boolean? = null,
+    // KUN <--
 )
 
 data class RestoredHistory(
