@@ -85,7 +85,10 @@ fun OcrOverlay(
     LaunchedEffect(viewport) {
         while (isActive) {
             withFrameNanos { }
-            transformVersion = viewport.transformVersion()
+            val nextVersion = viewport.transformVersion()
+            if (transformVersion != nextVersion) {
+                transformVersion = nextVersion
+            }
         }
     }
 
@@ -104,6 +107,8 @@ fun OcrOverlay(
     val boxScale = (boxScalePercent / 100f).coerceAtLeast(MIN_BOX_SCALE)
     // User-facing overlay text size (percent), clamped so a bad value cannot make the text unusable.
     val textScale = (textScalePercent / 100f).coerceIn(MIN_TEXT_SCALE, MAX_TEXT_SCALE)
+
+    val layoutCache = remember(baseTextStyle) { OcrTextLayoutCache() }
 
     Canvas(modifier = modifier.fillMaxSize()) {
         // Read so a transform change redraws the boxes.
@@ -130,6 +135,7 @@ fun OcrOverlay(
 
                 if (showText) {
                     drawOcrBlockText(
+                        cache = layoutCache,
                         block = block,
                         rect = mapped,
                         textMeasurer = textMeasurer,
@@ -167,6 +173,7 @@ fun OcrOverlay(
  * longer fits is clipped to the block rather than drawn as unreadable micro-text.
  */
 private fun DrawScope.drawOcrBlockText(
+    cache: OcrTextLayoutCache,
     block: OcrTextBlock,
     rect: RectF,
     textMeasurer: TextMeasurer,
@@ -180,8 +187,8 @@ private fun DrawScope.drawOcrBlockText(
     val rectH = rect.height()
     if (rectW < MIN_BLOCK_PX || rectH < MIN_BLOCK_PX || baseTextPx <= 0f) return
 
-    val lines = block.lines.filter { it.isNotBlank() }
-    if (lines.isEmpty()) return
+    val lineCount = block.lines.count { it.isNotBlank() }
+    if (lineCount == 0) return
 
     // Backing plate: legible over busy artwork without hiding the page, since it only covers the
     // recognised block.
@@ -193,25 +200,26 @@ private fun DrawScope.drawOcrBlockText(
     )
 
     val minScale = minTextPx / baseTextPx
-    if (block.vertical && !isClearlyHorizontal(block.vertical, lines.size, rectW, rectH)) {
-        drawTategakiText(lines, rect, textMeasurer, baseStyle, minScale, textScale)
+    if (block.vertical && !isClearlyHorizontal(block.vertical, lineCount, rectW, rectH)) {
+        drawTategakiText(cache, block, rect, textMeasurer, baseStyle, minScale, textScale)
     } else {
-        drawHorizontalOcrText(lines, rect, textMeasurer, baseStyle, minScale, textScale)
+        drawHorizontalOcrText(cache, block, rect, textMeasurer, baseStyle, minScale, textScale)
     }
 }
 
 /** Horizontal path, unchanged positioning: measure the joined lines once, scale to fit, then clip. */
 private fun DrawScope.drawHorizontalOcrText(
-    lines: List<String>,
+    cache: OcrTextLayoutCache,
+    block: OcrTextBlock,
     rect: RectF,
     textMeasurer: TextMeasurer,
     baseStyle: TextStyle,
     minScale: Float,
     textScale: Float,
 ) {
-    val layout = textMeasurer.measure(AnnotatedString(lines.joinToString("\n")), style = baseStyle)
-    val textW = layout.size.width.toFloat()
-    val textH = layout.size.height.toFloat()
+    val cached = cache.getOrMeasureHorizontal(block, textMeasurer, baseStyle) ?: return
+    val textW = cached.textW
+    val textH = cached.textH
     if (textW <= 0f || textH <= 0f) return
 
     val scale = horizontalTextScale(rect.width(), rect.height(), textW, textH, minScale)
@@ -222,7 +230,7 @@ private fun DrawScope.drawHorizontalOcrText(
             scale(scale * textScale, scale * textScale, pivot = Offset.Zero)
             translate(-textW / 2f, -textH / 2f)
         }) {
-            drawText(layout, color = Color.White)
+            drawText(cached.layout, color = Color.White)
         }
     }
 }
@@ -233,23 +241,17 @@ private fun DrawScope.drawHorizontalOcrText(
  * glyphs are turned 90° inside their own cell; kana, kanji and punctuation stay upright.
  */
 private fun DrawScope.drawTategakiText(
-    lines: List<String>,
+    cache: OcrTextLayoutCache,
+    block: OcrTextBlock,
     rect: RectF,
     textMeasurer: TextMeasurer,
     baseStyle: TextStyle,
     minScale: Float,
     textScale: Float,
 ) {
-    val measuredColumns = lines.map { line ->
-        splitGlyphs(line).map { glyph ->
-            MeasuredGlyph(glyph, textMeasurer.measure(AnnotatedString(glyph), style = baseStyle))
-        }
-    }
-    val metrics = measuredColumns.map { column ->
-        column.map { GlyphMetric(it.text, it.layout.size.width.toFloat(), it.layout.size.height.toFloat()) }
-    }
+    val cached = cache.getOrMeasureVertical(block, textMeasurer, baseStyle) ?: return
     val placed = layoutVerticalText(
-        metrics,
+        cached.metrics,
         rect.left,
         rect.top,
         rect.right,
@@ -258,15 +260,15 @@ private fun DrawScope.drawTategakiText(
         glyphScale = textScale,
     )
     if (placed.isEmpty()) return
-    val flattened = measuredColumns.flatten()
-    if (placed.size != flattened.size) return
+    val layouts = cached.flattenedLayouts
+    if (placed.size != layouts.size) return
 
     clipRect(rect.left, rect.top, rect.right, rect.bottom) {
         placed.forEachIndexed { index, glyph ->
             if (glyph.text.isBlank()) return@forEachIndexed
-            val layout = flattened[index].layout
-            val baseW = layout.size.width.toFloat()
-            val baseH = layout.size.height.toFloat()
+            val layout = layouts[index]
+            val baseW = cached.flattenedWidths[index]
+            val baseH = cached.flattenedHeights[index]
             if (baseW <= 0f || baseH <= 0f) return@forEachIndexed
             withTransform({
                 translate(glyph.left, glyph.top)
@@ -282,6 +284,129 @@ private fun DrawScope.drawTategakiText(
 
 /** A glyph and its reference-size measurement, kept paired for the draw pass. */
 private data class MeasuredGlyph(val text: String, val layout: TextLayoutResult)
+
+/**
+ * Cached horizontal text layout for an [OcrTextBlock].
+ * Pre-measured at reference [baseTextStyle] so the draw pass only scales and translates via [withTransform].
+ */
+private class CachedHorizontalOcrLayout(
+    val layout: TextLayoutResult,
+    val textW: Float,
+    val textH: Float,
+)
+
+/**
+ * Cached vertical (tategaki) text layout for an [OcrTextBlock].
+ * Holds the pre-computed column [metrics] for [layoutVerticalText] and pre-measured glyph layouts
+ * in column-first flattened order matching [PlacedGlyph] outputs.
+ */
+private class CachedVerticalOcrLayout(
+    val metrics: List<List<GlyphMetric>>,
+    val flattenedLayouts: List<TextLayoutResult>,
+    val flattenedWidths: FloatArray,
+    val flattenedHeights: FloatArray,
+)
+
+/**
+ * In-memory cache for OCR text layouts and glyph measurements.
+ *
+ * During pan/zoom in the reader, the transform version invalidates the canvas draw pass every frame.
+ * Without caching, measuring every glyph in every block on every frame creates thousands of HarfBuzz/Minikin
+ * font-shaping calls and layout allocations per frame on the main thread, dropping FPS drastically.
+ *
+ * This cache preserves:
+ * 1. Individual glyph layouts at reference [baseTextStyle] (reused across blocks and frames).
+ * 2. Block-level horizontal layouts and vertical column metrics/flattened layouts.
+ */
+private class OcrTextLayoutCache(
+    private val maxBlocks: Int = 500,
+    private val maxGlyphs: Int = 1000,
+) {
+    private val glyphCache = object : LinkedHashMap<String, TextLayoutResult>(maxGlyphs, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, TextLayoutResult>?): Boolean {
+            return size > maxGlyphs
+        }
+    }
+
+    private val horizontalCache = object : LinkedHashMap<OcrTextBlock, CachedHorizontalOcrLayout>(maxBlocks, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<OcrTextBlock, CachedHorizontalOcrLayout>?): Boolean {
+            return size > maxBlocks
+        }
+    }
+
+    private val verticalCache = object : LinkedHashMap<OcrTextBlock, CachedVerticalOcrLayout>(maxBlocks, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<OcrTextBlock, CachedVerticalOcrLayout>?): Boolean {
+            return size > maxBlocks
+        }
+    }
+
+    fun getOrMeasureHorizontal(
+        block: OcrTextBlock,
+        textMeasurer: TextMeasurer,
+        baseStyle: TextStyle,
+    ): CachedHorizontalOcrLayout? {
+        val cached = horizontalCache[block]
+        if (cached != null) return cached
+
+        val lines = block.lines.filter { it.isNotBlank() }
+        if (lines.isEmpty()) return null
+        val text = lines.joinToString("\n")
+        val layout = textMeasurer.measure(AnnotatedString(text), style = baseStyle)
+        val textW = layout.size.width.toFloat()
+        val textH = layout.size.height.toFloat()
+        if (textW <= 0f || textH <= 0f) return null
+
+        val result = CachedHorizontalOcrLayout(layout, textW, textH)
+        horizontalCache[block] = result
+        return result
+    }
+
+    fun getOrMeasureVertical(
+        block: OcrTextBlock,
+        textMeasurer: TextMeasurer,
+        baseStyle: TextStyle,
+    ): CachedVerticalOcrLayout? {
+        val cached = verticalCache[block]
+        if (cached != null) return cached
+
+        val lines = block.lines.filter { it.isNotBlank() }
+        if (lines.isEmpty()) return null
+
+        val measuredColumns = lines.map { line ->
+            splitGlyphs(line).map { glyph ->
+                val layout = glyphCache.getOrPut(glyph) {
+                    textMeasurer.measure(AnnotatedString(glyph), style = baseStyle)
+                }
+                MeasuredGlyph(glyph, layout)
+            }
+        }
+        val metrics = measuredColumns.map { column ->
+            column.map { GlyphMetric(it.text, it.layout.size.width.toFloat(), it.layout.size.height.toFloat()) }
+        }
+        val flattened = measuredColumns.flatten()
+        if (flattened.isEmpty()) return null
+
+        val flattenedLayouts = ArrayList<TextLayoutResult>(flattened.size)
+        val flattenedWidths = FloatArray(flattened.size)
+        val flattenedHeights = FloatArray(flattened.size)
+
+        for (i in flattened.indices) {
+            val mg = flattened[i]
+            flattenedLayouts.add(mg.layout)
+            flattenedWidths[i] = mg.layout.size.width.toFloat()
+            flattenedHeights[i] = mg.layout.size.height.toFloat()
+        }
+
+        val result = CachedVerticalOcrLayout(
+            metrics = metrics,
+            flattenedLayouts = flattenedLayouts,
+            flattenedWidths = flattenedWidths,
+            flattenedHeights = flattenedHeights,
+        )
+        verticalCache[block] = result
+        return result
+    }
+}
 
 /**
  * Grows/shrinks [this] about its own centre by [scale], implementing `ReaderPreferences.ocrBoxScale`

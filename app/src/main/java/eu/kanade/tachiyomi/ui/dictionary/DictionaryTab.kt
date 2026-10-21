@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
@@ -33,12 +34,14 @@ import kotlinx.coroutines.withContext
 import mihon.app.di.appGraph
 import mihon.core.dictionary.model.getDictionaryPaths
 import mihon.core.dictionary.ui.KanaConverter
+import mihon.core.dictionary.ui.buildKanjiEntryJsonStrings
 import mihon.core.dictionary.ui.orderLookupResultsForDisplay
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.Close
 import mihon.icons.materialsymbols.rounded.Search
 import tachiyomi.i18n.kun.KUNMR
 import tachiyomi.presentation.core.i18n.stringResource
+import tachiyomi.presentation.core.util.collectAsState
 
 /**
  * Full-screen dictionary search tab (02 §6.3), the manga-only adaptation of Chimahon's
@@ -70,19 +73,44 @@ data object DictionaryTab : Tab {
         var frame by remember { mutableStateOf<LookupFrame?>(null) }
         var loading by remember { mutableStateOf(false) }
         val profile = remember { prefs.profileStore.getActiveProfile() }
+        val autoKanaConversion by prefs.autoKanaConversion().collectAsState()
+        val isJapanese = profile.languageCode == "ja" || profile.languageCode.isEmpty()
+        val autoKana = isJapanese && autoKanaConversion
 
         fun search(query: String) {
             if (query.isBlank()) return
             focusManager.clearFocus()
-            val effective = if (profile.languageCode == "ja" && prefs.autoKanaConversion().get()) {
+            val effective = if (autoKana) {
                 KanaConverter.convertAlphabeticToKana(query)
             } else {
                 query
+            }
+            if (effective != textFieldValue.text) {
+                textFieldValue = TextFieldValue(effective, TextRange(effective.length))
             }
             loading = true
             scope.launch {
                 val result = withContext(Dispatchers.Default) {
                     val paths = getDictionaryPaths(context, profile)
+                    // KUN --> Kanji lookup path
+                    if (effective.length == 1 && isKanji(effective.first()) && paths.kanjiPaths.isNotEmpty()) {
+                        val kanjiChar = effective.first().toString()
+                        val kanjiResult = repository.queryKanji(kanjiChar)
+                        if (kanjiResult != null && kanjiResult.entries.isNotEmpty()) {
+                            val entryJsons = buildKanjiEntryJsonStrings(kanjiResult)
+                            val mediaDataUris = withContext(Dispatchers.IO) {
+                                repository.loadMediaAsync(emptyList(), kanjiResult)
+                            }
+                            return@withContext LookupFrame(
+                                query = effective,
+                                results = emptyList(),
+                                styles = emptyList(),
+                                mediaDataUris = mediaDataUris,
+                                entryJsons = entryJsons,
+                            )
+                        }
+                    }
+                    // KUN <--
                     val lookup = repository.lookup(effective, paths, profile.languageCode)
                     val ordered = orderLookupResultsForDisplay(
                         lookup.results,
@@ -90,10 +118,43 @@ data object DictionaryTab : Tab {
                         context,
                         displayNameProvider = { prefs.getDisplayName(it) },
                     )
-                    LookupFrame(effective, ordered, lookup.styles, emptyMap())
+                    // KUN --> Fallback to kanji if single kanji character yielded no term results
+                    if (ordered.isEmpty() && effective.length == 1 && isKanji(effective.first()) && paths.kanjiPaths.isNotEmpty()) {
+                        val kanjiResult = repository.queryKanji(effective.first().toString())
+                        if (kanjiResult != null && kanjiResult.entries.isNotEmpty()) {
+                            val entryJsons = buildKanjiEntryJsonStrings(kanjiResult)
+                            val mediaDataUris = withContext(Dispatchers.IO) {
+                                repository.loadMediaAsync(emptyList(), kanjiResult)
+                            }
+                            return@withContext LookupFrame(
+                                query = effective,
+                                results = emptyList(),
+                                styles = emptyList(),
+                                mediaDataUris = mediaDataUris,
+                                entryJsons = entryJsons,
+                            )
+                        }
+                    }
+                    val breakdown = findCompoundBreakdown(effective, ordered, paths, repository, profile.languageCode)
+                    val finalResults = if (breakdown.isNotEmpty()) ordered + breakdown else ordered
+                    val mediaDataUris = if (finalResults.isNotEmpty()) {
+                        withContext(Dispatchers.IO) { repository.loadMediaAsync(finalResults) }
+                    } else {
+                        emptyMap()
+                    }
+                    // KUN <--
+                    LookupFrame(effective, finalResults, lookup.styles, mediaDataUris)
                 }
                 frame = result
                 loading = false
+                // KUN --> Asynchronous media reload/update off critical path
+                if (result.results.isNotEmpty()) {
+                    val media = withContext(Dispatchers.IO) { repository.loadMediaAsync(result.results) }
+                    if (media.isNotEmpty() && media != result.mediaDataUris) {
+                        frame = frame?.let { if (it === result) it.copy(mediaDataUris = media) else it }
+                    }
+                }
+                // KUN <--
             }
         }
 
@@ -105,7 +166,24 @@ data object DictionaryTab : Tab {
         ) {
             OutlinedTextField(
                 value = textFieldValue,
-                onValueChange = { textFieldValue = it },
+                onValueChange = { newVal ->
+                    if (autoKana && newVal.text != textFieldValue.text) {
+                        if (newVal.text.length < textFieldValue.text.length) {
+                            textFieldValue = newVal
+                        } else {
+                            val (converted, newCursor) = KanaConverter.toKanaIME(
+                                newVal.text,
+                                newVal.selection.start,
+                            )
+                            textFieldValue = TextFieldValue(
+                                text = converted,
+                                selection = TextRange(newCursor),
+                            )
+                        }
+                    } else {
+                        textFieldValue = newVal
+                    }
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 8.dp),
@@ -136,6 +214,15 @@ data object DictionaryTab : Tab {
                     mediaDataUris = frame?.mediaDataUris.orEmpty(),
                     placeholder = "",
                     activeProfile = profile,
+                    // KUN -->
+                    fontSize = prefs.fontSize().get(),
+                    entryJsons = frame?.entryJsons,
+                    customCss = prefs.customCss().get(),
+                    onRecursiveLookup = { q, _, _, _, _, _ ->
+                        textFieldValue = TextFieldValue(q, TextRange(q.length))
+                        search(q)
+                    },
+                    // KUN <--
                     isLoading = loading,
                     modifier = Modifier.fillMaxSize(),
                 )

@@ -121,11 +121,14 @@ fun DictionaryPopup(
                 val kanjiResult = repository.queryKanji(kanjiChar)
                 if (kanjiResult != null && kanjiResult.entries.isNotEmpty()) {
                     val entryJsons = buildKanjiEntryJsonStrings(kanjiResult)
+                    val mediaDataUris = withContext(Dispatchers.IO) {
+                        repository.loadMediaAsync(emptyList(), kanjiResult)
+                    }
                     return@withContext LookupFrame(
                         query = query,
                         results = emptyList(),
                         styles = emptyList(),
-                        mediaDataUris = emptyMap(),
+                        mediaDataUris = mediaDataUris,
                         entryJsons = entryJsons,
                     )
                 }
@@ -143,11 +146,14 @@ fun DictionaryPopup(
                 val kanjiResult = repository.queryKanji(query.first().toString())
                 if (kanjiResult != null && kanjiResult.entries.isNotEmpty()) {
                     val entryJsons = buildKanjiEntryJsonStrings(kanjiResult)
+                    val mediaDataUris = withContext(Dispatchers.IO) {
+                        repository.loadMediaAsync(emptyList(), kanjiResult)
+                    }
                     return@withContext LookupFrame(
                         query = query,
                         results = emptyList(),
                         styles = emptyList(),
-                        mediaDataUris = emptyMap(),
+                        mediaDataUris = mediaDataUris,
                         entryJsons = entryJsons,
                     )
                 }
@@ -155,8 +161,13 @@ fun DictionaryPopup(
             // KUN --> Compound word breakdown for multi-word / compound expressions
             val breakdown = findCompoundBreakdown(query, ordered, paths, repository, profile.languageCode)
             val finalResults = if (breakdown.isNotEmpty()) ordered + breakdown else ordered
+            val mediaDataUris = if (finalResults.isNotEmpty()) {
+                withContext(Dispatchers.IO) { repository.loadMediaAsync(finalResults) }
+            } else {
+                emptyMap()
+            }
             // KUN <--
-            LookupFrame(query, finalResults, lookup.styles, emptyMap())
+            LookupFrame(query, finalResults, lookup.styles, mediaDataUris)
         }
         if (resetPath) {
             path = path.start(frame)
@@ -181,7 +192,7 @@ fun DictionaryPopup(
 
     LaunchedEffect(request.query, profile.id) {
         if (visible && request.query.isNotBlank()) {
-            val query = if (profile.languageCode == "ja" && prefs.autoKanaConversion().get()) {
+            val query = if ((profile.languageCode == "ja" || profile.languageCode.isEmpty()) && prefs.autoKanaConversion().get()) {
                 KanaConverter.convertAlphabeticToKana(request.query)
             } else {
                 request.query
@@ -423,7 +434,7 @@ fun DictionaryPopup(
 
 // KUN -->
 /** Scans subsequent substrings to discover sub-word / compound components for multi-character words. */
-private suspend fun findCompoundBreakdown(
+internal suspend fun findCompoundBreakdown(
     query: String,
     primaryResults: List<LookupResult>,
     paths: DictionaryPaths,
@@ -450,7 +461,7 @@ private suspend fun findCompoundBreakdown(
     return breakdown
 }
 
-private fun isKanji(c: Char): Boolean {
+internal fun isKanji(c: Char): Boolean {
     val code = c.code
     return code in 0x4E00..0x9FFF || code in 0x3400..0x4DBF
 }
