@@ -72,8 +72,16 @@ Markers record **what diverges from upstream** — they never mark upstream code
 - **All new komi-kun strings go to `i18n-kun/`** (`import tachiyomi.i18n.kun.KUNMR`). `KMR`, `MR`, and `SYMR` are upstream-owned; reuse existing entries, but add new strings to `i18n-kun/` so upstream merges never conflict.
 - Translations in `i18n-kun/` can be added directly for supported locales. Upstream `i18n/`, `i18n-sy/`, and `i18n-kmk/` remain upstream-owned.
 - Inside a `// KUN` block, default to **`KUNMR`** even if nearby code imports `KMR` or `MR`.
+- **Weblate is not connected to this repo.** Translation content is maintained here, not generated: non-`base` locale files in `i18n-kmk/`, `i18n/`, and `i18n-sy/` are normal source files.
+  - **Port upstream translation commits** (“Translations update from Hosted Weblate” from Mihon/TachiyomiSY/Komikku) like any other upstream commit. Never skip them or mark them `X` — they are the only source of refreshed translations.
+  - **Translate new strings yourself**: when you add a `base` string, add its translation to the non-`base` locales you can translate confidently (missing keys fall back to the base language, so skipping a locale is safe). Do this as part of the feature, not as a follow-up.
+  - Hand-edit an existing translation only to fix an obvious error.
+
+**Porting translation commits:** upstream locale files and this fork's have diverged in both directions (the fork still has Komikku-era keys that Mihon removed, and is missing newer upstream keys). Resolve conflicts per file by keeping upstream's values for the keys it has, dropping entries whose string no longer exists in the module's `base/`, and re-appending fork-only entries that still exist in `base/` — `scripts/resolve_i18n_union.py` in the `upstream-port` skill automates this. Never drop a translation for a string that still exists in `base/`. Validate that the XML is well-formed and that no key from the fork's `base` lost its translation.
 
 **Examples (→ `i18n-kun`, not `i18n-kmk` or `i18n`):** dictionary settings & management, OCR settings/actions, AnkiDroid integration, Yomitan backup import.
+
+**Self-check before finishing:** `git diff` must not hand-add `<string name="…">` / `<plurals name="…">` entries under non-`base` locales, **except** translations that accompany a new base string or a ported upstream translation commit. New base strings should ship with translations where you can provide them.
 
 ### Formatting & build verification
 
@@ -174,6 +182,54 @@ komi-kun's own code is Apache-2.0, but the Yomitan/dictionary/OCR port adds two 
 
 ---
 
+## Backup protobuf field numbers
+
+Backup and sync payloads are protobuf (`app/src/main/java/eu/kanade/tachiyomi/data/backup/models/`). A `@ProtoNumber` is a **permanent wire identifier**: changing it makes existing backups and peers decode the field as a different type or lose it entirely. Renumbering a field that has ever shipped is forbidden.
+
+### Upstream ownership
+
+| Range | Owner |
+|-------|-------|
+| `1-18`, `100-113` | Mihon |
+| `600-603` | TachiyomiSY |
+| `610` | Komikku |
+| `800-805` | J2K, via SY (`803` is skipped: earlier builds used a duplicate) |
+| `900` | Komikku |
+
+Open upstream claims also count as taken: TachiyomiSY `604` (`List<BackupSortedScanlator>`, SY PR #1420); Komikku `611`, `650`, `900`, `901`; Mihon `806`, `807`.
+
+### komi-kun reserved range: `10000-10999`
+
+komi-kun owns this block. No upstream uses `>= 1000`, so a collision can be avoided by construction. Per-model blocks:
+
+| Range | Model |
+|-------|-------|
+| `10000-10099` | `BackupManga` |
+| `10100-10199` | `BackupChapter` |
+| `10200-10299` | `BackupCategory` |
+| `10300-10399` | `BackupTracking` |
+| `10400-10499` | `BackupHistory` |
+| `10500-10599` | `Backup` root |
+| `10600-10699` | `BackupMergedMangaReference` |
+| `10700-10799` | `BackupFlatMetadata` / metadata |
+| `10800-10899` | Saved search / feed / extension store / source / preference |
+| `10900-10999` | New models / overflow |
+
+Current komi-kun allocations:
+
+- `BackupManga.customInfoIncluded` = `10000`
+- `BackupManga.mergedMangaReferencesIncluded` = `10001`
+
+Rules:
+
+- Never allocate a KUN field below `10000`; use the reserved block.
+- Never allocate an upstream/shared number inside `10000-10999`.
+- If an upstream number ever collides with a KUN allocation, **upstream wins**: renumber the KUN field only if it has never shipped; otherwise retire it and allocate a new number.
+- Never renumber a shipped field. Never reuse a retired number: leave a `// retired: ProtoNumber(<n>)` comment instead.
+- `19000-19999` is reserved by the protobuf specification; never use it.
+- A field number in the 10000 range costs a 3-byte tag instead of 1-2, which is negligible next to the payload, and backups are gzipped.
+
+---
 ## Extensions & sources
 
 - Catalog sources: installable APK extensions (not in this repo).
@@ -188,6 +244,7 @@ komi-kun's own code is Apache-2.0, but the Yomitan/dictionary/OCR port adds two 
 2. **UI:** Metro ViewModel + `Screen` under `app/src/main/java/eu/kanade/tachiyomi/ui/` (see [Architecture](#architecture))
 3. **Strings:** `i18n-kun/src/commonMain/moko-resources/base/strings.xml`, referenced via `KUNMR`
 4. **Markers:** wrap edits to existing files in `// KUN -->` / `// KUN <--`
+5. **Backup/sync fields:** new `@ProtoNumber`s must use the fork-reserved `10000-10999` block (see [Backup protobuf field numbers](#backup-protobuf-field-numbers)); never take an upstream number.
 
 Reference: `domain/src/main/java/tachiyomi/domain/category/interactor/HideCategory.kt` (an `@Inject` interactor) and `app/src/main/java/eu/kanade/tachiyomi/ui/more/NewUpdateScreen.kt` + `NewUpdateViewModel.kt` (ViewModel + Screen).
 
@@ -230,6 +287,7 @@ Gradle `-P` flags (`buildSrc/src/main/kotlin/mihon/buildlogic/BuildConfig.kt`):
 - `build_nightly.yml` – **the release path**: manual dispatch on `master` → signed `assembleNightly -Pdist=ci` → a prerelease tagged `r<commit-count>` (4 APKs). See the `nightly-release` skill.
 - `build_release.yml` – optional `v*`-tag stable build; **dormant** (this fork ships nightlies only)
 - `build_benchmark.yml` – manual benchmark builder
+- `opencode_review.yml` – OpenCode automated PR review: runs on non-draft same-repo PR open / ready-for-review and on `/oc review` or `/opencode review` comments (no run on `synchronize`). It installs a **pinned OpenCode v2 CLI** (version + npm sha512, no `@latest` action) and runs `opencode run --format json` with the read-only `opencode-review` agent, so the model output is captured by the step and **no issue comment is created**. `.github/scripts/post_opencode_review.py` parses the JSONL stream and posts one `github-actions[bot]` review with a summary body (optionally Mermaid) and inline diff threads, falling back to the `opencode-repair` agent if the final message is malformed. The agent reads `build/opencode-review/pr.diff`; its step budget scales with PR size (50–120). Tooling PRs need the `review-tooling` label to self-review, and their parser tests run in a separate secret-free job. Agent definitions live in `.github/opencode-review/*.md`.
 
 **Releases are nightlies.** There is no stable channel and the version numbers carry no meaning: the nightly `versionName` is `1.14.1-<commit-count>` (the commit count is the version), `versionCode` stays `83`, and the in-app updater matches the `r<count>` tags and offers an update when the release count exceeds the installed build's `COMMIT_COUNT`. `CI_SETUP.md` documents the setup and the `nightly-release` skill documents cutting one.
 

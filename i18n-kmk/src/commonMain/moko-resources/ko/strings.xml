@@ -68,6 +68,19 @@
     <string name="pref_auto_sync_progress_from_trackers">Auto sync progress from Trackers</string>
     <string name="sync_progress_from_trackers_up_to_chapter">Sync progress from Trackers up to chapter %d</string>
     <string name="pref_show_syncing_progress_banner">Show syncing progress banner</string>
+    <string name="pref_sync_force_full">강제 전체 동기화</string>
+    <string name="pref_sync_force_full_summary">변경된 데이터만이 아니라 전체 라이브러리를 업로드합니다. 더 느리고 데이터를 더 많이 사용할 수 있습니다.</string>
+    <string name="pref_sync_force_full_confirmation_title">강제 전체 동기화를 실행할까요?</string>
+    <string name="pref_sync_force_full_confirmation_message">전체 라이브러리가 동기화 서버에 업로드됩니다. 일반 동기화보다 느리고 데이터를 더 많이 사용할 수 있습니다.</string>
+    <string name="pref_sync_force_full_started">전체 동기화가 시작되었습니다</string>
+    <string name="pref_sync_force_push">로컬 상태 강제 푸시</string>
+    <string name="pref_sync_force_push_summary">이 기기의 라이브러리로 동기화 서버를 교체합니다</string>
+    <string name="pref_sync_force_push_confirmation_title">이 기기의 상태를 강제로 푸시할까요?</string>
+    <string name="pref_sync_force_push_confirmation_message">이 기기에서 활성화된 동기화 데이터로 동기화 서버와 다른 모든 기기를 교체합니다. 비활성화된 상태로 둔 항목(기록, 트래킹, 카테고리, 사용자 지정 정보, 앱 설정)은 서버의 데이터가 유지됩니다. 이 작업은 앱에서 되돌릴 수 없습니다.</string>
+    <string name="pref_sync_force_push_started">강제 푸시가 시작되었습니다</string>
+    <string name="pref_sync_force_push_requires_sections">강제 푸시 전에 '동기화할 항목 선택'에서 라이브러리 항목과 챕터를 활성화하세요.</string>
+    <string name="pref_sync_force_push_requires_v2">강제 푸시에는 SyncYomi v2 서버가 필요합니다.</string>
+    <string name="pref_sync_force_push_snapshot_unavailable">서버의 현재 데이터를 읽을 수 없어 아무것도 변경하기 전에 강제 푸시를 중단했습니다. 서버에 연결할 수 있을 때 다시 시도하세요.</string>
     <string name="preload_library_cover_color">Preload library\'s cover color</string>
     <string name="onboarding_permission_external_storage">Access media files permission</string>
     <string name="permission_writing_external_storage_succeed">Permission granted. Try action again.</string>
@@ -160,4 +173,6 @@
     <string name="pref_category_connections">연결</string>
     <string name="action_manual_install">명령어로 설치하기</string>
     <string name="pref_discord_show_progress">진행 상황 표시</string>
+    <string name="pref_sync_pinned_sources">고정된 소스 동기화</string>
+    <string name="pref_sync_pinned_sources_summary">꺼져 있으면 고정된 소스가 이 기기에만 유지됩니다. 켜져 있으면 동기화되며, 병합된 집합이 모든 기기에서 고정된 소스를 바꿉니다.</string>
 </resources>

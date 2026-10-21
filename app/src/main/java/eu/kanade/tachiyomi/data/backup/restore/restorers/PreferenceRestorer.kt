@@ -13,12 +13,14 @@ import eu.kanade.tachiyomi.data.backup.models.IntPreferenceValue
 import eu.kanade.tachiyomi.data.backup.models.LongPreferenceValue
 import eu.kanade.tachiyomi.data.backup.models.StringPreferenceValue
 import eu.kanade.tachiyomi.data.backup.models.StringSetPreferenceValue
+import eu.kanade.tachiyomi.data.backup.restore.RestoreOptions
 import eu.kanade.tachiyomi.data.library.LibraryUpdateWorker
 import eu.kanade.tachiyomi.data.updater.AppUpdateJob
 import eu.kanade.tachiyomi.source.sourcePreferences
 import exh.EXHMigrations
 import exh.log.xLogE
 import tachiyomi.core.common.preference.AndroidPreferenceStore
+import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.core.common.preference.plusAssign
 import tachiyomi.domain.category.interactor.GetCategories
@@ -35,11 +37,18 @@ class PreferenceRestorer(
     suspend fun restoreApp(
         preferences: List<BackupPreference>,
         backupCategories: List<BackupCategory>?,
+        // KUN -->
+        options: RestoreOptions = RestoreOptions(),
+        // KUN <--
     ) {
         restorePreferences(
             preferences,
             preferenceStore,
             backupCategories,
+            // KUN -->
+            options,
+            isAppPreferences = true,
+            // KUN <--
         )
 
         LibraryUpdateWorker.setupTask(context)
@@ -56,16 +65,27 @@ class PreferenceRestorer(
         }
     }
 
-    private suspend fun restorePreferences(
+    internal suspend fun restorePreferences(
         toRestore: List<BackupPreference>,
         preferenceStore: PreferenceStore,
         backupCategories: List<BackupCategory>? = null,
+        // KUN -->
+        options: RestoreOptions = RestoreOptions(),
+        isAppPreferences: Boolean = false,
+        // KUN <--
     ) {
         val allCategories = if (backupCategories != null) getCategories.await() else emptyList()
         val categoriesByName = allCategories.associateBy { it.name }
         val backupCategoriesById = backupCategories?.associateBy { it.id.toString() }.orEmpty()
         val prefs = preferenceStore.getAll()
         toRestore.forEach { (key, value) ->
+            // KUN -->
+            // App-state keys are device-local state (sync cursors, the pinned-source choice, ...)
+            // and are already excluded from newly created app-preference backups; never restore
+            // them from an older or hand-edited payload. Source preferences are namespaced
+            // separately and keep whatever keys their source uses.
+            if (isAppPreferences && Preference.isAppState(key)) return@forEach
+            // KUN <--
             try {
                 when (value) {
                     is IntPreferenceValue -> {
@@ -117,6 +137,9 @@ class PreferenceRestorer(
                                             key,
                                             value.value,
                                             preferenceStore,
+                                            // KUN -->
+                                            options,
+                                            // KUN <--
                                         )
                                     else ->
                                         // KMK <--
@@ -151,19 +174,36 @@ class PreferenceRestorer(
         }
 
         if (ids.isNotEmpty()) {
-            preferenceStore.getStringSet(key) += ids
+            // KUN -->
+            preferenceStore.getStringSet(key).set(ids.toSet())
+            // KUN <--
         }
         return true
     }
 
-    private fun restorePinnedSourcesPreference(
+    internal fun restorePinnedSourcesPreference(
         key: String,
         value: Set<String>,
         preferenceStore: PreferenceStore,
+        // KUN -->
+        options: RestoreOptions,
+        // KUN <--
     ) {
-        if (value.isEmpty()) return
+        // KUN -->
+        // Pinned sources are device-local unless the user opted into syncing them: leave both the
+        // local pins and the synced set alone in that case.
+        if (options.skipPinnedSources) return
 
         val valueToSet = EXHMigrations.migrateSourceIds(value)
-        preferenceStore.getStringSet(key).set(valueToSet)
+        if (options.replacePinnedSources) {
+            // Synced: the incoming set is authoritative, so an un-pin propagates to this device and
+            // an empty set clears the local pins.
+            preferenceStore.getStringSet(key).set(valueToSet)
+        } else {
+            // Manual/file restore keeps the historical union behaviour.
+            val existing = preferenceStore.getStringSet(key).get()
+            preferenceStore.getStringSet(key).set(existing + valueToSet)
+        }
+        // KUN <--
     }
 }

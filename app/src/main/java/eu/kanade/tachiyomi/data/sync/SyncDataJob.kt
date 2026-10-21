@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.pm.ServiceInfo
 import android.os.Build
 import androidx.work.CoroutineWorker
+import androidx.work.Data
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
 import androidx.work.ForegroundInfo
@@ -11,6 +12,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import androidx.work.workDataOf
 import dev.zacsweers.metro.Inject
 import eu.kanade.domain.sync.SyncPreferences
 import eu.kanade.tachiyomi.data.SyncStatus
@@ -32,6 +34,24 @@ import tachiyomi.domain.category.repository.CategoryRepository
 import tachiyomi.domain.chapter.repository.ChapterRepository
 import tachiyomi.domain.sync.repository.SyncRepository
 import java.util.concurrent.TimeUnit
+
+// KUN -->
+/**
+ * One-shot "upload the whole library" request, carried in this run's input data. It is not a
+ * persisted preference: a force request applies to a single sync and is dropped afterwards.
+ */
+internal const val FORCE_FULL_SYNC_KEY = "force_full"
+
+internal fun Data.forceFullRequested(): Boolean = getBoolean(FORCE_FULL_SYNC_KEY, false)
+
+/**
+ * One-shot SyncYomi repair request: make this device's versions authoritative before uploading.
+ * Like [FORCE_FULL_SYNC_KEY], it only applies to the run that carries it.
+ */
+internal const val FORCE_PUSH_SYNC_KEY = "force_push"
+
+internal fun Data.forcePushRequested(): Boolean = getBoolean(FORCE_PUSH_SYNC_KEY, false)
+// KUN <--
 
 class SyncDataJob(private val context: Context, workerParams: WorkerParameters) :
     CoroutineWorker(context, workerParams) {
@@ -84,7 +104,12 @@ class SyncDataJob(private val context: Context, workerParams: WorkerParameters) 
                 notifier = notifier,
                 restorer = mangaRestorer,
                 json = graph.json,
-            ).syncData()
+            ).syncData(
+                // KUN -->
+                forceFull = inputData.forceFullRequested(),
+                forcePush = inputData.forcePushRequested(),
+                // KUN <--
+            )
             Result.success()
             // SY -->
         } catch (e: OutOfMemoryError) {
@@ -151,7 +176,15 @@ class SyncDataJob(private val context: Context, workerParams: WorkerParameters) 
             }
         }
 
-        suspend fun startNow(context: Context, manual: Boolean = false) {
+        suspend fun startNow(
+            context: Context,
+            manual: Boolean = false,
+            // KUN -->
+            // One-shot: only affect this run, never persisted in a preference.
+            forceFull: Boolean = false,
+            forcePush: Boolean = false,
+            // KUN <--
+        ) {
             val wm = context.workManager
             if (wm.isRunning(TAG_JOB)) {
                 // Already running either as a scheduled or manual job
@@ -161,8 +194,21 @@ class SyncDataJob(private val context: Context, workerParams: WorkerParameters) 
             val request = OneTimeWorkRequestBuilder<SyncDataJob>()
                 .addTag(TAG_JOB)
                 .addTag(tag)
+                // KUN -->
+                .setInputData(
+                    workDataOf(
+                        FORCE_FULL_SYNC_KEY to forceFull,
+                        FORCE_PUSH_SYNC_KEY to forcePush,
+                    ),
+                )
+                // KUN <--
                 .build()
-            context.workManager.enqueueUniqueWork(tag, ExistingWorkPolicy.KEEP, request)
+            // KUN -->
+            // A force request must not be dropped because a normal manual sync is still queued
+            // under the same unique name; KEEP would silently keep the older request.
+            val policy = if (forceFull || forcePush) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP
+            context.workManager.enqueueUniqueWork(tag, policy, request)
+            // KUN <--
         }
 
         fun stop(context: Context) {

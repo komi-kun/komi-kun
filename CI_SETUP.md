@@ -24,11 +24,13 @@ current state in this repo.
 
 1. [ ] Enable Actions on the fork (one-time UI acknowledgement).
 2. [ ] Confirm default branch = `master`; make the repo public or enable Dependency Graph.
-3. [ ] Add the 4 signing secrets. The 2 Google secrets are **optional** — CI is
-   green without them.
-4. [ ] Leave Actions workflow permissions at "Read repository contents".
-5. [ ] No environments / no Actions variables required.
-6. [ ] Test: same-repo PR → push to `master` → `Nightly Builder`. The nightly is
+3. [ ] Add the 4 signing secrets and `OPENCODE_API_KEY` (for automated PR
+   reviews). The 2 Google secrets are **optional** — CI is green without them.
+4. [ ] Install the [Renovate app](https://github.com/apps/renovate) for
+   dependency PRs (it replaces Dependabot; see [§2.6](#26-dependency-updates-renovate)).
+5. [ ] Leave Actions workflow permissions at "Read repository contents".
+6. [ ] No environments / no Actions variables required.
+7. [ ] Test: same-repo PR → push to `master` → `Nightly Builder`. The nightly is
    **the release path** here; the `v*` tag release is optional and normally unused
    (see [§4](#4-which-workflows-are-active-disabled-and-why)).
 
@@ -90,16 +92,47 @@ there are no environment-scoped secrets or protection rules to configure.
 `-Penable-updater`, …) are passed inline in the workflow commands, not via repo
 variables.
 
+### 2.6 Dependency updates (Renovate)
+
+Dependency PRs come from the hosted [Renovate app](https://github.com/apps/renovate),
+not from a workflow and not from Dependabot.
+
+- **Install:** open <https://github.com/apps/renovate> → **Configure** → grant it
+  access to `komi-kun/komi-kun`. No repository secrets are needed; the app
+  authenticates through its GitHub App installation.
+- **Config:** `.github/renovate.json5`, modelled on Mihon's file. The deleted
+  root `renovate.json` came from Komikku and pulled Mihon's settings in by remote
+  preset (`github>mihonapp/mihon//.github/renovate.json5`); those settings are now
+  inlined: `config:recommended`, `Dependencies` label, no semantic-commit
+  prefixes, and GitHub Actions grouped with pinned digests. It targets `master`
+  (the default branch) and lets Renovate manage the Gradle version catalogs under
+  `gradle/`, the Gradle wrapper, and workflow action digests.
+- **Behaviour:** the app maintains a "Dependency Dashboard" issue that lists
+  pending updates and lets you trigger or ignore them. Nothing runs until the app
+  is installed; until then dependency updates must be done by hand.
+- Mihon is the reference for these settings; TachiyomiSY uses the same file
+  location with the older `config:base` preset.
+- Renovate-authored commits are excluded from `cherrypick_log.md`
+  (`exclude_identity_regex` in `.agents/skills/cherrypick-log/config.json`).
+
+The `Dependencies` label must exist in the repository for Renovate to apply it;
+create it once with:
+
+```bash
+gh label create Dependencies --color D1E0A7 --description "Dependency updates"
+```
+
 ---
 
 ## 3. Repository secrets
 
 **Settings → Secrets and variables → Actions → New repository secret.**
 
-Add the **4 signing secrets** below. The **2 Google secrets are optional**: the
-workflows check for `GOOGLE_SERVICES_JSON` at runtime and, when it is absent,
-skip writing the Google files and pass `-Pinclude-telemetry=false` so the build
-stays green (see [§7](#7-what-each--pdist-does)).
+Add the **4 signing secrets** and the **OpenCode API key** below. The **2 Google
+secrets are optional**: the workflows check for `GOOGLE_SERVICES_JSON` at
+runtime and, when it is absent, skip writing the Google files and pass
+`-Pinclude-telemetry=false` so the build stays green (see
+[§7](#7-what-each--pdist-does)).
 
 | # | Secret name | Required? | Used by | What it is |
 |---|-------------|-----------|---------|------------|
@@ -107,12 +140,14 @@ stays green (see [§7](#7-what-each--pdist-does)).
 | 2 | `KEY_STORE_PASSWORD` | **Yes** | all signing | keystore password |
 | 3 | `ALIAS` | **Yes** | all signing | key alias |
 | 4 | `KEY_PASSWORD` | **Yes** | all signing | key password |
-| 5 | `GOOGLE_SERVICES_JSON` | No | push, PR (same-repo), nightly, release | Firebase `google-services.json` for `app.komikun` |
-| 6 | `GOOGLE_CLIENT_SECRETS_JSON` | No | push, PR (same-repo), nightly, release | OAuth client secrets (trackers) |
+| 5 | `OPENCODE_API_KEY` | **Yes** for reviews | `opencode_review.yml` | OpenCode Go API key (`opencode-go` provider) |
+| 6 | `GOOGLE_SERVICES_JSON` | No | push, PR (same-repo), nightly, release | Firebase `google-services.json` for `app.komikun` |
+| 7 | `GOOGLE_CLIENT_SECRETS_JSON` | No | push, PR (same-repo), nightly, release | OAuth client secrets (trackers) |
 
-> **Current state of this fork:** the four signing secrets are set; neither
-> Google secret is set yet (no Firebase project exists). That is why the
-> telemetry flag is `-Pinclude-telemetry=false` and CI is green. See
+> **Current state of this fork:** the four signing secrets and
+> `OPENCODE_API_KEY` are set; neither Google secret is set yet (no Firebase
+> project exists). That is why the telemetry flag is
+> `-Pinclude-telemetry=false` and CI is green. See
 > [`GOOGLE_SERVICES_SETUP.md`](GOOGLE_SERVICES_SETUP.md) if you later want to
 > enable telemetry or Google Drive backup.
 
@@ -204,7 +239,10 @@ gh secret set KEY_STORE_PASSWORD --repo "$REPO" --body 'YOUR_STORE_PASSWORD'
 gh secret set KEY_PASSWORD       --repo "$REPO" --body 'YOUR_KEY_PASSWORD'   # same as the store password for PKCS12
 gh secret set ALIAS              --repo "$REPO" --body 'komikun'
 
-# 5-6 (optional): Google JSON files -- pipe the file's exact bytes as the secret value.
+# 5: OpenCode Go API key used by the automated PR review.
+gh secret set OPENCODE_API_KEY --repo "$REPO" --body 'YOUR_OPENCODE_API_KEY'
+
+# 6-7 (optional): Google JSON files -- pipe the file's exact bytes as the secret value.
 gh secret set GOOGLE_SERVICES_JSON       --repo "$REPO" < app/google-services.json
 gh secret set GOOGLE_CLIENT_SECRETS_JSON --repo "$REPO" < path/to/client_secrets.json
 
@@ -227,6 +265,8 @@ Notes:
 
 - `BOT_PAT` — belonged to the disabled upstream-dispatch workflows.
 - `CODEBERG_SSH` — belonged to the disabled mirror workflow.
+- No Renovate secrets — the hosted app authenticates via its GitHub App
+  installation.
 
 Do not add these unless you deliberately re-purpose those workflows.
 
@@ -242,14 +282,18 @@ Do not add these unless you deliberately re-purpose those workflows.
 | `build_release.yml` (Release Builder) | **Keep** (dormant) | `v*` tag → non-draft prerelease, 4 APKs, AGP signing. Only fires on `v*` tags; this fork ships nightlies, not stable releases, so it is normally unused. Needs a Crashlytics-capable config for `-Pdist=github` (or telemetry off). |
 | `build_benchmark.yml` (Benchmark Builder) | **Keep** (optional) | Manual benchmark build; needs only the 4 signing secrets. Niche. |
 | `pr_label.yml` (Label PRs) | **Keep** (low value) | Labels Weblate-authored PRs `translations`. Harmless, safe. |
+| `opencode_review.yml` (OpenCode PR Review) | **Keep** | Reviews non-draft same-repo PRs on open/ready-for-review and on `/oc review` comments. Installs a pinned OpenCode v2 CLI (version + npm sha512) and runs `opencode run` directly, so no bot issue comment is created. Needs `OPENCODE_API_KEY`. Pushes do not re-trigger it. |
 | `build_dispatch_preview.yml.disabled` | **Disabled** | Cross-repo dispatch to upstream `komikku-app/komikku-preview` with `BOT_PAT` — cannot work on the fork. |
 | `codeberg_mirror.yml.disabled` | **Disabled** | Guarded `github.repository == 'komikku-app/komikku'` → permanent no-op; mirrors to an upstream Codeberg repo. |
 | `update_website.yml.disabled` | **Disabled** | Cross-repo dispatch to upstream `komikku-app/komikku-app.github.io` with `BOT_PAT` — cannot work. |
-| `.github/dependabot.yml` | **Keep** | Opens weekly GitHub Actions dependency PRs against `master`. |
 
 Renaming to `*.yml.disabled` keeps the file in git but out of GitHub Actions,
 which only loads `.yml`/`.yaml` files in `.github/workflows/`. To re-enable one,
 rename it back to `.yml` **and** fix its upstream URLs/guards first.
+
+Dependency updates are not a workflow either: the hosted Renovate app opens them
+against `master` (see [§2.6](#26-dependency-updates-renovate)). Dependabot is no
+longer configured, so GitHub Actions bumps are not opened twice.
 
 ---
 
@@ -320,6 +364,37 @@ first. Then walk through these in order.
 signs with `r0adkll`, uploads APK artifacts (retained 30 days). Needs only the 4
 signing secrets.
 
+### 5.6 OpenCode review (exercises `opencode_review.yml`)
+
+1. Open a **draft** same-repo PR: the `OpenCode PR Review` run is created but
+   the job is **skipped**, so no comment is posted.
+2. Mark it **ready for review**: the job installs a **pinned OpenCode v2 CLI**
+   (version + npm sha512; no `@latest` action) and runs `opencode run --format
+   json` with the read-only `opencode-review` agent, then posts one review by
+   `github-actions[bot]`: an overarching summary in the review body (Mermaid
+   diagrams are allowed) and inline threads on the changed lines in **Files
+   changed**. The CLI writes its JSONL stream to the step, so **no bot issue
+   comment is created**. The agent's step budget scales with the diff: 50 base
+   steps, plus 3 per changed file and 1 per 50 changed lines, capped at 120
+   total; the `opencode-repair` agent converts a malformed final message into
+   the review JSON.
+3. Push a commit: no new review run starts (only `opened` and
+   `ready_for_review` are wired).
+4. Comment `/oc review` (or `/opencode review`, optionally followed by
+   instructions): the job runs again. The `issue_comment` path only picks up the
+   workflow from the **default branch**, so this command works only after
+   `opencode_review.yml` is merged to `master`. The command must be lowercase
+   and must start the comment.
+5. Comment from a non-collaborator: the job is skipped. Fork PRs and PRs that
+   change `.opencode/` or the root `opencode.json`/`opencode.jsonc` are skipped
+   too, so a PR cannot load a plugin before the read-only agent starts.
+6. A PR that changes the review tooling itself (the workflow, the helper, its
+   tests, or `.github/opencode-review/*.md`) is skipped unless a maintainer adds
+   the **`review-tooling`** label. The label is an audit convention, not an
+   enforced boundary: same-repo collaborators are trusted, and for `pull_request`
+   events GitHub loads the workflow from the PR head. The no-secret `Test review
+   helper` job always runs the parser tests.
+
 ---
 
 ## 6. Common failure modes
@@ -331,6 +406,12 @@ signing secrets.
 | Release job fails **uploading the Crashlytics mapping** | `-Pdist=github` sets `uploadCrashlyticsMapping=true`, but the Firebase project has no Crashlytics | Enable Crashlytics in Firebase, switch the release build to `-Pdist=ci`, or leave `GOOGLE_SERVICES_JSON` unset. |
 | Build fails **signing** | Wrong `SIGNING_KEY` (not `base64 -w0`), or wrong password/alias | Regenerate: `base64 -w0 release.keystore`; verify `KEY_STORE_PASSWORD`/`ALIAS`/`KEY_PASSWORD` match the keystore. |
 | Nightly/release job fails at **Sign APK** | The 4 signing secrets are missing | Add `SIGNING_KEY`, `KEY_STORE_PASSWORD`, `ALIAS`, `KEY_PASSWORD`. |
+| **OpenCode PR Review** fails during `opencode run` | `OPENCODE_API_KEY` missing or invalid | Set the secret (`gh secret set OPENCODE_API_KEY --repo komi-kun/komi-kun`). |
+| **OpenCode PR Review** fails installing the CLI | The pinned npm tarball sha512 does not match, or the pinned version was unpublished | Check `OPENCODE_VERSION`/`OPENCODE_SHA512_*` in `opencode_review.yml` against `https://registry.npmjs.org/@opencode/cli-linux-x64`; the integrity check is intentionally fail-closed. |
+| **OpenCode PR Review** job is **skipped** | PR is from a fork, authored by a bot, changes `.opencode/` or the root `opencode.json(c)`, is a draft, or changes the review tooling without the `review-tooling` label | Expected. Port fork PRs to a same-repo branch (or review them manually); bot-authored same-repo PRs can be re-reviewed with `/oc review`; add `review-tooling` deliberately to self-review a tooling change. |
+| OpenCode posts a summary but **no inline comments** | The final message was not valid review JSON, or its findings were not on lines present in the diff | Check the `Post review` step log; findings outside the diff are skipped by design. A malformed final message is repaired by the `opencode-repair` agent before posting. |
+| The review says **"Maximum steps reached"** | The agent used its step budget before finishing the review | The budget scales with the PR (50–120 steps), and the `opencode-repair` agent converts the final message into the review JSON; re-run `/oc review` if it still happens. |
+| The job **succeeds with a warning and no review** | The model produced no/partial output (API outage, quota, step limit) | The review is advisory and does not red the check. Check the `Post review` log (the CLI stderr is printed) and re-run `/oc review`. |
 | Google Drive backup broken at runtime (not a build failure) | `GOOGLE_CLIENT_SECRETS_JSON` missing | Add the client-secrets JSON; see [`GOOGLE_SERVICES_SETUP.md`](GOOGLE_SERVICES_SETUP.md). |
 | Nightly/release `workflow_dispatch` does nothing | Triggered from a non-`master` branch | Run from `master`. |
 | Release workflow doesn't run on a tag | Tag doesn't start with `v` | Use `v*` tags. |

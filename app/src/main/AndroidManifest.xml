@@ -215,6 +215,9 @@
 
                 <data android:scheme="komikku" />
                 <data android:scheme="mihon" />
+                <!-- KUN -->
+                <data android:scheme="komikun" />
+                <!-- KUN -->
 
                 <data android:host="anilist-auth" />
                 <data android:host="bangumi-auth" />

@@ -54,9 +54,22 @@ INSERT INTO history(manga_id, chapter_id, read_at, read_duration)
 SELECT manga_id, id, :readAt, :readDuration
 FROM chapter
 WHERE id = :chapterId
+-- KUN -->
 ON CONFLICT(chapter_id) DO UPDATE SET
-    read_at = excluded.read_at,
+    read_at = max(coalesce(history.read_at, 0), coalesce(excluded.read_at, 0)),
     read_duration = read_duration + excluded.read_duration;
+-- KUN <--
+
+-- KUN -->
+-- Exact history write for a restore that owns the row: the payload decides read_at (NULL means
+-- the entry was removed) while read_duration never moves backwards. Matched on chapter_id, never
+-- on the history row id.
+setHistoryFromRestore:
+UPDATE history
+SET read_at = :readAt,
+    read_duration = max(read_duration, :readDuration)
+WHERE chapter_id = :chapterId;
+-- KUN <--
 
 getReadDuration:
 SELECT coalesce(sum(read_duration), 0)

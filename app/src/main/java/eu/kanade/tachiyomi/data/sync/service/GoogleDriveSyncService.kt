@@ -90,15 +90,12 @@ class GoogleDriveSyncService(context: Context, json: Json, syncPreferences: Sync
 
                 // check if the last sync was done by the same device if so overwrite the remote data with the local data
                 // SY -->
-                return if (lastSyncDeviceId == localDeviceId) {
-                    pushSyncData(syncData)
-                    SyncResult(syncData.backup, changed = false, protocolV2 = false)
-                } else {
-                    // Merge the local and remote sync data
-                    val mergedSyncData = mergeSyncData(syncData, remoteSData)
-                    pushSyncData(mergedSyncData)
-                    SyncResult(mergedSyncData.backup, changed = true, protocolV2 = false)
-                }
+                // KUN -->
+                // Always merge so selective sync options or missing local entities do not overwrite remote data.
+                val mergedSyncData = mergeSyncData(syncData, remoteSData)
+                pushSyncData(mergedSyncData)
+                return SyncResult(mergedSyncData.backup, changed = true, protocolV2 = false)
+                // KUN <--
                 // SY <--
             }
 
@@ -200,7 +197,9 @@ class GoogleDriveSyncService(context: Context, json: Json, syncPreferences: Sync
     private fun getAppDataFileList(drive: Drive): MutableList<File> {
         try {
             // Search for the existing file by name in the appData folder
-            val query = "mimeType='application/x-gzip' and name = '$remoteFileName'"
+            // KUN -->
+            val query = "name = '$remoteFileName' and trashed = false"
+            // KUN <--
             val fileList = drive.files()
                 .list()
                 .setSpaces("appDataFolder")

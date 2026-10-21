@@ -23,6 +23,10 @@ class MangaRestorer(
     private val fetchInterval: FetchInterval,
 ) {
     var isSync: Boolean = false
+    // KUN -->
+    /** Epoch seconds of the upload snapshot; local chapters older than it absent from the response are pruned. */
+    var removeMissingChaptersBefore: Long? = null
+    // KUN <--
     private val timeZone = TimeZone.currentSystemDefault()
     private val now = Clock.System.now().toLocalDateTime(timeZone)
     private val currentFetchWindow = fetchInterval.getWindow(now.date, timeZone)
@@ -48,9 +52,24 @@ class MangaRestorer(
     suspend fun restore(
         backupMangas: List<BackupManga>,
         backupCategories: List<BackupCategory>,
+        // KUN -->
+        restoreCategories: Boolean = true,
+        restoreTracking: Boolean = true,
+        restoreHistory: Boolean = true,
+        restoreCustomInfo: Boolean = true,
+        // KUN <--
     ) {
-        val dbCategoriesByName = getCategories.await().associateBy { it.name }
+        // KUN -->
+        val dbCategories = getCategories.await()
+        val dbCategoriesByName = dbCategories.associateBy { it.name.trim().lowercase() }
+        val dbCategoriesByUid = dbCategories.filter { it.uid != 0L }.associateBy { it.uid }
+        val dbCategoriesByOrder = dbCategories.associateBy { it.order }
+        val dbCategoriesById = dbCategories.associateBy { it.id }
+        // KUN <--
         val backupCategoriesByOrder = backupCategories.associateBy { it.order }
+        // KUN -->
+        val backupCategoriesList = backupCategories.sortedBy { it.order }
+        // KUN <--
 
         val entries = backupMangas.map { backupManga ->
             var manga = backupManga.getMangaImpl()
@@ -60,11 +79,31 @@ class MangaRestorer(
             RestoredManga(
                 manga = manga,
                 chapters = backupManga.chapters.map { it.toChapterImpl() },
-                categoryIds = backupManga.categories.mapNotNull { backupCategoryOrder ->
-                    backupCategoriesByOrder[backupCategoryOrder]?.let { backupCategory ->
-                        dbCategoriesByName[backupCategory.name]?.id
+                // KUN -->
+                categoryIds = if (restoreCategories) {
+                    val resolved = backupManga.categories.mapNotNull { backupCategoryOrder ->
+                        val backupCat = backupCategoriesByOrder[backupCategoryOrder]
+                            ?: backupCategoriesList.getOrNull(backupCategoryOrder.toInt())
+                        if (backupCat != null) {
+                            (if (backupCat.uid != 0L) dbCategoriesByUid[backupCat.uid]?.id else null)
+                                ?: dbCategoriesByName[backupCat.name.trim().lowercase()]?.id
+                                ?: dbCategoriesByOrder[backupCat.order]?.id
+                        } else {
+                            dbCategoriesByOrder[backupCategoryOrder]?.id
+                                ?: dbCategoriesById[backupCategoryOrder]?.id
+                        }
                     }
+                    if (isSync && backupManga.categories.isNotEmpty() && resolved.isEmpty()) {
+                        // Backup had categories, but none could be matched locally (e.g. order shift or UID drift).
+                        // Preserve local categories rather than wiping them.
+                        null
+                    } else {
+                        resolved
+                    }
+                } else {
+                    emptyList()
                 },
+                // KUN <--
                 history = backupManga.history.map {
                     val history = it.getHistoryImpl()
                     RestoredHistory(it.url, history.readAt, history.readDuration)
@@ -75,13 +114,29 @@ class MangaRestorer(
                 mergedMangaReferences = backupManga.mergedMangaReferences.map {
                     EXHMigrations.migrateBackupMergedMangaReference(it).getMergedMangaReference()
                 },
+                // KUN -->
+                mergedMangaReferencesIncluded = backupManga.mergedMangaReferencesIncluded,
+                // KUN <--
                 flatMetadata = backupManga.flatMetadata?.getFlatMetadata(mangaId = 0L),
                 customMangaInfo = backupManga.getCustomMangaInfo(),
+                // KUN -->
+                customInfoIncluded = backupManga.customInfoIncluded,
+                // KUN <--
                 // SY <--
             )
         }
 
-        restoreRepository.restoreManga(entries, isSync) { manga ->
+        // KUN -->
+        restoreRepository.restoreManga(
+            entries,
+            isSync,
+            restoreCategories,
+            restoreTracking,
+            restoreHistory,
+            restoreCustomInfo,
+            removeMissingChaptersBefore,
+        ) { manga ->
+            // KUN <--
             val update = fetchInterval.withFetchInterval(manga, now, timeZone, currentFetchWindow)
             // A next update still ahead was worked out with the chapters the backup came from
             val preservedNextUpdate = manga.nextUpdate
@@ -117,6 +172,12 @@ class MangaRestorer(
                 status = customStatus.takeUnless { it == 0 }?.toLong(),
             )
         }
+        // KUN -->
+        // The sender included the custom-info section but every override is empty: that is an
+        // explicit clear, not "unknown". Return the all-null value so the restore can remove the
+        // stored entry; the repository only acts on it when the payload owns the manga.
+        if (customInfoIncluded == true) return CustomMangaInfo(id = 0L, title = null)
+        // KUN <--
         return null
     }
     // SY <--

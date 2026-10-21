@@ -5,6 +5,8 @@ import eu.kanade.domain.sync.SyncPreferences
 import eu.kanade.tachiyomi.data.backup.models.Backup
 import eu.kanade.tachiyomi.data.backup.models.BackupCategory
 import eu.kanade.tachiyomi.data.backup.models.BackupChapter
+import eu.kanade.tachiyomi.data.backup.models.BackupExtensionStore
+import eu.kanade.tachiyomi.data.backup.models.BackupFeed
 import eu.kanade.tachiyomi.data.backup.models.BackupManga
 import eu.kanade.tachiyomi.data.backup.models.BackupPreference
 import eu.kanade.tachiyomi.data.backup.models.BackupSavedSearch
@@ -34,6 +36,15 @@ data class SyncResult(
     val backup: Backup?,
     val changed: Boolean,
     val protocolV2: Boolean,
+    // KUN -->
+    val cursor: Long? = null,
+    val pendingDeletedCategories: Set<String> = emptySet(),
+    val fullSyncRequested: Boolean = false,
+    /** HTTP status of a failed request, when the service reported one. */
+    val failureStatus: Int? = null,
+    /** True when retrying the same request cannot succeed (e.g. the forced payload exceeds a body limit). */
+    val permanentFailure: Boolean = false,
+    // KUN <--
 )
 
 abstract class SyncService(
@@ -59,32 +70,73 @@ abstract class SyncService(
      * @return The JSON string containing the merged sync data.
      */
     protected fun mergeSyncData(localSyncData: SyncData, remoteSyncData: SyncData): SyncData {
-        val mergedCategoriesList =
-            mergeCategoriesLists(localSyncData.backup?.backupCategories, remoteSyncData.backup?.backupCategories)
+        // KUN -->
+        val syncSettings = syncPreferences.getSyncSettings()
 
-        val mergedMangaList = mergeMangaLists(
-            localSyncData.backup?.backupManga,
-            remoteSyncData.backup?.backupManga,
-            localSyncData.backup?.backupCategories ?: emptyList(),
-            remoteSyncData.backup?.backupCategories ?: emptyList(),
-            mergedCategoriesList,
-        )
+        val mergedCategoriesList = if (!syncSettings.categories) {
+            remoteSyncData.backup?.backupCategories.orEmpty()
+        } else {
+            mergeCategoriesLists(localSyncData.backup?.backupCategories, remoteSyncData.backup?.backupCategories)
+        }
+
+        val mergedMangaList = if (!syncSettings.libraryEntries && !syncSettings.readEntries) {
+            remoteSyncData.backup?.backupManga.orEmpty()
+        } else {
+            mergeMangaLists(
+                localSyncData.backup?.backupManga,
+                remoteSyncData.backup?.backupManga,
+                localSyncData.backup?.backupCategories ?: emptyList(),
+                remoteSyncData.backup?.backupCategories ?: emptyList(),
+                mergedCategoriesList,
+            )
+        }
 
         val mergedSourcesList =
             mergeSourcesLists(localSyncData.backup?.backupSources, remoteSyncData.backup?.backupSources)
-        val mergedPreferencesList =
+
+        val mergedPreferencesList = if (!syncSettings.appSettings) {
+            remoteSyncData.backup?.backupPreferences.orEmpty()
+        } else {
             mergePreferencesLists(localSyncData.backup?.backupPreferences, remoteSyncData.backup?.backupPreferences)
-        val mergedSourcePreferencesList = mergeSourcePreferencesLists(
-            localSyncData.backup?.backupSourcePreferences,
-            remoteSyncData.backup?.backupSourcePreferences,
-        )
+        }
+
+        val mergedSourcePreferencesList = if (!syncSettings.sourceSettings) {
+            remoteSyncData.backup?.backupSourcePreferences.orEmpty()
+        } else {
+            mergeSourcePreferencesLists(
+                localSyncData.backup?.backupSourcePreferences,
+                remoteSyncData.backup?.backupSourcePreferences,
+            )
+        }
 
         // SY -->
-        val mergedSavedSearchesList = mergeSavedSearchesLists(
-            localSyncData.backup?.backupSavedSearches,
-            remoteSyncData.backup?.backupSavedSearches,
-        )
+        val mergedSavedSearchesList = if (!syncSettings.savedSearchesFeeds) {
+            remoteSyncData.backup?.backupSavedSearches.orEmpty()
+        } else {
+            mergeSavedSearchesLists(
+                localSyncData.backup?.backupSavedSearches,
+                remoteSyncData.backup?.backupSavedSearches,
+            )
+        }
         // SY <--
+
+        val mergedExtensionStoresList = if (!syncSettings.extensionStores) {
+            remoteSyncData.backup?.backupExtensionStores.orEmpty()
+        } else {
+            mergeExtensionStoresLists(
+                localSyncData.backup?.backupExtensionStores,
+                remoteSyncData.backup?.backupExtensionStores,
+            )
+        }
+
+        val mergedFeedsList = if (!syncSettings.savedSearchesFeeds) {
+            remoteSyncData.backup?.backupFeeds.orEmpty()
+        } else {
+            mergeFeedsLists(
+                localSyncData.backup?.backupFeeds,
+                remoteSyncData.backup?.backupFeeds,
+            )
+        }
 
         // Create the merged Backup object
         val mergedBackup = Backup(
@@ -93,11 +145,16 @@ abstract class SyncService(
             backupSources = mergedSourcesList,
             backupPreferences = mergedPreferencesList,
             backupSourcePreferences = mergedSourcePreferencesList,
+            backupExtensionStores = mergedExtensionStoresList,
 
             // SY -->
             backupSavedSearches = mergedSavedSearchesList,
             // SY <--
+            // KMK -->
+            backupFeeds = mergedFeedsList,
+            // KMK <--
         )
+        // KUN <--
 
         // Create the merged SData object
         return SyncData(
@@ -131,9 +188,11 @@ abstract class SyncService(
             "Starting merge. Local list size: ${localMangaListSafe.size}, Remote list size: ${remoteMangaListSafe.size}"
         }
 
+        // KUN -->
         fun mangaCompositeKey(manga: BackupManga): String {
-            return "${manga.source}|${manga.url}|${manga.title.lowercase().trim()}|${manga.author?.lowercase()?.trim()}"
+            return "${manga.source}|${manga.url}"
         }
+        // KUN <--
 
         // Create maps using composite keys
         val localMangaMap = localMangaListSafe.associateBy { mangaCompositeKey(it) }
@@ -171,7 +230,9 @@ abstract class SyncService(
             when {
                 local != null && remote == null -> {
                     // SY -->
-                    if (lastSyncTime == 0L || local.lastModifiedAt > lastSyncTime) {
+                    // KUN -->
+                    if (lastSyncTime == 0L || local.lastModifiedAt == 0L || local.lastModifiedAt > lastSyncTime) {
+                        // KUN <--
                         updateCategories(local, localCategoriesMapByOrder)
                         local
                     } else {
@@ -182,7 +243,9 @@ abstract class SyncService(
                 }
                 local == null && remote != null -> {
                     // SY -->
-                    if (lastSyncTime == 0L || remote.lastModifiedAt > lastSyncTime) {
+                    // KUN -->
+                    if (lastSyncTime == 0L || remote.lastModifiedAt == 0L || remote.lastModifiedAt > lastSyncTime) {
+                        // KUN <--
                         updateCategories(remote, remoteCategoriesMapByOrder)
                         remote
                     } else {
@@ -255,9 +318,11 @@ abstract class SyncService(
         }
         // SY <--
 
+        // KUN -->
         fun chapterCompositeKey(chapter: BackupChapter): String {
-            return "${chapter.url}|${chapter.name}|${chapter.chapterNumber}"
+            return chapter.url
         }
+        // KUN <--
 
         val localChapterMap = localChapters.associateBy { chapterCompositeKey(it) }
         val remoteChapterMap = remoteChapters.associateBy { chapterCompositeKey(it) }
@@ -279,7 +344,9 @@ abstract class SyncService(
             when {
                 localChapter != null && remoteChapter == null -> {
                     // SY -->
-                    if (lastSyncTime == 0L || localChapter.lastModifiedAt > lastSyncTime) {
+                    // KUN -->
+                    if (lastSyncTime == 0L || localChapter.lastModifiedAt == 0L || localChapter.lastModifiedAt > lastSyncTime) {
+                        // KUN <--
                         logcat(LogPriority.DEBUG, logTag) { "Keeping local chapter: ${localChapter.name}." }
                         localChapter
                     } else {
@@ -290,7 +357,9 @@ abstract class SyncService(
                 }
                 localChapter == null && remoteChapter != null -> {
                     // SY -->
-                    if (lastSyncTime == 0L || remoteChapter.lastModifiedAt > lastSyncTime) {
+                    // KUN -->
+                    if (lastSyncTime == 0L || remoteChapter.lastModifiedAt == 0L || remoteChapter.lastModifiedAt > lastSyncTime) {
+                        // KUN <--
                         logcat(LogPriority.DEBUG, logTag) { "Taking remote chapter: ${remoteChapter.name}." }
                         remoteChapter
                     } else {
@@ -492,10 +561,12 @@ abstract class SyncService(
                     remotePreference
                 }
                 else -> {
+                    // KUN -->
                     logcat(LogPriority.DEBUG, logTag) {
-                        "Both remote and local have the same preference key: $key. Keeping local."
+                        "Both remote and local have the same preference key: $key. Keeping remote."
                     }
-                    localPreference
+                    remotePreference
+                    // KUN <--
                 }
             }
         }
@@ -629,4 +700,59 @@ abstract class SyncService(
         return mergedSearches
     }
     // SY <--
+
+    // KUN -->
+    private fun mergeExtensionStoresLists(
+        localStores: List<BackupExtensionStore>?,
+        remoteStores: List<BackupExtensionStore>?,
+    ): List<BackupExtensionStore> {
+        val localStoreMap = localStores?.associateBy { it.indexUrl } ?: emptyMap()
+        val remoteStoreMap = remoteStores?.associateBy { it.indexUrl } ?: emptyMap()
+
+        return (localStoreMap.keys + remoteStoreMap.keys).distinct().mapNotNull { indexUrl ->
+            val localStore = localStoreMap[indexUrl]
+            val remoteStore = remoteStoreMap[indexUrl]
+            when {
+                localStore != null && remoteStore == null -> localStore
+                remoteStore != null && localStore == null -> remoteStore
+                localStore != null && remoteStore != null -> {
+                    BackupExtensionStore(
+                        indexUrl = indexUrl,
+                        name = localStore.name.ifBlank { remoteStore.name },
+                        badgeLabel = localStore.badgeLabel ?: remoteStore.badgeLabel,
+                        signingKey = localStore.signingKey.ifBlank { remoteStore.signingKey },
+                        contactWebsite = localStore.contactWebsite.ifBlank { remoteStore.contactWebsite },
+                        contactDiscord = localStore.contactDiscord ?: remoteStore.contactDiscord,
+                        isLegacy = localStore.isLegacy ?: remoteStore.isLegacy,
+                        extensionListUrl = localStore.extensionListUrl ?: remoteStore.extensionListUrl,
+                    )
+                }
+                else -> null
+            }
+        }
+    }
+
+    private fun mergeFeedsLists(
+        localFeeds: List<BackupFeed>?,
+        remoteFeeds: List<BackupFeed>?,
+    ): List<BackupFeed> {
+        fun feedKey(feed: BackupFeed): String = "${feed.source}|${feed.global}|${feed.savedSearch?.name.orEmpty()}"
+
+        val localFeedMap = localFeeds?.associateBy { feedKey(it) } ?: emptyMap()
+        val remoteFeedMap = remoteFeeds?.associateBy { feedKey(it) } ?: emptyMap()
+
+        return (localFeedMap.keys + remoteFeedMap.keys).distinct().mapNotNull { key ->
+            val localFeed = localFeedMap[key]
+            val remoteFeed = remoteFeedMap[key]
+            when {
+                localFeed != null && remoteFeed == null -> localFeed
+                remoteFeed != null && localFeed == null -> remoteFeed
+                localFeed != null && remoteFeed != null -> {
+                    if (localFeed.savedSearch != null) localFeed else remoteFeed
+                }
+                else -> null
+            }
+        }
+    }
+    // KUN <--
 }

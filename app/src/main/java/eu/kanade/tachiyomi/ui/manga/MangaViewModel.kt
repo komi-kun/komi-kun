@@ -45,6 +45,7 @@ import eu.kanade.domain.manga.model.chaptersFiltered
 import eu.kanade.domain.manga.model.downloadedFilter
 import eu.kanade.domain.manga.model.toSManga
 import eu.kanade.domain.source.service.SourcePreferences
+import eu.kanade.domain.sync.SyncStateBumper
 import eu.kanade.domain.track.interactor.AddTracks
 import eu.kanade.domain.track.interactor.RefreshTracks
 import eu.kanade.domain.track.interactor.TrackChapter
@@ -154,6 +155,7 @@ import tachiyomi.domain.libraryUpdateError.model.LibraryUpdateError
 import tachiyomi.domain.libraryUpdateErrorMessage.interactor.InsertLibraryUpdateErrorMessages
 import tachiyomi.domain.libraryUpdateErrorMessage.model.LibraryUpdateErrorMessage
 import tachiyomi.domain.manga.interactor.DeleteMergeById
+import tachiyomi.domain.manga.interactor.GetCustomMangaInfo
 import tachiyomi.domain.manga.interactor.GetDuplicateLibraryManga
 import tachiyomi.domain.manga.interactor.GetFlatMetadataById
 import tachiyomi.domain.manga.interactor.GetManga
@@ -244,6 +246,10 @@ class MangaViewModel(
     private val getPagePreviews: GetPagePreviews,
     private val upsertTrack: UpsertTrack,
     private val setCustomMangaInfo: SetCustomMangaInfo,
+    // KUN -->
+    private val getCustomMangaInfo: GetCustomMangaInfo,
+    private val syncStateBumper: SyncStateBumper,
+    // KUN <--
     private val deleteLibraryUpdateErrors: DeleteLibraryUpdateErrors,
     private val insertLibraryUpdateErrors: InsertLibraryUpdateErrors,
     private val insertLibraryUpdateErrorMessages: InsertLibraryUpdateErrorMessages,
@@ -855,18 +861,27 @@ class MangaViewModel(
             } else {
                 null
             }
-            setCustomMangaInfo.set(
-                CustomMangaInfo(
-                    state.manga.id,
-                    title?.trimOrNull(),
-                    author?.trimOrNull(),
-                    artist?.trimOrNull(),
-                    thumbnailUrl?.trimOrNull(),
-                    description?.trimOrNull(),
-                    genre,
-                    status.takeUnless { it == state.manga.ogStatus },
-                ),
+            val customInfo = CustomMangaInfo(
+                state.manga.id,
+                title?.trimOrNull(),
+                author?.trimOrNull(),
+                artist?.trimOrNull(),
+                thumbnailUrl?.trimOrNull(),
+                description?.trimOrNull(),
+                genre,
+                status.takeUnless { it == state.manga.ogStatus },
             )
+            // KUN -->
+            // The bump must survive leaving the screen right after the edit: the view model scope is
+            // cancelled then. The app-wide, non-cancellable launch still runs off the UI thread.
+            val previousCustomInfo = getCustomMangaInfo.get(state.manga.id)
+            // KUN <--
+            setCustomMangaInfo.set(customInfo)
+            // KUN -->
+            appScope.launchNonCancellable {
+                syncStateBumper.bumpForCustomInfoEdit(customInfo.id, previousCustomInfo, customInfo)
+            }
+            // KUN <--
             manga = manga.copy(lastUpdate = manga.lastUpdate?.plus(1.milliseconds) ?: Clock.System.now())
         }
 
@@ -954,10 +969,7 @@ class MangaViewModel(
             if (isFavorited) {
                 // Remove from library
                 if (updateManga.awaitUpdateFavorite(manga.id, false)) {
-                    // Remove covers and update last modified in db
-                    if (manga.removeCovers(coverCache) != manga) {
-                        updateManga.awaitUpdateCoverLastModified(manga.id)
-                    }
+                    manga.removeCovers(coverCache)
                     onRemoved()
                 }
             } else {

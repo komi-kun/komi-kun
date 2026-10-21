@@ -19,6 +19,7 @@ import eu.kanade.tachiyomi.source.online.all.NHentai
 import eu.kanade.tachiyomi.source.online.all.Pururin
 import eu.kanade.tachiyomi.source.online.english.EightMuses
 import exh.log.xLogD
+import exh.log.xLogE
 import exh.source.BlacklistedSources
 import exh.source.DelegatedHttpSource
 import exh.source.EHENTAI_EXT_SOURCES
@@ -72,9 +73,13 @@ class AndroidSourceManager(
 
     private val stubSourcesMap = ConcurrentHashMap<Long, StubSource>()
 
+    // KUN -->
+    // Emit the current snapshot straight away (empty while the extensions load) instead of waiting for
+    // the first package scan. Callers must tolerate sources that are not loaded yet, but a screen that
+    // observes this flow then must never be left waiting forever on a slow or failing extension scan.
     override val sources: Flow<List<Source>> = sourcesMapFlow
-        .filterNotNull()
-        .map { it.values.toList() }
+        .map { it?.values?.toList().orEmpty() }
+    // KUN <--
 
     init {
         scope.launch {
@@ -110,7 +115,9 @@ class AndroidSourceManager(
                         // SY <--
                     }
                     extensions.forEach { extension ->
-                        extension.sources.mapNotNull { it.toInternalSource(/* KMK --> */isHentaiEnabled/* KMK <-- */) }.forEach {
+                        // KUN -->
+                        extension.sources.filterNotNull().mapNotNull { it.toInternalSource(/* KMK --> */isHentaiEnabled/* KMK <-- */) }.forEach {
+                            // KUN <--
                             mutableMap[it.id] = it
                             registerStubSource(StubSource.from(it))
                         }
@@ -134,54 +141,77 @@ class AndroidSourceManager(
         isHentaiEnabled: Boolean,
         // KMK <--
     ): Source? {
-        // EXH -->
-        val sourceQName = this::class.qualifiedName
-        val delegate = if (sourceQName != null) {
-            // KMK -->
-            DELEGATED_SOURCES.firstOrNull { delegated ->
-                sourceQName == delegated.originalSourceQualifiedClassName ||
-                    (delegated.factory && sourceQName.startsWith(delegated.originalSourceQualifiedClassName))
+        // KUN -->
+        try {
+            // KUN <--
+            // EXH -->
+            val sourceQName = this::class.qualifiedName
+            val delegate = if (sourceQName != null) {
+                // KMK -->
+                DELEGATED_SOURCES.firstOrNull { delegated ->
+                    sourceQName == delegated.originalSourceQualifiedClassName ||
+                        (delegated.factory && sourceQName.startsWith(delegated.originalSourceQualifiedClassName))
+                }
+                // KMK <--
+            } else {
+                null
             }
-            // KMK <--
-        } else {
-            null
-        }
-        val newSource = if (this is HttpSource && delegate != null) {
-            xLogD("Delegating source: %s -> %s!", sourceQName, delegate.newSourceClass.qualifiedName)
-            val enhancedSource = EnhancedHttpSource(
-                this,
-                delegate.newSourceClass.constructors.find { it.parameters.size == 2 }!!.call(this, context),
-            )
+            val newSource = if (this is HttpSource && delegate != null) {
+                xLogD("Delegating source: %s -> %s!", sourceQName, delegate.newSourceClass.qualifiedName)
+                // KUN -->
+                val enhancedInstance = try {
+                    delegate.createSource?.invoke(this, context)
+                        ?: delegate.newSourceClass.constructors.find { it.parameters.size == 2 }?.call(this, context)
+                } catch (e: Throwable) {
+                    xLogE("Failed to create delegated source for $sourceQName", e)
+                    null
+                }
+                if (enhancedInstance != null) {
+                    val enhancedSource = EnhancedHttpSource(
+                        this,
+                        enhancedInstance,
+                    )
 
-            currentDelegatedSources[enhancedSource.originalSource.id] = DelegatedSource(
-                enhancedSource.originalSource.name,
-                enhancedSource.originalSource.id,
-                enhancedSource.originalSource::class.qualifiedName ?: delegate.originalSourceQualifiedClassName,
-                (enhancedSource.enhancedSource as DelegatedHttpSource)::class,
-                delegate.factory,
-            )
-            enhancedSource
-        } else {
-            this
-        }
+                    currentDelegatedSources[enhancedSource.originalSource.id] = DelegatedSource(
+                        enhancedSource.originalSource.name,
+                        enhancedSource.originalSource.id,
+                        enhancedSource.originalSource::class.qualifiedName ?: delegate.originalSourceQualifiedClassName,
+                        (enhancedSource.enhancedSource as DelegatedHttpSource)::class,
+                        delegate.factory,
+                        delegate.createSource,
+                    )
+                    enhancedSource
+                } else {
+                    this
+                }
+                // KUN <--
+            } else {
+                this
+            }
 
-        return if (
-            // KMK -->
-            isHentaiEnabled &&
-            // KMK <--
-            id in BlacklistedSources.BLACKLISTED_EXT_SOURCES
-        ) {
-            xLogD(
-                "Removing blacklisted source: (id: %s, name: %s, lang: %s)!",
-                id,
-                name,
-                lang,
-            )
-            null
-        } else {
-            newSource
+            return if (
+                // KMK -->
+                isHentaiEnabled &&
+                // KMK <--
+                id in BlacklistedSources.BLACKLISTED_EXT_SOURCES
+            ) {
+                xLogD(
+                    "Removing blacklisted source: (id: %s, name: %s, lang: %s)!",
+                    id,
+                    name,
+                    lang,
+                )
+                null
+            } else {
+                newSource
+            }
+            // EXH <--
+            // KUN -->
+        } catch (e: Throwable) {
+            xLogE("Failed to process source $name ($id) into internal source", e)
+            return this
         }
-        // EXH <--
+        // KUN <--
     }
 
     /**
@@ -248,7 +278,7 @@ class AndroidSourceManager(
      * while the main map is not loaded yet, and null when nothing is known about it — callers must
      * then fall back rather than block.
      */
-    fun getOrStubOrNull(sourceKey: Long): Source? =
+    override fun getOrStubOrNull(sourceKey: Long): Source? =
         sourcesMapFlow.value?.get(sourceKey) ?: stubSourcesMap[sourceKey]
     // KUN <--
 
@@ -297,30 +327,45 @@ class AndroidSourceManager(
                 fillInSourceId,
                 "eu.kanade.tachiyomi.extension.all.pururin.Pururin",
                 Pururin::class,
+                // KUN -->
+                createSource = ::Pururin,
+                // KUN <--
             ),
             DelegatedSource(
                 "MangaDex",
                 fillInSourceId,
                 "eu.kanade.tachiyomi.extension.all.mangadex.MangaDex",
                 MangaDex::class,
+                // KUN -->
+                createSource = ::MangaDex,
+                // KUN <--
             ),
             DelegatedSource(
                 "8Muses",
                 EIGHTMUSES_SOURCE_ID,
                 "eu.kanade.tachiyomi.extension.en.eightmuses.EightMuses",
                 EightMuses::class,
+                // KUN -->
+                createSource = ::EightMuses,
+                // KUN <--
             ),
             DelegatedSource(
                 "NHentai",
                 fillInSourceId,
                 "eu.kanade.tachiyomi.extension.all.nhentai.NHentai",
                 NHentai::class,
+                // KUN -->
+                createSource = ::NHentai,
+                // KUN <--
             ),
             DelegatedSource(
                 "LANraragi",
                 fillInSourceId,
                 "eu.kanade.tachiyomi.extension.all.lanraragi.LANraragi",
                 Lanraragi::class,
+                // KUN -->
+                createSource = ::Lanraragi,
+                // KUN <--
             ),
         )
 
@@ -333,6 +378,9 @@ class AndroidSourceManager(
             val originalSourceQualifiedClassName: String,
             val newSourceClass: KClass<out DelegatedHttpSource>,
             val factory: Boolean = false,
+            // KUN -->
+            val createSource: ((HttpSource, Context) -> DelegatedHttpSource)? = null,
+            // KUN <--
         )
     }
 
