@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import tachiyomi.core.common.preference.InMemoryPreferenceStore
 import tachiyomi.core.common.preference.InMemoryPreferenceStore.InMemoryPreference
+import tachiyomi.core.common.preference.Preference
 
 /**
  * Ported from TachiyomiSY (jobobby04/TachiyomiSY#1658).
@@ -65,6 +66,17 @@ class SyncPreferencesTest {
 
         prefs.setSyncSettings(prefs.getSyncSettings().copy(replacePinnedSources = false))
         assertFalse(prefs.getSyncSettings().replacePinnedSources)
+    }
+
+    @Test
+    fun `pinned source replacement is device-local app state`() {
+        val prefs = SyncPreferences(InMemoryPreferenceStore())
+
+        assertEquals(
+            Preference.appStateKey("sync_replace_pinned_sources"),
+            prefs.replacePinnedSources.key(),
+        )
+        assertTrue(Preference.isAppState(prefs.replacePinnedSources.key()))
     }
     // KUN <--
 }

@@ -209,5 +209,5 @@
     <string name="pref_webdav_username">Benutzername</string>
     <string name="pref_webdav_password">Passwort</string>
     <string name="pref_sync_replace_pinned_sources">Angeheftete Quellen ersetzen</string>
-    <string name="pref_sync_replace_pinned_sources_summary">Angeheftete Quellen sind normalerweise gerätespezifisch. Wenn aktiviert, ersetzt die synchronisierte Auswahl die angehefteten Quellen auf diesem Gerät, statt sie zu ergänzen. Wird eine Quelle auf einem Gerät abgeheftet, wird sie hier ebenfalls abgeheftet.</string>
+    <string name="pref_sync_replace_pinned_sources_summary">Angeheftete Quellen sind normalerweise gerätespezifisch. Wenn aktiviert, ersetzt die synchronisierte Auswahl die angehefteten Quellen auf diesem Gerät, statt sie zu ergänzen. Bei SyncYomi v2 wird eine abgeheftete Quelle auch auf anderen Geräten abgeheftet.</string>
 </resources>

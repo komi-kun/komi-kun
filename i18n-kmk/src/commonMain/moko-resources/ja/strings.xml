@@ -211,5 +211,5 @@
     <string name="pref_fetch_manga_chapters_on_add">ライブラリに追加する際に章を取得</string>
     <string name="pref_fetch_manga_chapters_on_add_description">ライブラリに新しい漫画を追加する際に、追加する漫画の章リストを自動的に取得します</string>
     <string name="pref_sync_replace_pinned_sources">ピン留めしたソースを置き換える</string>
-    <string name="pref_sync_replace_pinned_sources_summary">ピン留めしたソースは通常デバイスごとに異なります。有効にすると、同期されたセットがこのデバイスのピン留めしたソースに追加されるのではなく置き換えるため、あるデバイスでピン留めを解除するとここでも解除されます。</string>
+    <string name="pref_sync_replace_pinned_sources_summary">ピン留めしたソースは通常デバイスごとに異なります。有効にすると、同期されたセットがこのデバイスのピン留めしたソースに追加されるのではなく置き換えます。SyncYomi v2 では、ピン留めを解除すると他のデバイスでも解除されます。</string>
 </resources>

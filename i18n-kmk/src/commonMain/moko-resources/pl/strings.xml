@@ -187,5 +187,5 @@
     <string name="custom_theme_palette_pop">Pop</string>
     <string name="pref_category_discord_customization">Dostosowanie Discorda</string>
     <string name="pref_sync_replace_pinned_sources">Zastępuj przypięte źródła</string>
-    <string name="pref_sync_replace_pinned_sources_summary">Przypięte źródła są zwykle specyficzne dla urządzenia. Po włączeniu zsynchronizowany zestaw zastępuje przypięte źródła na tym urządzeniu, zamiast być do nich dodawany, więc odpięcie źródła na jednym urządzeniu odepnie je również tutaj.</string>
+    <string name="pref_sync_replace_pinned_sources_summary">Przypięte źródła są zwykle specyficzne dla urządzenia. Po włączeniu zsynchronizowany zestaw zastępuje przypięte źródła na tym urządzeniu, zamiast być do nich dodawany. W SyncYomi v2 odpięcie źródła odepnie je również na innych urządzeniach.</string>
 </resources>

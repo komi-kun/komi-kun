@@ -67,9 +67,12 @@ class SyncPreferences(
      * Whether a sync restore should replace the local pinned sources with the synced set instead of
      * adding the synced pins to the local ones. Off by default: pinned sources are usually
      * device-specific.
+     *
+     * App-state key: this is a per-device choice and must not be uploaded or restored with app
+     * settings, or enabling it on one device would silently enable it on all of them.
      */
     val replacePinnedSources = preferenceStore.getBoolean(
-        "sync_replace_pinned_sources",
+        Preference.appStateKey("sync_replace_pinned_sources"),
         false,
     )
     // KUN <--

@@ -124,7 +124,7 @@
     <string name="pref_show_restoring_progress_banner">Show restoring progress banner</string>
     <string name="pref_show_syncing_progress_banner">Show syncing progress banner</string>
     <string name="pref_sync_replace_pinned_sources">Replace pinned sources</string>
-    <string name="pref_sync_replace_pinned_sources_summary">Pinned sources are usually device-specific. When enabled, the synced set replaces the pinned sources on this device instead of being added to them, so un-pinning a source on one device also un-pins it here.</string>
+    <string name="pref_sync_replace_pinned_sources_summary">Pinned sources are usually device-specific. When enabled, the synced set replaces the pins on this device instead of being added to them. On SyncYomi v2, un-pinning a source also un-pins it on other devices.</string>
     <string name="web_dav">WebDAV</string>
     <string name="pref_webdav_url">WebDAV Server URL</string>
     <string name="pref_webdav_url_summ">Enter the WebDAV server address</string>

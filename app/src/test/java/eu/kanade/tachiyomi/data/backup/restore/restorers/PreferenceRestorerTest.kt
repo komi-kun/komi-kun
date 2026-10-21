@@ -4,11 +4,14 @@ package eu.kanade.tachiyomi.data.backup.restore.restorers
 import android.content.Context
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.tachiyomi.data.backup.models.BackupPreference
+import eu.kanade.tachiyomi.data.backup.models.BooleanPreferenceValue
 import eu.kanade.tachiyomi.data.backup.models.StringSetPreferenceValue
 import eu.kanade.tachiyomi.data.backup.restore.RestoreOptions
 import exh.source.EXH_OLD_ID
 import exh.source.EXH_SOURCE_ID
+import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -116,6 +119,22 @@ class PreferenceRestorerTest {
 
         assertEquals(setOf("synced"), restore(replacePinnedSources = false))
         assertEquals(setOf("synced"), restore(replacePinnedSources = true))
+    }
+
+    @Test
+    fun `device-local app state is not restored from a payload`() = runTest {
+        val key = Preference.appStateKey("sync_replace_pinned_sources")
+        val store = mockk<PreferenceStore>(relaxed = true)
+        every { store.getAll() } returns mapOf(key to true)
+
+        restorer(store).restorePreferences(
+            listOf(BackupPreference(key, BooleanPreferenceValue(true))),
+            store,
+            backupCategories = null,
+            options = RestoreOptions(),
+        )
+
+        verify(exactly = 0) { store.getBoolean(key, any()) }
     }
 }
 

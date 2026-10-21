@@ -20,6 +20,7 @@ import eu.kanade.tachiyomi.source.sourcePreferences
 import exh.EXHMigrations
 import exh.log.xLogE
 import tachiyomi.core.common.preference.AndroidPreferenceStore
+import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.core.common.preference.plusAssign
 import tachiyomi.domain.category.interactor.GetCategories
@@ -76,6 +77,12 @@ class PreferenceRestorer(
         val backupCategoriesById = backupCategories?.associateBy { it.id.toString() }.orEmpty()
         val prefs = preferenceStore.getAll()
         toRestore.forEach { (key, value) ->
+            // KUN -->
+            // App-state keys are device-local state (sync cursors, the pinned-source choice, ...)
+            // and are already excluded from newly created backups; never restore them from an
+            // older or hand-edited payload.
+            if (Preference.isAppState(key)) return@forEach
+            // KUN <--
             try {
                 when (value) {
                     is IntPreferenceValue -> {

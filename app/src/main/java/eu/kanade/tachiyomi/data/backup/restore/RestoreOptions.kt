@@ -19,7 +19,6 @@ data class RestoreOptions(
     val tracking: Boolean = true,
     val history: Boolean = true,
     val customInfo: Boolean = true,
-    // KUN -->
     /**
      * Sync-only: set the synced pinned sources exactly instead of unioning them with the local
      * pins, so an un-pin propagates and an empty synced set clears the local pins. Manual restore
