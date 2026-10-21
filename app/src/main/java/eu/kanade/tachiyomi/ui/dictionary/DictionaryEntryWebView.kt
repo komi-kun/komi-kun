@@ -72,12 +72,10 @@ fun DictionaryEntryWebView(
     // KUN -->
     /**
      * Whether volume keys may navigate the entry (scroll to the previous/next result group).
-     * Evaluated on every key event so a caller can tie it to live state. The reader passes a
-     * provider that is `false` while its OCR overlay is on: there a volume press must reach the
-     * system and change the media volume - the dictionary plays word audio - instead of scrolling
-     * the entry.
+     * Evaluated on every key event so a caller can tie it to live state. Defaults to `false` so
+     * physical volume keys control device media volume (word pronunciation audio) by default.
      */
-    volumeKeyNavigationAllowed: () -> Boolean = { true },
+    volumeKeyNavigationAllowed: () -> Boolean = { false },
     // KUN <--
     isLoading: Boolean = false,
     // KUN -->

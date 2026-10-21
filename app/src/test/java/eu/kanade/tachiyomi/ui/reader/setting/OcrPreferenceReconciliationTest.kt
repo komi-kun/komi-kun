@@ -21,9 +21,9 @@ class OcrPreferenceReconciliationTest {
 
         // Overlay off by default, so a fresh install behaves exactly as upstream until opted in.
         readerPreferences.ocrOverlayEnabled.get() shouldBe false
-        // Outlines on, two-finger gesture off, active-block highlight on.
+        // Outlines on, two-finger gesture on, active-block highlight on.
         readerPreferences.ocrOutlineVisible.get() shouldBe true
-        readerPreferences.ocrTwoFingerGestureEnabled.get() shouldBe false
+        readerPreferences.ocrTwoFingerGestureEnabled.get() shouldBe true
         readerPreferences.ocrActiveBlockHighlight.get() shouldBe true
         // Overlay text size stays at the calibrated default.
         readerPreferences.ocrTextScale.get() shouldBe 100
