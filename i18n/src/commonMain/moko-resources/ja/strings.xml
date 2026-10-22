@@ -224,7 +224,7 @@
     <string name="custom_filter">カスタムフィルター</string>
     <string name="set_as_cover">表紙として設定</string>
     <string name="cover_updated">表紙を更新しました</string>
-    <string name="chapter_progress">ページ: %1$d</string>
+    <string name="chapter_progress">%1$dページ</string>
     <string name="no_next_chapter">次の章が見つかりません</string>
     <string name="decode_image_error">画像をロードできませんでした</string>
     <string name="confirm_set_image_as_cover">この画像を表紙として使用しますか？</string>
