@@ -12,7 +12,10 @@ translations, so this helper:
      the fork's base, e.g. Komikku dropped Mihon's donation strings),
   3. re-appends every `<string>` / `<plurals>` entry that only exists in the
      fork's copy (HEAD) and is still in `base/`, with its existing translation,
-  4. validates the result is well-formed XML with no duplicate names.
+  4. keeps every entry framed with the fork's `<!-- KUN -->` … `<!-- KUN -->`
+     markers at HEAD's value (hand-corrected translations must not be
+     overwritten by upstream), and
+  5. validates the result is well-formed XML with no duplicate names.
 
 `base/` is derived from the path (`i18n/src/<sourceSet>/moko-resources/...`), so
 run it from the repo root.
@@ -34,11 +37,13 @@ import glob
 import re
 import subprocess
 import sys
+import textwrap
 import xml.etree.ElementTree as ET
 
 ENTRY = re.compile(r'<(string|plurals)\b[^>]*\bname="([^"]+)"[^>]*>.*?</\1>', re.S)
 ENTRY_SELF = re.compile(r'<(string|plurals)\b[^>]*\bname="([^"]+)"[^>]*/>', re.S)
 COMMENT = re.compile(r"<!--.*?-->", re.S)
+KUN_FRAME = re.compile(r"<!-- KUN -->.*?<!-- KUN -->", re.S)
 MOKO_PATH = re.compile(r"^i18n[^/]*/src/.*/moko-resources/")
 BASE_DIR = re.compile(r"^([^/]+/src/[^/]+/moko-resources)/")
 
@@ -68,6 +73,25 @@ def entries(text: str) -> dict[str, str]:
         if not in_comment(match.start()):
             out.setdefault(match.group(2), match.group(0))
     return out
+
+
+def kun_frames(text: str) -> list[tuple[list[str], str]]:
+    """Return (entry names, block) for each `<!-- KUN -->` frame, markers included."""
+    frames: list[tuple[list[str], str]] = []
+    for match in KUN_FRAME.finditer(text):
+        block = match.group(0)
+        names = list(entries(block))
+        if names:
+            frames.append((names, block))
+    return frames
+
+
+def indent_block(block: str) -> str:
+    """Re-indent a frame block to the four spaces used by moko-resources files."""
+    # The regex match starts at "<!--", so the opening marker has no leading
+    # indentation while the following lines do; pad it before dedenting.
+    lines = textwrap.dedent("    " + block).strip("\n").splitlines()
+    return "\n".join("    " + line for line in lines)
 
 
 def validate(text: str) -> list[str]:
@@ -102,6 +126,11 @@ def drop_entry(text: str, entry: str) -> str:
     return new if replaced else text.replace(entry, "", 1)
 
 
+def replace_entry(text: str, entry: str, block: str) -> str:
+    new, replaced = re.subn(r"\n[ \t]*" + re.escape(entry), "\n" + block, text, count=1)
+    return new if replaced else text.replace(entry, block, 1)
+
+
 def resolve(path: str, theirs_ref: str) -> str:
     head = show("HEAD", path)
     theirs = show(theirs_ref, path)
@@ -111,6 +140,14 @@ def resolve(path: str, theirs_ref: str) -> str:
     ours = entries(head)
     upstream = entries(theirs)
     keys = base_keys(path)
+    # Hand-corrected entries must survive the port; ignore frames whose string
+    # no longer exists in base/ (same rule as any other translation).
+    frames = [
+        frame
+        for frame in kun_frames(head)
+        if keys is None or all(name in keys for name in frame[0])
+    ]
+    framed = {name: frame for frame in frames for name in frame[0]}
 
     text = theirs
     dropped = 0
@@ -124,11 +161,42 @@ def resolve(path: str, theirs_ref: str) -> str:
     else:
         missing = [name for name in ours if name not in upstream]
 
-    if missing:
-        # The regex starts at "<", so re-indent only the first line; nested
-        # <item> lines keep the indentation they had in the file.
-        block = "\n".join("    " + ours[name] for name in missing)
-        text = text.replace("</resources>", block + "\n</resources>")
+    # Re-append fork-only entries. A KUN frame is appended whole so its markers
+    # and explanatory comment stay attached to the value.
+    appended: list[str] = []
+    appended_frames: list[tuple[list[str], str]] = []
+    for name in missing:
+        frame = framed.get(name)
+        if frame is None:
+            appended.append("    " + ours[name])
+        elif frame not in appended_frames:
+            appended_frames.append(frame)
+            appended.append(indent_block(frame[1]))
+    if appended:
+        text = text.replace("</resources>", "\n".join(appended) + "\n</resources>")
+
+    for names, _ in appended_frames:
+        for name in names:
+            entry = upstream.get(name)
+            if entry is not None:
+                text = drop_entry(text, entry)
+
+    # Frames whose entries are all present upstream are replaced in place,
+    # keeping HEAD's hand-corrected value, markers and explanatory comment.
+    for frame in frames:
+        if frame in appended_frames:
+            continue
+        names, block = frame
+        first = True
+        for name in names:
+            entry = upstream.get(name)
+            if entry is None:
+                continue
+            if first:
+                text = replace_entry(text, entry, indent_block(block))
+                first = False
+            else:
+                text = drop_entry(text, entry)
 
     problems = validate(text)
     if problems:
@@ -136,7 +204,11 @@ def resolve(path: str, theirs_ref: str) -> str:
 
     with open(path, "w") as f:
         f.write(text)
-    return f"{path}: kept {len(missing)} fork-only entries, dropped {dropped} base-less entries"
+    hand_corrected = sum(len(names) for names, _ in frames)
+    return (
+        f"{path}: kept {len(missing)} fork-only entries, dropped {dropped} base-less entries, "
+        f"kept {hand_corrected} hand-corrected entries"
+    )
 
 
 def main() -> int:
