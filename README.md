@@ -125,6 +125,7 @@ Additional features for some extensions, features include custom description, op
 * 8Muses (EroMuse)
 * Mangadex
 * NHentai
+* NineHentai
 * Puruin
 * LANraragi
 
