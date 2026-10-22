@@ -74,8 +74,9 @@ The fork's locale files diverge from upstream's in both directions (Komikku kept
 and the files are missing newer upstream keys). Run the helper after the cherry-pick stops with
 conflicts (or right after a `--no-commit` pick, before adding): it rewrites every moko-resources file
 the commit touches — including ones git merged without a conflict — keeping upstream's values,
-dropping entries for strings removed from the fork's `base/`, and re-appending the fork-only entries
-that still exist in `base/` (including `plurals`):
+dropping entries for strings removed from the fork's `base/`, re-appending the fork-only entries
+that still exist in `base/` (including `plurals`), and keeping hand-corrected entries framed with
+`<!-- KUN -->` … `<!-- KUN -->` at HEAD's value:
 
 ```bash
 python3 .agents/skills/upstream-port/scripts/resolve_i18n_union.py    # all moko files changed by the pick
@@ -83,6 +84,9 @@ python3 .agents/skills/upstream-port/scripts/resolve_i18n_union.py    # all moko
 
 Then check that nothing was lost: every key in the fork's `base` that was translated before must still
 be translated, and no file may have duplicate keys or invalid XML. Never drop an existing translation.
+Hand-corrected translations in an upstream-owned locale must be framed with the `<!-- KUN -->` markers
+(see the `recent_manga_time` / `chapter_progress` entries in `i18n/.../ja/strings.xml`); the script
+preserves the whole frame, including its explanatory comment, instead of taking upstream's value.
 
 Strings for a ported Mihon/SY feature stay in their upstream module (`MR`/`SYMR`): that is an upstream
 sync, not new fork code.
