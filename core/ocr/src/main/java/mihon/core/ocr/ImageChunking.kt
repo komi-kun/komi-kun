@@ -23,7 +23,7 @@ const val WEBTOON_ASPECT_RATIO = 3.0
 
 // KUN -->
 const val TILE_MAX_DIMENSION = 2400
-const val TILE_OVERLAP_PX = 180
+const val TILE_OVERLAP_PX = 360
 const val TILE_TRIGGER_DIMENSION = 2500
 // KUN <--
 
@@ -290,11 +290,89 @@ fun EngineLine.normalizeFromChunk(chunk: ImageChunk): EngineLine {
     // KUN <--
 }
 
+// KUN -->
+/**
+ * Drops duplicate or partially overlapping [EngineLine]s emitted across multiple chunks/tiles.
+ * When a line is detected in multiple overlapping tiles, keeps the most complete (longest text,
+ * largest bounding box) instance and drops the duplicate.
+ */
+fun dedupeEngineLines(lines: List<EngineLine>): List<EngineLine> {
+    if (lines.size < 2) return lines
+
+    val sorted = lines.sortedWith(
+        compareByDescending<EngineLine> { it.text.trim().length }
+            .thenByDescending { it.bbox.width * it.bbox.height },
+    )
+    val kept = mutableListOf<EngineLine>()
+
+    for (candidate in sorted) {
+        val isDup = kept.any { existing -> isDuplicateEngineLine(existing, candidate) }
+        if (!isDup) {
+            kept.add(candidate)
+        }
+    }
+    return kept
+}
+
+private fun isDuplicateEngineLine(a: EngineLine, b: EngineLine): Boolean {
+    val interW = max(0.0, min(a.bbox.right, b.bbox.right) - max(a.bbox.left, b.bbox.left))
+    val interH = max(0.0, min(a.bbox.bottom, b.bbox.bottom) - max(a.bbox.top, b.bbox.top))
+    val interArea = interW * interH
+    if (interArea <= 0.0) return false
+
+    val aArea = a.bbox.width * a.bbox.height
+    val bArea = b.bbox.width * b.bbox.height
+    val minArea = min(aArea, bArea)
+    if (minArea <= 0.0) return false
+
+    val iom = interArea / minArea
+    val union = aArea + bArea - interArea
+    val iou = if (union > 0.0) interArea / union else 0.0
+
+    // Spatial overlap check: either IoU is >= 0.35 or one box is largely inside the other (IoM >= 0.50)
+    if (iou < 0.35 && iom < 0.50) return false
+
+    val textA = a.text.trim()
+    val textB = b.text.trim()
+    if (textA.isEmpty() || textB.isEmpty()) return iou >= 0.70
+
+    // Text matching: exact match, substring containment, or high similarity
+    return textA == textB ||
+        textA.contains(textB) ||
+        textB.contains(textA) ||
+        (textSimilarity(textA, textB) >= 0.65 && iom >= 0.55)
+}
+
+private fun textSimilarity(s1: String, s2: String): Double {
+    if (s1 == s2) return 1.0
+    val maxLen = max(s1.length, s2.length)
+    if (maxLen == 0) return 1.0
+    val dist = levenshteinDistance(s1, s2)
+    return (maxLen - dist).toDouble() / maxLen
+}
+
+private fun levenshteinDistance(s1: String, s2: String): Int {
+    val dp = IntArray(s2.length + 1) { it }
+    for (i in 1..s1.length) {
+        var prev = dp[0]
+        dp[0] = i
+        for (j in 1..s2.length) {
+            val temp = dp[j]
+            dp[j] = if (s1[i - 1] == s2[j - 1]) {
+                prev
+            } else {
+                min(prev, min(dp[j - 1], dp[j])) + 1
+            }
+            prev = temp
+        }
+    }
+    return dp[s2.length]
+}
+
 /** Drops blocks that multiple chunks of an overlapping split detected at the seam. */
 fun dedupeChunkBoundaryResults(results: List<OcrTextBlock>): List<OcrTextBlock> {
-    if (results.size < 2) return results
+    if (results.size < 2) return results.map { stripDuplicateLines(it) }
 
-    // KUN -->
     val sorted = results.sortedWith(compareBy({ it.ymin }, { it.xmin }))
     val kept = mutableListOf<OcrTextBlock>()
 
@@ -319,19 +397,60 @@ fun dedupeChunkBoundaryResults(results: List<OcrTextBlock>): List<OcrTextBlock> 
             }
         }
     }
-    return kept
-    // KUN <--
+    return kept.map { stripDuplicateLines(it) }
 }
 
-// KUN -->
+private fun stripDuplicateLines(block: OcrTextBlock): OcrTextBlock {
+    if (block.lines.size <= 1) return block
+    val geoms = block.lineGeometries
+    val deduped = mutableListOf<String>()
+    val dedupedGeoms = if (geoms != null && geoms.size == block.lines.size) {
+        mutableListOf<OcrLineGeometry>()
+    } else {
+        null
+    }
+    for (i in block.lines.indices) {
+        val line = block.lines[i]
+        val trimmed = line.trim()
+        if (deduped.isEmpty() || deduped.last().trim() != trimmed) {
+            deduped.add(line)
+            if (geoms != null && dedupedGeoms != null) {
+                dedupedGeoms.add(geoms[i])
+            }
+        }
+    }
+    return if (deduped.size != block.lines.size) {
+        block.copy(
+            lines = deduped,
+            lineGeometries = dedupedGeoms ?: geoms,
+        )
+    } else {
+        block
+    }
+}
+
 private fun isDuplicate(a: OcrTextBlock, b: OcrTextBlock): Boolean {
     val textA = a.lines.joinToString("").trim()
     val textB = b.lines.joinToString("").trim()
     val textMatch = textA == textB ||
-        (textA.isNotEmpty() && textB.isNotEmpty() && (textA.contains(textB) || textB.contains(textA)))
-    val iouVal = iou(a, b)
+        (textA.isNotEmpty() && textB.isNotEmpty() && (textA.contains(textB) || textB.contains(textA) || textSimilarity(textA, textB) >= 0.70))
+
+    val interW = max(0.0, min(a.xmax, b.xmax).toDouble() - max(a.xmin, b.xmin).toDouble())
+    val interH = max(0.0, min(a.ymax, b.ymax).toDouble() - max(a.ymin, b.ymin).toDouble())
+    val interArea = interW * interH
+    if (interArea <= 0.0) return false
+
+    val aArea = (a.xmax - a.xmin).toDouble() * (a.ymax - a.ymin)
+    val bArea = (b.xmax - b.xmin).toDouble() * (b.ymax - b.ymin)
+    val minArea = min(aArea, bArea)
+    if (minArea <= 0.0) return false
+
+    val iom = interArea / minArea
+    val union = aArea + bArea - interArea
+    val iouVal = if (union > 0.0) interArea / union else 0.0
     val centerClose = closeCenters(a, b)
-    return textMatch && (iouVal >= 0.40 || centerClose)
+
+    return textMatch && (iouVal >= 0.35 || iom >= 0.50 || centerClose)
 }
 
 private fun closeCenters(a: OcrTextBlock, b: OcrTextBlock): Boolean {
@@ -403,9 +522,12 @@ private suspend fun processChunks(
         val allEngineLines = chunks.flatMap { chunk ->
             val lines = chunkProcessor(chunk)
             lines.map { it.normalizeFromChunk(chunk) }
-        }.distinctBy { it.text + it.bbox.toString() }
+        }
+        // KUN -->
+        val dedupedLines = dedupeEngineLines(allEngineLines)
+        // KUN <--
 
-        val mergedResults = merger.merge(allEngineLines, fullWidth, fullHeight)
+        val mergedResults = merger.merge(dedupedLines, fullWidth, fullHeight)
         return if (chunks.size > 1) {
             dedupeChunkBoundaryResults(mergedResults)
         } else {

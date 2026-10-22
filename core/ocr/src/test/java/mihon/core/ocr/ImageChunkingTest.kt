@@ -106,5 +106,56 @@ class ImageChunkingTest {
         deduped shouldHaveSize 2
         deduped.map { it.lines.first() } shouldBe listOf("こんにちは", "さようなら")
     }
+
+    @Test
+    fun `dedupeEngineLines drops duplicate lines from overlapping tiles and keeps full text`() {
+        val lineTile1 = EngineLine(
+            text = "剣聖と呼ばれた",
+            bbox = NormalizedBBox(left = 0.4501, top = 0.2010, right = 0.4705, bottom = 0.3502),
+            writingDirection = WritingDirection.TTB,
+            language = OcrLanguage.JAPANESE,
+        )
+        // Jittered duplicate from overlapping tile
+        val lineTile2 = EngineLine(
+            text = "剣聖と呼ばれた",
+            bbox = NormalizedBBox(left = 0.4503, top = 0.2012, right = 0.4707, bottom = 0.3504),
+            writingDirection = WritingDirection.TTB,
+            language = OcrLanguage.JAPANESE,
+        )
+        // Truncated version from tile edge
+        val lineTruncated = EngineLine(
+            text = "剣聖と",
+            bbox = NormalizedBBox(left = 0.4502, top = 0.2011, right = 0.4706, bottom = 0.2800),
+            writingDirection = WritingDirection.TTB,
+            language = OcrLanguage.JAPANESE,
+        )
+        // Distinct second column in the same bubble
+        val lineNextCol = EngineLine(
+            text = "ライオネル様に",
+            bbox = NormalizedBBox(left = 0.4200, top = 0.2010, right = 0.4400, bottom = 0.3502),
+            writingDirection = WritingDirection.TTB,
+            language = OcrLanguage.JAPANESE,
+        )
+
+        val deduped = dedupeEngineLines(listOf(lineTile1, lineTile2, lineTruncated, lineNextCol))
+        deduped shouldHaveSize 2
+        deduped.map { it.text } shouldBe listOf("剣聖と呼ばれた", "ライオネル様に")
+    }
+
+    @Test
+    fun `dedupeChunkBoundaryResults strips duplicate consecutive lines inside block`() {
+        val blockWithDups = OcrTextBlock(
+            lines = listOf("剣聖と呼ばれた", "剣聖と呼ばれた", "ライオネル様に", "ライオネル様に"),
+            xmin = 0.40f,
+            ymin = 0.20f,
+            xmax = 0.50f,
+            ymax = 0.35f,
+            vertical = true,
+        )
+
+        val deduped = dedupeChunkBoundaryResults(listOf(blockWithDups))
+        deduped shouldHaveSize 1
+        deduped.first().lines shouldBe listOf("剣聖と呼ばれた", "ライオネル様に")
+    }
 }
 // KUN <--

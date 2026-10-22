@@ -214,6 +214,44 @@ class OwOCRMerger(
         rotation = Math.toDegrees(rotation).toFloat(),
     )
 
+    // KUN -->
+    private fun dedupeParagraphLines(lines: List<Line>, vertical: Boolean): List<Line> {
+        if (lines.size < 2) return lines
+        val kept = mutableListOf<Line>()
+        for (candidate in lines) {
+            val candidateText = candidate.text.trim()
+            val duplicate = kept.any { existing ->
+                val existingText = existing.text.trim()
+                if (existingText != candidateText &&
+                    !existingText.contains(candidateText) &&
+                    !candidateText.contains(existingText)
+                ) {
+                    return@any false
+                }
+                val interW = maxOf(0.0, minOf(existing.bbox.right, candidate.bbox.right) - maxOf(existing.bbox.left, candidate.bbox.left))
+                val interH = maxOf(0.0, minOf(existing.bbox.bottom, candidate.bbox.bottom) - maxOf(existing.bbox.top, candidate.bbox.top))
+                val interArea = interW * interH
+                val minArea = minOf(existing.bbox.width * existing.bbox.height, candidate.bbox.width * candidate.bbox.height)
+                if (minArea <= 0.0) return@any false
+                val iom = interArea / minArea
+                if (vertical) {
+                    val minW = minOf(existing.bbox.width, candidate.bbox.width)
+                    val xOverlap = if (minW > 0.0) interW / minW else 0.0
+                    xOverlap >= 0.50 || iom >= 0.40
+                } else {
+                    val minH = minOf(existing.bbox.height, candidate.bbox.height)
+                    val yOverlap = if (minH > 0.0) interH / minH else 0.0
+                    yOverlap >= 0.50 || iom >= 0.40
+                }
+            }
+            if (!duplicate) {
+                kept.add(candidate)
+            }
+        }
+        return kept
+    }
+    // KUN <--
+
     /**
      * Builds one paragraph from its source lines.
      *
@@ -230,9 +268,10 @@ class OwOCRMerger(
     ): Paragraph {
         // KUN -->
         val sorted = sortLinesInParagraph(lines, vertical, rtl)
+        val deduplicated = dedupeParagraphLines(sorted, vertical)
         // KUN <--
 
-        val merged = if (legacy) mergeOverlappingLines(sorted, vertical) else sorted
+        val merged = if (legacy) mergeOverlappingLines(deduplicated, vertical) else deduplicated
         val filtered = if (legacy && sorted.none { it.isFurigana } && cfg.furiganaFilter) {
             localFuriganaFilter(merged, vertical)
         } else {
