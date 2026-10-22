@@ -224,7 +224,10 @@
     <string name="custom_filter">カスタムフィルター</string>
     <string name="set_as_cover">表紙として設定</string>
     <string name="cover_updated">表紙を更新しました</string>
+    <!-- KUN -->
+    <!-- Hand-corrected: upstream ja uses the literal `ページ: %1$d`; Japanese puts the counter after the number. Keep this value when porting ja translations. -->
     <string name="chapter_progress">%1$dページ</string>
+    <!-- KUN -->
     <string name="no_next_chapter">次の章が見つかりません</string>
     <string name="decode_image_error">画像をロードできませんでした</string>
     <string name="confirm_set_image_as_cover">この画像を表紙として使用しますか？</string>
@@ -362,7 +365,10 @@
     <string name="information_cloudflare_bypass_failure">Cloudflare のバイパスに失敗しました</string>
     <string name="notification_chapters_single_and_more">第 %1$s 章とその他の %2$d 章</string>
     <string name="notification_chapters_multiple">第 %1$s 章</string>
+    <!-- KUN -->
+    <!-- Hand-corrected: upstream ja wraps the read timestamp in `第…章`. Keep this value when porting ja translations. -->
     <string name="recent_manga_time">第%1$s章 - %2$s</string>
+    <!-- KUN -->
     <string name="page_list_empty_error">ページが見つかりません</string>
     <string name="pref_category_for_this_series">このシリーズでは</string>
     <string name="add_tracking">追跡を追加</string>
