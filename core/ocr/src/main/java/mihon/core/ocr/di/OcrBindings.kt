@@ -79,7 +79,8 @@ object OcrBindings {
         context: Context,
         networkHelper: NetworkHelper,
         json: Json,
-    ): ModelDownloader = ModelDownloader(context, networkHelper.client, json)
+        preferences: OcrPreferences,
+    ): ModelDownloader = ModelDownloader(context, networkHelper.client, json, preferences)
 
     @Provides
     @SingleIn(AppScope::class)
