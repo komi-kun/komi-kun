@@ -169,7 +169,10 @@ class UpdatesViewModel(
                 prefs.filterBookmarked,
             )
                 .any { it != TriState.DISABLED } ||
-                prefs.filterExcludedScanlators ||
+                // KUN -->
+                // Hiding excluded scanlators is the default (see UpdatesPreferences), so it does not
+                // count as an active filter; otherwise the filter icon would always be highlighted.
+                // KUN <--
                 listOf(
                     prefs.filterIncludedCategories,
                     prefs.filterExcludedCategories,

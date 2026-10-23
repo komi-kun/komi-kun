@@ -44,6 +44,7 @@ import mihon.presentation.widget.di.PresentationWidgetGraph
 import tachiyomi.domain.manga.model.MangaCover
 import tachiyomi.domain.updates.interactor.GetUpdates
 import tachiyomi.domain.updates.model.UpdatesWithRelations
+import tachiyomi.domain.updates.service.UpdatesPreferences
 import tachiyomi.presentation.widget.components.CoverHeight
 import tachiyomi.presentation.widget.components.CoverWidth
 import tachiyomi.presentation.widget.components.LockedWidget
@@ -61,6 +62,10 @@ abstract class BaseUpdatesGridGlanceWidget : GlanceAppWidget() {
     @Inject private lateinit var getUpdates: GetUpdates
 
     @Inject private lateinit var preferences: SecurityPreferences
+
+    // KUN -->
+    @Inject private lateinit var updatesPreferences: UpdatesPreferences
+    // KUN <--
 
     override val sizeMode = SizeMode.Exact
 
@@ -98,7 +103,13 @@ abstract class BaseUpdatesGridGlanceWidget : GlanceAppWidget() {
 
             val flow = remember {
                 getUpdates
-                    .subscribe(false, DateLimit)
+                    .subscribe(
+                        false,
+                        DateLimit,
+                        // KUN -->
+                        hideExcludedScanlators = updatesPreferences.filterExcludedScanlators.get(),
+                        // KUN <--
+                    )
                     .map { rawData ->
                         rawData.prepareData(context, rowCount, columnCount)
                     }

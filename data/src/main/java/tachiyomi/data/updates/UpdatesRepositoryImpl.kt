@@ -27,7 +27,15 @@ class UpdatesRepositoryImpl(
         after: Instant,
         limit: Long,
     ): List<UpdatesWithRelations> {
-        return getUpdatesByReadStatus(read = read, after = after, limit = limit).awaitAsList()
+        return getUpdatesByReadStatus(
+            read = read,
+            after = after,
+            limit = limit,
+            // KUN --> this path has no filter preferences; match the default behaviour of hiding
+            // excluded scanlators (see UpdatesPreferences)
+            hideExcludedScanlators = true,
+            // KUN <--
+        ).awaitAsList()
     }
 
     override fun subscribeAll(
@@ -61,21 +69,42 @@ class UpdatesRepositoryImpl(
         read: Boolean,
         after: Instant,
         limit: Long,
+        // KUN -->
+        hideExcludedScanlators: Boolean,
+        // KUN <--
     ): Flow<List<UpdatesWithRelations>> {
-        return getUpdatesByReadStatus(read = read, after = after, limit = limit).subscribeToList()
+        return getUpdatesByReadStatus(
+            read = read,
+            after = after,
+            limit = limit,
+            hideExcludedScanlators = hideExcludedScanlators,
+        ).subscribeToList()
     }
 
-    private fun getUpdatesByReadStatus(read: Boolean, after: Instant, limit: Long): Query<UpdatesWithRelations> {
+    private fun getUpdatesByReadStatus(
+        read: Boolean,
+        after: Instant,
+        limit: Long,
+        // KUN -->
+        hideExcludedScanlators: Boolean,
+        // KUN <--
+    ): Query<UpdatesWithRelations> {
         return if (read) {
             database.updatesViewQueries.getReadUpdates(
                 after = after,
                 limit = limit,
+                // KUN -->
+                hideExcludedScanlators = hideExcludedScanlators.toLong(),
+                // KUN <--
                 mapper = ::mapUpdatesWithRelations,
             )
         } else {
             database.updatesViewQueries.getUnreadUpdates(
                 after = after,
                 limit = limit,
+                // KUN -->
+                hideExcludedScanlators = hideExcludedScanlators.toLong(),
+                // KUN <--
                 mapper = ::mapUpdatesWithRelations,
             )
         }

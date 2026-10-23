@@ -19,5 +19,12 @@ interface UpdatesRepository {
         excludedCategories: List<Long>,
     ): Flow<List<UpdatesWithRelations>>
 
-    fun subscribeWithRead(read: Boolean, after: Instant, limit: Long): Flow<List<UpdatesWithRelations>>
+    fun subscribeWithRead(
+        read: Boolean,
+        after: Instant,
+        limit: Long,
+        // KUN -->
+        hideExcludedScanlators: Boolean,
+        // KUN <--
+    ): Flow<List<UpdatesWithRelations>>
 }

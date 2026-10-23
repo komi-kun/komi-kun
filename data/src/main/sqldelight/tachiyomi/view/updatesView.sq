@@ -113,6 +113,9 @@ SELECT
 FROM updatesView
 WHERE read = 1
 AND dateUpload > :after
+-- KUN -->
+AND (excludedScanlator IS NULL OR :hideExcludedScanlators = 0)
+-- KUN <--
 ORDER BY dateFetch DESC
 LIMIT :limit;
 
@@ -124,5 +127,8 @@ SELECT
 FROM updatesView
 WHERE read = 0
 AND dateUpload > :after
+-- KUN -->
+AND (excludedScanlator IS NULL OR :hideExcludedScanlators = 0)
+-- KUN <--
 ORDER BY dateFetch DESC
 LIMIT :limit;

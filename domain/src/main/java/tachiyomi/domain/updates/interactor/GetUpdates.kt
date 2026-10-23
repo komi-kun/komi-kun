@@ -45,8 +45,14 @@ class GetUpdates(
         // SY <--
     }
 
-    fun subscribe(read: Boolean, after: Instant): Flow<List<UpdatesWithRelations>> {
-        return repository.subscribeWithRead(read, after, limit = 500)
+    fun subscribe(
+        read: Boolean,
+        after: Instant,
+        // KUN -->
+        hideExcludedScanlators: Boolean,
+        // KUN <--
+    ): Flow<List<UpdatesWithRelations>> {
+        return repository.subscribeWithRead(read, after, limit = 500, hideExcludedScanlators = hideExcludedScanlators)
             // SY -->
             .catchNPE()
         // SY <--

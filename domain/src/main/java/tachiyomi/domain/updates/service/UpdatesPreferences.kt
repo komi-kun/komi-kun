@@ -37,7 +37,12 @@ class UpdatesPreferences(
 
     val filterExcludedScanlators = preferenceStore.getBoolean(
         "pref_filter_updates_hide_excluded_scanlators",
-        false,
+        // KUN -->
+        // A scanlator excluded on a manga is an explicit "never show me this group here" rule, and the
+        // library update notifications/count already drop those chapters. Hide them on the Updates tab
+        // by default too; the switch in the filter sheet remains as an opt-out.
+        true,
+        // KUN <--
     )
 
     val filterIncludedCategories: Preference<List<Long>> = preferenceStore.getLongArray(

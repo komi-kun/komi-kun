@@ -23,11 +23,15 @@ import kotlinx.coroutines.launch
 import logcat.LogPriority
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.updates.interactor.GetUpdates
+import tachiyomi.domain.updates.service.UpdatesPreferences
 
 @Inject
 class WidgetManager(
     private val getUpdates: GetUpdates,
     private val securityPreferences: SecurityPreferences,
+    // KUN -->
+    private val updatesPreferences: UpdatesPreferences,
+    // KUN <--
 ) {
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -49,6 +53,9 @@ class WidgetManager(
                         getUpdates.subscribe(
                             read = false,
                             after = BaseUpdatesGridGlanceWidget.DateLimit,
+                            // KUN -->
+                            hideExcludedScanlators = updatesPreferences.filterExcludedScanlators.get(),
+                            // KUN <--
                         ),
                         securityPreferences.useAuthenticator.changes(),
                         transform = { a, b -> a to b },
