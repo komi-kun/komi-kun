@@ -40,7 +40,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.zip.ZipInputStream
 
 /** Our own release tag. A cached `manifest.json` from any other release must be re-fetched. */
-private const val DEFAULT_RELEASE = "ocr-models-v3"
+private const val DEFAULT_RELEASE = "ocr-manga-v2"
 
 /** Our own release; the `.so`s are consumed at build time, only models download at runtime. */
 private const val DEFAULT_BASE_URL =
@@ -352,7 +352,7 @@ class ModelDownloader(
 
         // PP-OCRv6 small (ocr-models-v3): ONNX graphs (the shipped backend is ONNX Runtime).
         private const val DET_MODEL = "ppocrv6_small_det.onnx"
-        private const val REC_MODEL = "ppocrv6_small_rec.onnx"
+        private const val REC_MODEL = "ppocrv6_small_rec_manga_real.onnx"
         private const val DICT_TXT = "ppocrv6_small_dict.txt"
 
         /** Must stay in sync with [PaddleOcrEngine]'s model constants. */
@@ -370,6 +370,7 @@ class ModelDownloader(
             "ppocrv5_det.nb",
             "ppocrv5_rec.nb",
             "ppocrv5_dict.txt",
+            "ppocrv6_small_rec.onnx",
         )
     }
 }

@@ -106,7 +106,7 @@ class PaddleOcrEngine(
         // rec_image_height = 48, so the JNI input shape and the dict convention are unchanged;
         // the `.nb` (Paddle-Lite) files are replaced by `.onnx`.
         private const val DET_MODEL = "ppocrv6_small_det.onnx"
-        private const val REC_MODEL = "ppocrv6_small_rec.onnx"
+        private const val REC_MODEL = "ppocrv6_small_rec_manga_real.onnx"
         private const val DICT_TXT = "ppocrv6_small_dict.txt"
 
         /**
