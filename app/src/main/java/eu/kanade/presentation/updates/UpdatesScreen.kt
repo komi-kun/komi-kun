@@ -138,11 +138,15 @@ fun UpdateScreen(
                         ) {
                             UpdatesLastUpdatedHeader(lastUpdated = lastUpdated)
                             EmptyScreen(
-                                stringRes = if (hasActiveFilters) {
+                                // KUN -->
+                                // Include the default scanlator exclusion: it can hide every update
+                                // even though it does not light the filter icon.
+                                stringRes = if (state.hasActiveFiltersIncludingScanlators) {
                                     MR.strings.error_no_match
                                 } else {
                                     MR.strings.information_no_recent
                                 },
+                                // KUN <--
                                 modifier = Modifier.weight(1f),
                             )
                         }

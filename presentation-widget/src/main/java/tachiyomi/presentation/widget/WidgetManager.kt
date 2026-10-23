@@ -50,13 +50,18 @@ class WidgetManager(
             .flatMapLatest { hasWidgets ->
                 if (hasWidgets) {
                     combine(
-                        getUpdates.subscribe(
-                            read = false,
-                            after = BaseUpdatesGridGlanceWidget.DateLimit,
-                            // KUN -->
-                            hideExcludedScanlators = updatesPreferences.filterExcludedScanlators.get(),
-                            // KUN <--
-                        ),
+                        // KUN -->
+                        // Re-subscribe when the preference changes, otherwise the widget would keep
+                        // the filtering it sampled when the widget was first placed.
+                        updatesPreferences.filterExcludedScanlators.changes()
+                            .flatMapLatest { hideExcludedScanlators ->
+                                getUpdates.subscribe(
+                                    read = false,
+                                    after = BaseUpdatesGridGlanceWidget.DateLimit,
+                                    hideExcludedScanlators = hideExcludedScanlators,
+                                )
+                            },
+                        // KUN <--
                         securityPreferences.useAuthenticator.changes(),
                         transform = { a, b -> a to b },
                     )

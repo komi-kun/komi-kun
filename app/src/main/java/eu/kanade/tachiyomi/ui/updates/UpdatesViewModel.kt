@@ -181,6 +181,13 @@ class UpdatesViewModel(
         }
         .distinctUntilChanged()
 
+    // KUN -->
+    // The scanlator exclusion is on by default, so it must not light the filter icon, but it can
+    // still hide every update and therefore has to be reflected in the empty state.
+    private val hideExcludedScanlators = updatesPreferences.filterExcludedScanlators.changes()
+        .distinctUntilChanged()
+    // KUN <--
+
     private val updateItems = combine(
         // needed for SQL filters (unread, started, bookmarked, etc)
         getUpdatesItemPreferenceFlow()
@@ -258,8 +265,16 @@ class UpdatesViewModel(
             )
         },
         hasActiveFilters,
-    ) { state, hasActiveFilters ->
-        state.copy(hasActiveFilters = hasActiveFilters)
+        // KUN -->
+        hideExcludedScanlators,
+        // KUN <--
+    ) { state, hasActiveFilters, hideExcludedScanlators ->
+        state.copy(
+            hasActiveFilters = hasActiveFilters,
+            // KUN -->
+            hasActiveFiltersIncludingScanlators = hasActiveFilters || hideExcludedScanlators,
+            // KUN <--
+        )
     }
         .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope + subscriberGate, subscriberGate.whileSubscribed(5.seconds), State())
@@ -646,6 +661,10 @@ class UpdatesViewModel(
     data class State(
         val isLoading: Boolean = true,
         val hasActiveFilters: Boolean = false,
+        // KUN -->
+        /** Like [hasActiveFilters], but also counts the default scanlator exclusion. */
+        val hasActiveFiltersIncludingScanlators: Boolean = false,
+        // KUN <--
         val items: List<UpdatesItem> = listOf(),
         // KMK -->
         val expandedState: Set<String> = setOf(),

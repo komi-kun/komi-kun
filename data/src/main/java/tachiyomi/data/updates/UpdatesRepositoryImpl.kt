@@ -26,15 +26,15 @@ class UpdatesRepositoryImpl(
         read: Boolean,
         after: Instant,
         limit: Long,
+        // KUN -->
+        hideExcludedScanlators: Boolean,
+        // KUN <--
     ): List<UpdatesWithRelations> {
         return getUpdatesByReadStatus(
             read = read,
             after = after,
             limit = limit,
-            // KUN --> this path has no filter preferences; match the default behaviour of hiding
-            // excluded scanlators (see UpdatesPreferences)
-            hideExcludedScanlators = true,
-            // KUN <--
+            hideExcludedScanlators = hideExcludedScanlators,
         ).awaitAsList()
     }
 

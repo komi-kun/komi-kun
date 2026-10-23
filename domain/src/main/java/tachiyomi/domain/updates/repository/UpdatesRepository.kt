@@ -6,7 +6,14 @@ import kotlin.time.Instant
 
 interface UpdatesRepository {
 
-    suspend fun awaitWithRead(read: Boolean, after: Instant, limit: Long): List<UpdatesWithRelations>
+    suspend fun awaitWithRead(
+        read: Boolean,
+        after: Instant,
+        limit: Long,
+        // KUN -->
+        hideExcludedScanlators: Boolean,
+        // KUN <--
+    ): List<UpdatesWithRelations>
 
     fun subscribeAll(
         after: Instant,

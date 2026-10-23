@@ -17,8 +17,14 @@ class GetUpdates(
     private val repository: UpdatesRepository,
 ) {
 
-    suspend fun await(read: Boolean, after: Instant): List<UpdatesWithRelations> {
-        return repository.awaitWithRead(read, after, limit = 500)
+    suspend fun await(
+        read: Boolean,
+        after: Instant,
+        // KUN -->
+        hideExcludedScanlators: Boolean,
+        // KUN <--
+    ): List<UpdatesWithRelations> {
+        return repository.awaitWithRead(read, after, limit = 500, hideExcludedScanlators = hideExcludedScanlators)
     }
 
     fun subscribe(

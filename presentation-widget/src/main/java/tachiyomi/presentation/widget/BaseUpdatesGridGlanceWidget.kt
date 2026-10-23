@@ -34,6 +34,8 @@ import dev.zacsweers.metro.Inject
 import eu.kanade.tachiyomi.core.security.SecurityPreferences
 import eu.kanade.tachiyomi.util.system.dpToPx
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.DateTimeUnit
@@ -74,6 +76,7 @@ abstract class BaseUpdatesGridGlanceWidget : GlanceAppWidget() {
     abstract val topPadding: Dp
     abstract val bottomPadding: Dp
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         context.metroGraph<PresentationWidgetGraph>().inject(this)
         val locked = preferences.useAuthenticator.get()
@@ -102,14 +105,18 @@ abstract class BaseUpdatesGridGlanceWidget : GlanceAppWidget() {
             }
 
             val flow = remember {
-                getUpdates
-                    .subscribe(
-                        false,
-                        DateLimit,
-                        // KUN -->
-                        hideExcludedScanlators = updatesPreferences.filterExcludedScanlators.get(),
-                        // KUN <--
-                    )
+                // KUN -->
+                // Re-subscribe when the preference changes so the widget itself stays in sync with
+                // the filtering WidgetManager uses for invalidation.
+                updatesPreferences.filterExcludedScanlators.changes()
+                    .flatMapLatest { hideExcludedScanlators ->
+                        getUpdates.subscribe(
+                            read = false,
+                            after = DateLimit,
+                            hideExcludedScanlators = hideExcludedScanlators,
+                        )
+                    }
+                    // KUN <--
                     .map { rawData ->
                         rawData.prepareData(context, rowCount, columnCount)
                     }
