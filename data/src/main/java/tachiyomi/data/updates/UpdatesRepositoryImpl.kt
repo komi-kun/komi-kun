@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.Flow
 import tachiyomi.core.common.util.lang.toLong
 import tachiyomi.data.Database
 import tachiyomi.data.subscribeToList
+import tachiyomi.data.subscribeToOne
 import tachiyomi.domain.manga.model.MangaCover
 import tachiyomi.domain.updates.model.UpdatesWithRelations
 import tachiyomi.domain.updates.repository.UpdatesRepository
@@ -80,6 +81,14 @@ class UpdatesRepositoryImpl(
             hideExcludedScanlators = hideExcludedScanlators,
         ).subscribeToList()
     }
+
+    // KUN -->
+    override fun hasExcludedUpdates(after: Instant): Flow<Boolean> {
+        return database.updatesViewQueries
+            .hasExcludedUpdates(after)
+            .subscribeToOne()
+    }
+    // KUN <--
 
     private fun getUpdatesByReadStatus(
         read: Boolean,

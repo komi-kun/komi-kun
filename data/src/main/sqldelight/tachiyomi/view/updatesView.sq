@@ -132,3 +132,15 @@ AND (excludedScanlator IS NULL OR :hideExcludedScanlators = 0)
 -- KUN <--
 ORDER BY dateFetch DESC
 LIMIT :limit;
+
+-- KUN -->
+-- Whether the scanlator exclusion would actually hide an update in the window; used to pick the
+-- Updates empty-state message.
+hasExcludedUpdates:
+SELECT EXISTS(
+    SELECT 1
+    FROM updatesView
+    WHERE dateUpload > :after
+    AND excludedScanlator IS NOT NULL
+);
+-- KUN <--

@@ -64,6 +64,12 @@ class GetUpdates(
         // SY <--
     }
 
+    // KUN -->
+    fun hasExcludedUpdates(after: Instant): Flow<Boolean> {
+        return repository.hasExcludedUpdates(after)
+    }
+    // KUN <--
+
     // SY -->
     private fun <T> Flow<T>.catchNPE() = retry {
         if (it is NullPointerException) {

@@ -5,6 +5,7 @@ import app.cash.sqldelight.async.coroutines.await
 import app.cash.sqldelight.db.SqlDriver
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
+import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Test
@@ -50,6 +51,28 @@ class UpdatesRepositoryExcludedScanlatorsTest {
 
             repository.readChapterIds(hideExcludedScanlators = true) shouldContainExactlyInAnyOrder listOf(2L)
             repository.readChapterIds(hideExcludedScanlators = false) shouldContainExactlyInAnyOrder listOf(1L, 2L)
+        } finally {
+            driver.close()
+        }
+    }
+
+    @Test
+    fun `hasExcludedUpdates only reports exclusions that hide a recent update`() = runBlocking<Unit> {
+        val driver = newDriver()
+        try {
+            val database = DatabaseBindings.providesDatabase(driver)
+            val repository = UpdatesRepositoryImpl(database)
+            driver.insertManga()
+            driver.insertChapter(id = 1L, scanlator = "Excluded")
+
+            repository.hasExcludedUpdates(AFTER).first() shouldBe false
+
+            // A scanlator that is not used by any chapter does not change the answer.
+            driver.insertExcludedScanlator("Other")
+            repository.hasExcludedUpdates(AFTER).first() shouldBe false
+
+            driver.insertExcludedScanlator("Excluded")
+            repository.hasExcludedUpdates(AFTER).first() shouldBe true
         } finally {
             driver.close()
         }

@@ -34,4 +34,9 @@ interface UpdatesRepository {
         hideExcludedScanlators: Boolean,
         // KUN <--
     ): Flow<List<UpdatesWithRelations>>
+
+    // KUN -->
+    /** Whether the scanlator exclusion actually hides a recent update in the [after] window. */
+    fun hasExcludedUpdates(after: Instant): Flow<Boolean>
+    // KUN <--
 }

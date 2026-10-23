@@ -182,9 +182,16 @@ class UpdatesViewModel(
         .distinctUntilChanged()
 
     // KUN -->
-    // The scanlator exclusion is on by default, so it must not light the filter icon, but it can
-    // still hide every update and therefore has to be reflected in the empty state.
-    private val hideExcludedScanlators = updatesPreferences.filterExcludedScanlators.changes()
+    // The scanlator exclusion is on by default, so it must not light the filter icon. Only treat it as
+    // an active filter for the empty state when it is enabled *and* it actually hides a recent update.
+    private val scanlatorFilterHidesUpdates = combine(
+        updatesPreferences.filterExcludedScanlators.changes(),
+        getUpdates.hasExcludedUpdates(
+            Clock.System.now().minus(3, DateTimeUnit.MONTH, TimeZone.currentSystemDefault()),
+        ),
+    ) { hideExcludedScanlators, hasExcludedUpdates ->
+        hideExcludedScanlators && hasExcludedUpdates
+    }
         .distinctUntilChanged()
     // KUN <--
 
@@ -266,13 +273,13 @@ class UpdatesViewModel(
         },
         hasActiveFilters,
         // KUN -->
-        hideExcludedScanlators,
+        scanlatorFilterHidesUpdates,
         // KUN <--
-    ) { state, hasActiveFilters, hideExcludedScanlators ->
+    ) { state, hasActiveFilters, scanlatorFilterHidesUpdates ->
         state.copy(
             hasActiveFilters = hasActiveFilters,
             // KUN -->
-            hasActiveFiltersIncludingScanlators = hasActiveFilters || hideExcludedScanlators,
+            hasActiveFiltersIncludingScanlators = hasActiveFilters || scanlatorFilterHidesUpdates,
             // KUN <--
         )
     }
@@ -662,7 +669,7 @@ class UpdatesViewModel(
         val isLoading: Boolean = true,
         val hasActiveFilters: Boolean = false,
         // KUN -->
-        /** Like [hasActiveFilters], but also counts the default scanlator exclusion. */
+        /** Like [hasActiveFilters], but also counts the scanlator exclusion when it hides updates. */
         val hasActiveFiltersIncludingScanlators: Boolean = false,
         // KUN <--
         val items: List<UpdatesItem> = listOf(),
