@@ -43,11 +43,25 @@ Other bundled / linked components
 
 - **komi-kun/webgpuviewer fork** — <https://github.com/komi-kun/webgpuviewer> (fork of
   <https://github.com/mpreg-ca/webgpuviewer>) — **MIT**. Vendored verbatim as an in-repo Maven
-  artifact under `maven/` (tag `ocr-accessors-1`, `792aef3b6886343ee38a9140eefdc98114869dfd`).
+  artifact under `maven/` (tag `ocr-accessors-2`, `5c2392913170b10a98fd7ac6bb8308fd25cb026d`).
 - **ca.mpreg:imagedecoder** — <https://github.com/mpreg-ca/imagedecoder> — **MIT**.
-- **PaddleOCR** — <https://github.com/PaddlePaddle/PaddleOCR> — **Apache-2.0**. Only the **official**
-  PP-OCRv6 `small` detection / recognition ONNX models are used; they download at runtime, opt-in and
-  checksum-verified. The `manga_*_fp16` Paddle-Lite fine-tune considered early on is **not used**.
+- **PaddleOCR** — <https://github.com/PaddlePaddle/PaddleOCR> — **Apache-2.0**. The PP-OCRv6 `small`
+  detection model and recogniser ONNX graphs are used; they download at runtime, opt-in and
+  checksum-verified. The **default** recogniser is a komi-kun fine-tune of the official
+  `PP-OCRv6_small_rec` weights (published as `komi-kun/komi-kun-ocr-models` release `ocr-manga-v2`);
+  the stock weights remain selectable in Settings → OCR. Training code:
+  <https://github.com/komi-kun/komi-kun-ocr-finetune>. The `manga_*_fp16` Paddle-Lite fine-tune
+  considered early on is **not used**.
+- **Manga109-s** — <https://manga109.github.io> (v2026 release, `hal-utokyo/Manga109-s`) — used
+  under its academic/commercial-use terms **only to train** the default recogniser. The images are
+  **not redistributed** and are not part of this repository or its releases; only derived weights
+  are published. Attribution: Manga109-s, Aizawa–Yamakata–Matsui Laboratory, The University of
+  Tokyo. Citations: Baek et al., *Manga109-v2026* (Culture × AI @ ICML 2026); Aizawa et al.,
+  *Building a Manga Dataset "Manga109" with Annotations for Multimedia Applications*,
+  IEEE MultiMedia 27(2), 2020.
+- **COO (Comic Onomatopoeia)** — <https://github.com/ku21fan/COO-Comic-Onomatopoeia> — annotations
+  **CC BY 4.0** (Baek, Matsui, Aizawa, ECCV 2022). Used to train the onomatopoeia portion of the
+  default recogniser; no annotation data is redistributed.
 - **ONNX Runtime** — <https://github.com/microsoft/onnxruntime> (Android AAR
   `com.microsoft.onnxruntime:onnxruntime-android` **1.31.0**) — **MIT**. `libonnxruntime.so` is
   republished byte-for-byte as part of a separate, checksummed artifact; `libpaddle_ocr.so` is
