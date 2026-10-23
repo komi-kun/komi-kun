@@ -29,6 +29,8 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import logcat.LogPriority
+import mihon.core.ocr.OcrPreferences
+import mihon.core.ocr.RecModelVariant
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import tachiyomi.core.common.util.system.logcat
@@ -39,12 +41,8 @@ import java.security.MessageDigest
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.zip.ZipInputStream
 
-/** Our own release tag. A cached `manifest.json` from any other release must be re-fetched. */
-private const val DEFAULT_RELEASE = "ocr-manga-v2"
-
-/** Our own release; the `.so`s are consumed at build time, only models download at runtime. */
-private const val DEFAULT_BASE_URL =
-    "https://github.com/komi-kun/komi-kun-ocr-models/releases/download/$DEFAULT_RELEASE"
+// The release tag and download root now live on [RecModelVariant]: the recogniser is selectable,
+// and a cached `manifest.json` from any other release must be re-fetched.
 
 /** One downloadable OCR artifact from the release manifest. */
 @Serializable
@@ -61,8 +59,8 @@ data class OcrModelFile(
 /**
  * The release manifest (`manifest.json`) describing every OCR model artifact.
  *
- * [baseUrl] deliberately defaults to `""`, **not** [DEFAULT_BASE_URL]: a cached manifest that omits
- * the field must not be mistaken for one fetched from the pinned release (F4 —
+ * [baseUrl] deliberately defaults to `""`, **not** a release URL: a cached manifest that omits the
+ * field must not be mistaken for one fetched from the pinned release (F4 —
  * [cachedManifestIsCurrent] treats a blank `baseUrl` as "no identifier", not as the pinned one).
  */
 @Serializable
@@ -92,6 +90,7 @@ class ModelDownloader(
     context: Context,
     private val httpClient: OkHttpClient,
     private val json: Json,
+    private val preferences: OcrPreferences,
 ) {
     private val appContext = context.applicationContext
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -107,6 +106,15 @@ class ModelDownloader(
 
     /** Directory the engine reads its models from (`filesDir/paddle_ocr`). */
     val modelsDir: File get() = File(appContext.filesDir, PADDLE_DIR)
+
+    // KUN -->
+    // The recogniser variant is user-selectable; detector and dictionary are shared by both
+    // releases, so only the release tag and the rec file name change.
+    private val variant: RecModelVariant get() = preferences.resolveRecModel()
+    private val release: String get() = variant.release
+    private val baseUrl: String get() = variant.baseUrl
+    private val requiredModels: List<String> get() = listOf(DET_MODEL, variant.recModel, DICT_TXT)
+    // KUN <--
 
     /**
      * Cheap, synchronous readiness gate for the settings screen (see `SettingsOcrScreen`): every
@@ -131,7 +139,7 @@ class ModelDownloader(
         }
 
     /** The model files the engine needs at runtime (the `.so`s ship in the APK). Backs [isPaddleDownloaded]. */
-    fun requiredModelFiles(): List<File> = REQUIRED_MODELS.map { File(modelsDir, it) }
+    fun requiredModelFiles(): List<File> = requiredModels.map { File(modelsDir, it) }
 
     /** The manifest cached by the last [fetchManifest], or null when none is on disk. */
     private fun loadCachedManifest(): OcrModelManifest? {
@@ -173,7 +181,7 @@ class ModelDownloader(
     /** Fetches and parses the release manifest (and caches it beside the models). */
     suspend fun fetchManifest(): Result<OcrModelManifest> = withContext(Dispatchers.IO) {
         runCatching {
-            val request = Request.Builder().url("$DEFAULT_BASE_URL/$MANIFEST_NAME").build()
+            val request = Request.Builder().url("$baseUrl/$MANIFEST_NAME").build()
             httpClient.newCall(request).execute().use { response ->
                 check(response.isSuccessful) { "Manifest download failed: HTTP ${response.code}" }
                 val body = response.body.string()
@@ -195,6 +203,12 @@ class ModelDownloader(
      * the synchronous [isPaddleDownloaded] gate stays cheap.
      */
     suspend fun downloadModels(): Result<Unit> = withContext(Dispatchers.IO) {
+        // Snapshot the selection: switching the variant mid-download must not mix model sets.
+        val target = preferences.resolveRecModel()
+        val targetRelease = target.release
+        val targetBaseUrl = target.baseUrl
+        val required = listOf(DET_MODEL, target.recModel, DICT_TXT)
+
         // Drop any `.part` scratch files an interrupted earlier run left behind.
         cleanupPartFiles()
 
@@ -203,7 +217,7 @@ class ModelDownloader(
         // nothing to download. Checking the release id stops a cached manifest from pinning an old
         // model set forever when a future release reuses the same file names.
         loadCachedManifest()?.let { cached ->
-            if (cachedManifestIsUsable(cached, DEFAULT_RELEASE, DEFAULT_BASE_URL, modelsDir, REQUIRED_MODELS)) {
+            if (cachedManifestIsUsable(cached, targetRelease, targetBaseUrl, modelsDir, required)) {
                 cleanupStaleModels()
                 return@withContext Result.success(Unit)
             }
@@ -211,13 +225,13 @@ class ModelDownloader(
 
         val manifest = fetchManifest().getOrElse { return@withContext Result.failure(it) }
         val entries = mutableListOf<Pair<OcrModelFile, String>>()
-        for (name in REQUIRED_MODELS) {
+        for (name in required) {
             val entry = manifest.files.firstOrNull { it.name == name }
                 ?: return@withContext Result.failure(IllegalStateException("Manifest is missing $name"))
             if (entry.sha256.isBlank()) {
                 return@withContext Result.failure(IllegalStateException("Manifest is missing a SHA-256 for $name"))
             }
-            entries += entry to "$DEFAULT_BASE_URL/${entry.path ?: "models/${entry.name}"}"
+            entries += entry to "$targetBaseUrl/${entry.path ?: "models/${entry.name}"}"
         }
 
         // Re-fetch only what is missing or fails verification; keep the rest untouched.
@@ -269,8 +283,9 @@ class ModelDownloader(
                     scratch.mkdirs()
                     try {
                         extractZipInto(scratch, stream)
-                        verifyStagedModels(scratch, manifest, REQUIRED_MODELS)
-                        installRequiredModels(scratch, modelsDir, REQUIRED_MODELS)
+                        val required = requiredModels
+                        verifyStagedModels(scratch, manifest, required)
+                        installRequiredModels(scratch, modelsDir, required)
                     } finally {
                         scratch.deleteRecursively()
                     }
@@ -290,8 +305,9 @@ class ModelDownloader(
      */
     fun cleanupStaleModels(): List<String> {
         val removed = mutableListOf<String>()
+        val required = requiredModels
         for (name in LEGACY_MODELS) {
-            if (name in REQUIRED_MODELS) continue
+            if (name in required) continue
             val file = File(modelsDir, name)
             if (file.isFile && file.delete()) {
                 removed += name
@@ -307,7 +323,7 @@ class ModelDownloader(
      * are ever deleted. Returns the names actually removed.
      */
     fun cleanupPartFiles(): List<String> {
-        val removed = removeOwnedPartFiles(modelsDir, REQUIRED_MODELS)
+        val removed = removeOwnedPartFiles(modelsDir, requiredModels)
         removed.forEach { logcat(LogPriority.INFO) { "ModelDownloader: removed partial download $it" } }
         return removed
     }
@@ -350,13 +366,10 @@ class ModelDownloader(
         private const val MANIFEST_NAME = "manifest.json"
         private const val PADDLE_DIR = "paddle_ocr"
 
-        // PP-OCRv6 small (ocr-models-v3): ONNX graphs (the shipped backend is ONNX Runtime).
+        // PP-OCRv6 small: ONNX graphs (the shipped backend is ONNX Runtime). The recogniser file
+        // comes from [RecModelVariant]; detector and dictionary are shared by both releases.
         private const val DET_MODEL = "ppocrv6_small_det.onnx"
-        private const val REC_MODEL = "ppocrv6_small_rec_manga_real.onnx"
         private const val DICT_TXT = "ppocrv6_small_dict.txt"
-
-        /** Must stay in sync with [PaddleOcrEngine]'s model constants. */
-        val REQUIRED_MODELS = listOf(DET_MODEL, REC_MODEL, DICT_TXT)
 
         /**
          * Model files shipped by `ocr-models-v1` (PP-OCRv4) and `ocr-models-v2` (PP-OCRv5) that the
@@ -370,7 +383,6 @@ class ModelDownloader(
             "ppocrv5_det.nb",
             "ppocrv5_rec.nb",
             "ppocrv5_dict.txt",
-            "ppocrv6_small_rec.onnx",
         )
     }
 }

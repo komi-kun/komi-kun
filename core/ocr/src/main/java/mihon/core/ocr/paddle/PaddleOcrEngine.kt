@@ -100,13 +100,16 @@ class PaddleOcrEngine(
     @Volatile
     private var isInitialized = false
 
+    /** Rec model file the native engine currently holds; used to detect a variant switch. */
+    @Volatile
+    private var loadedRecModel: String? = null
+
     companion object {
         private const val MODEL_DIR = "paddle_ocr"
-        // PP-OCRv6 small (ocr-models-v3), run through ONNX Runtime. Still CTC with
-        // rec_image_height = 48, so the JNI input shape and the dict convention are unchanged;
-        // the `.nb` (Paddle-Lite) files are replaced by `.onnx`.
+        // PP-OCRv6 small, run through ONNX Runtime. Still CTC with rec_image_height = 48, so the
+        // JNI input shape and the dict convention are unchanged. The recogniser file is selectable
+        // (`OcrPreferences.recModelFile()`); detector and dictionary are shared by both releases.
         private const val DET_MODEL = "ppocrv6_small_det.onnx"
-        private const val REC_MODEL = "ppocrv6_small_rec_manga_real.onnx"
         private const val DICT_TXT = "ppocrv6_small_dict.txt"
 
         /**
@@ -147,6 +150,8 @@ class PaddleOcrEngine(
     fun init(options: PaddleOcrOptions): Boolean = synchronized(lock) {
         if (isInitialized) return true
 
+        val recModel = preferences.recModelFile()
+
         val abi = supportedAbi()
         if (abi == null) {
             logcat(LogPriority.ERROR) { "Unsupported ABI: ${Build.SUPPORTED_ABIS.joinToString()}" }
@@ -159,13 +164,14 @@ class PaddleOcrEngine(
         val success = nativeInit(
             detParamAbsPath = File(modelDir, DET_MODEL).absolutePath,
             detBinAbsPath = "",
-            recParamAbsPath = File(modelDir, REC_MODEL).absolutePath,
+            recParamAbsPath = File(modelDir, recModel).absolutePath,
             recBinAbsPath = "",
             dictAbsPath = File(modelDir, DICT_TXT).absolutePath,
             numThreads = options.numThreads,
         )
         if (success) {
             isInitialized = true
+            loadedRecModel = recModel
             val elapsed = SystemClock.elapsedRealtime() - start
             logcat(LogPriority.INFO) { "Paddle OCR engine initialized in ${elapsed}ms" }
         } else {
@@ -242,10 +248,24 @@ class PaddleOcrEngine(
 
     fun isInitialized(): Boolean = isInitialized
 
+    /**
+     * Swaps weights when the user changed the recogniser variant.
+     *
+     * Must run *before* taking an [inferPermits] permit: [destroy] drains every permit, so calling
+     * it from inside an inference would deadlock. The next [init] then loads the selected file.
+     */
+    private fun ensureModelVariant() {
+        if (!isInitialized) return
+        if (loadedRecModel == preferences.recModelFile()) return
+        destroy()
+    }
+
     override suspend fun recognize(
         bytes: ByteArray,
         language: OcrLanguage,
     ): List<EngineLine> {
+        // Apply a model-variant switch while no permit is held (destroy drains them).
+        ensureModelVariant()
         // Bounded parallelism: suspends (never blocks a thread) until a
         // native slot frees up.
         inferPermits.acquire()
@@ -275,6 +295,7 @@ class PaddleOcrEngine(
         bitmap: Bitmap,
         language: OcrLanguage,
     ): List<EngineLine> {
+        ensureModelVariant()
         inferPermits.acquire()
         try {
             if (!isInitialized) {

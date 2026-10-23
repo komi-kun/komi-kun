@@ -75,6 +75,20 @@ class OcrPreferences(
     val recConfidenceFloor: Preference<Int> = preferenceStore.getInt("pref_ocr_rec_confidence_floor", DEFAULT_REC_FLOOR)
 
     /**
+     * Recogniser weights: the manga fine-tune (default) or the stock PP-OCRv6 model. Stored as the
+     * enum name so the value stays readable in the preference store.
+     */
+    val recModelVariant: Preference<String> = preferenceStore.getString(
+        "pref_ocr_rec_model",
+        RecModelVariant.DEFAULT.name,
+    )
+
+    fun resolveRecModel(): RecModelVariant = RecModelVariant.from(recModelVariant.get())
+
+    /** File name the engine and downloader must use for the selected variant. */
+    fun recModelFile(): String = resolveRecModel().recModel
+
+    /**
      * The effective engine options for a page. [numThreads] is the device-derived thread count the
      * engine normally computes itself; the thresholds come from the user preferences above, so
      * changing them takes effect for every page processed afterwards.
@@ -97,12 +111,14 @@ class OcrPreferences(
         val box = detBoxThreshold.get()
         val unclip = detUnclipRatio.get()
         val floor = recConfidenceFloor.get()
-        if (pixel == DEFAULT_DET_PIXEL && box == DEFAULT_DET_BOX &&
+        // Different weights produce different text: never serve a cached page across a variant switch.
+        val model = resolveRecModel().let { if (it == RecModelVariant.DEFAULT) "" else "m${it.name}" }
+        if (model.isEmpty() && pixel == DEFAULT_DET_PIXEL && box == DEFAULT_DET_BOX &&
             unclip == DEFAULT_DET_UNCLIP && floor == DEFAULT_REC_FLOOR
         ) {
             return ""
         }
-        return "t${pixel}b${box}u${unclip}r$floor"
+        return "${model}t${pixel}b${box}u${unclip}r$floor"
     }
 
     companion object {
