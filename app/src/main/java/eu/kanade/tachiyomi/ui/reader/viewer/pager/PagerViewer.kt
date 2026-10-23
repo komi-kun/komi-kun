@@ -18,8 +18,11 @@ import eu.kanade.tachiyomi.ui.reader.model.InsertPage
 import eu.kanade.tachiyomi.ui.reader.model.ReaderItem
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import eu.kanade.tachiyomi.ui.reader.model.ViewerChapters
+import eu.kanade.tachiyomi.ui.reader.ocr.OcrViewport
 import eu.kanade.tachiyomi.ui.reader.viewer.Viewer
 import eu.kanade.tachiyomi.ui.reader.viewer.ViewerNavigation.NavigationRegion
+import eu.kanade.tachiyomi.ui.reader.viewer.VolumeKeyPagingPolicy
+import eu.kanade.tachiyomi.util.view.isVisibleOnScreen
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import mihon.app.di.appGraph
@@ -118,7 +121,23 @@ abstract class PagerViewer(
         pager.id = R.id.reader_pager
         pager.adapter = adapter
         pager.addOnPageChangeListener(pagerListener)
-        pager.tapListener = { event ->
+        pager.tapListener = tap@{ event ->
+            // KUN -->
+            // A single tap that lands on an OCR block looks the word up and consumes the tap (only
+            // while the overlay is on); a miss falls through to the normal navigation below.
+            val ocrItem = adapter.joinedItems.getOrNull(pager.currentItem)
+            val ocrFirstPage = ocrItem?.first as? ReaderPage
+            val ocrSecondPage = ocrItem?.second as? ReaderPage
+            if (ocrFirstPage != null &&
+                activity.onPageSingleTap(
+                    ocrFirstPage,
+                    ocrSecondPage,
+                    activity.toOverlayPoint(pager, event.x, event.y),
+                )
+            ) {
+                return@tap
+            }
+            // KUN <--
             val viewPosition = IntArray(2)
             pager.getLocationOnScreen(viewPosition)
             val viewPositionRelativeToWindow = IntArray(2)
@@ -135,13 +154,19 @@ abstract class PagerViewer(
                 NavigationRegion.LEFT -> moveLeft()
             }
         }
-        pager.longTapListener = f@{
+        pager.longTapListener = f@{ event ->
             if (activity.viewModel.state.value.menuVisible || config.longTapEnabled) {
                 val item = adapter.joinedItems.getOrNull(pager.currentItem)
                 val firstPage = item?.first as? ReaderPage
                 val secondPage = item?.second as? ReaderPage
                 if (firstPage is ReaderPage) {
-                    activity.onPageLongTap(firstPage, secondPage)
+                    // KUN -->
+                    activity.onPageLongTap(
+                        firstPage,
+                        secondPage,
+                        activity.toOverlayPoint(pager, event.x, event.y),
+                    )
+                    // KUN <--
                     return@f true
                 }
             }
@@ -192,6 +217,32 @@ abstract class PagerViewer(
         pager.children
             .filterIsInstance<PagerPageHolder>()
             .firstOrNull { it.item.first == page || it.item.second == page }
+
+    // KUN -->
+    private val ocrViewportRef by lazy {
+        SsivOcrViewport(activity, ::ocrVisibleHolders)
+    }
+
+    override fun ocrViewport(): OcrViewport? = ocrViewportRef
+
+    /** Holder of the currently selected item, for the OCR viewport. */
+    private fun ocrCurrentHolder(): PagerPageHolder? =
+        (adapter.joinedItems.getOrNull(pager.currentItem)?.first as? ReaderPage)?.let(::getPageHolder)
+
+    /**
+     * Every pager holder laid out on screen, current page first. During a slide this is both the
+     * outgoing and the incoming page, so the OCR overlay maps and draws the incoming page's boxes
+     * as it slides in instead of only once the pager settles.
+     */
+    private fun ocrVisibleHolders(): List<PagerPageHolder> {
+        val holders = pager.children
+            .filterIsInstance<PagerPageHolder>()
+            .filter { it.isVisibleOnScreen() }
+            .toList()
+        val current = ocrCurrentHolder() ?: return holders
+        return listOf(current) + holders.filter { it !== current }
+    }
+    // KUN <--
 
     /**
      * Called when a new page (either a [ReaderPage] or [ChapterTransition]) is marked as active
@@ -438,16 +489,32 @@ abstract class PagerViewer(
 
         when (event.keyCode) {
             KeyEvent.KEYCODE_VOLUME_DOWN -> {
-                if (!config.volumeKeysEnabled || activity.viewModel.state.value.menuVisible) {
+                // KUN -->
+                if (!VolumeKeyPagingPolicy.shouldConsumeForPaging(
+                        volumeKeysEnabled = config.volumeKeysEnabled,
+                        menuVisible = activity.viewModel.state.value.menuVisible,
+                        ocrOverlayEnabled = config.ocrOverlayEnabled,
+                    )
+                ) {
                     return false
-                } else if (isUp) {
+                }
+                // KUN <--
+                if (isUp) {
                     if (!config.volumeKeysInverted) moveDown() else moveUp()
                 }
             }
             KeyEvent.KEYCODE_VOLUME_UP -> {
-                if (!config.volumeKeysEnabled || activity.viewModel.state.value.menuVisible) {
+                // KUN -->
+                if (!VolumeKeyPagingPolicy.shouldConsumeForPaging(
+                        volumeKeysEnabled = config.volumeKeysEnabled,
+                        menuVisible = activity.viewModel.state.value.menuVisible,
+                        ocrOverlayEnabled = config.ocrOverlayEnabled,
+                    )
+                ) {
                     return false
-                } else if (isUp) {
+                }
+                // KUN <--
+                if (isUp) {
                     if (!config.volumeKeysInverted) moveUp() else moveDown()
                 }
             }

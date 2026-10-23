@@ -246,6 +246,22 @@ class ReaderViewModel(
         }
     }
 
+    // KUN -->
+    // region OCR (komi-kun Yomitan/OCR port). GPL-free: only the Apache reader preferences are
+    // touched here; the actual OCR services live behind the ReaderOcrHost seam and the
+    // Downloader/worker wiring. The per-manga OCR **source** policy is owned by `OcrPreferences`
+    // (`:core:ocr`), which `ReaderViewModel` must not import — no duplicate lives here (fix B3).
+
+    /** Toggles the reader OCR overlay and returns its new state. */
+    fun toggleOcrOverlay(): Boolean {
+        val enabled = !readerPreferences.ocrOverlayEnabled.get()
+        readerPreferences.ocrOverlayEnabled.set(enabled)
+        return enabled
+    }
+
+    // endregion
+    // KUN <--
+
     /**
      * @param chapter the chapter to download.
      */
@@ -1342,6 +1358,12 @@ class ReaderViewModel(
         mutableState.update { it.copy(dialog = null) }
     }
 
+    // KUN -->
+    fun openRedoOcrDialog(page: ReaderPage) {
+        mutableState.update { it.copy(dialog = Dialog.RedoOcr(page)) }
+    }
+    // KUN <--
+
     fun setBrightnessOverlayValue(value: Int) {
         mutableState.update { it.copy(brightnessOverlayValue = value) }
     }
@@ -1716,6 +1738,10 @@ class ReaderViewModel(
         data object RetryAllHelp : Dialog
         data object BoostPageHelp : Dialog
         // SY <--
+
+        // KUN -->
+        data class RedoOcr(val page: ReaderPage) : Dialog
+        // KUN <--
     }
 
     sealed interface Event {

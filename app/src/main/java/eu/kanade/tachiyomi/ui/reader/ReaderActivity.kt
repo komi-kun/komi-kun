@@ -13,6 +13,7 @@ import android.graphics.Color
 import android.graphics.ColorMatrix
 import android.graphics.ColorMatrixColorFilter
 import android.graphics.Paint
+import android.graphics.PointF
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -20,6 +21,7 @@ import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.View.LAYER_TYPE_HARDWARE
+import android.view.ViewConfiguration
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -28,9 +30,12 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -44,6 +49,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -65,6 +71,7 @@ import eu.kanade.domain.base.BasePreferences
 import eu.kanade.domain.connections.service.ConnectionsPreferences
 import eu.kanade.domain.manga.model.readingMode
 import eu.kanade.domain.ui.UiPreferences
+import eu.kanade.presentation.components.AdaptiveSheet
 import eu.kanade.presentation.reader.ChapterListDialog
 import eu.kanade.presentation.reader.DisplayRefreshHost
 import eu.kanade.presentation.reader.OrientationSelectDialog
@@ -93,10 +100,13 @@ import eu.kanade.tachiyomi.ui.reader.loader.HttpPageLoader
 import eu.kanade.tachiyomi.ui.reader.model.ReaderChapter
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import eu.kanade.tachiyomi.ui.reader.model.ViewerChapters
+import eu.kanade.tachiyomi.ui.reader.ocr.ReaderOcrHost
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderOrientation
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderSettingsViewModel
 import eu.kanade.tachiyomi.ui.reader.setting.ReadingMode
+import eu.kanade.tachiyomi.ui.reader.viewer.OcrTwoFingerTapDetector
+import eu.kanade.tachiyomi.ui.reader.viewer.OutsideTapDismissDetector
 import eu.kanade.tachiyomi.ui.reader.viewer.ReaderProgressIndicator
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.PagerConfig
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.PagerViewer
@@ -128,6 +138,10 @@ import kotlinx.coroutines.launch
 import logcat.LogPriority
 import mihon.app.di.AppGraph
 import mihon.core.metro.metroGraph
+import mihon.dictionary.host.ReaderDictionaryHost
+import mihon.icons.materialsymbols.MaterialSymbols
+import mihon.icons.materialsymbols.rounded.CollectionsBookmark
+import mihon.icons.materialsymbols.rounded.Refresh
 import tachiyomi.core.common.Constants
 import tachiyomi.core.common.i18n.pluralStringResource
 import tachiyomi.core.common.i18n.stringResource
@@ -139,7 +153,9 @@ import tachiyomi.domain.manga.model.MangaCover
 import tachiyomi.domain.manga.model.asMangaCover
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
+import tachiyomi.i18n.kun.KUNMR
 import tachiyomi.i18n.sy.SYMR
+import tachiyomi.presentation.core.components.ActionButton
 import tachiyomi.presentation.core.util.collectAsState
 import java.io.ByteArrayOutputStream
 import kotlin.time.Duration.Companion.seconds
@@ -167,6 +183,14 @@ class ReaderActivity : BaseActivity() {
 
     @Inject private lateinit var preferences: BasePreferences
 
+    // KUN -->
+    // Apache-2.0 reader OCR/dictionary seams. The GPL implementations and their DI bindings live in
+    // `eu.kanade.tachiyomi.ui.reader.ocr.impl` / `mihon.dictionary.impl`; this file never sees them.
+    @Inject private lateinit var readerOcrHost: ReaderOcrHost
+
+    @Inject private lateinit var readerDictionaryHost: ReaderDictionaryHost
+    // KUN <--
+
     // KMK -->
     @Inject private lateinit var uiPreferences: UiPreferences
     val themeCoverBased get() = uiPreferences.themeCoverBased.get()
@@ -189,6 +213,54 @@ class ReaderActivity : BaseActivity() {
     private var menuToggleToast: Toast? = null
     private var readingModeToast: Toast? = null
     private val displayRefreshHost = DisplayRefreshHost()
+
+    // KUN -->
+    /**
+     * Two-finger tap detector for the OCR overlay toggle (`ReaderPreferences.ocrTwoFingerGestureEnabled`).
+     * It is fed from [dispatchTouchEvent] and is deliberately non-consuming, so it works identically
+     * across the pager, webtoon and WebGPU backends without touching their page-turn/zoom/pan gestures.
+     */
+    private val ocrTwoFingerTapDetector by lazy {
+        OcrTwoFingerTapDetector(
+            touchSlop = ViewConfiguration.get(this).scaledTouchSlop.toFloat(),
+            tapTimeoutMillis = ViewConfiguration.getLongPressTimeout().toLong().coerceAtLeast(600L),
+        ).apply {
+            isEnabled = { readerPreferences.ocrTwoFingerGestureEnabled.get() }
+            onTap = { onOcrTwoFingerTap() }
+        }
+    }
+
+    /**
+     * Passive single-finger tap detector that dismisses the **non-modal** dictionary popup when the
+     * tap lands outside it. Fed from [dispatchTouchEvent] and deliberately non-consuming: the page
+     * keeps scrolling/zooming/paging under the popup, and only a confirmed outside tap closes it.
+     * While no popup is open [ReaderDictionaryHost.popupBounds] is null and the detector is a no-op.
+     *
+     * A tap that lands on an OCR block is *not* treated as an outside tap: the single-tap path
+     * ([onPageSingleTap]) is about to move the popup to that block, so dismissing first would only
+     * make the popup flicker closed and reopen.
+     */
+    private val dictionaryOutsideTapDetector by lazy {
+        OutsideTapDismissDetector(
+            touchSlop = ViewConfiguration.get(this).scaledTouchSlop.toFloat(),
+            tapTimeoutMillis = ViewConfiguration.getLongPressTimeout().toLong(),
+        ).apply {
+            boundsProvider = {
+                readerDictionaryHost.popupBounds()?.let { rect ->
+                    OutsideTapDismissDetector.Bounds { x, y -> rect.contains(x, y) }
+                }
+            }
+            onOutsideTap = { x, y ->
+                val targetsBlock = readerPreferences.ocrOverlayEnabled.get() &&
+                    readerOcrHost.hitsBlock(Offset(x, y))
+                if (!targetsBlock) readerDictionaryHost.dismiss()
+            }
+        }
+    }
+
+    /** Scratch buffer for the compose overlay's screen location; UI thread only. */
+    private val composeOverlayLocation = IntArray(2)
+    // KUN <--
 
     private val windowInsetsController by lazy { WindowInsetsControllerCompat(window, window.decorView) }
 
@@ -318,6 +390,9 @@ class ReaderActivity : BaseActivity() {
             // KMK <--
             val state by viewModel.state.collectAsState()
             val showPageNumber by readerPreferences.showPageNumber.collectAsState()
+            // KUN -->
+            val ocrOverlayEnabled by readerPreferences.ocrOverlayEnabled.collectAsState()
+            // KUN <--
             val settingsViewModel = remember {
                 ReaderSettingsViewModel(
                     readerState = viewModel.state,
@@ -343,6 +418,18 @@ class ReaderActivity : BaseActivity() {
                 ContentOverlay(state = state)
 
                 AppBars(state = state)
+
+                // KUN -->
+                // OCR block outlines. Draw-only, adds no pointer input, so it never intercepts
+                // viewer gestures (plan 04 §2.1). The whole overlay is feature-flagged behind
+                // `ocrOverlayEnabled`; a null viewport means the viewer has no mapping yet.
+                if (ocrOverlayEnabled) {
+                    readerOcrHost.Overlay(
+                        viewport = state.viewer?.ocrViewport(),
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+                // KUN <--
             }
 
             // KMK -->
@@ -358,7 +445,7 @@ class ReaderActivity : BaseActivity() {
             // KMK <--
 
             val onDismissRequest = viewModel::closeDialog
-            when (state.dialog) {
+            when (val dialog = state.dialog) {
                 is ReaderViewModel.Dialog.Loading -> {
                     AlertDialog(
                         onDismissRequest = {},
@@ -505,8 +592,66 @@ class ReaderActivity : BaseActivity() {
                     text = { Text(text = stringResource(SYMR.strings.eh_retry_all_help_message)) },
                 )
                 // SY <--
+
+                // KUN -->
+                is ReaderViewModel.Dialog.RedoOcr -> {
+                    val page = dialog.page
+                    AdaptiveSheet(onDismissRequest = onDismissRequest) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 16.dp, horizontal = 24.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                        ) {
+                            Text(
+                                text = stringResource(KUNMR.strings.action_redo_ocr),
+                                style = MaterialTheme.typography.titleMedium,
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                ActionButton(
+                                    modifier = Modifier.weight(1f),
+                                    title = stringResource(KUNMR.strings.action_redo_ocr_page),
+                                    icon = MaterialSymbols.Rounded.Refresh,
+                                    onClick = {
+                                        onDismissRequest()
+                                        toast(stringResource(KUNMR.strings.ocr_redoing_page, page.index + 1))
+                                        readerOcrHost.redoOcr(page, chapter = false) {
+                                            runOnUiThread {
+                                                toast(stringResource(KUNMR.strings.ocr_redo_page_complete, page.index + 1))
+                                            }
+                                        }
+                                    },
+                                )
+                                ActionButton(
+                                    modifier = Modifier.weight(1f),
+                                    title = stringResource(KUNMR.strings.action_redo_ocr_chapter),
+                                    icon = MaterialSymbols.Rounded.CollectionsBookmark,
+                                    onClick = {
+                                        onDismissRequest()
+                                        toast(stringResource(KUNMR.strings.ocr_redoing_chapter))
+                                        readerOcrHost.redoOcr(page, chapter = true) {
+                                            runOnUiThread {
+                                                toast(stringResource(KUNMR.strings.ocr_redo_chapter_complete))
+                                            }
+                                        }
+                                    },
+                                )
+                            }
+                        }
+                    }
+                }
+                // KUN <--
                 null -> {}
             }
+
+            // KUN -->
+            // Dictionary lookup popup (GPL impl behind the Apache seam). Renders nothing while
+            // there is no active lookup; shows its own scrim when there is one.
+            readerDictionaryHost.Popup()
+            // KUN <--
         }
     }
 
@@ -600,6 +745,29 @@ class ReaderActivity : BaseActivity() {
         return handled || super.dispatchKeyEvent(event)
     }
 
+    // KUN -->
+    /**
+     * Dispatches a touch event. Feeds the passive OCR two-finger tap detector first, then always
+     * delegates to the default implementation - the detector never consumes, so no existing gesture
+     * is affected.
+     */
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        ocrTwoFingerTapDetector.onTouchEvent(ev)
+        // KUN -->
+        // Dismiss the non-modal dictionary popup on an outside tap. Convert the screen coordinates
+        // into the compose-overlay space the popup bounds are reported in; the detector never
+        // consumes, so the viewer's own gestures are unaffected.
+        binding.composeOverlay.getLocationOnScreen(composeOverlayLocation)
+        dictionaryOutsideTapDetector.onTouchEvent(
+            ev,
+            ev.rawX - composeOverlayLocation[0],
+            ev.rawY - composeOverlayLocation[1],
+        )
+        // KUN <--
+        return super.dispatchTouchEvent(ev)
+    }
+    // KUN <--
+
     /**
      * Dispatches a generic motion event. If the viewer doesn't handle it, call the default
      * implementation.
@@ -654,6 +822,10 @@ class ReaderActivity : BaseActivity() {
         }.collectAsState(setOf())
         val dualPageSplitPaged by readerPreferences.dualPageSplitPaged.collectAsState()
         // SY <--
+
+        // KUN -->
+        val ocrOverlayEnabled by readerPreferences.ocrOverlayEnabled.collectAsState()
+        // KUN <--
 
         val verticalNavigatorModes by readerPreferences.verticalNavigator.collectAsState()
         val verticalNavigator = verticalNavigatorModes.contains(
@@ -751,6 +923,17 @@ class ReaderActivity : BaseActivity() {
             },
             onClickShiftPage = ::shiftDoublePages,
             // SY <--
+            // KUN -->
+            ocrEnabled = ocrOverlayEnabled,
+            onClickOcr = {
+                val enabled = viewModel.toggleOcrOverlay()
+                menuToggleToast?.cancel()
+                menuToggleToast = toast(if (enabled) MR.strings.on else MR.strings.off)
+            },
+            onLongClickOcr = {
+                showRedoOcrDialog()
+            },
+            // KUN <--
         )
     }
 
@@ -869,8 +1052,19 @@ class ReaderActivity : BaseActivity() {
 
     private fun exhCurrentpage(): ReaderPage? {
         val viewer = viewModel.state.value.viewer
-        val currentPage = (((viewer as? PagerViewer)?.currentPage ?: (viewer as? WebtoonViewer)?.currentPage) as? ReaderPage)?.index
-        return currentPage?.let { viewModel.state.value.viewerChapters?.currChapter?.pages?.getOrNull(it) }
+        // KUN -->
+        val pageFromViewer = when (viewer) {
+            is PagerViewer -> viewer.currentPage as? ReaderPage
+            is WebtoonViewer -> viewer.currentPage as? ReaderPage
+            is WebGpuViewer -> (viewer.currentPage as? WebGpuViewer.ViewerReaderPage)?.page
+            else -> null
+        }
+        if (pageFromViewer != null) return pageFromViewer
+
+        val currPages = viewModel.state.value.viewerChapters?.currChapter?.pages.orEmpty()
+        val index = (viewModel.state.value.currentPage - 1).coerceIn(0, (currPages.size - 1).coerceAtLeast(0))
+        return currPages.getOrNull(index) ?: currPages.firstOrNull()
+        // KUN <--
     }
 
     fun reloadChapters(doublePages: Boolean, force: Boolean = false) {
@@ -1162,9 +1356,88 @@ class ReaderActivity : BaseActivity() {
      * Called from the viewer whenever a [page] is long clicked. A bottom sheet with a list of
      * actions to perform is shown.
      */
-    fun onPageLongTap(page: ReaderPage, /* SY --> */ extraPage: ReaderPage? = null /* SY <-- */) {
+    fun onPageLongTap(
+        page: ReaderPage,
+        /* SY --> */
+        extraPage: ReaderPage? = null, /* SY <-- */
+        // KUN -->
+        point: PointF? = null,
+        // KUN <--
+    ) {
+        // KUN -->
+        // Single OCR entry point (contract §2.4): when the overlay is enabled and the press landed
+        // on an OCR block, the host starts a dictionary lookup and consumes the gesture; otherwise
+        // fall through to the upstream page-actions dialog.
+        if (point != null &&
+            readerPreferences.ocrOverlayEnabled.get() &&
+            readerOcrHost.onPageLongPress(page, extraPage, Offset(point.x, point.y))
+        ) {
+            return
+        }
+        // KUN <--
         viewModel.openPageDialog(page, /* SY --> */ extraPage /* SY <-- */)
     }
+
+    // KUN -->
+    /**
+     * Single-tap OCR entry point, called by every viewer *before* its normal single-tap navigation
+     * (`PagerViewer`/`WebtoonViewer` `tapListener`, `WebGpuViewer` `state.onTap`).
+     *
+     * While the OCR overlay is enabled and the tap lands on an OCR block, the host starts a
+     * dictionary lookup (the same hit-test + lookup path as [onPageLongTap]) and returns `true`, so
+     * the viewer consumes the tap and does not also page-turn or toggle the menu. A miss - or the
+     * overlay being off - returns `false` and the normal navigation runs unchanged.
+     *
+     * Tying this to the existing overlay flag (no extra preference) keeps it to "when the overlay is
+     * on, one tap looks a word up"; the two-finger toggle therefore turns it on and off with the
+     * boxes.
+     */
+    fun onPageSingleTap(page: ReaderPage, extraPage: ReaderPage?, point: PointF): Boolean {
+        if (!readerPreferences.ocrOverlayEnabled.get()) return false
+        return readerOcrHost.onPageSingleTap(page, extraPage, Offset(point.x, point.y))
+    }
+    // KUN <--
+
+    // KUN -->
+    /**
+     * Converts a point in [source]'s local coordinates to the `compose_overlay` coordinate space
+     * (both are window-relative, so only the views' window positions differ).
+     */
+    fun toOverlayPoint(source: View, x: Float, y: Float): PointF {
+        val location = IntArray(2)
+        source.getLocationInWindow(location)
+        val overlayLocation = IntArray(2)
+        binding.composeOverlay.getLocationInWindow(overlayLocation)
+        return PointF(
+            (location[0] - overlayLocation[0]) + x,
+            (location[1] - overlayLocation[1]) + y,
+        )
+    }
+
+    /**
+     * Two-finger tap: toggles the reader OCR overlay (Settings "OCR two-finger gesture"). Mirrors the
+     * reader bottom-bar OCR button, including its on/off toast. Reached only through
+     * [ocrTwoFingerTapDetector], which is gated on the setting.
+     */
+    private fun onOcrTwoFingerTap() {
+        val enabled = viewModel.toggleOcrOverlay()
+        menuToggleToast?.cancel()
+        menuToggleToast = toast(if (enabled) MR.strings.on else MR.strings.off)
+    }
+
+    /**
+     * Shows a dialog to force-redo OCR for the current page or the entire chapter,
+     * updating the cache and overriding any .mokuro sidecars in the archive.
+     */
+    private fun showRedoOcrDialog() {
+        val currentPage = exhCurrentpage()
+        if (currentPage != null) {
+            viewModel.openRedoOcrDialog(currentPage)
+        } else {
+            toast(KUNMR.strings.action_redo_ocr)
+        }
+    }
+    // KUN <--
 
     /**
      * Called from the viewer when the given [chapter] should be preloaded. It should be called when

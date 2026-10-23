@@ -50,6 +50,7 @@ import mihon.icons.materialsymbols.rounded.Storage
 import mihon.icons.materialsymbols.rounded.Sync
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
+import tachiyomi.i18n.kun.KUNMR
 import tachiyomi.i18n.sy.SYMR
 import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.i18n.stringResource
@@ -238,6 +239,32 @@ object SettingsMainScreen : Screen() {
             icon = MaterialSymbols.Rounded.Security,
             screen = SettingsSecurityScreen,
         ),
+        // KUN -->
+        Item(
+            titleRes = KUNMR.strings.pref_category_dictionaries_and_audio,
+            subtitleRes = KUNMR.strings.pref_dictionary_summary,
+            icon = MaterialSymbols.Rounded.Search,
+            screen = SettingsDictionaryScreen,
+        ),
+        Item(
+            titleRes = KUNMR.strings.pref_category_dictionary_popup,
+            subtitleRes = KUNMR.strings.pref_dictionary_popup_summary,
+            icon = MaterialSymbols.Rounded.Palette,
+            screen = SettingsDictionaryPopupScreen,
+        ),
+        Item(
+            titleRes = KUNMR.strings.pref_category_anki,
+            subtitleRes = KUNMR.strings.pref_anki_summary,
+            icon = MaterialSymbols.Rounded.CollectionsBookmark,
+            screen = SettingsAnkiScreen,
+        ),
+        Item(
+            titleRes = KUNMR.strings.pref_category_ocr,
+            subtitleRes = KUNMR.strings.pref_ocr_summary,
+            icon = MaterialSymbols.AutoMirroredRounded.ChromeReaderMode,
+            screen = SettingsOcrScreen,
+        ),
+        // KUN <--
         // SY -->
         Item(
             titleRes = SYMR.strings.pref_category_eh,

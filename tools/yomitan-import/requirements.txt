@@ -1,0 +1,7 @@
+# Runtime dependency of tools/yomitan-import/dexie_to_yomitan.py.
+#
+# ijson is a streaming ("pull") JSON parser: it yields one row at a time, so the 2.3 GB
+# backup is never loaded into memory. The C backend (bundled `yajl2_c`) is built
+# automatically on install when a compiler is available; if only the pure-Python backend is
+# present the tool still works but prints a warning and is much slower.
+ijson==3.6.0

@@ -46,6 +46,17 @@
 
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
+    <!-- KUN -->
+    <!-- Anki mining: talk to AnkiDroid's `com.ichi2.anki.flashcards` provider (plan 05 §B3).
+         The shared FileProvider (`${applicationId}.provider` + provider_paths' external-files-path)
+         already exposes `getExternalFilesDir(null)/anki_media` for media handover. -->
+    <uses-permission android:name="com.ichi2.anki.permission.READ_WRITE_DATABASE" />
+
+    <queries>
+        <package android:name="com.ichi2.anki" />
+    </queries>
+    <!-- KUN <-->
+
     <application
         android:name=".App"
         android:allowBackup="false"

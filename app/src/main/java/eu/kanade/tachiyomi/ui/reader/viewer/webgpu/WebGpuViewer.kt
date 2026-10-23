@@ -37,11 +37,13 @@ import eu.kanade.tachiyomi.ui.reader.model.DownloadStream
 import eu.kanade.tachiyomi.ui.reader.model.ReaderChapter
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import eu.kanade.tachiyomi.ui.reader.model.ViewerChapters
+import eu.kanade.tachiyomi.ui.reader.ocr.OcrViewport
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences.TransitionAnimation
 import eu.kanade.tachiyomi.ui.reader.viewer.ReaderPageImageView.ZoomStartPosition
 import eu.kanade.tachiyomi.ui.reader.viewer.Viewer
 import eu.kanade.tachiyomi.ui.reader.viewer.ViewerNavigation.NavigationRegion
+import eu.kanade.tachiyomi.ui.reader.viewer.VolumeKeyPagingPolicy
 import eu.kanade.tachiyomi.util.system.createReaderThemeContext
 import eu.kanade.tachiyomi.util.system.readerBackgroundColor
 import kotlinx.coroutines.CancellationException
@@ -179,6 +181,29 @@ open class WebGpuViewer(
     protected fun viewerPageFor(imagePage: ImagePage): ViewerPage? = synchronized(lock) {
         pageCache.values.firstOrNull { it.imagePage === imagePage }
     }
+
+    // KUN -->
+    /**
+     * The reader pages an on-screen [imagePage] draws, resolving a dual-page [ImagePage.ImageSpread]
+     * to both of its sides. Used by the OCR overlay adapter (contract §2.6).
+     */
+    internal fun ocrReaderPagesFor(imagePage: ImagePage?): List<ReaderPage> = synchronized(lock) {
+        when (imagePage) {
+            is ImagePage.ImageSpread -> listOfNotNull(
+                imagePage.left?.let { viewerPageFor(it) as? ViewerReaderPage }?.page,
+                imagePage.right?.let { viewerPageFor(it) as? ViewerReaderPage }?.page,
+            )
+
+            null -> emptyList()
+
+            else -> listOfNotNull((viewerPageFor(imagePage) as? ViewerReaderPage)?.page)
+        }
+    }
+
+    private val ocrViewportRef by lazy { WebGpuOcrViewport(this) }
+
+    override fun ocrViewport(): OcrViewport? = ocrViewportRef
+    // KUN <--
 
     /** Check if a page is in the cache by identity. O(1) via key lookup. */
     private fun pageInCache(page: ViewerPage): Boolean = pageCache[pageKey(page)] === page
@@ -780,7 +805,21 @@ open class WebGpuViewer(
                 return@fetch buildSpreadPage(page)
             }
 
-            onTap = { offset ->
+            onTap = tap@{ offset ->
+                // KUN -->
+                // Single tap on an OCR block: look it up and consume the tap; a miss (or the overlay
+                // off) falls through to the normal navigation below.
+                (currentPage as? ViewerReaderPage)?.let { readerPage ->
+                    if (activity.onPageSingleTap(
+                            readerPage.page,
+                            null,
+                            activity.toOverlayPoint(pager, offset.x * width, offset.y * height),
+                        )
+                    ) {
+                        return@tap
+                    }
+                }
+                // KUN <--
                 when (config.navigator.getAction(PointF(offset.x, offset.y))) {
                     NavigationRegion.MENU -> activity.toggleMenu()
                     NavigationRegion.NEXT -> moveToNext()
@@ -790,9 +829,16 @@ open class WebGpuViewer(
                 }
             }
 
-            onLongTap = { _ ->
+            onLongTap = { offset ->
                 if (activity.viewModel.state.value.menuVisible || config.longTapEnabled) {
-                    (currentPage as? ViewerReaderPage)?.let { activity.onPageLongTap(it.page) }
+                    (currentPage as? ViewerReaderPage)?.let {
+                        // KUN -->
+                        // Retain the normalized long-press offset the viewer delivers (plan 04 §2.2):
+                        // the OCR overlay needs it to hit-test and anchor the dictionary popup.
+                        val point = activity.toOverlayPoint(pager, offset.x * width, offset.y * height)
+                        activity.onPageLongTap(it.page, point = point)
+                        // KUN <--
+                    }
                 }
             }
         }
@@ -1894,17 +1940,33 @@ open class WebGpuViewer(
         val ctrlPressed = event.metaState.and(KeyEvent.META_CTRL_ON) > 0
         when (event.keyCode) {
             KeyEvent.KEYCODE_VOLUME_DOWN -> {
-                if (!config.volumeKeysEnabled || activity.viewModel.state.value.menuVisible) {
+                // KUN -->
+                if (!VolumeKeyPagingPolicy.shouldConsumeForPaging(
+                        volumeKeysEnabled = config.volumeKeysEnabled,
+                        menuVisible = activity.viewModel.state.value.menuVisible,
+                        ocrOverlayEnabled = config.ocrOverlayEnabled,
+                    )
+                ) {
                     return false
-                } else if (isUp) {
+                }
+                // KUN <--
+                if (isUp) {
                     if (!config.volumeKeysInverted) moveDown() else moveUp()
                 }
             }
 
             KeyEvent.KEYCODE_VOLUME_UP -> {
-                if (!config.volumeKeysEnabled || activity.viewModel.state.value.menuVisible) {
+                // KUN -->
+                if (!VolumeKeyPagingPolicy.shouldConsumeForPaging(
+                        volumeKeysEnabled = config.volumeKeysEnabled,
+                        menuVisible = activity.viewModel.state.value.menuVisible,
+                        ocrOverlayEnabled = config.ocrOverlayEnabled,
+                    )
+                ) {
                     return false
-                } else if (isUp) {
+                }
+                // KUN <--
+                if (isUp) {
                     if (!config.volumeKeysInverted) moveUp() else moveDown()
                 }
             }

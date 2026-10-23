@@ -1,0 +1,43 @@
+{
+  "spdx": "GPL-3.0-or-later",
+  "generator": "tools/yomitan-corpus/build.mjs",
+  "corpusDir": "core/dictionary/src/test/resources/yomitan",
+  "yomitan": {
+    "repository": "https://github.com/yomidevs/yomitan",
+    "commit": "e7334a96106a6c74e6fa75bd33a5ea1219d92712",
+    "commitShort": "e7334a9",
+    "version": "26.10.12.0"
+  },
+  "inputs": {
+    "test/language/japanese-transforms.test.js": {
+      "sha256": "6a5f188bd3a87b799c0c9619678620b27e1a973d930d1da13a68d5c8015994f8",
+      "bytes": 154136
+    },
+    "test/japanese-util.test.js": {
+      "sha256": "f2c246115b631fcc34a4090dd7ae4701dcedd695ea6863669432cabc63854e6f",
+      "bytes": 46475
+    }
+  },
+  "outputs": {
+    "ja-transforms.jsonl": {
+      "sha256": "457dc975ec95eece80291445ec3132a47a3360fbdba125c2a0a7fb34b9f2bab2",
+      "bytes": 181943,
+      "count": 1446
+    },
+    "ja-normalization.jsonl": {
+      "sha256": "5469f81168c23d6ada5e89ee21c7065b746c36ec5eed0e46c5512ec00f57b8d4",
+      "bytes": 37944,
+      "count": 405
+    },
+    "lookup-ja.jsonl": {
+      "sha256": "2860eeb6a99322ec85dc7f787cf2812d2ffb9c39e669b637b9f22657f1eefe12",
+      "bytes": 1641,
+      "count": 12
+    },
+    "lookup-ja.dict.jsonl": {
+      "sha256": "c6b287f6faa42bfbcb62d20b4721f72516bd509dacee9dcfd15be3bd587f8efc",
+      "bytes": 2211,
+      "count": 24
+    }
+  }
+}

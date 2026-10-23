@@ -11,7 +11,7 @@ Features: configurable reader, downloads/offline reading, trackers (MyAnimeList,
 | Mihon | none (base code) | `MR` (`i18n/`) |
 | TachiyomiSY | `// SY -->` … `// SY <--` (legacy `// EXH` blocks also come from SY) | `SYMR` (`i18n-sy/`) |
 | Komikku (this fork's base upstream) | `// KMK -->` … `// KMK <--` | `KMR` (`i18n-kmk/`) |
-| **komi-kun** (this repo) | `// KUN -->` … `// KUN <--` | `KMR` (`i18n-kmk/`) |
+| **komi-kun** (this repo) | `// KUN -->` … `// KUN <--` | `KUNMR` (`i18n-kun/`) |
 
 Markers record **divergence from upstream**, never upstream code itself: Mihon is the base (unmarked); `// KMK` / `// SY` mark code inherited from the Komikku / TachiyomiSY upstreams; `// KUN` marks this fork's own code.
 
@@ -32,7 +32,7 @@ Markers record **divergence from upstream**, never upstream code itself: Mihon i
 | Branch | Create a **feature branch** for the task (`git checkout -b <type>/<short-description>`, e.g. `feat/manga-recommendations`). |
 | Commit | **OK** on a feature branch when work is ready. **Never** commit directly to `master` / `main` unless the user explicitly asks. |
 | Push | **OK** to push the **current feature branch** when work is ready. **Never** push to `master` / `main` unless the user explicitly asks. |
-| Merge | **Squash-merge** PRs with `gh pr merge --squash --delete-branch` (GitHub's tooling, via `gh`). **Never** a merge commit. |
+| Merge | Into **`master` / `main`**: **squash-merge** with `gh pr merge --squash --delete-branch` (GitHub's tooling, via `gh`) — **never** a merge commit. Into a **feature branch** (rare): a merge commit is fine, and is how the per-commit signatures are preserved. |
 
 Before `git push`, confirm the current branch is not `master` or `main` (`git branch --show-current`).
 
@@ -62,22 +62,24 @@ Markers record **what diverges from upstream** — they never mark upstream code
 
 | String kind | Module | Resource class | Base folder only |
 |-------------|--------|----------------|------------------|
-| **komi-kun / Komikku** new features (library-update errors, WebDAV, Discord, etc.) | `i18n-kmk/` | **`KMR`** | `i18n-kmk/src/commonMain/moko-resources/base/` |
+| **komi-kun** new features (Yomitan, dictionaries, OCR, Anki, etc.) | `i18n-kun/` | **`KUNMR`** | `i18n-kun/src/commonMain/moko-resources/base/` |
+| Komikku upstream (library-update errors, WebDAV, Discord, etc.) | `i18n-kmk/` | `KMR` | `i18n-kmk/src/commonMain/moko-resources/base/` |
 | Mihon upstream | `i18n/` | `MR` | `i18n/src/commonMain/moko-resources/base/` |
 | TachiyomiSY upstream | `i18n-sy/` | `SYMR` | `i18n-sy/src/commonMain/moko-resources/base/` |
 
 **Hard rules:**
 
-- **All new strings go to `i18n-kmk/`** (`import tachiyomi.i18n.kmk.KMR`). `MR` / `SYMR` are upstream-owned; reuse existing entries, but only add or change them when syncing upstream.
+- **All new komi-kun strings go to `i18n-kun/`** (`import tachiyomi.i18n.kun.KUNMR`). `KMR`, `MR`, and `SYMR` are upstream-owned; reuse existing entries, but add new strings to `i18n-kun/` so upstream merges never conflict.
+- Translations in `i18n-kun/` can be added directly for supported locales. Upstream `i18n/`, `i18n-sy/`, and `i18n-kmk/` remain upstream-owned.
+- Inside a `// KUN` block, default to **`KUNMR`** even if nearby code imports `KMR` or `MR`.
 - **Weblate is not connected to this repo.** Translation content is maintained here, not generated: non-`base` locale files in `i18n-kmk/`, `i18n/`, and `i18n-sy/` are normal source files.
   - **Port upstream translation commits** (“Translations update from Hosted Weblate” from Mihon/TachiyomiSY/Komikku) like any other upstream commit. Never skip them or mark them `X` — they are the only source of refreshed translations.
   - **Translate new strings yourself**: when you add a `base` string, add its translation to the non-`base` locales you can translate confidently (missing keys fall back to the base language, so skipping a locale is safe). Do this as part of the feature, not as a follow-up.
   - Hand-edit an existing translation only to fix an obvious error.
-- Inside a `// KUN` block (or Komikku's own `// KMK` behavior), default to **`KMR`** even if nearby code imports `MR`.
 
 **Porting translation commits:** upstream locale files and this fork's have diverged in both directions (the fork still has Komikku-era keys that Mihon removed, and is missing newer upstream keys). Resolve conflicts per file by keeping upstream's values for the keys it has, dropping entries whose string no longer exists in the module's `base/`, and re-appending fork-only entries that still exist in `base/` — `scripts/resolve_i18n_union.py` in the `upstream-port` skill automates this. Never drop a translation for a string that still exists in `base/`. Validate that the XML is well-formed and that no key from the fork's `base` lost its translation.
 
-**Examples (→ `i18n-kmk`, not `i18n`):** library update error UI, sync-before-update messages, WebDAV/Discord settings, updater notifications, `mihon/feature/*` screens.
+**Examples (→ `i18n-kun`, not `i18n-kmk` or `i18n`):** dictionary settings & management, OCR settings/actions, AnkiDroid integration, Yomitan backup import.
 
 **Self-check before finishing:** `git diff` must not hand-add `<string name="…">` / `<plurals name="…">` entries under non-`base` locales, **except** translations that accompany a new base string or a ported upstream translation commit. New base strings should ship with translations where you can provide them.
 
@@ -122,26 +124,28 @@ Version catalogs in `gradle/`: `libs.versions.toml`, `kotlinx.versions.toml`, `a
 | `core:common/` | Network (OkHttp), security, storage, shared utils |
 | `core:metro/` | Shared Metro helpers (`mihon.core.metro`: `GraphProvider`, `AppCoroutineScope`, `IsDebugBuild`) |
 | `core:archive/` | CBZ/archive reading with optional encryption |
+| `core:dictionary/` | **GPL-3.0-or-later** — vendored `hoshidicts` engine (nested git submodule + NDK/CMake + JNI) and the Kotlin dictionary facade (`mihon.core.dictionary`) |
+| `core:ocr/` | **GPL-3.0-or-later** — PaddleOCR models on an ONNX Runtime backend + `.mokuro` OCR pipeline, box merge and overlay math (`mihon.core.ocr`); its native `.so`s are fetched, not built (see [Licensing & native modules](#licensing--native-modules)) |
 | `core-metadata/` | Comic-info metadata parsing |
 | `source-api/` / `source-local/` | Extension `Source` API + local source |
 | `presentation-core/` | Shared Compose components |
 | `presentation-widget/` | Home-screen Glance widget |
-| `i18n/` / `i18n-sy/` / `i18n-kmk/` | Strings → `MR` / `SYMR` / `KMR` (see [Internationalization](#internationalization-strings)) |
+| `i18n/` / `i18n-sy/` / `i18n-kmk/` / `i18n-kun/` | Strings → `MR` / `SYMR` / `KMR` / `KUNMR` (see [Internationalization](#internationalization-strings)) |
 | `flagkit/` | Country-flag drawables |
 | `icons:material-symbols/`, `icons:custom-material-symbols/`, `icons:simple-icons/` | Generated icon packs (`MaterialSymbols`, custom Material Symbols, Simple Icons) |
 | `telemetry/` | Firebase/Crashlytics (noop unless `-Pinclude-telemetry`) |
 | `baseline-profile/` | Baseline profile and startup benchmark generation (CI-only) |
 | `buildSrc/` | Convention plugins and build logic |
 
-Dependency flow: `app` → `domain` → `source-api`; `data` implements `domain` repos.
+Dependency flow: `app` → `domain` → `source-api`; `data` implements `domain` repos. `:app` also depends on the two **GPL-3.0** modules `:core:dictionary` and `:core:ocr`; those two are independent and must **never** depend on each other (see [Licensing & native modules](#licensing--native-modules)).
 
-Package roots: `eu.kanade.tachiyomi.*` (legacy UI), `tachiyomi.*` (domain/data), `mihon.*` (Mihon's newer package root — also used by komi-kun code, e.g. `mihon.feature.*`), `exh.*` (enhanced sources, SY).
+Package roots: `eu.kanade.tachiyomi.*` (legacy UI), `tachiyomi.*` (domain/data), `mihon.*` (Mihon's newer package root — also used by komi-kun code, e.g. `mihon.feature.*`, `mihon.core.dictionary.*`, `mihon.core.ocr.*`), `exh.*` (enhanced sources, SY).
 
 ---
 
 ## Architecture
 
-**DI** – [Metro](https://zacsweers.github.io/metro/), not Hilt/Injekt. The graph is `mihon/app/di/AppGraph.kt` (`@DependencyGraph`) with providers/bindings in `mihon/app/di/AppBindings.kt`; it is built in `App.kt` (`createGraphFactory<AppGraph.Factory>().create(...)`) and reached as `context.appGraph` or by injecting `AppGraph`. Most classes need only `@Inject` on the constructor (interactors, repositories, services); use `@Provides`/`@Binds` in `AppBindings` for third-party or interface types, and `@ContributesIntoMap` / `@ContributesIntoSet` for maps/sets. Parameterised types use `@AssistedInject` + `@AssistedFactory`. Extension-facing code still resolves through the Injekt interop bridge (`mihon/app/di/injekt/`).
+**DI** – [Metro](https://zacsweers.github.io/metro/), not Hilt/Injekt. The graph is `mihon/app/di/AppGraph.kt` (`@DependencyGraph`) with providers/bindings in `mihon/app/di/AppBindings.kt`; it is built in `App.kt` (`createGraphFactory<AppGraph.Factory>().create(...)`) and reached as `context.appGraph` or by injecting `AppGraph`. Most classes need only `@Inject` on the constructor (interactors, repositories, services); use `@Provides`/`@Binds` in `AppBindings` for third-party or interface types, and `@ContributesIntoMap` / `@ContributesIntoSet` for maps/sets. Parameterised types use `@AssistedInject` + `@AssistedFactory`. Feature bindings live in per-feature Metro `@BindingContainer` objects registered once in `AppGraph.bindingContainers` (`DictionaryBindings`, `OcrBindings`, `DictionaryHostBindings`, `OcrHostBindings`), and feature impls are contributed with `@ContributesBinding(AppScope::class)` — this keeps the GPL modules' wiring out of the shared `AppBindings`. Extension-facing code still resolves through the Injekt interop bridge (`mihon/app/di/injekt/`).
 
 **UI & navigation** – Voyager `Screen`s in `eu.kanade.tachiyomi.ui.*`, composables in `eu.kanade.presentation.*`. Base type: `eu.kanade.presentation.util.Screen` (in `Navigator.kt`). State lives in **Metro ViewModels** obtained with `metroViewModel<VM>()` or `assistedMetroViewModel<VM, Factory> { create(...) }`; they extend `androidx.lifecycle.ViewModel`, expose a `StateFlow` / `MutableStateFlow` (often a `State` data class) and run work in `viewModelScope`. Example: `NewUpdateScreen` + `NewUpdateViewModel` in `app/src/main/java/eu/kanade/tachiyomi/ui/more/`.
 
@@ -162,6 +166,19 @@ Package roots: `eu.kanade.tachiyomi.*` (legacy UI), `tachiyomi.*` (domain/data),
 **Images** – Coil 3 (`coil3.*`, `context.imageLoader`), configured in `App.kt`. No Glide/Picasso.
 
 **Logging** – komi-kun / Komikku code: `xLogE()` / `xLog()` from `exh.log`. Mihon code: `logcat { }` from `tachiyomi.core.common.util.system`. Avoid raw `android.util.Log`.
+
+---
+
+## Licensing & native modules
+
+komi-kun's own code is Apache-2.0, but the Yomitan/dictionary/OCR port adds two **GPL-3.0-or-later** modules, so the combined distribution is **GPL-3.0-or-later** while upstream-derived files keep their Apache-2.0 headers. See `NOTICE` and `LICENSES/GPL-3.0-or-later.txt`. The GPL-free seam files (listed in the implementation contract §1.3) stay Apache-2.0 so they can be contributed back to Komikku.
+
+- **`:core:dictionary`** — the vendored `hoshidicts` C++ engine, added as a nested git submodule (`.gitmodules`; pin recorded in `core/dictionary/README.md`) and built with NDK/CMake behind a JNI bridge.
+- **`:core:ocr`** — the OCR pipeline, running PaddleOCR **PP-OCRv6 small** models through an **ONNX Runtime** backend (MIT). `libpaddle_ocr.so` (our own Apache-2.0 JNI shim over ORT's C API) and its `libonnxruntime.so` / `libomp.so` runtime deps are **fetched, not built**: `./gradlew :core:ocr:fetchPaddleNativeLibs` reads `core/ocr/paddle-manifest.json`, verifies each file's SHA-256 and writes it into `core/ocr/src/main/jniLibs/<abi>/` (git-ignored). Models (`.onnx` + dict) download at runtime, opt-in and checksum-verified. Because ORT publishes `x86_64` and the ONNX graphs are architecture-independent, **OCR now works on `arm64-v8a`, `armeabi-v7a` and `x86_64`** — the old "OCR unavailable on x86_64" limitation is gone.
+- **ABIs** — one set for every native artifact: `arm64-v8a`, `armeabi-v7a`, `x86_64`; 32-bit `x86` is dropped. Set identically in both modules' `ndk.abiFilters` and in `app/build.gradle.kts` `splits.abi`; the universal APK still carries all three.
+- **`maven/`** — an in-repo Maven repository declared in `settings.gradle.kts` and holding the vendored `komi-kun/webgpuviewer` fork AAR (tag `ocr-accessors-2`, MIT). It exists because JitPack cannot build that AGP 9.x fork; delete `maven/` and its repository line once the accessors land upstream.
+- **GPL boundary** — `./gradlew verifyGplFree` (wrapping `scripts/verify-gpl-free.sh`) fails if any GPL-free seam file imports a GPL package. Keep it green whenever you touch a seam file.
+- **Maintenance skills** — the recurring upkeep for this port and dependency forks is scripted under `.agents/skills/`: `immersion-deps-sync` (bump the `hoshidicts` submodule, rebuild the `webgpuviewer` fork AAR in `maven/`, track Chimahon), `unifile-sync` (sync `komi-kun/UniFile` fork from upstream `mihonapp/unifile`), `ocr-model-release` (build/publish the OCR native artifact), `yomitan-corpus-sync` (refresh the conformance corpus), and `gpl-boundary` (this boundary + the licensing artifacts).
 
 ---
 
@@ -213,7 +230,6 @@ Rules:
 - A field number in the 10000 range costs a 3-byte tag instead of 1-2, which is negligible next to the payload, and backups are gzipped.
 
 ---
-
 ## Extensions & sources
 
 - Catalog sources: installable APK extensions (not in this repo).
@@ -224,9 +240,9 @@ Rules:
 
 ## Adding a komi-kun feature
 
-1. **Interactor:** `domain/src/main/java/tachiyomi/domain/<area>/interactor/MyFeature.kt`, annotated `@Inject` (Metro resolves it; add a `@Provides` / `@Binds` to `mihon/app/di/AppBindings.kt` only if it needs manual wiring)
+1. **Interactor:** `domain/src/main/java/tachiyomi/domain/<area>/interactor/MyFeature.kt`, annotated `@Inject` (Metro resolves it; add a `@Provides` / `@Binds` to `mihon/app/di/AppBindings.kt` — or a feature `@BindingContainer`, as the GPL dictionary/OCR modules do — only if it needs manual wiring)
 2. **UI:** Metro ViewModel + `Screen` under `app/src/main/java/eu/kanade/tachiyomi/ui/` (see [Architecture](#architecture))
-3. **Strings:** `i18n-kmk/src/commonMain/moko-resources/base/strings.xml`, referenced via `KMR`
+3. **Strings:** `i18n-kun/src/commonMain/moko-resources/base/strings.xml`, referenced via `KUNMR`
 4. **Markers:** wrap edits to existing files in `// KUN -->` / `// KUN <--`
 5. **Backup/sync fields:** new `@ProtoNumber`s must use the fork-reserved `10000-10999` block (see [Backup protobuf field numbers](#backup-protobuf-field-numbers)); never take an upstream number.
 
@@ -259,12 +275,16 @@ Gradle `-P` flags (`buildSrc/src/main/kotlin/mihon/buildlogic/BuildConfig.kt`):
 ./gradlew test                             # all unit tests
 ./gradlew installDebug                     # install to device/emulator
 ./gradlew :data:generateSqlDelightInterface  # after .sq / .sqm changes
+./gradlew verifyGplFree                    # GPL-free boundary check (scripts/verify-gpl-free.sh)
+./gradlew :core:ocr:fetchPaddleNativeLibs  # fetch + verify the OCR native libs (auto-invoked by assemble*)
 ```
+
+**Parallel builds.** When more than one build/agent runs in the same project directory, serialise Gradle with a shared lock so the daemon and the git index never race: `flock /tmp/opencode/gradle.lock ./gradlew <tasks>`. The Yomitan/OCR port follows this convention (`docs/design/implementation/AGENT-RUNBOOK.md`).
 
 **Workflows** (`.github/workflows/`):
 - `build_pull_request.yml` – PR validation: dependency review → wrapper validation → `spotlessCheck` → `assembleNightly` → `testDebugUnitTest` → APK signing (authorized forks)
 - `build_push.yml` – push to `master`: full build + signing
-- `build_nightly.yml` – **the release path**: manual dispatch on `master` → signed `assembleNightly -Pdist=ci` → a prerelease tagged `r<commit-count>` (5 APKs). See the `nightly-release` skill.
+- `build_nightly.yml` – **the release path**: manual dispatch on `master` → signed `assembleNightly -Pdist=ci` → a prerelease tagged `r<commit-count>` (4 APKs). See the `nightly-release` skill.
 - `build_release.yml` – optional `v*`-tag stable build; **dormant** (this fork ships nightlies only)
 - `build_benchmark.yml` – manual benchmark builder
 - `opencode_review.yml` – OpenCode automated PR review: runs on non-draft same-repo PR open / ready-for-review and on `/oc review` or `/opencode review` comments (no run on `synchronize`). It installs a **pinned OpenCode v2 CLI** (version + npm sha512, no `@latest` action) and runs `opencode run --format json` with the read-only `opencode-review` agent, so the model output is captured by the step and **no issue comment is created**. `.github/scripts/post_opencode_review.py` parses the JSONL stream and posts one `github-actions[bot]` review with a summary body (optionally Mermaid) and inline diff threads, falling back to the `opencode-repair` agent if the final message is malformed. The agent reads `build/opencode-review/pr.diff`; its step budget scales with PR size (50–120). Tooling PRs need the `review-tooling` label to self-review, and their parser tests run in a separate secret-free job. Agent definitions live in `.github/opencode-review/*.md`.
@@ -289,6 +309,9 @@ Gradle `-P` flags (`buildSrc/src/main/kotlin/mihon/buildlogic/BuildConfig.kt`):
 - `app/src/main/java/mihon/app/di/AppBindings.kt` – `@Provides` / `@Binds` / contributed bindings
 - `buildSrc/src/main/kotlin/mihon/buildlogic/BuildConfig.kt`, `AndroidConfig.kt` – flags, SDK versions
 - `app/build.gradle.kts`, `settings.gradle.kts`
+- `NOTICE`, `LICENSES/GPL-3.0-or-later.txt` – licensing artifacts for the GPL dictionary/OCR port
+- `scripts/verify-gpl-free.sh` – `verifyGplFree` GPL-free boundary check
+- `core/dictionary/README.md`, `core/ocr/README.md` – pins, layout and provenance for the GPL native modules
 - `CONTRIBUTING.md` – prerequisites and contribution process
 
 ---

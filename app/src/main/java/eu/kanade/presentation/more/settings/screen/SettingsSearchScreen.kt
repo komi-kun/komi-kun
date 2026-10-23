@@ -311,6 +311,12 @@ private val settingScreens = listOf(
     SettingsMangadexScreen,
     // SY <--
     SettingsAdvancedScreen,
+    // KUN -->
+    SettingsDictionaryScreen,
+    SettingsDictionaryPopupScreen,
+    SettingsAnkiScreen,
+    SettingsOcrScreen,
+    // KUN <--
 )
 
 private data class SettingsData(

@@ -16,7 +16,10 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.preference.PreferenceManager
 import androidx.work.Configuration
+import androidx.work.ListenableWorker
 import androidx.work.WorkManager
+import androidx.work.WorkerFactory
+import androidx.work.WorkerParameters
 import coil3.ImageLoader
 import coil3.SingletonImageLoader
 import coil3.disk.DiskCache
@@ -59,6 +62,8 @@ import eu.kanade.tachiyomi.data.coil.PagePreviewFetcher
 import eu.kanade.tachiyomi.data.coil.PagePreviewKeyer
 import eu.kanade.tachiyomi.data.connections.discord.DiscordRPCService
 import eu.kanade.tachiyomi.data.notification.Notifications
+import eu.kanade.tachiyomi.data.ocr.OcrChapterResolver
+import eu.kanade.tachiyomi.data.ocr.OcrWorker
 import eu.kanade.tachiyomi.data.sync.SyncDataJob
 import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.network.NetworkHelper
@@ -94,6 +99,7 @@ import mihon.core.metro.AppCoroutineScope
 import mihon.core.metro.GraphProvider
 import mihon.core.migration.Migration
 import mihon.core.migration.Migrator
+import mihon.core.ocr.cache.OcrJob
 import mihon.telemetry.TelemetryConfig
 import org.conscrypt.Conscrypt
 import tachiyomi.core.common.i18n.stringResource
@@ -158,6 +164,14 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
     @Inject private lateinit var kmkMetroInteropModule: KMKMetroInteropModule
 
     @Inject private lateinit var migrations: Set<Migration>
+
+    // KUN -->
+    // Lazy so the OCR engine/services (and OcrManager) are only built when an OCR worker actually
+    // runs, not on every process start (WorkManager also starts headless processes).
+    @Inject private lateinit var ocrJob: Lazy<OcrJob>
+
+    @Inject private lateinit var ocrChapterResolver: Lazy<OcrChapterResolver>
+    // KUN <--
 
     @Inject @AppCoroutineScope
     private lateinit var scope: CoroutineScope
@@ -282,7 +296,14 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
         widgetManager.init(scope)
 
         if (!WorkManager.isInitialized()) {
-            WorkManager.initialize(this, Configuration.Builder().build())
+            WorkManager.initialize(
+                this,
+                Configuration.Builder()
+                    // KUN -->
+                    .setWorkerFactory(KomikunWorkerFactory(ocrJob, ocrChapterResolver))
+                    // KUN <--
+                    .build(),
+            )
         }
         val syncPreferences: SyncPreferences = Injekt.get()
         val syncTriggerOpt = syncPreferences.getSyncTriggerOptions()
@@ -511,3 +532,32 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
 }
 
 private const val ACTION_DISABLE_INCOGNITO_MODE = "tachi.action.DISABLE_INCOGNITO_MODE"
+
+// KUN -->
+/**
+ * Builds the app's WorkManager workers that need Metro-provided dependencies (contract §3.1).
+ *
+ * `:core:ocr`'s `OcrJob` is a plain coroutine runner (the module may not depend on WorkManager), so
+ * the app wraps it in [OcrWorker] and supplies the Metro-built services here. Returning `null` for
+ * every other worker delegates to WorkManager's default reflection factory, so existing workers are
+ * untouched.
+ */
+private class KomikunWorkerFactory(
+    private val ocrJob: Lazy<OcrJob>,
+    private val ocrChapterResolver: Lazy<OcrChapterResolver>,
+) : WorkerFactory() {
+    override fun createWorker(
+        appContext: Context,
+        workerClassName: String,
+        workerParameters: WorkerParameters,
+    ): ListenableWorker? = when (workerClassName) {
+        OcrWorker::class.java.name -> OcrWorker(
+            appContext,
+            workerParameters,
+            ocrJob.value,
+            ocrChapterResolver.value,
+        )
+        else -> null
+    }
+}
+// KUN <--
