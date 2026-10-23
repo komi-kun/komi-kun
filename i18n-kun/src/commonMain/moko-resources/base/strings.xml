@@ -241,6 +241,10 @@
     <string name="ocr_source_automatic">Automatic</string>
     <string name="ocr_source_mokuro">Mokuro</string>
     <string name="ocr_source_paddle">Paddle OCR</string>
+    <string name="pref_ocr_model_variant">Recogniser model</string>
+    <string name="pref_ocr_model_variant_summary">The fine-tune is trained on manga lettering and onomatopoeia; the stock model is the original PP-OCRv6. Switching downloads the selected weights.</string>
+    <string name="ocr_model_finetuned">Manga fine-tune (recommended)</string>
+    <string name="ocr_model_stock">Stock PP-OCRv6</string>
     <string name="action_enable_ocr">Enable OCR</string>
     <string name="action_disable_ocr">Disable OCR</string>
     <string name="action_ocr">OCR</string>

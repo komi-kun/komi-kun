@@ -241,6 +241,10 @@
     <string name="ocr_source_automatic">自動</string>
     <string name="ocr_source_mokuro">Mokuro</string>
     <string name="ocr_source_paddle">Paddle OCR</string>
+    <string name="pref_ocr_model_variant">認識モデル</string>
+    <string name="pref_ocr_model_variant_summary">微調整モデルは漫画の文字とオノマトペに最適化されています。標準モデルは元の PP-OCRv6 です。切り替えると選択したモデルをダウンロードします。</string>
+    <string name="ocr_model_finetuned">漫画向け微調整（推奨）</string>
+    <string name="ocr_model_stock">標準 PP-OCRv6</string>
     <string name="action_enable_ocr">OCRを有効化</string>
     <string name="action_disable_ocr">OCRを無効化</string>
     <string name="action_ocr">OCR</string>

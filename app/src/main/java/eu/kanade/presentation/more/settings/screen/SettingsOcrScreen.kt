@@ -21,6 +21,7 @@ import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import kotlinx.coroutines.launch
 import mihon.app.di.appGraph
 import mihon.core.ocr.OcrPreferences
+import mihon.core.ocr.RecModelVariant
 import mihon.core.ocr.cache.OcrCacheManager
 import mihon.core.ocr.paddle.ModelDownloadState
 import tachiyomi.core.common.ocr.ReaderOcrSource
@@ -119,6 +120,8 @@ object SettingsOcrScreen : SearchableSettings {
             )
         }
 
+        val variantSummary = stringResource(KUNMR.strings.pref_ocr_model_variant_summary)
+
         return listOf(
             // Source policy.
             Preference.PreferenceItem.ListPreference(
@@ -134,6 +137,24 @@ object SettingsOcrScreen : SearchableSettings {
                         // Runtime, user-opt-in, checksum-verified model download (contract §1.7).
                         modelDownloader.triggerPaddleDownload()
                     }
+                    true
+                },
+            ),
+
+            // Recogniser weights: the manga fine-tune (default) or the stock PP-OCRv6 model.
+            // Switching releases invalidates the cached manifest, so trigger a download of the
+            // selected variant; the engine swaps weights on the next page and cached OCR results
+            // are keyed by the variant, so nothing stale is served.
+            Preference.PreferenceItem.ListPreference(
+                preference = preferences.recModelVariant,
+                entries = mapOf(
+                    RecModelVariant.FINE_TUNED.name to stringResource(KUNMR.strings.ocr_model_finetuned),
+                    RecModelVariant.STOCK.name to stringResource(KUNMR.strings.ocr_model_stock),
+                ),
+                title = stringResource(KUNMR.strings.pref_ocr_model_variant),
+                subtitleProvider = { value, entries -> "${entries[value]} · $variantSummary" },
+                onValueChanged = {
+                    modelDownloader.triggerPaddleDownload()
                     true
                 },
             ),

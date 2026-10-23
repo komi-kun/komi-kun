@@ -241,6 +241,10 @@
     <string name="ocr_source_automatic">Automatisch</string>
     <string name="ocr_source_mokuro">Mokuro</string>
     <string name="ocr_source_paddle">Paddle OCR</string>
+    <string name="pref_ocr_model_variant">Erkennungsmodell</string>
+    <string name="pref_ocr_model_variant_summary">Das feinabgestimmte Modell ist auf Manga-Schrift und Lautmalerei trainiert; das Standardmodell ist das ursprüngliche PP-OCRv6. Beim Wechseln werden die gewählten Gewichte heruntergeladen.</string>
+    <string name="ocr_model_finetuned">Manga-Feinabstimmung (empfohlen)</string>
+    <string name="ocr_model_stock">Standard-PP-OCRv6</string>
     <string name="action_enable_ocr">OCR aktivieren</string>
     <string name="action_disable_ocr">OCR deaktivieren</string>
     <string name="action_ocr">OCR</string>
