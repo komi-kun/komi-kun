@@ -25,6 +25,17 @@ const val WEBTOON_ASPECT_RATIO = 3.0
 const val TILE_MAX_DIMENSION = 2400
 const val TILE_OVERLAP_PX = 360
 const val TILE_TRIGGER_DIMENSION = 2500
+
+/**
+ * Pixel budget for a single page before any chunking.
+ *
+ * AI-upscaled pages are commonly 4x (a ~2 MP scan becomes 30-40 MP). The engine
+ * downsizes to ~960 px for detection and 48 px line height for recognition, so
+ * the extra pixels carry no information - but they do force the 2D tiler, which
+ * measured worse than plain downscaling on paired real pages (21.0 % vs 11.5 %
+ * line CER) and is ~10x slower. Ordinary pages are already under this budget.
+ */
+const val MAX_OCR_PIXELS = 4_000_000
 // KUN <--
 
 data class ImageChunk(
@@ -128,34 +139,49 @@ fun prepareForOcr(data: ByteArray): List<ImageChunk> {
 }
 
 fun prepareForOcr(bitmap: Bitmap): List<ImageChunk> {
-    val w = bitmap.width
-    val h = bitmap.height
     // KUN -->
-    if (w > TILE_TRIGGER_DIMENSION || h > TILE_TRIGGER_DIMENSION) {
-        return chunkImage2D(bitmap)
+    // Normalise oversized single pages *before* deciding to tile. Webtoon strips
+    // (very tall) keep the old path so their width is not squeezed away.
+    val source = if (bitmap.height.toDouble() / bitmap.width <= WEBTOON_ASPECT_RATIO) {
+        resizeToMaxPixels(bitmap, MAX_OCR_PIXELS)
+    } else {
+        bitmap
     }
     // KUN <--
-    val pixelCount = w * h
-    val aspectRatio = h.toDouble() / w
-    val shouldChunkByHeight = h > TALL_IMAGE_CHUNK_THRESHOLD
-    val shouldChunkByAspect = aspectRatio > WEBTOON_ASPECT_RATIO && pixelCount > MAX_TOTAL_PIXELS
-
-    return if (shouldChunkByHeight || shouldChunkByAspect) {
-        chunkImage(bitmap)
+    val w = source.width
+    val h = source.height
+    // KUN -->
+    val chunks = if (w > TILE_TRIGGER_DIMENSION || h > TILE_TRIGGER_DIMENSION) {
+        chunkImage2D(source)
     } else {
-        val resizedBitmap = resizeToMaxPixels(bitmap, MAX_TOTAL_PIXELS)
-        listOf(
-            ImageChunk(
-                bitmap = resizedBitmap,
-                width = resizedBitmap.width,
-                height = resizedBitmap.height,
-                globalX = 0,
-                globalY = 0,
-                fullWidth = resizedBitmap.width,
-                fullHeight = resizedBitmap.height,
-            ),
-        )
+        val pixelCount = w * h
+        val aspectRatio = h.toDouble() / w
+        val shouldChunkByHeight = h > TALL_IMAGE_CHUNK_THRESHOLD
+        val shouldChunkByAspect = aspectRatio > WEBTOON_ASPECT_RATIO && pixelCount > MAX_TOTAL_PIXELS
+
+        if (shouldChunkByHeight || shouldChunkByAspect) {
+            chunkImage(source)
+        } else {
+            listOf(
+                ImageChunk(
+                    bitmap = source,
+                    width = w,
+                    height = h,
+                    globalX = 0,
+                    globalY = 0,
+                    fullWidth = w,
+                    fullHeight = h,
+                ),
+            )
+        }
     }
+    // Tiled chunks are independent copies; the single-chunk case owns `source`
+    // itself, so only recycle when no chunk references it.
+    if (source !== bitmap && chunks.none { it.bitmap === source }) {
+        source.recycle()
+    }
+    // KUN <--
+    return chunks
 }
 
 // KUN -->
