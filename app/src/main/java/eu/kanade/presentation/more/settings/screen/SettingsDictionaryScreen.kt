@@ -44,6 +44,7 @@ import tachiyomi.core.common.preference.AndroidPreferenceStore
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.kun.KUNMR
 import tachiyomi.presentation.core.i18n.stringResource
+import tachiyomi.presentation.core.util.collectAsState
 
 /**
  * Dictionary settings (02 §5.1): imported-dictionary management (SAF import/list/enable/delete),
@@ -58,6 +59,31 @@ object SettingsDictionaryScreen : SearchableSettings {
     @Composable
     override fun getTitleRes() = KUNMR.strings.pref_category_dictionaries_and_audio
 
+    // KUN -->
+    /**
+     * The combined dictionaries/OCR switch plus the "everything below is hidden" note. Every entry
+     * point of the dictionary feature (this screen, popup chrome, Anki) starts with it, so the
+     * feature can always be turned back on from a screen that is still reachable while it is off.
+     */
+    @Composable
+    private fun masterPreferences(): List<Preference> {
+        val context = LocalContext.current
+        val dictionaryOcrPreferences = remember(context) { context.appGraph.dictionaryOcrPreferences }
+        val featureEnabled by dictionaryOcrPreferences.enabled.collectAsState()
+        return listOf(
+            Preference.PreferenceItem.SwitchPreference(
+                preference = dictionaryOcrPreferences.enabled,
+                title = stringResource(KUNMR.strings.pref_dictionary_ocr_enabled),
+                subtitle = stringResource(KUNMR.strings.pref_dictionary_ocr_enabled_summary),
+            ),
+            Preference.PreferenceItem.TextPreference(
+                title = stringResource(KUNMR.strings.pref_dictionary_ocr_disabled_hint),
+                visible = !featureEnabled,
+            ),
+        )
+    }
+    // KUN <--
+
     @Composable
     override fun getPreferences(): List<Preference> {
         val context = LocalContext.current
@@ -71,6 +97,14 @@ object SettingsDictionaryScreen : SearchableSettings {
         var importMessage by remember { mutableStateOf<String?>(null) }
         var settingsMessage by remember { mutableStateOf<String?>(null) }
         var pendingSettings by remember { mutableStateOf<YomitanSettingsImport?>(null) }
+
+        // KUN -->
+        // The combined dictionary/OCR opt-in. This screen stays reachable while the feature is off —
+        // it owns one of the two master switches — but the import/manage/audio actions below are
+        // hidden until the master is on, so the screen is not a backdoor into the feature.
+        val dictionaryOcrPreferences = remember(context) { context.appGraph.dictionaryOcrPreferences }
+        val featureEnabled by dictionaryOcrPreferences.enabled.collectAsState()
+        // KUN <--
 
         val settingsErrorText = stringResource(KUNMR.strings.pref_import_yomitan_settings_error)
         val settingsDoneText = stringResource(KUNMR.strings.pref_import_yomitan_settings_done)
@@ -150,9 +184,15 @@ object SettingsDictionaryScreen : SearchableSettings {
             )
         }
 
-        return listOf(
+        // KUN -->
+        // The combined dictionaries/OCR switch always comes first; every group below (profiles,
+        // import, manage, audio) is gated on it, so this screen is not a backdoor into the feature.
+        return masterPreferences() + listOf(
             Preference.PreferenceGroup(
                 title = stringResource(KUNMR.strings.pref_dictionary_profiles),
+                // KUN -->
+                visible = featureEnabled,
+                // KUN <--
                 preferenceItems = listOf(
                     Preference.PreferenceItem.BasicListPreference(
                         value = activeProfile.id,
@@ -168,6 +208,9 @@ object SettingsDictionaryScreen : SearchableSettings {
             ),
             Preference.PreferenceGroup(
                 title = stringResource(KUNMR.strings.pref_dict_imported_list),
+                // KUN -->
+                visible = featureEnabled,
+                // KUN <--
                 preferenceItems = buildList {
                     add(
                         Preference.PreferenceItem.TextPreference(
@@ -221,6 +264,9 @@ object SettingsDictionaryScreen : SearchableSettings {
             ),
             Preference.PreferenceGroup(
                 title = stringResource(KUNMR.strings.pref_dict_auto_kana_conversion),
+                // KUN -->
+                visible = featureEnabled,
+                // KUN <--
                 preferenceItems = listOf(
                     Preference.PreferenceItem.SwitchPreference(
                         preference = prefs.autoKanaConversion(),
@@ -232,6 +278,7 @@ object SettingsDictionaryScreen : SearchableSettings {
             // KUN -->
             Preference.PreferenceGroup(
                 title = stringResource(KUNMR.strings.pref_category_dictionary_audio),
+                visible = featureEnabled,
                 preferenceItems = listOf(
                     Preference.PreferenceItem.SwitchPreference(
                         preference = prefs.audioAutoPlay(),
@@ -247,6 +294,7 @@ object SettingsDictionaryScreen : SearchableSettings {
             ),
             // KUN <--
         )
+        // KUN <--
     }
 
     /** Popup chrome group reused by [SettingsDictionaryPopupScreen] (02 §5.1). */
@@ -254,9 +302,19 @@ object SettingsDictionaryScreen : SearchableSettings {
     fun popupPreferences(): List<Preference> {
         val context = LocalContext.current
         val prefs = remember(context) { context.appGraph.dictionaryPreferences }
+        // KUN -->
+        // Secondary popup chrome follows the master switch, but does not repeat it: the screen itself
+        // is hidden while the feature is off (`SettingsDictionaryPopupScreen.isEnabled`), and the
+        // switch stays on the two ungated screens (Dictionary / OCR), so re-enable can never be
+        // stranded. The chrome groups below are gated on it as well.
+        val dictionaryOcrPreferences = remember(context) { context.appGraph.dictionaryOcrPreferences }
+        val featureEnabled by dictionaryOcrPreferences.enabled.collectAsState()
         return listOf(
             Preference.PreferenceGroup(
                 title = stringResource(KUNMR.strings.pref_dict_popup_size),
+                // KUN -->
+                visible = featureEnabled,
+                // KUN <--
                 preferenceItems = listOf(
                     // KUN --> One "size" knob (a percentage of an adaptive, screen-relative
                     // baseline) instead of raw width/height dp, so it is a single change and the
@@ -278,6 +336,9 @@ object SettingsDictionaryScreen : SearchableSettings {
             ),
             Preference.PreferenceGroup(
                 title = stringResource(KUNMR.strings.pref_dict_appearance),
+                // KUN -->
+                visible = featureEnabled,
+                // KUN <--
                 preferenceItems = listOf(
                     Preference.PreferenceItem.SwitchPreference(
                         preference = prefs.groupTerms(),
@@ -309,6 +370,9 @@ object SettingsDictionaryScreen : SearchableSettings {
             ),
             Preference.PreferenceGroup(
                 title = stringResource(KUNMR.strings.pref_dict_content),
+                // KUN -->
+                visible = featureEnabled,
+                // KUN <--
                 preferenceItems = listOf(
                     // KUN -->
                     Preference.PreferenceItem.SwitchPreference(
@@ -338,21 +402,34 @@ object SettingsDictionaryScreen : SearchableSettings {
                 ),
             ),
         )
+        // KUN <--
     }
 
     /** Anki mining group — phase 6 stub (02 §5.1). Wired in the Anki wave. */
     @Composable
-    fun ankiPreferences(): List<Preference> = listOf(
-        Preference.PreferenceGroup(
-            title = stringResource(KUNMR.strings.pref_category_anki),
-            preferenceItems = listOf(
-                Preference.PreferenceItem.TextPreference(
-                    title = stringResource(KUNMR.strings.pref_anki_settings_summary),
-                    subtitle = stringResource(KUNMR.strings.anki_not_configured),
+    fun ankiPreferences(): List<Preference> {
+        // KUN -->
+        // Anki mining is part of the same immersion feature: the group is gated on the master switch,
+        // which stays on the two ungated screens (this one is hidden while the feature is off).
+        val context = LocalContext.current
+        val dictionaryOcrPreferences = remember(context) { context.appGraph.dictionaryOcrPreferences }
+        val featureEnabled by dictionaryOcrPreferences.enabled.collectAsState()
+        return listOf(
+            Preference.PreferenceGroup(
+                title = stringResource(KUNMR.strings.pref_category_anki),
+                // KUN -->
+                visible = featureEnabled,
+                // KUN <--
+                preferenceItems = listOf(
+                    Preference.PreferenceItem.TextPreference(
+                        title = stringResource(KUNMR.strings.pref_anki_settings_summary),
+                        subtitle = stringResource(KUNMR.strings.anki_not_configured),
+                    ),
                 ),
             ),
-        ),
-    )
+        )
+        // KUN <--
+    }
 }
 
 /** Preview of a Yomitan settings import: warnings, then the applied and skipped keys. */

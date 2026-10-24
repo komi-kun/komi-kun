@@ -30,6 +30,7 @@ import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.kun.KUNMR
 import tachiyomi.presentation.core.i18n.stringResource
+import tachiyomi.presentation.core.util.collectAsState
 
 /**
  * OCR settings (contract §3.4, 03 §5.6). Owned by W3; W2 registers it in
@@ -65,6 +66,14 @@ object SettingsOcrScreen : SearchableSettings {
         val modelDownloader = context.appGraph.modelDownloader
         val downloadState by modelDownloader.state.collectAsStateWithLifecycle()
         val scope = rememberCoroutineScope()
+
+        // KUN -->
+        // The combined dictionary/OCR opt-in. This screen stays reachable while the feature is off —
+        // it owns one of the two master switches — but everything that can act (model download, cache
+        // clearing, engine tuning) is hidden until the master is on, so this screen is not a backdoor.
+        val dictionaryOcrPreferences = context.appGraph.dictionaryOcrPreferences
+        val featureEnabled by dictionaryOcrPreferences.enabled.collectAsState()
+        // KUN <--
 
         // Runtime model-download status (contract §1.7). `isPaddleDownloaded` is a cheap synchronous
         // gate; the state flow adds live progress and makes a first-time failure visible instead of
@@ -123,6 +132,20 @@ object SettingsOcrScreen : SearchableSettings {
         val variantSummary = stringResource(KUNMR.strings.pref_ocr_model_variant_summary)
 
         return listOf(
+            // KUN -->
+            // Master switch first: visible whether the feature is on or off, so this screen can
+            // always turn the combined feature back on (it is one of the two entry points).
+            Preference.PreferenceItem.SwitchPreference(
+                preference = dictionaryOcrPreferences.enabled,
+                title = stringResource(KUNMR.strings.pref_dictionary_ocr_enabled),
+                subtitle = stringResource(KUNMR.strings.pref_dictionary_ocr_enabled_summary),
+            ),
+            Preference.PreferenceItem.TextPreference(
+                title = stringResource(KUNMR.strings.pref_dictionary_ocr_disabled_hint),
+                visible = !featureEnabled,
+            ),
+            // KUN <--
+
             // Source policy.
             Preference.PreferenceItem.ListPreference(
                 preference = preferences.defaultSource,
@@ -132,6 +155,9 @@ object SettingsOcrScreen : SearchableSettings {
                     ReaderOcrSource.PADDLE.name to stringResource(KUNMR.strings.ocr_source_paddle),
                 ),
                 title = stringResource(KUNMR.strings.pref_category_ocr),
+                // KUN -->
+                visible = featureEnabled,
+                // KUN <--
                 onValueChanged = { value ->
                     if (value == ReaderOcrSource.PADDLE.name) {
                         // Runtime, user-opt-in, checksum-verified model download (contract §1.7).
@@ -153,6 +179,9 @@ object SettingsOcrScreen : SearchableSettings {
                 ),
                 title = stringResource(KUNMR.strings.pref_ocr_model_variant),
                 subtitleProvider = { value, entries -> "${entries[value]} · $variantSummary" },
+                // KUN -->
+                visible = featureEnabled,
+                // KUN <--
                 onValueChanged = {
                     modelDownloader.triggerPaddleDownload()
                     true
@@ -165,18 +194,29 @@ object SettingsOcrScreen : SearchableSettings {
             Preference.PreferenceItem.TextPreference(
                 title = stringResource(KUNMR.strings.pref_ocr_model_status),
                 subtitle = modelStatus,
+                // KUN -->
+                visible = featureEnabled,
+                // KUN <--
                 onClick = { modelDownloader.triggerPaddleDownload() },
             ),
 
-            // Overlay master switch: the same key the reader gates on (fix B3).
+            // Overlay master switch: the same key the reader gates on (fix B3). The combined
+            // dictionary/OCR switch above is the outer gate; this one only controls the overlay
+            // while the feature as a whole is on.
             Preference.PreferenceItem.SwitchPreference(
                 preference = readerPreferences.ocrOverlayEnabled,
                 title = stringResource(KUNMR.strings.pref_ocr_overlay_enabled),
+                // KUN -->
+                visible = featureEnabled,
+                // KUN <--
             ),
 
             // Overlay behaviour.
             Preference.PreferenceGroup(
                 title = stringResource(KUNMR.strings.pref_category_ocr_boxes),
+                // KUN -->
+                visible = featureEnabled,
+                // KUN <--
                 preferenceItems = listOf(
                     Preference.PreferenceItem.SwitchPreference(
                         preference = readerPreferences.ocrOutlineVisible,
@@ -196,6 +236,17 @@ object SettingsOcrScreen : SearchableSettings {
                         valueRange = 50..150,
                         valueText = { "$it%" },
                     ),
+                    // KUN -->
+                    // Passive box size (`ReaderPreferences.ocrBoxScale`, default 100). Same 50–150 %
+                    // range and percent readout as the text size right above it.
+                    Preference.PreferenceItem.SliderPreference(
+                        preference = readerPreferences.ocrBoxScale,
+                        title = stringResource(KUNMR.strings.pref_dict_ocr_box_scale),
+                        subtitle = stringResource(KUNMR.strings.pref_ocr_box_scale_summary),
+                        valueRange = 50..150,
+                        valueText = { "$it%" },
+                    ),
+                    // KUN <--
                     Preference.PreferenceItem.SwitchPreference(
                         preference = readerPreferences.ocrTwoFingerGestureEnabled,
                         title = stringResource(KUNMR.strings.pref_ocr_two_finger_gesture),
@@ -215,6 +266,9 @@ object SettingsOcrScreen : SearchableSettings {
             // score the engine already emits. Defaults reproduce the previous hard-coded values.
             Preference.PreferenceGroup(
                 title = stringResource(KUNMR.strings.pref_ocr_detection),
+                // KUN -->
+                visible = featureEnabled,
+                // KUN <--
                 preferenceItems = listOf(
                     Preference.PreferenceItem.SliderPreference(
                         preference = preferences.detBoxThreshold,
@@ -255,9 +309,15 @@ object SettingsOcrScreen : SearchableSettings {
             Preference.PreferenceItem.TextPreference(
                 title = stringResource(KUNMR.strings.pref_ocr_cache_size),
                 subtitle = cacheSizeText ?: "...",
+                // KUN -->
+                visible = featureEnabled,
+                // KUN <--
             ),
             Preference.PreferenceItem.TextPreference(
                 title = stringResource(KUNMR.strings.pref_ocr_clear_cache),
+                // KUN -->
+                visible = featureEnabled,
+                // KUN <--
                 onClick = { showClearDialog = true },
             ),
         )

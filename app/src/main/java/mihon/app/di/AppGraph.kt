@@ -72,6 +72,7 @@ import mihon.domain.extension.interactor.GetExtensionStoreCountAsFlow
 import mihon.domain.extension.interactor.GetExtensionStores
 import mihon.domain.source.interactor.UpdateMangaFromRemote
 import nl.adaptivity.xmlutil.serialization.XML
+import tachiyomi.core.common.preference.DictionaryOcrPreferences
 import tachiyomi.domain.backup.service.BackupPreferences
 import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.domain.category.interactor.ResetCategoryFlags
@@ -213,6 +214,10 @@ interface AppGraph : ViewModelGraph {
     // `ModelDownloader` must drive state and downloads — its single-flight gate and `_state` flow
     // are only meaningful when every caller (the source-picker CTA, the status-row retry) shares it.
     val modelDownloader: ModelDownloader
+
+    // The single dictionary/OCR opt-in (`pref_dictionary_ocr_enabled`): the setup surfaces, the
+    // settings master switches, the navigation filter and every runtime gate read this one instance.
+    val dictionaryOcrPreferences: DictionaryOcrPreferences
     // KUN <--
 
     val json: Json

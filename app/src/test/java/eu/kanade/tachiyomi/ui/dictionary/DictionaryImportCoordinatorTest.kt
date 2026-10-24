@@ -37,6 +37,7 @@ import mihon.core.dictionary.repository.DictionaryRepository
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import tachiyomi.core.common.preference.DictionaryOcrPreferences
 import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.PreferenceStore
 import java.io.File
@@ -270,7 +271,13 @@ class DictionaryImportCoordinatorTest {
             context = context,
             prefs = DictionaryPreferences(PersistingPreferenceStore()),
             engine = engine,
-            repository = DictionaryRepository(engine, context),
+            // The import/delete call sites only do engine work when the user has opted in; with the
+            // switch off `probeEntryTypes`/`importDictionary` short-circuit (`:core:dictionary` gate).
+            repository = DictionaryRepository(
+                engine,
+                context,
+                DictionaryOcrPreferences(PersistingPreferenceStore()).apply { choose(true) },
+            ),
         )
     }
 
