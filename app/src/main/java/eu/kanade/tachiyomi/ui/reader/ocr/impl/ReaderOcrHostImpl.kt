@@ -41,6 +41,11 @@ import eu.kanade.tachiyomi.ui.reader.ocr.ReaderOcrHost
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.ui.reader.viewer.popup.PopupSide
 import eu.kanade.tachiyomi.ui.reader.viewer.popup.popupSide
+import mihon.core.dictionary.anki.AnkiCropAspect
+import mihon.core.dictionary.anki.AnkiPreferences
+import mihon.core.dictionary.anki.AnkiScreenshotProvider
+import mihon.core.dictionary.anki.AnkiScreenshotSettings
+import mihon.core.ocr.CropPresets
 import mihon.core.ocr.OcrHitTester
 import mihon.core.ocr.OcrNormalizedBounds
 import mihon.core.ocr.model.OcrTextBlock
@@ -48,6 +53,7 @@ import mihon.core.ocr.model.uniformCharOffset
 import mihon.core.ocr.shouldScanWholeWord
 import mihon.dictionary.host.DictionaryLookupRequest
 import mihon.dictionary.host.ReaderDictionaryHost
+import tachiyomi.core.common.preference.AndroidPreferenceStore
 
 /**
  * GPL implementation of [ReaderOcrHost] (contract §3.6b: `@Inject` + `@ContributesBinding`, never
@@ -72,6 +78,13 @@ class ReaderOcrHostImpl(
     /** The overlay's last measured size, so a lookup knows how much room the popup will take. */
     @Volatile
     private var overlaySize = IntSize.Zero
+
+    // KUN -->
+    /** Anki mining settings: which screenshot mode/preset the open lookup's card image uses. */
+    private val ankiPreferences: AnkiPreferences by lazy {
+        AnkiPreferences(AndroidPreferenceStore(context))
+    }
+    // KUN <--
 
     // KUN -->
     /**
@@ -153,6 +166,23 @@ class ReaderOcrHostImpl(
         )
     }
 
+    // KUN -->
+    /**
+     * The `{screenshot}` source for the block a lookup was opened on, from the live Anki screenshot
+     * mode and crop preset, or null when that mode takes no screenshot.
+     *
+     * The mode/preset are read from the flat preferences ([AnkiScreenshotSettings]) rather than the
+     * persisted profile: the settings screen persists the profile *before* it writes the new value,
+     * so the profile is one edit stale.
+     */
+    private fun screenshotProviderFor(page: ReaderPage, block: OcrTextBlock): AnkiScreenshotProvider? {
+        val mode = AnkiScreenshotSettings.mode(ankiPreferences)
+        val aspect = CropPresets.aspectByKey(AnkiScreenshotSettings.presetKey(ankiPreferences))
+            ?.let { AnkiCropAspect(it.x, it.y) }
+        return ReaderOcrScreenshot.provider(page, block, mode, aspect)
+    }
+    // KUN <--
+
     /**
      * The visible pages plus their immediate chapter neighbours, so the block cache is primed for
      * the page a turn is about to reveal. [ReaderOcrBlockLoader.ensureLoaded] deduplicates by page
@@ -209,6 +239,10 @@ class ReaderOcrHostImpl(
 
         activeBlock.value = key to block
         popupAnchor.rect.value = screen
+        // KUN --> The card's `{screenshot}` comes from this page and this block; the popup only ever
+        // sees the seam DTO, so the provider is handed over through the shared anchor state.
+        popupAnchor.screenshot.value = screenshotProviderFor(hit.page, block)
+        // KUN <--
         // KUN --> A new lookup must survive its own placement: ignore off-screen anchor samples
         // while the popup settles (see popupGraceUntil). Refreshed per lookup.
         popupGraceUntil = SystemClock.uptimeMillis() + POPUP_GRACE_MS
