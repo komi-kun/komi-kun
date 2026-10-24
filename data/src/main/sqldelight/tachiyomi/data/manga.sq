@@ -35,6 +35,15 @@ CREATE TABLE manga(
     -- entries that were removed from the library ("ever favorited"). The sync upload
     -- queries key on it, unlike user_favorite_at which goes NULL on removal.
     favorite_modified_at INTEGER,
+    -- The user's edited details. They live on the row itself (a NULL column means "not edited",
+    -- so the og_*/remote_* value is shown), so every query and view sees them without a lookup.
+    user_title TEXT,
+    user_author TEXT,
+    user_artist TEXT,
+    user_thumbnail_url TEXT,
+    user_description TEXT,
+    user_genre TEXT AS List<String>,
+    user_status INTEGER,
     -- SY <--
     UNIQUE(source_id, remote_url)
 );
@@ -114,7 +123,8 @@ SELECT
     user_favorite_at, user_notes, user_reader_flags, user_chapter_flags,
     state_chapter_last_update, state_chapter_next_update, state_chapter_fetch_interval,
     state_cover_last_modified, state_initialized, last_modified_at, version, is_syncing,
-    favorite_modified_at
+    favorite_modified_at,
+    user_title, user_author, user_artist, user_thumbnail_url, user_description, user_genre, user_status
 FROM manga
 WHERE id = :id;
 
@@ -131,7 +141,8 @@ SELECT
     user_favorite_at, user_notes, user_reader_flags, user_chapter_flags,
     state_chapter_last_update, state_chapter_next_update, state_chapter_fetch_interval,
     state_cover_last_modified, state_initialized, last_modified_at, version, is_syncing,
-    favorite_modified_at
+    favorite_modified_at,
+    user_title, user_author, user_artist, user_thumbnail_url, user_description, user_genre, user_status
 FROM manga
 WHERE source_id = :sourceId
 AND remote_url = :remoteUrl
@@ -144,7 +155,8 @@ SELECT
     user_favorite_at, user_notes, user_reader_flags, user_chapter_flags,
     state_chapter_last_update, state_chapter_next_update, state_chapter_fetch_interval,
     state_cover_last_modified, state_initialized, last_modified_at, version, is_syncing,
-    favorite_modified_at
+    favorite_modified_at,
+    user_title, user_author, user_artist, user_thumbnail_url, user_description, user_genre, user_status
 FROM manga
 WHERE user_favorite_at IS NOT NULL;
 
@@ -155,7 +167,8 @@ SELECT
     user_favorite_at, user_notes, user_reader_flags, user_chapter_flags,
     state_chapter_last_update, state_chapter_next_update, state_chapter_fetch_interval,
     state_cover_last_modified, state_initialized, last_modified_at, version, is_syncing,
-    favorite_modified_at
+    favorite_modified_at,
+    user_title, user_author, user_artist, user_thumbnail_url, user_description, user_genre, user_status
 FROM manga
 WHERE user_favorite_at IS NULL
 AND EXISTS (
@@ -172,7 +185,8 @@ SELECT
     user_favorite_at, user_notes, user_reader_flags, user_chapter_flags,
     state_chapter_last_update, state_chapter_next_update, state_chapter_fetch_interval,
     state_cover_last_modified, state_initialized, last_modified_at, version, is_syncing,
-    favorite_modified_at
+    favorite_modified_at,
+    user_title, user_author, user_artist, user_thumbnail_url, user_description, user_genre, user_status
 FROM manga;
 
 getAllMangaSourceAndUrl:
@@ -192,7 +206,8 @@ SELECT
     user_favorite_at, user_notes, user_reader_flags, user_chapter_flags,
     state_chapter_last_update, state_chapter_next_update, state_chapter_fetch_interval,
     state_cover_last_modified, state_initialized, last_modified_at, version, is_syncing,
-    favorite_modified_at
+    favorite_modified_at,
+    user_title, user_author, user_artist, user_thumbnail_url, user_description, user_genre, user_status
 FROM manga
 -- KUN -->
 WHERE favorite_modified_at IS NOT NULL OR user_favorite_at IS NOT NULL;
@@ -221,7 +236,8 @@ SELECT
     user_favorite_at, user_notes, user_reader_flags, user_chapter_flags,
     state_chapter_last_update, state_chapter_next_update, state_chapter_fetch_interval,
     state_cover_last_modified, state_initialized, last_modified_at, version, is_syncing,
-    favorite_modified_at
+    favorite_modified_at,
+    user_title, user_author, user_artist, user_thumbnail_url, user_description, user_genre, user_status
 FROM manga
 WHERE user_favorite_at IS NOT NULL
 AND source_id = :sourceId;
@@ -246,6 +262,7 @@ SELECT
     M.state_chapter_next_update, M.state_chapter_fetch_interval,
     M.state_cover_last_modified, M.state_initialized, M.last_modified_at, M.version, M.is_syncing,
     M.favorite_modified_at,
+    M.user_title, M.user_author, M.user_artist, M.user_thumbnail_url, M.user_description, M.user_genre, M.user_status,
     (
         SELECT count(*)
         FROM chapter C
@@ -271,7 +288,8 @@ SELECT
     user_favorite_at, user_notes, user_reader_flags, user_chapter_flags,
     state_chapter_last_update, state_chapter_next_update, state_chapter_fetch_interval,
     state_cover_last_modified, state_initialized, last_modified_at, version, is_syncing,
-    favorite_modified_at
+    favorite_modified_at,
+    user_title, user_author, user_artist, user_thumbnail_url, user_description, user_genre, user_status
 FROM manga
 WHERE state_chapter_next_update >= :startOfDay
 AND user_favorite_at IS NOT NULL
@@ -311,6 +329,19 @@ SET user_reader_flags = 0
 WHERE user_reader_flags != 0;
 
 -- SY -->
+-- Writes the user's edited details exactly as given, NULLs included: this is the one place an
+-- override is removed, so coalesce can't be used.
+updateUserInfo:
+UPDATE manga SET
+    user_title = :userTitle,
+    user_author = :userAuthor,
+    user_artist = :userArtist,
+    user_thumbnail_url = :userThumbnailUrl,
+    user_description = :userDescription,
+    user_genre = :userGenre,
+    user_status = :userStatus
+WHERE id = :id;
+
 -- KUN -->
 -- One-shot force push: lift every library row above any stale device's counter so this device's
 -- state wins the version-first merge. Rows that were never in the library are left alone.
@@ -538,7 +569,8 @@ insertNetworkManga {
         user_favorite_at, user_notes, user_reader_flags, user_chapter_flags,
         state_chapter_last_update, state_chapter_next_update, state_chapter_fetch_interval,
         state_cover_last_modified, state_initialized, last_modified_at, version, is_syncing,
-        favorite_modified_at
+        favorite_modified_at,
+        user_title, user_author, user_artist, user_thumbnail_url, user_description, user_genre, user_status
     FROM manga
     WHERE source_id = :sourceId
     AND remote_url = :remoteUrl;
