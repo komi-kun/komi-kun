@@ -738,6 +738,9 @@ class MainActivity : BaseActivity() {
 
         // Re-read on every switch flip: that is the transition that may have left work waiting.
         LaunchedEffect(enabled) {
+            // Off means no run and the persisted queue is not even read: the probe deserialises the
+            // whole queue JSON, so it is gated behind the same switch the run itself is.
+            if (!OcrRuntimePolicy.shouldRunQueue(enabled)) return@LaunchedEffect
             // Off the main thread: answering this deserialises the persisted queue JSON, and doing
             // that during composition would stall the first frame.
             val runnableWork = withContext(Dispatchers.IO) { ocrQueueWorkProbe.hasRunnableWork() }

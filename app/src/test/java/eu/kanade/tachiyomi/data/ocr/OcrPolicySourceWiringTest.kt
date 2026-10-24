@@ -34,8 +34,13 @@ class OcrPolicySourceWiringTest {
     fun `the download hook keeps the queue metadata and gates the actions`() {
         val downloader = app("data/download/Downloader.kt")
 
-        // Metadata first, unconditionally — gating it would strand a task at WAITING_DOWNLOAD.
-        downloader shouldContainSource """OcrRuntimePolicy\.refreshesQueueMetadata\(\s*ocrEnabled\s*\)"""
+        // Metadata first and unconditional: `markChapterReadyForOcr` is assigned straight to
+        // `promotedForOcr`, with no policy gate (`refreshesQueueMetadata`) and no `if` around it —
+        // gating the promotion would strand a task at WAITING_DOWNLOAD.
+        downloader shouldContainSource
+            """val\s+promotedForOcr\s*=\s*ocrManager\.markChapterReadyForOcr\(\s*download\.chapter\.id\s*\)"""
+        downloader shouldNotContain "refreshesQueueMetadata"
+        downloader shouldNotContainSource """if\s*\(\s*ocrEnabled\s*\)\s*\{\s*ocrManager\.markChapterReadyForOcr"""
         // Then the action truth table (not an inline `if (enabled)`) decides queue/worker-start.
         downloader shouldContainSource """OcrRuntimePolicy\.downloadActions\("""
 
@@ -58,14 +63,22 @@ class OcrPolicySourceWiringTest {
     }
 
     @Test
-    fun `the launch resume probes the queue off the main thread`() {
+    fun `the launch resume probes the queue off the main thread only while the switch is on`() {
         val mainActivity = app("ui/main/MainActivity.kt")
+        val resume = functionBody(mainActivity, "private fun ResumeOcrQueue()")
 
         // The probe deserialises the persisted queue, so it must run on `Dispatchers.IO` rather than
         // during composition.
-        mainActivity shouldContainSource
+        resume shouldContainSource
             """withContext\(\s*Dispatchers\.IO\s*\)\s*\{\s*ocrQueueWorkProbe\.hasRunnableWork\(\)\s*\}"""
-        mainActivity shouldContainSource """OcrRuntimePolicy\.shouldResumeQueue\("""
+        resume shouldContainSource """OcrRuntimePolicy\.shouldResumeQueue\("""
+        // Gated: off means the persisted queue is not even read, so the probe must sit *after* the
+        // switch check (the resume runs on every switch flip, including the off one).
+        resume shouldContainSource """OcrRuntimePolicy\.shouldRunQueue\(\s*enabled\s*\)\s*\)\s*return@LaunchedEffect"""
+        val gate = resume.indexOf("OcrRuntimePolicy.shouldRunQueue(")
+        val probe = resume.indexOf("ocrQueueWorkProbe.hasRunnableWork()")
+        check(gate >= 0 && probe >= 0) { "missing gate or probe in ResumeOcrQueue" }
+        (gate < probe) shouldBe true
         // Exactly one probe read in the whole activity: a second, composition-time read (the shape
         // this replaced) would reintroduce the first-frame stall.
         Regex("""ocrQueueWorkProbe\.hasRunnableWork\(\)""").findAll(mainActivity).count() shouldBe 1
@@ -91,6 +104,21 @@ class OcrPolicySourceWiringTest {
 
         // Not asserted: that the owner is started with the preference's own flow, that the collector's
         // dispatcher leaves the main thread free, or which trim levels the OS actually delivers.
+    }
+
+    @Test
+    fun `the reader detaches the OCR host on exit but not across a configuration change`() {
+        val readerActivity = app("ui/reader/ReaderActivity.kt")
+        val onDestroy = functionBody(readerActivity, "override fun onDestroy()")
+
+        // The OCR/dictionary hosts are app-graph singletons: the popup anchor (and the page its
+        // screenshot provider captured) must be released when the reader exits for good...
+        onDestroy shouldContainSource """readerOcrHost\.detach\(\)"""
+        // ...but not while the activity is recreated for a rotation, where the open popup survives.
+        onDestroy shouldContainSource """!isChangingConfigurations"""
+
+        // Not asserted: that the callback ordering (after `super.onDestroy()`) is safe, or that the
+        // host's `detach()` really clears the anchor - `ReaderOcrPopupAnchorTest` covers that part.
     }
 
     /**
@@ -126,6 +154,13 @@ class OcrPolicySourceWiringTest {
 private infix fun String.shouldContainSource(pattern: String) {
     if (!Regex(pattern).containsMatchIn(this)) {
         fail("expected the source to contain /$pattern/")
+    }
+}
+
+/** The mirror: [pattern] must not occur in this text (same whitespace-tolerant regex form). */
+private infix fun String.shouldNotContainSource(pattern: String) {
+    if (Regex(pattern).containsMatchIn(this)) {
+        fail("expected the source not to contain /$pattern/")
     }
 }
 // KUN <--

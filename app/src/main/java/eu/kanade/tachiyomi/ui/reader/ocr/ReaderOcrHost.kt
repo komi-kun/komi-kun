@@ -38,5 +38,15 @@ interface ReaderOcrHost {
      * updating the cache and overwriting any .mokuro sidecar in the archive.
      */
     fun redoOcr(page: ReaderPage, chapter: Boolean = false, onComplete: (() -> Unit)? = null)
+
+    /**
+     * Releases everything the host holds for the reader that is going away: the dictionary popup
+     * anchor (including the screenshot provider it captured for the open lookup), the recorded
+     * viewport and the active block, and closes the popup. The implementation is app-graph scoped,
+     * so without this the last reader's page stays retained after the reader exits.
+     *
+     * Safe to call repeatedly; does not change any preference or cache.
+     */
+    fun detach()
     // KUN <--
 }

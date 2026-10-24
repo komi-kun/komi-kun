@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // KUN -->
-// The post-download OCR truth table. Two independent rules are pinned here:
-//  * the queue *metadata* is always updated by the caller (`markChapterReadyForOcr`), so being off
-//    must never strand a chapter at WAITING_DOWNLOAD;
-//  * the *actions* (auto-queue, worker start) never happen while the combined dictionary/OCR opt-in
-//    is off — including for a task the metadata just promoted.
+// The post-download OCR truth table. The *actions* (auto-queue, worker start) never happen while
+// the combined dictionary/OCR opt-in is off — including for a task the metadata just promoted. The
+// companion rule (*the queue metadata is always updated by the caller*, so being off never strands a
+// chapter at WAITING_DOWNLOAD) has no policy gate by design and is pinned elsewhere:
+// `OcrManagerOptInTest` (promotion works while off) and `OcrPolicySourceWiringTest` (`Downloader`
+// calls `markChapterReadyForOcr` unconditionally).
 // KUN <--
 package eu.kanade.tachiyomi.data.ocr
 
@@ -14,17 +15,13 @@ import org.junit.jupiter.api.Test
 class OcrRuntimePolicyTest {
 
     @Test
-    fun `the queue metadata is refreshed even while the feature is off`() {
-        // The invariant behind `Downloader`'s always-called `markChapterReadyForOcr`: gating the
-        // actions must never gate the promotion, or a chapter queued before the switch went off is
-        // stranded at WAITING_DOWNLOAD for good.
-        OcrRuntimePolicy.refreshesQueueMetadata(enabled = false) shouldBe true
-        OcrRuntimePolicy.refreshesQueueMetadata(enabled = true) shouldBe true
-    }
-
-    @Test
-    fun `off queues nothing and starts no worker, even when the metadata promoted a task`() {
-        // promoted = true is what actually happens while off: the promotion is metadata-only.
+    fun `off queues nothing and starts no worker, even though the metadata promoted a task`() {
+        // promoted = true is what actually happens while off: the promotion is metadata-only. The
+        // invariant it serves — `markChapterReadyForOcr` runs even while the feature is off, so a
+        // chapter queued before the switch went off is not stranded at WAITING_DOWNLOAD — now has no
+        // policy gate to pin (there is no `enabled` argument that could gate it): it is asserted
+        // behaviourally in `OcrManagerOptInTest` ("download promotion still updates queue metadata
+        // while disabled") and as a call-site guard in `OcrPolicySourceWiringTest`.
         OcrRuntimePolicy.downloadActions(enabled = false, promoted = true, autoOnDownload = true) shouldBe
             DownloadOcrActions(queue = false, startWorker = false)
         OcrRuntimePolicy.downloadActions(enabled = false, promoted = false, autoOnDownload = true) shouldBe
