@@ -409,6 +409,14 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
     override fun onStop(owner: LifecycleOwner) {
         SecureActivityDelegate.onApplicationStopped(this)
 
+        // KUN -->
+        // Nothing needs the dictionary's native session while no UI is visible, but an open session
+        // pins the parsed dictionaries in the native heap for the whole process, so drop it here and
+        // let the next lookup reopen it. Off the main thread: close() waits for an in-flight lookup
+        // to release the session lock, and the accessor only builds the singleton lazily.
+        scope.launch { graph.dictionaryRepository.close() }
+        // KUN <--
+
         // AM (DISCORD) -->
         DiscordRPCService.stop(applicationContext)
         // <-- AM (DISCORD)
