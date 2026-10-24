@@ -418,6 +418,9 @@ fun DictionaryPopup(
                         // KUN --> OCR context so the renderer's `addToAnki` builds sentence/cloze fields.
                         ankiSentence = request.sentence,
                         ankiSentenceOffset = request.sentenceOffset,
+                        // The reader's capture for the tapped page/block (`{screenshot}`); null when
+                        // the active Anki profile takes no screenshot.
+                        ankiScreenshotProvider = popupAnchor.screenshot.value,
                         // KUN <--
                     )
                     // KUN --> A lookup in flight has no results yet; show progress rather than a

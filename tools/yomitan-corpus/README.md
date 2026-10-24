@@ -83,3 +83,38 @@ Drift is caught two ways, both without needing Yomitan:
    ```
 
    A sha256/bytes/count mismatch exits non-zero.
+
+## T2 engine conformance (the corpus is executed, not just parsed)
+
+`YomitanCorpusTest` proves the corpus is intact; it never loads the engine. The corpus is
+*executed* against the vendored `hoshidicts` engine by
+`core/dictionary/src/test/java/mihon/core/dictionary/corpus/YomitanEngineConformanceTest.kt`:
+
+```bash
+./gradlew :core:dictionary:conformanceHostTest
+```
+
+The Android `.so` is an NDK cross-build and cannot load in a desktop JVM, so the task first builds
+a **host** copy of the same `hoshidicts_jni` bridge
+(`core/dictionary/scripts/build-host-conformance-lib.sh`, cmake + a C++23 stdlib — `std::ranges::to`
+requires **GCC ≥ 14**, and the script feature-probes the selected compiler) and puts it on
+`java.library.path`. The runner then:
+
+- deinflects every `ja-transforms.jsonl` tuple through `Deinflector::deinflect`;
+- runs every `ja-normalization.jsonl` expectation through the engine's preprocessing pipeline (the
+  one op that lives app-side, `convertAlphabeticToKana`, runs against `KanaConverter`);
+- writes `lookup-ja.dict.jsonl` as a real Yomitan format-3 ZIP, imports it with the engine
+  importer, opens a session and asserts `lookup`/`query` against `lookup-ja.jsonl`;
+- checks the loaded library against the build record (`BUILD_INFO.txt`: sha256 + engine-source
+  digest baked into the `.so`).
+
+It is a separate task (not part of `testDebugUnitTest`) because it needs a host C++ toolchain; PR CI
+runs it in the path-filtered `conformance-t2` job of `.github/workflows/build_pull_request.yml`.
+
+Expectations the engine does not meet are recorded per corpus row in
+[`engine-divergences-ja.json`](../../core/dictionary/src/test/resources/yomitan/engine-divergences-ja.json)
+together with the engine gap that explains them. The runner fails **both** on an unlisted failure
+and on a listed row that starts passing, so neither a regression nor a stale exemption can hide.
+Current status — the engine conforms **modulo the 135 recorded rows**: 1262/1396 positive transform
+tuples (134 recorded divergences, and none of the 50 negative "must not match" tuples match),
+404/405 normalization tuples, 12/12 lookup fixtures.
