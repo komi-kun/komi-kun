@@ -268,4 +268,17 @@
     <string name="ocr_redoing_chapter">Re-running OCR for chapter…</string>
     <string name="ocr_redo_page_complete">OCR updated for page %1$d</string>
     <string name="ocr_redo_chapter_complete">OCR updated for chapter</string>
+    <!-- Immersion opt-in: dictionaries + OCR share one switch -->
+    <string name="dictionary_ocr_setup_title">Dictionaries &amp; OCR</string>
+    <string name="dictionary_ocr_setup_description">Look up words straight from a manga page and read recognised text over the artwork. Everything runs on your device.</string>
+    <string name="dictionary_ocr_setup_enable">Enable dictionaries and OCR</string>
+    <string name="dictionary_ocr_setup_enable_summary">Adds the Dictionary tab, in-reader word lookup and OCR overlays.</string>
+    <string name="dictionary_ocr_setup_body">This is off by default and nothing happens until you turn it on. Leaving it off is a final answer, not a reminder for later, and you can still turn it on any time in Settings → Dictionaries or Settings → OCR.</string>
+    <string name="dictionary_ocr_setup_privacy">Dictionaries and OCR models are stored and processed locally; no page leaves the device.</string>
+    <string name="dictionary_ocr_setup_accept">Enable</string>
+    <string name="dictionary_ocr_setup_decline">Not now</string>
+    <string name="pref_dictionary_ocr_enabled">Dictionaries &amp; OCR</string>
+    <string name="pref_dictionary_ocr_enabled_summary">Word lookup, the Dictionary tab and manga OCR. Turn off to hide all of them.</string>
+    <string name="pref_dictionary_ocr_disabled_hint">Dictionaries and OCR are off, so the settings below are hidden. Turn the switch above on to manage dictionaries and OCR.</string>
+    <string name="pref_ocr_box_scale_summary">Size of the passive OCR boxes as a percentage of the detected text area (100% fits it tightly).</string>
 </resources>
