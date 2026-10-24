@@ -364,6 +364,7 @@
 
                 <data android:pathPattern="/g/..*" />
             </intent-filter>
+            <!-- SY -->
             <!-- Hitomi.la -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
@@ -380,6 +381,7 @@
                 <data android:pathPattern="/reader/..*" />
                 <data android:pathPattern="/galleries/..*" />
             </intent-filter>
+            <!-- SY -->
             <!-- KUN -->
             <!-- NineHentai -->
             <intent-filter>
