@@ -425,6 +425,15 @@ object SettingsAnkiScreen : SearchableSettings {
             AnkiScreenshotMode.NONE.storageValue to "No screenshot",
             AnkiScreenshotMode.ANIMATED_SCENE.storageValue to stringResource(KUNMR.strings.pref_anki_screenshot_animated_scene),
         )
+        // KUN -->
+        // The preset the "Crop to panel" mode expands the block to. Built from the shared
+        // `CropPresets` vocabulary so a key the reader cannot map (see
+        // `ReaderOcrHostImpl.screenshotProviderFor`) is never offered.
+        val presetEntries = AnkiScreenshotPresetOptions.keys.associateWith { key ->
+            AnkiScreenshotPresetOptions.presetLabel(key)
+                ?: stringResource(KUNMR.strings.pref_anki_crop_preset_full)
+        }
+        // KUN <--
         return Preference.PreferenceGroup(
             title = stringResource(KUNMR.strings.anki_field_screenshot),
             preferenceItems = listOf(
@@ -437,6 +446,17 @@ object SettingsAnkiScreen : SearchableSettings {
                         true
                     },
                 ),
+                // KUN -->
+                Preference.PreferenceItem.ListPreference(
+                    preference = prefs.cropPreset(),
+                    entries = presetEntries,
+                    title = stringResource(KUNMR.strings.pref_anki_crop_preset),
+                    onValueChanged = {
+                        onChanged()
+                        true
+                    },
+                ),
+                // KUN <--
             ),
         )
     }

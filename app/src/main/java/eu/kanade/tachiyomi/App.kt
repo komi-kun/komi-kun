@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.app.Application
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
+import android.content.ComponentCallbacks2
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -101,6 +102,7 @@ import mihon.core.metro.GraphProvider
 import mihon.core.migration.Migration
 import mihon.core.migration.Migrator
 import mihon.core.ocr.cache.OcrJob
+import mihon.dictionary.host.DictionarySessionOwner
 import mihon.telemetry.TelemetryConfig
 import org.conscrypt.Conscrypt
 import tachiyomi.core.common.i18n.stringResource
@@ -301,6 +303,16 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
         // Updates widget update
         widgetManager.init(scope)
 
+        // KUN -->
+        // The dictionary repository owns the native session; the opt-in preference owns its release.
+        // Turning the switch off closes an open session immediately (serialised inside the
+        // repository); a background/foreground cycle deliberately does not — see `onTrimMemory`.
+        DictionarySessionOwner(
+            enabled = dictionaryOcrPreferences.value.enabled.changes(),
+            closeSession = { graph.dictionaryRepository.close() },
+        ).start(scope)
+        // KUN <--
+
         if (!WorkManager.isInitialized()) {
             WorkManager.initialize(
                 this,
@@ -422,18 +434,27 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
     override fun onStop(owner: LifecycleOwner) {
         SecureActivityDelegate.onApplicationStopped(this)
 
-        // KUN -->
-        // Nothing needs the dictionary's native session while no UI is visible, but an open session
-        // pins the parsed dictionaries in the native heap for the whole process, so drop it here and
-        // let the next lookup reopen it. Off the main thread: close() waits for an in-flight lookup
-        // to release the session lock, and the accessor only builds the singleton lazily.
-        scope.launch { graph.dictionaryRepository.close() }
-        // KUN <--
-
         // AM (DISCORD) -->
         DiscordRPCService.stop(applicationContext)
         // <-- AM (DISCORD)
     }
+
+    // KUN -->
+    /**
+     * A background/foreground cycle does **not** drop the dictionary session: the parsed tree is
+     * still valid, and rebuilding it costs seconds on every resume, so `onStop` no longer closes it.
+     * The session is released when it is actually dead weight — the user opting out
+     * ([DictionarySessionOwner], immediate and serialised) or the system asking for the memory back
+     * ([ComponentCallbacks2.TRIM_MEMORY_COMPLETE]).
+     */
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        if (level == ComponentCallbacks2.TRIM_MEMORY_COMPLETE) {
+            // Off the main thread: `close()` waits for an in-flight lookup to release its monitor.
+            scope.launch { graph.dictionaryRepository.close() }
+        }
+    }
+    // KUN <--
 
     override fun getPackageName(): String {
         try {

@@ -101,7 +101,6 @@ import eu.kanade.tachiyomi.ui.more.NewUpdateScreen
 import eu.kanade.tachiyomi.ui.more.OnboardingScreen
 import eu.kanade.tachiyomi.ui.more.WhatsNewScreen
 import eu.kanade.tachiyomi.ui.more.setup.DictionaryOcrSetupPolicy
-import eu.kanade.tachiyomi.ui.more.setup.DictionaryOcrSetupSurface
 import eu.kanade.tachiyomi.ui.setting.SettingsScreen
 import eu.kanade.tachiyomi.util.system.dpToPx
 import eu.kanade.tachiyomi.util.system.isBenchmarkBuildType
@@ -709,9 +708,11 @@ class MainActivity : BaseActivity() {
                 onboardingComplete = onboardingComplete,
             )
             if (
-                setup.surface == DictionaryOcrSetupSurface.UPGRADE_SCREEN &&
-                !upgradeSetupShown &&
-                navigator.lastItem !is DictionaryOcrSetupScreen
+                DictionaryOcrSetupPolicy.shouldShowUpgradeScreen(
+                    state = setup,
+                    alreadyShown = upgradeSetupShown,
+                    alreadyOnScreen = navigator.lastItem is DictionaryOcrSetupScreen,
+                )
             ) {
                 upgradeSetupShown = true
                 navigator.push(DictionaryOcrSetupScreen())
@@ -734,10 +735,12 @@ class MainActivity : BaseActivity() {
     private fun ResumeOcrQueue() {
         val context = LocalContext.current
         val enabled by dictionaryOcrPreferences.enabled.collectAsState()
-        // Re-read when the switch flips: that is the transition that may have left work waiting.
-        val runnableWork = remember(enabled) { ocrQueueWorkProbe.hasRunnableWork() }
 
+        // Re-read on every switch flip: that is the transition that may have left work waiting.
         LaunchedEffect(enabled) {
+            // Off the main thread: answering this deserialises the persisted queue JSON, and doing
+            // that during composition would stall the first frame.
+            val runnableWork = withContext(Dispatchers.IO) { ocrQueueWorkProbe.hasRunnableWork() }
             if (OcrRuntimePolicy.shouldResumeQueue(enabled, runnableWork)) {
                 OcrWorker.start(context)
             }

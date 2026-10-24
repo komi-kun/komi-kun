@@ -435,8 +435,12 @@ Do **not** touch non-`base` locale files (Weblate-owned).
    byte-identical, so a path-keyed rebuild alone would keep serving the pre-import query. `DictionaryRepository
    .importDictionary` therefore only ever writes a scratch directory and never takes the monitor (documented on the
    method); anything that writes inside the live tree outside `withDictionaryTreeMutation` can be read by a
-   concurrent lookup. `App.onStop` additionally calls `close()` off the main thread, because an open session pins the
-   parsed dictionaries in the native heap.
+   concurrent lookup. Release outside a mutation is owned by the opt-in and by real memory pressure, not by the
+   process lifecycle: `mihon.dictionary.host.DictionarySessionOwner` (started in `App.onCreate`) closes the session on
+   the **on → off** transition of `DictionaryOcrPreferences`, so turning the switch off releases the parsed
+   dictionaries at once, while `App.onTrimMemory(TRIM_MEMORY_COMPLETE)` closes it when the system needs the memory back.
+   A background/foreground cycle deliberately keeps the session warm — re-parsing the dictionary set on every resume
+   was a pure regression.
 
 ### 8.2 File-ownership map
 

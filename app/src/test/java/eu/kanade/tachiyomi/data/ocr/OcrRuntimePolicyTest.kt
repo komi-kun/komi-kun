@@ -9,7 +9,6 @@
 package eu.kanade.tachiyomi.data.ocr
 
 import io.kotest.matchers.shouldBe
-import mihon.core.ocr.cache.OcrQueueStatus
 import org.junit.jupiter.api.Test
 
 class OcrRuntimePolicyTest {
@@ -52,21 +51,6 @@ class OcrRuntimePolicyTest {
         // enable resume in MainActivity (only run while on).
         OcrRuntimePolicy.shouldRunQueue(enabled = false) shouldBe false
         OcrRuntimePolicy.shouldRunQueue(enabled = true) shouldBe true
-    }
-
-    @Test
-    fun `only PENDING and PROCESSING count as runnable work`() {
-        // `runPendingQueue` picks up exactly these; starting a run for anything else only raises the
-        // foreground notification before exiting.
-        OcrRuntimePolicy.hasRunnableWork(listOf(OcrQueueStatus.PENDING)) shouldBe true
-        OcrRuntimePolicy.hasRunnableWork(listOf(OcrQueueStatus.PROCESSING)) shouldBe true
-        OcrRuntimePolicy.hasRunnableWork(listOf(OcrQueueStatus.WAITING_DOWNLOAD)) shouldBe false
-        OcrRuntimePolicy.hasRunnableWork(listOf(OcrQueueStatus.WAITING_DOWNLOAD, OcrQueueStatus.ERROR)) shouldBe false
-        OcrRuntimePolicy.hasRunnableWork(listOf(OcrQueueStatus.ERROR, OcrQueueStatus.COMPLETED, OcrQueueStatus.CANCELLED)) shouldBe
-            false
-        OcrRuntimePolicy.hasRunnableWork(emptyList()) shouldBe false
-        // One runnable task among others is enough.
-        OcrRuntimePolicy.hasRunnableWork(listOf(OcrQueueStatus.ERROR, OcrQueueStatus.PENDING)) shouldBe true
     }
 
     @Test

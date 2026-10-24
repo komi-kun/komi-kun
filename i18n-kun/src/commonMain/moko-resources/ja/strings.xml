@@ -186,6 +186,8 @@
     <string name="pref_anki_loading">読み込み中…</string>
     <string name="pref_anki_no_ankidroid">AnkiDroidがインストールされていません</string>
     <string name="pref_anki_permission_denied">AnkiDroidへのアクセス許可が拒否されました</string>
+    <string name="pref_anki_crop_preset">切り抜き比率</string>
+    <string name="pref_anki_crop_preset_full">比率を固定しない</string>
     <string name="pref_anki_screenshot_animated_scene">アニメーションシーン</string>
     <string name="anki_add_to">Ankiに追加</string>
     <string name="anki_card_added">カードをAnkiに追加しました</string>

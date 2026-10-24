@@ -17,6 +17,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.icerock.moko.resources.StringResource
 import eu.kanade.presentation.more.settings.Preference
+import eu.kanade.presentation.reader.OcrDisplayScale
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import kotlinx.coroutines.launch
 import mihon.app.di.appGraph
@@ -238,12 +239,14 @@ object SettingsOcrScreen : SearchableSettings {
                     ),
                     // KUN -->
                     // Passive box size (`ReaderPreferences.ocrBoxScale`, default 100). Same 50–150 %
-                    // range and percent readout as the text size right above it.
+                    // range and percent readout as the text size right above it. The range and the
+                    // percent → factor conversion live in `OcrDisplayScale`, which `OcrOverlay` draws
+                    // with, so the slider cannot offer a value the drawing clamps away.
                     Preference.PreferenceItem.SliderPreference(
                         preference = readerPreferences.ocrBoxScale,
                         title = stringResource(KUNMR.strings.pref_dict_ocr_box_scale),
                         subtitle = stringResource(KUNMR.strings.pref_ocr_box_scale_summary),
-                        valueRange = 50..150,
+                        valueRange = OcrDisplayScale.PERCENT_RANGE,
                         valueText = { "$it%" },
                     ),
                     // KUN <--

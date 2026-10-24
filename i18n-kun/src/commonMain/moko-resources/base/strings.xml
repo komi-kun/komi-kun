@@ -186,6 +186,8 @@
     <string name="pref_anki_loading">Loading…</string>
     <string name="pref_anki_no_ankidroid">AnkiDroid is not installed</string>
     <string name="pref_anki_permission_denied">AnkiDroid permission denied</string>
+    <string name="pref_anki_crop_preset">Crop preset</string>
+    <string name="pref_anki_crop_preset_full">No fixed ratio</string>
     <string name="pref_anki_screenshot_animated_scene">Animated Scene</string>
     <string name="anki_add_to">Add to Anki</string>
     <string name="anki_card_added">Card added to Anki</string>

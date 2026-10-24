@@ -17,9 +17,6 @@
 // KUN <--
 package eu.kanade.tachiyomi.data.ocr
 
-import mihon.core.ocr.cache.OcrQueueStatus
-import mihon.core.ocr.cache.isRunnable
-
 /** What the download pipeline may do after a chapter finished downloading. */
 data class DownloadOcrActions(
     /** Queue this chapter for OCR now (`OcrPreferences.autoOnDownload`). */
@@ -64,17 +61,12 @@ object OcrRuntimePolicy {
     fun shouldRunQueue(enabled: Boolean): Boolean = enabled
 
     /**
-     * Whether the persisted queue holds **runnable** work — the statuses `runPendingQueue` actually
-     * picks up (`PENDING`, `PROCESSING`). An empty queue, an error-only queue and a
-     * `WAITING_DOWNLOAD`-only queue are all "nothing to do": starting a run for them would only raise
-     * the worker's foreground notification and then exit.
-     */
-    fun hasRunnableWork(statuses: Iterable<OcrQueueStatus>): Boolean = statuses.any { it.isRunnable() }
-
-    /**
      * Whether to kick a queue run now: the feature must be on **and** there must be work a run would
      * process. This is what keeps a launch/rotation from starting a foreground worker on an empty
      * queue, while still resuming a promoted `PENDING` task after the switch is turned back on.
+     *
+     * [runnableWork] comes from `OcrQueueWorkProbe` → `OcrStore.hasRunnableTasks`, i.e. the one
+     * predicate in `:core:ocr` (`hasRunnableStatuses`); this policy only composes it with the switch.
      */
     fun shouldResumeQueue(enabled: Boolean, runnableWork: Boolean): Boolean = enabled && runnableWork
 }
