@@ -555,17 +555,15 @@ class Downloader(
 
             // KUN -->
             // OCR hooks (03 §5.4). Two different rules:
-            //  * the queue **metadata** is always maintained (`markChapterReadyForOcr` is called even
-            //    while the combined dictionary/OCR opt-in is off), so a chapter queued before the
-            //    switch was turned off is promoted rather than stranded at WAITING_DOWNLOAD;
+            //  * the queue **metadata** is always maintained (`markChapterReadyForOcr` is called
+            //    unconditionally, even while the combined dictionary/OCR opt-in is off), so a
+            //    chapter queued before the switch was turned off is promoted rather than stranded
+            //    at WAITING_DOWNLOAD. It is not a policy decision, so there is no `enabled` argument
+            //    that could gate it; `OcrManager.markChapterReadyForOcr` is itself ungated.
             //  * the **actions** (auto-queue, worker start) follow `OcrRuntimePolicy`, which is off
             //    whenever the switch is off — promotion alone never starts OCR work.
             val ocrEnabled = dictionaryOcrPreferences.isEnabled()
-            val promotedForOcr = if (OcrRuntimePolicy.refreshesQueueMetadata(ocrEnabled)) {
-                ocrManager.markChapterReadyForOcr(download.chapter.id)
-            } else {
-                false
-            }
+            val promotedForOcr = ocrManager.markChapterReadyForOcr(download.chapter.id)
             val ocrActions = OcrRuntimePolicy.downloadActions(
                 enabled = ocrEnabled,
                 promoted = promotedForOcr,

@@ -339,6 +339,12 @@ class OcrManager(
                 updateTask(chapterId) { it.copy(status = OcrQueueStatus.PENDING) }
                 return OcrTaskResult.STOPPED
             }
+            // KUN -->
+            // The user can switch the feature off in the middle of a chapter. Abort before the page
+            // is even read, leaving the task `PENDING` (runnable) instead of running the engine for
+            // a feature that is now off.
+            if (ocrDisabled()) return abortForOptOut(chapterId)
+            // KUN <--
             if (store.get(chapterId) == null) return OcrTaskResult.CANCELLED
 
             if (input.source.persistsOcrResults && cacheManager.load(input.key, pageIndex, variant) != null) {
@@ -360,6 +366,12 @@ class OcrManager(
 
             try {
                 val blocks = retryWithBackoff(times = 3) { recognizePage(bytes, input.language) }
+                // KUN -->
+                // Re-checked *after* recognition: [recognizePage] returns an empty list once the
+                // feature is off, and persisting that would poison the page's cache entry. Abort
+                // here instead of saving an empty `OcrPageData` and counting the page as done.
+                if (ocrDisabled()) return abortForOptOut(chapterId)
+                // KUN <--
                 if (input.source.persistsOcrResults) {
                     cacheManager.save(input.key, pageIndex, blocks, input.language.bcp47, variant)
                 }
@@ -372,8 +384,16 @@ class OcrManager(
             progress(chapterId, pageIndex, pageCount)
         }
 
+        // KUN -->
+        // The switch may have been turned off after the last page: do not start the retry pass, mark
+        // the chapter `COMPLETED`/`ERROR`, or let the runner drop the task.
+        if (ocrDisabled()) return abortForOptOut(chapterId)
+        // KUN <--
         if (failedPages > 0 && !stopRequested() && store.get(chapterId) != null) {
             retryFailedPages(input, pageCount) { failedPages-- }
+            // KUN -->
+            if (ocrDisabled()) return abortForOptOut(chapterId)
+            // KUN <--
         }
 
         val cachedPages = countCachedPages(input, pageCount)
@@ -469,9 +489,27 @@ class OcrManager(
 
     // ---------------------------------------------------------------- internals
 
+    // KUN -->
+    /**
+     * Aborts [chapterId] because the user switched the dictionary/OCR feature off mid-run. The task
+     * stays in the store as `PENDING` (runnable again once the feature is back on) and is neither
+     * cached further, counted as failed, marked `COMPLETED` nor removed.
+     */
+    private suspend fun abortForOptOut(chapterId: Long): OcrTaskResult {
+        logcat(LogPriority.INFO) { "OcrManager: OCR disabled; aborting chapter $chapterId" }
+        updateTask(chapterId) { it.copy(status = OcrQueueStatus.PENDING) }
+        return OcrTaskResult.STOPPED
+    }
+    // KUN <--
+
     private suspend fun retryFailedPages(input: ChapterOcrInput, pageCount: Int, onRecovered: () -> Unit) {
         val variant = cacheVariant(input.source)
         for (pageIndex in 0 until pageCount) {
+            // KUN -->
+            // Abort the retry pass as soon as the feature is switched off (before reading the page,
+            // and again before persisting the result), so no page is saved for a disabled feature.
+            if (ocrDisabled()) return
+            // KUN <--
             if (input.source.persistsOcrResults && cacheManager.load(input.key, pageIndex, variant) != null) continue
             val bytes = try {
                 input.provider.pageBytes(pageIndex)
@@ -480,6 +518,9 @@ class OcrManager(
             } ?: continue
             try {
                 val blocks = retryWithBackoff(times = 3) { recognizePage(bytes, input.language) }
+                // KUN -->
+                if (ocrDisabled()) return
+                // KUN <--
                 if (input.source.persistsOcrResults) {
                     cacheManager.save(input.key, pageIndex, blocks, input.language.bcp47, variant)
                 }

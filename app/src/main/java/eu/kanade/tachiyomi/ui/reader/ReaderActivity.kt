@@ -688,6 +688,13 @@ class ReaderActivity : BaseActivity() {
         config = null
         menuToggleToast?.cancel()
         readingModeToast?.cancel()
+        // KUN -->
+        // The OCR/dictionary hosts are app-graph singletons: release what they captured for *this*
+        // reader (the popup anchor and the page screenshot provider behind it, the viewport, the
+        // active block) so the last page is not retained after the reader exits. Skipped while the
+        // activity is recreated for a configuration change, where the open popup must survive.
+        if (!isChangingConfigurations) readerOcrHost.detach()
+        // KUN <--
     }
 
     override fun onPause() {
