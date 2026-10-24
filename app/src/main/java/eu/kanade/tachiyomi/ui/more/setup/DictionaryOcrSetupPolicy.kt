@@ -79,6 +79,22 @@ object DictionaryOcrSetupPolicy {
     )
 
     /**
+     * Whether the standalone upgrade screen must be pushed *now*.
+     *
+     * [resolve] says which surface owns the question; this is the `MainActivity` call-site guard
+     * that keeps it to one push: a fresh install is answered inside onboarding (never here), the
+     * screen is not pushed twice in one process ([alreadyShown]) and not on top of itself
+     * ([alreadyOnScreen]). Once the user accepts or declines, [resolve] reports [DictionaryOcrSetupSurface.NONE]
+     * and this is false forever.
+     */
+    fun shouldShowUpgradeScreen(
+        state: DictionaryOcrSetupState,
+        alreadyShown: Boolean,
+        alreadyOnScreen: Boolean,
+    ): Boolean =
+        state.surface == DictionaryOcrSetupSurface.UPGRADE_SCREEN && !alreadyShown && !alreadyOnScreen
+
+    /**
      * Onboarding finished: whatever the step is showing becomes the stored answer, so "left off" is
      * an explicit decline instead of an unasked question. A choice already written by the step's own
      * switch is kept (recordCurrentChoice only fills in an unset key).

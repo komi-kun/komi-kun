@@ -14,9 +14,11 @@ package eu.kanade.tachiyomi.ui.more.setup
 
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 import org.junit.jupiter.api.Test
 import tachiyomi.core.common.preference.DictionaryOcrPreferences
 import tachiyomi.core.common.preference.InMemoryPreferenceStore
+import java.io.File
 
 class DictionaryOcrSetupPolicyTest {
 
@@ -77,9 +79,8 @@ class DictionaryOcrSetupPolicyTest {
 
     @Test
     fun `legacy reader overlay usage does not auto-enable the feature`() {
-        // The in-memory store hands out a *copy* of the seeded preference, so an unseeded
-        // `set()` would be discarded; seed the legacy key the way a real upgraded install has it
-        // stored, and only that key (the master key must stay genuinely unset).
+        // An upgraded install has the legacy key stored (the master key is genuinely unset), so seed
+        // that one key the way the old settings screen left it.
         val store = InMemoryPreferenceStore(
             sequenceOf(
                 InMemoryPreferenceStore.InMemoryPreference(
@@ -161,16 +162,8 @@ class DictionaryOcrSetupPolicyTest {
 
     @Test
     fun `a post-choice upgrade neither resets true nor re-prompts`() {
-        val store = InMemoryPreferenceStore(
-            sequenceOf(
-                InMemoryPreferenceStore.InMemoryPreference(
-                    DictionaryOcrPreferences.KEY_ENABLED,
-                    true,
-                    false,
-                ),
-            ),
-        )
-        val prefs = DictionaryOcrPreferences(store)
+        val prefs = preferences()
+        prefs.choose(true)
 
         // Recording on a later launch must not touch a stored accept.
         DictionaryOcrSetupPolicy.recordOnboardingFinished(prefs)
@@ -182,16 +175,8 @@ class DictionaryOcrSetupPolicyTest {
 
     @Test
     fun `a post-choice upgrade does not revert a stored decline to unset`() {
-        val store = InMemoryPreferenceStore(
-            sequenceOf(
-                InMemoryPreferenceStore.InMemoryPreference(
-                    DictionaryOcrPreferences.KEY_ENABLED,
-                    false,
-                    false,
-                ),
-            ),
-        )
-        val prefs = DictionaryOcrPreferences(store)
+        val prefs = preferences()
+        prefs.choose(false)
 
         DictionaryOcrSetupPolicy.recordOnboardingFinished(prefs)
 
@@ -206,5 +191,92 @@ class DictionaryOcrSetupPolicyTest {
     fun `the master switch defaults to off so the tab and reader entries start hidden`() {
         // HomeScreen's tab filter and every reader entry point read exactly this.
         preferences().isEnabled() shouldBe false
+    }
+
+    // ---------------------------------------------------------------- MainActivity call-site guard
+
+    @Test
+    fun `a fresh install never falls through to the upgrade prompt`() {
+        val prefs = preferences()
+
+        // What `OnboardingScreen`'s finish action does, in the order it does it.
+        var onboardingComplete = false
+        DictionaryOcrSetupPolicy.finishOnboarding(prefs) { onboardingComplete = true }
+
+        val setup = DictionaryOcrSetupPolicy.resolve(prefs, onboardingComplete)
+        setup.surface shouldBe DictionaryOcrSetupSurface.NONE
+        DictionaryOcrSetupPolicy.shouldShowUpgradeScreen(
+            state = setup,
+            alreadyShown = false,
+            alreadyOnScreen = false,
+        ) shouldBe false
+    }
+
+    @Test
+    fun `a pre-feature upgrade pushes the screen exactly once`() {
+        val prefs = preferences()
+        val setup = DictionaryOcrSetupPolicy.resolve(prefs, onboardingComplete = true)
+
+        // First composition: push.
+        DictionaryOcrSetupPolicy.shouldShowUpgradeScreen(setup, alreadyShown = false, alreadyOnScreen = false) shouldBe
+            true
+        // A configuration change while the screen is up: already pushed and already showing.
+        DictionaryOcrSetupPolicy.shouldShowUpgradeScreen(setup, alreadyShown = true, alreadyOnScreen = true) shouldBe
+            false
+        // Backed out without answering: still not pushed a second time this process.
+        DictionaryOcrSetupPolicy.shouldShowUpgradeScreen(setup, alreadyShown = true, alreadyOnScreen = false) shouldBe
+            false
+        // Only `alreadyOnScreen`, e.g. a re-entrant effect: no second copy.
+        DictionaryOcrSetupPolicy.shouldShowUpgradeScreen(setup, alreadyShown = false, alreadyOnScreen = true) shouldBe
+            false
+    }
+
+    @Test
+    fun `accepting or declining suppresses the upgrade prompt for good`() {
+        for (accepted in listOf(true, false)) {
+            val prefs = preferences()
+            // Pre-feature install: the screen is what asks.
+            DictionaryOcrSetupPolicy.shouldShowUpgradeScreen(
+                state = DictionaryOcrSetupPolicy.resolve(prefs, onboardingComplete = true),
+                alreadyShown = false,
+                alreadyOnScreen = false,
+            ) shouldBe true
+
+            DictionaryOcrSetupPolicy.recordAnswer(prefs, accepted)
+
+            // After the answer, a later launch resolves NONE and pushes nothing.
+            DictionaryOcrSetupPolicy.shouldShowUpgradeScreen(
+                state = DictionaryOcrSetupPolicy.resolve(prefs, onboardingComplete = true),
+                alreadyShown = false,
+                alreadyOnScreen = false,
+            ) shouldBe false
+        }
+    }
+
+    @Test
+    fun `an onboarding step never pushes the standalone screen`() {
+        // Fresh install, onboarding still running: the answer belongs to the step, not to a push.
+        val setup = DictionaryOcrSetupPolicy.resolve(preferences(), onboardingComplete = false)
+
+        setup.surface shouldBe DictionaryOcrSetupSurface.ONBOARDING_STEP
+        DictionaryOcrSetupPolicy.shouldShowUpgradeScreen(setup, alreadyShown = false, alreadyOnScreen = false) shouldBe
+            false
+    }
+
+    // ---------------------------------------------------------------- call sites
+
+    /**
+     * The ordering and the one-push guard above only hold if the screens go through the policy:
+     * `OnboardingScreen` must record the answer through `finishOnboarding` (answer before the
+     * completion flag) and `MainActivity` must ask `shouldShowUpgradeScreen` instead of inlining the
+     * surface comparison.
+     */
+    @Test
+    fun `OnboardingScreen and MainActivity delegate to the policy`() {
+        val onboarding = File("src/main/java/eu/kanade/tachiyomi/ui/more/OnboardingScreen.kt").readText()
+        onboarding shouldContain "DictionaryOcrSetupPolicy.finishOnboarding("
+
+        val main = File("src/main/java/eu/kanade/tachiyomi/ui/main/MainActivity.kt").readText()
+        main shouldContain "DictionaryOcrSetupPolicy.shouldShowUpgradeScreen("
     }
 }

@@ -103,10 +103,10 @@ fun OcrOverlay(
     val baseTextPx = with(density) { BASE_TEXT_SP.sp.toPx() }
     val minTextPx = with(density) { MIN_TEXT_SP.sp.toPx() }
     val plateCornerPx = with(density) { 3.dp.toPx() }
-    // `ocrBoxScale` is a percent; guard against a degenerate zero/negative value.
-    val boxScale = (boxScalePercent / 100f).coerceAtLeast(MIN_BOX_SCALE)
-    // User-facing overlay text size (percent), clamped so a bad value cannot make the text unusable.
-    val textScale = (textScalePercent / 100f).coerceIn(MIN_TEXT_SCALE, MAX_TEXT_SCALE)
+    // `ocrBoxScale` / `ocrTextScale` are percents; the conversion (and its clamps) is the shared
+    // `OcrDisplayScale` policy, so the sliders and the drawing cannot disagree.
+    val boxScale = OcrDisplayScale.boxScaleFactor(boxScalePercent)
+    val textScale = OcrDisplayScale.textScaleFactor(textScalePercent)
 
     val layoutCache = remember(baseTextStyle) { OcrTextLayoutCache() }
 
@@ -420,14 +420,6 @@ private fun RectF.scaledAboutCenter(scale: Float): RectF {
     val halfHeight = height() / 2f * scale
     return RectF(cx - halfWidth, cy - halfHeight, cx + halfWidth, cy + halfHeight)
 }
-
-private const val MIN_BOX_SCALE = 0.05f
-
-/** Clamp on the user's overlay text size preference (percent). */
-private const val MIN_TEXT_SCALE = 0.5f
-
-/** Clamp on the user's overlay text size preference (percent). */
-private const val MAX_TEXT_SCALE = 1.5f
 
 /** Fixed size the recognised text is measured at, before being scaled to each block. */
 private const val BASE_TEXT_SP = 20f

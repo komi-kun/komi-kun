@@ -95,6 +95,13 @@ jobs:
       # checkout (submodules: recursive, above) is what makes the §1.3 files present.
       - name: Verify GPL-free boundary
         run: ./gradlew verifyGplFree
+
+      # Device-free self-test of the Track B OCR device-check tooling (`scripts/track-b-ocr-device-
+      # check.py selftest`): its log parser, restore rules and release-manifest assessment. No adb and
+      # no device — the device commands themselves stay manual (docs/design/implementation/
+      # track-b-ocr-device-verification.md).
+      - name: Track B OCR device-check selftest
+        run: python3 scripts/track-b-ocr-device-check.py selftest
       # KUN <--
 
       - name: Check code format

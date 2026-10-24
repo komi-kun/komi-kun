@@ -34,9 +34,12 @@ import java.util.LinkedHashMap
  * re-import that replaces a dictionary under the same title (every path stays byte-identical) would
  * otherwise keep the pre-import native query and its media paths for the rest of the process.
  * The tree is therefore only mutated through [withDictionaryTreeMutation], which drops the session
- * first and keeps this repository's monitor held for the delete-and-copy; the app lifecycle
- * (`App.onStop`) also closes it, because an open session pins the parsed dictionaries in the native
- * heap for as long as the process lives.
+ * first and keeps this repository's monitor held for the delete-and-copy.
+ *
+ * The session is released by its owner in `:app` (`mihon.dictionary.host.DictionarySessionOwner`) as
+ * soon as the user turns the dictionary/OCR opt-in off, and by `App.onTrimMemory` when the system is
+ * out of memory — not on every background/foreground cycle, which would re-parse the whole
+ * dictionary set on each resume for no benefit.
  *
  * Every session call is serialised by this object's monitor ([warmUp]/[lookup]/[close] and
  * [withDictionaryTreeMutation] are `@Synchronized`), and `session` is nulled in the same critical
