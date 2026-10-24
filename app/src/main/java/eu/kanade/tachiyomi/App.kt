@@ -63,6 +63,7 @@ import eu.kanade.tachiyomi.data.coil.PagePreviewKeyer
 import eu.kanade.tachiyomi.data.connections.discord.DiscordRPCService
 import eu.kanade.tachiyomi.data.notification.Notifications
 import eu.kanade.tachiyomi.data.ocr.OcrChapterResolver
+import eu.kanade.tachiyomi.data.ocr.OcrQueueWorkProbe
 import eu.kanade.tachiyomi.data.ocr.OcrWorker
 import eu.kanade.tachiyomi.data.sync.SyncDataJob
 import eu.kanade.tachiyomi.extension.ExtensionManager
@@ -107,6 +108,7 @@ import mihon.core.ocr.cache.OcrJob
 import mihon.telemetry.TelemetryConfig
 import org.conscrypt.Conscrypt
 import tachiyomi.core.common.i18n.stringResource
+import tachiyomi.core.common.preference.DictionaryOcrPreferences
 import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.core.common.util.system.logcat
@@ -173,6 +175,10 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
     @Inject private lateinit var ocrJob: Lazy<OcrJob>
 
     @Inject private lateinit var ocrChapterResolver: Lazy<OcrChapterResolver>
+
+    @Inject private lateinit var dictionaryOcrPreferences: Lazy<DictionaryOcrPreferences>
+
+    @Inject private lateinit var ocrQueueWorkProbe: Lazy<OcrQueueWorkProbe>
     // KUN <--
 
     @Inject @AppCoroutineScope
@@ -301,7 +307,14 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
                 this,
                 Configuration.Builder()
                     // KUN -->
-                    .setWorkerFactory(KomikunWorkerFactory(ocrJob, ocrChapterResolver))
+                    .setWorkerFactory(
+                        KomikunWorkerFactory(
+                            ocrJob,
+                            ocrChapterResolver,
+                            dictionaryOcrPreferences,
+                            ocrQueueWorkProbe,
+                        ),
+                    )
                     // KUN <--
                     .build(),
             )
@@ -608,6 +621,12 @@ private const val ACTION_DISABLE_INCOGNITO_MODE = "tachi.action.DISABLE_INCOGNIT
 private class KomikunWorkerFactory(
     private val ocrJob: Lazy<OcrJob>,
     private val ocrChapterResolver: Lazy<OcrChapterResolver>,
+    // KUN -->
+    // The combined dictionary/OCR opt-in gates a persisted queue run (see `OcrWorker.doWork`), and
+    // the persisted queue itself decides whether there is anything to run at all.
+    private val dictionaryOcrPreferences: Lazy<DictionaryOcrPreferences>,
+    private val ocrQueueWorkProbe: Lazy<OcrQueueWorkProbe>,
+    // KUN <--
 ) : WorkerFactory() {
     override fun createWorker(
         appContext: Context,
@@ -619,6 +638,8 @@ private class KomikunWorkerFactory(
             workerParameters,
             ocrJob.value,
             ocrChapterResolver.value,
+            dictionaryOcrPreferences.value,
+            ocrQueueWorkProbe.value,
         )
         else -> null
     }

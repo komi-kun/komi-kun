@@ -268,4 +268,17 @@
     <string name="ocr_redoing_chapter">OCR für Kapitel wird wiederholt…</string>
     <string name="ocr_redo_page_complete">OCR für Seite %1$d aktualisiert</string>
     <string name="ocr_redo_chapter_complete">OCR für Kapitel aktualisiert</string>
+    <!-- Immersion opt-in: dictionaries + OCR share one switch -->
+    <string name="dictionary_ocr_setup_title">Wörterbücher &amp; OCR</string>
+    <string name="dictionary_ocr_setup_description">Schlage Wörter direkt auf einer Mangaseite nach und lies erkannten Text über der Zeichnung. Alles läuft auf deinem Gerät.</string>
+    <string name="dictionary_ocr_setup_enable">Wörterbücher und OCR aktivieren</string>
+    <string name="dictionary_ocr_setup_enable_summary">Fügt den Wörterbuch-Tab, die Wortsuche im Reader und OCR-Overlays hinzu.</string>
+    <string name="dictionary_ocr_setup_body">Standardmäßig aus; bis du es einschaltest, passiert nichts. Es auszulassen ist eine endgültige Antwort und keine spätere Erinnerung – du kannst es jederzeit in Einstellungen → Wörterbücher oder Einstellungen → OCR einschalten.</string>
+    <string name="dictionary_ocr_setup_privacy">Wörterbücher und OCR-Modelle werden lokal gespeichert und verarbeitet; keine Seite verlässt dein Gerät.</string>
+    <string name="dictionary_ocr_setup_accept">Aktivieren</string>
+    <string name="dictionary_ocr_setup_decline">Jetzt nicht</string>
+    <string name="pref_dictionary_ocr_enabled">Wörterbücher &amp; OCR</string>
+    <string name="pref_dictionary_ocr_enabled_summary">Wortsuche, der Wörterbuch-Tab und Manga-OCR. Ausschalten blendet alles aus.</string>
+    <string name="pref_dictionary_ocr_disabled_hint">Wörterbücher und OCR sind aus, daher sind die folgenden Einstellungen ausgeblendet. Schalte den Schalter oben ein, um Wörterbücher und OCR zu verwalten.</string>
+    <string name="pref_ocr_box_scale_summary">Größe der passiven OCR-Kästen als Prozentsatz des erkannten Textbereichs (100 % passt genau).</string>
 </resources>

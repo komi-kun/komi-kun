@@ -36,6 +36,7 @@ import mihon.core.ocr.merge.OcrLineMerger
 import mihon.core.ocr.model.OcrTextBlock
 import mihon.core.ocr.processImageWithChunks
 import tachiyomi.core.common.ocr.ReaderOcrSource
+import tachiyomi.core.common.preference.DictionaryOcrPreferences
 import tachiyomi.core.common.util.system.ImageUtil
 import tachiyomi.core.common.util.system.logcat
 import java.io.File
@@ -52,6 +53,10 @@ class OcrManager(
     private val cacheManager: OcrCacheManager,
     private val store: OcrStore,
     private val preferences: OcrPreferences,
+    // KUN -->
+    /** Explicit dictionary/OCR opt-in: every OCR entry point below is inert while it is off. */
+    private val dictionaryOcr: DictionaryOcrPreferences,
+    // KUN <--
     private val scope: CoroutineScope,
 ) {
     private val _queueState = MutableStateFlow<List<OcrQueueItem>>(emptyList())
@@ -59,6 +64,22 @@ class OcrManager(
 
     private val stateMutex = Mutex()
     private val runningJobs = ConcurrentHashMap<Long, Job>()
+
+    // KUN -->
+    /**
+     * True while the user has not opted into the dictionary/OCR features. Every entry point that
+     * would enqueue, recognise, run the queue, read the cache or write OCR results is a no-op in
+     * that state, so no engine work, no download and no OCR cache write happens before the user
+     * explicitly enables it.
+     *
+     * Queue **metadata** bookkeeping ([markChapterReadyForOcr], [markChapterDownloadFailed]) is
+     * deliberately *not* gated: a chapter enqueued while the feature was on and downloaded while it
+     * is off must still leave `WAITING_DOWNLOAD` (and a failed download must still be recorded), or
+     * it would be stranded forever. Both only update the persisted queue entry — the queue runner
+     * refuses to start while [ocrDisabled], so a promoted task simply waits.
+     */
+    private fun ocrDisabled(): Boolean = !dictionaryOcr.isEnabled()
+    // KUN <--
 
     val isRunning: Boolean get() = _queueState.value.any { it.status.isActionable() }
 
@@ -70,6 +91,9 @@ class OcrManager(
 
     /** Enqueues [chapterIds] of [mangaId] for OCR (`waitForDownload` defers until downloaded). */
     fun queueChapters(mangaId: Long, chapterIds: List<Long>, waitForDownload: Boolean = true) {
+        // KUN -->
+        if (ocrDisabled()) return
+        // KUN <--
         if (chapterIds.isEmpty()) return
         store.enqueue(
             chapterIds.map { chapterId ->
@@ -79,7 +103,14 @@ class OcrManager(
         scope.launch { refreshQueueState() }
     }
 
-    /** Promotes a downloaded WAITING_DOWNLOAD task to PENDING. */
+    /**
+     * KUN -->
+     * Promotes a downloaded WAITING_DOWNLOAD task to PENDING.
+     *
+     * Not opt-in gated: it only moves queue metadata, so a chapter that was queued while the
+     * feature was on and finished downloading while it is off is not stranded as
+     * `WAITING_DOWNLOAD`. Nothing runs it — [runPendingQueue] is inert while the feature is off.
+     */
     fun markChapterReadyForOcr(chapterId: Long): Boolean {
         val current = store.get(chapterId) ?: return false
         if (current.status != OcrQueueStatus.WAITING_DOWNLOAD) return false
@@ -95,7 +126,14 @@ class OcrManager(
         return true
     }
 
-    /** Marks a task whose download failed. */
+    /**
+     * KUN -->
+     * Marks a task whose download failed.
+     *
+     * Like [markChapterReadyForOcr] this is queue metadata only, so it stays available while the
+     * feature is off — otherwise an enqueued task whose download failed would keep showing
+     * `WAITING_DOWNLOAD` forever instead of becoming `ERROR`.
+     */
     fun markChapterDownloadFailed(chapterId: Long): Boolean {
         val current = store.get(chapterId) ?: return false
         if (current.status != OcrQueueStatus.WAITING_DOWNLOAD) return false
@@ -105,6 +143,9 @@ class OcrManager(
     }
 
     fun retryChapter(chapterId: Long): Boolean {
+        // KUN -->
+        if (ocrDisabled()) return false
+        // KUN <--
         val task = store.get(chapterId) ?: return false
         if (task.status != OcrQueueStatus.ERROR) return false
         store.save(task.copy(status = OcrQueueStatus.PENDING))
@@ -113,6 +154,9 @@ class OcrManager(
     }
 
     fun retryAllErrors() {
+        // KUN -->
+        if (ocrDisabled()) return
+        // KUN <--
         store.getAll().filter { it.status == OcrQueueStatus.ERROR }.forEach { task ->
             store.save(task.copy(status = OcrQueueStatus.PENDING))
         }
@@ -157,8 +201,12 @@ class OcrManager(
         key: OcrCacheKey,
         pageIndex: Int,
         source: ReaderOcrSource,
-    ): List<OcrTextBlock>? =
-        if (source.persistsOcrResults) cacheManager.load(key, pageIndex, cacheVariant(source)) else null
+    ): List<OcrTextBlock>? {
+        // KUN -->
+        if (ocrDisabled()) return null
+        // KUN <--
+        return if (source.persistsOcrResults) cacheManager.load(key, pageIndex, cacheVariant(source)) else null
+    }
 
     /**
      * The persisted OCR cache key of one chapter. Built here (rather than inline at each call site)
@@ -176,6 +224,9 @@ class OcrManager(
     // KUN -->
     /** Runs the engine over one page's bytes and merges the lines into viewer blocks. */
     suspend fun recognizePage(bytes: ByteArray, language: OcrLanguage): List<OcrTextBlock> {
+        // KUN -->
+        if (ocrDisabled()) return emptyList()
+        // KUN <--
         val (width, height) = imageDimensions(bytes)
         if (width > TILE_TRIGGER_DIMENSION || height > TILE_TRIGGER_DIMENSION) {
             val bitmap = try {
@@ -215,6 +266,9 @@ class OcrManager(
         language: OcrLanguage,
         source: ReaderOcrSource,
     ): List<OcrTextBlock> {
+        // KUN -->
+        if (ocrDisabled()) return emptyList()
+        // KUN <--
         val blocks = recognizePage(bytes, language)
         if (source.persistsOcrResults && blocks.isNotEmpty()) {
             cacheManager.save(key, pageIndex, blocks, language.bcp47, cacheVariant(source))
@@ -233,6 +287,9 @@ class OcrManager(
         language: OcrLanguage,
         source: ReaderOcrSource,
     ): List<OcrTextBlock> {
+        // KUN -->
+        if (ocrDisabled()) return emptyList()
+        // KUN <--
         val blocks = recognizePage(bytes, language)
         cacheManager.save(key, pageIndex, blocks, language.bcp47, cacheVariant(source))
         return blocks
@@ -246,7 +303,15 @@ class OcrManager(
         input: ChapterOcrInput,
         stopRequested: () -> Boolean = { false },
     ): OcrTaskResult = try {
-        runChapter(input, stopRequested)
+        // KUN -->
+        // Inert until the user opts in: no engine work, no cache writes, and the (persisted) queue
+        // entry is left untouched — [OcrTaskResult.STOPPED] means "not run", not "failed".
+        if (ocrDisabled()) {
+            OcrTaskResult.STOPPED
+        } else {
+            runChapter(input, stopRequested)
+        }
+        // KUN <--
     } finally {
         // The manager consumes the provider: whoever built it hands over ownership here.
         input.provider.close()
@@ -322,15 +387,31 @@ class OcrManager(
     }
 
     /**
-     * Drives the persisted queue until it is empty or [stopRequested]. [inputFor] resolves a queued
-     * task into a runnable [ChapterOcrInput] (app-side: locate the downloaded chapter and open its
-     * image provider); it returns null when the chapter cannot run and the task is failed.
+     * Drives the persisted queue until it is empty, [stopRequested] or the user turns the feature
+     * off. [inputFor] resolves a queued task into a runnable [ChapterOcrInput] (app-side: locate the
+     * downloaded chapter and open its image provider); it returns null when the chapter cannot run
+     * and the task is failed.
      */
     suspend fun runPendingQueue(
         inputFor: suspend (OcrTask) -> ChapterOcrInput?,
         stopRequested: () -> Boolean = { false },
     ) = supervisorScope {
+        // KUN -->
+        // Nothing is dequeued or processed while the feature is off (no store reads, no jobs).
+        if (ocrDisabled()) return@supervisorScope
+        // KUN <--
         while (!stopRequested()) {
+            // KUN -->
+            // The user can turn the feature off in the middle of a run. Re-checked every iteration:
+            // stop dequeuing, stop resolving chapters ([inputFor]) and stop writing queue metadata,
+            // then cancel what is still in flight below. Interrupted tasks are left `PENDING`, so a
+            // later re-enable resumes them instead of this loop hot-spinning on tasks that
+            // [processChapter] now refuses to run.
+            if (ocrDisabled()) {
+                logcat(LogPriority.INFO) { "OcrManager: OCR disabled; stopping the queue run" }
+                break
+            }
+            // KUN <--
             val parallelLimit = preferences.parallelOcrLimit.get().coerceAtLeast(1)
             val next = store.getAll()
                 .filter { it.status.isRunnable() }
@@ -346,6 +427,11 @@ class OcrManager(
                 continue
             }
 
+            // KUN -->
+            // Last check before the expensive part: locating the chapter and opening its page
+            // provider (a CBZ/zip open) must not happen after the feature was switched off.
+            if (ocrDisabled()) break
+            // KUN <--
             val input = inputFor(next)
             if (input == null) {
                 logcat(LogPriority.WARN) { "OcrManager: cannot resolve chapter ${next.chapterId}" }

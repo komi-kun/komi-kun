@@ -101,6 +101,7 @@ import eu.kanade.tachiyomi.ui.reader.model.ReaderChapter
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import eu.kanade.tachiyomi.ui.reader.model.ViewerChapters
 import eu.kanade.tachiyomi.ui.reader.ocr.ReaderOcrHost
+import eu.kanade.tachiyomi.ui.reader.setting.ReaderBottomButton
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderOrientation
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderSettingsViewModel
@@ -145,6 +146,7 @@ import mihon.icons.materialsymbols.rounded.Refresh
 import tachiyomi.core.common.Constants
 import tachiyomi.core.common.i18n.pluralStringResource
 import tachiyomi.core.common.i18n.stringResource
+import tachiyomi.core.common.preference.DictionaryOcrPreferences
 import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.core.common.util.lang.launchNonCancellable
 import tachiyomi.core.common.util.system.UrlUtils
@@ -189,6 +191,12 @@ class ReaderActivity : BaseActivity() {
     @Inject private lateinit var readerOcrHost: ReaderOcrHost
 
     @Inject private lateinit var readerDictionaryHost: ReaderDictionaryHost
+
+    /**
+     * The combined dictionary/OCR opt-in. Every reader entry point checks it before doing any
+     * dictionary/OCR work, so "off" means the feature is inert rather than merely invisible.
+     */
+    @Inject private lateinit var dictionaryOcrPreferences: DictionaryOcrPreferences
     // KUN <--
 
     // KMK -->
@@ -229,7 +237,13 @@ class ReaderActivity : BaseActivity() {
             touchSlop = ViewConfiguration.get(this).scaledTouchSlop.toFloat(),
             tapTimeoutMillis = ViewConfiguration.getLongPressTimeout().toLong().coerceAtLeast(600L),
         ).apply {
-            isEnabled = { readerPreferences.ocrTwoFingerGestureEnabled.get() }
+            // KUN -->
+            // Two gates: the combined dictionary/OCR opt-in (nothing runs while it is off) and the
+            // existing "allow the gesture" preference.
+            isEnabled = {
+                dictionaryOcrPreferences.isEnabled() && readerPreferences.ocrTwoFingerGestureEnabled.get()
+            }
+            // KUN <--
             onTap = { onOcrTwoFingerTap() }
         }
     }
@@ -255,7 +269,8 @@ class ReaderActivity : BaseActivity() {
                 }
             }
             onOutsideTap = { x, y ->
-                val targetsBlock = readerPreferences.ocrOverlayEnabled.get() &&
+                val targetsBlock = dictionaryOcrPreferences.isEnabled() &&
+                    readerPreferences.ocrOverlayEnabled.get() &&
                     readerOcrHost.hitsBlock(Offset(x, y))
                 if (!targetsBlock) readerDictionaryHost.dismiss()
             }
@@ -395,6 +410,7 @@ class ReaderActivity : BaseActivity() {
             val state by viewModel.state.collectAsState()
             val showPageNumber by readerPreferences.showPageNumber.collectAsState()
             // KUN -->
+            val dictionaryOcrEnabled by dictionaryOcrPreferences.enabled.collectAsState()
             val ocrOverlayEnabled by readerPreferences.ocrOverlayEnabled.collectAsState()
             // KUN <--
             val settingsViewModel = remember {
@@ -425,9 +441,10 @@ class ReaderActivity : BaseActivity() {
 
                 // KUN -->
                 // OCR block outlines. Draw-only, adds no pointer input, so it never intercepts
-                // viewer gestures (plan 04 §2.1). The whole overlay is feature-flagged behind
-                // `ocrOverlayEnabled`; a null viewport means the viewer has no mapping yet.
-                if (ocrOverlayEnabled) {
+                // viewer gestures (plan 04 §2.1). Drawn only while the combined dictionary/OCR
+                // opt-in is on AND the overlay itself is enabled; a null viewport means the viewer
+                // has no mapping yet.
+                if (dictionaryOcrEnabled && ocrOverlayEnabled) {
                     readerOcrHost.Overlay(
                         viewport = state.viewer?.ocrViewport(),
                         modifier = Modifier.fillMaxSize(),
@@ -653,8 +670,11 @@ class ReaderActivity : BaseActivity() {
 
             // KUN -->
             // Dictionary lookup popup (GPL impl behind the Apache seam). Renders nothing while
-            // there is no active lookup; shows its own scrim when there is one.
-            readerDictionaryHost.Popup()
+            // there is no active lookup; shows its own scrim when there is one. Not even composed
+            // while the combined dictionary/OCR opt-in is off.
+            if (dictionaryOcrEnabled) {
+                readerDictionaryHost.Popup()
+            }
             // KUN <--
         }
     }
@@ -829,6 +849,7 @@ class ReaderActivity : BaseActivity() {
 
         // KUN -->
         val ocrOverlayEnabled by readerPreferences.ocrOverlayEnabled.collectAsState()
+        val dictionaryOcrEnabled by dictionaryOcrPreferences.enabled.collectAsState()
         // KUN <--
 
         val verticalNavigatorModes by readerPreferences.verticalNavigator.collectAsState()
@@ -908,7 +929,15 @@ class ReaderActivity : BaseActivity() {
             onClickBoostPage = ::exhBoostPage,
             onClickBoostPageHelp = viewModel::openBoostPageHelp,
             currentPageText = state.currentPageText,
-            enabledButtons = readerBottomButtons,
+            // KUN -->
+            // Hidden while the combined dictionary/OCR opt-in is off: the button is a shortcut into
+            // the feature, so it must not be the only visible trace of it.
+            enabledButtons = if (dictionaryOcrEnabled) {
+                readerBottomButtons
+            } else {
+                readerBottomButtons - ReaderBottomButton.Ocr.value
+            },
+            // KUN <--
             currentReadingMode = ReadingMode.fromPreference(
                 viewModel.getMangaReadingMode(resolveDefault = true),
             ),
@@ -928,14 +957,19 @@ class ReaderActivity : BaseActivity() {
             onClickShiftPage = ::shiftDoublePages,
             // SY <--
             // KUN -->
-            ocrEnabled = ocrOverlayEnabled,
+            ocrEnabled = dictionaryOcrEnabled && ocrOverlayEnabled,
             onClickOcr = {
-                val enabled = viewModel.toggleOcrOverlay()
-                menuToggleToast?.cancel()
-                menuToggleToast = toast(if (enabled) MR.strings.on else MR.strings.off)
+                // Gated too: the icon is hidden while off, but the action must never be a backdoor.
+                if (dictionaryOcrEnabled) {
+                    val enabled = viewModel.toggleOcrOverlay()
+                    menuToggleToast?.cancel()
+                    menuToggleToast = toast(if (enabled) MR.strings.on else MR.strings.off)
+                }
             },
             onLongClickOcr = {
-                showRedoOcrDialog()
+                if (dictionaryOcrEnabled) {
+                    showRedoOcrDialog()
+                }
             },
             // KUN <--
         )
@@ -1369,10 +1403,11 @@ class ReaderActivity : BaseActivity() {
         // KUN <--
     ) {
         // KUN -->
-        // Single OCR entry point (contract §2.4): when the overlay is enabled and the press landed
-        // on an OCR block, the host starts a dictionary lookup and consumes the gesture; otherwise
-        // fall through to the upstream page-actions dialog.
+        // Single OCR entry point (contract §2.4): when the feature is enabled and the overlay is on
+        // and the press landed on an OCR block, the host starts a dictionary lookup and consumes the
+        // gesture; otherwise fall through to the upstream page-actions dialog.
         if (point != null &&
+            dictionaryOcrPreferences.isEnabled() &&
             readerPreferences.ocrOverlayEnabled.get() &&
             readerOcrHost.onPageLongPress(page, extraPage, Offset(point.x, point.y))
         ) {
@@ -1397,7 +1432,7 @@ class ReaderActivity : BaseActivity() {
      * boxes.
      */
     fun onPageSingleTap(page: ReaderPage, extraPage: ReaderPage?, point: PointF): Boolean {
-        if (!readerPreferences.ocrOverlayEnabled.get()) return false
+        if (!dictionaryOcrPreferences.isEnabled() || !readerPreferences.ocrOverlayEnabled.get()) return false
         return readerOcrHost.onPageSingleTap(page, extraPage, Offset(point.x, point.y))
     }
     // KUN <--
@@ -1424,6 +1459,9 @@ class ReaderActivity : BaseActivity() {
      * [ocrTwoFingerTapDetector], which is gated on the setting.
      */
     private fun onOcrTwoFingerTap() {
+        // Gated by the combined opt-in too: the detector is already disabled while off, and the
+        // toggle must not flip the overlay preference behind the master switch.
+        if (!dictionaryOcrPreferences.isEnabled()) return
         val enabled = viewModel.toggleOcrOverlay()
         menuToggleToast?.cancel()
         menuToggleToast = toast(if (enabled) MR.strings.on else MR.strings.off)
@@ -1434,6 +1472,7 @@ class ReaderActivity : BaseActivity() {
      * updating the cache and overriding any .mokuro sidecars in the archive.
      */
     private fun showRedoOcrDialog() {
+        if (!dictionaryOcrPreferences.isEnabled()) return
         val currentPage = exhCurrentpage()
         if (currentPage != null) {
             viewModel.openRedoOcrDialog(currentPage)

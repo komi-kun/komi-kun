@@ -40,6 +40,7 @@ import mihon.core.ocr.cache.OcrJob
 import mihon.core.ocr.cache.OcrManager
 import mihon.core.ocr.cache.OcrTask
 import tachiyomi.core.common.i18n.stringResource
+import tachiyomi.core.common.preference.DictionaryOcrPreferences
 import tachiyomi.core.common.util.system.ImageUtil
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.chapter.interactor.GetChapter
@@ -57,6 +58,12 @@ class OcrWorker(
     workerParams: WorkerParameters,
     private val ocrJob: OcrJob,
     private val resolver: OcrChapterResolver,
+    // KUN -->
+    /** The combined dictionary/OCR opt-in; see [doWork]. */
+    private val dictionaryOcrPreferences: DictionaryOcrPreferences,
+    /** Answers whether the persisted queue has runnable work; see [doWork]. */
+    private val queueWorkProbe: OcrQueueWorkProbe,
+    // KUN <--
 ) : CoroutineWorker(context, workerParams) {
 
     override suspend fun getForegroundInfo(): ForegroundInfo {
@@ -77,6 +84,23 @@ class OcrWorker(
     }
 
     override suspend fun doWork(): Result {
+        // KUN -->
+        // Work persisted before the user switched the feature off must not run: the queue is left
+        // untouched (success, not retry — retrying would spin forever while it stays off). The
+        // metadata was kept up to date by the download hook, so these PENDING tasks resume through
+        // `MainActivity`'s launch/enable resume (`OcrWorker.start`, gated by the same policy).
+        if (!OcrRuntimePolicy.shouldRunQueue(dictionaryOcrPreferences.isEnabled())) {
+            logcat(LogPriority.INFO) { "OcrWorker: dictionaries/OCR are off; skipping the queued OCR run" }
+            return Result.success()
+        }
+        // A request queued by an earlier process can still fire once the queue is already drained
+        // (completed/error-only, or only waiting for its download). Starting the run would only raise
+        // the foreground notification before exiting, so check the persisted queue first.
+        if (!queueWorkProbe.hasRunnableWork()) {
+            logcat(LogPriority.INFO) { "OcrWorker: nothing runnable in the OCR queue; skipping the run" }
+            return Result.success()
+        }
+        // KUN <--
         setForegroundSafely()
         return try {
             ocrJob.start { task -> resolver.resolve(task) }

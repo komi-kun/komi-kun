@@ -183,6 +183,43 @@ komi-kun's own code is Apache-2.0, but the Yomitan/dictionary/OCR port adds two 
 
 ---
 
+## Immersion opt-in (dictionaries + OCR)
+
+Dictionaries and OCR are **one feature behind one explicit, default-off switch**. Nothing about them runs — engine, model download, import, overlay, tab — until the user has answered for it.
+
+**The switch.** `DictionaryOcrPreferences` (`core/common/.../preference/DictionaryOcrPreferences.kt`, Apache-2.0 `:core:common`, so both GPL modules and the GPL-free seam files can read it) owns the only key: `pref_dictionary_ocr_enabled`, default `false`, exposed on `AppGraph.dictionaryOcrPreferences`. It is both the master state and the explicit-choice flag:
+
+| stored value | meaning |
+|---|---|
+| unset | never asked — the setup surface may still appear |
+| `false` (set) | declined — an answer; never asked again |
+| `true` (set) | accepted |
+
+`isEnabled()` gates everything, `hasChosen()` is `isSet()`, `choose(value)` stores an answer, and `recordCurrentChoice()` writes the current value **only when unset** — so finishing onboarding turns "left off" into an explicit decline, and no launch ever rewrites an accept or a decline.
+
+**Where the question is asked.** `DictionaryOcrSetupPolicy` (`app/.../ui/more/setup/`) is the single, pure decision, with `BasePreferences.shownOnboardingFlow` as the fresh-vs-upgraded discriminator:
+
+| onboarding complete | chosen | surface |
+|---|---|---|
+| no | no | `DictionaryOcrStep` inside the existing onboarding flow |
+| yes (pre-feature upgrade) | no | `DictionaryOcrSetupScreen`, a one-time standalone screen on the first launch |
+| yes | yes | none, ever again |
+
+Both surfaces render the same `DictionaryOcrSetupContent`, so the copy and the switch are identical. The upgrade screen cannot be dismissed without accept/decline (`BackHandler` swallowed; `Not now` stores `false`). `MainActivity.ShowOnboarding()` pushes it once — guarded by the policy, a `rememberSaveable` flag and a `lastItem` check — and only after onboarding is complete. A fresh install can never reach it: finishing onboarding goes through one policy call, `DictionaryOcrSetupPolicy.finishOnboarding`, which stores the answer *before* setting `shownOnboardingFlow`, so the policy already resolves `NONE` when the flag flips. **There is no versionCode migration**: the nightly `versionCode` is pinned at 83, so an `oldVersion < newVersion` migration would no-op for every existing install; the existing runtime preference architecture carries the one-time prompt instead.
+
+**Runtime gates** (all read `isEnabled()`; off means inert, not just invisible):
+
+- Navigation: `DictionaryTab.isEnabled()` (the single `fastFilter { it.isEnabled() }` covers bottom bar *and* rail); `DictionaryTabNavigationPolicy` decides the two fallbacks — a direct `Tab.Dictionary` event lands on the library and a selected Dictionary tab moves away — and `HomeScreen` calls it.
+- Settings: `SettingsDictionaryScreen` and `SettingsOcrScreen` stay reachable and each owns a master switch; while off, every actionable item/group in them (`visible = featureEnabled`) is hidden — import, model download, cache clearing, engine tuning. The secondary feature screens (`SettingsDictionaryPopupScreen`, `SettingsAnkiScreen`) are themselves `SearchableSettings.isEnabled()`-gated on the switch, so they are hidden from Settings *and* search — which is what keeps the Anki screen from migrating preferences or talking to AnkiDroid while off. The master switch lives on the two **ungated** screens (Dictionary and OCR), so hiding the secondary screens can never strand re-enable.
+- Reader (`ReaderActivity`, `ReaderViewModel`): overlay composition, dictionary popup composition, single/long tap hit-testing, outside-tap block test, the two-finger toggle, the bottom-bar OCR button (removed from `enabledButtons`) and its long-press redo dialog, and `toggleOcrOverlay()` (via `ReaderOcrTogglePolicy`: off means no write).
+- Data layer: `ReaderOcrBlockLoader.ensureLoaded()`/`redoOcr()` (so no `.mokuro` sidecar, cache or engine read happens) and `OcrWorker.doWork()` (off returns success and leaves the persisted queue untouched).
+- Download pipeline: `Downloader` **always** maintains the queue metadata (`markChapterReadyForOcr` runs even while off, so a chapter queued earlier is promoted instead of stranded at `WAITING_DOWNLOAD`), but `OcrRuntimePolicy.downloadActions` gates the actions — no auto-queue and no `OcrWorker.start` while off, and promotion alone never starts a run. `MainActivity.ResumeOcrQueue()` starts the worker only when the switch is on **and** `OcrQueueWorkProbe` finds runnable (`PENDING`/`PROCESSING`) work in the persisted queue — so a cold start or rotation with an empty, error-only or waiting-download queue starts nothing — which is how promoted/`PENDING` tasks drain after a re-enable. `OcrWorker.doWork` applies the same two checks before raising its foreground notification.
+- The GPL services (`:core:dictionary`, `:core:ocr`) additionally gate their own public entry points, so the app gates are defence in depth rather than the only gate.
+
+Enabling later is always discoverable: the Dictionary tab returns as soon as the switch is on, and both settings screens (one per tab) keep the master visible while the feature is off.
+
+---
+
 ## Backup protobuf field numbers
 
 Backup and sync payloads are protobuf (`app/src/main/java/eu/kanade/tachiyomi/data/backup/models/`). A `@ProtoNumber` is a **permanent wire identifier**: changing it makes existing backups and peers decode the field as a different type or lose it entirely. Renumbering a field that has ever shipped is forbidden.

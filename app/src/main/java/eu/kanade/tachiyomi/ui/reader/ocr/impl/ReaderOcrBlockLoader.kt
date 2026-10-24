@@ -40,6 +40,7 @@ import mihon.core.ocr.model.OcrTextBlock
 import mihon.core.ocr.mokuro.ImageFileInfo
 import mihon.core.ocr.paddle.PaddleOcrEngine
 import tachiyomi.core.common.ocr.ReaderOcrSource
+import tachiyomi.core.common.preference.DictionaryOcrPreferences
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.manga.interactor.GetManga
 import tachiyomi.domain.manga.model.Manga
@@ -69,6 +70,14 @@ class ReaderOcrBlockLoader(
     private val sourceManager: SourceManager,
     private val dictionaryPreferences: DictionaryPreferences,
     @AppCoroutineScope private val scope: CoroutineScope,
+    // KUN -->
+    /**
+     * The combined dictionary/OCR opt-in. Checked at the work entry points ([ensureLoaded],
+     * [redoOcr]) so a disabled feature never reads a `.mokuro` sidecar, never reads the persisted
+     * OCR cache and never runs the engine — "off" is inert, not just invisible.
+     */
+    private val dictionaryOcrPreferences: DictionaryOcrPreferences,
+    // KUN <--
     /**
      * Watchdog for one page's [load] (F2). Generous on purpose: the first OCR run of a session
      * includes native engine init and model load (seconds on device), so the limit is in the tens
@@ -107,6 +116,9 @@ class ReaderOcrBlockLoader(
 
     /** Starts loading the blocks of [pages] that are not cached yet. Main-thread callers only. */
     fun ensureLoaded(pages: List<ReaderPage>) {
+        // KUN --> gate at the work entry: no sidecar/cache/engine reads while the feature is off.
+        if (!dictionaryOcrPreferences.isEnabled()) return
+        // KUN <--
         val now = System.nanoTime()
         pages.forEach { page ->
             val key = page.ocrKey()
@@ -240,6 +252,9 @@ class ReaderOcrBlockLoader(
      * overwriting the persisted cache and overriding any .mokuro sidecar in the archive.
      */
     fun redoOcr(page: ReaderPage, chapter: Boolean = false, onComplete: (() -> Unit)? = null) {
+        // KUN --> gated work entry: a forced re-run must not bypass the disabled feature.
+        if (!dictionaryOcrPreferences.isEnabled()) return
+        // KUN <--
         scope.launch(Dispatchers.IO) {
             val pagesToRedo = if (chapter) {
                 page.chapter.pages.orEmpty()
