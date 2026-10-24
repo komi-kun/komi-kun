@@ -202,7 +202,9 @@ INSERT INTO chapter(
 VALUES (
     :mangaId, :remoteUrl, :remoteName, :remoteScanlator, :remoteChapterNumber,
     :remoteDateUpload, :remoteOrder, :remoteMemo, :userRead, :userBookmark,
-    :userLastPageRead, :stateDateFetch, :lastModifiedAt, :version, :isSyncing
+    :userLastPageRead, :stateDateFetch,
+    CASE WHEN :lastModifiedAt = 0 THEN strftime('%s', 'now') ELSE :lastModifiedAt END,
+    :version, :isSyncing
 )
 -- Two syncs of the same entry can race; the chapter the other one already stored is skipped rather
 -- than failing the whole batch
