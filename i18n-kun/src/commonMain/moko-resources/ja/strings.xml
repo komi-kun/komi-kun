@@ -186,6 +186,8 @@
     <string name="pref_anki_loading">読み込み中…</string>
     <string name="pref_anki_no_ankidroid">AnkiDroidがインストールされていません</string>
     <string name="pref_anki_permission_denied">AnkiDroidへのアクセス許可が拒否されました</string>
+    <string name="pref_anki_crop_preset">切り抜き比率</string>
+    <string name="pref_anki_crop_preset_full">比率を固定しない</string>
     <string name="pref_anki_screenshot_animated_scene">アニメーションシーン</string>
     <string name="anki_add_to">Ankiに追加</string>
     <string name="anki_card_added">カードをAnkiに追加しました</string>
@@ -268,4 +270,17 @@
     <string name="ocr_redoing_chapter">チャプターのOCRを再実行中…</string>
     <string name="ocr_redo_page_complete">ページ %1$d のOCRを更新しました</string>
     <string name="ocr_redo_chapter_complete">チャプターのOCRを更新しました</string>
+    <!-- Immersion opt-in: dictionaries + OCR share one switch -->
+    <string name="dictionary_ocr_setup_title">辞書とOCR</string>
+    <string name="dictionary_ocr_setup_description">マンガのページから直接単語を検索し、認識した文字を画像の上に表示します。すべて端末内で処理されます。</string>
+    <string name="dictionary_ocr_setup_enable">辞書とOCRを有効にする</string>
+    <string name="dictionary_ocr_setup_enable_summary">辞書タブ、リーダー内の単語検索、OCRオーバーレイが追加されます。</string>
+    <string name="dictionary_ocr_setup_body">初期状態ではオフで、オンにするまで何も動作しません。オフのままにしておくことは最終的な選択として記録され、あとから再度確認されることはありません。設定の「辞書」または「OCR」からいつでもオンにできます。</string>
+    <string name="dictionary_ocr_setup_privacy">辞書とOCRモデルは端末内に保存され、端末内で処理されます。ページが外部に送信されることはありません。</string>
+    <string name="dictionary_ocr_setup_accept">有効にする</string>
+    <string name="dictionary_ocr_setup_decline">後で</string>
+    <string name="pref_dictionary_ocr_enabled">辞書とOCR</string>
+    <string name="pref_dictionary_ocr_enabled_summary">単語検索、辞書タブ、マンガのOCR。オフにするとすべて非表示になります。</string>
+    <string name="pref_dictionary_ocr_disabled_hint">辞書とOCRはオフのため、以下の設定は非表示です。上のスイッチをオンにすると辞書とOCRを管理できます。</string>
+    <string name="pref_ocr_box_scale_summary">OCRボックスの大きさ（検出した文字領域に対する割合、100%でぴったり合わせます）。</string>
 </resources>

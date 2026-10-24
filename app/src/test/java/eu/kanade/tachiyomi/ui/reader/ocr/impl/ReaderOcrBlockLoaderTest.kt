@@ -29,13 +29,20 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import mihon.core.ocr.OcrEngine
+import mihon.core.ocr.cache.OcrCacheKey
 import mihon.core.ocr.cache.OcrManager
 import mihon.core.ocr.cache.OcrQueueItem
+import mihon.core.ocr.model.OcrTextBlock
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
+import tachiyomi.core.common.ocr.ReaderOcrSource
+import tachiyomi.core.common.preference.DictionaryOcrPreferences
+import tachiyomi.core.common.preference.InMemoryPreferenceStore
 import tachiyomi.domain.chapter.model.Chapter
 import tachiyomi.domain.manga.interactor.GetManga
+import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.source.service.SourceManager
+import java.io.ByteArrayInputStream
 import java.util.concurrent.atomic.AtomicInteger
 
 class ReaderOcrBlockLoaderTest {
@@ -49,16 +56,36 @@ class ReaderOcrBlockLoaderTest {
         this.chapter = ReaderChapter(chapterModel)
     }
 
-    private fun loader(loadTimeoutMs: Long): ReaderOcrBlockLoader = ReaderOcrBlockLoader(
-        ocrManager = mockk(relaxed = true) {
+    private val block = OcrTextBlock(
+        xmin = 0.1f,
+        ymin = 0.2f,
+        xmax = 0.3f,
+        ymax = 0.4f,
+        lines = listOf("こんにちは"),
+        vertical = true,
+        language = "ja",
+    )
+
+    private fun loader(
+        loadTimeoutMs: Long,
+        enabled: Boolean = true,
+        ocrManager: OcrManager = mockk(relaxed = true) {
             every { queueState } returns MutableStateFlow(emptyList<OcrQueueItem>())
         },
+        dictionaryOcr: DictionaryOcrPreferences = DictionaryOcrPreferences(InMemoryPreferenceStore()).apply {
+            choose(enabled)
+        },
+    ): ReaderOcrBlockLoader = ReaderOcrBlockLoader(
+        ocrManager = ocrManager,
         engine = mockk<OcrEngine>(relaxed = true),
         getManga = getManga,
         downloadProvider = mockk<DownloadProvider>(relaxed = true),
         sourceManager = mockk<SourceManager>(relaxed = true),
         dictionaryPreferences = mockk<DictionaryPreferences>(relaxed = true),
         scope = scope,
+        // KUN -->
+        dictionaryOcrPreferences = dictionaryOcr,
+        // KUN <--
         loadTimeoutMs = loadTimeoutMs,
     )
 
@@ -89,6 +116,24 @@ class ReaderOcrBlockLoaderTest {
     }
 
     @Test
+    fun `a disabled opt-in never enters the load path`(): Unit = runBlocking {
+        coEvery { getManga.await(any()) } coAnswers {
+            awaitCalls.incrementAndGet()
+            null
+        }
+        // The master switch is off: neither a page drive nor a forced re-run may touch the source
+        // policy (mokuro sidecar, persisted cache or engine).
+        val loader = loader(loadTimeoutMs = WATCHDOG_MS, enabled = false)
+
+        loader.ensureLoaded(listOf(page))
+        loader.redoOcr(page)
+        delay(WATCHDOG_MS + 200)
+
+        awaitCalls.get() shouldBe 0
+        loader.blocks.value.keys shouldBe emptySet<OcrPageKey>()
+    }
+
+    @Test
     fun `a cancelled load propagates instead of being logged and retried`(): Unit = runBlocking {
         coEvery { getManga.await(any()) } coAnswers {
             awaitCalls.incrementAndGet()
@@ -107,7 +152,69 @@ class ReaderOcrBlockLoaderTest {
         loader.blocks.value.keys shouldBe emptySet<OcrPageKey>()
     }
 
+    /**
+     * The switch can be turned off **while a page's load is already suspended**. The manager then
+     * answers with no blocks at all — an opt-out is inert, not "this page has no text" — and caching
+     * that empty list as a resolved entry would hide the page from a later re-enable in the same
+     * reader session (an implementation that stores it never calls `recognizeAndCache` again and
+     * leaves `blocks` empty here).
+     */
+    @Test
+    fun `an opt-out during a load does not cache the page as resolved-empty`(): Unit = runBlocking {
+        val preferences = DictionaryOcrPreferences(InMemoryPreferenceStore()).apply { choose(true) }
+        val ocrManager = mockk<OcrManager>(relaxed = true) {
+            every { queueState } returns MutableStateFlow(emptyList<OcrQueueItem>())
+            every { sourceFor(any()) } returns ReaderOcrSource.PADDLE
+            every { cacheKey(any(), any(), any()) } returns OcrCacheKey(sourceId = 1L, mangaId = 7L, chapterId = 42L)
+        }
+        val recognitions = AtomicInteger(0)
+        coEvery { ocrManager.cachedBlocks(any(), any(), any()) } returns null
+        // Mirrors `OcrManager.recognizeAndCache`: with the opt-in off it is inert and returns no
+        // blocks at all; enabled, it returns the page's blocks.
+        coEvery { ocrManager.recognizeAndCache(any(), any(), any(), any(), any()) } coAnswers {
+            recognitions.incrementAndGet()
+            if (preferences.isEnabled()) listOf(block) else emptyList()
+        }
+        coEvery { getManga.await(any()) } coAnswers {
+            // The user turns the feature off while the *first* page load is already in flight.
+            if (awaitCalls.incrementAndGet() == 1) preferences.choose(false)
+            Manga.create().copy(id = 7L, source = 1L)
+        }
+        page.stream = { ByteArrayInputStream(ByteArray(8)) }
+        val loader = loader(LOAD_TIMEOUT_MS, ocrManager = ocrManager, dictionaryOcr = preferences)
+
+        loader.ensureLoaded(listOf(page))
+        awaitSettled { recognitions.get() == 1 }
+        recognitions.get() shouldBe 1
+        // Nothing is cached for a page whose load was cut short by the opt-out.
+        loader.blocks.value shouldBe emptyMap<OcrPageKey, List<OcrTextBlock>>()
+
+        // Re-enabled in the same reader session: the page must be resolved, not treated as cached.
+        preferences.choose(true)
+        loader.ensureLoaded(listOf(page))
+        awaitSettled { recognitions.get() == 2 }
+
+        recognitions.get() shouldBe 2
+        loader.blocks.value shouldBe mapOf(page.ocrKey() to listOf(block))
+    }
+
+    /**
+     * Waits (in real time; the loader launches its work on `Dispatchers.IO`) until [condition] holds,
+     * then lets the bookkeeping that follows it — which does not suspend — run before assertions.
+     */
+    private suspend fun awaitSettled(timeoutMs: Long = 5_000, condition: () -> Boolean) {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (!condition() && System.currentTimeMillis() < deadline) delay(10)
+        condition() shouldBe true
+        delay(SETTLE_MS)
+    }
+
     private companion object {
+        /** Margin for the loader's post-resolution state write (it has no suspension point left). */
+        private const val SETTLE_MS = 250L
+
+        /** Generous watchdog for the opt-out test: it must not time out (a hang is not the defect). */
+        private const val LOAD_TIMEOUT_MS = 5_000L
         /** Keeps the real-time test short while staying well inside the production default. */
         private const val WATCHDOG_MS = 100L
 

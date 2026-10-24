@@ -270,12 +270,29 @@ From `AnkiDroidBridge.kt`; verify against current AnkiDroid before shipping.
 
 ### B4. Screenshot crop + sentence audio + duplicates
 
-- **Screenshot** (`AnkiScreenshotMode` FULL/CROP/NONE/ANIMATED_SCENE): parse the page **byte stream /
-  cached file** (not the view) per design §7.1; for CROP, centre the tapped OCR box and expand to the
-  `CropPresets` aspect ratio (`CropPresets.kt`), re-encode (webp/png) with a
-  `chimahon_screenshot_*`-style name. Two-phase flow like Chimahon: create the card, then
-  `updateAnkiCardWithScreenshot(noteId, bytes, glossaryIndex)` patches the `{screenshot}` field
-  (`ReaderActivity.kt:2423-2497`, `OcrLookupPopup.kt:603-691`). Rename prefix → `komikun_`.
+- **Screenshot** (`AnkiScreenshotMode` FULL/CROP/NONE/ANIMATED_SCENE): the reader reads the page
+  **byte stream** (not the view) per design §7.1 and crops it *before* the card is created, so
+  `{screenshot}` is written inline by `AnkiCardCreator`. komi-kun deliberately has **no** second
+  "patch the note afterwards" phase and no cropper activity — Chimahon's manual cropper
+  (`com.canhub.cropper`) is not vendored, and a deterministic crop needs no user gesture.
+  `AnkiScreenshotCrop` (pure, T1-tested) decides the region: `FULL`/`ANIMATED_SCENE` → the page,
+  `CROP` → the tapped OCR block grown by 8 % and expanded to the `CropPresets` aspect (slid back
+  inside the page rather than clipped), `NONE` → no image. `ReaderOcrScreenshot` decodes *only* that
+  region at ≤1024 px (`ImageDecoder.decodeToBitmap(region, sampleSize)`) and re-encodes WebP; the
+  provider reaches the popup through `ReaderOcrPopupAnchor`, so the Apache seam DTO is unchanged.
+  Media name stays `komikun_<sha1-12>.webp`. This is why `AnkiMiningController.updateScreenshot`
+  (the two-phase patch, which also bypassed `commitPreparedAnkiCardMedia`) was removed.
+- **Which settings the capture reads.** Mode and preset come from the **flat** keys
+  (`AnkiScreenshotSettings`, `pref_anki_crop_mode`/`pref_anki_crop_preset`), not from
+  `AnkiPreferences.activeProfile()`: the settings screen's `ListPreference` runs its change callback
+  (`persistActiveFromFlat()`) *before* writing the new value (`PreferenceItem.kt`), so the persisted
+  profile is one edit stale and "No screenshot" would keep capturing. Both the **mode** and the
+  **crop preset** have UI (`SettingsAnkiScreen.screenshotGroup`); the preset list is built from
+  `AnkiScreenshotPresetOptions` (the shared `CropPresets` vocabulary plus `"full"`), so the picker
+  can only offer keys the reader resolves. The default stays `"full"` ⇒ no forced aspect and `CROP`
+  frames the block + margin; a chosen key is mapped by `AnkiCropPresetAspect` (through
+  `CropPresets.aspectByKey`, pinned by `AnkiCropPresetAspectTest`) to the `AnkiCropAspect`
+  `AnkiScreenshotCrop` expands the block to.
 - **Sentence audio** — Chimahon's `AnkiSentenceAudio*` is **video-only** (FFmpeg extraction, track
   mapping). Manga has no audio source, so **port only the marker plumbing + a `null` provider**
   (`prepareSentenceAudioForMarker`, `AnkiSentenceAudio.kt:132-144`); `{sentence-audio}` renders `""`.

@@ -12,6 +12,7 @@ import kotlinx.coroutines.CoroutineScope
 import mihon.core.metro.AppCoroutineScope
 import mihon.core.ocr.OcrEngine
 import mihon.core.ocr.cache.OcrManager
+import tachiyomi.core.common.preference.DictionaryOcrPreferences
 import tachiyomi.domain.manga.interactor.GetManga
 import tachiyomi.domain.source.service.SourceManager
 
@@ -36,6 +37,9 @@ object OcrHostBindings {
         downloadProvider: DownloadProvider,
         sourceManager: SourceManager,
         dictionaryPreferences: DictionaryPreferences,
+        // KUN --> the combined dictionary/OCR opt-in gates the loader's work entry points.
+        dictionaryOcrPreferences: DictionaryOcrPreferences,
+        // KUN <--
         @AppCoroutineScope scope: CoroutineScope,
     ): ReaderOcrBlockLoader = ReaderOcrBlockLoader(
         ocrManager = ocrManager,
@@ -45,5 +49,8 @@ object OcrHostBindings {
         sourceManager = sourceManager,
         dictionaryPreferences = dictionaryPreferences,
         scope = scope,
+        // KUN -->
+        dictionaryOcrPreferences = dictionaryOcrPreferences,
+        // KUN <--
     )
 }
