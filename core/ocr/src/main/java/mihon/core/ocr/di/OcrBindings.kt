@@ -20,6 +20,7 @@ import mihon.core.ocr.merge.OcrLineMerger
 import mihon.core.ocr.merge.OwOCRMerger
 import mihon.core.ocr.paddle.ModelDownloader
 import mihon.core.ocr.paddle.PaddleOcrEngine
+import tachiyomi.core.common.preference.DictionaryOcrPreferences
 import tachiyomi.core.common.preference.PreferenceStore
 
 /**
@@ -63,6 +64,9 @@ object OcrBindings {
         cacheManager: OcrCacheManager,
         store: OcrStore,
         preferences: OcrPreferences,
+        // KUN -->
+        dictionaryOcr: DictionaryOcrPreferences,
+        // KUN <--
         @AppCoroutineScope scope: CoroutineScope,
     ): OcrManager = OcrManager(
         engine = engine,
@@ -70,6 +74,9 @@ object OcrBindings {
         cacheManager = cacheManager,
         store = store,
         preferences = preferences,
+        // KUN -->
+        dictionaryOcr = dictionaryOcr,
+        // KUN <--
         scope = scope,
     )
 
@@ -80,7 +87,10 @@ object OcrBindings {
         networkHelper: NetworkHelper,
         json: Json,
         preferences: OcrPreferences,
-    ): ModelDownloader = ModelDownloader(context, networkHelper.client, json, preferences)
+        // KUN -->
+        dictionaryOcr: DictionaryOcrPreferences,
+        // KUN <--
+    ): ModelDownloader = ModelDownloader(context, networkHelper.client, json, preferences, dictionaryOcr)
 
     @Provides
     @SingleIn(AppScope::class)

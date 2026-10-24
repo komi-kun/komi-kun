@@ -9,6 +9,7 @@ import dev.zacsweers.metro.SingleIn
 import eu.kanade.tachiyomi.ui.dictionary.DictionaryPreferences
 import mihon.core.dictionary.engine.DictionaryEngine
 import mihon.core.dictionary.repository.DictionaryRepository
+import tachiyomi.core.common.preference.DictionaryOcrPreferences
 import tachiyomi.core.common.preference.PreferenceStore
 
 /**
@@ -31,6 +32,11 @@ object DictionaryHostBindings {
 
     @Provides
     @SingleIn(AppScope::class)
-    fun provideDictionaryRepository(engine: DictionaryEngine, context: Context): DictionaryRepository =
-        DictionaryRepository(engine, context)
+    fun provideDictionaryRepository(
+        engine: DictionaryEngine,
+        context: Context,
+        // KUN --> the repository takes the combined dictionary/OCR opt-in (off = no engine work).
+        dictionaryOcr: DictionaryOcrPreferences,
+        // KUN <--
+    ): DictionaryRepository = DictionaryRepository(engine, context, dictionaryOcr)
 }

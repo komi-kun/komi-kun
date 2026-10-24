@@ -22,6 +22,8 @@ import mihon.core.dictionary.model.LookupResult
 import mihon.core.dictionary.model.TermResult
 import mihon.core.dictionary.model.TransformGroup
 import org.junit.jupiter.api.Test
+import tachiyomi.core.common.preference.DictionaryOcrPreferences
+import tachiyomi.core.common.preference.InMemoryPreferenceStore
 import java.io.File
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
@@ -45,7 +47,16 @@ import kotlin.concurrent.thread
  */
 class DictionaryRepositoryLifecycleTest {
 
-    private fun repositoryWith(engine: FakeEngine) = DictionaryRepository(engine, mockk<Context>(relaxed = true))
+    /**
+     * The lifecycle paths only run once the user has opted in: with the switch off every engine entry
+     * point short-circuits (see `DictionaryRepositoryOptInTest`), so the opt-in is enabled here.
+     * `close()`/`withDictionaryTreeMutation` are not gated and are exercised below as they ship.
+     */
+    private fun repositoryWith(engine: FakeEngine) = DictionaryRepository(
+        engine,
+        mockk<Context>(relaxed = true),
+        DictionaryOcrPreferences(InMemoryPreferenceStore()).apply { choose(true) },
+    )
 
     private val paths = DictionaryPaths(termPaths = listOf("/dict/term/a"))
 

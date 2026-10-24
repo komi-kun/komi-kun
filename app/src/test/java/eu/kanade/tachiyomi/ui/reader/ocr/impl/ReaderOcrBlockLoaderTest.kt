@@ -33,6 +33,8 @@ import mihon.core.ocr.cache.OcrManager
 import mihon.core.ocr.cache.OcrQueueItem
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
+import tachiyomi.core.common.preference.DictionaryOcrPreferences
+import tachiyomi.core.common.preference.InMemoryPreferenceStore
 import tachiyomi.domain.chapter.model.Chapter
 import tachiyomi.domain.manga.interactor.GetManga
 import tachiyomi.domain.source.service.SourceManager
@@ -49,7 +51,7 @@ class ReaderOcrBlockLoaderTest {
         this.chapter = ReaderChapter(chapterModel)
     }
 
-    private fun loader(loadTimeoutMs: Long): ReaderOcrBlockLoader = ReaderOcrBlockLoader(
+    private fun loader(loadTimeoutMs: Long, enabled: Boolean = true): ReaderOcrBlockLoader = ReaderOcrBlockLoader(
         ocrManager = mockk(relaxed = true) {
             every { queueState } returns MutableStateFlow(emptyList<OcrQueueItem>())
         },
@@ -59,6 +61,11 @@ class ReaderOcrBlockLoaderTest {
         sourceManager = mockk<SourceManager>(relaxed = true),
         dictionaryPreferences = mockk<DictionaryPreferences>(relaxed = true),
         scope = scope,
+        // KUN -->
+        dictionaryOcrPreferences = DictionaryOcrPreferences(InMemoryPreferenceStore()).apply {
+            choose(enabled)
+        },
+        // KUN <--
         loadTimeoutMs = loadTimeoutMs,
     )
 
@@ -85,6 +92,24 @@ class ReaderOcrBlockLoaderTest {
         loader.ensureLoaded(listOf(page))
         delay(WATCHDOG_MS + 400)
         awaitCalls.get() shouldBe 2
+        loader.blocks.value.keys shouldBe emptySet<OcrPageKey>()
+    }
+
+    @Test
+    fun `a disabled opt-in never enters the load path`(): Unit = runBlocking {
+        coEvery { getManga.await(any()) } coAnswers {
+            awaitCalls.incrementAndGet()
+            null
+        }
+        // The master switch is off: neither a page drive nor a forced re-run may touch the source
+        // policy (mokuro sidecar, persisted cache or engine).
+        val loader = loader(loadTimeoutMs = WATCHDOG_MS, enabled = false)
+
+        loader.ensureLoaded(listOf(page))
+        loader.redoOcr(page)
+        delay(WATCHDOG_MS + 200)
+
+        awaitCalls.get() shouldBe 0
         loader.blocks.value.keys shouldBe emptySet<OcrPageKey>()
     }
 

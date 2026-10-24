@@ -33,6 +33,7 @@ import mihon.core.ocr.OcrPreferences
 import mihon.core.ocr.RecModelVariant
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import tachiyomi.core.common.preference.DictionaryOcrPreferences
 import tachiyomi.core.common.util.system.logcat
 import java.io.File
 import java.io.FileOutputStream
@@ -91,6 +92,10 @@ class ModelDownloader(
     private val httpClient: OkHttpClient,
     private val json: Json,
     private val preferences: OcrPreferences,
+    // KUN -->
+    /** Explicit dictionary/OCR opt-in: no network or model-file work happens while it is off. */
+    private val dictionaryOcr: DictionaryOcrPreferences,
+    // KUN <--
 ) {
     private val appContext = context.applicationContext
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -103,6 +108,19 @@ class ModelDownloader(
 
     private val _state = MutableStateFlow<ModelDownloadState>(ModelDownloadState.Idle)
     val state: StateFlow<ModelDownloadState> = _state.asStateFlow()
+
+    // KUN -->
+    /** True while the user has not opted into the dictionary/OCR features. */
+    private fun ocrDisabled(): Boolean = !dictionaryOcr.isEnabled()
+
+    /**
+     * Failure returned by the [Result]-returning entry points while the feature is off. It is an
+     * explicit error (never a fake success) so callers/UI cannot mistake "not allowed" for "done".
+     */
+    private fun ocrDisabledFailure(): IllegalStateException = IllegalStateException(
+        "Dictionary/OCR is disabled: enable the immersion features before downloading OCR models",
+    )
+    // KUN <--
 
     /** Directory the engine reads its models from (`filesDir/paddle_ocr`). */
     val modelsDir: File get() = File(appContext.filesDir, PADDLE_DIR)
@@ -161,6 +179,10 @@ class ModelDownloader(
      * immediately retryable.
      */
     fun triggerPaddleDownload() {
+        // KUN -->
+        // Inert until the user opts in: no coroutine, no network, no model files.
+        if (ocrDisabled()) return
+        // KUN <--
         scope.launch {
             when (val result = downloadGate.runExclusive { runLock.withLock { downloadModels() } }) {
                 null -> logcat(LogPriority.INFO) {
@@ -179,17 +201,22 @@ class ModelDownloader(
     }
 
     /** Fetches and parses the release manifest (and caches it beside the models). */
-    suspend fun fetchManifest(): Result<OcrModelManifest> = withContext(Dispatchers.IO) {
-        runCatching {
-            val request = Request.Builder().url("$baseUrl/$MANIFEST_NAME").build()
-            httpClient.newCall(request).execute().use { response ->
-                check(response.isSuccessful) { "Manifest download failed: HTTP ${response.code}" }
-                val body = response.body.string()
-                val manifest = json.decodeFromString<OcrModelManifest>(body)
-                // Persist the manifest with the models so `downloadModels` can re-verify size /
-                // SHA-256 offline instead of trusting mere file existence.
-                File(modelsDir, MANIFEST_NAME).apply { parentFile?.mkdirs() }.writeText(body)
-                manifest
+    suspend fun fetchManifest(): Result<OcrModelManifest> {
+        // KUN -->
+        if (ocrDisabled()) return Result.failure(ocrDisabledFailure())
+        // KUN <--
+        return withContext(Dispatchers.IO) {
+            runCatching {
+                val request = Request.Builder().url("$baseUrl/$MANIFEST_NAME").build()
+                httpClient.newCall(request).execute().use { response ->
+                    check(response.isSuccessful) { "Manifest download failed: HTTP ${response.code}" }
+                    val body = response.body.string()
+                    val manifest = json.decodeFromString<OcrModelManifest>(body)
+                    // Persist the manifest with the models so `downloadModels` can re-verify size /
+                    // SHA-256 offline instead of trusting mere file existence.
+                    File(modelsDir, MANIFEST_NAME).apply { parentFile?.mkdirs() }.writeText(body)
+                    manifest
+                }
             }
         }
     }
@@ -203,6 +230,10 @@ class ModelDownloader(
      * the synchronous [isPaddleDownloaded] gate stays cheap.
      */
     suspend fun downloadModels(): Result<Unit> = withContext(Dispatchers.IO) {
+        // KUN -->
+        // Nothing at all happens while the feature is off — not even `.part`/stale-file cleanup.
+        if (ocrDisabled()) return@withContext Result.failure(ocrDisabledFailure())
+        // KUN <--
         // Snapshot the selection: switching the variant mid-download must not mix model sets.
         val target = preferences.resolveRecModel()
         val targetRelease = target.release
@@ -263,6 +294,9 @@ class ModelDownloader(
      */
     suspend fun importFromUri(uri: Uri): Result<Unit> = runLock.withLock {
         withContext(Dispatchers.IO) {
+            // KUN -->
+            if (ocrDisabled()) return@withContext Result.failure(ocrDisabledFailure())
+            // KUN <--
             runCatching {
                 val input = appContext.contentResolver.openInputStream(uri)
                     ?: error("Could not open the selected file")
