@@ -141,6 +141,11 @@ object HomeScreen : Screen() {
                             // SY -->
                             .fastFilter { it.isEnabled() }
                             // SY <--
+                            // KUN -->
+                            // Same rule as `DictionaryTab.isEnabled()`, applied here too so the tab's
+                            // presence in the navigation never depends on a single call site.
+                            .fastFilter { DictionaryTabNavigationPolicy.isVisible(it, dictionaryOcrEnabled) }
+                            // KUN <--
                             .fastForEach {
                                 NavigationItem(
                                     tab = it,
@@ -209,9 +214,10 @@ object HomeScreen : Screen() {
                                 BrowseTab
                             }
                             // KUN -->
-                            // A direct `Tab.Dictionary` event (shortcut, intent) must not open a tab
-                            // that the navigation filter hides while the feature is off; the policy
-                            // owns that fallback so it is unit-tested.
+                            // A direct `Tab.Dictionary` request must not open a tab that the
+                            // navigation filter hides while the feature is off. No in-repo producer
+                            // exists today (no dictionary shortcut, no intent action); `openTab` is
+                            // public, so the policy owns the fallback and it is unit-tested.
                             Tab.Dictionary -> when (
                                 DictionaryTabNavigationPolicy.directEventTarget(dictionaryOcrEnabled)
                             ) {

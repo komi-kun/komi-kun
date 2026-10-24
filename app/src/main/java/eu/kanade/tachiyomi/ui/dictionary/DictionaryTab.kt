@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.navigator.tab.TabOptions
 import eu.kanade.core.preference.asState
 import eu.kanade.presentation.util.Tab
+import eu.kanade.tachiyomi.ui.home.DictionaryTabNavigationPolicy
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -59,14 +60,18 @@ data object DictionaryTab : Tab {
      * (`DictionaryOcrPreferences`). HomeScreen's single `fastFilter { it.isEnabled() }` applies this
      * to both the bottom bar and the navigation rail, so the tab disappears from either layout at
      * the same moment, and comes back the moment the settings switch is turned on.
+     *
+     * The rule itself lives in `DictionaryTabNavigationPolicy.isTabVisible`, which HomeScreen's
+     * filter and its direct-tab fallback share (and which is unit-tested); this is the pref read.
      */
     @Composable
     override fun isEnabled(): Boolean {
         val context = LocalContext.current
         val scope = rememberCoroutineScope()
-        return remember {
+        val enabled = remember {
             context.appGraph.dictionaryOcrPreferences.enabled.asState(scope)
         }.value
+        return DictionaryTabNavigationPolicy.isTabVisible(enabled)
     }
 
     override val options: TabOptions

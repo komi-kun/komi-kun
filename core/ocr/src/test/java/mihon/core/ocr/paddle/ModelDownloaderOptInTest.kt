@@ -38,6 +38,7 @@ import tachiyomi.core.common.preference.InMemoryPreferenceStore
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
@@ -96,9 +97,12 @@ class ModelDownloaderOptInTest {
     fun `downloading still installs the models while enabled`(@TempDir dir: File): Unit = runBlocking {
         val models = stagedModels()
         val requests = AtomicInteger()
+        val urls = CopyOnWriteArrayList<String>()
+        // The manifest names an explicit *flat* `path` (the shape the published releases actually
+        // have), so the downloader must request `<baseUrl>/<name>` — not `<baseUrl>/models/<name>`.
         val downloader = downloader(
             dir,
-            cannedClient(requests, CountDownLatch(1), manifestJson(models, dir), models),
+            cannedRelease(requests, urls, CountDownLatch(1), manifestJson(models, dir, flat = true), flatFiles(models)),
             enabled = true,
         )
 
@@ -109,9 +113,42 @@ class ModelDownloaderOptInTest {
             modelNames + "manifest.json",
         )
         models.forEach { (name, bytes) -> File(downloader.modelsDir, name).readBytes() shouldBe bytes }
-        // One manifest fetch + one download per model, and nothing re-fetched.
+        // One manifest fetch + one download per model, and nothing re-fetched...
         requests.get() shouldBe modelNames.size + 1
+        // ...at exactly the URLs the manifest's `path` entries resolve to.
+        urls.toList() shouldBe listOf("$baseUrl/manifest.json") + modelNames.map { "$baseUrl/$it" }
         downloader.isPaddleDownloaded shouldBe true
+    }
+
+    /**
+     * The fallback shape, pinned exactly: an entry **without** `path` resolves to
+     * `<baseUrl>/models/<name>`. The fake only serves the flat release layout here, so this must fail
+     * with the 404 for that URL — the assertion that keeps the fake path-sensitive (a name-only fake
+     * would pass this *and* the real release's 404 shape).
+     */
+    @Test
+    fun `a manifest entry without a path resolves to the models prefix`(@TempDir dir: File): Unit = runBlocking {
+        val models = stagedModels()
+        val requests = AtomicInteger()
+        val urls = CopyOnWriteArrayList<String>()
+        val downloader = downloader(
+            dir,
+            cannedRelease(
+                requests,
+                urls,
+                CountDownLatch(1),
+                manifestJson(models, dir, flat = false),
+                flatFiles(models),
+            ),
+            enabled = true,
+        )
+
+        val result = downloader.downloadModels()
+
+        result.exceptionOrNull()?.message shouldBe "Download failed for $DET_MODEL: HTTP 404"
+        urls.toList() shouldBe listOf("$baseUrl/manifest.json", "$baseUrl/models/$DET_MODEL")
+        // Nothing was installed from the manifest the fallback could not satisfy.
+        File(downloader.modelsDir, DET_MODEL).exists() shouldBe false
     }
 
     // ------------------------------------------------------------------ importFromUri
@@ -138,7 +175,13 @@ class ModelDownloaderOptInTest {
         every { context.contentResolver.openInputStream(uri) } returns ByteArrayInputStream(zipOf(models))
         val downloader = downloader(
             context,
-            cannedClient(requests, CountDownLatch(1), manifestJson(models, dir), models),
+            cannedRelease(
+                requests,
+                CopyOnWriteArrayList(),
+                CountDownLatch(1),
+                manifestJson(models, dir, flat = true),
+                flatFiles(models),
+            ),
             enabled = true,
         )
 
@@ -159,7 +202,13 @@ class ModelDownloaderOptInTest {
         val latch = CountDownLatch(1)
         val downloader = downloader(
             dir,
-            cannedClient(requests, latch, manifestJson(models, dir), models),
+            cannedRelease(
+                requests,
+                CopyOnWriteArrayList(),
+                latch,
+                manifestJson(models, dir, flat = true),
+                flatFiles(models),
+            ),
             enabled = false,
         )
 
@@ -180,7 +229,13 @@ class ModelDownloaderOptInTest {
         val latch = CountDownLatch(1)
         val downloader = downloader(
             dir,
-            cannedClient(requests, latch, manifestJson(models, dir), models),
+            cannedRelease(
+                requests,
+                CopyOnWriteArrayList(),
+                latch,
+                manifestJson(models, dir, flat = true),
+                flatFiles(models),
+            ),
             enabled = true,
         )
 
@@ -201,19 +256,40 @@ class ModelDownloaderOptInTest {
     private fun stagedModels(): Map<String, ByteArray> =
         modelNames.associateWith { name -> "$name bytes".toByteArray() }
 
-    /** A manifest that describes exactly [models] (real SHA-256 + size), as a JSON body. */
-    private fun manifestJson(models: Map<String, ByteArray>, dir: File): String {
+    /** The pinned release root, i.e. where the manifest and the model files are fetched from. */
+    private val baseUrl = RecModelVariant.DEFAULT.baseUrl
+
+    /**
+     * A manifest that describes exactly [models] (real SHA-256 + size), as a JSON body.
+     *
+     * [flat] models the published releases: every entry carries an explicit `path` equal to its name,
+     * because GitHub release assets are flat. `flat = false` leaves `path` out, which makes the
+     * downloader use its `models/<name>` fallback.
+     */
+    private fun manifestJson(models: Map<String, ByteArray>, dir: File, flat: Boolean): String {
         val staging = File(dir, "staging").apply { mkdirs() }
         val manifest = OcrModelManifest(
             release = RecModelVariant.DEFAULT.release,
-            baseUrl = RecModelVariant.DEFAULT.baseUrl,
+            baseUrl = baseUrl,
             files = models.map { (name, bytes) ->
                 val file = File(staging, name).apply { writeBytes(bytes) }
-                OcrModelFile(name = name, sha256 = sha256Hex(file), size = file.length())
+                OcrModelFile(
+                    name = name,
+                    path = if (flat) name else null,
+                    sha256 = sha256Hex(file),
+                    size = file.length(),
+                )
             },
         )
         return Json.encodeToString(manifest)
     }
+
+    /**
+     * The flat release layout: `/<name>` under the release root for every model (GitHub publishes
+     * release assets flat). Keyed by the suffix the downloader appends to the base URL.
+     */
+    private fun flatFiles(models: Map<String, ByteArray>): Map<String, ByteArray> =
+        models.mapKeys { (name, _) -> "/$name" }
 
     private fun mockContext(dir: File): Context {
         val context = mockk<Context>()
@@ -245,23 +321,35 @@ class ModelDownloaderOptInTest {
             .build()
 
     /**
-     * Serves the canned [manifestJson] and [models] by file name, so the real download/verify/
-     * install path runs end to end without a socket. [latch] fires on the first request.
+     * A canned release **keyed by the full request URL**, so the fake is path-sensitive: the flat
+     * `/<name>` layout and the `models/<name>` fallback are different URLs, and only the one the
+     * downloader actually requests is served. (The previous fake keyed on the last path segment, so
+     * it answered a `models/<name>` request with a flat asset and hid the real 404 shape.)
+     *
+     * [files] is keyed by the suffix appended to [baseUrl] — `/name` for the flat layout. Every
+     * request URL is recorded in [urls]; [latch] fires on the first one.
      */
-    private fun cannedClient(
+    private fun cannedRelease(
         requests: AtomicInteger,
+        urls: MutableList<String>,
         latch: CountDownLatch,
         manifestJson: String,
-        models: Map<String, ByteArray>,
-    ): OkHttpClient = OkHttpClient.Builder()
-        .addInterceptor { chain ->
-            requests.incrementAndGet()
-            latch.countDown()
-            val name = chain.request().url.encodedPath.substringAfterLast('/')
-            val body = if (name == MANIFEST_NAME) manifestJson.toByteArray() else models[name]
-            if (body == null) respond(chain, code = 404, body = ByteArray(0)) else respond(chain, code = 200, body = body)
+        files: Map<String, ByteArray>,
+    ): OkHttpClient {
+        val served = buildMap {
+            put("$baseUrl/$MANIFEST_NAME", manifestJson.toByteArray())
+            files.forEach { (suffix, bytes) -> put("$baseUrl$suffix", bytes) }
         }
-        .build()
+        return OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                requests.incrementAndGet()
+                urls += chain.request().url.toString()
+                latch.countDown()
+                val body = served[chain.request().url.toString()]
+                if (body == null) respond(chain, code = 404, body = ByteArray(0)) else respond(chain, code = 200, body = body)
+            }
+            .build()
+    }
 
     private fun respond(chain: Interceptor.Chain, code: Int, body: ByteArray): Response =
         Response.Builder()

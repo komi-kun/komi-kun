@@ -297,4 +297,48 @@ class DictionaryRepositoryOptInTest {
 
         verify(exactly = 1) { session.close() }
     }
+
+    // ------------------------------------------------------------------ release + reopen
+
+    /**
+     * The state the opt-out owner produces: it closes immediately when the switch goes off, which is
+     * exactly `close()` on a repository that still holds an open session. This pins both halves — the
+     * close really destroys the live session, and turning the switch back on reopens a working one —
+     * because a release that only *looks* closed (stale styles/query still served) or a reopen that
+     * never happens would fail here.
+     */
+    @Test
+    fun `the opt-out close destroys the session and re-enabling opens a fresh working one`() {
+        availableEngine()
+        val prefs = preferences(enabled = true)
+        val repository = repository(prefs)
+        repository.warmUp(paths, profileId = "profile")
+        verify(exactly = 1) { engine.openSession(paths) }
+
+        // DictionarySessionOwner closes here, on the on -> off transition.
+        prefs.choose(false)
+        every { session.close() } just Runs
+        repository.close()
+        verify(exactly = 1) { session.close() }
+
+        // Off: the released session is not used again (the disabled gate returns before it).
+        repository.lookup("猫", paths).results.shouldBeEmpty()
+        verify(exactly = 0) { session.lookup(any(), any(), any()) }
+
+        // Back on: a *new* session is opened, rebuilt and answers.
+        val reopened = mockk<DictionarySession>("reopened")
+        every { reopened.rebuild(any()) } just Runs
+        every { reopened.styles() } returns styles
+        every { reopened.lookup("猫", 20, 25) } returns listOf(lookupResult)
+        every { engine.openSession(paths) } returns reopened
+
+        prefs.choose(true)
+        val afterReenable = repository.lookup("猫", paths)
+
+        afterReenable.results shouldBe listOf(lookupResult)
+        afterReenable.styles shouldBe styles
+        verify(exactly = 1) { reopened.lookup("猫", 20, 25) }
+        // The destroyed handle was never used again.
+        verify(exactly = 0) { session.lookup(any(), any(), any()) }
+    }
 }

@@ -1,12 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 // KUN -->
-// Reads the **persisted** OCR queue metadata to answer "is there work a queue run could pick up?".
+// The app-side seam over the persisted OCR queue: "is there work a queue run would pick up?".
 //
 // Why the store and not `OcrManager.queueState`: the manager's flow starts empty and is only
 // refreshed by an enqueue/promotion/retry, so on a cold start it reports an empty queue even when
 // `PENDING` tasks are persisted — gating a launch-time resume on it would silently drop them. The
-// store is the same source `OcrManager.runPendingQueue` iterates, so this is the authoritative
-// answer, and it is a cheap in-memory SharedPreferences read.
+// store is the same source `OcrManager.runPendingQueue` iterates.
+//
+// **Not main-thread work.** Answering the question deserialises the persisted queue JSON, so callers
+// run it off the main thread (the launch/enable resume in `MainActivity` uses `Dispatchers.IO`).
+// The status predicate itself lives once, in `:core:ocr` (`hasRunnableStatuses`), and is reached
+// through [OcrStore.hasRunnableTasks] so the two cannot drift.
 //
 // Used only to decide *whether starting a run is worth it* (and therefore whether the worker would
 // raise its foreground notification); never to modify anything.
@@ -24,5 +28,5 @@ class OcrQueueWorkProbe(
     private val store: OcrStore,
 ) {
     /** True when the persisted queue holds at least one task a run would process. */
-    fun hasRunnableWork(): Boolean = OcrRuntimePolicy.hasRunnableWork(store.getAll().map { it.status })
+    fun hasRunnableWork(): Boolean = store.hasRunnableTasks()
 }
