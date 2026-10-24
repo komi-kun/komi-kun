@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "hoshidicts/include/hoshidicts.h"
+#include "hoshidicts/src/text_processor/text_processor.hpp"
 
 namespace {
     struct Slot {
@@ -42,6 +43,15 @@ namespace {
     };
 
     LookupObject *as_object(jlong handle) { return reinterpret_cast<LookupObject *>(handle); }
+
+    // Deinflection is dictionary-independent (hoshidicts README: "this doesn't use any dictionary
+    // data"), so the transform entry points below share one immutable rule table instead of
+    // building a `Deinflector` per call (its constructor parses ~2k rules). Function-local statics
+    // are thread-safe and `Deinflector::deinflect` is `const`, so concurrent readers are safe.
+    Deinflector &shared_deinflector() {
+        static Deinflector instance;
+        return instance;
+    }
 
     // The Kotlin facade passes valid, non-null handles, but a zero handle would otherwise
     // dereference nullptr after a failed createSession/close race.
@@ -176,6 +186,25 @@ namespace {
             env->DeleteLocalRef(item);
         }
         return list;
+    }
+
+    // `DeinflectionResult(text, conditions, trace)`; `trace` is in *application* order (see
+    // `HoshiDictsNative.deinflect`).
+    jobject new_deinflection_result(JNIEnv *env, const DeinflectionResult &result) {
+        jclass cls = env->FindClass("mihon/core/dictionary/model/DeinflectionResult");
+        if (cls == nullptr) {
+            return nullptr;
+        }
+        jmethodID ctor = env->GetMethodID(cls, "<init>", "(Ljava/lang/String;ILjava/util/List;)V");
+        if (ctor == nullptr) {
+            return nullptr;
+        }
+        jstring text = new_string(env, result.text);
+        jobject trace = new_process_list(env, result.trace);
+        jobject out = env->NewObject(cls, ctor, text, static_cast<jint>(result.conditions), trace);
+        env->DeleteLocalRef(text);
+        env->DeleteLocalRef(trace);
+        return out;
     }
 
     jobject new_glossary_entry(JNIEnv *env, const GlossaryEntry &entry) {
@@ -745,6 +774,85 @@ Java_mihon_core_dictionary_engine_HoshiDictsNative_getMediaFile(JNIEnv *env, job
         env->SetByteArrayRegion(result, 0, static_cast<jsize>(data.size()),
                                 reinterpret_cast<const jbyte *>(data.data()));
         return result;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// Host (T2) builds bake a digest of the engine sources they were compiled from, so the
+// conformance runner can prove the library it loaded is the one that build produced (see
+// `engine-build-info` in the test). Android/NDK builds do not define it and report an empty string.
+extern "C" JNIEXPORT jstring JNICALL
+Java_mihon_core_dictionary_engine_HoshiDictsNative_engineBuildFingerprint(JNIEnv *env, jobject) {
+#ifdef HOSHIDICTS_ENGINE_SOURCE_FINGERPRINT
+    return new_string(env, HOSHIDICTS_ENGINE_SOURCE_FINGERPRINT);
+#else
+    return env->NewStringUTF("");
+#endif
+}
+
+extern "C" JNIEXPORT jobjectArray JNICALL
+Java_mihon_core_dictionary_engine_HoshiDictsNative_deinflect(JNIEnv *env, jobject, jstring text) {
+    jclass cls = env->FindClass("mihon/core/dictionary/model/DeinflectionResult");
+    if (cls == nullptr) {
+        return nullptr;
+    }
+    const auto text_str = jstring_to_std_string(env, text);
+    std::vector<DeinflectionResult> results;
+    try {
+        results = shared_deinflector().deinflect(text_str);
+    } catch (...) {
+        return env->NewObjectArray(0, cls, nullptr);
+    }
+    jobjectArray array = env->NewObjectArray(static_cast<jsize>(results.size()), cls, nullptr);
+    if (array == nullptr) {
+        return nullptr;
+    }
+    for (size_t i = 0; i < results.size(); ++i) {
+        jobject item = new_deinflection_result(env, results[i]);
+        if (item == nullptr) {
+            break;
+        }
+        env->SetObjectArrayElement(array, static_cast<jsize>(i), item);
+        env->DeleteLocalRef(item);
+    }
+    return array;
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_mihon_core_dictionary_engine_HoshiDictsNative_posToConditions(JNIEnv *env, jobject,
+                                                                   jobjectArray part_of_speech) {
+    std::vector<std::string> values;
+    for_each_string(env, part_of_speech, [&](const std::string &value) { values.push_back(value); });
+    try {
+        return static_cast<jint>(Deinflector::pos_to_conditions(values));
+    } catch (...) {
+        return 0;
+    }
+}
+
+extern "C" JNIEXPORT jobjectArray JNICALL
+Java_mihon_core_dictionary_engine_HoshiDictsNative_textVariants(JNIEnv *env, jobject, jstring text) {
+    const auto text_str = jstring_to_std_string(env, text);
+    try {
+        auto variants = text_processor::process(text_str);
+        jclass cls = env->FindClass("java/lang/String");
+        if (cls == nullptr) {
+            return nullptr;
+        }
+        jobjectArray array = env->NewObjectArray(static_cast<jsize>(variants.size()), cls, nullptr);
+        if (array == nullptr) {
+            return nullptr;
+        }
+        for (size_t i = 0; i < variants.size(); ++i) {
+            jstring item = new_string(env, variants[i].text);
+            if (item == nullptr) {
+                break;
+            }
+            env->SetObjectArrayElement(array, static_cast<jsize>(i), item);
+            env->DeleteLocalRef(item);
+        }
+        return array;
     } catch (...) {
         return nullptr;
     }

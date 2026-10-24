@@ -78,11 +78,17 @@ object DictionaryImportCoordinator {
                 if (result.kanjiCount > 0) add("kanji")
             }.ifEmpty { TYPE_SUBDIRS }
 
-            for (type in targets) {
-                val destDir = dictionaryTypeDir(context, type, title)
-                if (destDir.exists()) destDir.deleteRecursively()
-                destDir.parentFile?.mkdirs()
-                importedDir.copyRecursively(destDir, overwrite = true)
+            // The delete+copy runs inside the repository's serialized tree mutation: the open native
+            // session is dropped first and no lookup/media read can run until the new tree is in
+            // place. A same-title re-import keeps every configured path identical, so this close is
+            // also what makes the new files visible (see `DictionaryRepository.withDictionaryTreeMutation`).
+            repository.withDictionaryTreeMutation {
+                for (type in targets) {
+                    val destDir = dictionaryTypeDir(context, type, title)
+                    if (destDir.exists()) destDir.deleteRecursively()
+                    destDir.parentFile?.mkdirs()
+                    importedDir.copyRecursively(destDir, overwrite = true)
+                }
             }
 
             val profile = prefs.profileStore.getActiveProfile()
@@ -117,19 +123,34 @@ object DictionaryImportCoordinator {
         }
     }
 
-    /** Remove all type subdirs for [name] and drop it from the active profile order. */
-    fun delete(context: Context, name: String, prefs: DictionaryPreferences) {
-        TYPE_SUBDIRS.forEach { type ->
-            val dir = dictionaryTypeDir(context, type, name)
-            if (dir.exists()) dir.deleteRecursively()
+    /**
+     * Remove all type subdirs for [name] and drop it from the active profile order.
+     *
+     * The directory deletion and the profile update run inside
+     * [DictionaryRepository.withDictionaryTreeMutation]: the live session is dropped first and the
+     * repository monitor is held for both, so a concurrent lookup can neither read a half-deleted
+     * tree nor be served from the pre-delete query, and the next lookup rebuilds from what is left.
+     */
+    fun delete(
+        context: Context,
+        name: String,
+        prefs: DictionaryPreferences,
+        repository: DictionaryRepository,
+    ) {
+        repository.withDictionaryTreeMutation {
+            TYPE_SUBDIRS.forEach { type ->
+                val dir = dictionaryTypeDir(context, type, name)
+                if (dir.exists()) dir.deleteRecursively()
+            }
+            val profile = prefs.profileStore.getActiveProfile()
+            prefs.profileStore.updateProfile(
+                profile.copy(
+                    dictionaryOrder = profile.dictionaryOrder.filter { it != name },
+                    enabledDictionaries = profile.enabledDictionaries - name,
+                ),
+            )
         }
-        val profile = prefs.profileStore.getActiveProfile()
-        prefs.profileStore.updateProfile(
-            profile.copy(
-                dictionaryOrder = profile.dictionaryOrder.filter { it != name },
-                enabledDictionaries = profile.enabledDictionaries - name,
-            ),
-        )
+        // Display-name aliases are UI-only state, not part of the tree the session is built from.
         prefs.setDisplayName(name, null)
     }
 

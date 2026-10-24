@@ -164,3 +164,112 @@ jobs:
         with:
           name: mapping-${{ github.sha }}
           path: app/build/outputs/mapping/nightly
+
+  # KUN -->
+  # T2 Yomitan engine conformance (plan 05 §A1.5/§A4): executes the committed corpus against the
+  # vendored `hoshidicts` engine on a host (desktop) build of `hoshidicts_jni`, so it is
+  # device-free and needs no emulator. Separated from `build` so it can be path-filtered and so a
+  # slow/absent host toolchain never blocks the APK build.
+  conformance-t2:
+    name: Yomitan T2 conformance
+    runs-on: 'ubuntu-24.04'
+    steps:
+      - name: Clone repo
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      # Only engine, corpus, test-infrastructure or build-logic changes can move the T2 verdicts.
+      # Fail open (run the gate) whenever the change list cannot be computed.
+      - name: Decide whether T2 must run
+        id: t2
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" != "pull_request" ]]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          base="${{ github.event.pull_request.base.sha }}"
+          head="${{ github.event.pull_request.head.sha }}"
+          if ! changed="$(git diff --name-only "$base" "$head" 2>/dev/null)"; then
+            git fetch --no-tags origin "$base" "$head" || true
+            changed="$(git diff --name-only "$base" "$head" 2>/dev/null || true)"
+          fi
+          if [[ -z "$changed" ]]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          printf '%s\n' "$changed"
+          if grep -Eq '^(core/dictionary/|tools/yomitan-corpus/|gradle/|buildSrc/|settings\.gradle\.kts|build\.gradle\.kts|\.github/workflows/build_pull_request\.yml)' <<< "$changed"; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up JDK
+        if: steps.t2.outputs.run == 'true'
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          java-version-file: .github/.java-version
+          distribution: temurin
+
+      # The vendored engine uses `std::views::as_rvalue | std::ranges::to<std::vector>()`; libstdc++
+      # only gained `std::ranges::to` in GCC 14 (GCC 14 release notes, libstdc++ section), while the
+      # ubuntu-24.04 default is GCC 13. Install a modern GCC and *select* the newest one that
+      # actually passes the C++23 probe; `build-host-conformance-lib.sh` probes it again and fails
+      # fast with the missing feature if this ever regresses.
+      - name: Install and select host C++ toolchain (GCC >= 14)
+        if: steps.t2.outputs.run == 'true'
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake ninja-build
+          for pkg in g++-14 g++-15 g++-16; do
+            if ! sudo apt-get install -y --no-install-recommends "$pkg"; then
+              echo "note: $pkg not available on this runner image"
+            fi
+          done
+          cat > /tmp/t2-cxx-probe.cpp <<'SRC'
+          #include <ranges>
+          #include <utility>
+          #include <vector>
+          int main() {
+            std::vector<int> values;
+            auto out = std::move(values) | std::views::as_rvalue | std::ranges::to<std::vector>();
+            return static_cast<int>(out.size());
+          }
+          SRC
+          chosen=""
+          for candidate in g++-16 g++-15 g++-14 g++; do
+            if command -v "$candidate" >/dev/null && "$candidate" -std=c++23 -fsyntax-only /tmp/t2-cxx-probe.cpp >/dev/null 2>&1; then
+              chosen="$candidate"
+              break
+            fi
+          done
+          if [[ -z "$chosen" ]]; then
+            echo "::error::no C++ compiler with std::ranges::to found (GCC >= 14 is required by the vendored hoshidicts engine)"
+            exit 1
+          fi
+          echo "selected $chosen: $("$chosen" --version | head -1)"
+          cmake --version | head -1
+          echo "CXX=$chosen" >> "$GITHUB_ENV"
+          echo "CC=${chosen/g++/gcc}" >> "$GITHUB_ENV"
+
+      - name: Set up gradle
+        if: steps.t2.outputs.run == 'true'
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6
+
+      - name: Run T2 engine conformance
+        if: steps.t2.outputs.run == 'true'
+        run: ./gradlew :core:dictionary:conformanceHostTest
+
+      - name: Upload conformance report
+        if: steps.t2.outputs.run == 'true' && failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: yomitan-t2-report-${{ github.sha }}
+          path: |
+            core/dictionary/build/reports/tests/conformanceHostTest
+            core/dictionary/build/conformance/host-lib/lib/BUILD_INFO.txt
+  # KUN <--
