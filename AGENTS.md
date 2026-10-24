@@ -171,7 +171,7 @@ Package roots: `eu.kanade.tachiyomi.*` (legacy UI), `tachiyomi.*` (domain/data),
 
 ## Licensing & native modules
 
-komi-kun's own code is Apache-2.0, but the Yomitan/dictionary/OCR port adds two **GPL-3.0-or-later** modules, so the combined distribution is **GPL-3.0-or-later** while upstream-derived files keep their Apache-2.0 headers. See `NOTICE` and `LICENSES/GPL-3.0-or-later.txt`. The GPL-free seam files (listed in the implementation contract §1.3) stay Apache-2.0 so they can be contributed back to Komikku.
+komi-kun's upstream-derived code keeps its Apache-2.0 headers, but the Yomitan/dictionary/OCR port is **GPL-3.0-or-later** — the two GPL modules *and* every new app-level helper/test for the port — so the combined distribution is **GPL-3.0-or-later**. See `NOTICE` and `LICENSES/GPL-3.0-or-later.txt`. The GPL-free seam files (listed in the implementation contract §1.3 and in `scripts/verify-gpl-free.sh`) are the only new files that stay Apache-2.0 — they must also *not import* GPL code — so they can be contributed back to Komikku.
 
 - **`:core:dictionary`** — the vendored `hoshidicts` C++ engine, added as a nested git submodule (`.gitmodules`; pin recorded in `core/dictionary/README.md`) and built with NDK/CMake behind a JNI bridge.
 - **`:core:ocr`** — the OCR pipeline, running PaddleOCR **PP-OCRv6 small** models through an **ONNX Runtime** backend (MIT). `libpaddle_ocr.so` (our own Apache-2.0 JNI shim over ORT's C API) and its `libonnxruntime.so` / `libomp.so` runtime deps are **fetched, not built**: `./gradlew :core:ocr:fetchPaddleNativeLibs` reads `core/ocr/paddle-manifest.json`, verifies each file's SHA-256 and writes it into `core/ocr/src/main/jniLibs/<abi>/` (git-ignored). Models (`.onnx` + dict) download at runtime, opt-in and checksum-verified. Because ORT publishes `x86_64` and the ONNX graphs are architecture-independent, **OCR now works on `arm64-v8a`, `armeabi-v7a` and `x86_64`** — the old "OCR unavailable on x86_64" limitation is gone.
@@ -179,6 +179,43 @@ komi-kun's own code is Apache-2.0, but the Yomitan/dictionary/OCR port adds two 
 - **`maven/`** — an in-repo Maven repository declared in `settings.gradle.kts` and holding the vendored `komi-kun/webgpuviewer` fork AAR (tag `ocr-accessors-2`, MIT). It exists because JitPack cannot build that AGP 9.x fork; delete `maven/` and its repository line once the accessors land upstream.
 - **GPL boundary** — `./gradlew verifyGplFree` (wrapping `scripts/verify-gpl-free.sh`) fails if any GPL-free seam file imports a GPL package. Keep it green whenever you touch a seam file.
 - **Maintenance skills** — the recurring upkeep for this port and dependency forks is scripted under `.agents/skills/`: `immersion-deps-sync` (bump the `hoshidicts` submodule, rebuild the `webgpuviewer` fork AAR in `maven/`, track Chimahon), `unifile-sync` (sync `komi-kun/UniFile` fork from upstream `mihonapp/unifile`), `ocr-model-release` (build/publish the OCR native artifact), `yomitan-corpus-sync` (refresh the conformance corpus), and `gpl-boundary` (this boundary + the licensing artifacts).
+
+---
+
+## Immersion opt-in (dictionaries + OCR)
+
+Dictionaries and OCR are **one feature behind one explicit, default-off switch**. Nothing about them runs — engine, model download, import, overlay, tab — until the user has answered for it.
+
+**The switch.** `DictionaryOcrPreferences` (`core/common/.../preference/DictionaryOcrPreferences.kt`, Apache-2.0 `:core:common`, so both GPL modules and the GPL-free seam files can read it) owns the only key: `pref_dictionary_ocr_enabled`, default `false`, exposed on `AppGraph.dictionaryOcrPreferences`. It is both the master state and the explicit-choice flag:
+
+| stored value | meaning |
+|---|---|
+| unset | never asked — the setup surface may still appear |
+| `false` (set) | declined — an answer; never asked again |
+| `true` (set) | accepted |
+
+`isEnabled()` gates everything, `hasChosen()` is `isSet()`, `choose(value)` stores an answer, and `recordCurrentChoice()` writes the current value **only when unset** — so finishing onboarding turns "left off" into an explicit decline, and no launch ever rewrites an accept or a decline.
+
+**Where the question is asked.** `DictionaryOcrSetupPolicy` (`app/.../ui/more/setup/`) is the single, pure decision, with `BasePreferences.shownOnboardingFlow` as the fresh-vs-upgraded discriminator:
+
+| onboarding complete | chosen | surface |
+|---|---|---|
+| no | no | `DictionaryOcrStep` inside the existing onboarding flow |
+| yes (pre-feature upgrade) | no | `DictionaryOcrSetupScreen`, a one-time standalone screen on the first launch |
+| yes | yes | none, ever again |
+
+Both surfaces render the same `DictionaryOcrSetupContent`, so the copy and the switch are identical. The upgrade screen cannot be dismissed without accept/decline (`BackHandler` swallowed; `Not now` stores `false`). `MainActivity.ShowOnboarding()` pushes it once — guarded by the policy, a `rememberSaveable` flag and a `lastItem` check — and only after onboarding is complete. A fresh install can never reach it: finishing onboarding goes through one policy call, `DictionaryOcrSetupPolicy.finishOnboarding`, which stores the answer *before* setting `shownOnboardingFlow`, so the policy already resolves `NONE` when the flag flips. **There is no versionCode migration**: the nightly `versionCode` is pinned at 83, so an `oldVersion < newVersion` migration would no-op for every existing install; the existing runtime preference architecture carries the one-time prompt instead.
+
+**Runtime gates** (all read `isEnabled()`; off means inert, not just invisible):
+
+- Navigation: `DictionaryTab.isEnabled()` (the single `fastFilter { it.isEnabled() }` covers bottom bar *and* rail); `DictionaryTabNavigationPolicy` decides the two fallbacks — a direct `Tab.Dictionary` event lands on the library and a selected Dictionary tab moves away — and `HomeScreen` calls it.
+- Settings: `SettingsDictionaryScreen` and `SettingsOcrScreen` stay reachable and each owns a master switch; while off, every actionable item/group in them (`visible = featureEnabled`) is hidden — import, model download, cache clearing, engine tuning. The secondary feature screens (`SettingsDictionaryPopupScreen`, `SettingsAnkiScreen`) are themselves `SearchableSettings.isEnabled()`-gated on the switch, so they are hidden from Settings *and* search — which is what keeps the Anki screen from migrating preferences or talking to AnkiDroid while off. The master switch lives on the two **ungated** screens (Dictionary and OCR), so hiding the secondary screens can never strand re-enable.
+- Reader (`ReaderActivity`, `ReaderViewModel`): overlay composition, dictionary popup composition, single/long tap hit-testing, outside-tap block test, the two-finger toggle, the bottom-bar OCR button (removed from `enabledButtons`) and its long-press redo dialog, and `toggleOcrOverlay()` (via `ReaderOcrTogglePolicy`: off means no write).
+- Data layer: `ReaderOcrBlockLoader.ensureLoaded()`/`redoOcr()` (so no `.mokuro` sidecar, cache or engine read happens) and `OcrWorker.doWork()` (off returns success and leaves the persisted queue untouched).
+- Download pipeline: `Downloader` **always** maintains the queue metadata (`markChapterReadyForOcr` runs even while off, so a chapter queued earlier is promoted instead of stranded at `WAITING_DOWNLOAD`), but `OcrRuntimePolicy.downloadActions` gates the actions — no auto-queue and no `OcrWorker.start` while off, and promotion alone never starts a run. `MainActivity.ResumeOcrQueue()` starts the worker only when the switch is on **and** `OcrQueueWorkProbe` finds runnable (`PENDING`/`PROCESSING`) work in the persisted queue — so a cold start or rotation with an empty, error-only or waiting-download queue starts nothing — which is how promoted/`PENDING` tasks drain after a re-enable. `OcrWorker.doWork` applies the same two checks before raising its foreground notification.
+- The GPL services (`:core:dictionary`, `:core:ocr`) additionally gate their own public entry points, so the app gates are defence in depth rather than the only gate.
+
+Enabling later is always discoverable: the Dictionary tab returns as soon as the switch is on, and both settings screens (one per tab) keep the master visible while the feature is off.
 
 ---
 

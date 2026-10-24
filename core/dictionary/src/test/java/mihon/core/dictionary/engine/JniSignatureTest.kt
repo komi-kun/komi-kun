@@ -2,6 +2,7 @@
 package mihon.core.dictionary.engine
 
 import io.kotest.matchers.shouldBe
+import mihon.core.dictionary.model.DeinflectionResult
 import mihon.core.dictionary.model.DictionaryStyle
 import mihon.core.dictionary.model.Frequency
 import mihon.core.dictionary.model.FrequencyEntry
@@ -33,6 +34,9 @@ class JniSignatureTest {
         val actual = listOf(
             ImportResult::class.java,
             DictionaryStyle::class.java,
+            // KUN --> T2 conformance seam (`HoshiDictsNative.deinflect`)
+            DeinflectionResult::class.java,
+            // KUN <--
             Frequency::class.java,
             FrequencyEntry::class.java,
             GlossaryEntry::class.java,
@@ -67,6 +71,10 @@ private val expectedDescriptors = mapOf(
         "(Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lmihon/core/dictionary/model/TermResult;I)V",
     "mihon.core.dictionary.model.TransformGroup" to
         "(Ljava/lang/String;Ljava/lang/String;)V",
+    // KUN --> T2 conformance seam: matches `new_deinflection_result` in hoshidicts_jni.cpp.
+    "mihon.core.dictionary.model.DeinflectionResult" to
+        "(Ljava/lang/String;ILjava/util/List;)V",
+    // KUN <--
     "mihon.core.dictionary.model.KanjiEntry" to
         "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/util/Map;)V",
     "mihon.core.dictionary.model.KanjiResult" to

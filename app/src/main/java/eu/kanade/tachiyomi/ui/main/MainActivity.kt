@@ -34,6 +34,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -83,6 +84,9 @@ import eu.kanade.tachiyomi.data.connections.discord.DiscordRPCService
 import eu.kanade.tachiyomi.data.download.DownloadCache
 import eu.kanade.tachiyomi.data.library.LibraryUpdateWorker
 import eu.kanade.tachiyomi.data.notification.NotificationReceiver
+import eu.kanade.tachiyomi.data.ocr.OcrQueueWorkProbe
+import eu.kanade.tachiyomi.data.ocr.OcrRuntimePolicy
+import eu.kanade.tachiyomi.data.ocr.OcrWorker
 import eu.kanade.tachiyomi.data.updater.AppUpdateJob
 import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.ui.base.activity.BaseActivity
@@ -92,9 +96,11 @@ import eu.kanade.tachiyomi.ui.browse.source.globalsearch.GlobalSearchScreen
 import eu.kanade.tachiyomi.ui.deeplink.DeepLinkScreen
 import eu.kanade.tachiyomi.ui.home.HomeScreen
 import eu.kanade.tachiyomi.ui.manga.MangaScreen
+import eu.kanade.tachiyomi.ui.more.DictionaryOcrSetupScreen
 import eu.kanade.tachiyomi.ui.more.NewUpdateScreen
 import eu.kanade.tachiyomi.ui.more.OnboardingScreen
 import eu.kanade.tachiyomi.ui.more.WhatsNewScreen
+import eu.kanade.tachiyomi.ui.more.setup.DictionaryOcrSetupPolicy
 import eu.kanade.tachiyomi.ui.setting.SettingsScreen
 import eu.kanade.tachiyomi.util.system.dpToPx
 import eu.kanade.tachiyomi.util.system.isBenchmarkBuildType
@@ -129,6 +135,7 @@ import mihon.core.migration.Migrator.scope
 import mihon.domain.database.repository.DatabaseRepository
 import tachiyomi.core.common.Constants
 import tachiyomi.core.common.i18n.stringResource
+import tachiyomi.core.common.preference.DictionaryOcrPreferences
 import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.core.common.util.lang.launchIO
@@ -192,6 +199,12 @@ class MainActivity : BaseActivity() {
 
     // KUN -->
     @Inject private lateinit var preferenceStore: PreferenceStore
+
+    /** The combined dictionary/OCR opt-in: decided in onboarding, or once after a pre-feature upgrade. */
+    @Inject private lateinit var dictionaryOcrPreferences: DictionaryOcrPreferences
+
+    /** Answers whether the persisted OCR queue has runnable work, so the launch resume can skip an empty queue. */
+    @Inject private lateinit var ocrQueueWorkProbe: OcrQueueWorkProbe
     // KUN <--
 
     // To be checked by splash screen. If true then splash screen will be removed.
@@ -454,6 +467,9 @@ class MainActivity : BaseActivity() {
                 // KMK <--
                 if (!isBenchmarkBuildType) {
                     if (isLaunch) CheckForUpdates()
+                    // KUN -->
+                    ResumeOcrQueue()
+                    // KUN <--
                     ShowOnboarding()
                 }
             }
@@ -666,12 +682,74 @@ class MainActivity : BaseActivity() {
     private fun ShowOnboarding() {
         val navigator = LocalNavigator.currentOrThrow
 
+        // KUN -->
+        // The dictionary/OCR opt-in rides on the existing runtime preference architecture (no
+        // versionCode migration: the nightly versionCode is pinned, so a version-gated one would
+        // no-op for every existing install).
+        //   * fresh install (onboarding not complete): answered inside onboarding — nothing here;
+        //   * pre-feature upgrade (onboarding complete, key unset): the same content, once, as a
+        //     standalone screen;
+        //   * already answered: nothing, ever again.
+        val onboardingComplete by preferences.shownOnboardingFlow.collectAsState()
+        // Keeps a configuration change from pushing a second copy while the first is unanswered.
+        var upgradeSetupShown by rememberSaveable { mutableStateOf(false) }
+        // KUN <--
+
         LaunchedEffect(Unit) {
             if (!preferences.shownOnboardingFlow.get() && navigator.lastItem !is OnboardingScreen) {
                 navigator.push(OnboardingScreen())
             }
         }
+
+        // KUN -->
+        LaunchedEffect(onboardingComplete) {
+            val setup = DictionaryOcrSetupPolicy.resolve(
+                preferences = dictionaryOcrPreferences,
+                onboardingComplete = onboardingComplete,
+            )
+            if (
+                DictionaryOcrSetupPolicy.shouldShowUpgradeScreen(
+                    state = setup,
+                    alreadyShown = upgradeSetupShown,
+                    alreadyOnScreen = navigator.lastItem is DictionaryOcrSetupScreen,
+                )
+            ) {
+                upgradeSetupShown = true
+                navigator.push(DictionaryOcrSetupScreen())
+            }
+        }
+        // KUN <--
     }
+
+    // KUN -->
+    /**
+     * Resumes work that was already queued: the queue metadata is maintained even while the
+     * dictionaries/OCR switch is off, so a task promoted (or queued) earlier may still be `PENDING`.
+     *
+     * Starts a run only when the switch is **on** *and* the persisted queue actually holds runnable
+     * work, so a cold start or rotation does not raise the worker's foreground notification for an
+     * empty, error-only or waiting-download queue — and a resume still happens the moment the switch
+     * is turned on with work waiting (and at launch when such work is persisted).
+     */
+    @Composable
+    private fun ResumeOcrQueue() {
+        val context = LocalContext.current
+        val enabled by dictionaryOcrPreferences.enabled.collectAsState()
+
+        // Re-read on every switch flip: that is the transition that may have left work waiting.
+        LaunchedEffect(enabled) {
+            // Off means no run and the persisted queue is not even read: the probe deserialises the
+            // whole queue JSON, so it is gated behind the same switch the run itself is.
+            if (!OcrRuntimePolicy.shouldRunQueue(enabled)) return@LaunchedEffect
+            // Off the main thread: answering this deserialises the persisted queue JSON, and doing
+            // that during composition would stall the first frame.
+            val runnableWork = withContext(Dispatchers.IO) { ocrQueueWorkProbe.hasRunnableWork() }
+            if (OcrRuntimePolicy.shouldResumeQueue(enabled, runnableWork)) {
+                OcrWorker.start(context)
+            }
+        }
+    }
+    // KUN <--
 
     /**
      * Sets custom splash screen exit animation on devices prior to Android 12.

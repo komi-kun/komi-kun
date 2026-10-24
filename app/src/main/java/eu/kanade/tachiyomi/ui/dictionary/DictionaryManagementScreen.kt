@@ -829,7 +829,7 @@ class DictionaryManagementViewModel(
 
     fun delete(name: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            DictionaryImportCoordinator.delete(context, name, prefs)
+            DictionaryImportCoordinator.delete(context, name, prefs, repository)
             invalidateDictionaryTitle(name)
             refresh()
         }

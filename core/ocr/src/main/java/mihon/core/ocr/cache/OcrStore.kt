@@ -32,7 +32,7 @@ class OcrStore(
 
     fun get(chapterId: Long): OcrTask? = preferences.getString(chapterId.toString(), null)?.let(::deserialize)
 
-    fun hasRunnableTasks(): Boolean = getAll().any { it.status.isRunnable() }
+    fun hasRunnableTasks(): Boolean = hasRunnableStatuses(getAll().map { it.status })
 
     /** Adds/refreshes the requested chapters; returns true when anything changed. */
     fun enqueue(requests: List<OcrEnqueueRequest>): Boolean {
@@ -192,7 +192,29 @@ fun OcrQueueStatus.isActionable(): Boolean = this in listOf(
     OcrQueueStatus.PROCESSING,
 )
 
-fun OcrQueueStatus.isRunnable(): Boolean = this in listOf(
+/**
+ * Whether a queue run picks this status up.
+ *
+ * An exhaustive `when` with no `else` on purpose: a new [OcrQueueStatus] must be classified here (it
+ * will not compile otherwise), so a status can never silently default to "not runnable" and strand a
+ * task the user is waiting on.
+ */
+fun OcrQueueStatus.isRunnable(): Boolean = when (this) {
     OcrQueueStatus.PENDING,
     OcrQueueStatus.PROCESSING,
-)
+    -> true
+
+    OcrQueueStatus.WAITING_DOWNLOAD,
+    OcrQueueStatus.COMPLETED,
+    OcrQueueStatus.ERROR,
+    OcrQueueStatus.CANCELLED,
+    -> false
+}
+
+/**
+ * True when any of [statuses] is a status a queue run actually picks up ([isRunnable]).
+ *
+ * The single definition of "there is work" — [OcrStore.hasRunnableTasks] and the app-side launch /
+ * enable resume both come through here, so the two can never drift apart (KUN -->).
+ */
+fun hasRunnableStatuses(statuses: Iterable<OcrQueueStatus>): Boolean = statuses.any { it.isRunnable() }

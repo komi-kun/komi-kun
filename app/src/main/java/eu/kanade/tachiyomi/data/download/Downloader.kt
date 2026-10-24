@@ -12,6 +12,7 @@ import eu.kanade.tachiyomi.data.cache.ChapterCache
 import eu.kanade.tachiyomi.data.download.model.Download
 import eu.kanade.tachiyomi.data.library.LibraryUpdateNotifier
 import eu.kanade.tachiyomi.data.notification.NotificationHandler
+import eu.kanade.tachiyomi.data.ocr.OcrRuntimePolicy
 import eu.kanade.tachiyomi.data.ocr.OcrWorker
 import eu.kanade.tachiyomi.network.HttpException
 import eu.kanade.tachiyomi.source.UnmeteredSource
@@ -63,6 +64,7 @@ import mihon.core.ocr.cache.OcrManager
 import nl.adaptivity.xmlutil.serialization.XML
 import okhttp3.Response
 import tachiyomi.core.common.i18n.stringResource
+import tachiyomi.core.common.preference.DictionaryOcrPreferences
 import tachiyomi.core.common.util.system.ImageUtil
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.core.metadata.comicinfo.COMIC_INFO_FILE
@@ -106,6 +108,8 @@ class Downloader(
     // KUN -->
     private val ocrManager: OcrManager,
     private val ocrPreferences: OcrPreferences,
+    /** The combined dictionary/OCR opt-in: nothing OCR-related may be queued while it is off. */
+    private val dictionaryOcrPreferences: DictionaryOcrPreferences,
     // KUN <--
 ) {
     /**
@@ -550,20 +554,31 @@ class Downloader(
             DiskUtil.createNoMediaFile(tmpDir, context)
 
             // KUN -->
-            // OCR hooks (03 §5.4): promote a chapter that was queued while downloading; otherwise
-            // auto-queue when the preference is on. Either way kick the OCR worker so the queue drains.
+            // OCR hooks (03 §5.4). Two different rules:
+            //  * the queue **metadata** is always maintained (`markChapterReadyForOcr` is called
+            //    unconditionally, even while the combined dictionary/OCR opt-in is off), so a
+            //    chapter queued before the switch was turned off is promoted rather than stranded
+            //    at WAITING_DOWNLOAD. It is not a policy decision, so there is no `enabled` argument
+            //    that could gate it; `OcrManager.markChapterReadyForOcr` is itself ungated.
+            //  * the **actions** (auto-queue, worker start) follow `OcrRuntimePolicy`, which is off
+            //    whenever the switch is off — promotion alone never starts OCR work.
+            val ocrEnabled = dictionaryOcrPreferences.isEnabled()
             val promotedForOcr = ocrManager.markChapterReadyForOcr(download.chapter.id)
-            val autoQueueOcr = !promotedForOcr && ocrPreferences.autoOnDownload.get()
+            val ocrActions = OcrRuntimePolicy.downloadActions(
+                enabled = ocrEnabled,
+                promoted = promotedForOcr,
+                autoOnDownload = ocrPreferences.autoOnDownload.get(),
+            )
             when {
-                promotedForOcr -> {
-                    logcat { "Downloader: promoted queued OCR for chapter=${download.chapter.id}" }
-                }
-                autoQueueOcr -> {
+                ocrActions.queue -> {
                     logcat { "Downloader: queued OCR after download for chapter=${download.chapter.id}" }
                     ocrManager.queueChapters(download.manga.id, listOf(download.chapter.id), waitForDownload = false)
                 }
+                promotedForOcr -> {
+                    logcat { "Downloader: promoted queued OCR for chapter=${download.chapter.id}" }
+                }
             }
-            if (promotedForOcr || autoQueueOcr) {
+            if (ocrActions.startWorker) {
                 OcrWorker.start(context)
             }
             // KUN <--

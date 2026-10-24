@@ -27,6 +27,7 @@ import kotlinx.coroutines.launch
 import mihon.app.di.appGraph
 import mihon.core.dictionary.anki.AnkiMiningController
 import mihon.core.dictionary.anki.AnkiPreferences
+import mihon.core.dictionary.anki.AnkiScreenshotProvider
 import mihon.core.dictionary.model.DictionaryProfile
 import mihon.core.dictionary.model.DictionaryStyle
 import mihon.core.dictionary.model.LookupResult
@@ -87,7 +88,7 @@ fun DictionaryEntryWebView(
     onAnkiLookup: ((LookupResult, Int?, String?, String?, Boolean) -> Unit)? = null,
     ankiSentence: String = "",
     ankiSentenceOffset: Int = -1,
-    ankiScreenshotProvider: (() -> ByteArray?)? = null,
+    ankiScreenshotProvider: AnkiScreenshotProvider? = null,
     // KUN <--
 ) {
     val context = LocalContext.current
@@ -330,7 +331,7 @@ fun DictionaryEntryWebView(
                                     forceOpen = forceOpen,
                                     sentence = ankiSentence,
                                     offset = ankiSentenceOffset,
-                                    screenshotBytes = ankiScreenshotProvider?.invoke(),
+                                    screenshotBytes = ankiScreenshotProvider?.capture(),
                                 )
                             }
                         }
