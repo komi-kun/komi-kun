@@ -61,7 +61,7 @@ class OcrDisplayScaleTest {
         ).readText()
 
         Regex("""valueRange\s*=\s*OcrDisplayScale\.PERCENT_RANGE""").findAll(settings).count() shouldBe 2
-        settings.contains("50..150") shouldBe false
+        Regex("""50\s*\.\.\s*150""").containsMatchIn(settings) shouldBe false
     }
 }
 // KUN <--
