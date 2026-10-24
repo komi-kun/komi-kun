@@ -13,12 +13,6 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.runBlocking
 import mihon.core.dictionary.engine.DictionaryEngine
 import mihon.core.dictionary.engine.DictionarySession
@@ -38,8 +32,7 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import tachiyomi.core.common.preference.DictionaryOcrPreferences
-import tachiyomi.core.common.preference.Preference
-import tachiyomi.core.common.preference.PreferenceStore
+import tachiyomi.core.common.preference.InMemoryPreferenceStore
 import java.io.File
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
@@ -269,14 +262,17 @@ class DictionaryImportCoordinatorTest {
         val engine = FakeEngine(succeeds = engineSucceeds)
         return Harness(
             context = context,
-            prefs = DictionaryPreferences(PersistingPreferenceStore()),
+            // The shared fakes: `InMemoryPreferenceStore` writes through by key (like the real
+            // `AndroidPreferenceStore`), so profiles written by the coordinator are read back by the
+            // same store — no test-local `PreferenceStore` reimplementation needed.
+            prefs = DictionaryPreferences(InMemoryPreferenceStore()),
             engine = engine,
             // The import/delete call sites only do engine work when the user has opted in; with the
             // switch off `probeEntryTypes`/`importDictionary` short-circuit (`:core:dictionary` gate).
             repository = DictionaryRepository(
                 engine,
                 context,
-                DictionaryOcrPreferences(PersistingPreferenceStore()).apply { choose(true) },
+                DictionaryOcrPreferences(InMemoryPreferenceStore()).apply { choose(true) },
             ),
         )
     }
@@ -398,78 +394,4 @@ private val SAMPLE_RESULT = LookupResult(
     ),
     preprocessorSteps = 0,
 )
-/** Map-backed [PreferenceStore] that persists writes (the in-memory one drops unseeded keys). */
-private class PersistingPreferenceStore : PreferenceStore {
-    private val values = mutableMapOf<String, Any?>()
-
-    private fun <T : Any> pref(key: String, default: T): Preference<T> = object : Preference<T> {
-        @Suppress("UNCHECKED_CAST")
-        override fun get(): T = (values[key] as? T) ?: default
-        override fun set(value: T) {
-            values[key] = value
-        }
-        override fun key(): String = key
-        override fun isSet(): Boolean = values.containsKey(key)
-        override fun delete() {
-            values.remove(key)
-        }
-        override fun defaultValue(): T = default
-        override fun changes(): Flow<T> = flow { emit(get()) }
-        override fun stateIn(scope: CoroutineScope): StateFlow<T> =
-            changes().stateIn(scope, SharingStarted.Eagerly, get())
-    }
-
-    private fun <T, S> serialized(key: String, default: T, serialize: (T) -> S, deserialize: (S) -> T): Preference<T> =
-        object : Preference<T> {
-            @Suppress("UNCHECKED_CAST")
-            override fun get(): T = (values[key] as? S)?.let(deserialize) ?: default
-            override fun set(value: T) {
-                values[key] = serialize(value)
-            }
-            override fun key(): String = key
-            override fun isSet(): Boolean = values.containsKey(key)
-            override fun delete() {
-                values.remove(key)
-            }
-            override fun defaultValue(): T = default
-            override fun changes(): Flow<T> = flow { emit(get()) }
-            override fun stateIn(scope: CoroutineScope): StateFlow<T> =
-                changes().stateIn(scope, SharingStarted.Eagerly, get())
-        }
-
-    override fun getString(key: String, defaultValue: String) = pref(key, defaultValue)
-    override fun getLong(key: String, defaultValue: Long) = pref(key, defaultValue)
-    override fun getInt(key: String, defaultValue: Int) = pref(key, defaultValue)
-    override fun getFloat(key: String, defaultValue: Float) = pref(key, defaultValue)
-    override fun getBoolean(key: String, defaultValue: Boolean) = pref(key, defaultValue)
-    override fun getStringSet(key: String, defaultValue: Set<String>) = pref(key, defaultValue)
-
-    override fun <T> getObjectFromString(
-        key: String,
-        defaultValue: T,
-        serializer: (T) -> String,
-        deserializer: (String) -> T,
-    ): Preference<T> = serialized(key, defaultValue, serializer, deserializer)
-
-    override fun <T> getObjectFromInt(
-        key: String,
-        defaultValue: T,
-        serializer: (T) -> Int,
-        deserializer: (Int) -> T,
-    ): Preference<T> = serialized(key, defaultValue, serializer, deserializer)
-
-    override fun <T> getObjectSetFromStringSet(
-        key: String,
-        defaultValue: Set<T>,
-        serializer: (T) -> String,
-        deserializer: (String) -> T?,
-    ): Preference<Set<T>> = serialized<Set<T>, Set<String>>(
-        key,
-        defaultValue,
-        serialize = { it.map(serializer).toSet() },
-        deserialize = { it.mapNotNull(deserializer).toSet() },
-    )
-
-    override fun getAll(): Map<String, *> = values
-}
 // KUN <--

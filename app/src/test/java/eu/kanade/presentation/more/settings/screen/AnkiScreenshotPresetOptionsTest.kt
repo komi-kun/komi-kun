@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-or-later
 // KUN -->
 // The Anki screenshot crop-preset vocabulary the settings picker offers, pinned against what the
 // reader can actually resolve (`CropPresets`) and against the preference's default.

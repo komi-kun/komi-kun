@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-or-later
 // KUN -->
 // The one-time dictionary/OCR opt-in shown on the first launch after a pre-feature upgrade.
 //

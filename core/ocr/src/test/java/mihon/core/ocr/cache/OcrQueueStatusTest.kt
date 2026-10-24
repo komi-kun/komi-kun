@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-or-later
 // KUN -->
 // The single "there is work a queue run would pick up" predicate (`hasRunnableStatuses`). It backs
 // `OcrStore.hasRunnableTasks` — which the app's launch/enable resume and `OcrWorker.doWork` gate on —
@@ -28,9 +28,19 @@ class OcrQueueStatusTest {
 
     @Test
     fun `every status is classified either runnable or not`() {
-        // Exhaustive on purpose: adding a status without deciding whether a run picks it up is the
-        // failure mode this catches.
-        val runnable = OcrQueueStatus.entries.filter { it.isRunnable() }
-        runnable shouldBe listOf(OcrQueueStatus.PENDING, OcrQueueStatus.PROCESSING)
+        // `isRunnable` is an exhaustive `when` over the enum, so a status added later does not compile
+        // until it is classified. This pin states *both* halves, so a wrong classification fails too:
+        // `WAITING_DOWNLOAD` drifting into "runnable" would raise the foreground worker for a queue
+        // that only waits on downloads, and dropping `PROCESSING` would let a run stop resuming its
+        // own in-flight task.
+        OcrQueueStatus.entries.filter { it.isRunnable() } shouldBe
+            listOf(OcrQueueStatus.PENDING, OcrQueueStatus.PROCESSING)
+        OcrQueueStatus.entries.filterNot { it.isRunnable() } shouldBe
+            listOf(
+                OcrQueueStatus.WAITING_DOWNLOAD,
+                OcrQueueStatus.COMPLETED,
+                OcrQueueStatus.ERROR,
+                OcrQueueStatus.CANCELLED,
+            )
     }
 }

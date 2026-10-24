@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-or-later
 // KUN -->
 // Contract tests for the dictionary/OCR opt-in preference. One key is both the master state and the
 // explicit-choice flag: a fresh install is off *and* unasked; an explicit accept or decline is

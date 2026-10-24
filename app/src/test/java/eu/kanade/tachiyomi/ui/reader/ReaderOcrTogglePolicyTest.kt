@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-or-later
 // KUN -->
 // `ReaderViewModel.toggleOcrOverlay()` is Android-bound (it is a Metro-assisted ViewModel with ~30
 // dependencies), so the decision it makes is tested here instead: off means "no write", on means

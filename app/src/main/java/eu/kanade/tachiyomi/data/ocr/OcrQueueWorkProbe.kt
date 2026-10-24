@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-or-later
 // KUN -->
 // The app-side seam over the persisted OCR queue: "is there work a queue run would pick up?".
 //

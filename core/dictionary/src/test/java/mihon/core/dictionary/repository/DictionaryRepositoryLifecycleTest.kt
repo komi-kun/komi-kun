@@ -42,8 +42,10 @@ import kotlin.concurrent.thread
  * traced for in-use overlap, use-after-close, and a close that lands while a call is in flight; each
  * of those is a real native use-after-free in `hoshidicts_jni`.
  *
- * Not covered here (no JVM-reachable seam): the app hooks `App.onStop`; the coordinator call site is
- * covered by `app/src/test/.../DictionaryImportCoordinatorTest.kt`.
+ * Not covered here (no JVM-reachable seam): the app-side session owner (`DictionarySessionOwner`,
+ * started in `App.onCreate`) and the `App.onTrimMemory` release; the owner's transition rule is
+ * tested by `app/src/test/.../DictionarySessionOwnerTest.kt`, the coordinator call site by
+ * `app/src/test/.../DictionaryImportCoordinatorTest.kt`.
  */
 class DictionaryRepositoryLifecycleTest {
 
@@ -292,7 +294,7 @@ class DictionaryRepositoryLifecycleTest {
                     repeat(50) { i -> repository.lookup("w$worker-$i", if (i % 7 == 0) other else paths) }
                 }
             }
-            // The `App.onStop` path: a bare close, not wrapped in a mutation.
+            // The app-side owner / `onTrimMemory` path: a bare close, not wrapped in a mutation.
             val closers = (0 until 2).map {
                 launch(Dispatchers.Default) { repeat(50) { repository.close() } }
             }

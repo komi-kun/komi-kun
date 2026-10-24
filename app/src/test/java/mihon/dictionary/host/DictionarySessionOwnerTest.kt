@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-or-later
 // KUN -->
 // The session-release rule of the dictionary opt-in: the native session must be released when the
 // user turns the switch **off**, immediately, and nothing else may release it. The real preference

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Track B OCR device check: stock-variant download/switch + on-device OCR latency.
 
 This is a *verification* helper, not production code. It automates the two PR #7 gaps that can only

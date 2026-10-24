@@ -229,12 +229,14 @@ object SettingsOcrScreen : SearchableSettings {
                         subtitle = stringResource(KUNMR.strings.pref_show_ocr_text_summary),
                     ),
                     // Overlay text size: the calibrated default matches the printed lettering, and
-                    // manga fonts vary enough that the reader needs a nudge (KUN).
+                    // manga fonts vary enough that the reader needs a nudge (KUN). Range from
+                    // `OcrDisplayScale`, the same object `OcrOverlay` converts with, so the slider
+                    // cannot offer a value the drawing clamps away.
                     Preference.PreferenceItem.SliderPreference(
                         preference = readerPreferences.ocrTextScale,
                         title = stringResource(KUNMR.strings.pref_ocr_text_scale),
                         subtitle = stringResource(KUNMR.strings.pref_ocr_text_scale_summary),
-                        valueRange = 50..150,
+                        valueRange = OcrDisplayScale.PERCENT_RANGE,
                         valueText = { "$it%" },
                     ),
                     // KUN -->
