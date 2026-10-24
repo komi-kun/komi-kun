@@ -1,0 +1,963 @@
+{
+  "spdx": "GPL-3.0-or-later",
+  "description": "Expectations the vendored hoshidicts engine does not meet today, recorded per corpus row. YomitanCorpusTest (T1) validates the corpus itself; YomitanEngineConformanceTest (T2) re-derives every verdict and fails both on an unlisted failure and on a listed row that starts passing, so this file can never hide a regression and never goes stale silently.",
+  "entryFormat": "corpus: corpus file name; index: 0-based line index in that file; subject: the row's identity field (transforms: source, normalization: op); detail: the row's expected value (transforms: term, normalization: input); gap: key into gaps.",
+  "yomitan": {
+    "commit": "e7334a96106a6c74e6fa75bd33a5ea1219d92712",
+    "commitShort": "e7334a9"
+  },
+  "gaps": {
+    "historical-kana-forms-unsupported": "The engine's deinflection rules carry only modern kana forms; Yomitan also lists 歴史的仮名遣い source variants (は行→わ行, ひ→い, ふ→う, ゐ→い, and やう/ませう/さう/からう + う), so these rows have no candidate in the engine.",
+    "missing-transform-group:-やしない": "Yomitan has a `-やしない` transform (やしない/やしません/やしない+た → る); the vendored `Deinflector::init_transforms` has no such group.",
+    "missing-transform-group:-ふ": "Yomitan has a `-ふ` transform (ふ→う, and う/よう volitional); the vendored `Deinflector::init_transforms` has no such group.",
+    "single-character-input-identity-only": "`Deinflector::deinflect` returns only the identity candidate when the input is shorter than two code points (`if (text_len > 1) … else result.emplace_back(text, NONE, trace)`), so a single-character source (し, 来, 來, き) can never reach its dictionary form.",
+    "katakana-to-hiragana-keep-prolonged-sound-marks-unsupported": "`katakana_to_hiragana` in the engine's `text_processor.cpp` always rewrites the prolonged sound mark to the preceding vowel; the engine exposes no `keepProlongedSoundMarks` mode."
+  },
+  "entries": [
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 2,
+      "subject": "愛しさう",
+      "detail": "愛しい",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 20,
+      "subject": "愛しからう",
+      "detail": "愛しい",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 51,
+      "subject": "食べさう",
+      "detail": "食べる",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 69,
+      "subject": "食べませう",
+      "detail": "食べる",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 72,
+      "subject": "食べやう",
+      "detail": "食べる",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 81,
+      "subject": "食べてゐる",
+      "detail": "食べる",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 90,
+      "subject": "食べやしない",
+      "detail": "食べる",
+      "gap": "missing-transform-group:-やしない"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 91,
+      "subject": "食べやしません",
+      "detail": "食べる",
+      "gap": "missing-transform-group:-やしない"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 122,
+      "subject": "買ひさう",
+      "detail": "買う",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 140,
+      "subject": "買いませう",
+      "detail": "買う",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 143,
+      "subject": "買はう",
+      "detail": "買う",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 152,
+      "subject": "買ってゐる",
+      "detail": "買う",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 161,
+      "subject": "買いやしない",
+      "detail": "買う",
+      "gap": "missing-transform-group:-やしない"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 162,
+      "subject": "買いやしません",
+      "detail": "買う",
+      "gap": "missing-transform-group:-やしない"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 197,
+      "subject": "行きさう",
+      "detail": "行く",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 215,
+      "subject": "行きませう",
+      "detail": "行く",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 218,
+      "subject": "行かう",
+      "detail": "行く",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 227,
+      "subject": "行ってゐる",
+      "detail": "行く",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 236,
+      "subject": "行きやしない",
+      "detail": "行く",
+      "gap": "missing-transform-group:-やしない"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 237,
+      "subject": "行きやしません",
+      "detail": "行く",
+      "gap": "missing-transform-group:-やしない"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 272,
+      "subject": "泳ぎさう",
+      "detail": "泳ぐ",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 290,
+      "subject": "泳ぎませう",
+      "detail": "泳ぐ",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 293,
+      "subject": "泳がう",
+      "detail": "泳ぐ",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 302,
+      "subject": "泳いでゐる",
+      "detail": "泳ぐ",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 310,
+      "subject": "泳ぎやしない",
+      "detail": "泳ぐ",
+      "gap": "missing-transform-group:-やしない"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 311,
+      "subject": "泳ぎやしません",
+      "detail": "泳ぐ",
+      "gap": "missing-transform-group:-やしない"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 346,
+      "subject": "話しさう",
+      "detail": "話す",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 364,
+      "subject": "話しませう",
+      "detail": "話す",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 367,
+      "subject": "話さう",
+      "detail": "話す",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 375,
+      "subject": "話してゐる",
+      "detail": "話す",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 384,
+      "subject": "話しやしない",
+      "detail": "話す",
+      "gap": "missing-transform-group:-やしない"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 385,
+      "subject": "話しやしません",
+      "detail": "話す",
+      "gap": "missing-transform-group:-やしない"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 424,
+      "subject": "待ちさう",
+      "detail": "待つ",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 442,
+      "subject": "待ちませう",
+      "detail": "待つ",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 445,
+      "subject": "待たう",
+      "detail": "待つ",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 454,
+      "subject": "待ってゐる",
+      "detail": "待つ",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 463,
+      "subject": "待ちやしない",
+      "detail": "待つ",
+      "gap": "missing-transform-group:-やしない"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 464,
+      "subject": "待ちやしません",
+      "detail": "待つ",
+      "gap": "missing-transform-group:-やしない"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 499,
+      "subject": "死にさう",
+      "detail": "死ぬ",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 517,
+      "subject": "死にませう",
+      "detail": "死ぬ",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 520,
+      "subject": "死なう",
+      "detail": "死ぬ",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 529,
+      "subject": "死んでゐる",
+      "detail": "死ぬ",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 537,
+      "subject": "死にやしない",
+      "detail": "死ぬ",
+      "gap": "missing-transform-group:-やしない"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 538,
+      "subject": "死にやしません",
+      "detail": "死ぬ",
+      "gap": "missing-transform-group:-やしない"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 573,
+      "subject": "遊びさう",
+      "detail": "遊ぶ",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 591,
+      "subject": "遊びませう",
+      "detail": "遊ぶ",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 594,
+      "subject": "遊ばう",
+      "detail": "遊ぶ",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 603,
+      "subject": "遊んでゐる",
+      "detail": "遊ぶ",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 611,
+      "subject": "遊びやしない",
+      "detail": "遊ぶ",
+      "gap": "missing-transform-group:-やしない"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 612,
+      "subject": "遊びやしません",
+      "detail": "遊ぶ",
+      "gap": "missing-transform-group:-やしない"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 647,
+      "subject": "飲みさう",
+      "detail": "飲む",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 665,
+      "subject": "飲みませう",
+      "detail": "飲む",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 668,
+      "subject": "飲まう",
+      "detail": "飲む",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 677,
+      "subject": "飲んでゐる",
+      "detail": "飲む",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 685,
+      "subject": "飲みやしない",
+      "detail": "飲む",
+      "gap": "missing-transform-group:-やしない"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 686,
+      "subject": "飲みやしません",
+      "detail": "飲む",
+      "gap": "missing-transform-group:-やしない"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 721,
+      "subject": "作りさう",
+      "detail": "作る",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 737,
+      "subject": "作りませう",
+      "detail": "作る",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 740,
+      "subject": "作らう",
+      "detail": "作る",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 749,
+      "subject": "作ってゐる",
+      "detail": "作る",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 758,
+      "subject": "作りやしない",
+      "detail": "作る",
+      "gap": "missing-transform-group:-やしない"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 759,
+      "subject": "作りやしません",
+      "detail": "作る",
+      "gap": "missing-transform-group:-やしない"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 807,
+      "subject": "為さう",
+      "detail": "為る",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 824,
+      "subject": "為ませう",
+      "detail": "為る",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 827,
+      "subject": "為やう",
+      "detail": "為る",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 836,
+      "subject": "為てゐる",
+      "detail": "為る",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 881,
+      "subject": "しさう",
+      "detail": "する",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 897,
+      "subject": "し",
+      "detail": "する",
+      "gap": "single-character-input-identity-only"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 899,
+      "subject": "しませう",
+      "detail": "する",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 902,
+      "subject": "しやう",
+      "detail": "する",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 912,
+      "subject": "してゐる",
+      "detail": "する",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 921,
+      "subject": "しやしない",
+      "detail": "する",
+      "gap": "missing-transform-group:-やしない"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 922,
+      "subject": "しやしません",
+      "detail": "する",
+      "gap": "missing-transform-group:-やしない"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 923,
+      "subject": "為やしない",
+      "detail": "為る",
+      "gap": "missing-transform-group:-やしない"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 924,
+      "subject": "為やしません",
+      "detail": "為る",
+      "gap": "missing-transform-group:-やしない"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 959,
+      "subject": "来さう",
+      "detail": "来る",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 975,
+      "subject": "来",
+      "detail": "来る",
+      "gap": "single-character-input-identity-only"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 977,
+      "subject": "来ませう",
+      "detail": "来る",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 980,
+      "subject": "来やう",
+      "detail": "来る",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 989,
+      "subject": "来てゐる",
+      "detail": "来る",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1028,
+      "subject": "來さう",
+      "detail": "來る",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1044,
+      "subject": "來",
+      "detail": "來る",
+      "gap": "single-character-input-identity-only"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1046,
+      "subject": "來ませう",
+      "detail": "來る",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1049,
+      "subject": "來やう",
+      "detail": "來る",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1058,
+      "subject": "來てゐる",
+      "detail": "來る",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1097,
+      "subject": "きさう",
+      "detail": "くる",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1113,
+      "subject": "き",
+      "detail": "くる",
+      "gap": "single-character-input-identity-only"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1115,
+      "subject": "きませう",
+      "detail": "くる",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1118,
+      "subject": "こやう",
+      "detail": "くる",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1127,
+      "subject": "きてゐる",
+      "detail": "くる",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1136,
+      "subject": "きやしない",
+      "detail": "くる",
+      "gap": "missing-transform-group:-やしない"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1137,
+      "subject": "きやしません",
+      "detail": "くる",
+      "gap": "missing-transform-group:-やしない"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1138,
+      "subject": "来やしない",
+      "detail": "来る",
+      "gap": "missing-transform-group:-やしない"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1139,
+      "subject": "来やしません",
+      "detail": "来る",
+      "gap": "missing-transform-group:-やしない"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1184,
+      "subject": "論じさう",
+      "detail": "論ずる",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1201,
+      "subject": "論じませう",
+      "detail": "論ずる",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1203,
+      "subject": "論じやう",
+      "detail": "論ずる",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1208,
+      "subject": "論じてゐる",
+      "detail": "論ずる",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1217,
+      "subject": "論じやしない",
+      "detail": "論ずる",
+      "gap": "missing-transform-group:-やしない"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1218,
+      "subject": "論じやしません",
+      "detail": "論ずる",
+      "gap": "missing-transform-group:-やしない"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1367,
+      "subject": "食べないでゐる",
+      "detail": "食べる",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1371,
+      "subject": "食べやしませんでした",
+      "detail": "食べる",
+      "gap": "missing-transform-group:-やしない"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1372,
+      "subject": "食べやしなかった",
+      "detail": "食べる",
+      "gap": "missing-transform-group:-やしない"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1373,
+      "subject": "食べやしねえ",
+      "detail": "食べる",
+      "gap": "missing-transform-group:-やしない"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1374,
+      "subject": "思ふ",
+      "detail": "思う",
+      "gap": "missing-transform-group:-ふ"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1375,
+      "subject": "思へば",
+      "detail": "思う",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1376,
+      "subject": "思はず",
+      "detail": "思う",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1377,
+      "subject": "思はぬ",
+      "detail": "思う",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1378,
+      "subject": "思はん",
+      "detail": "思う",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1379,
+      "subject": "思はんばかり",
+      "detail": "思う",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1380,
+      "subject": "思はんとする",
+      "detail": "思う",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1381,
+      "subject": "思はむ",
+      "detail": "思う",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1382,
+      "subject": "思はざる",
+      "detail": "思う",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1383,
+      "subject": "思はねば",
+      "detail": "思う",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1384,
+      "subject": "思はせる",
+      "detail": "思う",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1385,
+      "subject": "思はす",
+      "detail": "思う",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1386,
+      "subject": "思へ",
+      "detail": "思う",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1387,
+      "subject": "思ひ",
+      "detail": "思う",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1388,
+      "subject": "思はない",
+      "detail": "思う",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1389,
+      "subject": "思はれる",
+      "detail": "思う",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1390,
+      "subject": "思ひます",
+      "detail": "思う",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1391,
+      "subject": "思ひやしない",
+      "detail": "思う",
+      "gap": "missing-transform-group:-やしない"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1392,
+      "subject": "思ひやしません",
+      "detail": "思う",
+      "gap": "missing-transform-group:-やしない"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1393,
+      "subject": "思はう",
+      "detail": "思う",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1394,
+      "subject": "思ひなさい",
+      "detail": "思う",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1395,
+      "subject": "思ひすぎる",
+      "detail": "思う",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1396,
+      "subject": "思ひ過ぎる",
+      "detail": "思う",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1397,
+      "subject": "思ひたい",
+      "detail": "思う",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1398,
+      "subject": "思ひやがる",
+      "detail": "思う",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1399,
+      "subject": "思はせられたくない",
+      "detail": "思う",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1400,
+      "subject": "思ってしまふ",
+      "detail": "思う",
+      "gap": "missing-transform-group:-ふ"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1401,
+      "subject": "思ってしまひました",
+      "detail": "思う",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1402,
+      "subject": "思ってしまはう",
+      "detail": "思う",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-transforms.jsonl",
+      "index": 1403,
+      "subject": "思ってゐぬ",
+      "detail": "思う",
+      "gap": "historical-kana-forms-unsupported"
+    },
+    {
+      "corpus": "ja-normalization.jsonl",
+      "index": 10,
+      "subject": "convertKatakanaToHiragana",
+      "detail": "カーナー",
+      "gap": "katakana-to-hiragana-keep-prolonged-sound-marks-unsupported"
+    }
+  ]
+}

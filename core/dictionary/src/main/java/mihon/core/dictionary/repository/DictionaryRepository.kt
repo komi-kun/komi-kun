@@ -27,6 +27,21 @@ import java.util.LinkedHashMap
  * The session is opened lazily and rebuilt only when the dictionary set changes, so
  * [warmUp] is cheap to call on every reader/tab open. Provided by the app's
  * `DictionaryHostBindings` (contract §3.6c).
+ *
+ * KUN -->
+ * **Lifecycle.** `warmUp` only rebuilds when the *configured paths* or the profile change, so a
+ * re-import that replaces a dictionary under the same title (every path stays byte-identical) would
+ * otherwise keep the pre-import native query and its media paths for the rest of the process.
+ * The tree is therefore only mutated through [withDictionaryTreeMutation], which drops the session
+ * first and keeps this repository's monitor held for the delete-and-copy; the app lifecycle
+ * (`App.onStop`) also closes it, because an open session pins the parsed dictionaries in the native
+ * heap for as long as the process lives.
+ *
+ * Every session call is serialised by this object's monitor ([warmUp]/[lookup]/[close] and
+ * [withDictionaryTreeMutation] are `@Synchronized`), and `session` is nulled in the same critical
+ * section that runs the native `destroySession`, so [close] can never free a handle a running call
+ * still uses and no call ever starts against a closed handle.
+ * KUN <--
  */
 class DictionaryRepository(
     private val engine: DictionaryEngine,
@@ -40,7 +55,17 @@ class DictionaryRepository(
     /** False on an ABI without the native library; callers degrade to an empty lookup. */
     val isAvailable: Boolean get() = engine.isAvailable
 
-    /** Import a Yomitan ZIP through the engine (02 §6.2). Not `@Synchronized`: heavy + suspend. */
+    /**
+     * Import a Yomitan ZIP through the engine (02 §6.2). Not `@Synchronized`: heavy + suspend.
+     *
+     * KUN -->
+     * [outputDir] is **scratch only**: the engine writes the imported dictionary there and never
+     * into the live dictionary tree, which is why the call does not take the session monitor and does
+     * not invalidate the open session. Callers move the result into place through
+     * [withDictionaryTreeMutation]; anything that writes inside the live tree outside that operation
+     * can be read by a concurrent lookup.
+     * KUN <--
+     */
     suspend fun importDictionary(
         zip: File,
         outputDir: File,
@@ -90,6 +115,10 @@ class DictionaryRepository(
             .getOrNull()
     }
 
+    /**
+     * Close the session and forget its cached state; the next [warmUp]/[lookup] reopens it.
+     * Idempotent, so it is safe from a lifecycle hook (see the class doc).
+     */
     @Synchronized
     fun close() {
         session?.close()
@@ -98,6 +127,33 @@ class DictionaryRepository(
         cachedStyles = emptyList()
         lastWarmedProfileId = ""
     }
+
+    // KUN -->
+    /**
+     * Run [mutation] — the delete-and-copy of the on-disk dictionary tree — with every session call
+     * excluded, so no lookup or media read can observe a half-replaced tree:
+     *
+     *  1. the open session is destroyed *before* [mutation] starts,
+     *  2. [mutation] runs with this repository's monitor held, so a concurrent [lookup] waits for it
+     *     and then reopens lazily against the new tree, and
+     *  3. the session is left closed afterwards, so a same-title re-import — whose paths are
+     *     byte-identical — is served from the new files instead of the pre-import native query.
+     *
+     * If [mutation] throws, the exception propagates and the session stays closed: a partially
+     * copied tree is never served from a stale query, and the next lookup rebuilds from whatever is
+     * actually on disk. Reentrant with the other `@Synchronized` members, so [mutation] must not
+     * call back into this repository.
+     */
+    @Synchronized
+    fun <T> withDictionaryTreeMutation(mutation: () -> T): T {
+        close()
+        try {
+            return mutation()
+        } finally {
+            close()
+        }
+    }
+    // KUN <--
 
     private fun buildMediaDataUris(
         activeSession: DictionarySession,
