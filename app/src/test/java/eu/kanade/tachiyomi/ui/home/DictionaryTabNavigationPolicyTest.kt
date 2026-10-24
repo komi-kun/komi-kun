@@ -1,8 +1,10 @@
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-or-later
 // KUN -->
 // The dictionary-tab navigation rules `HomeScreen` and `DictionaryTab` apply, executed as pure
-// decisions (no Compose harness exists, so the policy is what the navigation actually calls), plus a
-// wiring check that those call sites still go through it.
+// decisions (no Compose harness exists, so the policy is what the navigation calls), plus a
+// **source-level call-site guard** (not a behavioural test) that those call sites still go through
+// it. **Residual gap:** no test here composes the bottom bar/rail or runs `HomeScreen.openTab`, so
+// the decision being called is guarded but its effect on a real navigation graph is not.
 //
 // There is **no** dictionary shortcut or intent action in this repo today: the direct-event fallback
 // exists because `HomeScreen.openTab(tab)` is public, so any caller can ask for the tab even while
@@ -15,8 +17,8 @@ import eu.kanade.tachiyomi.ui.library.LibraryTab
 import eu.kanade.tachiyomi.ui.more.MoreTab
 import eu.kanade.tachiyomi.ui.updates.UpdatesTab
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.string.shouldContain
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.fail
 import java.io.File
 
 class DictionaryTabNavigationPolicyTest {
@@ -58,22 +60,36 @@ class DictionaryTabNavigationPolicyTest {
         tabs.filter { DictionaryTabNavigationPolicy.isVisible(it, enabled = true) } shouldBe tabs
     }
 
-    // ---------------------------------------------------------------- call-site wiring
+    // ---------------------------------------------------------------- call-site guard (source text)
 
     /**
-     * The rules above are only worth testing if the navigation actually calls them. These assert the
-     * call sites a refactor can silently drop: the tab's own gate, and HomeScreen's shared tab filter
-     * (without it the tab stays in the bottom bar and the rail for every opted-out user).
+     * **Source-level guard, not a behavioural test.** The rules above only matter if the navigation
+     * calls them, and the call sites live in Compose code with no harness here, so this reads the
+     * two files and tolerates any whitespace between tokens. It asserts the uses a refactor can
+     * silently drop: the tab's own gate, and HomeScreen's shared tab filter (without it the tab stays
+     * in the bottom bar and the rail for every opted-out user). Whether the filtered list actually
+     * reaches the navigation UI at runtime stays unverified.
      */
     @Test
-    fun `DictionaryTab and HomeScreen delegate to the policy`() {
+    fun `source guard - DictionaryTab and HomeScreen call the policy`() {
         val tab = File("src/main/java/eu/kanade/tachiyomi/ui/dictionary/DictionaryTab.kt").readText()
-        tab shouldContain "DictionaryTabNavigationPolicy.isTabVisible(enabled)"
+        tab shouldContainSource """DictionaryTabNavigationPolicy\.isTabVisible\(\s*enabled\s*\)"""
 
         val home = File("src/main/java/eu/kanade/tachiyomi/ui/home/HomeScreen.kt").readText()
-        home shouldContain "DictionaryTabNavigationPolicy.isVisible(it, dictionaryOcrEnabled)"
-        home shouldContain "DictionaryTabNavigationPolicy.directEventTarget(dictionaryOcrEnabled)"
-        home shouldContain "DictionaryTabNavigationPolicy.mustFallBackToLibrary("
+        // Argument order is not asserted (the parameter names make a swap a compile error anyway).
+        home shouldContainSource """DictionaryTabNavigationPolicy\.isVisible\("""
+        home shouldContainSource """DictionaryTabNavigationPolicy\.directEventTarget\("""
+        home shouldContainSource """DictionaryTabNavigationPolicy\.mustFallBackToLibrary\("""
+    }
+}
+
+/**
+ * Whitespace-tolerant source assertion: [pattern] must occur somewhere in this text. Local because
+ * kotest's `shouldMatch` requires a match against the *whole* string, which a `.kt` file never is.
+ */
+private infix fun String.shouldContainSource(pattern: String) {
+    if (!Regex(pattern).containsMatchIn(this)) {
+        fail("expected the source to contain /$pattern/")
     }
 }
 // KUN <--

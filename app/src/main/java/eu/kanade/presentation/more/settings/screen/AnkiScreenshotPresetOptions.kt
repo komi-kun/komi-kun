@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-or-later
 // KUN -->
 // The vocabulary of the Anki screenshot crop-preset preference (`pref_anki_crop_preset`).
 //

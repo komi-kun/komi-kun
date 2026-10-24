@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-or-later
 // KUN -->
 // The five product states of the combined dictionary/OCR opt-in, driven through the *real*
 // preference (`DictionaryOcrPreferences` over an in-memory `PreferenceStore`) rather than a mock, so
@@ -14,8 +14,8 @@ package eu.kanade.tachiyomi.ui.more.setup
 
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.string.shouldContain
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.fail
 import tachiyomi.core.common.preference.DictionaryOcrPreferences
 import tachiyomi.core.common.preference.InMemoryPreferenceStore
 import java.io.File
@@ -263,20 +263,43 @@ class DictionaryOcrSetupPolicyTest {
             false
     }
 
-    // ---------------------------------------------------------------- call sites
+    // ---------------------------------------------------------------- call-site guard (source text)
 
     /**
-     * The ordering and the one-push guard above only hold if the screens go through the policy:
-     * `OnboardingScreen` must record the answer through `finishOnboarding` (answer before the
-     * completion flag) and `MainActivity` must ask `shouldShowUpgradeScreen` instead of inlining the
-     * surface comparison.
+     * **Source-level guard, not a behavioural test.** The ordering and the one-push guard above only
+     * hold if the screens go through the policy, and both screens are Compose/navigator-bound with no
+     * harness here, so this reads their sources (whitespace-tolerant regexes). `OnboardingScreen` must
+     * record through `finishOnboarding` — answer before the completion flag — and must **not** call the
+     * bare `recordOnboardingFinished` (that would mark onboarding complete for a fresh install before
+     * the answer exists); `MainActivity` must ask `shouldShowUpgradeScreen` instead of inlining the
+     * surface comparison. **Residual gap:** the runtime effect (the screen actually being pushed once,
+     * with these arguments) is unverified.
      */
     @Test
-    fun `OnboardingScreen and MainActivity delegate to the policy`() {
+    fun `source guard - OnboardingScreen and MainActivity call the policy`() {
         val onboarding = File("src/main/java/eu/kanade/tachiyomi/ui/more/OnboardingScreen.kt").readText()
-        onboarding shouldContain "DictionaryOcrSetupPolicy.finishOnboarding("
+        onboarding shouldContainSource """DictionaryOcrSetupPolicy\.finishOnboarding\("""
+        // The flag must be set inside the answer-writing call, never by itself.
+        onboarding shouldNotContainSource """DictionaryOcrSetupPolicy\.recordOnboardingFinished\("""
 
         val main = File("src/main/java/eu/kanade/tachiyomi/ui/main/MainActivity.kt").readText()
-        main shouldContain "DictionaryOcrSetupPolicy.shouldShowUpgradeScreen("
+        main shouldContainSource """DictionaryOcrSetupPolicy\.shouldShowUpgradeScreen\("""
+        main shouldContainSource """DictionaryOcrSetupPolicy\.resolve\("""
+    }
+}
+
+/**
+ * Whitespace-tolerant source assertions: the patterns must occur in the call-site text. Local because
+ * kotest's `shouldMatch` requires a match against the *whole* string, which a `.kt` file never is.
+ */
+private infix fun String.shouldContainSource(pattern: String) {
+    if (!Regex(pattern).containsMatchIn(this)) {
+        fail("expected the source to contain /$pattern/")
+    }
+}
+
+private infix fun String.shouldNotContainSource(pattern: String) {
+    if (Regex(pattern).containsMatchIn(this)) {
+        fail("expected the source NOT to contain /$pattern/")
     }
 }

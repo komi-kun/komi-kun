@@ -74,10 +74,18 @@ Exactly these source files, and nothing else (all import no GPL package):
   `recognitionEngine`/`OcrEngineType`). Owned by W1;
 - `app/…/ui/reader/ReaderActivity.kt`, `ReaderViewModel.kt`, `setting/ReaderPreferences.kt`,
   `setting/ReaderBottomButton.kt`, `eu.kanade.presentation.reader.appbars.ReaderAppBars.kt`;
+  `app/…/ui/reader/ReaderOcrTogglePolicy.kt` (the reader overlay toggle decision `ReaderViewModel`
+  calls from the same package — invisible to an import scan, so it is listed explicitly);
+- `core/common/…/preference/DictionaryOcrPreferences.kt` — the combined dictionary/OCR opt-in in
+  Apache `:core:common`; the GPL-free `ReaderActivity`/`ReaderViewModel` gate on it;
 - `domain/…/chapter/model/Chapter.kt`, `domain/…/chapter/model/ChapterUpdate.kt` (add `isOcrReady`);
   `data/…/migrations/54.sqm`, `data/…/chapter/ChapterMapper.kt`, `data/…/chapter.sq` (schema only).
 
-Everything else new or changed is **GPL-3.0-or-later** with an SPDX header. Viewer files
+Everything else new or changed is **GPL-3.0-or-later** with an SPDX header — including app-level
+helpers for the port (`OcrDisplayScale`, `OcrRuntimePolicy`, `DictionarySessionOwner`,
+`DictionaryOcrSetupPolicy`, `DictionaryTabNavigationPolicy`, `AnkiScreenshotPresetOptions`, …) and
+their tests: an Apache header on a new file is a claim of GPL-freedom that only the files above may
+make. Viewer files
 (`viewer/**`, `PagerViewer`, `WebtoonViewer`, `WebGpuViewer`, `*PageHolder`, `ReaderPageImageView`) and
 `app/…/presentation/reader/OcrOverlay.kt` are **GPL** because they construct the adapters/render blocks
 (04 §1.4–1.7); they are *not* in the GPL-free set. `OcrTextBlock` is GPL and never appears in a GPL-free

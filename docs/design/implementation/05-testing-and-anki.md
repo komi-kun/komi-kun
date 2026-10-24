@@ -286,10 +286,13 @@ From `AnkiDroidBridge.kt`; verify against current AnkiDroid before shipping.
   (`AnkiScreenshotSettings`, `pref_anki_crop_mode`/`pref_anki_crop_preset`), not from
   `AnkiPreferences.activeProfile()`: the settings screen's `ListPreference` runs its change callback
   (`persistActiveFromFlat()`) *before* writing the new value (`PreferenceItem.kt`), so the persisted
-  profile is one edit stale and "No screenshot" would keep capturing. Only the **mode** has UI
-  (`SettingsAnkiScreen.screenshotGroup`); no preset picker exists, so `pref_anki_crop_preset` stays
-  at its `"full"` default ⇒ no forced aspect, and `CROP` frames the block + margin. The preset
-  plumbing (`CropPresets` → `AnkiCropAspect`) is ready for a picker but is not user-selectable yet.
+  profile is one edit stale and "No screenshot" would keep capturing. Both the **mode** and the
+  **crop preset** have UI (`SettingsAnkiScreen.screenshotGroup`); the preset list is built from
+  `AnkiScreenshotPresetOptions` (the shared `CropPresets` vocabulary plus `"full"`), so the picker
+  can only offer keys the reader resolves. The default stays `"full"` ⇒ no forced aspect and `CROP`
+  frames the block + margin; a chosen key is mapped by `AnkiCropPresetAspect` (through
+  `CropPresets.aspectByKey`, pinned by `AnkiCropPresetAspectTest`) to the `AnkiCropAspect`
+  `AnkiScreenshotCrop` expands the block to.
 - **Sentence audio** — Chimahon's `AnkiSentenceAudio*` is **video-only** (FFmpeg extraction, track
   mapping). Manga has no audio source, so **port only the marker plumbing + a `null` provider**
   (`prepareSentenceAudioForMarker`, `AnkiSentenceAudio.kt:132-144`); `{sentence-audio}` renders `""`.

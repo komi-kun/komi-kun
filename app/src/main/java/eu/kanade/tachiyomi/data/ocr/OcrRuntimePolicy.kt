@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-or-later
 // KUN -->
 // The post-download OCR hook decisions and the OCR worker's run gate, as pure functions.
 //

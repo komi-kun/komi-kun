@@ -41,11 +41,9 @@ import eu.kanade.tachiyomi.ui.reader.ocr.ReaderOcrHost
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.ui.reader.viewer.popup.PopupSide
 import eu.kanade.tachiyomi.ui.reader.viewer.popup.popupSide
-import mihon.core.dictionary.anki.AnkiCropAspect
 import mihon.core.dictionary.anki.AnkiPreferences
 import mihon.core.dictionary.anki.AnkiScreenshotProvider
 import mihon.core.dictionary.anki.AnkiScreenshotSettings
-import mihon.core.ocr.CropPresets
 import mihon.core.ocr.OcrHitTester
 import mihon.core.ocr.OcrNormalizedBounds
 import mihon.core.ocr.model.OcrTextBlock
@@ -177,8 +175,7 @@ class ReaderOcrHostImpl(
      */
     private fun screenshotProviderFor(page: ReaderPage, block: OcrTextBlock): AnkiScreenshotProvider? {
         val mode = AnkiScreenshotSettings.mode(ankiPreferences)
-        val aspect = CropPresets.aspectByKey(AnkiScreenshotSettings.presetKey(ankiPreferences))
-            ?.let { AnkiCropAspect(it.x, it.y) }
+        val aspect = AnkiCropPresetAspect.fromKey(AnkiScreenshotSettings.presetKey(ankiPreferences))
         return ReaderOcrScreenshot.provider(page, block, mode, aspect)
     }
     // KUN <--
