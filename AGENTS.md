@@ -129,6 +129,7 @@ Version catalogs in `gradle/`: `libs.versions.toml`, `kotlinx.versions.toml`, `a
 | `i18n/` / `i18n-sy/` / `i18n-kmk/` | Strings → `MR` / `SYMR` / `KMR` (see [Internationalization](#internationalization-strings)) |
 | `flagkit/` | Country-flag drawables |
 | `icons:material-symbols/`, `icons:custom-material-symbols/`, `icons:simple-icons/` | Generated icon packs (`MaterialSymbols`, custom Material Symbols, Simple Icons) |
+| `icons-sy/` | Generated icon packs for TachiyomiSY sources (`SYMaterialSymbols`, `SYCustomMaterialSymbols`, `SYBrands`) — kept as SY ships them so upstream code needs no import rewrite |
 | `telemetry/` | Firebase/Crashlytics (noop unless `-Pinclude-telemetry`) |
 | `baseline-profile/` | Baseline profile and startup benchmark generation (CI-only) |
 | `buildSrc/` | Convention plugins and build logic |
@@ -312,6 +313,7 @@ Rules, commands and the porting guide: `.agents/skills/cherrypick-log/README.md`
 
 - **Gradle OOM** – the daemon uses `-Xmx4g` (`gradle.properties`); run `./gradlew --stop` and retry.
 - **Spotless failures** – run `spotlessApply`, then `spotlessCheck`.
+- **App migrations** – `versionCode` is pinned at 83 (see [Build & CI](#build--ci)), so `Migrator` is driven by the highest *migration* version instead: `App.initializeMigrator()` seeds `eh_last_migration_version` from the stored version code and targets `nextMigrationTarget(...)`. Add a `mihon.core.migration.Migration` with the next free `version` and it runs exactly once on upgrade; do not tie migrations to `versionCode`.
 - **SQLDelight errors** – run `./gradlew :data:generateSqlDelightInterface` after schema changes (see [Database](#architecture)).
 - **Missing `google-services.json` / `client_secrets.json`** – these are CI secrets; builds without `-Pinclude-telemetry` don't need them.
 - **First build is slow** – it downloads ~1 GB of dependencies; later builds use the Gradle cache.

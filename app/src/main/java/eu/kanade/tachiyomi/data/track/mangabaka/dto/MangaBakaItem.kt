@@ -52,6 +52,12 @@ data class MangaBakaItem(
 
 @Serializable
 data class MangaBakaCover(
+    // SY -->
+    // KUN -->: defaulted, because this DTO also decodes search results and a response without the
+    // unscaled cover would otherwise fail the whole search.
+    val raw: MangaBakaRawCover = MangaBakaRawCover(null),
+    // KUN <--
+    // SY <--
     val x250: MangaBakaScaledCover,
 )
 
@@ -59,6 +65,13 @@ data class MangaBakaCover(
 data class MangaBakaScaledCover(
     val x1: String?,
 )
+
+// SY -->
+@Serializable
+data class MangaBakaRawCover(
+    val url: String?,
+)
+// SY <--
 
 @Serializable
 data class MangaBakaPublishData(

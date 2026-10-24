@@ -6,6 +6,7 @@ import eu.kanade.tachiyomi.data.database.models.Track
 import eu.kanade.tachiyomi.data.track.BaseTracker
 import eu.kanade.tachiyomi.data.track.DeletableTracker
 import eu.kanade.tachiyomi.data.track.hikka.dto.HKOAuth
+import eu.kanade.tachiyomi.data.track.model.TrackMangaMetadata
 import eu.kanade.tachiyomi.data.track.model.TrackSearch
 import kotlinx.serialization.json.Json
 import tachiyomi.i18n.MR
@@ -147,6 +148,12 @@ class Hikka(id: Long) : BaseTracker(id, "Hikka"), DeletableTracker {
 
         return track
     }
+
+    // SY -->
+    override suspend fun getMangaMetadata(track: DomainTrack): TrackMangaMetadata {
+        return api.getMangaMetadata(track)
+    }
+    // SY <--
 
     override suspend fun updateUserConfig() {
         val currentUser = api.getCurrentUser()
