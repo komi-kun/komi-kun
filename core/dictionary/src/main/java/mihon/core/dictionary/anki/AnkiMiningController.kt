@@ -22,6 +22,10 @@ class AnkiMiningController(
      * Build and save a card for [result] (the renderer's `addToAnki(resultIndex, …)` payload).
      * Missing optional context (sentence/offset/screenshot) simply degrades the corresponding
      * markers to `""`.
+     *
+     * [screenshotBytes] is already the card image: the reader crops the page (`AnkiScreenshotCrop`)
+     * *before* the card is created, so `{screenshot}` is written inline by [AnkiCardCreator] and no
+     * second note update is needed (plan 05 §B4).
      */
     @Suppress("LongParameterList")
     suspend fun mine(
@@ -62,12 +66,6 @@ class AnkiMiningController(
             forceOpen = forceOpen,
             dictionaryAccess = dictionaryAccess,
         )
-    }
-
-    /** Update an existing card's `{screenshot}` once the crop has been captured (§B4). */
-    suspend fun updateScreenshot(noteId: Long, field: String, bytes: ByteArray, bridge: AnkiCardBridge) {
-        val filename = bridge.storeMedia(AnkiCardCreator.generateScreenshotFilename(bytes), bytes)
-        bridge.updateNoteFields(noteId, mapOf(field to """<img src="$filename" />"""))
     }
 
     companion object {

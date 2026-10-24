@@ -14,6 +14,7 @@ import androidx.compose.runtime.mutableStateOf
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
+import mihon.core.dictionary.anki.AnkiScreenshotProvider
 
 @Inject
 @SingleIn(AppScope::class)
@@ -27,8 +28,16 @@ class ReaderOcrPopupAnchor {
      */
     val popupBounds = mutableStateOf<RectF?>(null)
 
+    /**
+     * The `{screenshot}` source for the open lookup: the reader writes a provider for the tapped
+     * page/block, the popup hands it to `DictionaryEntryWebView` when a card is created (plan 05
+     * §B4). Null when the screenshot mode takes no image, so the marker renders empty.
+     */
+    val screenshot = mutableStateOf<AnkiScreenshotProvider?>(null)
+
     fun clear() {
         rect.value = null
         popupBounds.value = null
+        screenshot.value = null
     }
 }

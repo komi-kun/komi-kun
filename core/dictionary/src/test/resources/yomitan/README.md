@@ -13,3 +13,7 @@ Regenerate from upstream with `tools/yomitan-corpus/build.mjs`; see
 sha256/bytes/record-count of each committed corpus file. `YomitanCorpusTest` recomputes those
 hashes in `:core:dictionary:testDebugUnitTest` (the PR gate); `tools/yomitan-corpus/verify-manifest.mjs`
 does the same standalone.
+
+`engine-divergences-ja.json` is the one file here that `build.mjs` does **not** generate: it is the
+hand-maintained ledger of corpus rows the engine cannot meet, consumed by the T2 runner
+(`./gradlew :core:dictionary:conformanceHostTest`). See the module README ("Known engine gaps").
