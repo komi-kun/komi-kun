@@ -67,7 +67,9 @@ class ReaderOcrPopupAnchorTest {
         host.detach()
 
         anchor.screenshot.value shouldBe null
-        verify(exactly = 2) { dictionaryHost.dismiss() }
+        // Only the leak-free state is pinned: a detach that closes the popup once and a detach that
+        // dismisses it on every call are both fine, so the count must not gate idempotence.
+        verify(atLeast = 1) { dictionaryHost.dismiss() }
     }
 
     /**

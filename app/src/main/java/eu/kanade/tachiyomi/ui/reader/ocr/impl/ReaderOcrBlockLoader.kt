@@ -150,13 +150,25 @@ class ReaderOcrBlockLoader(
                     }
                     else -> {
                         val loaded = outcome.blocks
-                        if (loaded == null) {
-                            retryAfter[key] = System.nanoTime() + RETRY_INTERVAL_NANOS
-                        } else {
-                            // A completed resolution (even an empty one) is cached; null retries later.
-                            timeoutLogged.remove(key)
-                            retryAfter.remove(key)
-                            _blocks.update { it + (key to loaded) }
+                        // KUN -->
+                        // The switch can be turned off while this load is suspended: `load()` then
+                        // gets no blocks from the manager (an opt-out is inert, not "no text here").
+                        // Caching that empty list would mark the page as resolved-empty, so a later
+                        // re-enable in the same reader session would never OCR it again. Drop it as
+                        // unresolved instead — no backoff, because [ensureLoaded] is gated on the
+                        // switch, so nothing re-drives this page until the feature is back on.
+                        val droppedByOptOut = loaded != null && loaded.isEmpty() &&
+                            !dictionaryOcrPreferences.isEnabled()
+                        // KUN <--
+                        when {
+                            loaded == null -> retryAfter[key] = System.nanoTime() + RETRY_INTERVAL_NANOS
+                            droppedByOptOut -> retryAfter.remove(key)
+                            else -> {
+                                // A completed resolution (even an empty one) is cached; null retries later.
+                                timeoutLogged.remove(key)
+                                retryAfter.remove(key)
+                                _blocks.update { it + (key to loaded) }
+                            }
                         }
                     }
                 }

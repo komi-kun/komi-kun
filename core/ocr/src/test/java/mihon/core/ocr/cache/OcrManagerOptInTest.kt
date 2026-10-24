@@ -419,6 +419,62 @@ class OcrManagerOptInTest {
     }
 
     /**
+     * Mid-chapter opt-out inside the **retry pass**: page 0 cannot be read in the main loop, so the
+     * chapter enters `retryFailedPages`; the switch is turned off while the retry pass reads the
+     * page. The retry must abort instead of recognising (a disabled `recognizePage` answers with an
+     * empty list) and persisting that empty `OcrPageData`, and the task must stay `PENDING` rather
+     * than being completed or dropped.
+     */
+    @Test
+    fun `disabling during the retry pass saves no result and leaves the task pending`(): Unit = runBlocking {
+        val preferences = DictionaryOcrPreferences(InMemoryPreferenceStore()).apply { choose(true) }
+        var entry = OcrTask(mangaId = MANGA, chapterId = CHAPTER, order = 0, waitForDownload = false)
+        val statuses = mutableListOf<OcrQueueStatus>()
+        every { store.get(any()) } answers { entry }
+        every { store.update(any(), any()) } answers {
+            secondArg<(OcrTask) -> OcrTask>().invoke(entry).also {
+                entry = it
+                statuses += it.status
+            }
+        }
+        every { store.save(any()) } answers {
+            entry = firstArg()
+            statuses += entry.status
+        }
+        val provider = mockk<ChapterImageProvider>()
+        every { provider.pageCount } returns 1
+        every { provider.close() } just Runs
+        // Explicit cache miss: a relaxed `load` would answer an empty list (i.e. "cached") and the
+        // page would never be read.
+        coEvery { cacheManager.load(any(), any(), any()) } returns null
+        var reads = 0
+        every { provider.pageBytes(0) } answers {
+            reads++
+            if (reads == 1) {
+                // The main loop cannot read the page: the chapter falls through to the retry pass.
+                null
+            } else {
+                // ...and the user turns the switch off while the retry pass reads it.
+                preferences.choose(false)
+                ByteArray(8)
+            }
+        }
+
+        manager(preferences).processChapter(chapterInput(provider)) shouldBe OcrTaskResult.STOPPED
+
+        // Page 0 was read by the main loop and once more by the retry pass.
+        verify(exactly = 2) { provider.pageBytes(0) }
+        // The retry pass' (disabled, empty) result is never persisted.
+        coVerify(exactly = 0) { cacheManager.save(any(), any(), any(), any(), any()) }
+        coVerify(exactly = 0) { engine.recognize(any<ByteArray>(), any()) }
+        // The task is neither completed nor dropped: it waits for a later re-enable.
+        verify(exactly = 0) { store.remove(any()) }
+        statuses shouldNotContain OcrQueueStatus.COMPLETED
+        statuses shouldNotContain OcrQueueStatus.ERROR
+        entry.status shouldBe OcrQueueStatus.PENDING
+    }
+
+    /**
      * Mid-chapter opt-out, page not yet read: page 0 is already cached, and the switch flips while
      * that cache entry is looked up. The pre-page check must abort before page 1's bytes are read,
      * and again leave the task `PENDING` rather than saving anything.
