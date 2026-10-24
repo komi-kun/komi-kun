@@ -11,9 +11,11 @@
 //  * the **actions** (auto-queue, starting the worker) are gated: while off, nothing is queued and
 //    no worker run is started.
 //
-// Keeping the truth table here (rather than inline in `Downloader`/`OcrWorker`, whose Android
-// construction is not unit-testable) is what makes "promotion does not bypass the switch, and
-// metadata does not depend on it" an executable test.
+// Keeping the action truth table here (rather than inline in `Downloader`/`OcrWorker`, whose
+// Android construction is not unit-testable) is what makes "promotion does not bypass the switch"
+// an executable test. The other half — "metadata does not depend on the switch" — is pinned by
+// `OcrManager.markChapterReadyForOcr` being ungated (`OcrManagerOptInTest`) and by the call-site
+// guard that `Downloader` calls it unconditionally (`OcrPolicySourceWiringTest`).
 // KUN <--
 package eu.kanade.tachiyomi.data.ocr
 
@@ -28,18 +30,11 @@ data class DownloadOcrActions(
 object OcrRuntimePolicy {
 
     /**
-     * Phase 1 — **the queue metadata**. This is not an action: `markChapterReadyForOcr` must run even
-     * while the feature is off, so a chapter queued before the user switched it off is promoted from
-     * `WAITING_DOWNLOAD` to `PENDING` as soon as its download finishes instead of being stranded
-     * there. Kept as a named decision (and tested) so "gate the actions, never the metadata" cannot
-     * silently regress into gating the promotion too.
-     */
-    fun refreshesQueueMetadata(enabled: Boolean): Boolean = true
-
-    /**
-     * Phase 2 — the download hook's action truth table, evaluated after
-     * [refreshesQueueMetadata]. [promoted] is the result of that always-called
-     * `markChapterReadyForOcr`; [autoOnDownload] is the user's queue-on-download preference.
+     * The download hook's action truth table. It is evaluated **after**
+     * `OcrManager.markChapterReadyForOcr` was called unconditionally: that promotion is queue
+     * metadata, not a policy decision (there is deliberately no `enabled` argument here that could
+     * gate it, and `OcrManagerOptInTest` pins that it still works while off). [promoted] is that
+     * call's result; [autoOnDownload] is the user's queue-on-download preference.
      */
     fun downloadActions(
         enabled: Boolean,

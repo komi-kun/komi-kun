@@ -5,11 +5,13 @@
 // pinned below is queue *metadata* bookkeeping (download promotion / download failure), which must
 // keep working while off so an already-enqueued chapter is never stranded in WAITING_DOWNLOAD —
 // while still starting no OCR work. The enabled cases are the positive control: they fail if a gate
-// accidentally blocks the normal path.
+// accidentally blocks the normal path. Turning the switch off **mid-chapter** is pinned too: it must
+// abort without caching the (empty) disabled result and without completing or dropping the task.
 // KUN <--
 package mihon.core.ocr.cache
 
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
 import io.mockk.Runs
 import io.mockk.coEvery
@@ -363,6 +365,95 @@ class OcrManagerOptInTest {
         result shouldBe OcrTaskResult.SUCCESS
         coVerify(exactly = 0) { engine.recognize(any<ByteArray>(), any()) }
         verify(exactly = 1) { provider.close() }
+    }
+
+    /**
+     * Mid-chapter opt-out, page already read: the switch flips while the page bytes are read, so
+     * `recognizePage` takes its disabled branch and returns an **empty** block list. Persisting that
+     * is the cache poisoning this pins: the page must not be saved, the next page must not be read,
+     * and the chapter must stay `PENDING` in the store (runnable by a later enabled run) instead of
+     * being marked `COMPLETED` or dropped by the runner.
+     */
+    @Test
+    fun `disabling during a page saves no result and leaves the task pending`(): Unit = runBlocking {
+        val preferences = DictionaryOcrPreferences(InMemoryPreferenceStore()).apply { choose(true) }
+        var entry = OcrTask(mangaId = MANGA, chapterId = CHAPTER, order = 0, waitForDownload = false)
+        val statuses = mutableListOf<OcrQueueStatus>()
+        every { store.get(any()) } answers { entry }
+        every { store.update(any(), any()) } answers {
+            secondArg<(OcrTask) -> OcrTask>().invoke(entry).also {
+                entry = it
+                statuses += it.status
+            }
+        }
+        every { store.save(any()) } answers {
+            entry = firstArg()
+            statuses += entry.status
+        }
+        val provider = mockk<ChapterImageProvider>()
+        every { provider.pageCount } returns 2
+        every { provider.close() } just Runs
+        // Explicit cache misses: a relaxed `load` would answer an empty list (i.e. "cached") and the
+        // page would never be read at all.
+        coEvery { cacheManager.load(any(), any(), any()) } returns null
+        every { provider.pageBytes(0) } answers {
+            // The user turns the switch off while this page is being read.
+            preferences.choose(false)
+            ByteArray(8)
+        }
+
+        manager(preferences).processChapter(chapterInput(provider)) shouldBe OcrTaskResult.STOPPED
+
+        // No empty `OcrPageData`: the disabled recognition result is never cached.
+        coVerify(exactly = 0) { cacheManager.save(any(), any(), any(), any(), any()) }
+        // Nothing is recognised for a feature that is off...
+        coVerify(exactly = 0) { engine.recognize(any<ByteArray>(), any()) }
+        // ...the page that flipped the switch was read, the next one was not, and the chapter is
+        // neither completed nor dropped.
+        verify(exactly = 1) { provider.pageBytes(0) }
+        verify(exactly = 0) { provider.pageBytes(1) }
+        verify(exactly = 0) { store.remove(any()) }
+        statuses shouldNotContain OcrQueueStatus.COMPLETED
+        statuses shouldNotContain OcrQueueStatus.ERROR
+        entry.status shouldBe OcrQueueStatus.PENDING
+    }
+
+    /**
+     * Mid-chapter opt-out, page not yet read: page 0 is already cached, and the switch flips while
+     * that cache entry is looked up. The pre-page check must abort before page 1's bytes are read,
+     * and again leave the task `PENDING` rather than saving anything.
+     */
+    @Test
+    fun `disabling between pages stops before the next page is read`(): Unit = runBlocking {
+        val preferences = DictionaryOcrPreferences(InMemoryPreferenceStore()).apply { choose(true) }
+        var entry = OcrTask(mangaId = MANGA, chapterId = CHAPTER, order = 0, waitForDownload = false)
+        every { store.get(any()) } answers { entry }
+        every { store.update(any(), any()) } answers {
+            secondArg<(OcrTask) -> OcrTask>().invoke(entry).also { entry = it }
+        }
+        var loads = 0
+        coEvery { cacheManager.load(any(), any(), any()) } answers {
+            loads++
+            if (loads == 1) {
+                // Page 0 is already cached; the switch is turned off right as it is served.
+                preferences.choose(false)
+                listOf(block)
+            } else {
+                null
+            }
+        }
+        val provider = mockk<ChapterImageProvider>()
+        every { provider.pageCount } returns 2
+        every { provider.close() } just Runs
+        every { provider.pageBytes(any()) } returns ByteArray(8)
+
+        manager(preferences).processChapter(chapterInput(provider)) shouldBe OcrTaskResult.STOPPED
+
+        verify(exactly = 0) { provider.pageBytes(any()) }
+        coVerify(exactly = 0) { engine.recognize(any<ByteArray>(), any()) }
+        coVerify(exactly = 0) { cacheManager.save(any(), any(), any(), any(), any()) }
+        verify(exactly = 0) { store.remove(any()) }
+        entry.status shouldBe OcrQueueStatus.PENDING
     }
 
     private fun chapterInput(provider: ChapterImageProvider) = ChapterOcrInput(

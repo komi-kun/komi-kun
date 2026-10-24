@@ -26,10 +26,17 @@ object OcrDisplayScale {
     private const val MAX_TEXT_SCALE = 1.5f
 
     /**
-     * The factor the detected box outline is grown/shrunk by. `100` → `1f` (tight), `150` → `1.5f`,
-     * clamped at [MIN_BOX_SCALE] for an unusable preference value.
+     * The ceiling the box outline shares with the text: the same 150% the sliders offer. A larger
+     * (corrupt/legacy) preference is clamped instead of drawing an outline that swallows the page.
      */
-    fun boxScaleFactor(percent: Int): Float = (percent / 100f).coerceAtLeast(MIN_BOX_SCALE)
+    private const val MAX_BOX_SCALE = MAX_TEXT_SCALE
+
+    /**
+     * The factor the detected box outline is grown/shrunk by. `100` → `1f` (tight), `150` → `1.5f`;
+     * an unusable preference value is clamped to [MIN_BOX_SCALE]..[MAX_BOX_SCALE], so a corrupt 0 is
+     * not invisible and a corrupt 400% does not swallow the page.
+     */
+    fun boxScaleFactor(percent: Int): Float = (percent / 100f).coerceIn(MIN_BOX_SCALE, MAX_BOX_SCALE)
 
     /**
      * The factor the overlay text is scaled by, clamped to the legible range. `100` → `1f`.

@@ -34,10 +34,15 @@ class OcrDisplayScaleTest {
     }
 
     @Test
-    fun `a degenerate box percent is floored instead of collapsing the outline`() {
+    fun `a degenerate box percent is clamped instead of collapsing the outline`() {
         // Not reachable from the slider, but a corrupt/legacy preference must not draw at 0.
         OcrDisplayScale.boxScaleFactor(0) shouldBe 0.05f
         OcrDisplayScale.boxScaleFactor(-20) shouldBe 0.05f
+        // ...nor above the sliders' ceiling: the documented contract is a clamp on both ends, so a
+        // corrupt 200%/1000% does not draw an outline that swallows the page.
+        OcrDisplayScale.boxScaleFactor(151) shouldBe 1.5f
+        OcrDisplayScale.boxScaleFactor(200) shouldBe 1.5f
+        OcrDisplayScale.boxScaleFactor(1000) shouldBe 1.5f
     }
 
     @Test

@@ -210,6 +210,16 @@ class ReaderOcrHostImpl(
     override fun redoOcr(page: ReaderPage, chapter: Boolean, onComplete: (() -> Unit)?) {
         blockLoader.redoOcr(page, chapter, onComplete)
     }
+
+    override fun detach() {
+        // The popup itself is app-scoped too: close it, drop what it was anchored to, and forget the
+        // reader's viewport/active block so nothing (notably the captured `ReaderPage` behind the
+        // screenshot provider in `popupAnchor.screenshot`) survives the reader.
+        dictionaryHost.dismiss()
+        viewport = null
+        activeBlock.value = null
+        popupAnchor.clear()
+    }
     // KUN <--
 
     private fun lookupAt(overlayPoint: Offset): Boolean {
