@@ -79,6 +79,9 @@ class FeedViewModel(
     // KMK <--
 ) : ViewModel() {
 
+    // SY -->
+    // The `state` → `mutableState` split that runs through this file (including inside the KMK
+    // blocks below) is part of this port; the KMK code only had its identifier renamed.
     private val subscriberGate = SubscriberGate()
 
     private val mutableState = MutableStateFlow<FeedScreenState>(FeedScreenState())
@@ -86,6 +89,7 @@ class FeedViewModel(
     // Keeps the feed while it's hidden, but holds back database updates until it's shown again
     val state: StateFlow<FeedScreenState> = mutableState
         .stateIn(viewModelScope + subscriberGate, subscriberGate.whileSubscribed(5.seconds), FeedScreenState())
+    // SY <--
 
     private val _events = Channel<Event>(Int.MAX_VALUE)
     val events = _events.receiveAsFlow()
