@@ -27,6 +27,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.navigator.tab.TabOptions
+import eu.kanade.core.preference.asState
 import eu.kanade.presentation.util.Tab
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -52,6 +53,21 @@ import tachiyomi.presentation.core.util.collectAsState
  * search history can be layered on later without changing this contract.
  */
 data object DictionaryTab : Tab {
+
+    /**
+     * Part of the navigation only while the user has opted into dictionaries/OCR
+     * (`DictionaryOcrPreferences`). HomeScreen's single `fastFilter { it.isEnabled() }` applies this
+     * to both the bottom bar and the navigation rail, so the tab disappears from either layout at
+     * the same moment, and comes back the moment the settings switch is turned on.
+     */
+    @Composable
+    override fun isEnabled(): Boolean {
+        val context = LocalContext.current
+        val scope = rememberCoroutineScope()
+        return remember {
+            context.appGraph.dictionaryOcrPreferences.enabled.asState(scope)
+        }.value
+    }
 
     override val options: TabOptions
         @Composable

@@ -15,6 +15,7 @@ import mihon.core.dictionary.model.KanjiResult
 import mihon.core.dictionary.model.LookupResult
 import org.json.JSONArray
 import org.json.JSONObject
+import tachiyomi.core.common.preference.DictionaryOcrPreferences
 import java.io.File
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
@@ -31,6 +32,10 @@ import java.util.LinkedHashMap
 class DictionaryRepository(
     private val engine: DictionaryEngine,
     private val context: Context,
+    // KUN -->
+    /** Explicit dictionary/OCR opt-in: no engine or dictionary work happens while it is off. */
+    private val dictionaryOcr: DictionaryOcrPreferences,
+    // KUN <--
 ) {
     private var session: DictionarySession? = null
     private var configuredPaths: DictionaryPaths = DictionaryPaths()
@@ -40,17 +45,39 @@ class DictionaryRepository(
     /** False on an ABI without the native library; callers degrade to an empty lookup. */
     val isAvailable: Boolean get() = engine.isAvailable
 
+    // KUN -->
+    /**
+     * True while the user has not opted into the dictionary/OCR features. Every public entry point
+     * that would import, open a session, look up or read media is a no-op in that state, so the
+     * engine is never touched (and no stale result is served) before the user enables it.
+     */
+    private fun dictionaryDisabled(): Boolean = !dictionaryOcr.isEnabled()
+    // KUN <--
+
     /** Import a Yomitan ZIP through the engine (02 §6.2). Not `@Synchronized`: heavy + suspend. */
     suspend fun importDictionary(
         zip: File,
         outputDir: File,
         onProgress: (ImportProgress) -> Unit = {},
-    ): ImportResult = engine.importDictionary(zip, outputDir, onProgress)
+    ): ImportResult {
+        // KUN -->
+        if (dictionaryDisabled()) return disabledImportResult()
+        // KUN <--
+        return engine.importDictionary(zip, outputDir, onProgress)
+    }
 
-    fun probeEntryTypes(dictDir: File): EntryTypeCounts = engine.probeEntryTypes(dictDir)
+    fun probeEntryTypes(dictDir: File): EntryTypeCounts {
+        // KUN -->
+        if (dictionaryDisabled()) return EntryTypeCounts(term = 0, freq = 0, pitch = 0, kanji = 0)
+        // KUN <--
+        return engine.probeEntryTypes(dictDir)
+    }
 
     @Synchronized
     fun warmUp(paths: DictionaryPaths, profileId: String = "") {
+        // KUN -->
+        if (dictionaryDisabled()) return
+        // KUN <--
         if (!engine.isAvailable) return
         val active = session ?: engine.openSession(paths).also { session = it }
         val pathsChanged = paths != configuredPaths
@@ -65,6 +92,10 @@ class DictionaryRepository(
 
     @Synchronized
     fun lookup(query: String, paths: DictionaryPaths, languageCode: String = ""): LookupResult2 {
+        // KUN -->
+        // Off means "no dictionary at all": never serve the previous session's (stale) results/styles.
+        if (dictionaryDisabled()) return disabledLookupResult()
+        // KUN <--
         if (!engine.isAvailable) return LookupResult2(emptyList(), emptyList(), emptyMap(), null)
         warmUp(paths)
         val active = session ?: return LookupResult2(emptyList(), emptyList(), emptyMap(), null)
@@ -77,6 +108,7 @@ class DictionaryRepository(
     // KUN -->
     @Synchronized
     fun loadMediaAsync(results: List<LookupResult>, kanjiResult: KanjiResult? = null): Map<String, String> {
+        if (dictionaryDisabled()) return emptyMap()
         val active = session ?: return emptyMap()
         return buildMediaDataUris(active, results, kanjiResult)
     }
@@ -84,6 +116,9 @@ class DictionaryRepository(
 
     @Synchronized
     fun queryKanji(char: String): KanjiResult? {
+        // KUN -->
+        if (dictionaryDisabled()) return null
+        // KUN <--
         val active = session ?: return null
         return runCatching { active.queryKanji(char) }
             .onFailure { Log.e(TAG, "queryKanji failed for '$char'", it) }
@@ -218,6 +253,29 @@ class DictionaryRepository(
 
     private fun mediaKey(dictName: String, path: String): String = "$dictName\u0000$path"
 
+    // KUN -->
+    /** The failure an import reports while the feature is off (never a fake success). */
+    private fun disabledImportResult(): ImportResult = ImportResult(
+        success = false,
+        title = "",
+        termCount = 0,
+        metaCount = 0,
+        freqCount = 0,
+        pitchCount = 0,
+        kanjiCount = 0,
+        mediaCount = 0,
+        errors = listOf(DISABLED_MESSAGE),
+    )
+
+    /** An empty, error-free lookup result: nothing to show, and no stale styles/results. */
+    private fun disabledLookupResult(): LookupResult2 = LookupResult2(
+        results = emptyList(),
+        styles = emptyList(),
+        mediaDataUris = emptyMap(),
+        error = null,
+    )
+    // KUN <--
+
     private fun guessMimeType(path: String): String = when (path.substringAfterLast('.', "").lowercase()) {
         "jpg", "jpeg" -> "image/jpeg"
         "gif" -> "image/gif"
@@ -240,5 +298,11 @@ class DictionaryRepository(
         private const val SCAN_LENGTH = 25
         private const val MAX_PRELOADED_MEDIA_ITEMS = 20
         private const val MAX_PRELOADED_MEDIA_BYTES = 256 * 1024
+
+        // KUN -->
+        /** Reported when a caller asks the engine for work while the feature is opted out. */
+        private const val DISABLED_MESSAGE =
+            "Dictionary/OCR is disabled: enable the immersion features before importing dictionaries"
+        // KUN <--
     }
 }

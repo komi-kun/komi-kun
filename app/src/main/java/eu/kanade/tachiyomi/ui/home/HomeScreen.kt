@@ -93,6 +93,17 @@ object HomeScreen : Screen() {
         }
         // SY <--
 
+        // KUN -->
+        // The dictionary/OCR master switch, observed so the navigation reacts to the settings toggle
+        // (and to the setup answer) without waiting for a restart. `asState` starts a collector, so
+        // it must be remembered: re-creating it on every recomposition would leak one collector per
+        // pass into the composition scope.
+        val dictionaryOcrPreferences = remember(context) { context.appGraph.dictionaryOcrPreferences }
+        val dictionaryOcrEnabled by remember(dictionaryOcrPreferences) {
+            dictionaryOcrPreferences.enabled.asState(scope)
+        }
+        // KUN <--
+
         TabNavigator(
             tab = LibraryTab,
             key = TabNavigatorKey,
@@ -161,6 +172,21 @@ object HomeScreen : Screen() {
 
             val goToLibraryTab = { tabNavigator.current = LibraryTab }
 
+            // KUN -->
+            // Turning the feature off while the (now filtered-out) Dictionary tab is selected would
+            // leave the user on a tab that is no longer in the navigation; the policy decides the
+            // fallback for both the bottom bar and the rail.
+            LaunchedEffect(dictionaryOcrEnabled) {
+                val mustFallBack = DictionaryTabNavigationPolicy.mustFallBackToLibrary(
+                    currentIsDictionary = tabNavigator.current is DictionaryTab,
+                    enabled = dictionaryOcrEnabled,
+                )
+                if (mustFallBack) {
+                    tabNavigator.current = LibraryTab
+                }
+            }
+            // KUN <--
+
             BackHandler(enabled = tabNavigator.current != LibraryTab, onBack = goToLibraryTab)
 
             LaunchedEffect(Unit) {
@@ -183,7 +209,15 @@ object HomeScreen : Screen() {
                                 BrowseTab
                             }
                             // KUN -->
-                            Tab.Dictionary -> DictionaryTab
+                            // A direct `Tab.Dictionary` event (shortcut, intent) must not open a tab
+                            // that the navigation filter hides while the feature is off; the policy
+                            // owns that fallback so it is unit-tested.
+                            Tab.Dictionary -> when (
+                                DictionaryTabNavigationPolicy.directEventTarget(dictionaryOcrEnabled)
+                            ) {
+                                DictionaryTabTarget.DICTIONARY -> DictionaryTab
+                                DictionaryTabTarget.LIBRARY -> LibraryTab
+                            }
                             // KUN <--
                             is Tab.More -> MoreTab
                         }

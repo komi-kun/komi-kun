@@ -6,6 +6,7 @@
 // the W5 report — add KMR keys if translations are wanted).
 package eu.kanade.presentation.more.settings.screen
 
+import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -32,6 +33,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import mihon.app.di.appGraph
 import mihon.core.dictionary.anki.AnkiDroidBridge
 import mihon.core.dictionary.anki.AnkiMarkerEngine
 import mihon.core.dictionary.anki.AnkiPreferences
@@ -42,6 +44,8 @@ import tachiyomi.core.common.preference.AndroidPreferenceStore
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.kun.KUNMR
 import tachiyomi.presentation.core.i18n.stringResource
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 
 /**
  * Anki mining + profiles (per-profile fields) — phase 6 (05 §B5).
@@ -55,6 +59,18 @@ object SettingsAnkiScreen : SearchableSettings {
     @ReadOnlyComposable
     @Composable
     override fun getTitleRes() = KUNMR.strings.pref_category_anki
+
+    // KUN -->
+    /**
+     * Anki mining is part of the dictionaries feature. While the combined dictionary/OCR opt-in is
+     * off the entry is hidden from Settings and from search (`SearchableSettings.isEnabled`), so the
+     * screen is never composed — which is what keeps it from migrating its preferences
+     * (`AnkiPreferences.migrateIfEmpty`) or talking to AnkiDroid (`AnkiDroidBridge`: install/permission
+     * checks, deck and model lists) behind the user's back. The master switch stays reachable from
+     * [SettingsDictionaryScreen] and [SettingsOcrScreen].
+     */
+    override fun isEnabled(): Boolean = Injekt.get<Context>().appGraph.dictionaryOcrPreferences.isEnabled()
+    // KUN <--
 
     @Composable
     override fun getPreferences(): List<Preference> {

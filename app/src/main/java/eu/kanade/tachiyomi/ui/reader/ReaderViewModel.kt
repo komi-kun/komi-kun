@@ -101,6 +101,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import logcat.LogPriority
 import mihon.core.metro.AppCoroutineScope
+import tachiyomi.core.common.preference.DictionaryOcrPreferences
 import tachiyomi.core.common.preference.toggle
 import tachiyomi.core.common.storage.UniFileTempFileManager
 import tachiyomi.core.common.util.lang.launchIO
@@ -173,6 +174,9 @@ class ReaderViewModel(
     private val coverCache: CoverCache,
     private val chapterCache: ChapterCache,
     private val downloadCache: DownloadCache,
+    // KUN -->
+    private val dictionaryOcrPreferences: DictionaryOcrPreferences,
+    // KUN <--
 ) : ViewModel() {
 
     @AssistedFactory
@@ -254,9 +258,17 @@ class ReaderViewModel(
 
     /** Toggles the reader OCR overlay and returns its new state. */
     fun toggleOcrOverlay(): Boolean {
-        val enabled = !readerPreferences.ocrOverlayEnabled.get()
-        readerPreferences.ocrOverlayEnabled.set(enabled)
-        return enabled
+        // KUN -->
+        // The combined dictionary/OCR opt-in is the outer gate: while it is off nothing may switch
+        // the overlay on (the button is hidden, but the two-finger gesture and any future caller
+        // reach this same method), and the preference is not written either.
+        val next = ReaderOcrTogglePolicy.overlayAfterToggle(
+            masterEnabled = dictionaryOcrPreferences.isEnabled(),
+            currentOverlay = readerPreferences.ocrOverlayEnabled.get(),
+        ) ?: return false
+        // KUN <--
+        readerPreferences.ocrOverlayEnabled.set(next)
+        return next
     }
 
     // endregion
