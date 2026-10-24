@@ -7,6 +7,11 @@
 // the app settings screen and the GPL-free seam files can all share exactly one key without
 // importing GPL code (contract §1.3 / §1.9).
 //
+// This file is a **registered** GPL-free seam file (contract §1.3 and `scripts/verify-gpl-free.sh`):
+// `ReaderActivity`/`ReaderViewModel` (Apache, GPL-free) gate on it, so it must keep its Apache header
+// and must never import a GPL package. Do not relicense it to GPL — that would put GPL code behind a
+// GPL-free seam file.
+//
 // **One key is both the master state and the explicit-choice flag.** [DictionaryOcrPreferences.hasChosen]
 // (`isSet()`) distinguishes "never asked" (unset, default `false` → the app may prompt) from "asked
 // and declined" (`false` but *set* → never prompt again). [DictionaryOcrPreferences.recordCurrentChoice]

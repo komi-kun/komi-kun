@@ -192,10 +192,24 @@ fun OcrQueueStatus.isActionable(): Boolean = this in listOf(
     OcrQueueStatus.PROCESSING,
 )
 
-fun OcrQueueStatus.isRunnable(): Boolean = this in listOf(
+/**
+ * Whether a queue run picks this status up.
+ *
+ * An exhaustive `when` with no `else` on purpose: a new [OcrQueueStatus] must be classified here (it
+ * will not compile otherwise), so a status can never silently default to "not runnable" and strand a
+ * task the user is waiting on.
+ */
+fun OcrQueueStatus.isRunnable(): Boolean = when (this) {
     OcrQueueStatus.PENDING,
     OcrQueueStatus.PROCESSING,
-)
+    -> true
+
+    OcrQueueStatus.WAITING_DOWNLOAD,
+    OcrQueueStatus.COMPLETED,
+    OcrQueueStatus.ERROR,
+    OcrQueueStatus.CANCELLED,
+    -> false
+}
 
 /**
  * True when any of [statuses] is a status a queue run actually picks up ([isRunnable]).

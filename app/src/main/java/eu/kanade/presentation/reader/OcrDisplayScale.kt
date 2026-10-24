@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-or-later
 // KUN -->
 // The OCR overlay's two display scales, as one small policy: the percent range the settings sliders
 // offer and the percent → factor conversion the overlay draws with.

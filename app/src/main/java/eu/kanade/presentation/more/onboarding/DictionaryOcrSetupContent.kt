@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-or-later
 // KUN -->
 // The one shared content for the combined dictionary/OCR opt-in, used by *both* surfaces:
 // `DictionaryOcrStep` (inside the existing onboarding flow) and `DictionaryOcrSetupScreen` (the

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-or-later
 // KUN -->
 // The dictionary/OCR opt-in as a step of the existing onboarding flow (fresh install).
 //

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-or-later
 // KUN -->
 // The post-download OCR truth table. Two independent rules are pinned here:
 //  * the queue *metadata* is always updated by the caller (`markChapterReadyForOcr`), so being off
