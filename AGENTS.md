@@ -313,7 +313,7 @@ Rules, commands and the porting guide: `.agents/skills/cherrypick-log/README.md`
 
 - **Gradle OOM** – the daemon uses `-Xmx4g` (`gradle.properties`); run `./gradlew --stop` and retry.
 - **Spotless failures** – run `spotlessApply`, then `spotlessCheck`.
-- **App migrations do not run on upgrade** – `versionCode` is pinned at 83 (see [Build & CI](#build--ci)), so `Migrator` is a no-op (`old >= new`) for every `mihon.core.migration.Migration` added afterwards. A migration whose absence loses data has to run from `App.onCreate` as well (see `importLegacyCustomInfoOnce()`); fixing the mechanism itself means decoupling it from `versionCode`.
+- **App migrations** – `versionCode` is pinned at 83 (see [Build & CI](#build--ci)), so `Migrator` is driven by the highest *migration* version instead: `App.initializeMigrator()` seeds `eh_last_migration_version` from the stored version code and targets `nextMigrationTarget(...)`. Add a `mihon.core.migration.Migration` with the next free `version` and it runs exactly once on upgrade; do not tie migrations to `versionCode`.
 - **SQLDelight errors** – run `./gradlew :data:generateSqlDelightInterface` after schema changes (see [Database](#architecture)).
 - **Missing `google-services.json` / `client_secrets.json`** – these are CI secrets; builds without `-Pinclude-telemetry` don't need them.
 - **First build is slow** – it downloads ~1 GB of dependencies; later builds use the Gradle cache.
