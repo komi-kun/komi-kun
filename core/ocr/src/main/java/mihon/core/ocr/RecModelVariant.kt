@@ -10,17 +10,21 @@ package mihon.core.ocr
  * switching is a model-file swap and needs no pipeline change.
  *
  * [FINE_TUNED] is the default: it was fine-tuned on Manga109-s dialogue + COO
- * onomatopoeia and is measurably better on manga lettering (held-out books:
- * block CER 28.05% -> 25.45%, SFX line CER 77.56% -> 17.12%). [STOCK] keeps the
- * original PP-OCRv6 small weights for users who prefer, or need to compare, the
- * upstream behaviour.
+ * onomatopoeia and is measurably better on manga lettering (held-out books,
+ * recogniser only: block CER 28.05% -> 25.45%, SFX line CER 77.56% -> 17.12%).
+ * [STOCK] keeps the original PP-OCRv6 small weights for users who prefer, or
+ * need to compare, the upstream behaviour.
+ *
+ * Both releases also pin the same curved-SFX detector fine-tune (held-out test:
+ * SFX H 32.78% -> 65.03%, SFX crop recall 32.07% -> 69.91%, art false positives
+ * 5.35 -> 1.35 per page, dialogue block coverage 92.10% -> 94.94%).
  */
 enum class RecModelVariant(
     val recModel: String,
     val release: String,
 ) {
-    FINE_TUNED("ppocrv6_small_rec_manga_real.onnx", "ocr-manga-v2"),
-    STOCK("ppocrv6_small_rec.onnx", "ocr-models-v3"),
+    FINE_TUNED("ppocrv6_small_rec_manga_real.onnx", "ocr-manga-v3"),
+    STOCK("ppocrv6_small_rec.onnx", "ocr-models-v4"),
     ;
 
     /** Release download root; the manifest and model files are resolved under it. */
