@@ -215,6 +215,10 @@ class ReaderOcrHostImpl(
         // The popup itself is app-scoped too: close it, drop what it was anchored to, and forget the
         // reader's viewport/active block so nothing (notably the captured `ReaderPage` behind the
         // screenshot provider in `popupAnchor.screenshot`) survives the reader.
+        // KUN --> stop the page work too: it reads the chapter archive, which the reader is about to
+        // recycle (an in-flight read after that is a native crash, not an exception).
+        blockLoader.detach()
+        // KUN <--
         dictionaryHost.dismiss()
         viewport = null
         activeBlock.value = null

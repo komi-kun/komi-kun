@@ -9,12 +9,24 @@ import mihon.core.archive.EpubReader
  */
 internal class EpubPageLoader(private val reader: EpubReader) : PageLoader() {
 
+    // KUN -->
+    /**
+     * An `EpubReader` is a thin wrapper over an `ArchiveReader`, so [recycle]s `close()` unmaps the
+     * same mapped buffer and a page stream read afterwards faults in native code exactly like a CBZ
+     * one. Guarded for the same reason: `ReaderOcrBlockLoader` reads these page bytes from a
+     * background coroutine that can outlive the chapter. See [ArchiveReadGuard].
+     */
+    private val archiveReads = ArchiveReadGuard()
+    // KUN <--
+
     override var isLocal: Boolean = true
 
     override suspend fun getPages(): List<ReaderPage> {
         return reader.getImagesFromPages().mapIndexed { i, path ->
             ReaderPage(i).apply {
-                stream = { reader.getInputStream(path)!! }
+                // KUN --> guarded: this stream is read later, from any thread.
+                stream = { archiveReads.inputStream { reader.getInputStream(path)!! } }
+                // KUN <--
                 status = Page.State.Ready
             }
         }
@@ -26,6 +38,8 @@ internal class EpubPageLoader(private val reader: EpubReader) : PageLoader() {
 
     override fun recycle() {
         super.recycle()
-        reader.close()
+        // KUN --> close under the guard: wait for the read in flight, refuse every later one.
+        archiveReads.close { reader.close() }
+        // KUN <--
     }
 }

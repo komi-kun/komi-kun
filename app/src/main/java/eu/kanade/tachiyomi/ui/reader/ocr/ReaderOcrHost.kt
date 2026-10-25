@@ -42,8 +42,10 @@ interface ReaderOcrHost {
     /**
      * Releases everything the host holds for the reader that is going away: the dictionary popup
      * anchor (including the screenshot provider it captured for the open lookup), the recorded
-     * viewport and the active block, and closes the popup. The implementation is app-graph scoped,
-     * so without this the last reader's page stays retained after the reader exits.
+     * viewport and the active block, and closes the popup. Also stops any OCR page work still in
+     * flight — it reads the chapter's page bytes, which the reader unmaps as it tears down. The
+     * implementation is app-graph scoped, so without this the last reader's page stays retained
+     * after the reader exits.
      *
      * Safe to call repeatedly; does not change any preference or cache.
      */
