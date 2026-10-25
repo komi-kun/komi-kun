@@ -29,6 +29,7 @@ import org.junit.jupiter.api.Test
 class DialogueMergeRegressionTest {
 
     private companion object {
+        /** Page pixel extents of the replay: the space every box below is written in. */
         const val PAGE_W = 4500.0
         const val PAGE_H = 6400.0
 
