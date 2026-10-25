@@ -23,8 +23,8 @@ internal data class GlyphMetric(
 
 /**
  * One glyph placed on screen: an unrotated box whose top-left is ([left], [top]) and whose size is
- * the reference measurement multiplied by [scale]. [rotated] glyphs (Latin/digits in tategaki) are
- * drawn turned 90° clockwise about their own centre.
+ * the reference measurement multiplied by [scale]. [rotated] glyphs (the line-like marks in
+ * [isRotatedInVertical]) are drawn turned 90° clockwise about their own centre.
  */
 internal data class PlacedGlyph(
     val text: String,
@@ -63,8 +63,8 @@ internal data class PlacedGlyph(
  * clip trims it.
  *
  * What can only be judged visually: the exact glyph size against the printed text under it, whether
- * the plate alpha reads well over artwork, and whether rotated Latin looks right — the tests pin the
- * geometry, not the aesthetics.
+ * the plate alpha reads well over artwork, and whether the few marks that still rotate look right —
+ * the tests pin the geometry, not the aesthetics.
  */
 internal fun layoutVerticalText(
     columns: List<List<GlyphMetric>>,
@@ -222,33 +222,142 @@ private fun isCombiningMark(codePoint: Int): Boolean = when (Character.getType(c
 /**
  * True when a glyph should be set sideways (rotated 90° clockwise) inside its vertical cell.
  *
- * Kana, kanji, digits (0-9, ０-９) and CJK punctuation (。、) stay **upright**; printable ASCII Latin
- * letters and symbols are rotated, the traditional way Latin runs appear inside tategaki. Full-width
- * and ASCII digits are set upright to match the printed artwork (e.g. "２年目春").
- * ASCII never forces the whole run back to a rotated-horizontal line: only the individual Latin glyph turns.
+ * **Orientation policy (hybrid).** A tategaki cell holds an *upright* glyph. Two groups are the
+ * exception, and both are exactly the marks whose tategaki shape *is* the horizontal glyph turned a
+ * quarter turn:
  *
- * The CJK marks in [VERTICAL_ROTATED_MARKS] rotate too: their vertical form *is* the horizontal
- * glyph turned 90° clockwise. The printed page shows ー as a vertical stroke and 「 as a top-right
- * corner, so leaving them upright (the horizontal glyph) visibly mismatches the artwork.
+ * 1. [VERTICAL_ROTATED_MARKS] — the stroke family (hyphens, dashes, `~`, `_`, `=`, `|`), which the
+ *    font's `vert` feature has no substitution for at all.
+ * 2. [FEATURE_ONLY_VERTICAL_MARKS] — `ー`, `〜`, `～`, `｜`, `゠`, whose `vert` substitution exists in
+ *    Noto Sans CJK JP but points at glyphs with **no** Unicode code point, so there is no FE fallback
+ *    for them either.
+ *
+ * Every rotated glyph is measured with the **plain** style and drawn by rotation (never shaped by
+ * `vert`), so no font can hand back a substituted shape that is then turned sideways; that also keeps
+ * them correct on a device whose CJK fallback lacks the feature.
+ *
+ * Everything else stays upright:
+ *
+ * - kana and kanji are already upright in tategaki;
+ * - CJK punctuation (`、。「」【】…！？` etc.) gets a real, centred tategaki glyph — from the font's
+ *   `vert` feature, or from [verticalGlyphForm]'s FE presentation form when the font lacks it — so
+ *   rotating the horizontal glyph would draw the wrong shape off-centre;
+ * - **Latin letters and digits, ASCII or full-width, are set upright one per cell.** This is a
+ *   deliberate convention, not an oversight: the OCR engine does not report the full-width/half-width
+ *   distinction or per-glyph orientation (a printed full-width `ＲＰＧ` comes back as ASCII `RPG`, and
+ *   real artwork sets it upright), so the overlay always sets it upright. A genuinely sideways
+ *   half-width Latin run on the page therefore reads upright afterwards; reproducing it exactly would
+ *   need recognition-side orientation metadata.
+ *
+ * Only the glyph's base code point decides; combining marks attached to it ride along.
  */
-internal fun isRotatedInVertical(text: String): Boolean =
-    text.isNotEmpty() &&
-        text.none { it in '0'..'9' || it in '\uFF10'..'\uFF19' } &&
-        text.all { it in '!'..'~' || it in VERTICAL_ROTATED_MARKS }
+internal fun isRotatedInVertical(text: String): Boolean {
+    if (text.isEmpty()) return false
+    val codePoint = text.codePointAt(0)
+    return codePoint in VERTICAL_ROTATED_MARKS || codePoint in FEATURE_ONLY_VERTICAL_MARKS
+}
 
 /**
- * CJK punctuation and marks whose tategaki form is the horizontal glyph rotated 90° clockwise:
- * strokes and dashes (ー and the wave/hyphen family), brackets and corner quotes, and the ellipsis
- * (a horizontal … reads as a vertical ⋮). Their shapes are near-symmetric or confirmed against
- * printed pages, so the rotation direction is not in doubt.
+ * The stroke-family marks whose tategaki form is the horizontal glyph rotated 90° clockwise and
+ * which have no `vert` substitution at all (verified against Noto Sans CJK JP's GSUB `vert` table):
+ * the general/ideographic hyphens and dash, the wavy dash, and the ASCII
+ * hyphen/underscore/equals/tilde/bar strokes. (The wave dashes `〜`/`～` *are* substituted, so they
+ * are in [FEATURE_ONLY_VERTICAL_MARKS] instead.)
  */
-private val VERTICAL_ROTATED_MARKS: Set<Char> = setOf(
-    '\u30FC', // ー katakana-hiragana prolonged sound mark
-    '\u301C', '\uFF5E', '\u3030', // 〜 ～ 〰 wave dashes
-    '\u2010', '\u2014', '\u2015', '\uFF0D', // ‐ — ― － dashes
-    '\u2026', '\u2025', // … ‥ ellipsis
-    '\u300C', '\u300D', '\u300E', '\u300F', // 「 」 『 』
-    '\uFF08', '\uFF09', '\u3014', '\u3015', '\uFF3B', '\uFF3D', // （ ） 〔 〕 ［ ］
-    '\u3010', '\u3011', '\u3008', '\u3009', '\u300A', '\u300B', // 【 】 〈 〉 《 》
-    '\u3016', '\u3017', // 〖 〗
+private val VERTICAL_ROTATED_MARKS: Set<Int> = setOf(
+    '\u2010'.code, // ‐ hyphen
+    '\u2014'.code, // — em dash
+    '\uFF0D'.code, // － full-width hyphen-minus
+    '\u3030'.code, // 〰 wavy dash
+    '-'.code, '_'.code, '='.code, '~'.code, '|'.code, // ASCII strokes
+)
+
+/**
+ * The marks whose *only* tategaki form comes from the font's `vert` feature: `ー`, `〜`, `～`, `｜`,
+ * `゠` (the font substitutes glyphs that carry no Unicode code point, so [verticalGlyphForm] has
+ * nothing to map them to). Every one of them is a line-like mark whose printed vertical form is the
+ * horizontal glyph turned a quarter turn.
+ *
+ * Depending on the feature alone would leave them horizontal on a device whose CJK fallback lacks
+ * `vert` — and a font that substituted one of them would draw a substituted shape turned 90° — so the
+ * overlay measures **every rotated glyph** (this set and [VERTICAL_ROTATED_MARKS]) with the plain
+ * style and draws it rotated.
+ *
+ * Full-width `．` (`U+FF0E`) is deliberately excluded even though its `vert` form also has no code
+ * point: that form is a *translation* of the dot within the cell, not a quarter turn, so rotating the
+ * horizontal glyph would be wrong.
+ */
+internal val FEATURE_ONLY_VERTICAL_MARKS: Set<Int> = setOf(
+    '\u30FC'.code, // ー katakana-hiragana prolonged sound mark
+    '\u301C'.code, // 〜 wave dash
+    '\uFF5E'.code, // ～ full-width tilde
+    '\uFF5C'.code, // ｜ full-width vertical bar
+    '\u30A0'.code, // ゠ katakana double hyphen
+)
+
+/**
+ * The tategaki form of a single [glyph], for fonts (and fallbacks) whose shaping lacks the `vert`
+ * feature: single-character Japanese/full-width punctuation mapped to its Unicode vertical
+ * presentation form (U+FE10-U+FE19, U+FE30-U+FE4F).
+ *
+ * [VERTICAL_GLYPH_FORMS] is a subset of Noto Sans CJK JP's GSUB `vert` table — verified with
+ * fontTools against the shipped font, not guessed: every pair is what `vert` substitutes, and the
+ * target is a real Unicode code point so it survives a font that has the glyph but no feature.
+ * `vert` also maps `ー`, `〜`, `～`, `｜`, `゠` and a few others to glyphs with no Unicode code point;
+ * those have no FE form at all, and the ones the overlay cares about are handled by rotation instead
+ * (see [FEATURE_ONLY_VERTICAL_MARKS]).
+ *
+ * The function is idempotent — an FE form is not a key, so it passes through — and it only maps the
+ * base code point, appending any trailing combining marks (see [splitGlyphs]) unchanged.
+ */
+internal fun verticalGlyphForm(glyph: String): String {
+    if (glyph.isEmpty()) return glyph
+    val codePoint = glyph.codePointAt(0)
+    val vertical = VERTICAL_GLYPH_FORMS[codePoint] ?: return glyph
+    val baseChars = Character.charCount(codePoint)
+    return if (baseChars >= glyph.length) vertical.toString() else vertical + glyph.substring(baseChars)
+}
+
+/**
+ * The verified punctuation -> vertical-presentation-form table behind [verticalGlyphForm]: every
+ * entry is a `vert` substitution in Noto Sans CJK JP 2.004 (fontTools read of its GSUB `vert`
+ * lookups), restricted to targets that are real Unicode code points so they survive a font without
+ * the feature. `U+3008`/`U+3009` map through the glyph they share with `U+2329`/`U+232A` in that
+ * table.
+ *
+ * Internal rather than private so the test can pin the *whole* table entry by entry: a typo'd target
+ * or a missing row is otherwise invisible.
+ */
+internal val VERTICAL_GLYPH_FORMS: Map<Int, Char> = mapOf(
+    0x3001 to '\uFE11', // 、 ︑
+    0x3002 to '\uFE12', // 。 ︒
+    0x3008 to '\uFE3F', // 〈 ︿
+    0x3009 to '\uFE40', // 〉 ﹀
+    0x300A to '\uFE3D', // 《 ︽
+    0x300B to '\uFE3E', // 》 ︾
+    0x300C to '\uFE41', // 「 ﹁
+    0x300D to '\uFE42', // 」 ﹂
+    0x300E to '\uFE43', // 『 ﹃
+    0x300F to '\uFE44', // 』 ﹄
+    0x3010 to '\uFE3B', // 【 ︻
+    0x3011 to '\uFE3C', // 】 ︼
+    0x3014 to '\uFE39', // 〔 ︹
+    0x3015 to '\uFE3A', // 〕 ︺
+    0x3016 to '\uFE17', // 〖 ︗
+    0x3017 to '\uFE18', // 〗 ︘
+    0x2015 to '\uFE31', // ― ︱
+    0x2025 to '\uFE30', // ‥ ︰
+    0x2026 to '\uFE19', // … ︙
+    0xFF01 to '\uFE15', // ！ ︕
+    0xFF08 to '\uFE35', // （ ︵
+    0xFF09 to '\uFE36', // ） ︶
+    0xFF0C to '\uFE10', // ， ︐
+    0xFF1A to '\uFE13', // ： ︓
+    0xFF1B to '\uFE14', // ； ︔
+    0xFF1F to '\uFE16', // ？ ︖
+    0xFF3B to '\uFE47', // ［ ﹇
+    0xFF3D to '\uFE48', // ］ ﹈
+    0xFF3F to '\uFE33', // ＿ ︳
+    0xFF5B to '\uFE37', // ｛ ︷
+    0xFF5D to '\uFE38', // ｝ ︸
 )
