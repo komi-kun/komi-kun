@@ -22,7 +22,11 @@ import eu.kanade.tachiyomi.ui.dictionary.DictionaryPreferences
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -69,8 +73,12 @@ class ReaderOcrBlockLoader(
     private val downloadProvider: DownloadProvider,
     private val sourceManager: SourceManager,
     private val dictionaryPreferences: DictionaryPreferences,
-    @AppCoroutineScope private val scope: CoroutineScope,
     // KUN -->
+    /**
+     * App-lifetime scope, used **only** by [observeOcrQueue]: page work that reads a chapter's
+     * archive must not outlive the reader (see [work]).
+     */
+    @AppCoroutineScope private val scope: CoroutineScope,
     /**
      * The combined dictionary/OCR opt-in. Checked at the work entry points ([ensureLoaded],
      * [redoOcr]) so a disabled feature never reads a `.mokuro` sidecar, never reads the persisted
@@ -108,6 +116,49 @@ class ReaderOcrBlockLoader(
      */
     private val engineRetryAfter = AtomicLong(0L)
 
+    // KUN -->
+    /**
+     * The reader session's **page work** scope. Never [scope]: page work reads the chapter's page
+     * bytes, and those streams are backed by the reader's archive, which `ArchivePageLoader.recycle`
+     * `munmap`s (it no longer exists once a chapter is switched away or the reader is destroyed).
+     * A load launched on the app-lifetime [scope] therefore outlives the archive it reads and used to
+     * fault inside libarchive (`SIGSEGV`/`SEGV_MAPERR` in `archive_read_open1`, which no `catch` can
+     * handle — the mapped range is simply gone). This scope is cancelled by [detach], and replaced
+     * so the next reader session still has live work.
+     */
+    @Volatile
+    private var work: CoroutineScope = newWorkScope()
+
+    /**
+     * The in-flight job of each page, so a forced re-run ([redoOcr]) can cancel the load it
+     * supersedes. Cancellation is cooperative: it is what keeps a read that has not started yet from
+     * happening at all; `ArchiveReadGuard` is what makes an already-started read safe.
+     */
+    private val jobs = ConcurrentHashMap<OcrPageKey, Job>()
+
+    private fun newWorkScope(): CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /**
+     * Stops every page/redo job the reader started — called from `ReaderOcrHostImpl.detach`, i.e.
+     * when the reader activity is really going away — and drops what they accumulated: a cancelled
+     * load cannot complete, so its retry/in-flight bookkeeping is meaningless, and the blocks are
+     * re-read from the persisted OCR cache by the next reader session.
+     *
+     * The loader stays usable ([ensureLoaded] afterwards runs on a fresh scope) because it is an
+     * app-graph singleton shared by every reader session.
+     */
+    fun detach() {
+        val previous = work
+        work = newWorkScope()
+        previous.cancel()
+        jobs.clear()
+        inFlight.clear()
+        retryAfter.clear()
+        timeoutLogged.clear()
+        _blocks.update { emptyMap() }
+    }
+    // KUN <--
+
     init {
         // Keep the reader's in-memory cache fresh while the background queue OCRs the same chapter,
         // so blocks appear live without leaving/re-entering it (fix: `invalidate()` had no caller).
@@ -125,56 +176,71 @@ class ReaderOcrBlockLoader(
             if (key.chapterId <= 0L || _blocks.value.containsKey(key)) return@forEach
             retryAfter[key]?.let { if (now < it) return@forEach }
             if (!inFlight.add(key)) return@forEach
-            scope.launch(Dispatchers.IO) {
-                // Watchdog (F2): a future hang can never again be invisible. `withTimeoutOrNull`
-                // cannot distinguish a timeout from a block that returned null, so the result is
-                // wrapped in a non-null [LoadOutcome].
-                val outcome = runCatching {
-                    withTimeoutOrNull(loadTimeoutMs) { LoadOutcome(load(page)) }
-                }.getOrElse { e ->
-                    // F1: never treat cancellation as a failure — rethrow it so the job is cancelled
-                    // (same pattern as `runEngineOcr`). Other throwables are never swallowed:
-                    // a throwing load() looked exactly like "OCR does nothing" (no logs, no cache,
-                    // endless retry). See `ort-v6-migration.md` §6/§9.
-                    if (e is CancellationException) throw e
-                    logcat(LogPriority.WARN, e) { "ReaderOcr: failed to resolve OCR blocks for page ${page.index}" }
-                    null
+            // KUN -->
+            // LAZY start so the job is registered before it can run (and remove itself) — page work
+            // always runs on the session scope, never on the app-lifetime one.
+            val job = work.launch(start = CoroutineStart.LAZY) {
+                try {
+                    runPageLoad(page, key)
+                } finally {
+                    jobs.remove(key)
                 }
-                inFlight.remove(key)
-                when (outcome) {
-                    // The load did not return within [loadTimeoutMs]: assume a hang and treat it
-                    // exactly like "not resolvable yet" — retry later, never cache an empty result.
-                    null -> {
-                        logLoadTimeout(page)
-                        retryAfter[key] = System.nanoTime() + RETRY_INTERVAL_NANOS
-                    }
+            }
+            jobs[key] = job
+            job.start()
+            // KUN <--
+        }
+    }
+
+    // KUN -->
+    /** One page's [load] with the watchdog and the outcome bookkeeping (see [ensureLoaded]). */
+    private suspend fun runPageLoad(page: ReaderPage, key: OcrPageKey) {
+        // Watchdog (F2): a future hang can never again be invisible. `withTimeoutOrNull`
+        // cannot distinguish a timeout from a block that returned null, so the result is
+        // wrapped in a non-null [LoadOutcome].
+        val outcome = runCatching {
+            withTimeoutOrNull(loadTimeoutMs) { LoadOutcome(load(page)) }
+        }.getOrElse { e ->
+            // F1: never treat cancellation as a failure — rethrow it so the job is cancelled
+            // (same pattern as `runEngineOcr`). Other throwables are never swallowed:
+            // a throwing load() looked exactly like "OCR does nothing" (no logs, no cache,
+            // endless retry). See `ort-v6-migration.md` §6/§9.
+            if (e is CancellationException) throw e
+            logcat(LogPriority.WARN, e) { "ReaderOcr: failed to resolve OCR blocks for page ${page.index}" }
+            null
+        }
+        inFlight.remove(key)
+        when (outcome) {
+            // The load did not return within [loadTimeoutMs]: assume a hang and treat it
+            // exactly like "not resolvable yet" — retry later, never cache an empty result.
+            null -> {
+                logLoadTimeout(page)
+                retryAfter[key] = System.nanoTime() + RETRY_INTERVAL_NANOS
+            }
+            else -> {
+                val loaded = outcome.blocks
+                // The switch can be turned off while this load is suspended: `load()` then
+                // gets no blocks from the manager (an opt-out is inert, not "no text here").
+                // Caching that empty list would mark the page as resolved-empty, so a later
+                // re-enable in the same reader session would never OCR it again. Drop it as
+                // unresolved instead — no backoff, because [ensureLoaded] is gated on the
+                // switch, so nothing re-drives this page until the feature is back on.
+                val droppedByOptOut = loaded != null && loaded.isEmpty() &&
+                    !dictionaryOcrPreferences.isEnabled()
+                when {
+                    loaded == null -> retryAfter[key] = System.nanoTime() + RETRY_INTERVAL_NANOS
+                    droppedByOptOut -> retryAfter.remove(key)
                     else -> {
-                        val loaded = outcome.blocks
-                        // KUN -->
-                        // The switch can be turned off while this load is suspended: `load()` then
-                        // gets no blocks from the manager (an opt-out is inert, not "no text here").
-                        // Caching that empty list would mark the page as resolved-empty, so a later
-                        // re-enable in the same reader session would never OCR it again. Drop it as
-                        // unresolved instead — no backoff, because [ensureLoaded] is gated on the
-                        // switch, so nothing re-drives this page until the feature is back on.
-                        val droppedByOptOut = loaded != null && loaded.isEmpty() &&
-                            !dictionaryOcrPreferences.isEnabled()
-                        // KUN <--
-                        when {
-                            loaded == null -> retryAfter[key] = System.nanoTime() + RETRY_INTERVAL_NANOS
-                            droppedByOptOut -> retryAfter.remove(key)
-                            else -> {
-                                // A completed resolution (even an empty one) is cached; null retries later.
-                                timeoutLogged.remove(key)
-                                retryAfter.remove(key)
-                                _blocks.update { it + (key to loaded) }
-                            }
-                        }
+                        // A completed resolution (even an empty one) is cached; null retries later.
+                        timeoutLogged.remove(key)
+                        retryAfter.remove(key)
+                        _blocks.update { it + (key to loaded) }
                     }
                 }
             }
         }
     }
+    // KUN <--
 
     /** The blocks already loaded for [page] (empty until [ensureLoaded] finishes). */
     fun blocksFor(page: ReaderPage): List<OcrTextBlock> = _blocks.value[page.ocrKey()].orEmpty()
@@ -267,7 +333,7 @@ class ReaderOcrBlockLoader(
         // KUN --> gated work entry: a forced re-run must not bypass the disabled feature.
         if (!dictionaryOcrPreferences.isEnabled()) return
         // KUN <--
-        scope.launch(Dispatchers.IO) {
+        work.launch {
             val pagesToRedo = if (chapter) {
                 page.chapter.pages.orEmpty()
             } else {
@@ -287,6 +353,12 @@ class ReaderOcrBlockLoader(
 
             for (p in pagesToRedo) {
                 val key = p.ocrKey()
+                // KUN -->
+                // A forced re-run supersedes whatever load is running for this page: cancel it first
+                // so the two cannot read the same page concurrently, and so a load that has not
+                // reached its page read yet never reaches it (see [detach]).
+                jobs.remove(key)?.cancel()
+                // KUN <--
                 _blocks.update { it - key }
                 inFlight.remove(key)
                 retryAfter.remove(key)

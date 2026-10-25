@@ -43,6 +43,8 @@ import tachiyomi.domain.manga.interactor.GetManga
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.source.service.SourceManager
 import java.io.ByteArrayInputStream
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 class ReaderOcrBlockLoaderTest {
@@ -195,6 +197,110 @@ class ReaderOcrBlockLoaderTest {
         awaitSettled { recognitions.get() == 2 }
 
         recognitions.get() shouldBe 2
+        loader.blocks.value shouldBe mapOf(page.ocrKey() to listOf(block))
+    }
+
+    /**
+     * The reader's page work must not outlive the reader: `detach()` (called when the reader
+     * activity goes away) has to cancel a load that is still running, because that load reads the
+     * chapter's page bytes out of the archive the reader unmaps on the way out — an in-flight read
+     * of a freed mapping is a native `SIGSEGV`, not an exception. Launched on the app-lifetime
+     * scope, nothing cancels it and the flag below never flips.
+     */
+    @Test
+    fun `detach cancels the page load that is in flight`(): Unit = runBlocking {
+        val cancelled = CountDownLatch(1)
+        coEvery { getManga.await(any()) } coAnswers {
+            awaitCalls.incrementAndGet()
+            try {
+                awaitCancellation()
+            } finally {
+                cancelled.countDown()
+            }
+        }
+        val loader = loader(loadTimeoutMs = LOAD_TIMEOUT_MS)
+
+        loader.ensureLoaded(listOf(page))
+        awaitSettled { awaitCalls.get() == 1 }
+
+        loader.detach()
+
+        cancelled.await(2, TimeUnit.SECONDS) shouldBe true
+    }
+
+    /**
+     * `detach()` must not brick the loader: it is an app-graph singleton and the next reader session
+     * reuses it. An implementation that cancels the injected app scope, or that cancels the work but
+     * leaves the page's single-flight slot held, silently stops OCR for every later reader.
+     */
+    @Test
+    fun `a page load started after detach still runs`(): Unit = runBlocking {
+        val firstCancelled = CountDownLatch(1)
+        coEvery { getManga.await(any()) } coAnswers {
+            if (awaitCalls.incrementAndGet() == 1) {
+                try {
+                    awaitCancellation()
+                } finally {
+                    firstCancelled.countDown()
+                }
+            } else {
+                // Unresolvable: enough to prove the second drive reached the load path at all.
+                null
+            }
+        }
+        val loader = loader(loadTimeoutMs = LOAD_TIMEOUT_MS)
+
+        loader.ensureLoaded(listOf(page))
+        awaitSettled { awaitCalls.get() == 1 }
+        loader.detach()
+        awaitSettled { firstCancelled.count == 0L }
+
+        loader.ensureLoaded(listOf(page))
+        awaitSettled { awaitCalls.get() == 2 }
+
+        awaitCalls.get() shouldBe 2
+    }
+
+    /**
+     * A forced re-run supersedes the page's ordinary load: the old load must be cancelled rather
+     * than left running beside it (two reads of the same page, and the loser can overwrite the
+     * winner's blocks). This is the "a new load cancels the previous load" invariant.
+     */
+    @Test
+    fun `a forced redo cancels the load already in flight for the page`(): Unit = runBlocking {
+        val initialLoadCancelled = CountDownLatch(1)
+        val forced = AtomicInteger(0)
+        val ocrManager = mockk<OcrManager>(relaxed = true) {
+            every { queueState } returns MutableStateFlow(emptyList<OcrQueueItem>())
+            every { sourceFor(any()) } returns ReaderOcrSource.PADDLE
+            every { cacheKey(any(), any(), any()) } returns OcrCacheKey(sourceId = 1L, mangaId = 7L, chapterId = 42L)
+        }
+        coEvery { getManga.await(any()) } coAnswers {
+            if (awaitCalls.incrementAndGet() == 1) {
+                try {
+                    awaitCancellation()
+                } finally {
+                    initialLoadCancelled.countDown()
+                }
+            } else {
+                Manga.create().copy(id = 7L, source = 1L)
+            }
+        }
+        coEvery { ocrManager.forceRecognizeAndCache(any(), any(), any(), any(), any()) } coAnswers {
+            forced.incrementAndGet()
+            listOf(block)
+        }
+        page.stream = { ByteArrayInputStream(ByteArray(8)) }
+        val loader = loader(LOAD_TIMEOUT_MS, ocrManager = ocrManager)
+
+        loader.ensureLoaded(listOf(page))
+        awaitSettled { awaitCalls.get() == 1 }
+
+        loader.redoOcr(page)
+
+        initialLoadCancelled.await(2, TimeUnit.SECONDS) shouldBe true
+        awaitSettled { forced.get() == 1 }
+        forced.get() shouldBe 1
         loader.blocks.value shouldBe mapOf(page.ocrKey() to listOf(block))
     }
 
