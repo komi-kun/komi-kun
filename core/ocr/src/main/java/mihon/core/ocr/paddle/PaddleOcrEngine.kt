@@ -283,7 +283,7 @@ class PaddleOcrEngine(
             File(appContext.filesDir, MODEL_DIR),
             listOf(preferences.detModelFile(), preferences.recModelFile()),
         )
-        if (loadedModelKey == installed) return
+        if (!shouldReloadModels(loadedModelKey, installed)) return
         logcat(LogPriority.INFO) { "Paddle OCR engine: model files changed ($loadedModelKey -> $installed)" }
         destroy()
     }
@@ -612,3 +612,22 @@ class PaddleOcrEngine(
     }
     // KUN <--
 }
+
+// KUN -->
+/**
+ * Whether [PaddleOcrEngine] has to swap its weights: [loadedKey] is the identity `init` recorded for
+ * the weights now in native memory (null before the first init, and after `destroy` forgot them) and
+ * [installedKey] is what [installedModelIdentity] reports for the files on disk **now**.
+ *
+ * Both are whole identities — the installed-release marker **and** the model files' own fingerprint —
+ * and the comparison is over all of it, never over the release tag alone: the detector's file name is
+ * the same in every release, so a replaced file keeps the tag. Keying on a selection-derived value
+ * instead is the bug this exists for: the engine reported a release for bytes it never loaded, and a
+ * later replacement looked like "unchanged".
+ *
+ * Pure and top-level only so it is testable: `PaddleOcrEngine` needs an Android `Context` and
+ * `libpaddle_ocr.so`, so a mutation back to a selection-derived comparison would pass every other
+ * test in this module.
+ */
+internal fun shouldReloadModels(loadedKey: String?, installedKey: String): Boolean = loadedKey != installedKey
+// KUN <--

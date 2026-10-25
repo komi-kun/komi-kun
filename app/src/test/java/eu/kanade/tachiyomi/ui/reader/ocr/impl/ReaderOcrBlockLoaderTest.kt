@@ -35,6 +35,7 @@ import mihon.core.ocr.cache.OcrQueueItem
 import mihon.core.ocr.model.OcrTextBlock
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.fail
 import tachiyomi.core.common.ocr.ReaderOcrSource
 import tachiyomi.core.common.preference.DictionaryOcrPreferences
 import tachiyomi.core.common.preference.InMemoryPreferenceStore
@@ -329,12 +330,14 @@ class ReaderOcrBlockLoaderTest {
         redoStarted.await(2, TimeUnit.SECONDS) shouldBe true
         initialLoadCancelled.await(2, TimeUnit.SECONDS) shouldBe true
 
-        // The per-frame driver, three times, while the redo is still working.
-        repeat(3) {
-            loader.ensureLoaded(listOf(page))
-            delay(50)
-        }
-        ordinaryRuns.get() shouldBe 0
+        // The per-frame driver, re-driven while the redo is still working. A wrongly-started load is
+        // caught the moment it reaches `GetManga`; a fixed `repeat(3) { delay(50) }` only gave it
+        // 150 ms to get there, and a loaded machine can exceed that — the test then passed with the
+        // defect present.
+        awaitNoViolation(
+            drive = { loader.ensureLoaded(listOf(page)) },
+            violation = { ordinaryRuns.get() != 0 },
+        )
         awaitCalls.get() shouldBe 2 // the ordinary load's (cancelled) one, plus the redo's own
         forced.get() shouldBe 1
 
@@ -344,6 +347,26 @@ class ReaderOcrBlockLoaderTest {
         loader.blocks.value shouldBe mapOf(page.ocrKey() to listOf(forcedBlock))
         forced.get() shouldBe 1
         ordinaryRuns.get() shouldBe 0
+    }
+
+    /**
+     * The negative twin of [awaitSettled]: re-runs [drive] for [windowMs] and fails the moment
+     * [violation] holds, so a wrongly-started load is caught whenever it reaches its first suspension
+     * point instead of only when it happens to win a fixed sleep. [windowMs] is a bound on how long
+     * the absence is demonstrated, not a delay that must be out-raced.
+     */
+    private suspend fun awaitNoViolation(
+        windowMs: Long = NEGATIVE_WINDOW_MS,
+        drive: () -> Unit,
+        violation: () -> Boolean,
+    ) {
+        val deadline = System.currentTimeMillis() + windowMs
+        while (true) {
+            drive()
+            if (violation()) fail("a page load reached GetManga while the redo was still in flight")
+            if (System.currentTimeMillis() >= deadline) return
+            delay(10)
+        }
     }
 
     /**
@@ -368,5 +391,12 @@ class ReaderOcrBlockLoaderTest {
 
         /** Mirrors `ReaderOcrBlockLoader.RETRY_INTERVAL_NANOS` (1 s) plus a margin. */
         private const val RETRY_BACKOFF_MS = 1_000L
+
+        /**
+         * How long a negative expectation is demonstrated for. Long enough that a wrongly-started
+         * load on `Dispatchers.IO` reaches `GetManga` on a loaded machine, short enough to keep the
+         * suite fast.
+         */
+        private const val NEGATIVE_WINDOW_MS = 1_000L
     }
 }

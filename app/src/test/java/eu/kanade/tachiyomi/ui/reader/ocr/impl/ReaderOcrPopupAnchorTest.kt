@@ -42,19 +42,24 @@ class ReaderOcrPopupAnchorTest {
     }
 
     @Test
-    fun `detaching the host clears the anchor and closes the popup`() {
+    fun `detaching the host clears the anchor, closes the popup and stops the page work`() {
         val anchor = ReaderOcrPopupAnchor().apply {
             rect.value = mockk<RectF>()
             screenshot.value = pageScreenshot
         }
         val dictionaryHost = mockk<ReaderDictionaryHost>(relaxed = true)
-        val host = host(anchor, dictionaryHost)
+        val blockLoader = mockk<ReaderOcrBlockLoader>(relaxed = true)
+        val host = host(anchor, dictionaryHost, blockLoader)
 
         host.detach()
 
         anchor.screenshot.value shouldBe null
         anchor.rect.value shouldBe null
         verify(exactly = 1) { dictionaryHost.dismiss() }
+        // The page work reads the chapter archive, which the reader recycles right after this: a load
+        // left running across the exit reads an unmapped file. Without this call nothing else stops
+        // it — the loader's own scope is app-lifetime.
+        verify(exactly = 1) { blockLoader.detach() }
     }
 
     @Test
@@ -73,11 +78,16 @@ class ReaderOcrPopupAnchorTest {
     }
 
     /**
-     * Every collaborator other than [anchor]/[dictionaryHost] is mocked and `detach()` must not touch
-     * them (`context` in particular: nothing here reads resources).
+     * Every collaborator other than [anchor]/[dictionaryHost]/`blockLoader` is mocked and `detach()`
+     * must not touch them (`context` in particular: nothing here reads resources) — the block loader
+     * is the one other collaborator it *must* stop, and that is verified per test.
      */
-    private fun host(anchor: ReaderOcrPopupAnchor, dictionaryHost: ReaderDictionaryHost) = ReaderOcrHostImpl(
-        blockLoader = mockk(relaxed = true),
+    private fun host(
+        anchor: ReaderOcrPopupAnchor,
+        dictionaryHost: ReaderDictionaryHost,
+        blockLoader: ReaderOcrBlockLoader = mockk(relaxed = true),
+    ) = ReaderOcrHostImpl(
+        blockLoader = blockLoader,
         readerPreferences = mockk<ReaderPreferences>(relaxed = true),
         dictionaryPreferences = mockk<DictionaryPreferences>(relaxed = true),
         dictionaryHost = dictionaryHost,

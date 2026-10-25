@@ -30,6 +30,32 @@ class OcrPolicySourceWiringTest {
 
     private fun app(path: String): String = File("src/main/java/eu/kanade/tachiyomi/$path").readText()
 
+    private fun presentation(path: String): String = File("src/main/java/eu/kanade/presentation/$path").readText()
+
+    /**
+     * The balanced `Preference.PreferenceItem.ListPreference(…)` call that binds [marker], e.g.
+     * `preference = preferences.detModelVariant,`. Scoping to one call keeps the guard from being
+     * satisfied by a sibling preference's identical `onValueChanged` body.
+     */
+    private fun listPreference(source: String, marker: String): String {
+        val at = source.indexOf(marker)
+        check(at >= 0) { "missing preference binding: $marker" }
+        val open = source.lastIndexOf("ListPreference(", at)
+        check(open >= 0) { "no ListPreference call for: $marker" }
+
+        var depth = 0
+        for (i in open + "ListPreference".length until source.length) {
+            when (source[i]) {
+                '(' -> depth++
+                ')' -> {
+                    depth--
+                    if (depth == 0) return source.substring(open, i + 1)
+                }
+            }
+        }
+        error("unterminated ListPreference call for: $marker")
+    }
+
     @Test
     fun `the download hook keeps the queue metadata and gates the actions`() {
         val downloader = app("data/download/Downloader.kt")
@@ -143,6 +169,28 @@ class OcrPolicySourceWiringTest {
         // Not asserted: that the download actually runs at launch (the graph singleton, the
         // dispatcher at runtime and the toast are Android/Compose-bound), nor that a completed
         // download leaves the marker matching the selection — `ModelDownloaderOptInTest` covers that.
+    }
+
+    /**
+     * The settings screen is the other place a model download starts: switching the detector or the
+     * recogniser resolves to another release, and nothing else re-downloads the weights the user just
+     * selected (the engine only ever reloads what is *installed*). Deleting either `onValueChanged`
+     * callback leaves the selection pointing at a release the downloader is never asked to install,
+     * and no behavioural test can see it — the callback needs a Compose `Preference` host.
+     */
+    @Test
+    fun `the settings variant switches trigger the download`() {
+        val settings = presentation("more/settings/screen/SettingsOcrScreen.kt")
+
+        // Scoped to each ListPreference call, so removing one callback is caught even though all
+        // three of them have the same body.
+        listPreference(settings, "preference = preferences.detModelVariant,") shouldContainSource
+            """modelDownloader\s*\.\s*triggerPaddleDownload\(\s*\)"""
+        listPreference(settings, "preference = preferences.recModelVariant,") shouldContainSource
+            """modelDownloader\s*\.\s*triggerPaddleDownload\(\s*\)"""
+
+        // Not asserted: that the switch really resolves to a release the downloader then installs —
+        // `ModelDownloaderOptInTest` covers the download side, and the preference wiring is Compose's.
     }
 
     /**

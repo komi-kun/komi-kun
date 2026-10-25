@@ -228,6 +228,12 @@ class DialogueMergeRegressionTest {
     // (c) Two stacked, border-less bubbles are two paragraphs.
     // ------------------------------------------------------------------------------------------
 
+    /**
+     * **Device story (unmodified quads).** The two lower-left bubbles as the fine-tuned detector
+     * emitted them. Statically no edge joins them at all here, so this case documents the device
+     * overlay rather than reproducing the glue: the two bubbles are two paragraphs because nothing
+     * bridged them in this particular capture.
+     */
     @Test
     fun `two border-less stacked bubbles stay two paragraphs in reading order`() {
         val blocks = merge(lowerLeft())
@@ -235,14 +241,20 @@ class DialogueMergeRegressionTest {
         blocks.map { it.lines } shouldBe listOf(UPPER_BUBBLE, LOWER_BUBBLE)
     }
 
+    /**
+     * **Device story (the capture that reproduced it), knife-edge.** The same quads with one detector
+     * box 5 % wider and 34 px taller: the upper bubble's left column then sits 0.691x the lower
+     * column's thickness with a 0.253x gap, so the fragment rule bridges the two bubbles into one
+     * cluster whose columns interleave (the shape the device overlay showed).
+     *
+     * It is kept because it is the real measurement, but it must not be the only reproduction: at
+     * 0.6498/0.511 the unmodified quads miss both limits by a hair, so raising
+     * `MIN_THICKNESS_RATIO` or lowering `MAX_FRAGMENT_GAP_RATIO` stops exercising
+     * `splitInterleavedBands` here without any test noticing. [bridgedLowerLeft] is the fixture that
+     * sits comfortably inside the bridge regime.
+     */
     @Test
     fun `a column-gap fragment bridge does not glue two stacked bubbles`() {
-        // The eval quads leave a 72 px vertical gap between the upper bubble's left column and the
-        // lower bubble's second column, i.e. 0.51x column width, just over the 0.35x fragment limit —
-        // and their thickness ratio is 141/217 = 0.6498, 0.3 px under the 0.65 cut-off. A detector
-        // 5% wider and 34 px taller on that one box puts both under the limit, and the fragment rule
-        // then bridges the two bubbles into one block whose columns interleave. That is what the
-        // device overlay showed: a single block spanning both bubbles.
         val bridged = lowerLeft().map {
             if (it.text == "…そうですね") {
                 it.copy(bbox = it.bbox.copy(right = 906.0 / PAGE_W, bottom = 4360.0 / PAGE_H))
@@ -254,9 +266,140 @@ class DialogueMergeRegressionTest {
         merge(bridged).map { it.lines } shouldBe listOf(UPPER_BUBBLE, LOWER_BUBBLE)
     }
 
+    /**
+     * The same two bubbles with the bridge geometry **comfortably** inside the fragment limits: the
+     * upper left column is 195 px to the lower column's 217 px (0.90x thickness, over the 0.65
+     * cut-off), x-aligned over 0.83 of its width (over the 0.8 cut-off) and 29 px above it (0.15x,
+     * less than half the 0.35 cut-off). Pre-fix — or with `splitInterleavedBands` removed — the
+     * fragment edge joins all four columns of the two bubbles into one cluster, the right-to-left
+     * sort interleaves them and the page shows a single block.
+     */
+    @Test
+    fun `a comfortably bridged pair of stacked bubbles is still two paragraphs`() {
+        val bridged = bridgedLowerLeft()
+
+        merge(bridged).map { it.lines } shouldBe listOf(UPPER_BUBBLE, LOWER_BUBBLE)
+    }
+
+    /** [lowerLeft] with the fragment bridge widened from the knife-edge to the comfortable regime. */
+    private fun bridgedLowerLeft(): List<EngineLine> = lowerLeft().map {
+        if (it.text == "…そうですね") {
+            it.copy(
+                bbox = NormalizedBBox(
+                    left = 735.0 / PAGE_W,
+                    top = it.bbox.top,
+                    right = 930.0 / PAGE_W,
+                    bottom = 4369.0 / PAGE_H,
+                ),
+            )
+        } else {
+            it
+        }
+    }
+
+    /**
+     * **The default detector's two bubbles.** The stock detector ("bubbles + sound effects") reads the
+     * same two bubbles with its own quads and no edge joins them, so it must also produce two
+     * paragraphs in reading order — the bubble geometry is a property of the page, not of one
+     * detector's boxes.
+     */
+    @Test
+    fun `the stock detector also keeps the two stacked bubbles as two paragraphs`() {
+        val blocks = merge(stockLowerLeft())
+
+        blocks.map { it.lines } shouldBe listOf(UPPER_BUBBLE, LOWER_BUBBLE)
+    }
+
+    /**
+     * The stock quads bridged the same comfortable way (0.90x thickness, 0.15x gap, 0.82 advance
+     * overlap): the detector-independent half of the `splitInterleavedBands` guard.
+     */
+    @Test
+    fun `the stock detector's bubbles are split back apart when a fragment bridges them`() {
+        val bridged = stockLowerLeft().map {
+            if (it.text == "…そうですね") {
+                it.copy(
+                    bbox = NormalizedBBox(
+                        left = 769.0 / PAGE_W,
+                        top = it.bbox.top,
+                        right = 920.0 / PAGE_W,
+                        bottom = 4390.0 / PAGE_H,
+                    ),
+                )
+            } else {
+                it
+            }
+        }
+
+        merge(bridged).map { it.lines } shouldBe listOf(UPPER_BUBBLE, LOWER_BUBBLE)
+    }
+
     private fun lowerLeft(): List<EngineLine> = fineTunedPage().filter {
         it.text in (UPPER_BUBBLE + LOWER_BUBBLE).toSet()
     }
+
+    private fun stockLowerLeft(): List<EngineLine> = stockPage().filter {
+        it.text in (UPPER_BUBBLE + LOWER_BUBBLE).toSet()
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // (d) The band threshold: columns of one bubble vs two stacked bubbles.
+    // ------------------------------------------------------------------------------------------
+
+    /**
+     * `BAND_RUN_OVERLAP` is the whole rule: two columns whose run-axis (vertical) overlap is at least
+     * half the shorter one belong to the same stacked band — one bubble's stack — while the two
+     * stacked bubbles of this page overlap 0.
+     *
+     * Three columns: an upper pair (`上これは` / `上テスト`, one bubble, side by side) and `下ですよ`,
+     * below and to the right, bridged to `上これは` by a fragment edge. `上テスト` extends down past
+     * `下ですよ`'s top by `overlapPx` px, out of `下ですよ`'s 400 px height, so the two bands' overlap
+     * ratio is exactly `overlapPx / 400`:
+     *
+     *  * `>= 0.5` (200 px): `上テスト` counts as part of the lower band, so there is only one band and
+     *    nothing is split — the column really does live in both rows, which is what the threshold
+     *    means by "same bubble";
+     *  * `< 0.5` (190 px): two bands whose reading order alternates, i.e. two bubbles, split back
+     *    into one paragraph per bubble.
+     */
+    @Test
+    fun `a band overlap of exactly half still counts as one bubble`() {
+        // One band, so the cluster is one paragraph: the right column top-to-bottom, then the
+        // left column that spans both rows.
+        merge(bandFixture(overlapPx = 200.0)).map { it.lines } shouldBe listOf(
+            listOf("上これは", "下ですよ", "上テスト"),
+        )
+    }
+
+    @Test
+    fun `a band overlap above half also counts as one bubble`() {
+        merge(bandFixture(overlapPx = 240.0)).map { it.lines } shouldBe listOf(
+            listOf("上これは", "下ですよ", "上テスト"),
+        )
+    }
+
+    @Test
+    fun `a band overlap below half is two bubbles and is split`() {
+        // Two bands, so the guard splits the cluster into the upper bubble and the lower one. (The
+        // row stage then reverses them because their spans overlap; the grouping is what is pinned.)
+        merge(bandFixture(overlapPx = 190.0)).map { it.lines.toSet() }.toSet() shouldBe setOf(
+            setOf("上これは", "上テスト"),
+            setOf("下ですよ"),
+        )
+    }
+
+    /**
+     * Three vertical columns in page pixels: `上これは` (upper right, 200x400), `上テスト` (upper left,
+     * 200x(430+`overlapPx`)) and `下ですよ` (lower right, 200x400), the last one 30 px (0.15x, well
+     * inside the 0.35 fragment limit) below `上これは` so the fragment rule bridges them. Every box is
+     * 200 px wide and the texts are kana-only, so neither the furigana nor the single-character SFX
+     * filter (nor the bloated-column trim) touches them.
+     */
+    private fun bandFixture(overlapPx: Double): List<EngineLine> = listOf(
+        line("上これは", 800.0, 2000.0, 1000.0, 2400.0),
+        line("上テスト", 600.0, 2000.0, 800.0, 2430.0 + overlapPx),
+        line("下ですよ", 800.0, 2430.0, 1000.0, 2830.0),
+    )
 
     // ------------------------------------------------------------------------------------------
     // Ruby is still dropped: the filter was narrowed, not disabled.
