@@ -100,6 +100,18 @@ fun OcrOverlay(
     // Text is measured once at this fixed size and scaled to fit each block; the plate/corner and
     // the legibility floor are in px so they are stable across the reader's font scale.
     val baseTextStyle = remember(density) { TextStyle(fontSize = BASE_TEXT_SP.sp, color = Color.White) }
+    // KUN -->
+    // Vertical typography: `vert` (not `vrt2`) is what asks the system CJK font for its tategaki
+    // glyphs — it reshapes CJK punctuation (、。「」【】… 、 ！？) into their centred vertical forms
+    // and repositions the small-kana variants (ぁ ゃ ァ …), while leaving full-width and ASCII Latin
+    // and digits untouched. In Noto Sans CJK JP `vert` is a strict superset of `vrt2`. It is passed
+    // to the **vertical path only**: on the horizontal path `vert` would stand horizontal punctuation
+    // on its end and move small kana, so that path keeps the plain style. The marks whose only
+    // vertical form is a feature-only glyph (ー 〜 ～ ｜ ゠) opt out of it — see `isRotatedInVertical`.
+    val verticalTextStyle = remember(baseTextStyle) {
+        baseTextStyle.copy(fontFeatureSettings = "vert")
+    }
+    // KUN <--
     val baseTextPx = with(density) { BASE_TEXT_SP.sp.toPx() }
     val minTextPx = with(density) { MIN_TEXT_SP.sp.toPx() }
     val plateCornerPx = with(density) { 3.dp.toPx() }
@@ -140,6 +152,7 @@ fun OcrOverlay(
                         rect = mapped,
                         textMeasurer = textMeasurer,
                         baseStyle = baseTextStyle,
+                        verticalStyle = verticalTextStyle,
                         baseTextPx = baseTextPx,
                         minTextPx = minTextPx,
                         plateCornerPx = plateCornerPx,
@@ -167,10 +180,13 @@ fun OcrOverlay(
  * [textScale] (the user's overlay text size preference).
  *
  * Vertical (tategaki) blocks are laid out one upright glyph per cell, stacked top-to-bottom in
- * right-to-left columns (see [layoutVerticalText]) — never by rotating the whole run. A vertical
+ * right-to-left columns (see [layoutVerticalText]) — never by rotating the whole run — and measured
+ * with [verticalStyle] (the `vert` style, which gives punctuation its tategaki form). The exception is
+ * every glyph [isRotatedInVertical] marks as rotated — the feature-only marks (ー 〜 ～ ｜ ゠) and the
+ * stroke family — which are measured with [baseStyle] and drawn rotated. A vertical
  * block whose single line is clearly horizontal on screen stays horizontal, and the horizontal path
- * is otherwise unchanged. A legibility floor refuses to shrink past [minTextPx]; anything that no
- * longer fits is clipped to the block rather than drawn as unreadable micro-text.
+ * uses [baseStyle] and is otherwise unchanged. A legibility floor refuses to shrink past [minTextPx];
+ * anything that no longer fits is clipped to the block rather than drawn as unreadable micro-text.
  */
 private fun DrawScope.drawOcrBlockText(
     cache: OcrTextLayoutCache,
@@ -178,6 +194,7 @@ private fun DrawScope.drawOcrBlockText(
     rect: RectF,
     textMeasurer: TextMeasurer,
     baseStyle: TextStyle,
+    verticalStyle: TextStyle,
     baseTextPx: Float,
     minTextPx: Float,
     plateCornerPx: Float,
@@ -201,7 +218,7 @@ private fun DrawScope.drawOcrBlockText(
 
     val minScale = minTextPx / baseTextPx
     if (block.vertical && !isClearlyHorizontal(block.vertical, lineCount, rectW, rectH)) {
-        drawTategakiText(cache, block, rect, textMeasurer, baseStyle, minScale, textScale)
+        drawTategakiText(cache, block, rect, textMeasurer, verticalStyle, baseStyle, minScale, textScale)
     } else {
         drawHorizontalOcrText(cache, block, rect, textMeasurer, baseStyle, minScale, textScale)
     }
@@ -236,20 +253,24 @@ private fun DrawScope.drawHorizontalOcrText(
 }
 
 /**
- * Tategaki path: every glyph is measured at [baseStyle]'s reference size, positioned upright by
- * [layoutVerticalText] and drawn scaled by the layout's uniform [PlacedGlyph.scale]. Latin/digit
- * glyphs are turned 90° inside their own cell; kana, kanji and punctuation stay upright.
+ * Tategaki path: every glyph is measured at the reference size in its [verticalGlyphForm] — with the
+ * `vert` [verticalStyle], except the glyphs [isRotatedInVertical] marks as rotated (the feature-only
+ * marks and the stroke family), which are measured with the plain [baseStyle] — positioned upright by
+ * [layoutVerticalText] and drawn scaled by the layout's uniform [PlacedGlyph.scale]. Kana, kanji,
+ * punctuation and Latin/digits are drawn upright; only those rotated marks turn 90° inside their own
+ * cell.
  */
 private fun DrawScope.drawTategakiText(
     cache: OcrTextLayoutCache,
     block: OcrTextBlock,
     rect: RectF,
     textMeasurer: TextMeasurer,
+    verticalStyle: TextStyle,
     baseStyle: TextStyle,
     minScale: Float,
     textScale: Float,
 ) {
-    val cached = cache.getOrMeasureVertical(block, textMeasurer, baseStyle) ?: return
+    val cached = cache.getOrMeasureVertical(block, textMeasurer, verticalStyle, baseStyle) ?: return
     val placed = layoutVerticalText(
         cached.metrics,
         rect.left,
@@ -273,8 +294,20 @@ private fun DrawScope.drawTategakiText(
             withTransform({
                 translate(glyph.left, glyph.top)
                 scale(glyph.scale, glyph.scale, pivot = Offset.Zero)
-                // Rotate about the glyph's own centre (scaled space), keeping it centred in the cell.
-                if (glyph.rotated) rotate(90f, pivot = Offset(baseW / 2f, baseH / 2f))
+                // KUN -->
+                // Rotate about the glyph's own centre, in the glyph's **pre-scale layout**
+                // coordinates. Compose expands `rotate(degrees, pivot)` on the current canvas as
+                // translate(pivot); rotate; translate(-pivot), and every canvas op pre-concatenates
+                // (M' = M · op), so with `translate`/`scale` already applied the composite is
+                // T · S · T(pivot) · R · T(-pivot) and the pivot is a point in the untransformed
+                // layout. (baseW/2, baseH/2) — the glyph's own layout centre — is therefore the only
+                // pivot that leaves it fixed at any angle; a "scaled" pivot such as
+                // (baseW·scale/2, baseH·scale/2) would be scaled a second time and swing the glyph
+                // out of its cell for every scale ≠ 1.
+                if (glyph.rotated) {
+                    rotate(90f, pivot = Offset(baseW / 2f, baseH / 2f))
+                }
+                // KUN <--
             }) {
                 drawText(layout, color = Color.White)
             }
@@ -308,6 +341,13 @@ private class CachedVerticalOcrLayout(
 )
 
 /**
+ * Glyph-cache key for the vertical path: the measured [form] *and* whether it was measured with the
+ * plain style, because the same character can be measured both ways across paths and a `vert`-shaped
+ * layout must never be served to (or from) a plain-style glyph.
+ */
+private data class VerticalGlyphKey(val form: String, val plainStyle: Boolean)
+
+/**
  * In-memory cache for OCR text layouts and glyph measurements.
  *
  * During pan/zoom in the reader, the transform version invalidates the canvas draw pass every frame.
@@ -315,15 +355,17 @@ private class CachedVerticalOcrLayout(
  * font-shaping calls and layout allocations per frame on the main thread, dropping FPS drastically.
  *
  * This cache preserves:
- * 1. Individual glyph layouts at reference [baseTextStyle] (reused across blocks and frames).
+ * 1. Individual glyph layouts, measured in their tategaki form and keyed by style kind — the `vert`
+ *    style for punctuation, the plain style for every rotated glyph — reused across
+ *    blocks and frames.
  * 2. Block-level horizontal layouts and vertical column metrics/flattened layouts.
  */
 private class OcrTextLayoutCache(
     private val maxBlocks: Int = 500,
     private val maxGlyphs: Int = 1000,
 ) {
-    private val glyphCache = object : LinkedHashMap<String, TextLayoutResult>(maxGlyphs, 0.75f, true) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, TextLayoutResult>?): Boolean {
+    private val glyphCache = object : LinkedHashMap<VerticalGlyphKey, TextLayoutResult>(maxGlyphs, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<VerticalGlyphKey, TextLayoutResult>?): Boolean {
             return size > maxGlyphs
         }
     }
@@ -364,6 +406,7 @@ private class OcrTextLayoutCache(
     fun getOrMeasureVertical(
         block: OcrTextBlock,
         textMeasurer: TextMeasurer,
+        verticalStyle: TextStyle,
         baseStyle: TextStyle,
     ): CachedVerticalOcrLayout? {
         val cached = verticalCache[block]
@@ -374,9 +417,22 @@ private class OcrTextLayoutCache(
 
         val measuredColumns = lines.map { line ->
             splitGlyphs(line).map { glyph ->
-                val layout = glyphCache.getOrPut(glyph) {
-                    textMeasurer.measure(AnnotatedString(glyph), style = baseStyle)
+                // KUN -->
+                // Measure the glyph's tategaki form (the FE fallback for punctuation, kept in step
+                // with the `vert` style) so a font without the feature still draws 、。「」… as their
+                // vertical shapes. A rotated glyph is measured with the *plain* style instead: its
+                // drawn shape is the horizontal glyph turned a quarter turn, so no `vert` substitution
+                // of any font may leak into it. The cache key therefore carries the style kind as well
+                // as the form. The metric keeps the *recognised* character: [GlyphMetric.text] must
+                // stay the glyph the block contains, and columns and flattened layouts are built from
+                // the same list, so they stay index-aligned.
+                val plainStyle = isRotatedInVertical(glyph)
+                val form = verticalGlyphForm(glyph)
+                val style = if (plainStyle) baseStyle else verticalStyle
+                val layout = glyphCache.getOrPut(VerticalGlyphKey(form, plainStyle)) {
+                    textMeasurer.measure(AnnotatedString(form), style = style)
                 }
+                // KUN <--
                 MeasuredGlyph(glyph, layout)
             }
         }
