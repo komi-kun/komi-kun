@@ -29,8 +29,8 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import logcat.LogPriority
+import mihon.core.ocr.ModelRelease
 import mihon.core.ocr.OcrPreferences
-import mihon.core.ocr.RecModelVariant
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import tachiyomi.core.common.preference.DictionaryOcrPreferences
@@ -42,8 +42,9 @@ import java.security.MessageDigest
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.zip.ZipInputStream
 
-// The release tag and download root now live on [RecModelVariant]: the recogniser is selectable,
-// and a cached `manifest.json` from any other release must be re-fetched.
+// The release tag and download root live on [ModelRelease] (detector × recogniser): every release
+// publishes identically named files, so a cached `manifest.json` or a leftover model file from any
+// other release must not be mistaken for the selected one.
 
 /** One downloadable OCR artifact from the release manifest. */
 @Serializable
@@ -126,19 +127,20 @@ class ModelDownloader(
     val modelsDir: File get() = File(appContext.filesDir, PADDLE_DIR)
 
     // KUN -->
-    // The recogniser variant is user-selectable; detector and dictionary are shared by both
-    // releases, so only the release tag and the rec file name change.
-    private val variant: RecModelVariant get() = preferences.resolveRecModel()
-    private val release: String get() = variant.release
-    private val baseUrl: String get() = variant.baseUrl
-    private val requiredModels: List<String> get() = listOf(DET_MODEL, variant.recModel, DICT_TXT)
+    // The selection is two user-visible axes (detector × recogniser) that resolve to one release.
+    // Every release publishes the same file names — the detector name is *shared* by all four — so
+    // the release tag, not the file set, is what the cache must be keyed on.
+    private val selection: ModelRelease get() = preferences.resolveModelRelease()
+    private val requiredModels: List<String>
+        get() = listOf(selection.det.detModel, selection.rec.recModel, DICT_TXT)
     // KUN <--
 
     /**
-     * Cheap, synchronous readiness gate for the settings screen (see `SettingsOcrScreen`): the cached
-     * manifest was fetched from the release this build **pins**, and every required model file exists
-     * and matches that manifest's published **size** (no cached manifest at all → a mere non-empty
-     * check, the pre-manifest legacy install).
+     * Cheap, synchronous readiness gate for the settings screen (see `SettingsOcrScreen`): the last
+     * completed install recorded **the release this build's selection resolves to**
+     * ([installedReleaseMatches]), every required model file exists and is non-empty, and — when a
+     * cached manifest is present — each file matches that manifest's published **size** (no file
+     * bytes are hashed here).
      *
      * It does read and JSON-parse the small cached `manifest.json`, so it is **not** a pure `stat`,
      * but it deliberately does **not** SHA-256 the ~31 MB of model bytes — that is what keeps it
@@ -147,28 +149,27 @@ class ModelDownloader(
      * always enters that coroutine (once), so a same-size but corrupt model is still detected and
      * re-fetched.
      *
-     * **Why the currency check is part of "ready".** A cached manifest describes the model set of the
-     * release it was fetched from, so when the pin moves (say `ocr-manga-v2` → `ocr-manga-v3`, whose
-     * detector is a different 9,929,569 B file) the old weights on disk are *not* the weights this
-     * build means by "downloaded". Size-only verification cannot see that — the v2 detector matches its
-     * own v2 manifest entry perfectly — so the gate would report ready and the engine would keep
-     * running the previous release's detector forever. [cachedManifestIsCurrent] makes the mismatch
-     * report "not downloaded", which is what makes the settings row offer the download and
-     * [downloadModels] re-fetch.
+     * **Why the installed-release marker is the first check.** Every release ships identically named
+     * files, so a file that is merely *present* says nothing about which variant it holds — in
+     * particular `ppocrv6_small_det.onnx` is the dialogue detector in `ocr-manga-v4` and the SFX
+     * detector in `ocr-manga-v3`. A size-only check cannot see that either (a file matches *its own*
+     * release's manifest perfectly). The marker is written only after a run installed **and
+     * hash-verified** every file of a release, so a stale marker — or none at all, which is every
+     * pre-marker install — reports "not downloaded". That is what makes an in-place user re-download
+     * the dialogue detector instead of silently keeping the SFX one an older build gave them, and
+     * what invalidates a stale detector when the user switches variant in Settings.
      */
     val isPaddleDownloaded: Boolean
         get() {
             // KUN -->
-            val manifestFile = File(modelsDir, MANIFEST_NAME)
-            if (!manifestFile.isFile) {
-                // Nothing cached to compare against (a pre-manifest install): the cheap non-empty
-                // check is the only thing that can be decided here, exactly as before.
-                return requiredModelFiles().all { it.isFile && it.length() > 0L }
-            }
-            // A manifest from another release (or one that does not parse) cannot vouch for these
-            // files, so the answer is "needs a download" rather than a false "ready".
-            val manifest = loadCachedManifest() ?: return false
-            if (!cachedManifestIsCurrent(manifest, release, baseUrl)) return false
+            val target = selection
+            if (!installedReleaseMatches(modelsDir, target.release)) return false
+            if (!requiredModelFiles().all { it.isFile && it.length() > 0L }) return false
+            // A cached manifest from another release (or one that does not parse) cannot vouch for
+            // these files. The marker already proves the bytes, so a manually deleted manifest is
+            // not treated as "needs a download" — it only costs the cheap size cross-check.
+            val manifest = loadCachedManifest() ?: return true
+            if (!cachedManifestIsCurrent(manifest, target.release, target.baseUrl)) return false
             // KUN <--
             return requiredModelFiles().all { file ->
                 val entry = manifest.files.firstOrNull { it.name == file.name }
@@ -220,14 +221,19 @@ class ModelDownloader(
         }
     }
 
-    /** Fetches and parses the release manifest (and caches it beside the models). */
-    suspend fun fetchManifest(): Result<OcrModelManifest> {
+    /**
+     * Fetches and parses the release manifest (and caches it beside the models).
+     *
+     * [target] defaults to the current selection; a caller that already snapshotted one (so a
+     * preference flip mid-run cannot mix model sets) passes it in.
+     */
+    suspend fun fetchManifest(target: ModelRelease = preferences.resolveModelRelease()): Result<OcrModelManifest> {
         // KUN -->
         if (ocrDisabled()) return Result.failure(ocrDisabledFailure())
         // KUN <--
         return withContext(Dispatchers.IO) {
             runCatching {
-                val request = Request.Builder().url("$baseUrl/$MANIFEST_NAME").build()
+                val request = Request.Builder().url("${target.baseUrl}/$MANIFEST_NAME").build()
                 httpClient.newCall(request).execute().use { response ->
                     check(response.isSuccessful) { "Manifest download failed: HTTP ${response.code}" }
                     val body = response.body.string()
@@ -255,26 +261,31 @@ class ModelDownloader(
         if (ocrDisabled()) return@withContext Result.failure(ocrDisabledFailure())
         // KUN <--
         // Snapshot the selection: switching the variant mid-download must not mix model sets.
-        val target = preferences.resolveRecModel()
+        val target = preferences.resolveModelRelease()
         val targetRelease = target.release
         val targetBaseUrl = target.baseUrl
-        val required = listOf(DET_MODEL, target.recModel, DICT_TXT)
+        // The detector file name is the same in every release; the *release* is what selects its
+        // bytes, so both come from the resolved release rather than from a shared constant.
+        val required = listOf(target.det.detModel, target.rec.recModel, DICT_TXT)
 
         // Drop any `.part` scratch files an interrupted earlier run left behind.
         cleanupPartFiles()
 
-        // Offline-friendly fast path: the cached manifest was fetched from the release we still pin
-        // AND fully accounts for every required file, and every file verifies (size + SHA-256) —
-        // nothing to download. Checking the release id stops a cached manifest from pinning an old
-        // model set forever when a future release reuses the same file names.
+        // Offline-friendly fast path: the last completed install recorded the release we still
+        // select AND the cached manifest was fetched from that release AND fully accounts for every
+        // required file, and every file verifies (size + SHA-256) — nothing to download. The marker
+        // is what stops a leftover model set from pinning an old variant forever when a future
+        // release reuses the same file names (the detector name is shared by all of them).
         loadCachedManifest()?.let { cached ->
-            if (cachedManifestIsUsable(cached, targetRelease, targetBaseUrl, modelsDir, required)) {
+            if (installedReleaseMatches(modelsDir, targetRelease) &&
+                cachedManifestIsUsable(cached, targetRelease, targetBaseUrl, modelsDir, required)
+            ) {
                 cleanupStaleModels()
                 return@withContext Result.success(Unit)
             }
         }
 
-        val manifest = fetchManifest().getOrElse { return@withContext Result.failure(it) }
+        val manifest = fetchManifest(target).getOrElse { return@withContext Result.failure(it) }
         val entries = mutableListOf<Pair<OcrModelFile, String>>()
         for (name in required) {
             val entry = manifest.files.firstOrNull { it.name == name }
@@ -296,8 +307,11 @@ class ModelDownloader(
             }
         }
 
-        // Only after every current model landed: prune what an earlier release installed.
+        // Only after every current model landed: prune what an earlier release installed, then
+        // record the release this directory now holds (all files hash-verified above), which is what
+        // `isPaddleDownloaded` and the fast path trust next time.
         cleanupStaleModels()
+        writeInstalledReleaseMarker(modelsDir, targetRelease)
         Result.success(Unit)
     }
 
@@ -320,12 +334,15 @@ class ModelDownloader(
             runCatching {
                 val input = appContext.contentResolver.openInputStream(uri)
                     ?: error("Could not open the selected file")
+                // The release the imported archive must correspond to; resolved once so a switch
+                // midway cannot make us vouch for the wrong set.
+                val target = preferences.resolveModelRelease()
                 // `use` spans the whole resolution + staging block, so the stream is closed even when
                 // the offline path bails out (no cached manifest) before extraction (F5).
                 input.use { stream ->
                     // Prefer the live manifest; fall back to the one cached beside the models so
                     // import still verifies (and is not a silent no-op) offline.
-                    val manifest = fetchManifest().getOrElse {
+                    val manifest = fetchManifest(target).getOrElse {
                         loadCachedManifest() ?: error("No model manifest available to verify the archive")
                     }
                     // The archive is untrusted. Extract it into a throwaway scratch dir, verify it
@@ -340,6 +357,12 @@ class ModelDownloader(
                         val required = requiredModels
                         verifyStagedModels(scratch, manifest, required)
                         installRequiredModels(scratch, modelsDir, required)
+                        // Only vouch for the selection when the manifest we verified against *is*
+                        // that release's: the offline fallback can hold an older cached manifest, and
+                        // a wrong marker would make the engine trust the wrong bytes.
+                        if (cachedManifestIsCurrent(manifest, target.release, target.baseUrl)) {
+                            writeInstalledReleaseMarker(modelsDir, target.release)
+                        }
                     } finally {
                         scratch.deleteRecursively()
                     }
@@ -420,9 +443,9 @@ class ModelDownloader(
         private const val MANIFEST_NAME = "manifest.json"
         private const val PADDLE_DIR = "paddle_ocr"
 
-        // PP-OCRv6 small: ONNX graphs (the shipped backend is ONNX Runtime). The recogniser file
-        // comes from [RecModelVariant]; detector and dictionary are shared by both releases.
-        private const val DET_MODEL = "ppocrv6_small_det.onnx"
+        // PP-OCRv6 small: ONNX graphs (the shipped backend is ONNX Runtime). The detector and
+        // recogniser file names come from the selection ([ModelRelease]); the dictionary is the same
+        // file in every release.
         private const val DICT_TXT = "ppocrv6_small_dict.txt"
 
         /**
@@ -438,6 +461,51 @@ class ModelDownloader(
             "ppocrv5_rec.nb",
             "ppocrv5_dict.txt",
         )
+    }
+}
+
+/**
+ * Name of the marker recording which model release was fully installed and hash-verified into the
+ * engine directory. Kept beside the models, never downloaded.
+ */
+internal const val INSTALLED_RELEASE_MARKER = "installed-release.txt"
+
+/**
+ * The release tag recorded by the last **completed** model install in [dir], or null when nothing is
+ * recorded (a pre-marker install, or a run that never finished).
+ *
+ * Every release publishes the same file names — in particular the shared detector
+ * `ppocrv6_small_det.onnx`, whose bytes are the only thing that differs between the dialogue and
+ * SFX variants — so the presence of a model file proves nothing about *which* variant it holds.
+ * This marker is what makes "the selected release is the one on disk" provable without hashing.
+ */
+internal fun installedReleaseMarker(dir: File): String? {
+    val file = File(dir, INSTALLED_RELEASE_MARKER)
+    if (!file.isFile) return null
+    return file.readText().trim().ifEmpty { null }
+}
+
+/** True when [dir] holds a completed install of [release] (see [installedReleaseMarker]). */
+internal fun installedReleaseMatches(dir: File, release: String): Boolean =
+    installedReleaseMarker(dir) == release
+
+/**
+ * Records [release] as the installed model set. Written only after every required file of that
+ * release verified (size + SHA-256), and staged through `<name>.part` + rename so an interrupted
+ * write can never leave a half marker behind.
+ */
+internal fun writeInstalledReleaseMarker(dir: File, release: String) {
+    dir.mkdirs()
+    val marker = File(dir, INSTALLED_RELEASE_MARKER)
+    val temp = File(dir, "$INSTALLED_RELEASE_MARKER.part")
+    try {
+        temp.writeText(release)
+        if (!temp.renameTo(marker)) {
+            temp.copyTo(marker, overwrite = true)
+            temp.delete()
+        }
+    } finally {
+        if (temp.exists()) temp.delete()
     }
 }
 

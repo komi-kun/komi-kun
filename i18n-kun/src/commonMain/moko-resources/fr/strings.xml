@@ -241,6 +241,10 @@
     <string name="ocr_source_automatic">Automatique</string>
     <string name="ocr_source_mokuro">Mokuro</string>
     <string name="ocr_source_paddle">Paddle OCR</string>
+    <string name="pref_ocr_det_model">Modèle de détection</string>
+    <string name="pref_ocr_det_model_summary">Ce qui est détecté. Le détecteur d\'effets sonores trouve aussi les onomatopées, mais il peut découper le dialogue d\'une bulle en plusieurs lignes ou en omettre certaines.</string>
+    <string name="ocr_det_dialogue">Bulles de dialogue uniquement (recommandé)</string>
+    <string name="ocr_det_sfx">Bulles de dialogue + effets sonores</string>
     <string name="pref_ocr_model_variant">Modèle de reconnaissance</string>
     <string name="pref_ocr_model_variant_summary">Le modèle affiné est entraîné sur les lettrages et onomatopées de manga ; le modèle standard est le PP-OCRv6 d'origine. Le changement télécharge les poids sélectionnés.</string>
     <string name="ocr_model_finetuned">Affinage manga (recommandé)</string>

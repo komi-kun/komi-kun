@@ -100,9 +100,15 @@ class PaddleOcrEngine(
     @Volatile
     private var isInitialized = false
 
-    /** Rec model file the native engine currently holds; used to detect a variant switch. */
+    /**
+     * Model set (release tag) the native engine currently holds; used to detect a variant switch.
+     *
+     * It keys on [OcrPreferences.modelKey] (the release) rather than the recogniser file name: the
+     * detector file name is the *same* in every release, so a detector switch would otherwise go
+     * unnoticed and the old weights would stay loaded until the process restarted.
+     */
     @Volatile
-    private var loadedRecModel: String? = null
+    private var loadedModelKey: String? = null
 
     companion object {
         private const val MODEL_DIR = "paddle_ocr"
@@ -171,7 +177,7 @@ class PaddleOcrEngine(
         )
         if (success) {
             isInitialized = true
-            loadedRecModel = recModel
+            loadedModelKey = preferences.modelKey()
             val elapsed = SystemClock.elapsedRealtime() - start
             logcat(LogPriority.INFO) { "Paddle OCR engine initialized in ${elapsed}ms" }
         } else {
@@ -249,14 +255,14 @@ class PaddleOcrEngine(
     fun isInitialized(): Boolean = isInitialized
 
     /**
-     * Swaps weights when the user changed the recogniser variant.
+     * Swaps weights when the user changed the detector or the recogniser variant.
      *
      * Must run *before* taking an [inferPermits] permit: [destroy] drains every permit, so calling
-     * it from inside an inference would deadlock. The next [init] then loads the selected file.
+     * it from inside an inference would deadlock. The next [init] then loads the selected files.
      */
     private fun ensureModelVariant() {
         if (!isInitialized) return
-        if (loadedRecModel == preferences.recModelFile()) return
+        if (loadedModelKey == preferences.modelKey()) return
         destroy()
     }
 

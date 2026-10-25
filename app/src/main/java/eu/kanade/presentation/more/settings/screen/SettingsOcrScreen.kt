@@ -21,6 +21,7 @@ import eu.kanade.presentation.reader.OcrDisplayScale
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import kotlinx.coroutines.launch
 import mihon.app.di.appGraph
+import mihon.core.ocr.DetModelVariant
 import mihon.core.ocr.OcrPreferences
 import mihon.core.ocr.RecModelVariant
 import mihon.core.ocr.cache.OcrCacheManager
@@ -131,6 +132,7 @@ object SettingsOcrScreen : SearchableSettings {
         }
 
         val variantSummary = stringResource(KUNMR.strings.pref_ocr_model_variant_summary)
+        val detectorSummary = stringResource(KUNMR.strings.pref_ocr_det_model_summary)
 
         return listOf(
             // KUN -->
@@ -164,6 +166,28 @@ object SettingsOcrScreen : SearchableSettings {
                         // Runtime, user-opt-in, checksum-verified model download (contract §1.7).
                         modelDownloader.triggerPaddleDownload()
                     }
+                    true
+                },
+            ),
+
+            // Detector weights: speech bubbles only (default) or bubbles + sound effects. The SFX
+            // fine-tune finds onomatopoeia the stock detector misses but can split a bubble's lines
+            // and merge adjacent bubbles, so dialogue is the default and SFX is opt-in. Switching
+            // releases invalidates the installed-release marker, so the selected weights are
+            // downloaded; the engine keys its reload on the release, so no stale detector survives.
+            Preference.PreferenceItem.ListPreference(
+                preference = preferences.detModelVariant,
+                entries = mapOf(
+                    DetModelVariant.DIALOGUE.name to stringResource(KUNMR.strings.ocr_det_dialogue),
+                    DetModelVariant.SFX.name to stringResource(KUNMR.strings.ocr_det_sfx),
+                ),
+                title = stringResource(KUNMR.strings.pref_ocr_det_model),
+                subtitleProvider = { value, entries -> "${entries[value]} · $detectorSummary" },
+                // KUN -->
+                visible = featureEnabled,
+                // KUN <--
+                onValueChanged = {
+                    modelDownloader.triggerPaddleDownload()
                     true
                 },
             ),

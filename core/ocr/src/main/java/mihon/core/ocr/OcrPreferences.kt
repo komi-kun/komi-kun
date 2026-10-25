@@ -77,6 +77,10 @@ class OcrPreferences(
     /**
      * Recogniser weights: the manga fine-tune (default) or the stock PP-OCRv6 model. Stored as the
      * enum name so the value stays readable in the preference store.
+     *
+     * **The key and its default are unchanged** by the detector axis below, so a user who explicitly
+     * picked [RecModelVariant.FINE_TUNED] or [RecModelVariant.STOCK] keeps that recogniser; only the
+     * detector they never chose moves to the dialogue default.
      */
     val recModelVariant: Preference<String> = preferenceStore.getString(
         "pref_ocr_rec_model",
@@ -85,8 +89,37 @@ class OcrPreferences(
 
     fun resolveRecModel(): RecModelVariant = RecModelVariant.from(recModelVariant.get())
 
-    /** File name the engine and downloader must use for the selected variant. */
+    /**
+     * Detector weights: speech bubbles only (default) or speech bubbles + sound effects. Stored as
+     * the enum name, like the recogniser.
+     *
+     * A **new** key, so every install that never chose a detector resolves to
+     * [DetModelVariant.DEFAULT] (dialogue): older builds only had the axis-less releases and there
+     * always ran the SFX detector, and nobody may silently keep it. The combined opt-in switch
+     * (`DictionaryOcrPreferences`) is a different key and is not touched by this.
+     */
+    val detModelVariant: Preference<String> = preferenceStore.getString(
+        "pref_ocr_det_model",
+        DetModelVariant.DEFAULT.name,
+    )
+
+    fun resolveDetModel(): DetModelVariant = DetModelVariant.from(detModelVariant.get())
+
+    /** The release that publishes exactly the selected detector × recogniser pair. */
+    fun resolveModelRelease(): ModelRelease = ModelRelease.of(resolveDetModel(), resolveRecModel())
+
+    /** File name the engine and downloader must use for the selected recogniser. */
     fun recModelFile(): String = resolveRecModel().recModel
+
+    /** File name the engine and downloader must use for the selected detector (shared name). */
+    fun detModelFile(): String = resolveDetModel().detModel
+
+    /**
+     * Identifies the model set the engine has to hold. The release tag is the only thing that
+     * distinguishes two selections — the detector file name is the same in all four releases — so
+     * `PaddleOcrEngine` uses this to notice a detector *or* recogniser switch and reload.
+     */
+    fun modelKey(): String = resolveModelRelease().release
 
     /**
      * The effective engine options for a page. [numThreads] is the device-derived thread count the
@@ -111,8 +144,14 @@ class OcrPreferences(
         val box = detBoxThreshold.get()
         val unclip = detUnclipRatio.get()
         val floor = recConfidenceFloor.get()
-        // Different weights produce different text: never serve a cached page across a variant switch.
-        val model = resolveRecModel().let { if (it == RecModelVariant.DEFAULT) "" else "m${it.name}" }
+        // Different weights produce different text: never serve a cached page across a variant
+        // switch — on *either* axis now.
+        val rec = resolveRecModel()
+        val det = resolveDetModel()
+        val model = buildString {
+            if (rec != RecModelVariant.DEFAULT) append("m${rec.name}")
+            if (det != DetModelVariant.DEFAULT) append("d${det.name}")
+        }
         if (model.isEmpty() && pixel == DEFAULT_DET_PIXEL && box == DEFAULT_DET_BOX &&
             unclip == DEFAULT_DET_UNCLIP && floor == DEFAULT_REC_FLOOR
         ) {
