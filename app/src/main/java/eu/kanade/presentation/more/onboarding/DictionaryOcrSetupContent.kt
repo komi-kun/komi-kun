@@ -4,6 +4,13 @@
 // `DictionaryOcrStep` (inside the existing onboarding flow) and `DictionaryOcrSetupScreen` (the
 // one-time screen shown on the first launch after a pre-feature upgrade). Same copy, same switch —
 // the only difference is the chrome that surrounds it.
+//
+// Both call sites render this inside `InfoScreen`, whose content slot is *already* a
+// `Column(Modifier.verticalScroll(...))`. Because that parent measures this content with an
+// infinite maximum height, this body must never add a scroll container of its own: a nested
+// `verticalScroll` throws `IllegalStateException: Vertically scrollable component was measured with
+// an infinity maximum height constraints` at measure time, i.e. it crashes the app on the very
+// launch the prompt is meant for. Scrolling is the parent's job — keep it there.
 // KUN <--
 package eu.kanade.presentation.more.onboarding
 
@@ -12,8 +19,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
@@ -38,9 +43,11 @@ internal fun DictionaryOcrSetupContent(
     modifier: Modifier = Modifier,
 ) {
     Column(
+        // No `verticalScroll` here on purpose: `InfoScreen` already scrolls its content slot, and a
+        // nested scrollable is measured with an infinite maximum height and throws. See the file
+        // header.
         modifier = modifier
             .fillMaxWidth()
-            .verticalScroll(rememberScrollState())
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
     ) {
