@@ -372,6 +372,119 @@ class ModelDownloaderOptInTest {
                 )
         }
 
+    // ------------------------------------------------------------------ the installed-release marker
+
+    /**
+     * The marker is the downloader's *proof* that a release was fully installed and hash-verified, and
+     * it is what `isPaddleDownloaded` and the engine's reload check trust. A wrong-hash body must fail
+     * the run **and** leave the marker unwritten.
+     *
+     * This is the negative half of `downloading still installs the models while enabled`: moving the
+     * `writeInstalledReleaseMarker` call above the download/verify loop passes every other test here,
+     * because they all end in a successful install.
+     */
+    @Test
+    fun `a wrong-hash body fails the download and records no release`(@TempDir dir: File): Unit = runBlocking {
+        val models = stagedModels()
+        // The manifest is honest — the release's real hashes — but the server hands back other bytes
+        // for the recogniser, exactly like a truncated/corrupt release asset.
+        val tampered = models + (RecModelVariant.DEFAULT.recModel to "corrupt-recogniser".toByteArray())
+        val downloader = downloader(
+            dir,
+            cannedRelease(
+                AtomicInteger(),
+                CopyOnWriteArrayList(),
+                CountDownLatch(1),
+                manifestJson(models, dir, flat = true),
+                flatFiles(tampered),
+            ),
+            enabled = true,
+        )
+
+        val result = downloader.downloadModels()
+
+        result.exceptionOrNull()?.message shouldBe "SHA-256 mismatch for ${RecModelVariant.DEFAULT.recModel}"
+        // Nothing is vouched for: no marker means "not installed", so the engine loads nothing new and
+        // the readiness gate asks for a retry instead of trusting a half-verified directory.
+        installedReleaseMarker(downloader.modelsDir) shouldBe null
+        downloader.isPaddleDownloaded shouldBe false
+    }
+
+    /**
+     * The same rule across a variant switch: the marker must never advance to the *selected* release
+     * while the files of the previous one are still on disk. Advancing it here would tell the engine
+     * that the SFX detector bytes it is about to load are the dialogue release — the exact confusion
+     * the marker exists to prevent.
+     */
+    @Test
+    fun `a failed switch leaves the previously installed release recorded`(@TempDir dir: File): Unit =
+        runBlocking {
+            val dialogue = stagedModels()
+            val sfx = dialogue + (DET_MODEL to "sfx-det-with-other-bytes".toByteArray())
+            // A completed SFX install, as the user had it before switching back to dialogue.
+            val modelsDir = File(dir, "paddle_ocr").apply { mkdirs() }
+            sfx.forEach { (name, bytes) -> File(modelsDir, name).writeBytes(bytes) }
+            installedReleaseMarker(modelsDir) shouldBe null
+            writeInstalledReleaseMarker(modelsDir, ModelRelease.SFX_FINE_TUNED.release)
+
+            val downloader = downloader(
+                dir,
+                cannedRelease(
+                    AtomicInteger(),
+                    CopyOnWriteArrayList(),
+                    CountDownLatch(1),
+                    manifestJson(dialogue, dir, flat = true),
+                    flatFiles(dialogue + (DET_MODEL to "tampered-dialogue-detector".toByteArray())),
+                ),
+                enabled = true,
+            )
+
+            val result = downloader.downloadModels()
+
+            result.exceptionOrNull()?.message shouldBe "SHA-256 mismatch for $DET_MODEL"
+            // The old marker and the old bytes both survive: the dialogue detector failed
+            // verification, so it never replaced the SFX one.
+            installedReleaseMarker(downloader.modelsDir) shouldBe ModelRelease.SFX_FINE_TUNED.release
+            File(downloader.modelsDir, DET_MODEL).readText() shouldBe "sfx-det-with-other-bytes"
+        }
+
+    /**
+     * The import path's conditional write. An archive is untrusted, so it is verified in a scratch
+     * directory before anything is copied; a rejected archive must not record its release either.
+     * Moving `writeInstalledReleaseMarker` above `verifyStagedModels` passes every other import test.
+     */
+    @Test
+    fun `a rejected import does not record the release`(@TempDir dir: File): Unit = runBlocking {
+        val models = stagedModels()
+        val uri = mockk<Uri>()
+        val context = mockContext(dir)
+        every { context.contentResolver.openInputStream(uri) } returns
+            ByteArrayInputStream(
+                zipOf(models + (DET_MODEL to "not-the-published-detector".toByteArray())),
+            )
+        val downloader = downloader(
+            context,
+            cannedRelease(
+                AtomicInteger(),
+                CopyOnWriteArrayList(),
+                CountDownLatch(1),
+                manifestJson(models, dir, flat = true),
+                flatFiles(models),
+            ),
+            enabled = true,
+        )
+        // A completed install of another release is on disk before the import is attempted.
+        downloader.modelsDir.mkdirs()
+        writeInstalledReleaseMarker(downloader.modelsDir, "ocr-manga-v3")
+
+        val result = downloader.importFromUri(uri)
+
+        result.isFailure shouldBe true
+        installedReleaseMarker(downloader.modelsDir) shouldBe "ocr-manga-v3"
+        // Nothing from the rejected archive was installed either (verify runs before the copy).
+        File(downloader.modelsDir, DET_MODEL).exists() shouldBe false
+    }
+
     // ------------------------------------------------------------------ triggerPaddleDownload
 
     @Test

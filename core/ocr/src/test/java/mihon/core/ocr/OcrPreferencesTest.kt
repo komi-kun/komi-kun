@@ -8,6 +8,7 @@ package mihon.core.ocr
 
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import io.kotest.matchers.string.shouldStartWith
 import org.junit.jupiter.api.Test
 import tachiyomi.core.common.preference.InMemoryPreferenceStore
 
@@ -32,9 +33,13 @@ class OcrPreferencesTest {
         // (SFX detector + fine-tuned recogniser) also produced `""` — so a page OCR'd by the SFX
         // detector was served as dialogue. The release tag is now unconditional, so the two can never
         // meet again: the default is v4 (dialogue), the old default was v3 (SFX).
-        preferences().cacheSignature() shouldBe "ocr-manga-v4t15b25u140r35"
-        preferences().cacheSignature() shouldNotBe ""
-        preferences().cacheSignature() shouldNotBe ModelRelease.SFX_FINE_TUNED.release + "t15b25u140r35"
+        val signature = preferences().cacheSignature()
+
+        // The release tag is the leading, unconditional part. Asserted by prefix — not as the exact
+        // string — so the threshold separator/format is free to change without failing this test;
+        // that the tag is the *dialogue* release already rules out the SFX default's signature.
+        signature shouldStartWith "ocr-manga-v4"
+        signature shouldNotBe ""
     }
 
     @Test
@@ -43,7 +48,10 @@ class OcrPreferencesTest {
         preferences.detBoxThreshold.set(45)
 
         preferences.detectionOptions(numThreads = 2).boxThresh shouldBe 0.45f
-        preferences.cacheSignature() shouldBe "ocr-manga-v4t15b45u140r35"
+        preferences.cacheSignature() shouldStartWith "ocr-manga-v4"
+        // The property that matters: a page recognised with the old thresholds is not served for the
+        // new ones.
+        preferences.cacheSignature() shouldNotBe preferences().cacheSignature()
     }
 
     @Test
@@ -51,12 +59,12 @@ class OcrPreferencesTest {
         val preferences = preferences()
         // The detector changes the *boxes*, so cached pages recognised with the other detector must
         // not be served for the same page.
-        preferences.cacheSignature() shouldBe "ocr-manga-v4t15b25u140r35"
+        preferences.cacheSignature() shouldStartWith "ocr-manga-v4"
 
         preferences.detModelVariant.set(DetModelVariant.SFX.name)
 
         // The release tag is what changes (v4 dialogue -> v3 SFX), so the signatures differ.
-        preferences.cacheSignature() shouldBe "ocr-manga-v3t15b25u140r35"
+        preferences.cacheSignature() shouldStartWith "ocr-manga-v3"
         preferences.cacheSignature() shouldNotBe preferences().cacheSignature()
     }
 

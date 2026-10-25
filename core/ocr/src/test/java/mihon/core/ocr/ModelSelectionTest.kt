@@ -62,8 +62,11 @@ class ModelSelectionTest {
         preferences.resolveRecModel() shouldBe RecModelVariant.FINE_TUNED
         preferences.resolveModelRelease() shouldBe ModelRelease.DIALOGUE_FINE_TUNED
         preferences.resolveModelRelease().release shouldBe "ocr-manga-v4"
-        // The detector the previous builds always installed (SFX) must not be the default.
-        preferences.resolveModelRelease().release shouldNotBe "ocr-manga-v3"
+        // The detector the previous builds always installed (SFX) must not be the default. Not a
+        // `shouldNotBe "ocr-manga-v3"` after the `shouldBe "ocr-manga-v4"` above (unreachable), but a
+        // property of the store: nothing was ever chosen, so nothing inherited an old detector.
+        preferences.detModelVariant.isSet() shouldBe false
+        preferences.recModelVariant.isSet() shouldBe false
     }
 
     @Test
