@@ -46,7 +46,7 @@ Chimahon's two parallel block types into one.
 
 `libpaddle_ocr.so` is **not built here** — it is a separate, checksummed artifact (contract §1.7):
 our own JNI over **ONNX Runtime** (MIT) over PaddleOCR's Apache-2.0 deploy post-processing,
-published to `komi-kun/komi-kun-ocr-models` (release **`ocr-models-v3`**) together with
+published to `komi-kun/komi-kun-ocr-models` (release **`ocr-models-v4`**) together with
 `libonnxruntime.so` and `libomp.so`, described by `paddle-manifest.json`.
 
 ### Fetching + packaging

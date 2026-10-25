@@ -7,7 +7,7 @@ Two PR #7 gaps can only be closed on hardware:
 
 | Gap | What "done" means |
 |---|---|
-| Stock variant download not exercised on device | Settings → OCR → Recogniser model → *Stock PP-OCRv6* downloads `ocr-models-v3`, the files verify against the manifest (size + SHA-256), the app reports `OCR ready`, OCR runs on a page, and switching back works — switching back is currently blocked by the `ocr-manga-v2` manifest defect below |
+| Stock variant download not exercised on device | Settings → OCR → Recogniser model → *Stock PP-OCRv6* downloads `ocr-models-v4`, the files verify against the manifest (size + SHA-256), the app reports `OCR ready`, OCR runs on a page, and switching back to the default fine-tune (`ocr-manga-v3`) works — the `ocr-manga-v2` missing-`path` 404 defect that used to block switching back is **fixed and verified offline** (see below) |
 | On-device OCR latency unmeasured | `recognize:` timings (parsed from the shim's `TIMING|` line) for a normal page and for an oversized (≥ 4× upscaled, > `MAX_OCR_PIXELS = 4 MP`) page |
 
 Driver: `scripts/track-b-ocr-device-check.py` (Python 3 stdlib only, new file, no production code
@@ -84,7 +84,7 @@ a failure, because the engine would silently no-op on every page.
 1. `adb devices` → the OPD2403 (`4df231a3`) must be listed; accept the debugging prompt on the tablet.
 2. `scripts/track-b-ocr-device-check.py preflight` — record model state and the current variant.
 3. `variant stock --verify-ui` — expect `downloaded during this run: ppocrv6_small_rec.onnx`, three
-   `OK … size + SHA-256 match manifest` lines, `OK: ocr-models-v3 models verified…`, `OCR ready`, and
+   `OK … size + SHA-256 match manifest` lines, `OK: ocr-models-v4 models verified…`, `OCR ready`, and
    exit `0`. A verified download whose row still says `NOT ready` exits `9` and must be reported as a
    failure, not a pass. `variant --restore` afterwards puts back whatever the switch replaced (also
    when it had been unset).
@@ -143,7 +143,14 @@ Engine init (native libraries from `jniLibs`, model load) was `214 ms` for the w
 page of a session therefore includes it once. Screenshot evidence of the stock run on an oversized page
 (text overlay + boxes, `1/3`): `/tmp/opencode/tb_oversized.png`.
 
-## Defect found while exercising the switch (blocks the default path)
+## Defect found while exercising the switch — **RESOLVED** in `ocr-manga-v3` / `ocr-models-v4`
+
+> **Status: fixed.** The two releases that superseded `ocr-manga-v2` (`ocr-manga-v3` for the default
+> fine-tune, `ocr-models-v4` for the stock recogniser) publish an explicit flat `"path"` on **every**
+> manifest entry, so the `$baseUrl/models/<name>` fallback below is never taken. `selftest --online`
+> (which downloads each variant's manifest and `HEAD`s every required file exactly the way
+> `ModelDownloader` resolves it) exits `0` with `release downloads: OK`. The text below is the
+> original finding, kept because it is the reason the manifests are now checked this way.
 
 Switching **to the stock variant** works, but switching **back to the default fine-tune** (and any
 first-time install of the default) cannot download its models: `ocr-manga-v2` publishes its manifest
@@ -171,15 +178,22 @@ manifest ocr-manga-v2: release='ocr-manga-v2' files=3 missing=none
 ```
 
 `ocr-models-v3` (stock) is fine: it lists explicit flat `path`s and all three required files return
-HTTP 200. Fixes belong to the release/model-constant track (out of scope here): either add
-`"path": "<name>"` to every `ocr-manga-v2` manifest entry and re-upload the manifest, or republish the
-assets under `models/`. A device that already has the fine-tuned weights is unaffected until the files
-are removed.
+HTTP 200. **Resolution (shipped):** rather than patch `ocr-manga-v2`, the fixes went into the two
+successor releases — `ocr-manga-v3` (default fine-tune) and `ocr-models-v4` (stock recogniser) — every
+manifest entry of which carries `"path": "<name>"`. `scripts/track-b-ocr-device-check.py selftest
+--online` now reports, for both pinned releases, `missing=none` and `HTTP 200` for
+`ppocrv6_small_det.onnx`, `ppocrv6_small_dict.txt` and the variant's recogniser, and exits `0`.
+`ocr-manga-v2` stays published (nothing was deleted) but no build pins it any more.
+A device that already has the fine-tuned weights is unaffected until the files are removed.
 
 ### The stock switch, re-checked with the stricter verification
 
 The same run, after the verification claim was tightened (size + device-side `sha256sum` against the
-manifest instead of a bare `ls`):
+manifest instead of a bare `ls`). The release tag below (`ocr-models-v3`) is what that build pinned at
+the time; the current pin is `ocr-models-v4`, which ships the **same** stock recogniser
+(`ppocrv6_small_rec.onnx`, 21,159,378 B, sha256 `5435fd74…`) and the same `ppocrv6_small_dict.txt`
+(74,947 B) but a **new detector** (`ppocrv6_small_det.onnx`, 9,929,569 B, sha256 `bf5ed74a…`, the
+curved-SFX fine-tune), so a `variant stock` run today prints a different size for that one line:
 
 ```
 pref_ocr_rec_model: STOCK -> STOCK (release ocr-models-v3, rec ppocrv6_small_rec.onnx)
