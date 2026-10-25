@@ -8,6 +8,10 @@
 // canned HTTP 500 or serves a canned manifest + model blobs. The enabled cases are full positive
 // controls (download, import, trigger) so an always-blocked implementation cannot pass, and they
 // also prove the `CountDownLatch` the disabled cases rely on does fire on a real run.
+//
+// Readiness gate (review iteration 5): `isPaddleDownloaded` refuses weights cached from a *previous*
+// release, so moving the pin (`ocr-manga-v2` -> `ocr-manga-v3`) actually downloads the new detector
+// on an in-place upgrade; the non-empty fallback survives only when no `manifest.json` is cached.
 // KUN <--
 package mihon.core.ocr.paddle
 
@@ -193,6 +197,50 @@ class ModelDownloaderOptInTest {
         downloader.isPaddleDownloaded shouldBe true
     }
 
+    // ------------------------------------------------------------------ isPaddleDownloaded
+
+    /**
+     * The release pin moved (`ocr-manga-v2` → the pinned release, whose detector is a different file
+     * of a different size). A cached v2 manifest next to the v2 files must **not** report "OCR ready":
+     * the sizes match their own v2 manifest, so only the release-currency check can see the staleness,
+     * and without it an upgrading user never downloads the new detector.
+     */
+    @Test
+    fun `the readiness gate rejects weights cached from the previous fine-tune release`(@TempDir dir: File) {
+        val models = stagedModels()
+        val downloader = downloader(dir, failingClient(AtomicInteger()), enabled = true)
+        val modelsDir = downloader.modelsDir.apply { mkdirs() }
+        models.forEach { (name, bytes) -> File(modelsDir, name).writeBytes(bytes) }
+
+        // Positive control first: the same bytes under a manifest from the pinned release do read as
+        // ready, so the `false` below is the stale release and not a missing file or an unread manifest.
+        writeCachedManifest(modelsDir, models, dir, release = RecModelVariant.DEFAULT.release)
+        downloader.isPaddleDownloaded shouldBe true
+
+        writeCachedManifest(modelsDir, models, dir, release = "ocr-manga-v2")
+        downloader.isPaddleDownloaded shouldBe false
+    }
+
+    /**
+     * The pre-manifest legacy install is the one case the currency check cannot judge: there is no
+     * cached `manifest.json` at all, so a non-empty file set stays "ready" (and [downloadModels] still
+     * re-verifies by SHA-256 when it eventually runs).
+     */
+    @Test
+    fun `the readiness gate keeps the non-empty fallback when no manifest is cached`(@TempDir dir: File) {
+        val models = stagedModels()
+        val downloader = downloader(dir, failingClient(AtomicInteger()), enabled = true)
+        val modelsDir = downloader.modelsDir.apply { mkdirs() }
+        models.forEach { (name, bytes) -> File(modelsDir, name).writeBytes(bytes) }
+        File(modelsDir, MANIFEST_NAME).exists() shouldBe false
+
+        downloader.isPaddleDownloaded shouldBe true
+
+        // An empty file is not a model, with or without a manifest.
+        File(modelsDir, DET_MODEL).writeBytes(ByteArray(0))
+        downloader.isPaddleDownloaded shouldBe false
+    }
+
     // ------------------------------------------------------------------ triggerPaddleDownload
 
     @Test
@@ -259,18 +307,27 @@ class ModelDownloaderOptInTest {
     /** The pinned release root, i.e. where the manifest and the model files are fetched from. */
     private val baseUrl = RecModelVariant.DEFAULT.baseUrl
 
+    /** Release download root, i.e. [baseUrl] without the pinned release tag appended. */
+    private val releaseRoot = baseUrl.substringBeforeLast('/')
+
     /**
      * A manifest that describes exactly [models] (real SHA-256 + size), as a JSON body.
      *
      * [flat] models the published releases: every entry carries an explicit `path` equal to its name,
      * because GitHub release assets are flat. `flat = false` leaves `path` out, which makes the
-     * downloader use its `models/<name>` fallback.
+     * downloader use its `models/<name>` fallback. [release] defaults to the pinned release; pass an
+     * older tag to model a manifest cached by a previous install.
      */
-    private fun manifestJson(models: Map<String, ByteArray>, dir: File, flat: Boolean): String {
+    private fun manifestJson(
+        models: Map<String, ByteArray>,
+        dir: File,
+        flat: Boolean,
+        release: String = RecModelVariant.DEFAULT.release,
+    ): String {
         val staging = File(dir, "staging").apply { mkdirs() }
         val manifest = OcrModelManifest(
-            release = RecModelVariant.DEFAULT.release,
-            baseUrl = baseUrl,
+            release = release,
+            baseUrl = "$releaseRoot/$release",
             files = models.map { (name, bytes) ->
                 val file = File(staging, name).apply { writeBytes(bytes) }
                 OcrModelFile(
@@ -290,6 +347,11 @@ class ModelDownloaderOptInTest {
      */
     private fun flatFiles(models: Map<String, ByteArray>): Map<String, ByteArray> =
         models.mapKeys { (name, _) -> "/$name" }
+
+    /** Seeds the manifest the downloader caches beside the models, as an earlier release left it. */
+    private fun writeCachedManifest(modelsDir: File, models: Map<String, ByteArray>, dir: File, release: String) {
+        File(modelsDir, MANIFEST_NAME).writeText(manifestJson(models, dir, flat = true, release = release))
+    }
 
     private fun mockContext(dir: File): Context {
         val context = mockk<Context>()

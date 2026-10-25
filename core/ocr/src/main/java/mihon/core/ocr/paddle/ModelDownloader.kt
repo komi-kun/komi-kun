@@ -135,9 +135,10 @@ class ModelDownloader(
     // KUN <--
 
     /**
-     * Cheap, synchronous readiness gate for the settings screen (see `SettingsOcrScreen`): every
-     * required model file exists and, when the manifest cached beside the models is available,
-     * matches its published **size** (no cached manifest → a mere non-empty check).
+     * Cheap, synchronous readiness gate for the settings screen (see `SettingsOcrScreen`): the cached
+     * manifest was fetched from the release this build **pins**, and every required model file exists
+     * and matches that manifest's published **size** (no cached manifest at all → a mere non-empty
+     * check, the pre-manifest legacy install).
      *
      * It does read and JSON-parse the small cached `manifest.json`, so it is **not** a pure `stat`,
      * but it deliberately does **not** SHA-256 the ~31 MB of model bytes — that is what keeps it
@@ -145,11 +146,30 @@ class ModelDownloader(
      * SHA-256 verification runs inside [downloadModels], off the main thread; [triggerPaddleDownload]
      * always enters that coroutine (once), so a same-size but corrupt model is still detected and
      * re-fetched.
+     *
+     * **Why the currency check is part of "ready".** A cached manifest describes the model set of the
+     * release it was fetched from, so when the pin moves (say `ocr-manga-v2` → `ocr-manga-v3`, whose
+     * detector is a different 9,929,569 B file) the old weights on disk are *not* the weights this
+     * build means by "downloaded". Size-only verification cannot see that — the v2 detector matches its
+     * own v2 manifest entry perfectly — so the gate would report ready and the engine would keep
+     * running the previous release's detector forever. [cachedManifestIsCurrent] makes the mismatch
+     * report "not downloaded", which is what makes the settings row offer the download and
+     * [downloadModels] re-fetch.
      */
     val isPaddleDownloaded: Boolean
         get() {
-            val manifest = loadCachedManifest()
-                ?: return requiredModelFiles().all { it.isFile && it.length() > 0L }
+            // KUN -->
+            val manifestFile = File(modelsDir, MANIFEST_NAME)
+            if (!manifestFile.isFile) {
+                // Nothing cached to compare against (a pre-manifest install): the cheap non-empty
+                // check is the only thing that can be decided here, exactly as before.
+                return requiredModelFiles().all { it.isFile && it.length() > 0L }
+            }
+            // A manifest from another release (or one that does not parse) cannot vouch for these
+            // files, so the answer is "needs a download" rather than a false "ready".
+            val manifest = loadCachedManifest() ?: return false
+            if (!cachedManifestIsCurrent(manifest, release, baseUrl)) return false
+            // KUN <--
             return requiredModelFiles().all { file ->
                 val entry = manifest.files.firstOrNull { it.name == file.name }
                 entry != null && modelFileHasExpectedSize(file, entry)
