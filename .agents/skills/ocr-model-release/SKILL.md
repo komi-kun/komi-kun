@@ -6,12 +6,14 @@ description: Build, publish and wire the PaddleOCR native artifact that :core:oc
 # Releasing the OCR native artifact
 
 `:core:ocr` uses **our own** Apache-2.0 PaddleOCR artifact — not the opaque zip Chimahon ships. It lives
-in the GitHub repo **`komi-kun/komi-kun-ocr-models`** (releases tagged like `ocr-models-v3`), and the
+in the GitHub repo **`komi-kun/komi-kun-ocr-models`** (releases tagged like `ocr-models-v4`), and the
 app fetches it at build time and verifies every SHA-256.
 
 ## What the artifact is
 
-Current release: **`ocr-models-v3`** (ONNX Runtime + PP-OCRv6 small).
+Current release: **`ocr-models-v4`** (ONNX Runtime + PP-OCRv6 small, with the curved-SFX detector
+fine-tune). The fine-tuned *recogniser* release is **`ocr-manga-v3`** (same detector + dictionary, plus
+`ppocrv6_small_rec_manga_real.onnx`), which is what `RecModelVariant.FINE_TUNED` pins.
 
 - **`libpaddle_ocr.so`** — our JNI shim over **ONNX Runtime** (via the ABI-stable
   `onnxruntime_c_api.h` C API) + opencv-mobile + Clipper. It `dlopen()`s `libonnxruntime.so` and
@@ -29,9 +31,12 @@ Current release: **`ocr-models-v3`** (ONNX Runtime + PP-OCRv6 small).
   thread pool). **`libc++_shared.so` is deliberately NOT listed in the app manifest** (the release
   does ship it; the app simply does not fetch it) — AGP already packages the NDK copy (via
   `:core:dictionary`), and a second copy fails the app merge.
-- **Models** — official PaddlePaddle Apache-2.0 ONNX exports. Current release (`ocr-models-v3`,
-  PP-OCRv6 **small**): `ppocrv6_small_det.onnx`, `ppocrv6_small_rec.onnx` (unified ja/zh/en CTC,
-  `h=48`, 18 710 output classes, 18 708-entry dict with kana), `ppocrv6_small_dict.txt`. These are
+- **Models** — Apache-2.0 ONNX exports of PaddlePaddle PP-OCRv6 **small**. Current release
+  (`ocr-models-v4`): `ppocrv6_small_det.onnx` (a Manga109-s/COO fine-tune of the stock detector — SFX
+  H 32.78 % → 65.03 %, curved 9+-point recall 27.5 % → 74.0 %, art FP 5.35 → 1.35 /page on held-out
+  books, dialogue block coverage 92.10 % → 94.94 %), `ppocrv6_small_rec.onnx` (unified ja/zh/en CTC,
+  `h=48`, 18 710 output classes, 18 708-entry dict with kana) and `ppocrv6_small_dict.txt`. The
+  recogniser and dictionary are byte-identical to `ocr-models-v3`. These are
   **not** in the APK; `ModelDownloader` fetches them opt-in at runtime (SHA-256 verified) and prunes
   superseded `ppocrv5_*`/`ppocrv4_*` files on upgrade. v6 **tiny** has no kana and must not be used.
 - **ABIs**: `arm64-v8a`, `armeabi-v7a`, **`x86_64`** — ORT publishes all three and the ONNX graphs

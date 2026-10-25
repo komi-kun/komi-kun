@@ -6,8 +6,8 @@ This is a *verification* helper, not production code. It automates the two PR #7
 be closed on hardware:
 
 1. "Stock variant download not exercised on device" — switch Settings -> OCR -> Recogniser model to
-   Stock, let the runtime downloader fetch `ocr-models-v3`, confirm the file landed with the size the
-   release manifest publishes, then switch back to the default fine-tune.
+   Stock, let the runtime downloader fetch `ocr-models-v4`, confirm the file landed with the size the
+   release manifest publishes, then switch back to the default fine-tune (`ocr-manga-v3`).
 2. "On-device OCR latency unmeasured" — collect the engine's own timings for normal and oversized
    pages. `libpaddle_ocr.so` emits `TIMING|total|prep|det|post|crop|rec|rawBoxCount`; the Kotlin side
    parses it and logs `recognize: Total: <n>ms (Prep: ..., Det: ..., Post: ..., Crop: ..., Rec: ...)
@@ -58,8 +58,8 @@ MODELS_DIR = f"files/paddle_ocr"  # relative to the app's filesDir
 PREFS_REL = f"shared_prefs/{PKG}_preferences.xml"
 
 # RecModelVariant (core/ocr/src/main/java/mihon/core/ocr/RecModelVariant.kt).
-FINE_TUNED = {"rec": "ppocrv6_small_rec_manga_real.onnx", "release": "ocr-manga-v2"}
-STOCK = {"rec": "ppocrv6_small_rec.onnx", "release": "ocr-models-v3"}
+FINE_TUNED = {"rec": "ppocrv6_small_rec_manga_real.onnx", "release": "ocr-manga-v3"}
+STOCK = {"rec": "ppocrv6_small_rec.onnx", "release": "ocr-models-v4"}
 SHARED_MODELS = ("ppocrv6_small_det.onnx", "ppocrv6_small_dict.txt")
 RELEASE_ROOT = "https://github.com/komi-kun/komi-kun-ocr-models/releases/download"
 
