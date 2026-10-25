@@ -6,6 +6,12 @@
 // per-orientation paragraph grouping, close-paragraph merging, row grouping and reading order —
 // while being restructured behind [OcrLineMerger] and emitting the unified
 // `mihon.core.ocr.model.OcrTextBlock` directly (03 §3.3 "unify to one").
+//
+// Tuning of the three rules below (furigana character-size gate, single-character SFX isolation,
+// reading-order band guard) was measured against the offline replay in the `ppocrv6-manga-ft` repo,
+// `scripts/exp_page16_merger_filter.py`, which ports `toLine` / `filterSingleCharSfxNoise` /
+// `globalFuriganaFilter`. That script has NOT been updated for the three rules below, so its
+// "dropped by singleChar/furigana" lists now over-report drops; this file is the source of truth.
 // KUN <--
 package mihon.core.ocr.merge
 
@@ -124,9 +130,34 @@ class OwOCRMerger(
             val lineThickness = minOf(line.bbox.width, line.bbox.height)
             val isTilted = abs(line.bbox.rotation) > 0.03
             val isOversized = lines.size >= 3 && lineThickness > medianThickness * 1.55
-            isTilted || isOversized
+            // KUN -->
+            // An oversized single-character box is noise only when it stands alone. A column of a
+            // dialogue paragraph always has a same-orientation successive column/line beside it,
+            // while a graphic SFX does not — so a box that does have one is a real column the
+            // recogniser under-read to a single character, not noise: on a real vertical-text page
+            // a 281 px two-character column (1.82x the page's median column width) was returned as
+            // its first character alone, and the whole column disappeared from the overlay while
+            // the column beside it in the same bubble survived.
+            isTilted || (isOversized && !line.hasSuccessiveLineNeighbour(lines))
+            // KUN <--
         }
     }
+
+    // KUN -->
+    /**
+     * True when another line is a successive column/line of this one ([OcrMergeGeometry.nextLine]),
+     * i.e. the box sits inside a text run rather than standing on its own like a drawn SFX.
+     *
+     * [OcrMergeGeometry.nextLine] also requires a comparable thickness, which is what keeps a
+     * standalone oversized glyph apart: its own size already breaks the comparison against the
+     * surrounding dialogue.
+     */
+    private fun Line.hasSuccessiveLineNeighbour(lines: List<Line>): Boolean = lines.any { other ->
+        other !== this &&
+            other.vertical == vertical &&
+            OcrMergeGeometry.nextLine(bbox, other.bbox, vertical)
+    }
+    // KUN <--
 
     private fun Line.canAdoptVerticalFromNeighbor(): Boolean {
         val cpCount = text.trim().codePointCount(0, text.trim().length)
@@ -412,12 +443,97 @@ class OwOCRMerger(
 
             // KUN -->
             val vertical = cluster.any { it.vertical }
+            // A cluster that bridged two stacked bubbles comes back as one band per bubble.
+            splitInterleavedBands(cluster, vertical).forEach { band ->
+                paragraphs.add(buildParagraph(band, band.any { it.vertical }, band.first().rtl, cfg, legacy = false))
+            }
             // KUN <--
-            paragraphs.add(buildParagraph(cluster, vertical, cluster.first().rtl, cfg, legacy = false))
         }
 
         return paragraphs
     }
+
+    // KUN -->
+    /**
+     * Reading-order guard: a paragraph's columns must stay contiguous in reading order.
+     *
+     * Two text bubbles that are stacked with no dividing border can be bridged by a single
+     * [OcrMergeGeometry.sameLineFragment] edge — the upper bubble's leftmost column and the lower
+     * bubble's next column are then x-aligned and only a small vertical gap apart, so the fragment
+     * rule reads the gap as a detector-split line. The cluster is still two bubbles, and sorting it
+     * right-to-left interleaves their columns:
+     *
+     * `bubble A col 1 | bubble B col 1 | bubble A col 2 | bubble B col 2 | …`
+     *
+     * The defect is invisible in the edge itself (each edge is legal when taken alone) and only
+     * shows up in the finished cluster, so this runs once per cluster instead of per edge: lines
+     * that overlap on the run axis form a *band* (one bubble's stack of columns), and if the bands
+     * alternate along the reading order the cluster is more than one bubble. Splitting it restores
+     * both the paragraph count and the order, because the row/reading-order stage then emits the
+     * upper bubble's row before the lower one.
+     *
+     * A single column split by the detector into fragments is not affected: those bands each appear
+     * once, in order, so the sequence stays contiguous (see the "detector-split fragment inside a
+     * multi-column … paragraph" tests).
+     */
+    private fun splitInterleavedBands(lines: List<Line>, vertical: Boolean): List<List<Line>> {
+        val n = lines.size
+        if (n < 3) return listOf(lines)
+
+        val parent = IntArray(n) { it }
+        fun find(i: Int): Int {
+            var root = i
+            while (root != parent[root]) root = parent[root]
+            var curr = i
+            while (curr != root) {
+                val next = parent[curr]
+                parent[curr] = root
+                curr = next
+            }
+            return root
+        }
+
+        for (i in 0 until n) {
+            for (j in i + 1 until n) {
+                val a = lines[i]
+                val b = lines[j]
+                if (a.vertical == b.vertical &&
+                    OcrMergeGeometry.runOverlap(a.bbox, b.bbox, vertical) >= BAND_RUN_OVERLAP
+                ) {
+                    val rootI = find(i)
+                    val rootJ = find(j)
+                    if (rootI != rootJ) parent[rootI] = rootJ
+                }
+            }
+        }
+
+        val bandOf = IntArray(n) { find(it) }
+        if (bandOf.distinct().size <= 1) return listOf(lines)
+
+        val ordered = sortLinesInParagraph(lines, vertical, lines.first().rtl)
+        fun bandOfLine(line: Line): Int = bandOf[lines.indexOfFirst { it === line }]
+
+        val seen = HashSet<Int>()
+        var previous = -1
+        var contiguous = true
+        for (line in ordered) {
+            val band = bandOfLine(line)
+            if (band == previous) continue
+            if (!seen.add(band)) {
+                contiguous = false
+                break
+            }
+            previous = band
+        }
+        if (contiguous) return listOf(lines)
+
+        val groups = LinkedHashMap<Int, MutableList<Line>>()
+        for (line in ordered) {
+            groups.getOrPut(bandOfLine(line)) { mutableListOf() }.add(line)
+        }
+        return groups.values.toList()
+    }
+    // KUN <--
 
     /**
      * Paragraph grouping used for Japanese.
@@ -625,6 +741,28 @@ class OwOCRMerger(
     private val katakanaRegex = Regex("[\u30A0-\u30FF]")
     private val kanjiRegex = Regex("[\u4E00-\u9FFF\u3400-\u4DBF]")
 
+    // KUN -->
+    private companion object {
+        /**
+         * Largest sub-line to annotated-line *character size* ratio that can still be furigana.
+         *
+         * Ruby glyphs are set smaller than the characters they annotate; measured 0.50 and 0.67 on
+         * the furigana fixtures and 0.90-1.07 on the genuine columns of a real vertical-text page
+         * (see [globalFuriganaFilter]).
+         */
+        const val FURIGANA_MAX_CHAR_SIZE_RATIO = 0.80
+
+        /**
+         * Run-axis overlap above which two lines belong to the same stacked column band.
+         *
+         * Half the smaller box: inside one bubble every column overlaps its neighbours along the run
+         * axis by at least this much on a real vertical-text page (the two bubbles' stacks overlap
+         * 0.92-0.95 of their shorter column), while the two stacked bubbles overlap 0.
+         */
+        const val BAND_RUN_OVERLAP = 0.5
+    }
+    // KUN <--
+
     /** Drops a kana fragment that sits immediately below/right of a kanji line (ruby). */
     private fun localFuriganaFilter(lines: List<Line>, vertical: Boolean): List<Line> {
         val filtered = mutableListOf<Line>()
@@ -723,6 +861,23 @@ class OwOCRMerger(
                 // KUN -->
                 val maxThicknessRatio = if (hasKanji) 0.55 else 0.75
                 if (subThickness > mainThickness * maxThicknessRatio) continue
+
+                // Ruby repeats a reading in smaller type, so the decisive signal is the *character*
+                // size, not the box thickness (which the detector inflates by its 1.40 unclip ratio
+                // and by any ruby column it swallows into the kanji box). Measured on a real
+                // vertical-text page, against the kanji column each one sits beside: the three
+                // genuine dialogue columns there read 1.07, 0.90 and 0.91 of the main character
+                // size, while the furigana fixtures read 0.50 and 0.67, so 0.80 sits in the middle
+                // of that gap.
+                // A "ruby never fills the column height" rule was considered and rejected: it only
+                // explains the first of those three (the other two are 0.30x and 0.33x of the main
+                // column's height and would still be dropped), while character size separates all
+                // three from real ruby.
+                if (sub.characterSize > 0.0 && main.characterSize > 0.0 &&
+                    sub.characterSize > main.characterSize * FURIGANA_MAX_CHAR_SIZE_RATIO
+                ) {
+                    continue
+                }
                 // KUN <--
 
                 val proximityLimit = mainThickness * 0.30
