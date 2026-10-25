@@ -40,6 +40,19 @@ class OcrPreferencesTest {
     }
 
     @Test
+    fun `switching the detector invalidates the cached page signature`() {
+        val preferences = preferences()
+        // The detector changes the *boxes*, so cached pages recognised with the other detector must
+        // not be served for the same page; the default (dialogue) keeps the empty suffix.
+        preferences.cacheSignature() shouldBe ""
+
+        preferences.detModelVariant.set(DetModelVariant.SFX.name)
+
+        // The model part is what changes; the default thresholds are appended with it.
+        preferences.cacheSignature() shouldBe "dSFXt15b25u140r35"
+    }
+
+    @Test
     fun `a recognition floor reaches the engine`() {
         val preferences = preferences()
         preferences.recConfidenceFloor.set(60)

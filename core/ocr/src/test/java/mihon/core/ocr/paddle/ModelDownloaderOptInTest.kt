@@ -11,7 +11,12 @@
 //
 // Readiness gate (review iteration 5): `isPaddleDownloaded` refuses weights cached from a *previous*
 // release, so moving the pin (`ocr-manga-v2` -> `ocr-manga-v3`) actually downloads the new detector
-// on an in-place upgrade; the non-empty fallback survives only when no `manifest.json` is cached.
+// on an in-place upgrade.
+//
+// Model selection (detector × recogniser): every release publishes the *same* file names — the
+// detector name is shared, only its bytes differ — so "the file exists" can never mean "the selected
+// variant is installed". A completed install records its release in `installed-release.txt`, and the
+// gate, the offline fast path and a variant switch all key on that marker.
 // KUN <--
 package mihon.core.ocr.paddle
 
@@ -27,6 +32,8 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import mihon.core.ocr.DetModelVariant
+import mihon.core.ocr.ModelRelease
 import mihon.core.ocr.OcrPreferences
 import mihon.core.ocr.RecModelVariant
 import okhttp3.Interceptor
@@ -114,9 +121,12 @@ class ModelDownloaderOptInTest {
 
         result.isSuccess shouldBe true
         downloader.modelsDir.listFiles().orEmpty().map { it.name }.shouldContainExactlyInAnyOrder(
-            modelNames + "manifest.json",
+            modelNames + "manifest.json" + INSTALLED_RELEASE_MARKER,
         )
         models.forEach { (name, bytes) -> File(downloader.modelsDir, name).readBytes() shouldBe bytes }
+        // The run records the release it installed; that marker — not the file set, whose names are
+        // shared by every release — is what the readiness gate and the fast path trust.
+        installedReleaseMarker(downloader.modelsDir) shouldBe ModelRelease.DEFAULT.release
         // One manifest fetch + one download per model, and nothing re-fetched...
         requests.get() shouldBe modelNames.size + 1
         // ...at exactly the URLs the manifest's `path` entries resolve to.
@@ -200,46 +210,109 @@ class ModelDownloaderOptInTest {
     // ------------------------------------------------------------------ isPaddleDownloaded
 
     /**
-     * The release pin moved (`ocr-manga-v2` → the pinned release, whose detector is a different file
-     * of a different size). A cached v2 manifest next to the v2 files must **not** report "OCR ready":
-     * the sizes match their own v2 manifest, so only the release-currency check can see the staleness,
-     * and without it an upgrading user never downloads the new detector.
+     * The selection resolves to a release whose files are *not* the ones on disk. The detector name
+     * and the recogniser/dictionary names are identical in every release (only the detector bytes
+     * differ), so the file set itself looks perfect: only the installed-release marker can tell that
+     * these are the `ocr-manga-v3` (SFX) weights an older build installed.
      */
     @Test
-    fun `the readiness gate rejects weights cached from the previous fine-tune release`(@TempDir dir: File) {
+    fun `the readiness gate rejects a cache whose marker names another release`(@TempDir dir: File) {
         val models = stagedModels()
         val downloader = downloader(dir, failingClient(AtomicInteger()), enabled = true)
         val modelsDir = downloader.modelsDir.apply { mkdirs() }
         models.forEach { (name, bytes) -> File(modelsDir, name).writeBytes(bytes) }
 
-        // Positive control first: the same bytes under a manifest from the pinned release do read as
-        // ready, so the `false` below is the stale release and not a missing file or an unread manifest.
-        writeCachedManifest(modelsDir, models, dir, release = RecModelVariant.DEFAULT.release)
+        // Positive control: the same bytes, marked as the selection's release, do read as ready — so
+        // the `false` below is the marker and not a missing file or an unreadable manifest.
+        writeCachedManifest(modelsDir, models, dir, release = ModelRelease.DEFAULT.release)
+        writeMarker(modelsDir, ModelRelease.DEFAULT.release)
         downloader.isPaddleDownloaded shouldBe true
 
-        writeCachedManifest(modelsDir, models, dir, release = "ocr-manga-v2")
+        // A stale marker while the cached manifest *claims* the selection: e.g. a run that fetched
+        // the new manifest and then failed before installing. The files (and their sizes) look right
+        // for the selection; only the marker knows they were installed for another release.
+        writeMarker(modelsDir, "ocr-manga-v3")
+        downloader.isPaddleDownloaded shouldBe false
+
+        // A manifest from another release is refused even when the marker agrees with the selection.
+        writeCachedManifest(modelsDir, models, dir, release = "ocr-manga-v3")
+        writeMarker(modelsDir, ModelRelease.DEFAULT.release)
         downloader.isPaddleDownloaded shouldBe false
     }
 
     /**
-     * The pre-manifest legacy install is the one case the currency check cannot judge: there is no
-     * cached `manifest.json` at all, so a non-empty file set stays "ready" (and [downloadModels] still
-     * re-verifies by SHA-256 when it eventually runs).
+     * A pre-marker install cannot prove *which* release its files are, so it is not ready: that is
+     * exactly the case that must re-download instead of silently keeping the SFX detector. The cheap
+     * size cross-check still applies once a marker and a manifest are present.
      */
     @Test
-    fun `the readiness gate keeps the non-empty fallback when no manifest is cached`(@TempDir dir: File) {
+    fun `the readiness gate needs the marker even with no manifest cached`(@TempDir dir: File) {
         val models = stagedModels()
         val downloader = downloader(dir, failingClient(AtomicInteger()), enabled = true)
         val modelsDir = downloader.modelsDir.apply { mkdirs() }
         models.forEach { (name, bytes) -> File(modelsDir, name).writeBytes(bytes) }
         File(modelsDir, MANIFEST_NAME).exists() shouldBe false
 
+        downloader.isPaddleDownloaded shouldBe false
+
+        // With the marker the existing file set is vouched for without a manifest...
+        writeMarker(modelsDir, ModelRelease.DEFAULT.release)
         downloader.isPaddleDownloaded shouldBe true
 
-        // An empty file is not a model, with or without a manifest.
+        // ...but an empty file is not a model.
         File(modelsDir, DET_MODEL).writeBytes(ByteArray(0))
         downloader.isPaddleDownloaded shouldBe false
     }
+
+    // ------------------------------------------------------------------ model selection cache
+
+    /**
+     * The defect this pins: every release ships the **same** detector file name, so a downloader that
+     * treats "the file exists" (or "it matches its own manifest") as "the selected variant is
+     * installed" leaves the old detector on disk forever. Switching the detector in Settings must
+     * re-fetch that shared name from the other release and leave the untouched files alone.
+     */
+    @Test
+    fun `switching to the sound-effect detector re-fetches the shared detector file`(@TempDir dir: File): Unit =
+        runBlocking {
+            val dialogue = stagedModels()
+            // Same names, different detector bytes — exactly the `ocr-manga-v4` / `ocr-manga-v3` pair.
+            val sfx = dialogue + (DET_MODEL to "sfx-det-with-other-bytes".toByteArray())
+            val urls = CopyOnWriteArrayList<String>()
+            val preferences = OcrPreferences(InMemoryPreferenceStore())
+            val downloader = downloader(
+                mockContext(dir),
+                serveReleases(
+                    urls,
+                    dir,
+                    listOf(ModelRelease.DIALOGUE_FINE_TUNED to dialogue, ModelRelease.SFX_FINE_TUNED to sfx),
+                ),
+                enabled = true,
+                preferences = preferences,
+            )
+
+            downloader.downloadModels().isSuccess shouldBe true
+            File(downloader.modelsDir, DET_MODEL).readText() shouldBe "$DET_MODEL bytes"
+            installedReleaseMarker(downloader.modelsDir) shouldBe "ocr-manga-v4"
+
+            preferences.detModelVariant.set(DetModelVariant.SFX.name)
+
+            // The old detector file is still there under the same name; the marker says otherwise.
+            downloader.isPaddleDownloaded shouldBe false
+
+            downloader.downloadModels().isSuccess shouldBe true
+
+            File(downloader.modelsDir, DET_MODEL).readText() shouldBe "sfx-det-with-other-bytes"
+            installedReleaseMarker(downloader.modelsDir) shouldBe "ocr-manga-v3"
+            downloader.isPaddleDownloaded shouldBe true
+            // The shared detector really was fetched again from the new release, and the files whose
+            // bytes are identical in both releases were not re-downloaded.
+            urls.filter { it.endsWith("/$DET_MODEL") } shouldBe listOf(
+                "${ModelRelease.DIALOGUE_FINE_TUNED.baseUrl}/$DET_MODEL",
+                "${ModelRelease.SFX_FINE_TUNED.baseUrl}/$DET_MODEL",
+            )
+            urls.count { it.endsWith("/$DICT_MODEL") } shouldBe 1
+        }
 
     // ------------------------------------------------------------------ triggerPaddleDownload
 
@@ -304,8 +377,8 @@ class ModelDownloaderOptInTest {
     private fun stagedModels(): Map<String, ByteArray> =
         modelNames.associateWith { name -> "$name bytes".toByteArray() }
 
-    /** The pinned release root, i.e. where the manifest and the model files are fetched from. */
-    private val baseUrl = RecModelVariant.DEFAULT.baseUrl
+    /** The download root of the default (dialogue-first) release, where the fake serves files. */
+    private val baseUrl = ModelRelease.DEFAULT.baseUrl
 
     /** Release download root, i.e. [baseUrl] without the pinned release tag appended. */
     private val releaseRoot = baseUrl.substringBeforeLast('/')
@@ -322,7 +395,7 @@ class ModelDownloaderOptInTest {
         models: Map<String, ByteArray>,
         dir: File,
         flat: Boolean,
-        release: String = RecModelVariant.DEFAULT.release,
+        release: String = ModelRelease.DEFAULT.release,
     ): String {
         val staging = File(dir, "staging").apply { mkdirs() }
         val manifest = OcrModelManifest(
@@ -353,6 +426,11 @@ class ModelDownloaderOptInTest {
         File(modelsDir, MANIFEST_NAME).writeText(manifestJson(models, dir, flat = true, release = release))
     }
 
+    /** Seeds the installed-release marker, as a completed install of another release left it. */
+    private fun writeMarker(modelsDir: File, release: String) {
+        writeInstalledReleaseMarker(modelsDir, release)
+    }
+
     private fun mockContext(dir: File): Context {
         val context = mockk<Context>()
         every { context.applicationContext } returns context
@@ -365,13 +443,46 @@ class ModelDownloaderOptInTest {
     private fun downloader(dir: File, client: OkHttpClient, enabled: Boolean) =
         downloader(mockContext(dir), client, enabled)
 
-    private fun downloader(context: Context, client: OkHttpClient, enabled: Boolean) = ModelDownloader(
+    private fun downloader(
+        context: Context,
+        client: OkHttpClient,
+        enabled: Boolean,
+        preferences: OcrPreferences = OcrPreferences(InMemoryPreferenceStore()),
+    ) = ModelDownloader(
         context = context,
         httpClient = client,
         json = Json,
-        preferences = OcrPreferences(InMemoryPreferenceStore()),
+        preferences = preferences,
         dictionaryOcr = DictionaryOcrPreferences(InMemoryPreferenceStore()).apply { choose(enabled) },
     )
+
+    /**
+     * A fake serving several releases at once, **keyed by the full request URL**, so a request for
+     * the wrong release 404s instead of silently succeeding. Used by the variant-switch test, where
+     * both releases publish the same file names. Every request URL is recorded in [urls].
+     */
+    private fun serveReleases(
+        urls: MutableList<String>,
+        dir: File,
+        releases: List<Pair<ModelRelease, Map<String, ByteArray>>>,
+    ): OkHttpClient {
+        val served = buildMap {
+            releases.forEach { (release, models) ->
+                put(
+                    "${release.baseUrl}/$MANIFEST_NAME",
+                    manifestJson(models, dir, flat = true, release = release.release).toByteArray(),
+                )
+                models.forEach { (name, bytes) -> put("${release.baseUrl}/$name", bytes) }
+            }
+        }
+        return OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                urls += chain.request().url.toString()
+                val body = served[chain.request().url.toString()]
+                if (body == null) respond(chain, code = 404, body = ByteArray(0)) else respond(chain, code = 200, body = body)
+            }
+            .build()
+    }
 
     /** Canned HTTP 500 for every request (counts the calls that would have hit the network). */
     private fun failingClient(requests: AtomicInteger): OkHttpClient =

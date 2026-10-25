@@ -241,6 +241,10 @@
     <string name="ocr_source_automatic">Automático</string>
     <string name="ocr_source_mokuro">Mokuro</string>
     <string name="ocr_source_paddle">Paddle OCR</string>
+    <string name="pref_ocr_det_model">Modelo de detección</string>
+    <string name="pref_ocr_det_model_summary">Qué se detecta. El detector de efectos de sonido también encuentra onomatopeyas, pero puede dividir el diálogo de un bocadillo en varias líneas o perder líneas.</string>
+    <string name="ocr_det_dialogue">Solo bocadillos (recomendado)</string>
+    <string name="ocr_det_sfx">Bocadillos + efectos de sonido</string>
     <string name="pref_ocr_model_variant">Modelo de reconocimiento</string>
     <string name="pref_ocr_model_variant_summary">El modelo ajustado está entrenado con lettering y onomatopeyas de manga; el modelo estándar es el PP-OCRv6 original. Al cambiar se descargan los pesos seleccionados.</string>
     <string name="ocr_model_finetuned">Ajuste para manga (recomendado)</string>
