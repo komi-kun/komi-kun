@@ -108,6 +108,7 @@ import eu.kanade.tachiyomi.util.system.isDebugBuildType
 import eu.kanade.tachiyomi.util.system.isNavigationBarNeedsScrim
 import eu.kanade.tachiyomi.util.system.isNightlyBuildType
 import eu.kanade.tachiyomi.util.system.isReleaseBuildType
+import eu.kanade.tachiyomi.util.system.toast
 import eu.kanade.tachiyomi.util.system.updaterEnabled
 import eu.kanade.tachiyomi.util.view.setComposeContent
 import exh.debug.DebugToggles
@@ -122,16 +123,19 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import logcat.LogPriority
 import mihon.app.di.AppGraph
 import mihon.app.di.appGraph
 import mihon.core.metro.metroGraph
 import mihon.core.migration.Migrator
 import mihon.core.migration.Migrator.scope
+import mihon.core.ocr.paddle.ModelDownloadState
 import mihon.domain.database.repository.DatabaseRepository
 import tachiyomi.core.common.Constants
 import tachiyomi.core.common.i18n.stringResource
@@ -145,9 +149,11 @@ import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.domain.release.interactor.GetApplicationRelease
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
+import tachiyomi.i18n.kun.KUNMR
 import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.util.collectAsState
 import java.util.LinkedList
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.seconds
@@ -469,6 +475,7 @@ class MainActivity : BaseActivity() {
                     if (isLaunch) CheckForUpdates()
                     // KUN -->
                     ResumeOcrQueue()
+                    MigrateOcrModels()
                     // KUN <--
                     ShowOnboarding()
                 }
@@ -751,6 +758,60 @@ class MainActivity : BaseActivity() {
     }
     // KUN <--
 
+    // KUN -->
+    /**
+     * One-shot **upgrade migration** for the OCR model selection.
+     *
+     * Nothing used to notice that the models on disk were installed for a different release: the
+     * readiness gate found it, but only the Settings status row read that, and the download was only
+     * ever triggered by a tap in Settings. So an install that upgraded across the detector change kept
+     * running the SFX detector under a dialogue selection, silently.
+     *
+     * `OcrRuntimePolicy.shouldMigrateModels` is the whole decision (see its KDoc): off, already
+     * installed, or a fresh install with nothing to migrate all mean "do nothing". Only a superseded
+     * or unidentifiable install with the feature already on reaches the downloader, which is the same
+     * graph-scoped singleton the Settings row drives — so its progress and its failure reason show up
+     * there without a second surface.
+     *
+     * Runs off the main thread (both probes are I/O: a one-line marker read and a few `stat`s), never
+     * blocks startup, and happens **once per process**: a rotation must not start another check. A
+     * failed migration stays retryable from the OCR settings status row.
+     */
+    @Composable
+    private fun MigrateOcrModels() {
+        val context = LocalContext.current
+        val enabled by dictionaryOcrPreferences.enabled.collectAsState()
+
+        LaunchedEffect(enabled) {
+            if (!OcrRuntimePolicy.shouldRunQueue(enabled)) return@LaunchedEffect
+            if (!modelMigrationChecked.compareAndSet(false, true)) return@LaunchedEffect
+            val modelDownloader = context.appGraph.modelDownloader
+            val migrate = withContext(Dispatchers.IO) {
+                OcrRuntimePolicy.shouldMigrateModels(
+                    enabled = enabled,
+                    installedRelease = modelDownloader.installedRelease,
+                    modelFilesPresent = modelDownloader.hasAnyInstalledModelFiles,
+                    selectedRelease = modelDownloader.selectedRelease,
+                )
+            }
+            if (!migrate) return@LaunchedEffect
+            logcat(LogPriority.INFO) {
+                "OCR: installing ${modelDownloader.selectedRelease}; the models on disk are a superseded install"
+            }
+            modelDownloader.triggerPaddleDownload()
+            // Not silent: if the migration fails, say so with the message the OCR settings status row
+            // already uses for the same state, instead of leaving the reader quietly OCR-less. A still
+            // running download reports its progress in Settings, so it needs no notice here.
+            val terminal = withTimeoutOrNull(MIGRATION_NOTICE_TIMEOUT_MS) {
+                modelDownloader.state.first {
+                    it is ModelDownloadState.Completed || it is ModelDownloadState.Failed
+                }
+            }
+            if (terminal is ModelDownloadState.Failed) context.toast(KUNMR.strings.ocr_not_ready)
+        }
+    }
+    // KUN <--
+
     /**
      * Sets custom splash screen exit animation on devices prior to Android 12.
      *
@@ -887,6 +948,15 @@ class MainActivity : BaseActivity() {
         const val INTENT_SEARCH = "eu.kanade.tachiyomi.SEARCH"
         const val INTENT_SEARCH_QUERY = "query"
         const val INTENT_SEARCH_FILTER = "filter"
+
+        // KUN -->
+        /**
+         * The model-selection migration was decided in this process; see [MigrateOcrModels]. Static on
+         * purpose: an activity recreation (rotation) must not run the check — and its failure notice —
+         * again.
+         */
+        private val modelMigrationChecked = AtomicBoolean(false)
+        // KUN <--
     }
 }
 
@@ -894,5 +964,14 @@ class MainActivity : BaseActivity() {
 private const val SPLASH_MIN_DURATION = 500 // ms
 private const val SPLASH_MAX_DURATION = 5000 // ms
 private const val SPLASH_EXIT_ANIM_DURATION = 400L // ms
+
+// KUN -->
+/**
+ * How long the upgrade migration watches its download before giving up on reporting a failure. Long
+ * enough for an immediate "no network" failure to surface, short enough that a real download (which
+ * reports its progress in Settings) does not keep a coroutine suspended for the activity's lifetime.
+ */
+private const val MIGRATION_NOTICE_TIMEOUT_MS = 30_000L
+// KUN <--
 
 private val MIGRATING_SCREEN_MIN_DURATION = 1.seconds

@@ -53,6 +53,13 @@ class ReaderOcrBlockLoaderTest {
     private val getManga = mockk<GetManga>()
     private val awaitCalls = AtomicInteger(0)
 
+    /**
+     * Every loader this test built, so [tearDown] can stop the page-work scope each one owns. Each
+     * loader allocates its own `SupervisorJob` on `Dispatchers.IO` (`newWorkScope`), separate from
+     * the injected [scope], so cancelling [scope] alone leaks a live job tree per test.
+     */
+    private val loaders = mutableListOf<ReaderOcrBlockLoader>()
+
     private val chapterModel = Chapter.create().copy(id = 42L, mangaId = 7L, name = "chapter", url = "url")
     private val page = ReaderPage(index = 3, url = "page").apply {
         this.chapter = ReaderChapter(chapterModel)
@@ -89,10 +96,14 @@ class ReaderOcrBlockLoaderTest {
         dictionaryOcrPreferences = dictionaryOcr,
         // KUN <--
         loadTimeoutMs = loadTimeoutMs,
-    )
+    ).also { loaders += it }
 
     @AfterEach
     fun tearDown() {
+        // `detach()` is what cancels a loader's own page-work scope; without it every loader built
+        // here keeps a `SupervisorJob` (and whatever it launched) alive past its test.
+        loaders.forEach { it.detach() }
+        loaders.clear()
         scope.cancel()
     }
 
@@ -265,11 +276,22 @@ class ReaderOcrBlockLoaderTest {
      * A forced re-run supersedes the page's ordinary load: the old load must be cancelled rather
      * than left running beside it (two reads of the same page, and the loser can overwrite the
      * winner's blocks). This is the "a new load cancels the previous load" invariant.
+     *
+     * It must also hold **for the whole redo**, not just at its start: the reader re-drives
+     * `ensureLoaded` every frame with the visible pages and their neighbours, so a redo that
+     * released the page's single-flight slot while it worked was read and inferred a second time by
+     * a normal load a frame later. The redo is parked in `forceRecognizeAndCache` below while
+     * `ensureLoaded` is re-driven, which the released-slot implementation answers with a second
+     * `GetManga` call (and a `recognizeAndCache`).
      */
     @Test
     fun `a forced redo cancels the load already in flight for the page`(): Unit = runBlocking {
         val initialLoadCancelled = CountDownLatch(1)
+        val redoStarted = CountDownLatch(1)
+        val releaseRedo = CountDownLatch(1)
         val forced = AtomicInteger(0)
+        val ordinaryRuns = AtomicInteger(0)
+        val forcedBlock = block.copy(lines = listOf("強制再実行"))
         val ocrManager = mockk<OcrManager>(relaxed = true) {
             every { queueState } returns MutableStateFlow(emptyList<OcrQueueItem>())
             every { sourceFor(any()) } returns ReaderOcrSource.PADDLE
@@ -286,9 +308,16 @@ class ReaderOcrBlockLoaderTest {
                 Manga.create().copy(id = 7L, source = 1L)
             }
         }
+        coEvery { ocrManager.cachedBlocks(any(), any(), any()) } returns null
+        coEvery { ocrManager.recognizeAndCache(any(), any(), any(), any(), any()) } coAnswers {
+            ordinaryRuns.incrementAndGet()
+            listOf(block)
+        }
         coEvery { ocrManager.forceRecognizeAndCache(any(), any(), any(), any(), any()) } coAnswers {
             forced.incrementAndGet()
-            listOf(block)
+            redoStarted.countDown()
+            releaseRedo.await(5, TimeUnit.SECONDS)
+            listOf(forcedBlock)
         }
         page.stream = { ByteArrayInputStream(ByteArray(8)) }
         val loader = loader(LOAD_TIMEOUT_MS, ocrManager = ocrManager)
@@ -297,11 +326,24 @@ class ReaderOcrBlockLoaderTest {
         awaitSettled { awaitCalls.get() == 1 }
 
         loader.redoOcr(page)
-
+        redoStarted.await(2, TimeUnit.SECONDS) shouldBe true
         initialLoadCancelled.await(2, TimeUnit.SECONDS) shouldBe true
-        awaitSettled { forced.get() == 1 }
+
+        // The per-frame driver, three times, while the redo is still working.
+        repeat(3) {
+            loader.ensureLoaded(listOf(page))
+            delay(50)
+        }
+        ordinaryRuns.get() shouldBe 0
+        awaitCalls.get() shouldBe 2 // the ordinary load's (cancelled) one, plus the redo's own
         forced.get() shouldBe 1
-        loader.blocks.value shouldBe mapOf(page.ocrKey() to listOf(block))
+
+        releaseRedo.countDown()
+        awaitSettled { loader.blocks.value.isNotEmpty() }
+        // The redo's result stands: no ordinary load ran to overwrite it.
+        loader.blocks.value shouldBe mapOf(page.ocrKey() to listOf(forcedBlock))
+        forced.get() shouldBe 1
+        ordinaryRuns.get() shouldBe 0
     }
 
     /**

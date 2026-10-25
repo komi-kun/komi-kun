@@ -18,8 +18,12 @@
 // thread already inside the JNI call is not cancellable.
 //
 // Deliberately not a lock around the *stream* lifetime: a stream that is never closed would then
-// hang `recycle()` (an ANR). Per-read locking bounds the wait to one buffered chunk (an mmap read),
-// and a leaked stream simply fails its next read after close.
+// hang `recycle()` (an ANR). A leaked stream simply fails its next read after close.
+//
+// What `recycle()`'s wait is bounded by is therefore *one guarded step*, and every caller is
+// responsible for keeping its holds short: a buffered read here (one chunk), and in the page loaders
+// one directory header read, one entry's leading bytes or one page copy — never a whole
+// `getPages()` enumeration or a whole `CACHE_TO_DISK` extraction. See `imageEntryNames`.
 // KUN <--
 package eu.kanade.tachiyomi.ui.reader.loader
 
@@ -73,6 +77,13 @@ internal class ArchiveReadGuard {
      * long after it was created, possibly after a chapter switch) is guarded.
      */
     fun inputStream(open: () -> InputStream): InputStream = GuardedInputStream(read(open), this)
+
+    /**
+     * True while the **calling** thread holds the read lock. A test seam: a fake archive source
+     * asserts it, so a page enumeration that forgot to go through [read] fails a test instead of
+     * touching an unmapped range on a device. Production code never needs it.
+     */
+    internal fun isHoldingReadLock(): Boolean = lock.readHoldCount > 0
 
     private class GuardedInputStream(
         private val inner: InputStream,

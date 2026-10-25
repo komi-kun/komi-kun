@@ -1,6 +1,5 @@
 package eu.kanade.tachiyomi.ui.reader.loader
 
-import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import mihon.core.archive.EpubReader
 
@@ -22,13 +21,19 @@ internal class EpubPageLoader(private val reader: EpubReader) : PageLoader() {
     override var isLocal: Boolean = true
 
     override suspend fun getPages(): List<ReaderPage> {
-        return reader.getImagesFromPages().mapIndexed { i, path ->
-            ReaderPage(i).apply {
-                // KUN --> guarded: this stream is read later, from any thread.
-                stream = { archiveReads.inputStream { reader.getInputStream(path)!! } }
-                // KUN <--
-                status = Page.State.Ready
-            }
+        // KUN -->
+        // The enumeration itself reads the mapped buffer: `getImagesFromPages` opens the container,
+        // the package document and **every** spine page's xhtml through `getInputStream`, and
+        // `ChapterLoader.loadChapter` publishes this loader before awaiting `getPages`, so a
+        // preloaded neighbour that is recycled mid-enumeration used to enumerate a freed mapping.
+        // `EpubReader` exposes that as one opaque call, so the call is the hold: the wait a
+        // `recycle()` can see here is one EPUB page list (one parse pass), never a page stream.
+        val paths = archiveReads.read { reader.getImagesFromPages() }
+        // KUN <--
+        return paths.mapIndexed { i, path ->
+            // KUN --> guarded: this stream is read later, from any thread.
+            archiveReads.readerPage(i, path) { reader.getInputStream(it) }
+            // KUN <--
         }
     }
 

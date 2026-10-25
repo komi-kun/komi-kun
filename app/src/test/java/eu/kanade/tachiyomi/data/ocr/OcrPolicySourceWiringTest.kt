@@ -121,6 +121,30 @@ class OcrPolicySourceWiringTest {
         // host's `detach()` really clears the anchor - `ReaderOcrPopupAnchorTest` covers that part.
     }
 
+    @Test
+    fun `the launch migration consults the policy off the main thread, once, and only while on`() {
+        val mainActivity = app("ui/main/MainActivity.kt")
+        val migrate = functionBody(mainActivity, "private fun MigrateOcrModels()")
+
+        // The decision must be the pure policy, not an inline condition here (the policy is what
+        // `OcrRuntimePolicyTest` pins), and it reads the *installed* release rather than the selection.
+        migrate shouldContainSource """OcrRuntimePolicy\.shouldMigrateModels\("""
+        migrate shouldContainSource """installedRelease\s*=\s*modelDownloader\.installedRelease"""
+        // Both probes are file I/O (`stat`s and the marker read), so not on the main thread.
+        migrate shouldContainSource
+            """withContext\(\s*Dispatchers\.IO\s*\)\s*\{\s*OcrRuntimePolicy\.shouldMigrateModels\("""
+        // Gated by the feature switch before anything is read, then acted on exactly once.
+        migrate shouldContainSource """OcrRuntimePolicy\.shouldRunQueue\(\s*enabled\s*\)\s*\)\s*return@LaunchedEffect"""
+        migrate shouldContainSource """modelMigrationChecked\.compareAndSet\(\s*false\s*,\s*true\s*\)"""
+        migrate shouldContainSource """modelDownloader\.triggerPaddleDownload\(\)"""
+        // And it really is on the launch path, next to the queue resume.
+        mainActivity shouldContainSource """ResumeOcrQueue\(\)\s*MigrateOcrModels\(\)"""
+
+        // Not asserted: that the download actually runs at launch (the graph singleton, the
+        // dispatcher at runtime and the toast are Android/Compose-bound), nor that a completed
+        // download leaves the marker matching the selection — `ModelDownloaderOptInTest` covers that.
+    }
+
     /**
      * The body of the function starting at [signature], found by counting braces from its opening
      * brace, so the guard survives reformatting. (A `{`/`}` inside a string literal in those bodies

@@ -1571,8 +1571,15 @@ class ReaderViewModel(
         val destDir = context.cacheImageDir
         // KUN <--
 
-        try {
-            viewModelScope.launchNonCancellable {
+        // KUN -->
+        // The handling has to live **inside** the coroutine: `launchNonCancellable` hands a body
+        // failure to the coroutine's exception handler (which crashes the process), it does not
+        // rethrow to this call site, so the old outer `try` never saw anything. `saveImages` reads
+        // both page streams, and a page read after the chapter was recycled throws the archive
+        // guard's `IOException` — the "page outlived the reader" case, which is exactly what must be
+        // logged rather than fatal. Same shape as the neighbouring image saver.
+        viewModelScope.launchNonCancellable {
+            try {
                 destDir.deleteRecursively()
                 val uri = saveImages(
                     page1 = firstPage,
@@ -1583,10 +1590,11 @@ class ReaderViewModel(
                     manga = manga,
                 )
                 eventChannel.send(if (copyToClipboard) Event.CopyImage(uri) else Event.ShareImage(uri, firstPage, secondPage))
+            } catch (e: Throwable) {
+                logcat(LogPriority.ERROR, e)
             }
-        } catch (e: Throwable) {
-            logcat(LogPriority.ERROR, e)
         }
+        // KUN <--
     }
     // SY <--
 

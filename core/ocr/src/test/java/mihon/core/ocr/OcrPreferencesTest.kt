@@ -7,6 +7,7 @@
 package mihon.core.ocr
 
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import org.junit.jupiter.api.Test
 import tachiyomi.core.common.preference.InMemoryPreferenceStore
 
@@ -26,8 +27,14 @@ class OcrPreferencesTest {
     }
 
     @Test
-    fun `defaults keep the cache variant unchanged`() {
-        preferences().cacheSignature() shouldBe ""
+    fun `the default selection still has a cache signature of its own`() {
+        // Regression: the signature used to be `""` at the defaults, and the *previous* default
+        // (SFX detector + fine-tuned recogniser) also produced `""` — so a page OCR'd by the SFX
+        // detector was served as dialogue. The release tag is now unconditional, so the two can never
+        // meet again: the default is v4 (dialogue), the old default was v3 (SFX).
+        preferences().cacheSignature() shouldBe "ocr-manga-v4t15b25u140r35"
+        preferences().cacheSignature() shouldNotBe ""
+        preferences().cacheSignature() shouldNotBe ModelRelease.SFX_FINE_TUNED.release + "t15b25u140r35"
     }
 
     @Test
@@ -36,20 +43,21 @@ class OcrPreferencesTest {
         preferences.detBoxThreshold.set(45)
 
         preferences.detectionOptions(numThreads = 2).boxThresh shouldBe 0.45f
-        preferences.cacheSignature() shouldBe "t15b45u140r35"
+        preferences.cacheSignature() shouldBe "ocr-manga-v4t15b45u140r35"
     }
 
     @Test
     fun `switching the detector invalidates the cached page signature`() {
         val preferences = preferences()
         // The detector changes the *boxes*, so cached pages recognised with the other detector must
-        // not be served for the same page; the default (dialogue) keeps the empty suffix.
-        preferences.cacheSignature() shouldBe ""
+        // not be served for the same page.
+        preferences.cacheSignature() shouldBe "ocr-manga-v4t15b25u140r35"
 
         preferences.detModelVariant.set(DetModelVariant.SFX.name)
 
-        // The model part is what changes; the default thresholds are appended with it.
-        preferences.cacheSignature() shouldBe "dSFXt15b25u140r35"
+        // The release tag is what changes (v4 dialogue -> v3 SFX), so the signatures differ.
+        preferences.cacheSignature() shouldBe "ocr-manga-v3t15b25u140r35"
+        preferences.cacheSignature() shouldNotBe preferences().cacheSignature()
     }
 
     @Test

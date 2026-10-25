@@ -6,8 +6,9 @@ This is a *verification* helper, not production code. It automates the two PR #7
 be closed on hardware:
 
 1. "Stock variant download not exercised on device" — switch Settings -> OCR -> Recogniser model to
-   Stock, let the runtime downloader fetch `ocr-models-v4`, confirm the file landed with the size the
-   release manifest publishes, then switch back to the default fine-tune (`ocr-manga-v3`).
+   Stock, let the runtime downloader fetch `ocr-models-v3` (dialogue detector × stock recogniser),
+   confirm the file landed with the size the release manifest publishes, then switch back to the
+   default fine-tune (`ocr-manga-v4`, dialogue detector × fine-tuned recogniser).
 2. "On-device OCR latency unmeasured" — collect the engine's own timings for normal and oversized
    pages. `libpaddle_ocr.so` emits `TIMING|total|prep|det|post|crop|rec|rawBoxCount`; the Kotlin side
    parses it and logs `recognize: Total: <n>ms (Prep: ..., Det: ..., Post: ..., Crop: ..., Rec: ...)
@@ -57,9 +58,14 @@ DEFAULT_SERIAL = os.environ.get("TB_SERIAL_DEFAULT", "4df231a3")
 MODELS_DIR = f"files/paddle_ocr"  # relative to the app's filesDir
 PREFS_REL = f"shared_prefs/{PKG}_preferences.xml"
 
-# RecModelVariant (core/ocr/src/main/java/mihon/core/ocr/RecModelVariant.kt).
-FINE_TUNED = {"rec": "ppocrv6_small_rec_manga_real.onnx", "release": "ocr-manga-v3"}
-STOCK = {"rec": "ppocrv6_small_rec.onnx", "release": "ocr-models-v4"}
+# The model selection is two axes (detector × recogniser) and each pair is its own release
+# (`core/ocr/src/main/java/mihon/core/ocr/ModelRelease.kt`). This script drives the *recogniser* axis
+# with the default dialogue detector, so the pairs are `ocr-manga-v4` / `ocr-models-v3` — **not** the
+# SFX pairs (`ocr-manga-v3` / `ocr-models-v4`), which publish the same file names with different bytes.
+# `pref_ocr_det_model` is printed by `preflight` so a non-default detector is visible: the release
+# expectations below are only correct for DIALOGUE (absent = DIALOGUE).
+FINE_TUNED = {"rec": "ppocrv6_small_rec_manga_real.onnx", "release": "ocr-manga-v4"}
+STOCK = {"rec": "ppocrv6_small_rec.onnx", "release": "ocr-models-v3"}
 SHARED_MODELS = ("ppocrv6_small_det.onnx", "ppocrv6_small_dict.txt")
 RELEASE_ROOT = "https://github.com/komi-kun/komi-kun-ocr-models/releases/download"
 
@@ -260,11 +266,16 @@ def cmd_preflight(adb: Adb, _args) -> int:
     print(f"package:      {PKG} versionName={version.group(1)} versionCode={code.group(1) if code else '?'}")
 
     variant, _ = prefs_get(adb, "pref_ocr_rec_model")
+    detector, _ = prefs_get(adb, "pref_ocr_det_model")
     source, _ = prefs_get(adb, "pref_ocr_source")
     overlay, _ = prefs_get(adb, "pref_reader_ocr_overlay_enabled")
     storage, _ = prefs_get(adb, "__APP_STATE_storage_dir")
     print(f"prefs:        pref_ocr_rec_model={variant or '<unset -> FINE_TUNED>'}"
-          f" pref_ocr_source={source} pref_reader_ocr_overlay_enabled={overlay}")
+          f" pref_ocr_det_model={detector or '<unset -> DIALOGUE>'} pref_ocr_source={source}"
+          f" pref_reader_ocr_overlay_enabled={overlay}")
+    if (detector or "DIALOGUE").upper() != "DIALOGUE":
+        print("WARNING:       pref_ocr_det_model is not DIALOGUE; the release mapping below assumes "
+              "the default dialogue detector, so the expected release tags are wrong for this device")
     print(f"storage:      {storage}")
 
     listing = adb.run_as("ls", "-l", MODELS_DIR).strip().splitlines()

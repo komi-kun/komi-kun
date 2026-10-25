@@ -64,4 +64,38 @@ object OcrRuntimePolicy {
      * predicate in `:core:ocr` (`hasRunnableStatuses`); this policy only composes it with the switch.
      */
     fun shouldResumeQueue(enabled: Boolean, runnableWork: Boolean): Boolean = enabled && runnableWork
+
+    /**
+     * The one-shot upgrade migration: whether launch should fetch [selectedRelease] because the
+     * models on disk are a **superseded or unidentifiable install**.
+     *
+     * Why it exists: every release publishes identically named files — the detector name is shared,
+     * only its bytes differ — so a build that changed the selection left the previous installation in
+     * place, and only the Settings status row ever noticed. Without this, an upgraded install kept
+     * running whatever detector an older build installed, silently.
+     *
+     * The two guards keep it from changing first-run behaviour:
+     *  * [enabled] — the combined dictionary/OCR opt-in. Off means nothing at all happens, exactly as
+     *    for every other OCR action.
+     *  * [modelFilesPresent] — a **fresh install has no model files**, so it keeps the manual download
+     *    (the settings CTA); the migration must never turn a first launch into a ~31 MB download.
+     *    Files with no marker at all ([installedRelease] null) still count as a legacy install.
+     *
+     * [installedRelease] is `ModelDownloader.installedRelease` (the release the last completed,
+     * hash-verified install recorded); [selectedRelease] is the release the current selection
+     * resolves to.
+     */
+    fun shouldMigrateModels(
+        enabled: Boolean,
+        installedRelease: String?,
+        modelFilesPresent: Boolean,
+        selectedRelease: String,
+    ): Boolean {
+        if (!enabled) return false
+        // Already the selected release: nothing to migrate (the common case on every later launch).
+        if (installedRelease == selectedRelease) return false
+        // A marker naming another release is conclusive on its own; otherwise only real model files
+        // (a pre-marker install) justify a download.
+        return installedRelease != null || modelFilesPresent
+    }
 }

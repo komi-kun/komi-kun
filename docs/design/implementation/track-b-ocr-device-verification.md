@@ -5,9 +5,22 @@ this was written). Everything below is reproducible in one command per step.
 
 Two PR #7 gaps can only be closed on hardware:
 
+> **Current model matrix** (detector × recogniser → release; see `ModelRelease.kt`). Every release
+> publishes the same file names, so only the tag identifies the bytes:
+>
+> | detector \ recogniser | `FINE_TUNED` | `STOCK` |
+> |---|---|---|
+> | `DIALOGUE` (default) | `ocr-manga-v4` | `ocr-models-v3` |
+> | `SFX` | `ocr-manga-v3` | `ocr-models-v4` |
+>
+> `scripts/track-b-ocr-device-check.py` drives the recogniser axis with the **default dialogue**
+> detector, so the tags it expects are `ocr-manga-v4` (fine-tune) and `ocr-models-v3` (stock). The
+> runs recorded below were made before the detector axis existed and name the SFX-side tags; read
+> those as history.
+
 | Gap | What "done" means |
 |---|---|
-| Stock variant download not exercised on device | Settings → OCR → Recogniser model → *Stock PP-OCRv6* downloads `ocr-models-v4`, the files verify against the manifest (size + SHA-256), the app reports `OCR ready`, OCR runs on a page, and switching back to the default fine-tune (`ocr-manga-v3`) works — the `ocr-manga-v2` missing-`path` 404 defect that used to block switching back is **fixed and verified offline** (see below) |
+| Stock variant download not exercised on device | Settings → OCR → Recogniser model → *Stock PP-OCRv6* downloads `ocr-models-v3` (dialogue detector × stock recogniser), the files verify against the manifest (size + SHA-256), the app reports `OCR ready`, OCR runs on a page, and switching back to the default fine-tune (`ocr-manga-v4`) works — the `ocr-manga-v2` missing-`path` 404 defect that used to block switching back is **fixed and verified offline** (see below) |
 | On-device OCR latency unmeasured | `recognize:` timings (parsed from the shim's `TIMING|` line) for a normal page and for an oversized (≥ 4× upscaled, > `MAX_OCR_PIXELS = 4 MP`) page |
 
 Driver: `scripts/track-b-ocr-device-check.py` (Python 3 stdlib only, new file, no production code
@@ -84,7 +97,7 @@ a failure, because the engine would silently no-op on every page.
 1. `adb devices` → the OPD2403 (`4df231a3`) must be listed; accept the debugging prompt on the tablet.
 2. `scripts/track-b-ocr-device-check.py preflight` — record model state and the current variant.
 3. `variant stock --verify-ui` — expect `downloaded during this run: ppocrv6_small_rec.onnx`, three
-   `OK … size + SHA-256 match manifest` lines, `OK: ocr-models-v4 models verified…`, `OCR ready`, and
+   `OK … size + SHA-256 match manifest` lines, `OK: ocr-models-v3 models verified…`, `OCR ready`, and
    exit `0`. A verified download whose row still says `NOT ready` exits `9` and must be reported as a
    failure, not a pass. `variant --restore` afterwards puts back whatever the switch replaced (also
    when it had been unset).
@@ -146,7 +159,9 @@ page of a session therefore includes it once. Screenshot evidence of the stock r
 ## Defect found while exercising the switch — **RESOLVED** in `ocr-manga-v3` / `ocr-models-v4`
 
 > **Status: fixed.** The two releases that superseded `ocr-manga-v2` (`ocr-manga-v3` for the default
-> fine-tune, `ocr-models-v4` for the stock recogniser) publish an explicit flat `"path"` on **every**
+> fine-tune, `ocr-models-v4` for the stock recogniser — *those were the pre-detector-axis tags*: today
+> the dialogue pairs are `ocr-manga-v4` / `ocr-models-v3` and the SFX pairs `ocr-manga-v3` /
+> `ocr-models-v4`) publish an explicit flat `"path"` on **every**
 > manifest entry, so the `$baseUrl/models/<name>` fallback below is never taken. `selftest --online`
 > (which downloads each variant's manifest and `HEAD`s every required file exactly the way
 > `ModelDownloader` resolves it) exits `0` with `release downloads: OK`. The text below is the
@@ -179,8 +194,9 @@ manifest ocr-manga-v2: release='ocr-manga-v2' files=3 missing=none
 
 `ocr-models-v3` (stock) is fine: it lists explicit flat `path`s and all three required files return
 HTTP 200. **Resolution (shipped):** rather than patch `ocr-manga-v2`, the fixes went into the two
-successor releases — `ocr-manga-v3` (default fine-tune) and `ocr-models-v4` (stock recogniser) — every
-manifest entry of which carries `"path": "<name>"`. `scripts/track-b-ocr-device-check.py selftest
+successor releases — `ocr-manga-v3` (default fine-tune) and `ocr-models-v4` (stock recogniser); after the
+detector axis those tags are the SFX pairs, and the dialogue pairs are `ocr-manga-v4` / `ocr-models-v3`
+(see the matrix at the top) — every manifest entry of which carries `"path": "<name>"`. `scripts/track-b-ocr-device-check.py selftest
 --online` now reports, for both pinned releases, `missing=none` and `HTTP 200` for
 `ppocrv6_small_det.onnx`, `ppocrv6_small_dict.txt` and the variant's recogniser, and exits `0`.
 `ocr-manga-v2` stays published (nothing was deleted) but no build pins it any more.
@@ -190,10 +206,11 @@ A device that already has the fine-tuned weights is unaffected until the files a
 
 The same run, after the verification claim was tightened (size + device-side `sha256sum` against the
 manifest instead of a bare `ls`). The release tag below (`ocr-models-v3`) is what that build pinned at
-the time; the current pin is `ocr-models-v4`, which ships the **same** stock recogniser
-(`ppocrv6_small_rec.onnx`, 21,159,378 B, sha256 `5435fd74…`) and the same `ppocrv6_small_dict.txt`
-(74,947 B) but a **new detector** (`ppocrv6_small_det.onnx`, 9,929,569 B, sha256 `bf5ed74a…`, the
-curved-SFX fine-tune), so a `variant stock` run today prints a different size for that one line:
+the time. **Today's `ocr-models-v3` is again the dialogue × stock release**, so a `variant stock` run
+now matches those lines (stock detector + stock recogniser); after the detector axis landed, the
+SFX × stock pair moved to `ocr-models-v4`, whose `ppocrv6_small_det.onnx` is the curved-SFX fine-tune
+(9,929,569 B, sha256 `bf5ed74a…`) — do not expect that size from a `variant stock` run unless
+`pref_ocr_det_model` is `SFX`:
 
 ```
 pref_ocr_rec_model: STOCK -> STOCK (release ocr-models-v3, rec ppocrv6_small_rec.onnx)

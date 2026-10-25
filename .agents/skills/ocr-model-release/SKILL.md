@@ -11,9 +11,26 @@ app fetches it at build time and verifies every SHA-256.
 
 ## What the artifact is
 
-Current release: **`ocr-models-v4`** (ONNX Runtime + PP-OCRv6 small, with the curved-SFX detector
-fine-tune). The fine-tuned *recogniser* release is **`ocr-manga-v3`** (same detector + dictionary, plus
-`ppocrv6_small_rec_manga_real.onnx`), which is what `RecModelVariant.FINE_TUNED` pins.
+Two independent things live in `komi-kun/komi-kun-ocr-models`:
+
+| what | pinned in | tags |
+|---|---|---|
+| the **native artifact** (`libpaddle_ocr.so` + `libonnxruntime.so` + `libomp.so` and a copy of the models) | `core/ocr/paddle-manifest.json` | `ocr-models-vN` |
+| the **runtime model releases** the app's selection resolves to | `ModelRelease.kt` | one tag per detector × recogniser pair |
+
+Current native artifact: **`ocr-models-v4`** (ONNX Runtime + PP-OCRv6 small).
+
+The runtime releases are a 2×2 matrix. Every release publishes the **same file names** — the detector
+`ppocrv6_small_det.onnx` is shared by all four — so only the tag identifies the bytes:
+
+| detector \ recogniser | `FINE_TUNED` | `STOCK` |
+|---|---|---|
+| `DIALOGUE` (default) | `ocr-manga-v4` | `ocr-models-v3` |
+| `SFX` | `ocr-manga-v3` | `ocr-models-v4` |
+
+`DetModelVariant.DEFAULT` is `DIALOGUE`, so a fresh install resolves to `ocr-manga-v4`. `ModelDownloader`
+records the installed tag in `paddle_ocr/installed-release.txt`, and that marker — never "the file
+exists" — is what says which weights are on disk (the engine keys its reload on it too).
 
 - **`libpaddle_ocr.so`** — our JNI shim over **ONNX Runtime** (via the ABI-stable
   `onnxruntime_c_api.h` C API) + opencv-mobile + Clipper. It `dlopen()`s `libonnxruntime.so` and
@@ -31,14 +48,16 @@ fine-tune). The fine-tuned *recogniser* release is **`ocr-manga-v3`** (same dete
   thread pool). **`libc++_shared.so` is deliberately NOT listed in the app manifest** (the release
   does ship it; the app simply does not fetch it) — AGP already packages the NDK copy (via
   `:core:dictionary`), and a second copy fails the app merge.
-- **Models** — Apache-2.0 ONNX exports of PaddlePaddle PP-OCRv6 **small**. Current release
-  (`ocr-models-v4`): `ppocrv6_small_det.onnx` (a Manga109-s/COO fine-tune of the stock detector — SFX
-  H 32.78 % → 65.03 %, curved 9+-point recall 27.5 % → 74.0 %, art FP 5.35 → 1.35 /page on held-out
-  books, dialogue block coverage 92.10 % → 94.94 %), `ppocrv6_small_rec.onnx` (unified ja/zh/en CTC,
-  `h=48`, 18 710 output classes, 18 708-entry dict with kana) and `ppocrv6_small_dict.txt`. The
-  recogniser and dictionary are byte-identical to `ocr-models-v3`. These are
-  **not** in the APK; `ModelDownloader` fetches them opt-in at runtime (SHA-256 verified) and prunes
-  superseded `ppocrv5_*`/`ppocrv4_*` files on upgrade. v6 **tiny** has no kana and must not be used.
+- **Models** — Apache-2.0 ONNX exports of PaddlePaddle PP-OCRv6 **small**, published in each of the
+  four runtime releases. `ppocrv6_small_det.onnx` is the **SFX** detector in `ocr-manga-v3` /
+  `ocr-models-v4` (a Manga109-s/COO fine-tune — SFX H 32.78 % → 65.03 %, curved 9+-point recall
+  27.5 % → 74.0 %, art FP 5.35 → 1.35 /page on held-out books, dialogue block coverage 92.10 % →
+  94.94 %) and the **stock dialogue** detector in `ocr-manga-v4` / `ocr-models-v3`;
+  `ppocrv6_small_rec.onnx` (unified ja/zh/en CTC, `h=48`, 18 710 output classes, 18 708-entry dict with
+  kana) / `ppocrv6_small_rec_manga_real.onnx` (the manga fine-tune) and `ppocrv6_small_dict.txt`
+  (byte-identical in all four). These are **not** in the APK; `ModelDownloader` fetches them opt-in at
+  runtime (SHA-256 verified) and prunes superseded `ppocrv5_*`/`ppocrv4_*` files on upgrade. v6
+  **tiny** has no kana and must not be used.
 - **ABIs**: `arm64-v8a`, `armeabi-v7a`, **`x86_64`** — ORT publishes all three and the ONNX graphs
   are architecture-independent, so x86_64 emulators are supported (no more graceful degradation).
 - The repo holds `build.sh`, `CMakeLists.txt`, `deps.lock.json`, a CI workflow, `LICENSE`/`NOTICE`,
@@ -66,8 +85,10 @@ fetch task resolves by `path`.
 Apply the release's `INTEGRATION.md`. In short: replace `core/ocr/paddle-manifest.json` with the new
 `app-paddle-manifest.json` content (`release`, `baseUrl`, `abi[]`, and one entry per file
 (`abi?`, `name`, `path`, `sha256`, `size`, `spdx`)); keep `libc++_shared.so` out. Then update the
-model file names in `PaddleOcrEngine` (`DET_MODEL`/`REC_MODEL`/`DICT_TXT`) and `ModelDownloader`
-(`REQUIRED_MODELS`, plus add the superseded names to `LEGACY_MODELS`).
+model file names in the selection enums (`DetModelVariant.detModel`, `RecModelVariant.recModel`,
+`DICT_TXT` in `PaddleOcrEngine`) — `ModelDownloader` derives its required set from those, and adds any
+superseded *new* names to `LEGACY_MODELS`. The other three releases of a pair must then be re-cut with
+the same new names, or the matrix ships mismatched file sets.
 
 `./gradlew :core:ocr:fetchPaddleNativeLibs` reads that manifest, verifies each SHA-256, and writes the
 files into the git-ignored `core/ocr/src/main/jniLibs/<abi>/`. It is wired to `:core:ocr`'s per-variant

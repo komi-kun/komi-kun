@@ -52,6 +52,7 @@ import java.io.File
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
@@ -314,6 +315,63 @@ class ModelDownloaderOptInTest {
             urls.count { it.endsWith("/$DICT_MODEL") } shouldBe 1
         }
 
+    /**
+     * The A->B->A defect: a trigger arriving while a run is in flight is coalesced, and the in-flight
+     * run snapshotted *its* target. Flipping dialogue -> SFX -> dialogue quickly therefore installed
+     * SFX and left nothing to schedule a dialogue download: the selection said dialogue while the
+     * engine kept loading the SFX detector. The run now re-checks the selection when a pass finishes
+     * and keeps going, so the run must end with the **selected** release installed.
+     */
+    @Test
+    fun `a selection flipped back while a run is in flight still ends with the selected release`(@TempDir dir: File): Unit =
+        runBlocking {
+            val dialogue = stagedModels()
+            // Same names, different detector bytes — the `ocr-manga-v4` / `ocr-manga-v3` pair.
+            val sfx = dialogue + (DET_MODEL to "sfx-det-with-other-bytes".toByteArray())
+            val preferences = OcrPreferences(InMemoryPreferenceStore())
+            val urls = CopyOnWriteArrayList<String>()
+            val inFlight = CountDownLatch(1)
+            val unblock = CountDownLatch(1)
+            val downloader = downloader(
+                mockContext(dir),
+                // The *first* detector request blocks, so the test can flip the selection while a run
+                // (which has already snapshotted SFX) is still in flight.
+                serveReleases(
+                    urls,
+                    dir,
+                    listOf(ModelRelease.DIALOGUE_FINE_TUNED to dialogue, ModelRelease.SFX_FINE_TUNED to sfx),
+                    blockOnceSuffix = "/$DET_MODEL",
+                    blocked = inFlight,
+                    unblock = unblock,
+                ),
+                enabled = true,
+                preferences = preferences,
+            )
+
+            // 1. Switch to SFX: the run snapshots SFX and starts downloading its detector.
+            preferences.detModelVariant.set(DetModelVariant.SFX.name)
+            downloader.triggerPaddleDownload()
+            inFlight.await(10, TimeUnit.SECONDS) shouldBe true
+
+            // 2. Flip back to dialogue while it is in flight: this trigger is coalesced away...
+            preferences.detModelVariant.set(DetModelVariant.DIALOGUE.name)
+            downloader.triggerPaddleDownload()
+
+            // 3. ...so the in-flight run must notice by itself that the selection moved back.
+            unblock.countDown()
+            withTimeout(30_000) { downloader.state.first { it is ModelDownloadState.Completed } }
+
+            installedReleaseMarker(downloader.modelsDir) shouldBe ModelRelease.DIALOGUE_FINE_TUNED.release
+            File(downloader.modelsDir, DET_MODEL).readText() shouldBe "$DET_MODEL bytes"
+            downloader.isPaddleDownloaded shouldBe true
+            // Both releases' detectors really were fetched (SFX for the in-flight pass, dialogue after).
+            urls.filter { it.endsWith("/$DET_MODEL") }.distinct() shouldContainExactlyInAnyOrder
+                listOf(
+                    "${ModelRelease.SFX_FINE_TUNED.baseUrl}/$DET_MODEL",
+                    "${ModelRelease.DIALOGUE_FINE_TUNED.baseUrl}/$DET_MODEL",
+                )
+        }
+
     // ------------------------------------------------------------------ triggerPaddleDownload
 
     @Test
@@ -465,6 +523,10 @@ class ModelDownloaderOptInTest {
         urls: MutableList<String>,
         dir: File,
         releases: List<Pair<ModelRelease, Map<String, ByteArray>>>,
+        /** When set, the first request whose URL ends with this suffix blocks until [unblock]. */
+        blockOnceSuffix: String? = null,
+        blocked: CountDownLatch? = null,
+        unblock: CountDownLatch? = null,
     ): OkHttpClient {
         val served = buildMap {
             releases.forEach { (release, models) ->
@@ -475,10 +537,16 @@ class ModelDownloaderOptInTest {
                 models.forEach { (name, bytes) -> put("${release.baseUrl}/$name", bytes) }
             }
         }
+        val blockedOnce = AtomicBoolean(false)
         return OkHttpClient.Builder()
             .addInterceptor { chain ->
-                urls += chain.request().url.toString()
-                val body = served[chain.request().url.toString()]
+                val url = chain.request().url.toString()
+                urls += url
+                if (blockOnceSuffix != null && url.endsWith(blockOnceSuffix) && blockedOnce.compareAndSet(false, true)) {
+                    blocked?.countDown()
+                    unblock?.await(30, TimeUnit.SECONDS)
+                }
+                val body = served[url]
                 if (body == null) respond(chain, code = 404, body = ByteArray(0)) else respond(chain, code = 200, body = body)
             }
             .build()

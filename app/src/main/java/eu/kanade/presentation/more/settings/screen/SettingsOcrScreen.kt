@@ -174,7 +174,8 @@ object SettingsOcrScreen : SearchableSettings {
             // fine-tune finds onomatopoeia the stock detector misses but can split a bubble's lines
             // and merge adjacent bubbles, so dialogue is the default and SFX is opt-in. Switching
             // releases invalidates the installed-release marker, so the selected weights are
-            // downloaded; the engine keys its reload on the release, so no stale detector survives.
+            // downloaded; the engine keys its reload on what is installed on disk (marker + file
+            // identity), so no stale detector survives.
             Preference.PreferenceItem.ListPreference(
                 preference = preferences.detModelVariant,
                 entries = mapOf(

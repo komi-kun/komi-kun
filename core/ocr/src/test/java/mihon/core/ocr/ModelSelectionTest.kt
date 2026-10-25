@@ -47,7 +47,8 @@ class ModelSelectionTest {
     fun `every release publishes the same detector file name`() {
         // This is the whole reason the downloader records the release tag instead of the file set:
         // the dialogue and SFX detectors are the same path with different bytes, so only the tag can
-        // tell them apart (and the engine cannot either — it keys its reload on the release).
+        // tell them apart — the engine cannot either, which is why it keys its reload on the
+        // *installed* release + file fingerprint (`installedModelIdentity`), never on the selection.
         ModelRelease.entries.map { it.det.detModel }.toSet() shouldBe setOf("ppocrv6_small_det.onnx")
         DetModelVariant.DIALOGUE.detModel shouldBe "ppocrv6_small_det.onnx"
         DetModelVariant.SFX.detModel shouldBe "ppocrv6_small_det.onnx"
@@ -91,7 +92,8 @@ class ModelSelectionTest {
         preferences.detModelVariant.set(DetModelVariant.SFX.name)
 
         preferences.resolveModelRelease().release shouldBe "ocr-manga-v3"
-        preferences.modelKey() shouldBe "ocr-manga-v3"
+        // There is no selection-derived `modelKey()` any more: the engine keys its reload on what is
+        // installed (see `InstalledModelIdentityTest`), so only the release is asserted here.
 
         // An unknown stored value falls back to dialogue rather than to the SFX detector.
         preferences.detModelVariant.set("NONSENSE")

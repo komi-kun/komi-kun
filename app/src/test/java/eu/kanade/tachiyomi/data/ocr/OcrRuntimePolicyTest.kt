@@ -60,4 +60,52 @@ class OcrRuntimePolicyTest {
         OcrRuntimePolicy.shouldResumeQueue(enabled = false, runnableWork = true) shouldBe false
         OcrRuntimePolicy.shouldResumeQueue(enabled = false, runnableWork = false) shouldBe false
     }
+
+    @Test
+    fun `the upgrade migration fires only for an already-on install with superseded models`() {
+        // The defect: the readiness gate noticed a superseded/legacy install, but only the Settings
+        // row ever read it, so an upgraded install kept running the previous detector. The migration
+        // must fire for exactly those installs...
+        OcrRuntimePolicy.shouldMigrateModels(
+            enabled = true,
+            installedRelease = "ocr-manga-v3",
+            modelFilesPresent = true,
+            selectedRelease = "ocr-manga-v4",
+        ) shouldBe true
+        // ...including a pre-marker install (bytes on disk, nothing recorded)...
+        OcrRuntimePolicy.shouldMigrateModels(
+            enabled = true,
+            installedRelease = null,
+            modelFilesPresent = true,
+            selectedRelease = "ocr-manga-v4",
+        ) shouldBe true
+        // ...and nothing else.
+        // Already the selected release: an ordinary later launch never re-downloads.
+        OcrRuntimePolicy.shouldMigrateModels(
+            enabled = true,
+            installedRelease = "ocr-manga-v4",
+            modelFilesPresent = true,
+            selectedRelease = "ocr-manga-v4",
+        ) shouldBe false
+        // Fresh install: no marker, no files — the manual download must stay the only way in.
+        OcrRuntimePolicy.shouldMigrateModels(
+            enabled = true,
+            installedRelease = null,
+            modelFilesPresent = false,
+            selectedRelease = "ocr-manga-v4",
+        ) shouldBe false
+        // Feature off: never, whatever is installed (the switch gates every other OCR action too).
+        OcrRuntimePolicy.shouldMigrateModels(
+            enabled = false,
+            installedRelease = "ocr-manga-v3",
+            modelFilesPresent = true,
+            selectedRelease = "ocr-manga-v4",
+        ) shouldBe false
+        OcrRuntimePolicy.shouldMigrateModels(
+            enabled = false,
+            installedRelease = null,
+            modelFilesPresent = true,
+            selectedRelease = "ocr-manga-v4",
+        ) shouldBe false
+    }
 }

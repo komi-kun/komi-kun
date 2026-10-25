@@ -180,6 +180,27 @@ class ModelDownloader(
     /** The model files the engine needs at runtime (the `.so`s ship in the APK). Backs [isPaddleDownloaded]. */
     fun requiredModelFiles(): List<File> = requiredModels.map { File(modelsDir, it) }
 
+    // KUN -->
+    // ------------------------------------------------------------------ what is actually installed
+    // The selection is a *request*; these three report the *disk*. A caller that wants to know
+    // whether the selected weights are really the ones the engine will load must use them (see
+    // `PaddleOcrEngine`, which keys its reload on `installedModelIdentity` rather than on the
+    // selection, and `OcrRuntimePolicy.shouldMigrateModels`, the launch-time upgrade migration).
+
+    /** Release the last completed install recorded, or null when nothing is recorded (pre-marker). */
+    val installedRelease: String? get() = installedReleaseMarker(modelsDir)
+
+    /** The release the current selection resolves to — what a migration must install. */
+    val selectedRelease: String get() = selection.release
+
+    /**
+     * True when at least one model file of the selection exists (cheap `stat`, no hashing). Used only
+     * to tell a legacy install from a fresh one: bytes present with no marker means "some earlier
+     * build installed models", empty means "never downloaded".
+     */
+    val hasAnyInstalledModelFiles: Boolean get() = requiredModelFiles().any { it.isFile && it.length() > 0L }
+    // KUN <--
+
     /** The manifest cached by the last [fetchManifest], or null when none is on disk. */
     private fun loadCachedManifest(): OcrModelManifest? {
         val file = File(modelsDir, MANIFEST_NAME)
@@ -193,11 +214,16 @@ class ModelDownloader(
      * **and** SHA-256 — off the main thread and (re-)downloads anything missing or corrupt, so
      * calling it on each Paddle selection is cheap and self-healing rather than a one-shot gate.
      *
-     * **Single-flight.** A run already in flight is never started twice: a trigger arriving while a
-     * run is active is coalesced into it (the running pass re-verifies the same pinned release), so
-     * two runs can never delete each other's `<name>.part` scratch files or race on `manifest.json`.
-     * [SingleFlightGate.runExclusive] releases the gate in a `finally`, so a **failed** run is
-     * immediately retryable.
+     * **Single-flight, then converge.** A run already in flight is never started twice: a trigger
+     * arriving while a run is active is coalesced into it, so two runs can never delete each other's
+     * `<name>.part` scratch files or race on `manifest.json`. But a coalesced trigger is not simply
+     * dropped, because the running pass snapshotted *its* target: flipping DIALOGUE -> SFX ->
+     * DIALOGUE used to leave the SFX install in place with the dialogue selection, and nothing
+     * scheduled the dialogue release again. So after every successful pass the run re-reads the
+     * selection and keeps going until the **currently selected** release is the installed one
+     * (bounded by [MAX_CONVERGE_PASSES], so two repeatedly flipped selections end in an explicit
+     * failure instead of a loop). [SingleFlightGate.runExclusive] releases the gate in a `finally`,
+     * so a **failed** pass is immediately retryable and is reported via [state].
      */
     fun triggerPaddleDownload() {
         // KUN -->
@@ -205,18 +231,42 @@ class ModelDownloader(
         if (ocrDisabled()) return
         // KUN <--
         scope.launch {
-            when (val result = downloadGate.runExclusive { runLock.withLock { downloadModels() } }) {
-                null -> logcat(LogPriority.INFO) {
-                    "ModelDownloader: download already in progress; ignoring duplicate trigger"
-                }
-                else -> result.fold(
-                    onSuccess = { _state.value = ModelDownloadState.Completed },
-                    onFailure = {
+            var passes = 0
+            while (true) {
+                when (val result = downloadGate.runExclusive { runLock.withLock { downloadModels() } }) {
+                    null -> {
+                        // Another run owns the gate; its own loop re-checks the selection when it
+                        // finishes, so this window is not lost.
+                        logcat(LogPriority.INFO) {
+                            "ModelDownloader: download already in progress; ignoring duplicate trigger"
+                        }
+                        return@launch
+                    }
+                    else -> result.exceptionOrNull()?.let {
                         val message = it.message ?: "Unknown error"
                         _state.value = ModelDownloadState.Failed(message)
                         xLogE("ModelDownloader: model download failed: $message", it)
-                    },
-                )
+                        return@launch
+                    }
+                }
+                passes++
+                // The selection may have changed while the pass was in flight (the user flipping the
+                // variant, or one of our triggers being coalesced away): the pass installed *its*
+                // target, so only now can we read the truth off disk.
+                if (installedReleaseMatches(modelsDir, selection.release)) {
+                    _state.value = ModelDownloadState.Completed
+                    return@launch
+                }
+                if (passes >= MAX_CONVERGE_PASSES) {
+                    val message = "the selected model release (${selection.release}) is not installed " +
+                        "after $passes download passes"
+                    _state.value = ModelDownloadState.Failed(message)
+                    xLogE("ModelDownloader: $message")
+                    return@launch
+                }
+                logcat(LogPriority.INFO) {
+                    "ModelDownloader: selection changed during the run; downloading ${selection.release}"
+                }
             }
         }
     }
@@ -443,6 +493,13 @@ class ModelDownloader(
         private const val MANIFEST_NAME = "manifest.json"
         private const val PADDLE_DIR = "paddle_ocr"
 
+        /**
+         * Upper bound on the "the selection changed while the pass was in flight" loop. Two passes
+         * converge for every single flip; the third only matters if the user keeps flipping, and at
+         * that point an explicit failure (retryable from the status row) is better than spinning.
+         */
+        private const val MAX_CONVERGE_PASSES = 3
+
         // PP-OCRv6 small: ONNX graphs (the shipped backend is ONNX Runtime). The detector and
         // recogniser file names come from the selection ([ModelRelease]); the dictionary is the same
         // file in every release.
@@ -488,6 +545,41 @@ internal fun installedReleaseMarker(dir: File): String? {
 /** True when [dir] holds a completed install of [release] (see [installedReleaseMarker]). */
 internal fun installedReleaseMatches(dir: File, release: String): Boolean =
     installedReleaseMarker(dir) == release
+
+/**
+ * Prefix of an identity for a directory whose release is **not** recorded (every pre-marker
+ * install, and a hand-staged cache). Such files are usable but of unknown identity, so nothing may
+ * claim they are the selected release.
+ */
+internal const val UNKNOWN_INSTALL = "unknown-install"
+
+/**
+ * Cheap identity of the model files in [dir], built from each file's length and last-modified time
+ * (`stat` only — never hashes the ~31 MB of weights). Renaming a freshly written `<name>.part` into
+ * place updates both, so a **replacement is visible even when the file name and the marker are
+ * unchanged** — which is exactly the case that used to leave the old detector in native memory.
+ */
+internal fun modelFileFingerprint(dir: File, names: Collection<String>): String =
+    names.joinToString("|") { name ->
+        val file = File(dir, name)
+        if (file.isFile) "$name:${file.length()}:${file.lastModified()}" else "$name:absent"
+    }
+
+/**
+ * What the engine may claim about the weights it loads from [dir]: the release the downloader
+ * recorded, or [UNKNOWN_INSTALL] when nothing is recorded, **plus** the files' own fingerprint.
+ *
+ * This deliberately does not consult the selection. Every release publishes identically named files
+ * (in particular the shared `ppocrv6_small_det.onnx`), so an identity derived from the selection says
+ * nothing about the bytes on disk: it made an upgrading install load the SFX detector and record the
+ * dialogue release, and made a later replacement invisible to the reload check. A hand-staged cache
+ * with no marker therefore reports [UNKNOWN_INSTALL] and is allowed exactly one reload when a
+ * completed download writes the marker (the fingerprint part changes too, so one comparison catches
+ * both). Whatever the reason, an identity that differs from the one an init recorded forces a
+ * reload — see `PaddleOcrEngine.ensureModelVariant`.
+ */
+internal fun installedModelIdentity(dir: File, names: Collection<String>): String =
+    "${installedReleaseMarker(dir) ?: UNKNOWN_INSTALL}|${modelFileFingerprint(dir, names)}"
 
 /**
  * Records [release] as the installed model set. Written only after every required file of that
