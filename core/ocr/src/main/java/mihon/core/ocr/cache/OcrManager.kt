@@ -646,8 +646,11 @@ class OcrManager(
          * KUN --> Bump when the OCR engine, model or merge/filter pipeline changes so persisted
          * page results from the previous pipeline are not reused (they survive app upgrades).
          * `v8` = PP-OCRv6 small with 0.35 dialogue floor, 1-char SFX filtering, cross-bubble separation.
+         * `v10` = dialogue-first detector (SFX detector alone does not delete dialogue lines or glue
+         * bubbles any more) + the release tag in [OcrPreferences.cacheSignature], so `v9` results read
+         * by the SFX detector are never served as dialogue.
          */
-        private const val ENGINE_CACHE_GENERATION = "v9"
+        private const val ENGINE_CACHE_GENERATION = "v10"
         // KUN <--
 
         private const val QUEUE_POLL_MS = 300L

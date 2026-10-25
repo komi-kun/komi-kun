@@ -49,6 +49,13 @@ our own JNI over **ONNX Runtime** (MIT) over PaddleOCR's Apache-2.0 deploy post-
 published to `komi-kun/komi-kun-ocr-models` (release **`ocr-models-v4`**) together with
 `libonnxruntime.so` and `libomp.so`, described by `paddle-manifest.json`.
 
+> The **native artifact** is pinned to `ocr-models-v4` and is independent of the runtime **model
+> selection**: `OcrPreferences` (detector × recogniser) resolves to one of four model releases
+> (`ocr-manga-v4` dialogue×fine-tune, `ocr-models-v3` dialogue×stock, `ocr-manga-v3` SFX×fine-tune,
+> `ocr-models-v4` SFX×stock — see `ModelRelease.kt`). All four publish the *same* file names, so only
+> the release tag identifies the bytes and `ModelDownloader` records the installed one in
+> `paddle_ocr/installed-release.txt`.
+
 ### Fetching + packaging
 
 ```bash

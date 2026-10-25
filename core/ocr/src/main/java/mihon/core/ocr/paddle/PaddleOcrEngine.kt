@@ -101,11 +101,15 @@ class PaddleOcrEngine(
     private var isInitialized = false
 
     /**
-     * Model set (release tag) the native engine currently holds; used to detect a variant switch.
+     * Identity of the model files the native engine currently holds (see
+     * [installedModelIdentity]); used to detect a variant switch **and** a file replacement.
      *
-     * It keys on [OcrPreferences.modelKey] (the release) rather than the recogniser file name: the
-     * detector file name is the *same* in every release, so a detector switch would otherwise go
-     * unnoticed and the old weights would stay loaded until the process restarted.
+     * It keys on what is actually installed — the downloader's marker plus the model files' own
+     * fingerprint — never on the selection ([OcrPreferences.resolveModelRelease]). The detector file
+     * name is the *same* in every release, so keying on the selection meant: an upgrading install
+     * loaded the SFX weights still on disk and recorded the newly selected dialogue release, and after
+     * the download that fixed the file the early-return comparison still matched, so the wrong
+     * detector stayed in native memory until process death.
      */
     @Volatile
     private var loadedModelKey: String? = null
@@ -113,9 +117,10 @@ class PaddleOcrEngine(
     companion object {
         private const val MODEL_DIR = "paddle_ocr"
         // PP-OCRv6 small, run through ONNX Runtime. Still CTC with rec_image_height = 48, so the
-        // JNI input shape and the dict convention are unchanged. The recogniser file is selectable
-        // (`OcrPreferences.recModelFile()`); detector and dictionary are shared by both releases.
-        private const val DET_MODEL = "ppocrv6_small_det.onnx"
+        // JNI input shape and the dict convention are unchanged. The detector and recogniser file
+        // names both come from `OcrPreferences` (`detModelFile()` / `recModelFile()`): every release
+        // publishes the same two names, so a constant here could silently diverge from what the
+        // downloader installs.
         private const val DICT_TXT = "ppocrv6_small_dict.txt"
 
         /**
@@ -156,6 +161,8 @@ class PaddleOcrEngine(
     fun init(options: PaddleOcrOptions): Boolean = synchronized(lock) {
         if (isInitialized) return true
 
+        // Both names come from the single accessors (shared by the downloader and the settings).
+        val detModel = preferences.detModelFile()
         val recModel = preferences.recModelFile()
 
         val abi = supportedAbi()
@@ -167,8 +174,13 @@ class PaddleOcrEngine(
 
         val start = SystemClock.elapsedRealtime()
         val modelDir = File(appContext.filesDir, MODEL_DIR)
+        // What is on disk *now* — read immediately before the load, so the recorded key always names the
+        // file set the load was started with. A download that replaces those bytes in between changes
+        // the *next* comparison, so the engine reloads there: a stale key can never outlive one check,
+        // and it can never be derived from the selection (which says nothing about the bytes).
+        val installed = installedModelIdentity(modelDir, listOf(detModel, recModel))
         val success = nativeInit(
-            detParamAbsPath = File(modelDir, DET_MODEL).absolutePath,
+            detParamAbsPath = File(modelDir, detModel).absolutePath,
             detBinAbsPath = "",
             recParamAbsPath = File(modelDir, recModel).absolutePath,
             recBinAbsPath = "",
@@ -177,13 +189,13 @@ class PaddleOcrEngine(
         )
         if (success) {
             isInitialized = true
-            loadedModelKey = preferences.modelKey()
+            loadedModelKey = installed
             val elapsed = SystemClock.elapsedRealtime() - start
-            logcat(LogPriority.INFO) { "Paddle OCR engine initialized in ${elapsed}ms" }
+            logcat(LogPriority.INFO) { "Paddle OCR engine initialized in ${elapsed}ms ($installed)" }
         } else {
             logcat(LogPriority.ERROR) {
                 "Failed to initialize Paddle OCR engine from ${modelDir.absolutePath}" +
-                    " (native error: ${nativeOrtError()})"
+                    " ($installed, native error: ${nativeOrtError()})"
             }
         }
         return success
@@ -255,14 +267,24 @@ class PaddleOcrEngine(
     fun isInitialized(): Boolean = isInitialized
 
     /**
-     * Swaps weights when the user changed the detector or the recogniser variant.
+     * Swaps weights when the model files under the engine directory changed — a variant switch the
+     * downloader has installed, or a hand-staged replacement.
+     *
+     * Compares the identity of *what would be loaded now* (marker + file fingerprint) with the one
+     * recorded by the last [init], so a selected-but-not-yet-downloaded variant does not churn the
+     * engine and a replaced file can never keep the old weights alive.
      *
      * Must run *before* taking an [inferPermits] permit: [destroy] drains every permit, so calling
-     * it from inside an inference would deadlock. The next [init] then loads the selected files.
+     * it from inside an inference would deadlock. The next [init] then loads the files.
      */
     private fun ensureModelVariant() {
         if (!isInitialized) return
-        if (loadedModelKey == preferences.modelKey()) return
+        val installed = installedModelIdentity(
+            File(appContext.filesDir, MODEL_DIR),
+            listOf(preferences.detModelFile(), preferences.recModelFile()),
+        )
+        if (loadedModelKey == installed) return
+        logcat(LogPriority.INFO) { "Paddle OCR engine: model files changed ($loadedModelKey -> $installed)" }
         destroy()
     }
 
@@ -499,6 +521,9 @@ class PaddleOcrEngine(
                     } catch (_: Throwable) {
                     }
                     isInitialized = false
+                    // Forget the loaded identity with the weights: the next init records what it
+                    // actually loaded (and a failed init must not leave a claim about model files).
+                    loadedModelKey = null
                     logcat(LogPriority.INFO) { "Paddle OCR Engine closed" }
                 }
             }

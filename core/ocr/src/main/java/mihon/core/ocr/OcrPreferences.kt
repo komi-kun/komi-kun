@@ -114,12 +114,12 @@ class OcrPreferences(
     /** File name the engine and downloader must use for the selected detector (shared name). */
     fun detModelFile(): String = resolveDetModel().detModel
 
-    /**
-     * Identifies the model set the engine has to hold. The release tag is the only thing that
-     * distinguishes two selections — the detector file name is the same in all four releases — so
-     * `PaddleOcrEngine` uses this to notice a detector *or* recogniser switch and reload.
-     */
-    fun modelKey(): String = resolveModelRelease().release
+    // KUN -->
+    // There is deliberately no `modelKey()` here any more: the engine must key its reload on what is
+    // *installed* (`installedModelIdentity` in `paddle/ModelDownloader.kt`), not on the selection.
+    // The detector file name is identical in every release, so a selection-derived key claimed a
+    // release for bytes that need not be that release's.
+    // KUN <--
 
     /**
      * The effective engine options for a page. [numThreads] is the device-derived thread count the
@@ -135,29 +135,22 @@ class OcrPreferences(
     )
 
     /**
-     * A suffix that distinguishes OCR results produced with non-default thresholds, so changing a
-     * threshold re-runs OCR instead of serving a stale cached page. Empty at the defaults; the
-     * OCR manager combines it with its engine-generation key.
+     * A suffix that distinguishes OCR results produced with different weights or non-default
+     * thresholds, so changing either re-runs OCR instead of serving a stale cached page. The OCR
+     * manager combines it with its engine-generation key.
+     *
+     * **The release tag is unconditional, so this is never empty.** It used to be `""` at the
+     * defaults, and the pre-detector-axis default (SFX detector + fine-tuned recogniser) also
+     * produced `""` — so a page OCR'd by the SFX detector was served as if it had been read by the
+     * dialogue detector. Deriving the tag from the resolved release (which encodes *both* axes)
+     * makes that collision impossible to reintroduce, whatever future default is chosen.
      */
     fun cacheSignature(): String {
         val pixel = detPixelThreshold.get()
         val box = detBoxThreshold.get()
         val unclip = detUnclipRatio.get()
         val floor = recConfidenceFloor.get()
-        // Different weights produce different text: never serve a cached page across a variant
-        // switch — on *either* axis now.
-        val rec = resolveRecModel()
-        val det = resolveDetModel()
-        val model = buildString {
-            if (rec != RecModelVariant.DEFAULT) append("m${rec.name}")
-            if (det != DetModelVariant.DEFAULT) append("d${det.name}")
-        }
-        if (model.isEmpty() && pixel == DEFAULT_DET_PIXEL && box == DEFAULT_DET_BOX &&
-            unclip == DEFAULT_DET_UNCLIP && floor == DEFAULT_REC_FLOOR
-        ) {
-            return ""
-        }
-        return "${model}t${pixel}b${box}u${unclip}r$floor"
+        return "${resolveModelRelease().release}t${pixel}b${box}u${unclip}r$floor"
     }
 
     companion object {

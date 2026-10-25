@@ -180,10 +180,15 @@ class ReaderOcrBlockLoader(
             // LAZY start so the job is registered before it can run (and remove itself) — page work
             // always runs on the session scope, never on the app-lifetime one.
             val job = work.launch(start = CoroutineStart.LAZY) {
+                val self = coroutineContext[Job]
                 try {
                     runPageLoad(page, key)
                 } finally {
-                    jobs.remove(key)
+                    // Compare-and-remove: a cancelled job reaches this late, after its successor (a
+                    // forced re-run, or a re-drive once the page was released) registered itself
+                    // under the same key. An unconditional `remove` would delete *that*
+                    // registration, and the successor could then never be cancelled.
+                    if (self != null) jobs.remove(key, self)
                 }
             }
             jobs[key] = job
@@ -354,29 +359,39 @@ class ReaderOcrBlockLoader(
             for (p in pagesToRedo) {
                 val key = p.ocrKey()
                 // KUN -->
-                // A forced re-run supersedes whatever load is running for this page: cancel it first
-                // so the two cannot read the same page concurrently, and so a load that has not
-                // reached its page read yet never reaches it (see [detach]).
+                // A forced re-run supersedes whatever load is running for this page. Claim the page
+                // for the **whole** redo body: the reader re-drives `ensureLoaded` every frame with
+                // the visible pages and their neighbours, so releasing the slot here would let a
+                // normal load start beside the redo a frame later — the page then read and inferred
+                // twice, and the loser can overwrite `_blocks[key]`. Then cancel the load that was
+                // already registered so the two never read the same page at once.
+                inFlight.add(key)
                 jobs.remove(key)?.cancel()
                 // KUN <--
                 _blocks.update { it - key }
-                inFlight.remove(key)
                 retryAfter.remove(key)
                 timeoutLogged.remove(key)
 
-                val bytes = pageBytes(p) ?: continue
                 try {
-                    val blocks = ocrManager.forceRecognizeAndCache(
-                        key = cacheKey,
-                        pageIndex = p.index,
-                        bytes = bytes,
-                        language = language,
-                        source = source,
-                    )
-                    _blocks.update { it + (key to blocks) }
-                } catch (e: Exception) {
-                    if (e is CancellationException) throw e
-                    logcat(LogPriority.WARN, e) { "ReaderOcr: redo OCR failed for page ${p.index}" }
+                    val bytes = pageBytes(p) ?: continue
+                    try {
+                        val blocks = ocrManager.forceRecognizeAndCache(
+                            key = cacheKey,
+                            pageIndex = p.index,
+                            bytes = bytes,
+                            language = language,
+                            source = source,
+                        )
+                        _blocks.update { it + (key to blocks) }
+                    } catch (e: Exception) {
+                        if (e is CancellationException) throw e
+                        logcat(LogPriority.WARN, e) { "ReaderOcr: redo OCR failed for page ${p.index}" }
+                    }
+                } finally {
+                    // KUN --> the page is only released once the re-run is over or gave up, so a
+                    // per-frame `ensureLoaded` resumes it as an ordinary load from then on.
+                    inFlight.remove(key)
+                    // KUN <--
                 }
             }
             onComplete?.invoke()
