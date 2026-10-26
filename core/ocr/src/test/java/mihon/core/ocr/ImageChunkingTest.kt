@@ -3,8 +3,11 @@
 package mihon.core.ocr
 
 import android.graphics.Bitmap
+import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.doubles.plusOrMinus
+import io.kotest.matchers.ints.shouldBeLessThanOrEqual
+import io.kotest.matchers.longs.shouldBeLessThanOrEqual
 import io.kotest.matchers.shouldBe
 import io.mockk.mockk
 import mihon.core.ocr.model.OcrTextBlock
@@ -156,6 +159,83 @@ class ImageChunkingTest {
         val deduped = dedupeChunkBoundaryResults(listOf(blockWithDups))
         deduped shouldHaveSize 1
         deduped.first().lines shouldBe listOf("サンプルでした", "サンプルの文章")
+    }
+
+    @Test
+    fun `detectorFrame replicates the native 960 px - 32 px quantisation`() {
+        // Pinned against libpaddle_ocr.so's DB preprocess: per side
+        // max(lround(side * (float)(960 / longestSide) / 32) * 32, 32), half away from zero.
+        detectorFrame(1140, 1200) shouldBe DetectorFrame(width = 928, height = 960)
+        detectorFrame(4560, 4800) shouldBe DetectorFrame(width = 928, height = 960)
+        detectorFrame(1404, 1428) shouldBe DetectorFrame(width = 928, height = 960)
+        detectorFrame(1176, 882) shouldBe DetectorFrame(width = 960, height = 736)
+        detectorFrame(1654, 1170) shouldBe DetectorFrame(width = 960, height = 672)
+        // Under the limit the native still rounds each side to a multiple of 32.
+        detectorFrame(869, 843) shouldBe DetectorFrame(width = 864, height = 832)
+        detectorFrame(700, 700) shouldBe DetectorFrame(width = 704, height = 704)
+    }
+
+    @Test
+    fun `budget clamp keeps the detector frame of the page it shrinks`() {
+        // Pages whose naive budget math (int() truncation of both sides) lands the shorter side in a
+        // different 32-px bucket, plus pages where it already agrees and pages that are themselves
+        // over budget. The frame must never change: that is the whole contract.
+        val pages = listOf(
+            5616 to 5712, // 1404x1428 at 4x: naive clamp gives 960x960, page frame is 928x960
+            4704 to 3528, // 1176x882 at 4x: naive clamp gives 960x704, page frame is 960x736
+            7840 to 6404, // 1960x1601 at 4x: naive clamp gives 960x768, page frame is 960x800
+            6452 to 3980, // 1613x995 at 4x: naive clamp gives 960x576, page frame is 960x608
+            3180 to 2491, // naive clamp gives 960x736, page frame is 960x768
+            4560 to 4800, // 1140x1200 at 4x: naive clamp already agrees
+            6616 to 4680, // 1654x1170 at 4x: naive clamp already agrees
+            3476 to 3372, // 869x843 at 4x: page itself is under the limit
+            9920 to 14032, // 2480x3508 at 4x, a native page already over the 4 MP budget
+        )
+
+        for ((width, height) in pages) {
+            val (newW, newH) = budgetedResizeDims(width, height, MAX_OCR_PIXELS)
+            withClue("$width x $height -> $newW x $newH") {
+                detectorFrame(newW, newH) shouldBe detectorFrame(width, height)
+                (newW.toLong() * newH) shouldBeLessThanOrEqual MAX_OCR_PIXELS.toLong()
+                newW shouldBeLessThanOrEqual maxOf(width, height)
+                newH shouldBeLessThanOrEqual maxOf(width, height)
+            }
+        }
+    }
+
+    @Test
+    fun `an upscaled page reaches the detector with the frame of the original page`() {
+        // The defect P0 measured: the same page, once at native size and once at 4x, read from two
+        // different detector geometries because the 4 MP clamp truncates both sides.
+        val originalPages = listOf(
+            1140 to 1200, // P0's headline class: 896x960 vs 928x960 in a banker's-rounding replica
+            1404 to 1428,
+            1176 to 882,
+            1960 to 1601,
+            1613 to 995,
+            1654 to 1170, // ordinary page: clamp already agrees
+            1200 to 1600,
+            1382 to 2000,
+            943 to 1400,
+        )
+
+        for ((width, height) in originalPages) {
+            val (newW, newH) = budgetedResizeDims(width * 4, height * 4, MAX_OCR_PIXELS)
+            withClue("${width}x$height at 4x -> $newW x $newH") {
+                detectorFrame(newW, newH) shouldBe detectorFrame(width, height)
+            }
+        }
+    }
+
+    @Test
+    fun `budget clamp leaves pages whose frame already agrees untouched`() {
+        // Exact values from the pre-fix implementation: no ordinary page changes size.
+        budgetedResizeDims(4560, 4800, MAX_OCR_PIXELS) shouldBe (1949 to 2051)
+        budgetedResizeDims(6616, 4680, MAX_OCR_PIXELS) shouldBe (2377 to 1681)
+        budgetedResizeDims(1600, 1200, MAX_OCR_PIXELS) shouldBe (1600 to 1200) // under budget: no-op
+        // And the repaired classes move only as far as the frame requires.
+        budgetedResizeDims(5616, 5712, MAX_OCR_PIXELS) shouldBe (1982 to 2016)
+        budgetedResizeDims(4704, 3528, MAX_OCR_PIXELS) shouldBe (2284 to 1731)
     }
 }
 // KUN <--
