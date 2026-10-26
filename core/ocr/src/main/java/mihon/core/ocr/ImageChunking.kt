@@ -10,9 +10,12 @@ package mihon.core.ocr
 import android.graphics.Bitmap
 import mihon.core.ocr.merge.OwOCRMerger
 import mihon.core.ocr.model.OcrTextBlock
+import kotlin.math.ceil
+import kotlin.math.floor
 import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.round
 import kotlin.math.sqrt
 
 const val MAX_TOTAL_PIXELS = 3_000_000
@@ -249,12 +252,120 @@ fun resizeToMaxPixels(bitmap: Bitmap, maxTotalPixels: Int): Bitmap {
 
     if (pixelCount <= maxTotalPixels) return bitmap
 
-    val aspectRatio = w.toDouble() / h
-    val newW = sqrt(maxTotalPixels * aspectRatio).toInt().coerceAtLeast(1)
-    val newH = (newW / aspectRatio).toInt().coerceAtLeast(1)
+    // KUN -->
+    // Frame-preserving budget clamp: a page must reach the detector with the same input size
+    // whether or not this shrink ran (see budgetedResizeDims).
+    val (newW, newH) = budgetedResizeDims(w, h, maxTotalPixels)
+    // KUN <--
 
     return Bitmap.createScaledBitmap(bitmap, newW, newH, true)
 }
+
+// KUN -->
+/**
+ * Longest side `libpaddle_ocr.so` downsizes a chunk to (PaddleOCR's `limit_side_len`), and the
+ * pixel multiple it aligns the result to. Per side the native DB preprocess computes
+ * `max(lround(side * ratio / 32) * 32, 32)` with `ratio = (float) (limit / longestSide)` (or `1.0`
+ * when the side already fits the limit).
+ */
+internal const val DETECTOR_LIMIT_SIDE = 960
+internal const val DETECTOR_SIDE_ALIGN = 32
+
+/**
+ * Distance kept, in detector pixels, from a 32-px bucket edge when a side is snapped into it. Only
+ * has to dwarf the float noise of the native's `side * ratio` (~1e-4 px).
+ */
+private const val FRAME_EDGE_MARGIN_PX = 0.05
+
+/** Size, in pixels, that the detector consumes for a chunk. */
+internal data class DetectorFrame(val width: Int, val height: Int)
+
+/** Detector input for a [width] x [height] chunk, replicated from the native preprocess. */
+internal fun detectorFrame(width: Int, height: Int): DetectorFrame {
+    val longest = max(width, height)
+    // The native divides in float32 and widens to double before scaling; keep that order so the
+    // replica resolves 32-px ties exactly like the shipped engine (round half away from zero).
+    val ratio = if (longest > DETECTOR_LIMIT_SIDE) {
+        (DETECTOR_LIMIT_SIDE.toFloat() / longest.toFloat()).toDouble()
+    } else {
+        1.0
+    }
+    return DetectorFrame(
+        width = alignedDetectorSide(width, ratio),
+        height = alignedDetectorSide(height, ratio),
+    )
+}
+
+private fun alignedDetectorSide(side: Int, ratio: Double): Int =
+    (round(side * ratio / DETECTOR_SIDE_ALIGN) * DETECTOR_SIDE_ALIGN)
+        .toInt()
+        .coerceAtLeast(DETECTOR_SIDE_ALIGN)
+
+/**
+ * Resize dimensions for a page that must fit [maxTotalPixels], chosen so the detector frame of the
+ * shrunk page is identical to the frame of the page as it arrives.
+ *
+ * Plain aspect math truncates both sides independently (`int(sqrt(budget * aspect))`, then
+ * `int(width / aspect)`), so the working aspect drifts by up to a pixel - and one pixel is enough
+ * for the detector's 32-px quantisation to move the shorter side a whole bucket over: a 5616x5712
+ * page reads at 928x960 unbudgeted but 960x960 after a naive clamp. Two views of one page (before
+ * and after a 4x upscale) then read from different detector geometries, which costs real accuracy.
+ *
+ * The naive result is kept whenever it already reproduces the page's frame - the common case, and
+ * the reason this changes nothing for ordinary pages. Otherwise the shorter side moves to the
+ * nearest pixel inside the frame's bucket and the longer side (the budget knob) is trimmed to stay
+ * within [maxTotalPixels]. Below [DETECTOR_LIMIT_SIDE] there is no shared frame to preserve: the
+ * page is not downscaled at all, so its detector input is just its own size rounded to 32 px.
+ */
+internal fun budgetedResizeDims(width: Int, height: Int, maxTotalPixels: Int): Pair<Int, Int> {
+    if (width.toLong() * height <= maxTotalPixels) return width to height
+
+    val aspectRatio = width.toDouble() / height
+    val budgetWidth = sqrt(maxTotalPixels * aspectRatio).toInt().coerceAtLeast(1)
+    val budgetHeight = (budgetWidth / aspectRatio).toInt().coerceAtLeast(1)
+
+    if (max(width, height) <= DETECTOR_LIMIT_SIDE) return budgetWidth to budgetHeight
+    if (max(budgetWidth, budgetHeight) <= DETECTOR_LIMIT_SIDE) return budgetWidth to budgetHeight
+
+    val target = detectorFrame(width, height)
+    if (detectorFrame(budgetWidth, budgetHeight) == target) return budgetWidth to budgetHeight
+
+    val widthIsLongest = budgetWidth >= budgetHeight
+    val shortest = if (widthIsLongest) budgetHeight else budgetWidth
+    // Exact shorter-side value, in detector pixels, of the frame to reproduce (a multiple of 32).
+    val scaledShortest = if (widthIsLongest) target.height else target.width
+
+    // Longest side at the target aspect that still fits the budget; trimmed further only if the
+    // snapped shorter side pushes the pixel count over.
+    var longest = min(
+        max(budgetWidth, budgetHeight),
+        sqrt(maxTotalPixels.toDouble() * DETECTOR_LIMIT_SIDE / scaledShortest).toInt(),
+    )
+    while (longest > DETECTOR_LIMIT_SIDE) {
+        // The frame is unchanged while shorterSide * limit / longest stays inside the bucket:
+        // round(x / 32) == scaledShortest / 32  <=>  x in [scaledShortest - 16, scaledShortest + 16).
+        val low = ceil(
+            (scaledShortest - DETECTOR_SIDE_ALIGN / 2.0 + FRAME_EDGE_MARGIN_PX) *
+                longest / DETECTOR_LIMIT_SIDE,
+        ).toInt()
+        val high = floor(
+            (scaledShortest + DETECTOR_SIDE_ALIGN / 2.0 - FRAME_EDGE_MARGIN_PX) *
+                longest / DETECTOR_LIMIT_SIDE,
+        ).toInt()
+        if (low <= high) {
+            val snapped = shortest.coerceIn(low, high)
+            val dims = if (widthIsLongest) longest to snapped else snapped to longest
+            if (snapped >= 1 && longest >= snapped &&
+                dims.first.toLong() * dims.second <= maxTotalPixels
+            ) {
+                return dims
+            }
+        }
+        longest--
+    }
+    return budgetWidth to budgetHeight
+}
+// KUN <--
 
 fun chunkImage(
     bitmap: Bitmap,
