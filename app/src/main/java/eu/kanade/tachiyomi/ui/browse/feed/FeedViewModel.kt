@@ -101,7 +101,6 @@ class FeedViewModel(
     // KUN -->
     private val coroutineDispatcher = Dispatchers.IO.limitedParallelism(1)
     // KUN <--
-    var pushed: Boolean = false
 
     init {
         getFeedSavedSearchGlobal.subscribe()
@@ -130,7 +129,6 @@ class FeedViewModel(
     }
 
     fun init() {
-        pushed = false
         viewModelScope.launchIO {
             val newItems = mutableState.value.items?.map { it.copy(results = null) } ?: return@launchIO
             mutableState.update { state ->
