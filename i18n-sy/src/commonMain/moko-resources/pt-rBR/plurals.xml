@@ -15,6 +15,18 @@
         <item quantity="many">%1$d tags na lista de ordenação. Isto dá uma opção na biblioteca de ordenar por uma lista de tags baseada em prioridade, ou seja, os mangás serão ordenados de modo a priorizar aqueles com as tags que deseja</item>
         <item quantity="other">%1$d tags na lista de ordenação. Isto dá uma opção na biblioteca de ordenar por uma lista de tags baseada em prioridade, ou seja, os mangás serão ordenados de modo a priorizar aqueles com as tags que deseja</item>
     </plurals>
+    <plurals name="migrate_entry">
+        <item quantity="one">Migrar %1$d%2$s mangá?</item>
+        <item quantity="other">Migrar %1$d%2$s mangás?</item>
+    </plurals>
+    <plurals name="copy_entry">
+        <item quantity="one">Copiar %1$d%2$s mangá?</item>
+        <item quantity="other">Copiar %1$d%2$s mangás?</item>
+    </plurals>
+    <plurals name="entry_migrated">
+        <item quantity="one">%d mangá migrado</item>
+        <item quantity="other">%d mangás migrados</item>
+    </plurals>
     <!-- Extra gallery info -->
     <plurals name="num_pages">
         <item quantity="one">%1$d página</item>
@@ -82,17 +94,5 @@
         <item quantity="one">%1$s visualização</item>
         <item quantity="many">%1$s visualizações</item>
         <item quantity="other">%1$s visualizações</item>
-    </plurals>
-    <plurals name="migrate_entry">
-        <item quantity="one">Migrar %1$d%2$s mangá?</item>
-        <item quantity="other">Migrar %1$d%2$s mangás?</item>
-    </plurals>
-    <plurals name="copy_entry">
-        <item quantity="one">Copiar %1$d%2$s mangá?</item>
-        <item quantity="other">Copiar %1$d%2$s mangás?</item>
-    </plurals>
-    <plurals name="entry_migrated">
-        <item quantity="one">%d mangá migrado</item>
-        <item quantity="other">%d mangás migrados</item>
     </plurals>
 </resources>
