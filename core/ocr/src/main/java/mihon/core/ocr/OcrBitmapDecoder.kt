@@ -103,12 +103,23 @@ object OcrBitmapDecoder {
     /**
      * Sample factor for a [width] x [height] page of known [format].
      *
-     * The page is brought inside [MAX_OCR_PIXELS] by `ceil(sqrt(pixels / budget))` — a 4500x6400 page
-     * samples at 3, a 6000x9000 page at 4. Formats that scale natively stop there; the ones that
-     * decimate are held to [NON_NATIVE_MAX_PIXELS] instead, so 12000x18000 pre-shrinks at 6 rather
-     * than 8 and the filtered resize keeps the detail that is left.
+     * A tall strip — a page whose `height / width` exceeds [WEBTOON_ASPECT_RATIO], the same ratio
+     * [prepareForOcr] uses to skip the budget — is never sampled: it is returned at 1 so the decode
+     * keeps native resolution. The strip path tiles such a page at native resolution on purpose, and
+     * a whole-page pre-shrink would halve the text size *before* those tiles are cut, which tiling
+     * cannot undo. So the budget below only applies to pages that reach the resize path at all.
+     *
+     * Everything else is brought inside [MAX_OCR_PIXELS] by `ceil(sqrt(pixels / budget))` — a
+     * 4500x6400 page samples at 3, a 6000x9000 page at 4. Formats that scale natively stop there; the
+     * ones that decimate are held to [NON_NATIVE_MAX_PIXELS] instead, so 12000x18000 pre-shrinks at
+     * 6 rather than 8 and the filtered resize keeps the detail that is left.
      */
     fun sampleSizeFor(width: Int, height: Int, format: OcrImageFormat): Int {
+        // Same predicate as the strip bypass in `ImageChunking.prepareForOcr`, so the two cannot
+        // disagree about which pages are strips. Strictly greater: a page at exactly the ratio is
+        // an ordinary page and takes the budget path.
+        if (width > 0 && height.toFloat() / width > WEBTOON_ASPECT_RATIO) return 1
+
         val budgeted = sampleToFit(width, height, MAX_OCR_PIXELS)
         if (format.scalesNatively) return budgeted
         return min(budgeted, sampleToFit(width, height, NON_NATIVE_MAX_PIXELS))
