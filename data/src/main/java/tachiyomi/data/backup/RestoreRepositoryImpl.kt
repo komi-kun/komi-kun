@@ -69,7 +69,7 @@ class RestoreRepositoryImpl(
     ) {
         // SY -->
         // 1 while applying a sync so the triggers neither bump versions nor stamp last_modified_at
-        val syncingFlag = if (isSync) 1L else 0L
+        val syncingFlag = if (isSync) SYNCING else NOT_SYNCING
         // SY <--
         database.transaction {
             entries.forEach { entry ->
@@ -1080,3 +1080,8 @@ class RestoreRepositoryImpl(
     // KUN <--
     // SY <--
 }
+
+// SY -->
+private const val SYNCING = 1L
+private const val NOT_SYNCING = 0L
+// SY <--
