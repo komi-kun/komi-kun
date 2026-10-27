@@ -237,7 +237,13 @@ class OcrManager(
             }
             if (bitmap != null) {
                 try {
-                    return processImageWithChunks(bitmap, language) { chunk ->
+                    return processImageWithChunks(
+                        bitmap = bitmap,
+                        language = language,
+                        // KUN --> The advanced-tuning detector resolution, resolved per page.
+                        detResolution = preferences.effectiveTuning().detResolution,
+                        // KUN <--
+                    ) { chunk ->
                         engine.recognize(chunk.bitmap, language)
                     }
                 } finally {

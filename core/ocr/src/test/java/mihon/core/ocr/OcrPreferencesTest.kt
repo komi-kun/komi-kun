@@ -193,4 +193,116 @@ class OcrPreferencesTest {
         tunedButOff.cacheSignature() shouldNotBe untouched.cacheSignature()
         tunedButOff.detectionOptions(numThreads = 4).boxThresh shouldBe 0.45f
     }
+
+    // ---------------------------------------------------------------------------------------
+    // Detector resolution (`pref_ocr_det_resolution`): the fifth member of the advanced group.
+    // ---------------------------------------------------------------------------------------
+
+    @Test
+    fun `the detector resolution defaults to 960`() {
+        val preferences = preferences()
+
+        preferences.detResolution.get() shouldBe OcrDetResolution.DEFAULT.name
+        preferences.effectiveTuning().detResolution shouldBe OcrDetResolution.DEFAULT
+        preferences.effectiveTuning().detResolution.limitFor(2385) shouldBe 960
+        preferences.effectiveDetectorLimit(2385) shouldBe 960
+    }
+
+    @Test
+    fun `with advanced tuning off a stored resolution is ignored and 960 is used`() {
+        val preferences = preferences()
+        // Stored, but the switch is off: the engine must run 960, not the stored 1600.
+        preferences.detResolution.set(OcrDetResolution.VERY_HIGH.name)
+
+        preferences.effectiveTuning().detResolution shouldBe OcrDetResolution.DEFAULT
+        preferences.effectiveDetectorLimit(2385) shouldBe 960
+
+        // Nothing was erased: turning the switch on brings the choice back.
+        preferences.advancedTuning.set(true)
+        preferences.effectiveTuning().detResolution shouldBe OcrDetResolution.VERY_HIGH
+    }
+
+    @Test
+    fun `turning advanced tuning off and on again preserves the stored resolution`() {
+        val preferences = preferences()
+        preferences.advancedTuning.set(true)
+        preferences.detResolution.set(OcrDetResolution.HIGH.name)
+        preferences.effectiveTuning().detResolution shouldBe OcrDetResolution.HIGH
+
+        preferences.advancedTuning.set(false)
+        preferences.effectiveTuning().detResolution shouldBe OcrDetResolution.DEFAULT
+        preferences.detResolution.get() shouldBe OcrDetResolution.HIGH.name
+
+        preferences.advancedTuning.set(true)
+        preferences.effectiveTuning().detResolution shouldBe OcrDetResolution.HIGH
+    }
+
+    @Test
+    fun `auto picks the smallest limit that keeps 60 percent of the chunk's long side`() {
+        // The rule, on the sizes that matter: the annotation set (all <= 1600) stays at 960, and the
+        // two working pages (long side 2385) go to 1600.
+        OcrDetResolution.AUTO.limitFor(1000) shouldBe 960
+        OcrDetResolution.AUTO.limitFor(1600) shouldBe 960 // exactly 60 % of 1600 is the 960 rung
+        OcrDetResolution.AUTO.limitFor(2000) shouldBe 1280
+        OcrDetResolution.AUTO.limitFor(2385) shouldBe 1600
+        OcrDetResolution.AUTO.limitFor(2828) shouldBe 1600 // above the cap: still 1600
+
+        // The fixed modes ignore the chunk size entirely.
+        OcrDetResolution.DEFAULT.limitFor(2385) shouldBe 960
+        OcrDetResolution.HIGH.limitFor(2385) shouldBe 1280
+        OcrDetResolution.VERY_HIGH.limitFor(2385) shouldBe 1600
+    }
+
+    @Test
+    fun `the resolution mode changes the cache signature only while it is active`() {
+        val untouched = preferences()
+        val advancedDefault = preferences()
+        advancedDefault.advancedTuning.set(true)
+
+        // Opting in without touching the resolution changes nothing: the default mode contributes no
+        // tag, so pages cached by an older build stay valid.
+        advancedDefault.cacheSignature() shouldBe untouched.cacheSignature()
+
+        // A non-default mode is a different detector input, so its cached pages must not be reused.
+        advancedDefault.detResolution.set(OcrDetResolution.VERY_HIGH.name)
+        advancedDefault.cacheSignature() shouldNotBe untouched.cacheSignature()
+        advancedDefault.detResolution.set(OcrDetResolution.AUTO.name)
+        advancedDefault.cacheSignature() shouldNotBe untouched.cacheSignature()
+
+        // Stored but inactive: back to the untouched signature.
+        advancedDefault.advancedTuning.set(false)
+        advancedDefault.cacheSignature() shouldBe untouched.cacheSignature()
+    }
+
+    @Test
+    fun `reset restores the detector resolution to 960 and leaves the other choices alone`() {
+        val preferences = preferences()
+        preferences.advancedTuning.set(true)
+        preferences.detResolution.set(OcrDetResolution.AUTO.name)
+        preferences.detBoxThreshold.set(45)
+
+        preferences.resetTuningToDefaults()
+
+        preferences.detResolution.get() shouldBe OcrDetResolution.DEFAULT.name
+        preferences.effectiveTuning().detResolution shouldBe OcrDetResolution.DEFAULT
+        preferences.effectiveDetectorLimit(2385) shouldBe 960
+        // The reset is about the tuning values only.
+        preferences.advancedTuning.get() shouldBe true
+        preferences.detModelVariant.get() shouldBe DetModelVariant.DEFAULT.name
+        preferences.recModelVariant.get() shouldBe RecModelVariant.DEFAULT.name
+    }
+
+    @Test
+    fun `a resolution above what the pinned native applies is clamped to 960`() {
+        val preferences = preferences()
+        preferences.advancedTuning.set(true)
+        preferences.detResolution.set(OcrDetResolution.VERY_HIGH.name)
+
+        // `libpaddle_ocr.so` (ocr-models-v4) has no limit-side argument, so the frame helpers must be
+        // handed the limit it really applies; a bigger number would mis-predict the frame and defeat
+        // the 4 MP frame-preservation clamp. The mode itself is still what the user (and the cache
+        // signature) sees.
+        preferences.effectiveTuning().detResolution shouldBe OcrDetResolution.VERY_HIGH
+        preferences.effectiveDetectorLimit(2385) shouldBe 960
+    }
 }

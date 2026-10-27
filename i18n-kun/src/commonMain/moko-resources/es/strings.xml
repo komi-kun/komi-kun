@@ -239,6 +239,12 @@
     <string name="pref_ocr_det_unclip_ratio_summary">Cuánto se expande cada cuadro detectado antes del reconocimiento (100-300, es decir, 1.00-3.00). Valores más altos incluyen más trazos circundantes; valores más bajos ajustan cuadros que abarcan ilustraciones.</string>
     <string name="pref_ocr_rec_confidence_floor">Límite inferior de confianza de reconocimiento</string>
     <string name="pref_ocr_rec_confidence_floor_summary">Descarta las líneas reconocidas cuya confianza sea inferior a esta. 0 conserva todo; auméntalo para eliminar líneas distorsionadas o mal leídas a costa de perder las tenues.</string>
+    <string name="pref_ocr_det_resolution">Resolución del detector</string>
+    <string name="pref_ocr_det_resolution_summary">Un valor más alto lee mejor el texto pequeño y denso, pero es más lento y puede añadir ruido. El valor predeterminado es 960.</string>
+    <string name="pref_ocr_det_resolution_default">Predeterminada (960)</string>
+    <string name="pref_ocr_det_resolution_high">Alta (1280)</string>
+    <string name="pref_ocr_det_resolution_very_high">Muy alta (1600)</string>
+    <string name="pref_ocr_det_resolution_auto">Automática (según el tamaño de la página)</string>
     <string name="pref_ocr_tuning_reset">Restablecer a los valores predeterminados</string>
     <string name="pref_ocr_detection_apply_hint">Los cambios se aplican a las páginas procesadas después del cambio; las páginas ya en caché conservan sus resultados anteriores.</string>
     <string name="ocr_source_automatic">Automático</string>

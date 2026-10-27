@@ -141,12 +141,26 @@ fun prepareForOcr(data: ByteArray): List<ImageChunk> {
     }
 }
 
-fun prepareForOcr(bitmap: Bitmap): List<ImageChunk> {
+/**
+ * Splits a page into the chunks the detector will see.
+ *
+ * [detResolution] is the user's detector-resolution mode; it is resolved here, against the page's
+ * own long side, so `Auto` is decided from the real working size. The request is clamped by
+ * [nativeDetectorLimit] to what the pinned native artefact applies, and the budget clamp then keeps
+ * the frame that limit produces stable across upscales.
+ */
+fun prepareForOcr(
+    bitmap: Bitmap,
+    detResolution: OcrDetResolution = OcrDetResolution.DEFAULT,
+): List<ImageChunk> {
     // KUN -->
+    // The detector resolution the engine will really use for this page: `Auto` resolves from the
+    // page's long side, and the pinned native limit caps every mode (see nativeDetectorLimit).
+    val limitSide = nativeDetectorLimit(detResolution.limitFor(max(bitmap.width, bitmap.height)))
     // Normalise oversized single pages *before* deciding to tile. Webtoon strips
     // (very tall) keep the old path so their width is not squeezed away.
     val source = if (bitmap.height.toDouble() / bitmap.width <= WEBTOON_ASPECT_RATIO) {
-        resizeToMaxPixels(bitmap, MAX_OCR_PIXELS)
+        resizeToMaxPixels(bitmap, MAX_OCR_PIXELS, limitSide)
     } else {
         bitmap
     }
@@ -245,7 +259,11 @@ fun chunkImage2D(
 }
 // KUN <--
 
-fun resizeToMaxPixels(bitmap: Bitmap, maxTotalPixels: Int): Bitmap {
+fun resizeToMaxPixels(
+    bitmap: Bitmap,
+    maxTotalPixels: Int,
+    limitSide: Int = DETECTOR_LIMIT_SIDE,
+): Bitmap {
     val w = bitmap.width
     val h = bitmap.height
     val pixelCount = w * h
@@ -255,7 +273,7 @@ fun resizeToMaxPixels(bitmap: Bitmap, maxTotalPixels: Int): Bitmap {
     // KUN -->
     // Frame-preserving budget clamp: a page must reach the detector with the same input size
     // whether or not this shrink ran (see budgetedResizeDims).
-    val (newW, newH) = budgetedResizeDims(w, h, maxTotalPixels)
+    val (newW, newH) = budgetedResizeDims(w, h, maxTotalPixels, limitSide)
     // KUN <--
 
     return Bitmap.createScaledBitmap(bitmap, newW, newH, true)
@@ -267,9 +285,27 @@ fun resizeToMaxPixels(bitmap: Bitmap, maxTotalPixels: Int): Bitmap {
  * pixel multiple it aligns the result to. Per side the native DB preprocess computes
  * `max(lround(side * ratio / 32) * 32, 32)` with `ratio = (float) (limit / longestSide)` (or `1.0`
  * when the side already fits the limit).
+ *
+ * This is the **default** of the user-selectable detector resolution
+ * ([OcrDetResolution.DEFAULT]); the frame helpers below take the limit as a parameter so a non-default
+ * request is modelled (and eventually applied) instead of being hard-coded here.
  */
 internal const val DETECTOR_LIMIT_SIDE = 960
 internal const val DETECTOR_SIDE_ALIGN = 32
+
+/**
+ * The detector limit the **pinned native artefact** (`ocr-models-v4`) actually applies to a chunk.
+ *
+ * `libpaddle_ocr.so` builds its `Options` in `ocr_jni.cpp` and passes `max_side_len` to the engine
+ * from `Options`' own default (`960`); `nativeProcess`'s signature carries the thresholds, the
+ * furigana flag and the thread count only — there is no limit-side argument. A request above
+ * [DETECTOR_LIMIT_SIDE] therefore cannot reach the detector yet, so it is clamped here rather than
+ * being fed into the frame math: [budgetedResizeDims] predicts the frame the detector will really
+ * produce, and predicting a bigger one would break the frame-preservation invariant the 4 MP clamp
+ * exists for. Lifting the clamp is the one-line follow-up in the shim that exposes `max_side_len`;
+ * nothing on this side needs to change then.
+ */
+internal fun nativeDetectorLimit(requested: Int): Int = min(requested, DETECTOR_LIMIT_SIDE)
 
 /**
  * Distance kept, in detector pixels, from a 32-px bucket edge when a side is snapped into it. Only
@@ -280,13 +316,20 @@ private const val FRAME_EDGE_MARGIN_PX = 0.05
 /** Size, in pixels, that the detector consumes for a chunk. */
 internal data class DetectorFrame(val width: Int, val height: Int)
 
-/** Detector input for a [width] x [height] chunk, replicated from the native preprocess. */
-internal fun detectorFrame(width: Int, height: Int): DetectorFrame {
+/**
+ * Detector input for a [width] x [height] chunk at [limitSide] (default: the pinned 960), replicated
+ * from the native preprocess.
+ */
+internal fun detectorFrame(
+    width: Int,
+    height: Int,
+    limitSide: Int = DETECTOR_LIMIT_SIDE,
+): DetectorFrame {
     val longest = max(width, height)
     // The native divides in float32 and widens to double before scaling; keep that order so the
     // replica resolves 32-px ties exactly like the shipped engine (round half away from zero).
-    val ratio = if (longest > DETECTOR_LIMIT_SIDE) {
-        (DETECTOR_LIMIT_SIDE.toFloat() / longest.toFloat()).toDouble()
+    val ratio = if (longest > limitSide) {
+        (limitSide.toFloat() / longest.toFloat()).toDouble()
     } else {
         1.0
     }
@@ -314,21 +357,29 @@ private fun alignedDetectorSide(side: Int, ratio: Double): Int =
  * The naive result is kept whenever it already reproduces the page's frame - the common case, and
  * the reason this changes nothing for ordinary pages. Otherwise the shorter side moves to the
  * nearest pixel inside the frame's bucket and the longer side (the budget knob) is trimmed to stay
- * within [maxTotalPixels]. Below [DETECTOR_LIMIT_SIDE] there is no shared frame to preserve: the
- * page is not downscaled at all, so its detector input is just its own size rounded to 32 px.
+ * within [maxTotalPixels]. Below [limitSide] there is no shared frame to preserve: the page is not
+ * downscaled at all, so its detector input is just its own size rounded to 32 px.
+ *
+ * [limitSide] must be the limit the detector **really** applies (see [nativeDetectorLimit]); every
+ * comparison below is against the frame that limit produces.
  */
-internal fun budgetedResizeDims(width: Int, height: Int, maxTotalPixels: Int): Pair<Int, Int> {
+internal fun budgetedResizeDims(
+    width: Int,
+    height: Int,
+    maxTotalPixels: Int,
+    limitSide: Int = DETECTOR_LIMIT_SIDE,
+): Pair<Int, Int> {
     if (width.toLong() * height <= maxTotalPixels) return width to height
 
     val aspectRatio = width.toDouble() / height
     val budgetWidth = sqrt(maxTotalPixels * aspectRatio).toInt().coerceAtLeast(1)
     val budgetHeight = (budgetWidth / aspectRatio).toInt().coerceAtLeast(1)
 
-    if (max(width, height) <= DETECTOR_LIMIT_SIDE) return budgetWidth to budgetHeight
-    if (max(budgetWidth, budgetHeight) <= DETECTOR_LIMIT_SIDE) return budgetWidth to budgetHeight
+    if (max(width, height) <= limitSide) return budgetWidth to budgetHeight
+    if (max(budgetWidth, budgetHeight) <= limitSide) return budgetWidth to budgetHeight
 
-    val target = detectorFrame(width, height)
-    if (detectorFrame(budgetWidth, budgetHeight) == target) return budgetWidth to budgetHeight
+    val target = detectorFrame(width, height, limitSide)
+    if (detectorFrame(budgetWidth, budgetHeight, limitSide) == target) return budgetWidth to budgetHeight
 
     val widthIsLongest = budgetWidth >= budgetHeight
     val shortest = if (widthIsLongest) budgetHeight else budgetWidth
@@ -339,18 +390,18 @@ internal fun budgetedResizeDims(width: Int, height: Int, maxTotalPixels: Int): P
     // snapped shorter side pushes the pixel count over.
     var longest = min(
         max(budgetWidth, budgetHeight),
-        sqrt(maxTotalPixels.toDouble() * DETECTOR_LIMIT_SIDE / scaledShortest).toInt(),
+        sqrt(maxTotalPixels.toDouble() * limitSide / scaledShortest).toInt(),
     )
-    while (longest > DETECTOR_LIMIT_SIDE) {
+    while (longest > limitSide) {
         // The frame is unchanged while shorterSide * limit / longest stays inside the bucket:
         // round(x / 32) == scaledShortest / 32  <=>  x in [scaledShortest - 16, scaledShortest + 16).
         val low = ceil(
             (scaledShortest - DETECTOR_SIDE_ALIGN / 2.0 + FRAME_EDGE_MARGIN_PX) *
-                longest / DETECTOR_LIMIT_SIDE,
+                longest / limitSide,
         ).toInt()
         val high = floor(
             (scaledShortest + DETECTOR_SIDE_ALIGN / 2.0 - FRAME_EDGE_MARGIN_PX) *
-                longest / DETECTOR_LIMIT_SIDE,
+                longest / limitSide,
         ).toInt()
         if (low <= high) {
             val snapped = shortest.coerceIn(low, high)
@@ -632,9 +683,10 @@ suspend fun processImageWithChunks(
     bitmap: Bitmap,
     language: OcrLanguage,
     addSpaceOnMerge: Boolean? = null,
+    detResolution: OcrDetResolution = OcrDetResolution.DEFAULT,
     chunkProcessor: suspend (ImageChunk) -> List<EngineLine>,
 ): List<OcrTextBlock> {
-    val chunks = prepareForOcr(bitmap)
+    val chunks = prepareForOcr(bitmap, detResolution)
     return processChunks(chunks, language, addSpaceOnMerge, sourceBitmapToPreserve = bitmap, chunkProcessor)
 }
 

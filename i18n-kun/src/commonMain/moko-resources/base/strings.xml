@@ -241,6 +241,12 @@
     <string name="pref_ocr_det_unclip_ratio_summary">How far each detected box is grown before recognition (100-300, i.e. 1.00-3.00). Higher includes more surrounding strokes; lower trims boxes that swallow artwork.</string>
     <string name="pref_ocr_rec_confidence_floor">Recognition confidence floor</string>
     <string name="pref_ocr_rec_confidence_floor_summary">Drop recognised lines whose confidence is below this. 0 keeps everything; raise it to remove garbled or misread lines at the cost of losing faint ones.</string>
+    <string name="pref_ocr_det_resolution">Detector resolution</string>
+    <string name="pref_ocr_det_resolution_summary">Higher reads dense small text better, but is slower and can add noise. The default is 960.</string>
+    <string name="pref_ocr_det_resolution_default">Default (960)</string>
+    <string name="pref_ocr_det_resolution_high">High (1280)</string>
+    <string name="pref_ocr_det_resolution_very_high">Very high (1600)</string>
+    <string name="pref_ocr_det_resolution_auto">Auto (by page size)</string>
     <string name="pref_ocr_tuning_reset">Reset to defaults</string>
     <string name="pref_ocr_detection_apply_hint">Changes apply to pages processed after the change; already-cached pages keep their old results.</string>
     <string name="ocr_source_automatic">Automatic</string>
