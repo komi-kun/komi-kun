@@ -350,6 +350,65 @@ class ReaderOcrBlockLoaderTest {
     }
 
     /**
+     * A page load must not release a claim that a **newer** drive registered for the same page.
+     * `invalidate()` — reached from the OCR queue observer whenever a cached chapter advances —
+     * drops every claim while a load of that page can still be in flight. With an unconditional
+     * `inFlight.remove(key)` its late release deletes the claim the re-drive just took, so the page
+     * is read and OCRed twice (and the loser can overwrite `_blocks[key]`).
+     *
+     * The first load is parked in `GetManga.await`; `invalidate()` drops its claim, the re-drive
+     * claims the page and parks there too, and only then is the first load released — so its release
+     * runs strictly after the second claim. Its own outcome is "not resolvable yet", which also arms
+     * the retry backoff; that is waited out below, so the third drive can only be stopped by the
+     * claim itself.
+     */
+    @Test
+    fun `a finishing load does not clear the claim a newer drive registered`(): Unit = runBlocking {
+        val firstEntered = CountDownLatch(1)
+        val releaseFirst = CountDownLatch(1)
+        val secondEntered = CountDownLatch(1)
+        coEvery { getManga.await(any()) } coAnswers {
+            when (awaitCalls.incrementAndGet()) {
+                1 -> {
+                    firstEntered.countDown()
+                    releaseFirst.await(5, TimeUnit.SECONDS)
+                    null
+                }
+                2 -> {
+                    secondEntered.countDown()
+                    awaitCancellation()
+                }
+                else -> null
+            }
+        }
+        val loader = loader(loadTimeoutMs = LOAD_TIMEOUT_MS)
+
+        // The first load starts and parks in the source lookup.
+        loader.ensureLoaded(listOf(page))
+        firstEntered.await(2, TimeUnit.SECONDS) shouldBe true
+
+        // The queue observer clears the cache (and the claims); the page is re-driven and claimed.
+        loader.invalidate()
+        loader.ensureLoaded(listOf(page))
+        secondEntered.await(2, TimeUnit.SECONDS) shouldBe true
+
+        // The first load finishes only now, i.e. strictly after the re-drive claimed the page.
+        releaseFirst.countDown()
+        delay(RETRY_BACKOFF_MS + 300)
+
+        // The re-drive is still suspended in `GetManga`, so every further drive must be a no-op.
+        // Driven over a window rather than once, so a duplicate started on a loaded machine is still
+        // caught.
+        val deadline = System.currentTimeMillis() + NEGATIVE_WINDOW_MS
+        while (true) {
+            loader.ensureLoaded(listOf(page))
+            awaitCalls.get() shouldBe 2
+            if (System.currentTimeMillis() >= deadline) break
+            delay(10)
+        }
+    }
+
+    /**
      * The negative twin of [awaitSettled]: re-runs [drive] for [windowMs] and fails the moment
      * [violation] holds, so a wrongly-started load is caught whenever it reaches its first suspension
      * point instead of only when it happens to win a fixed sleep. [windowMs] is a bound on how long

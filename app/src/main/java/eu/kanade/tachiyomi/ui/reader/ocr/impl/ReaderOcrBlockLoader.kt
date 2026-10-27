@@ -97,7 +97,16 @@ class ReaderOcrBlockLoader(
     private val _blocks = MutableStateFlow<Map<OcrPageKey, List<OcrTextBlock>>>(emptyMap())
     val blocks: StateFlow<Map<OcrPageKey, List<OcrTextBlock>>> = _blocks.asStateFlow()
 
-    private val inFlight = ConcurrentHashMap.newKeySet<OcrPageKey>()
+    // KUN -->
+    /**
+     * Pages whose load (or forced re-run) owns the page right now, each mapped to the **token of the
+     * work that claimed it**. The token is what makes the release ownership-checked: [detach] (and
+     * [invalidate]) drop every claim when a session ends, and the job of the *old* session then
+     * finishes afterwards. An unconditional `remove` would delete the claim the new session (or the
+     * next drive) just registered, so the same page could be read and OCRed twice.
+     */
+    private val inFlight = ConcurrentHashMap<OcrPageKey, Any>()
+    // KUN <--
 
     /** Earliest retry time (ns) for a page that could not be resolved yet; bounded retry rate. */
     private val retryAfter = ConcurrentHashMap<OcrPageKey, Long>()
@@ -175,14 +184,17 @@ class ReaderOcrBlockLoader(
             val key = page.ocrKey()
             if (key.chapterId <= 0L || _blocks.value.containsKey(key)) return@forEach
             retryAfter[key]?.let { if (now < it) return@forEach }
-            if (!inFlight.add(key)) return@forEach
             // KUN -->
+            // Claim the page with a token of **this** job: the release in [runPageLoad] is
+            // ownership-checked, so a job that outlives its session cannot clear a later claim.
+            val claim = Any()
+            if (inFlight.putIfAbsent(key, claim) != null) return@forEach
             // LAZY start so the job is registered before it can run (and remove itself) — page work
             // always runs on the session scope, never on the app-lifetime one.
             val job = work.launch(start = CoroutineStart.LAZY) {
                 val self = coroutineContext[Job]
                 try {
-                    runPageLoad(page, key)
+                    runPageLoad(page, key, claim)
                 } finally {
                     // Compare-and-remove: a cancelled job reaches this late, after its successor (a
                     // forced re-run, or a re-drive once the page was released) registered itself
@@ -199,7 +211,7 @@ class ReaderOcrBlockLoader(
 
     // KUN -->
     /** One page's [load] with the watchdog and the outcome bookkeeping (see [ensureLoaded]). */
-    private suspend fun runPageLoad(page: ReaderPage, key: OcrPageKey) {
+    private suspend fun runPageLoad(page: ReaderPage, key: OcrPageKey, claim: Any) {
         // Watchdog (F2): a future hang can never again be invisible. `withTimeoutOrNull`
         // cannot distinguish a timeout from a block that returned null, so the result is
         // wrapped in a non-null [LoadOutcome].
@@ -214,7 +226,10 @@ class ReaderOcrBlockLoader(
             logcat(LogPriority.WARN, e) { "ReaderOcr: failed to resolve OCR blocks for page ${page.index}" }
             null
         }
-        inFlight.remove(key)
+        // Compare-and-remove with this job's own token: [detach] clears every claim when a reader
+        // session ends, and this job may finish only afterwards — an unconditional `remove` would
+        // delete the claim the next session registered for the same page and let it load twice.
+        inFlight.remove(key, claim)
         when (outcome) {
             // The load did not return within [loadTimeoutMs]: assume a hang and treat it
             // exactly like "not resolvable yet" — retry later, never cache an empty result.
@@ -364,8 +379,10 @@ class ReaderOcrBlockLoader(
                 // the visible pages and their neighbours, so releasing the slot here would let a
                 // normal load start beside the redo a frame later — the page then read and inferred
                 // twice, and the loser can overwrite `_blocks[key]`. Then cancel the load that was
-                // already registered so the two never read the same page at once.
-                inFlight.add(key)
+                // already registered so the two never read the same page at once. The redo claims
+                // the page with its own token, so the cancelled load's late release cannot drop it.
+                val claim = Any()
+                inFlight[key] = claim
                 jobs.remove(key)?.cancel()
                 // KUN <--
                 _blocks.update { it - key }
@@ -389,8 +406,9 @@ class ReaderOcrBlockLoader(
                     }
                 } finally {
                     // KUN --> the page is only released once the re-run is over or gave up, so a
-                    // per-frame `ensureLoaded` resumes it as an ordinary load from then on.
-                    inFlight.remove(key)
+                    // per-frame `ensureLoaded` resumes it as an ordinary load from then on — unless
+                    // a newer claim (a superseding redo or a new session) replaced this one.
+                    inFlight.remove(key, claim)
                     // KUN <--
                 }
             }
