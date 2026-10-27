@@ -383,7 +383,11 @@ class OwOCRMerger(
                 val a = lines[i]
                 val b = lines[j]
                 val onSameRun = OcrMergeGeometry.sameLineFragment(a.bbox, b.bbox, vertical) ||
-                    OcrMergeGeometry.advanceOverlap(a.bbox, b.bbox, vertical) > 0.45
+                    // The same threshold `nextLine` merges successive lines at: a pair inside the
+                    // nextLine band must stay two ordered groups here, or the union's row/column sort
+                    // inverts their reading order.
+                    OcrMergeGeometry.advanceOverlap(a.bbox, b.bbox, vertical) >
+                    OcrMergeGeometry.MAX_ADVANCE_OVERLAP
                 if (onSameRun) {
                     union(i, j)
                 }

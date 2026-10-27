@@ -163,8 +163,10 @@ class OcrPreferences(
      * the enum name, like the recogniser.
      *
      * A **new** key, so every install that never chose a detector resolves to
-     * [DetModelVariant.DEFAULT] (dialogue): older builds only had the axis-less releases and there
-     * always ran the SFX detector, and nobody may silently keep it. The combined opt-in switch
+     * [DetModelVariant.DEFAULT] (dialogue). The builds before this key only had the axis-less
+     * releases, and their default — `ocr-manga-v2`, the stock PP-OCRv6 detector plus the fine-tuned
+     * recogniser — was the stock detector, never the SFX one: nobody had an SFX detector to keep, so
+     * defaulting to dialogue silently keeps nothing. The combined opt-in switch
      * (`DictionaryOcrPreferences`) is a different key and is not touched by this.
      */
     val detModelVariant: Preference<String> = preferenceStore.getString(
