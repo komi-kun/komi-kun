@@ -2,9 +2,10 @@
 // KUN -->
 // The model selection is two independent axes — detector × recogniser — and each of the four
 // combinations is a distinct release tag. These tests pin the matrix itself (a missing or duplicated
-// cell ships the wrong detector: every user used to get the SFX detector because the axis did not
-// exist), the dialogue-first default, and the fact that a recogniser the user chose under the old
-// single-axis key keeps resolving to the same recogniser.
+// cell ships the wrong detector: before the axis existed the release alone chose it, and the
+// axis-less default `ocr-manga-v2` was the stock detector plus the fine-tuned recogniser — the SFX
+// detector was never a default), the dialogue-first default, and the fact that a recogniser the user
+// chose under the old single-axis key keeps resolving to the same recogniser.
 // KUN <--
 package mihon.core.ocr
 

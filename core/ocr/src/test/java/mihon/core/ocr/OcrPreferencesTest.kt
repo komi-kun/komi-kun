@@ -29,10 +29,10 @@ class OcrPreferencesTest {
 
     @Test
     fun `the default selection still has a cache signature of its own`() {
-        // Regression: the signature used to be `""` at the defaults, and the *previous* default
-        // (SFX detector + fine-tuned recogniser) also produced `""` — so a page OCR'd by the SFX
-        // detector was served as dialogue. The release tag is now unconditional, so the two can never
-        // meet again: the default is v4 (dialogue), the old default was v3 (SFX).
+        // Regression: the signature used to be `""` at the defaults, and that `""` carried no
+        // detector — so a page OCR'd by the SFX detector was served as dialogue. The release tag is
+        // now unconditional, so the two can never meet again: the default is v4 (dialogue), and the
+        // old axis-less default was v2 (stock detector + fine-tuned recogniser), never a SFX one.
         val signature = preferences().cacheSignature()
 
         // The release tag is the leading, unconditional part. Asserted by prefix — not as the exact
