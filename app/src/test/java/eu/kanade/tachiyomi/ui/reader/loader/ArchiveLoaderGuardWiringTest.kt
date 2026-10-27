@@ -58,25 +58,32 @@ class ArchiveLoaderGuardWiringTest {
     }
 
     /**
-     * The EPUB loader's two mapping reads: the spine enumeration (`getImagesFromPages`, one opaque
-     * call that opens the container, the package document and every spine page) and the teardown.
-     * Reverting `archiveReads.read { reader.getImagesFromPages() }` to the bare call fails here.
+     * The EPUB loader's guarded reads: each archive step of the spine enumeration (the container
+     * header, the package document, and **one** spine page's xhtml per call) and the teardown.
+     * Reverting to the pre-fix single hold — `archiveReads.read { reader.getImagesFromPages() }`,
+     * which opens the container, the package document and every spine page inside one lock — fails
+     * here.
      */
     @Test
     fun `the epub loader enumerates and closes only through the read guard`() {
         val epub = loader("EpubPageLoader.kt")
 
         val pages = functionBody(epub, "override suspend fun getPages()")
-        pages shouldContainSource """archiveReads\s*\.\s*read\s*\{\s*reader\s*\.\s*getImagesFromPages\(\s*\)\s*\}"""
+        pages shouldContainSource """archiveReads\s*\.\s*read\s*\{\s*reader\s*\.\s*getPackageHref\(\s*\)\s*\}"""
+        pages shouldContainSource """archiveReads\s*\.\s*read\s*\{\s*reader\s*\.\s*getPackageDocument\("""
+        pages shouldContainSource """archiveReads\s*\.\s*read\s*\{\s*reader\s*\.\s*getPageImagePaths\("""
         pages shouldContainSource """archiveReads\s*\.\s*readerPage\("""
+        // One guarded step per archive read, not one for the whole enumeration.
+        occurrences(pages, """archiveReads\s*\.\s*read\s*\{""") shouldBe 3
+        // The whole-spine call is gone from the loader: it is a single hold over every page entry.
+        epub shouldNotContainSource """reader\s*\.\s*getImagesFromPages\("""
         val recycle = functionBody(epub, "override fun recycle()")
         recycle shouldContainSource """archiveReads\s*\.\s*close\s*\{\s*reader\s*\.\s*close\(\s*\)\s*\}"""
         occurrences(epub, """reader\s*\.\s*close\(\s*\)""") shouldBe 1
-        // One enumeration per `getPages()`, and it is the guarded one.
-        occurrences(epub, """reader\s*\.\s*getImagesFromPages\(\s*\)""") shouldBe 1
 
-        // Not asserted: which native steps `getImagesFromPages` performs (it is one opaque call, so
-        // the whole enumeration is one hold), nor that a stream is refused after the close.
+        // Not asserted: that each `EpubReader` accessor really reads one entry (it is mocked in
+        // `EpubPageLoaderGuardTest`, which measures how long a close waits), nor that a stream is
+        // refused after the close.
     }
 
     /**
