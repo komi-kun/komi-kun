@@ -105,7 +105,9 @@ fun splitImageIntoChunks(
 }
 
 private fun decodeBitmap(data: ByteArray): Bitmap {
+    // KUN --> Sampled decode: the chunkers below must never be fed a full-size page.
     return OcrBitmapDecoder.decode(data)
+    // KUN <--
 }
 
 fun prepareForOcr(data: ByteArray): List<ImageChunk> {

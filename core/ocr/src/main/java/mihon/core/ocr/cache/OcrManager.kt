@@ -13,6 +13,7 @@
 package mihon.core.ocr.cache
 
 import android.graphics.BitmapFactory
+import ca.mpreg.imagedecoder.ImageDecoder
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -39,6 +40,7 @@ import tachiyomi.core.common.ocr.ReaderOcrSource
 import tachiyomi.core.common.preference.DictionaryOcrPreferences
 import tachiyomi.core.common.util.system.ImageUtil
 import tachiyomi.core.common.util.system.logcat
+import java.io.ByteArrayInputStream
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import java.util.zip.ZipFile
@@ -230,7 +232,11 @@ class OcrManager(
         val (width, height) = imageDimensions(bytes)
         if (width > TILE_TRIGGER_DIMENSION || height > TILE_TRIGGER_DIMENSION) {
             val bitmap = try {
-                OcrBitmapDecoder.decode(bytes)
+                // KUN -->
+                // Shrink while decoding: the tiler would otherwise be fed a page that first had to
+                // exist as a full native frame plus a full ARGB_8888 bitmap (~430 MB at 6000x9000).
+                OcrBitmapDecoder.decode(bytes, OcrBitmapDecoder.sampleSizeFor(width, height, bytes))
+                // KUN <--
             } catch (e: Exception) {
                 logcat(LogPriority.WARN, e) { "Failed to decode image for chunked OCR" }
                 null
@@ -636,15 +642,16 @@ class OcrManager(
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
         if (options.outWidth > 0 && options.outHeight > 0) return options.outWidth to options.outHeight
 
-        // Fallback for formats BitmapFactory cannot measure: decode once for the dimensions only.
+        // Fallback for formats BitmapFactory cannot measure: read the decoder header, never a decode.
+        // KUN -->
         return try {
-            val bitmap = OcrBitmapDecoder.decode(bytes)
-            val dimensions = bitmap.width to bitmap.height
-            bitmap.recycle()
-            dimensions
+            ImageDecoder.open(ByteArrayInputStream(bytes)).use { it.width to it.height }
+                .takeIf { (width, height) -> width > 0 && height > 0 }
+                ?: (DEFAULT_IMAGE_DIMENSION to DEFAULT_IMAGE_DIMENSION)
         } catch (_: Throwable) {
             DEFAULT_IMAGE_DIMENSION to DEFAULT_IMAGE_DIMENSION
         }
+        // KUN <--
     }
 
     private companion object {

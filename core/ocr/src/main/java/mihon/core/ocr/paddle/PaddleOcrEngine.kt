@@ -303,7 +303,9 @@ class PaddleOcrEngine(
             }
             if (!isInitialized) return emptyList()
             val bitmap = try {
+                // KUN --> Sampled decode: the page is shrunk to the OCR budget while decoding.
                 OcrBitmapDecoder.decode(bytes)
+                // KUN <--
             } catch (e: Exception) {
                 logcat(LogPriority.WARN, e) { "Failed to decode image for paddle OCR" }
                 return emptyList()
