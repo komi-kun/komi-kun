@@ -190,5 +190,47 @@ class OcrMergeGeometryTest {
 
         OcrMergeGeometry.nextLine(col1, colFar, vertical = true) shouldBe false
     }
+
+    @Test
+    fun `a thickness ratio of 56 percent is the same kind of text`() {
+        // MIN_THICKNESS_RATIO is 0.556: 0.056/0.10 = 0.56 clears it, so a short line beside a taller
+        // one is still a successive line instead of being split off as a different kind of text.
+        val short = box(0.10, 0.10, 0.40, 0.156)
+        val tall = box(0.10, 0.166, 0.40, 0.266)
+
+        OcrMergeGeometry.nextLine(short, tall, vertical = false) shouldBe true
+        OcrMergeGeometry.nextLine(tall, short, vertical = false) shouldBe true
+    }
+
+    @Test
+    fun `a thickness ratio of 55 percent is not the same kind of text`() {
+        // 0.055/0.10 = 0.55 is below the 0.556 cut-off: only the thickness rule can reject this
+        // pair, since the boxes share an edge, a comparable run and a gap inside MAX_LINE_GAP_RATIO.
+        val short = box(0.10, 0.10, 0.40, 0.155)
+        val tall = box(0.10, 0.165, 0.40, 0.265)
+
+        OcrMergeGeometry.nextLine(short, tall, vertical = false) shouldBe false
+        OcrMergeGeometry.nextLine(tall, short, vertical = false) shouldBe false
+    }
+
+    @Test
+    fun `an advance overlap of 50 percent still follows the same line`() {
+        // MAX_ADVANCE_OVERLAP is 0.55: b starts half a line height into a, so the two boxes overlap
+        // 0.50 of the shorter one and are still successive lines, not the same row.
+        val a = box(0.10, 0.10, 0.40, 0.20)
+        val b = box(0.10, 0.15, 0.40, 0.25)
+
+        OcrMergeGeometry.nextLine(a, b, vertical = false) shouldBe true
+    }
+
+    @Test
+    fun `an advance overlap of 56 percent is the same row, not a following line`() {
+        // b starts 0.044 into a, so the boxes overlap 0.056 of the 0.10 line height: above 0.55 they
+        // are side-by-side patches on one row, which must go through `sameLineFragment` instead.
+        val a = box(0.10, 0.10, 0.40, 0.20)
+        val b = box(0.10, 0.144, 0.40, 0.244)
+
+        OcrMergeGeometry.nextLine(a, b, vertical = false) shouldBe false
+    }
     // KUN <--
 }
