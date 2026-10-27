@@ -9,7 +9,10 @@ import io.kotest.matchers.doubles.plusOrMinus
 import io.kotest.matchers.ints.shouldBeLessThanOrEqual
 import io.kotest.matchers.longs.shouldBeLessThanOrEqual
 import io.kotest.matchers.shouldBe
+import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
 import mihon.core.ocr.model.OcrTextBlock
 import org.junit.jupiter.api.Test
 
@@ -282,5 +285,83 @@ class ImageChunkingTest {
             }
         }
     }
+
+    // KUN -->
+    // ---------------------------------------------------------------------------------------
+    // Detector resolution is a per-chunk property now: the limit is resolved from each chunk's own
+    // long side and carried on the chunk, so 960/1280/1600 must all keep the frame contract and the
+    // limit must reach the engine rather than falling back to the shim's 960.
+    // ---------------------------------------------------------------------------------------
+
+    @Test
+    fun `the budget clamp keeps the 32 px frame and the 4 MP budget at every detector limit`() {
+        val pages = listOf(
+            5616 to 5712, // 1404x1428 at 4x
+            4704 to 3528, // 1176x882 at 4x
+            9532 to 6756, // a ~2380 px page at 4x, far above the 4 MP budget
+            6616 to 4680, // 1654x1170 at 4x
+            7840 to 6404, // 1960x1601 at 4x
+            3476 to 3372, // 869x843 at 4x: below every limit, only snapped to 32 px
+            9920 to 14032, // 2480x3508 at 4x, a native page already over the budget
+        )
+
+        for (limit in listOf(DETECTOR_LIMIT_SIDE, 1280, 1600)) {
+            for ((width, height) in pages) {
+                val (newW, newH) = budgetedResizeDims(width, height, MAX_OCR_PIXELS, limit)
+                val frame = detectorFrame(newW, newH, limit)
+                withClue("${width}x$height at $limit -> $newW x $newH ($frame)") {
+                    // Same frame as the page the resize stood in for: the whole point of the clamp.
+                    frame shouldBe detectorFrame(width, height, limit)
+                    (frame.width % DETECTOR_SIDE_ALIGN) shouldBe 0
+                    (frame.height % DETECTOR_SIDE_ALIGN) shouldBe 0
+                    (newW.toLong() * newH) shouldBeLessThanOrEqual MAX_OCR_PIXELS.toLong()
+                    // A page over the limit lands exactly on it, at every limit.
+                    maxOf(frame.width, frame.height) shouldBe limit
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `prepareForOcr resolves the limit from each chunk's own long side`() {
+        mockkStatic(Bitmap::class)
+        try {
+            every {
+                Bitmap.createScaledBitmap(any<Bitmap>(), any<Int>(), any<Int>(), any<Boolean>())
+            } answers { bitmapOf(secondArg(), arg(2)) }
+            every {
+                Bitmap.createBitmap(any<Bitmap>(), any<Int>(), any<Int>(), any<Int>(), any<Int>())
+            } answers { bitmapOf(arg(3), arg(4)) }
+
+            // A 1910x2150 page (4.1 MP) is shrunk to the 4 MP budget and left untiled. Its own long
+            // side (2150) is the 1600 rung, but the chunk the detector gets is 2121 px long: `Auto`
+            // must therefore resolve to 1280 for the chunk. Resolving from the page — or keeping the
+            // pinned 960 — fails here.
+            val shrunk = prepareForOcr(bitmapOf(1910, 2150), OcrDetResolution.AUTO).single()
+            OcrDetResolution.AUTO.limitFor(2150) shouldBe 1600
+            (shrunk.width to shrunk.height) shouldBe (1885 to 2121)
+            shrunk.detectorLimitSide shouldBe 1280
+
+            // A tiled page: every 2400 px tile carries the limit of its own long side, and the fixed
+            // modes reach it unattended (the old clamp pinned every chunk to 960).
+            val tiledAuto = prepareForOcr(bitmapOf(2600, 1500), OcrDetResolution.AUTO)
+            tiledAuto.map { it.width to it.height } shouldBe listOf(2400 to 1500, 2400 to 1500)
+            tiledAuto.map { it.detectorLimitSide } shouldBe listOf(1600, 1600)
+
+            prepareForOcr(bitmapOf(2600, 1500), OcrDetResolution.HIGH)
+                .map { it.detectorLimitSide } shouldBe listOf(1280, 1280)
+            prepareForOcr(bitmapOf(2600, 1500), OcrDetResolution.DEFAULT)
+                .map { it.detectorLimitSide } shouldBe listOf(960, 960)
+        } finally {
+            unmockkStatic(Bitmap::class)
+        }
+    }
+
+    /** A bitmap whose only real behaviour is its size; [width]/[height] drive every chunker. */
+    private fun bitmapOf(width: Int, height: Int): Bitmap = mockk(relaxed = true) {
+        every { this@mockk.width } returns width
+        every { this@mockk.height } returns height
+    }
+    // KUN <--
 }
 // KUN <--

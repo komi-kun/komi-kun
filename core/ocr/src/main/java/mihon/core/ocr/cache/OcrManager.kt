@@ -250,7 +250,11 @@ class OcrManager(
                         detResolution = preferences.effectiveTuning().detResolution,
                         // KUN <--
                     ) { chunk ->
-                        engine.recognize(chunk.bitmap, language)
+                        // KUN -->
+                        // The chunk carries the limit resolved from its own long side; never recompute
+                        // it here from a bitmap that may itself have been resized.
+                        engine.recognize(chunk.bitmap, language, chunk.detectorLimitSide)
+                        // KUN <--
                     }
                 } finally {
                     bitmap.recycle()

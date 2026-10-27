@@ -254,24 +254,39 @@ class OcrPreferencesTest {
     }
 
     @Test
+    fun `auto moves up a rung only once the chunk drops under 60 percent of it`() {
+        // The rung boundaries of the `Auto` rule (`limit >= 0.6 * longSide`), which now decides per
+        // chunk: 1600 is exactly the last size 960 covers, 2133 the last 1280 covers.
+        OcrDetResolution.AUTO.limitFor(960) shouldBe 960
+        OcrDetResolution.AUTO.limitFor(1600) shouldBe 960
+        OcrDetResolution.AUTO.limitFor(1601) shouldBe 1280
+        OcrDetResolution.AUTO.limitFor(2133) shouldBe 1280
+        OcrDetResolution.AUTO.limitFor(2134) shouldBe 1600
+        OcrDetResolution.AUTO.limitFor(3000) shouldBe 1600
+    }
+
+    @Test
     fun `the resolution mode changes the cache signature only while it is active`() {
         val untouched = preferences()
         val advancedDefault = preferences()
         advancedDefault.advancedTuning.set(true)
+        val base = untouched.cacheSignature()
 
         // Opting in without touching the resolution changes nothing: the default mode contributes no
         // tag, so pages cached by an older build stay valid.
-        advancedDefault.cacheSignature() shouldBe untouched.cacheSignature()
+        advancedDefault.cacheSignature() shouldBe base
 
-        // A non-default mode is a different detector input, so its cached pages must not be reused.
-        advancedDefault.detResolution.set(OcrDetResolution.VERY_HIGH.name)
-        advancedDefault.cacheSignature() shouldNotBe untouched.cacheSignature()
+        // A non-default mode is a different detector input, so its cached pages must not be reused —
+        // and the tag names the *mode* (`Auto` resolves differently per page, so a resolved value
+        // could not be a key).
+        advancedDefault.detResolution.set(OcrDetResolution.HIGH.name)
+        advancedDefault.cacheSignature() shouldBe "${base}dHIGH"
         advancedDefault.detResolution.set(OcrDetResolution.AUTO.name)
-        advancedDefault.cacheSignature() shouldNotBe untouched.cacheSignature()
+        advancedDefault.cacheSignature() shouldBe "${base}dAUTO"
 
         // Stored but inactive: back to the untouched signature.
         advancedDefault.advancedTuning.set(false)
-        advancedDefault.cacheSignature() shouldBe untouched.cacheSignature()
+        advancedDefault.cacheSignature() shouldBe base
     }
 
     @Test
@@ -293,16 +308,25 @@ class OcrPreferencesTest {
     }
 
     @Test
-    fun `a resolution above what the pinned native applies is clamped to 960`() {
+    fun `the resolved limit reaches the engine unclamped at every mode`() {
         val preferences = preferences()
         preferences.advancedTuning.set(true)
-        preferences.detResolution.set(OcrDetResolution.VERY_HIGH.name)
 
-        // `libpaddle_ocr.so` (ocr-models-v4) has no limit-side argument, so the frame helpers must be
-        // handed the limit it really applies; a bigger number would mis-predict the frame and defeat
-        // the 4 MP frame-preservation clamp. The mode itself is still what the user (and the cache
-        // signature) sees.
+        // The shim's `maxSideLen` argument carries the request, so nothing may clamp it back to the
+        // shim's default. An implementation that still applies `min(..., 960)` returns 960 for the
+        // first two and fails here.
+        preferences.detResolution.set(OcrDetResolution.VERY_HIGH.name)
         preferences.effectiveTuning().detResolution shouldBe OcrDetResolution.VERY_HIGH
-        preferences.effectiveDetectorLimit(2385) shouldBe 960
+        preferences.effectiveDetectorLimit(3000) shouldBe 1600
+
+        preferences.detResolution.set(OcrDetResolution.HIGH.name)
+        preferences.effectiveDetectorLimit(3000) shouldBe 1280
+
+        preferences.detResolution.set(OcrDetResolution.DEFAULT.name)
+        preferences.effectiveDetectorLimit(3000) shouldBe 960
+
+        // `Auto` on the same page: 0.6 * 3000 exceeds 1600, so it also caps at 1600.
+        preferences.detResolution.set(OcrDetResolution.AUTO.name)
+        preferences.effectiveDetectorLimit(3000) shouldBe 1600
     }
 }

@@ -33,6 +33,7 @@ import android.os.SystemClock
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Semaphore
 import logcat.LogPriority
+import mihon.core.ocr.DETECTOR_LIMIT_SIDE
 import mihon.core.ocr.EngineLine
 import mihon.core.ocr.NormalizedBBox
 import mihon.core.ocr.OcrBitmapDecoder
@@ -47,6 +48,7 @@ import java.io.File
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.atan2
+import kotlin.math.max
 
 // Detection/recognition thresholds copied from the ocrtest "Full Page Preset"
 // (full-page manga mode). Bubble preset (0.20/0.45/1.60) is intentionally not
@@ -311,7 +313,14 @@ class PaddleOcrEngine(
                 return emptyList()
             }
             return try {
-                recognizeLocked(bitmap, preferences.detectionOptions(deviceThreads), language).lines
+                // KUN -->
+                // The whole-page path bypasses the chunker, so nothing else resolves the mode for it:
+                // resolve it here from the decoded bitmap's long side, or HIGH/VERY_HIGH/AUTO would
+                // silently run at the shim's 960.
+                val limit = preferences.effectiveDetectorLimit(max(bitmap.width, bitmap.height))
+                recognizeLocked(bitmap, preferences.detectionOptions(deviceThreads), language, limit)
+                    .lines
+                // KUN <--
             } finally {
                 bitmap.recycle()
             }
@@ -324,6 +333,7 @@ class PaddleOcrEngine(
     override suspend fun recognize(
         bitmap: Bitmap,
         language: OcrLanguage,
+        detectorLimitSide: Int,
     ): List<EngineLine> {
         ensureModelVariant()
         inferPermits.acquire()
@@ -332,7 +342,8 @@ class PaddleOcrEngine(
                 init()
             }
             if (!isInitialized) return emptyList()
-            return recognizeLocked(bitmap, preferences.detectionOptions(deviceThreads), language).lines
+            return recognizeLocked(bitmap, preferences.detectionOptions(deviceThreads), language, detectorLimitSide)
+                .lines
         } finally {
             inferPermits.release()
         }
@@ -343,11 +354,17 @@ class PaddleOcrEngine(
      * Bitmap inference. Must only be called while holding an [inferPermits]
      * permit (see [recognize]); takes [lock] briefly for lazy init, which
      * never waits on permits, so no deadlock is possible.
+     *
+     * [detectorLimitSide] is the detector long side the caller resolved (a chunk's own limit, or the
+     * page's on the whole-page path) and goes straight to the shim's `maxSideLen`.
      */
     private fun recognizeLocked(
         bitmap: Bitmap,
         options: PaddleOcrOptions,
         language: OcrLanguage,
+        // KUN --> Detector long side for this call (960/1280/1600); the shim treats <= 0 as 960.
+        detectorLimitSide: Int = DETECTOR_LIMIT_SIDE,
+        // KUN <--
     ): PaddleOcrResult {
         if (!isInitialized) {
             init(options)
@@ -370,6 +387,9 @@ class PaddleOcrEngine(
                 unclipRatio = options.unclipRatio,
                 filterFurigana = options.filterFurigana,
                 numThreads = options.numThreads,
+                // KUN --> Resolved detector long side (960/1280/1600); the shim treats <= 0 as 960.
+                maxSideLen = detectorLimitSide,
+                // KUN <--
             )
             val result = parseOutput(raw, language, software.width, software.height, options.recConfidenceFloor)
             logcat(LogPriority.INFO) { "recognize: ${result.benchmark}" }
@@ -557,6 +577,13 @@ class PaddleOcrEngine(
         unclipRatio: Float,
         filterFurigana: Boolean,
         numThreads: Int,
+        // KUN -->
+        /**
+         * Detector long side (`limit_side_len`) for this call. `ocr-models-v5`'s shim applies it and
+         * treats `<= 0` as 960; Kotlin always passes the resolved 960/1280/1600.
+         */
+        maxSideLen: Int,
+        // KUN <--
     ): String
 
     private external fun nativeRelease()
