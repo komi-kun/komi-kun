@@ -140,10 +140,11 @@ class OcrPreferences(
      * manager combines it with its engine-generation key.
      *
      * **The release tag is unconditional, so this is never empty.** It used to be `""` at the
-     * defaults, and the pre-detector-axis default (SFX detector + fine-tuned recogniser) also
-     * produced `""` — so a page OCR'd by the SFX detector was served as if it had been read by the
-     * dialogue detector. Deriving the tag from the resolved release (which encodes *both* axes)
-     * makes that collision impossible to reintroduce, whatever future default is chosen.
+     * defaults, and the pre-detector-axis default (`ocr-manga-v2`: the stock detector plus the
+     * fine-tuned recogniser — the SFX detector was never a default) also produced `""`, so a page
+     * OCR'd from one detector's weights was served as if it had been read by the other. Deriving
+     * the tag from the resolved release (which encodes *both* axes) makes that collision impossible
+     * to reintroduce, whatever future default is chosen.
      */
     fun cacheSignature(): String {
         val pixel = detPixelThreshold.get()
