@@ -192,25 +192,38 @@ class OcrMergeGeometryTest {
     }
 
     @Test
-    fun `a thickness ratio of 56 percent is the same kind of text`() {
-        // MIN_THICKNESS_RATIO is 0.556: 0.056/0.10 = 0.56 clears it, so a short line beside a taller
+    fun `a thickness ratio of 66 percent is the same kind of text`() {
+        // MIN_THICKNESS_RATIO is 0.65: 0.066/0.10 = 0.66 clears it, so a short line beside a taller
         // one is still a successive line instead of being split off as a different kind of text.
-        val short = box(0.10, 0.10, 0.40, 0.156)
-        val tall = box(0.10, 0.166, 0.40, 0.266)
+        val short = box(0.10, 0.10, 0.40, 0.166)
+        val tall = box(0.10, 0.176, 0.40, 0.276)
 
         OcrMergeGeometry.nextLine(short, tall, vertical = false) shouldBe true
         OcrMergeGeometry.nextLine(tall, short, vertical = false) shouldBe true
     }
 
     @Test
-    fun `a thickness ratio of 55 percent is not the same kind of text`() {
-        // 0.055/0.10 = 0.55 is below the 0.556 cut-off: only the thickness rule can reject this
+    fun `a thickness ratio of 64 percent is not the same kind of text`() {
+        // 0.064/0.10 = 0.64 is below the 0.65 cut-off: only the thickness rule can reject this
         // pair, since the boxes share an edge, a comparable run and a gap inside MAX_LINE_GAP_RATIO.
-        val short = box(0.10, 0.10, 0.40, 0.155)
-        val tall = box(0.10, 0.165, 0.40, 0.265)
+        val short = box(0.10, 0.10, 0.40, 0.164)
+        val tall = box(0.10, 0.174, 0.40, 0.274)
 
         OcrMergeGeometry.nextLine(short, tall, vertical = false) shouldBe false
         OcrMergeGeometry.nextLine(tall, short, vertical = false) shouldBe false
+    }
+
+    @Test
+    fun `the measured cross-bubble column ratio does not join as a line fragment`() {
+        // The page-level join that reverted the 0.556 relaxation: a two-glyph column 0.6245x the
+        // width of the column in the bubble above it, a small gutter below it. Every other fragment
+        // condition holds (full advance overlap, no run overlap, gap inside MAX_FRAGMENT_GAP_RATIO),
+        // so at 0.556 `sameLineFragment` bridged the two bubbles into one paragraph.
+        val above = box(0.20, 0.10, 0.30, 0.30)
+        val column = box(0.20, 0.31, 0.26245, 0.50)
+
+        OcrMergeGeometry.sameLineFragment(above, column, vertical = true) shouldBe false
+        OcrMergeGeometry.sameLineFragment(column, above, vertical = true) shouldBe false
     }
 
     @Test
