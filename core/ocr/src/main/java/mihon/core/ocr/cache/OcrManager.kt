@@ -36,6 +36,7 @@ import mihon.core.ocr.TILE_TRIGGER_DIMENSION
 import mihon.core.ocr.merge.OcrLineMerger
 import mihon.core.ocr.model.OcrTextBlock
 import mihon.core.ocr.processImageWithChunks
+import mihon.core.ocr.samplingDimensions
 import tachiyomi.core.common.ocr.ReaderOcrSource
 import tachiyomi.core.common.preference.DictionaryOcrPreferences
 import tachiyomi.core.common.util.system.ImageUtil
@@ -554,19 +555,28 @@ class OcrManager(
 
     /**
      * KUN -->
-     * The cache variant for [source], keyed by engine generation and the non-default thresholds.
+     * The cache variant for [source], keyed by engine generation, the non-default thresholds and the
+     * **identity of the model bytes the engine would load now**.
      *
      * The generation component is why a page OCR'd by an older engine or model is not served from
      * cache after the engine changes: OCR caches survive app upgrades, so without it a pre-v6
      * (Paddle-Lite / PP-OCRv5) result keeps masking the current engine's output. The threshold
      * component makes changed sliders re-run instead of serving the old thresholds' result.
+     *
+     * The engine identity is what makes the selection-only signature safe: every release publishes
+     * identically named model files, so selecting another release and OCR-ing before its download
+     * completes would store pages under the new tag while the installed (old) weights produced them
+     * — permanently, since the tag then matches. A download or a replaced file changes the identity,
+     * so the pages are re-read; a selection change alone cannot claim weights that are not installed.
      */
     private fun cacheVariant(source: ReaderOcrSource): String? {
         val base = source.persistentCacheVariant ?: return null
         val signature = preferences.cacheSignature()
+        val modelIdentity = engine.modelBytesIdentity()
         return buildString {
             append(base).append('-').append(ENGINE_CACHE_GENERATION)
             if (signature.isNotEmpty()) append('-').append(signature)
+            if (!modelIdentity.isNullOrEmpty()) append('-').append(modelIdentity)
         }
     }
     // KUN <--
@@ -638,19 +648,25 @@ class OcrManager(
     }
 
     private fun imageDimensions(bytes: ByteArray): Pair<Int, Int> {
+        // KUN -->
+        // The decode applies the EXIF orientation, so the sampling decision must be taken on the
+        // decoder's own (oriented) header, not on BitmapFactory's stored-orientation bounds:
+        // a stored 12000x2000 landscape strip with EXIF rotate 90 decodes as 2000x12000, and the
+        // bounds-first order hid it from the tall-strip bypass of `sampleSizeFor`, which then halved
+        // its text. Bounds stay as the fallback for formats the decoder cannot open.
+        val header = try {
+            ImageDecoder.open(ByteArrayInputStream(bytes)).use { it.width to it.height }
+        } catch (_: Throwable) {
+            null
+        }
         val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
-        if (options.outWidth > 0 && options.outHeight > 0) return options.outWidth to options.outHeight
-
-        // Fallback for formats BitmapFactory cannot measure: read the decoder header, never a decode.
-        // KUN -->
-        return try {
-            ImageDecoder.open(ByteArrayInputStream(bytes)).use { it.width to it.height }
-                .takeIf { (width, height) -> width > 0 && height > 0 }
-                ?: (DEFAULT_IMAGE_DIMENSION to DEFAULT_IMAGE_DIMENSION)
-        } catch (_: Throwable) {
-            DEFAULT_IMAGE_DIMENSION to DEFAULT_IMAGE_DIMENSION
+        val stored = if (options.outWidth > 0 && options.outHeight > 0) {
+            options.outWidth to options.outHeight
+        } else {
+            null
         }
+        return samplingDimensions(header, stored, DEFAULT_IMAGE_DIMENSION)
         // KUN <--
     }
 

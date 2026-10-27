@@ -266,6 +266,18 @@ class PaddleOcrEngine(
 
     fun isInitialized(): Boolean = isInitialized
 
+    // KUN -->
+    /**
+     * Identity of the model files on disk **now** — the same value [ensureModelVariant] compares, and
+     * never the selection: the release publishes identically named files, so only the bytes say which
+     * weights an OCR result came from. The OCR cache key includes it (see `OcrManager.cacheVariant`).
+     */
+    override fun modelBytesIdentity(): String? = installedModelIdentity(
+        File(appContext.filesDir, MODEL_DIR),
+        listOf(preferences.detModelFile(), preferences.recModelFile()),
+    )
+    // KUN <--
+
     /**
      * Swaps weights when the model files under the engine directory changed — a variant switch the
      * downloader has installed, or a hand-staged replacement.
