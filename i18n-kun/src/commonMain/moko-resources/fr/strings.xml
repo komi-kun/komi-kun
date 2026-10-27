@@ -239,6 +239,12 @@
     <string name="pref_ocr_det_unclip_ratio_summary">Mesure d\'agrandissement de chaque cadre détecté avant la reconnaissance (100-300, soit 1.00-3.00). Une valeur plus élevée inclut davantage de traits environnants ; une valeur plus faible réduit les cadres qui empiètent sur les illustrations.</string>
     <string name="pref_ocr_rec_confidence_floor">Seuil minimal de confiance de reconnaissance</string>
     <string name="pref_ocr_rec_confidence_floor_summary">Ignorer les lignes reconnues dont la confiance est inférieure à ce seuil. 0 conserve tout ; augmentez cette valeur pour supprimer les lignes brouillées ou mal lues au risque de perdre le texte pâle.</string>
+    <string name="pref_ocr_det_resolution">Résolution du détecteur</string>
+    <string name="pref_ocr_det_resolution_summary">Une valeur plus élevée lit mieux le texte petit et dense, mais c\'est plus lent et peut ajouter du bruit. La valeur par défaut est 960.</string>
+    <string name="pref_ocr_det_resolution_default">Par défaut (960)</string>
+    <string name="pref_ocr_det_resolution_high">Élevée (1280)</string>
+    <string name="pref_ocr_det_resolution_very_high">Très élevée (1600)</string>
+    <string name="pref_ocr_det_resolution_auto">Automatique (selon la page)</string>
     <string name="pref_ocr_tuning_reset">Rétablir les valeurs par défaut</string>
     <string name="pref_ocr_detection_apply_hint">Les modifications s\'appliquent aux pages traitées après le changement ; les pages déjà en cache conservent leurs anciens résultats.</string>
     <string name="ocr_source_automatic">Automatique</string>

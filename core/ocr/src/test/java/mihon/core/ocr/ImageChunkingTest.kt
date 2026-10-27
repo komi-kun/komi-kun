@@ -237,5 +237,50 @@ class ImageChunkingTest {
         budgetedResizeDims(5616, 5712, MAX_OCR_PIXELS) shouldBe (1982 to 2016)
         budgetedResizeDims(4704, 3528, MAX_OCR_PIXELS) shouldBe (2284 to 1731)
     }
+
+    @Test
+    fun `detectorFrame honours a bigger requested limit and keeps the 32 px alignment`() {
+        // The same chunk read at the three fixed limits: the longest side lands exactly on the limit
+        // and the other side keeps its aspect ratio snapped to a 32 px bucket (round, half away from
+        // zero) — the arithmetic `libpaddle_ocr.so` uses once it is handed a bigger `max_side_len`.
+        detectorFrame(2385, 1689, DETECTOR_LIMIT_SIDE) shouldBe DetectorFrame(width = 960, height = 672)
+        detectorFrame(2385, 1689, 1280) shouldBe DetectorFrame(width = 1280, height = 896)
+        detectorFrame(2385, 1689, 1600) shouldBe DetectorFrame(width = 1600, height = 1120)
+
+        // Every side is a multiple of 32 at every limit, and a chunk over the limit is reduced to it.
+        for (limit in listOf(960, 1280, 1600)) {
+            for (chunk in listOf(2385 to 1689, 3200 to 2000, 1920 to 2400, 4000 to 3000)) {
+                val frame = detectorFrame(chunk.first, chunk.second, limit)
+                withClue("${chunk.first}x${chunk.second} at $limit -> $frame") {
+                    (frame.width % DETECTOR_SIDE_ALIGN) shouldBe 0
+                    (frame.height % DETECTOR_SIDE_ALIGN) shouldBe 0
+                    maxOf(frame.width, frame.height) shouldBe limit
+                }
+            }
+        }
+
+        // A chunk already inside the limit is only snapped to 32 px, whatever the limit is.
+        detectorFrame(1300, 1300, 1600) shouldBe DetectorFrame(width = 1312, height = 1312)
+    }
+
+    @Test
+    fun `the budget clamp keeps the frame at a 1600 limit too`() {
+        // The clamp's contract does not depend on the limit: it must reproduce whatever frame the
+        // detector produces at the requested limit, not only the default 960 one.
+        val pages = listOf(
+            5616 to 5712, // 1404x1428 at 4x
+            4704 to 3528, // 1176x882 at 4x
+            9532 to 6756, // a ~2380 px page at 4x, far above the 4 MP budget
+            6616 to 4680, // 1654x1170 at 4x
+        )
+
+        for ((width, height) in pages) {
+            val (newW, newH) = budgetedResizeDims(width, height, MAX_OCR_PIXELS, 1600)
+            withClue("$width x $height -> $newW x $newH") {
+                detectorFrame(newW, newH, 1600) shouldBe detectorFrame(width, height, 1600)
+                (newW.toLong() * newH) shouldBeLessThanOrEqual MAX_OCR_PIXELS.toLong()
+            }
+        }
+    }
 }
 // KUN <--

@@ -241,6 +241,12 @@
     <string name="pref_ocr_det_unclip_ratio_summary">認識処理前に検出された枠をどれだけ広げるか（100〜300、つまり1.00〜3.00）。高くすると周囲の筆画が含まれやすくなり、低くするとイラストを巻き込んだ枠をトリミングします。</string>
     <string name="pref_ocr_rec_confidence_floor">認識信頼度の下限値</string>
     <string name="pref_ocr_rec_confidence_floor_summary">信頼度がこの値を下回る認識行を除外します。0にするとすべて保持します。値を上げると文字化けや誤読が減りますが、かすれた文字が除外される可能性があります。</string>
+    <string name="pref_ocr_det_resolution">検出解像度</string>
+    <string name="pref_ocr_det_resolution_summary">高いほど密で小さな文字を読みやすくなりますが、処理が遅くなりノイズが増えることがあります。既定値は960です。</string>
+    <string name="pref_ocr_det_resolution_default">標準（960）</string>
+    <string name="pref_ocr_det_resolution_high">高（1280）</string>
+    <string name="pref_ocr_det_resolution_very_high">最高（1600）</string>
+    <string name="pref_ocr_det_resolution_auto">自動（ページサイズによる）</string>
     <string name="pref_ocr_tuning_reset">既定値に戻す</string>
     <string name="pref_ocr_detection_apply_hint">変更は変更後に処理されたページに適用されます。すでにキャッシュされたページには過去の結果が保持されます。</string>
     <string name="ocr_source_automatic">自動</string>

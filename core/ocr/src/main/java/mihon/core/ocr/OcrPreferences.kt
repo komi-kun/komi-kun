@@ -75,6 +75,22 @@ class OcrPreferences(
     val recConfidenceFloor: Preference<Int> = preferenceStore.getInt("pref_ocr_rec_confidence_floor", DEFAULT_REC_FLOOR)
 
     /**
+     * How much page resolution the detector is allowed to see, as one of [OcrDetResolution]'s four
+     * states. Stored as the enum name so the value stays readable in the preference store.
+     *
+     * It is part of the advanced-tuning group (`pref_ocr_advanced_tuning`), so like the four sliders
+     * it is **inactive** while that switch is off: [effectiveTuning] then reports
+     * [OcrDetResolution.DEFAULT] whatever this still stores, and the stored value comes back when the
+     * switch is turned on again. See [autoLimitFor] for the `Auto` rule.
+     */
+    val detResolution: Preference<String> = preferenceStore.getString(
+        "pref_ocr_det_resolution",
+        OcrDetResolution.DEFAULT.name,
+    )
+
+    fun resolveDetResolution(): OcrDetResolution = OcrDetResolution.from(detResolution.get())
+
+    /**
      * Whether the user opted in to the engine-tuning sliders. **Off by default**, so a fresh install
      * (or an upgrade that never touched the sliders) runs the built-in defaults and the four sliders
      * are hidden. While it is off the stored slider values are ignored, not erased: they stay in the
@@ -96,15 +112,25 @@ class OcrPreferences(
             detBoxThreshold = detBoxThreshold.get(),
             detUnclipRatio = detUnclipRatio.get(),
             recConfidenceFloor = recConfidenceFloor.get(),
+            detResolution = resolveDetResolution(),
         )
     } else {
         OcrEngineTuning.defaultsFor(resolveDetModel())
     }
 
     /**
-     * Writes all four tuning preferences back to their built-in defaults (the settings screen's
-     * "Reset to defaults" button). The stored values are written, not deleted, so this behaves the
-     * same whether or not [advancedTuning] is on, and the sliders update immediately.
+     * The detector long side to use for a chunk whose long side is [longSide] page px: the resolved
+     * mode's request ([OcrDetResolution.limitFor], which applies the `Auto` rule per chunk) clamped
+     * by [nativeDetectorLimit] to what the pinned `libpaddle_ocr.so` actually applies.
+     */
+    fun effectiveDetectorLimit(longSide: Int): Int =
+        nativeDetectorLimit(effectiveTuning().detResolution.limitFor(longSide))
+
+    /**
+     * Writes all five tuning preferences back to their built-in defaults (the settings screen's
+     * "Reset to defaults" button), including the detector resolution. The stored values are written,
+     * not deleted, so this behaves the same whether or not [advancedTuning] is on, and the sliders
+     * update immediately.
      */
     fun resetTuningToDefaults() {
         val defaults = OcrEngineTuning.defaultsFor(resolveDetModel())
@@ -112,6 +138,7 @@ class OcrPreferences(
         detBoxThreshold.set(defaults.detBoxThreshold)
         detUnclipRatio.set(defaults.detUnclipRatio)
         recConfidenceFloor.set(defaults.recConfidenceFloor)
+        detResolution.set(defaults.detResolution.name)
     }
 
     /**
@@ -194,8 +221,17 @@ class OcrPreferences(
         // The tuning comes from `effectiveTuning()` and not from the sliders, so values stored while
         // advanced tuning is off neither change the key nor make an old cached page unusable.
         val tuning = effectiveTuning()
+        // The detector resolution is part of the key by *mode*, never by the per-page resolved value:
+        // the mode is what the user chose, and `Auto` resolves differently for every page. The default
+        // mode contributes nothing, so the default key is byte-identical to the one the builds before
+        // this setting produced and no already-cached page is thrown away on upgrade.
+        val resolution = if (tuning.detResolution == OcrDetResolution.DEFAULT) {
+            ""
+        } else {
+            "d${tuning.detResolution.name}"
+        }
         return "${resolveModelRelease().release}t${tuning.detPixelThreshold}b${tuning.detBoxThreshold}" +
-            "u${tuning.detUnclipRatio}r${tuning.recConfidenceFloor}"
+            "u${tuning.detUnclipRatio}r${tuning.recConfidenceFloor}$resolution"
     }
 
     companion object {
@@ -214,7 +250,7 @@ class OcrPreferences(
 // KUN -->
 /**
  * The four engine-tuning values in the whole-number units the preferences store and the sliders
- * show (percentages; the unclip ratio as `140` = 1.40).
+ * show (percentages; the unclip ratio as `140` = 1.40), plus the detector resolution mode.
  *
  * The defaults are a *set* keyed by detector variant rather than four loose constants, so a future
  * detector fine-tune can carry its own numbers. **Today every variant shares [SHARED_DEFAULTS]** —
@@ -225,6 +261,10 @@ data class OcrEngineTuning(
     val detBoxThreshold: Int,
     val detUnclipRatio: Int,
     val recConfidenceFloor: Int,
+    // KUN -->
+    // Detector resolution belongs to the same opt-in group as the four sliders.
+    val detResolution: OcrDetResolution = OcrDetResolution.DEFAULT,
+    // KUN <--
 ) {
     companion object {
         private val SHARED_DEFAULTS = OcrEngineTuning(
@@ -232,6 +272,7 @@ data class OcrEngineTuning(
             detBoxThreshold = OcrPreferences.DEFAULT_DET_BOX,
             detUnclipRatio = OcrPreferences.DEFAULT_DET_UNCLIP,
             recConfidenceFloor = OcrPreferences.DEFAULT_REC_FLOOR,
+            detResolution = OcrDetResolution.DEFAULT,
         )
 
         /** The built-in tuning for [detector]. Every detector variant uses the same numbers today. */
@@ -239,5 +280,64 @@ data class OcrEngineTuning(
             DetModelVariant.DIALOGUE, DetModelVariant.SFX -> SHARED_DEFAULTS
         }
     }
+}
+
+/**
+ * How much page resolution the detector is allowed to work with, as the four states the OCR settings
+ * offer. This is the detector's long-side limit: the longest side a chunk is downscaled to before
+ * detection, so it decides how many detector pixels a page's small text gets.
+ *
+ * [limitSide] is the fixed request, or `null` for [AUTO], which resolves per chunk from the chunk's
+ * own long side ([limitFor]).
+ *
+ * **Effective only while advanced tuning is on.** `OcrPreferences.effectiveTuning()` reports
+ * [DEFAULT] whenever `pref_ocr_advanced_tuning` is off, exactly like the four threshold sliders, so a
+ * stored-but-inactive choice never changes a detection result or a cache key.
+ */
+enum class OcrDetResolution(val limitSide: Int?) {
+    /** 960 px long side: the fixed limit every build before this setting used. The default. */
+    DEFAULT(DETECTOR_LIMIT_SIDE),
+
+    /** 1280 px long side. */
+    HIGH(1280),
+
+    /** 1600 px long side. */
+    VERY_HIGH(1600),
+
+    /** Per chunk: the smallest limit that still covers 60 % of the chunk's long side (capped at 1600). */
+    AUTO(null),
+    ;
+
+    /**
+     * The detector long side to request for a chunk whose long side is [longSide] page px.
+     *
+     * Fixed modes return their own [limitSide]. [AUTO] returns the smallest of
+     * `{960, 1280, 1600}` that is `>= 60 %` of [longSide], capped at 1600 — i.e. the page is never
+     * downscaled to less than 60 % of its own long side, but a huge page never asks for more than
+     * 1600 either (`longSide = 2828 -> 1600`, `2385 -> 1600`, `2000 -> 1280`, `1600 -> 960`,
+     * `1000 -> 960`). A chunk whose long side is already at or below 960 therefore always maps to
+     * 960: there is nothing to gain from a bigger detector input on a page that small.
+     */
+    fun limitFor(longSide: Int): Int = limitSide ?: autoLimitFor(longSide)
+
+    companion object {
+        fun from(value: String): OcrDetResolution = entries.firstOrNull { it.name == value } ?: DEFAULT
+    }
+}
+
+/** The detector limits `Auto` chooses between, smallest first. The last one is the cap. */
+private val DETECTOR_LIMIT_LADDER = intArrayOf(DETECTOR_LIMIT_SIDE, 1280, 1600)
+
+/**
+ * The `Auto` rule: the smallest entry of [DETECTOR_LIMIT_LADDER] that keeps at least 60 % of
+ * [longSide], capped at the ladder's last (1600) so the detector cost stays bounded. Sizes below
+ * 1600 all map to 960, which is why the 60 %-of-1600 case (`longSide = 1600`) stays at 960 rather
+ * than jumping to 1280.
+ */
+internal fun autoLimitFor(longSide: Int): Int {
+    val page = longSide.coerceAtLeast(0).toLong()
+    // `limit >= 0.6 * longSide` without floating point: compare `5 * limit >= 3 * longSide`.
+    return DETECTOR_LIMIT_LADDER.firstOrNull { it.toLong() * 5 >= page * 3 }
+        ?: DETECTOR_LIMIT_LADDER.last()
 }
 // KUN <--

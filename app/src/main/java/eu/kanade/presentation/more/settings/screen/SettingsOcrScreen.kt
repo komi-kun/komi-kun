@@ -22,6 +22,7 @@ import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import kotlinx.coroutines.launch
 import mihon.app.di.appGraph
 import mihon.core.ocr.DetModelVariant
+import mihon.core.ocr.OcrDetResolution
 import mihon.core.ocr.OcrPreferences
 import mihon.core.ocr.RecModelVariant
 import mihon.core.ocr.cache.OcrCacheManager
@@ -346,6 +347,27 @@ object SettingsOcrScreen : SearchableSettings {
                         valueText = { if (it == 0) "off" else "$it%" },
                         visible = advancedTuningEnabled,
                     ),
+                    // KUN -->
+                    // Detector resolution: the longest side the detector works on (960 / 1280 /
+                    // 1600 / auto by page size). A list, not a slider: the four states are discrete
+                    // engine modes, and `Auto` is a rule rather than a number. Part of the advanced
+                    // group, so it is hidden and inactive while `advancedTuning` is off — the same
+                    // opt-in the four sliders above live behind.
+                    Preference.PreferenceItem.ListPreference(
+                        preference = preferences.detResolution,
+                        entries = mapOf(
+                            OcrDetResolution.DEFAULT.name to stringResource(KUNMR.strings.pref_ocr_det_resolution_default),
+                            OcrDetResolution.HIGH.name to stringResource(KUNMR.strings.pref_ocr_det_resolution_high),
+                            OcrDetResolution.VERY_HIGH.name to stringResource(KUNMR.strings.pref_ocr_det_resolution_very_high),
+                            OcrDetResolution.AUTO.name to stringResource(KUNMR.strings.pref_ocr_det_resolution_auto),
+                        ),
+                        title = stringResource(KUNMR.strings.pref_ocr_det_resolution),
+                        subtitleProvider = { value, entries ->
+                            "${entries[value]} · " + stringResource(KUNMR.strings.pref_ocr_det_resolution_summary)
+                        },
+                        visible = advancedTuningEnabled,
+                    ),
+                    // KUN <--
                     // Writes the four sliders back to the built-in defaults. The sliders are bound to
                     // the same `Preference` instances this writes, so they re-render from the new
                     // values without any local state; no confirmation is needed because the values

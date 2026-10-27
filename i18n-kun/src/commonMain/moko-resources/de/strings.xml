@@ -241,6 +241,12 @@
     <string name="pref_ocr_det_unclip_ratio_summary">Wie weit jeder erkannte Kasten vor der Zeichenerkennung vergrößert wird (100–300, d. h. 1,00–3,00). Höhere Werte beziehen mehr umgebende Striche ein; niedrigere beschneiden Kästen, die Bilddetails überdecken.</string>
     <string name="pref_ocr_rec_confidence_floor">Mindestzuverlässigkeit der Texterkennung</string>
     <string name="pref_ocr_rec_confidence_floor_summary">Erkannte Zeilen verwerfen, deren Zuverlässigkeit darunter liegt. 0 behält alles; erhöhe den Wert, um fehlerhafte oder falsch gelesene Zeilen zu entfernen, auf Kosten blasser Zeilen.</string>
+    <string name="pref_ocr_det_resolution">Detektorauflösung</string>
+    <string name="pref_ocr_det_resolution_summary">Höher liest dichten kleinen Text besser, ist aber langsamer und kann Rauschen hinzufügen. Standard ist 960.</string>
+    <string name="pref_ocr_det_resolution_default">Standard (960)</string>
+    <string name="pref_ocr_det_resolution_high">Hoch (1280)</string>
+    <string name="pref_ocr_det_resolution_very_high">Sehr hoch (1600)</string>
+    <string name="pref_ocr_det_resolution_auto">Automatisch (je nach Seitengröße)</string>
     <string name="pref_ocr_tuning_reset">Auf Standardwerte zurücksetzen</string>
     <string name="pref_ocr_detection_apply_hint">Änderungen gelten für Seiten, die nach der Änderung verarbeitet werden; bereits zwischengespeicherte Seiten behalten ihre bisherigen Ergebnisse.</string>
     <string name="ocr_source_automatic">Automatisch</string>
