@@ -42,13 +42,14 @@ internal object OcrMergeGeometry {
     /**
      * Smaller/larger thickness needed to consider two boxes the same kind of text.
      *
-     * Tuned on the labelled pages: the detector's unclip expansion routinely makes one line of a
-     * paragraph 0.6-0.65x its neighbour (a short line beside a tall one, a ruby-swallowing column),
-     * and 0.65 rejected those as different kinds of text, which split the paragraph into two units.
-     * 0.556 of the old value's slack recovered 12 of the 25 within-unit splits (25 -> 13) with
-     * dialogue CER -0.30 pp [-0.94, +0.00] and train +0.18 pp, i.e. text-neutral.
+     * 0.556 was tried on the labelled pages: it recovered 12 of the 25 within-unit splits
+     * (25 -> 13) and looked text-neutral there, but a page-level diagnosis found it glues
+     * neighbouring bubbles together — a two-glyph column joined the bottom line of the bubble above
+     * through [sameLineFragment] at a thickness ratio of 0.6245 with a 48 px gutter, and the two
+     * bubbles were reported as one paragraph. [sameLineFragment] shares this ratio, so the cross-bubble
+     * join is what 0.65 prevents; [MAX_ADVANCE_OVERLAP] keeps its own relaxation.
      */
-    const val MIN_THICKNESS_RATIO = 0.556
+    const val MIN_THICKNESS_RATIO = 0.65
     // KUN <--
 
     /** Widest whitespace gap (as a fraction of thickness) that can join two line fragments. */
