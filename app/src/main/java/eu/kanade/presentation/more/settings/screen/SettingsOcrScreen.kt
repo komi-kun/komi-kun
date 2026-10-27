@@ -75,6 +75,10 @@ object SettingsOcrScreen : SearchableSettings {
         // clearing, engine tuning) is hidden until the master is on, so this screen is not a backdoor.
         val dictionaryOcrPreferences = context.appGraph.dictionaryOcrPreferences
         val featureEnabled by dictionaryOcrPreferences.enabled.collectAsState()
+        // Advanced tuning is opt-in: while it is off the engine runs the built-in defaults and the
+        // four sliders are hidden. Collected (not just read) so toggling the switch or pressing
+        // "Reset to defaults" re-renders the group immediately.
+        val advancedTuningEnabled by preferences.advancedTuning.collectAsState()
         // KUN <--
 
         // Runtime model-download status (contract §1.7). `isPaddleDownloaded` is a cheap synchronous
@@ -294,18 +298,29 @@ object SettingsOcrScreen : SearchableSettings {
             // Engine tuning. The three detection sliders map onto the native `nativeProcess`
             // thresholds (no artefact change); the recognition floor is applied on the per-line
             // score the engine already emits. Defaults reproduce the previous hard-coded values.
+            //
+            // Behind its own opt-in switch: while `advancedTuning` is off the engine uses the
+            // built-in defaults regardless of what the sliders store, and the sliders (plus the
+            // reset button) are hidden. The stored values are kept, so turning it back on restores
+            // the user's tuning.
             Preference.PreferenceGroup(
                 title = stringResource(KUNMR.strings.pref_ocr_detection),
                 // KUN -->
                 visible = featureEnabled,
                 // KUN <--
                 preferenceItems = listOf(
+                    Preference.PreferenceItem.SwitchPreference(
+                        preference = preferences.advancedTuning,
+                        title = stringResource(KUNMR.strings.pref_ocr_advanced_tuning),
+                        subtitle = stringResource(KUNMR.strings.pref_ocr_advanced_tuning_summary),
+                    ),
                     Preference.PreferenceItem.SliderPreference(
                         preference = preferences.detBoxThreshold,
                         title = stringResource(KUNMR.strings.pref_ocr_det_box_threshold),
                         subtitle = stringResource(KUNMR.strings.pref_ocr_det_box_threshold_summary),
                         valueRange = 5..95,
                         valueText = { "$it%" },
+                        visible = advancedTuningEnabled,
                     ),
                     Preference.PreferenceItem.SliderPreference(
                         preference = preferences.detPixelThreshold,
@@ -313,6 +328,7 @@ object SettingsOcrScreen : SearchableSettings {
                         subtitle = stringResource(KUNMR.strings.pref_ocr_det_pixel_threshold_summary),
                         valueRange = 5..95,
                         valueText = { "$it%" },
+                        visible = advancedTuningEnabled,
                     ),
                     Preference.PreferenceItem.SliderPreference(
                         preference = preferences.detUnclipRatio,
@@ -320,6 +336,7 @@ object SettingsOcrScreen : SearchableSettings {
                         subtitle = stringResource(KUNMR.strings.pref_ocr_det_unclip_ratio_summary),
                         valueRange = 100..300,
                         valueText = { "%.2f".format(it / 100f) },
+                        visible = advancedTuningEnabled,
                     ),
                     Preference.PreferenceItem.SliderPreference(
                         preference = preferences.recConfidenceFloor,
@@ -327,6 +344,16 @@ object SettingsOcrScreen : SearchableSettings {
                         subtitle = stringResource(KUNMR.strings.pref_ocr_rec_confidence_floor_summary),
                         valueRange = 0..95,
                         valueText = { if (it == 0) "off" else "$it%" },
+                        visible = advancedTuningEnabled,
+                    ),
+                    // Writes the four sliders back to the built-in defaults. The sliders are bound to
+                    // the same `Preference` instances this writes, so they re-render from the new
+                    // values without any local state; no confirmation is needed because the values
+                    // are one toggle / four drags away again.
+                    Preference.PreferenceItem.TextPreference(
+                        title = stringResource(KUNMR.strings.pref_ocr_tuning_reset),
+                        visible = advancedTuningEnabled,
+                        onClick = { preferences.resetTuningToDefaults() },
                     ),
                     Preference.PreferenceItem.TextPreference(
                         title = stringResource(KUNMR.strings.pref_ocr_detection_apply_hint),

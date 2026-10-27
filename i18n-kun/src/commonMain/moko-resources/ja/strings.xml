@@ -231,6 +231,8 @@
     <string name="pref_ocr_auto_on_download_summary">チャプターのダウンロード時にOCRを実行</string>
     <!-- KUN -->
     <string name="pref_ocr_detection">検出の微調整</string>
+    <string name="pref_ocr_advanced_tuning">詳細調整</string>
+    <string name="pref_ocr_advanced_tuning_summary">検出器と認識器のスライダーを表示します。オフの間は常に組み込みの既定値が使われ、調整した値は保持されて再びオンにすると元に戻ります。</string>
     <string name="pref_ocr_det_pixel_threshold">検出閾値</string>
     <string name="pref_ocr_det_pixel_threshold_summary">テキスト領域として検出される最小の濃度。値を下げるとかすれた文字も検出されますがノイズも増えます。空白領域がテキストとして誤検出されるのを防ぐには値を上げてください。</string>
     <string name="pref_ocr_det_box_threshold">検出ボックスのスコア閾値</string>
@@ -239,6 +241,7 @@
     <string name="pref_ocr_det_unclip_ratio_summary">認識処理前に検出された枠をどれだけ広げるか（100〜300、つまり1.00〜3.00）。高くすると周囲の筆画が含まれやすくなり、低くするとイラストを巻き込んだ枠をトリミングします。</string>
     <string name="pref_ocr_rec_confidence_floor">認識信頼度の下限値</string>
     <string name="pref_ocr_rec_confidence_floor_summary">信頼度がこの値を下回る認識行を除外します。0にするとすべて保持します。値を上げると文字化けや誤読が減りますが、かすれた文字が除外される可能性があります。</string>
+    <string name="pref_ocr_tuning_reset">既定値に戻す</string>
     <string name="pref_ocr_detection_apply_hint">変更は変更後に処理されたページに適用されます。すでにキャッシュされたページには過去の結果が保持されます。</string>
     <string name="ocr_source_automatic">自動</string>
     <string name="ocr_source_mokuro">Mokuro</string>

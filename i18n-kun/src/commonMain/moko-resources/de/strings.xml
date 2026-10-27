@@ -231,6 +231,8 @@
     <string name="pref_ocr_auto_on_download_summary">OCR für Kapitel ausführen, sobald sie heruntergeladen werden</string>
     <!-- KUN -->
     <string name="pref_ocr_detection">Erkennungs-Feinabstimmung</string>
+    <string name="pref_ocr_advanced_tuning">Erweiterte Feinabstimmung</string>
+    <string name="pref_ocr_advanced_tuning_summary">Zeigt die Regler für Detektor und Zeichenerkennung. Solange diese Option aus ist, verwendet OCR immer die integrierten Standardwerte; deine eigenen Werte bleiben erhalten und werden beim erneuten Einschalten wieder übernommen.</string>
     <string name="pref_ocr_det_pixel_threshold">Erkennungsschwellenwert</string>
     <string name="pref_ocr_det_pixel_threshold_summary">Wie blass ein Textbereich sein darf, um noch erkannt zu werden. Niedrigere Werte finden blasseren Text, aber auch mehr Bildrauschen; erhöhe den Wert, damit leere Bereiche nicht als Text erkannt werden.</string>
     <string name="pref_ocr_det_box_threshold">Schwellenwert für Erkennungskästen</string>
@@ -239,6 +241,7 @@
     <string name="pref_ocr_det_unclip_ratio_summary">Wie weit jeder erkannte Kasten vor der Zeichenerkennung vergrößert wird (100–300, d. h. 1,00–3,00). Höhere Werte beziehen mehr umgebende Striche ein; niedrigere beschneiden Kästen, die Bilddetails überdecken.</string>
     <string name="pref_ocr_rec_confidence_floor">Mindestzuverlässigkeit der Texterkennung</string>
     <string name="pref_ocr_rec_confidence_floor_summary">Erkannte Zeilen verwerfen, deren Zuverlässigkeit darunter liegt. 0 behält alles; erhöhe den Wert, um fehlerhafte oder falsch gelesene Zeilen zu entfernen, auf Kosten blasser Zeilen.</string>
+    <string name="pref_ocr_tuning_reset">Auf Standardwerte zurücksetzen</string>
     <string name="pref_ocr_detection_apply_hint">Änderungen gelten für Seiten, die nach der Änderung verarbeitet werden; bereits zwischengespeicherte Seiten behalten ihre bisherigen Ergebnisse.</string>
     <string name="ocr_source_automatic">Automatisch</string>
     <string name="ocr_source_mokuro">Mokuro</string>
