@@ -229,6 +229,8 @@
     <string name="pref_ocr_auto_on_download_summary">Ejecutar OCR en los capítulos a medida que se descargan</string>
     <!-- KUN -->
     <string name="pref_ocr_detection">Ajuste de detección</string>
+    <string name="pref_ocr_advanced_tuning">Ajuste avanzado</string>
+    <string name="pref_ocr_advanced_tuning_summary">Muestra los controles del detector y del reconocimiento. Mientras está desactivado, el OCR usa siempre los valores predeterminados; tus propios valores se conservan y vuelven al activarlo de nuevo.</string>
     <string name="pref_ocr_det_pixel_threshold">Umbral de detección</string>
     <string name="pref_ocr_det_pixel_threshold_summary">Qué tan tenue puede ser una región de texto para seguir siendo detectada. Valores más bajos detectan texto más tenue pero también más ruido; aumenta este valor para evitar que áreas vacías se detecten como texto.</string>
     <string name="pref_ocr_det_box_threshold">Umbral de puntuación de cuadros de detección</string>
@@ -237,6 +239,7 @@
     <string name="pref_ocr_det_unclip_ratio_summary">Cuánto se expande cada cuadro detectado antes del reconocimiento (100-300, es decir, 1.00-3.00). Valores más altos incluyen más trazos circundantes; valores más bajos ajustan cuadros que abarcan ilustraciones.</string>
     <string name="pref_ocr_rec_confidence_floor">Límite inferior de confianza de reconocimiento</string>
     <string name="pref_ocr_rec_confidence_floor_summary">Descarta las líneas reconocidas cuya confianza sea inferior a esta. 0 conserva todo; auméntalo para eliminar líneas distorsionadas o mal leídas a costa de perder las tenues.</string>
+    <string name="pref_ocr_tuning_reset">Restablecer a los valores predeterminados</string>
     <string name="pref_ocr_detection_apply_hint">Los cambios se aplican a las páginas procesadas después del cambio; las páginas ya en caché conservan sus resultados anteriores.</string>
     <string name="ocr_source_automatic">Automático</string>
     <string name="ocr_source_mokuro">Mokuro</string>

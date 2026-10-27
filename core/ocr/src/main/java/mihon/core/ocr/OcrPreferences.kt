@@ -75,6 +75,46 @@ class OcrPreferences(
     val recConfidenceFloor: Preference<Int> = preferenceStore.getInt("pref_ocr_rec_confidence_floor", DEFAULT_REC_FLOOR)
 
     /**
+     * Whether the user opted in to the engine-tuning sliders. **Off by default**, so a fresh install
+     * (or an upgrade that never touched the sliders) runs the built-in defaults and the four sliders
+     * are hidden. While it is off the stored slider values are ignored, not erased: they stay in the
+     * store untouched, so turning this back on restores whatever the user had tuned.
+     */
+    val advancedTuning: Preference<Boolean> = preferenceStore.getBoolean("pref_ocr_advanced_tuning", false)
+
+    /**
+     * The tuning the engine must actually use: the stored slider values when [advancedTuning] is on,
+     * the built-in defaults for the selected detector otherwise.
+     *
+     * This is the single place the opt-in is enforced. The engine and the cache signature read the
+     * tuning through here, never through the individual slider preferences, so a stored but inactive
+     * value cannot change a detection result or a cache key.
+     */
+    fun effectiveTuning(): OcrEngineTuning = if (advancedTuning.get()) {
+        OcrEngineTuning(
+            detPixelThreshold = detPixelThreshold.get(),
+            detBoxThreshold = detBoxThreshold.get(),
+            detUnclipRatio = detUnclipRatio.get(),
+            recConfidenceFloor = recConfidenceFloor.get(),
+        )
+    } else {
+        OcrEngineTuning.defaultsFor(resolveDetModel())
+    }
+
+    /**
+     * Writes all four tuning preferences back to their built-in defaults (the settings screen's
+     * "Reset to defaults" button). The stored values are written, not deleted, so this behaves the
+     * same whether or not [advancedTuning] is on, and the sliders update immediately.
+     */
+    fun resetTuningToDefaults() {
+        val defaults = OcrEngineTuning.defaultsFor(resolveDetModel())
+        detPixelThreshold.set(defaults.detPixelThreshold)
+        detBoxThreshold.set(defaults.detBoxThreshold)
+        detUnclipRatio.set(defaults.detUnclipRatio)
+        recConfidenceFloor.set(defaults.recConfidenceFloor)
+    }
+
+    /**
      * Recogniser weights: the manga fine-tune (default) or the stock PP-OCRv6 model. Stored as the
      * enum name so the value stays readable in the preference store.
      *
@@ -123,16 +163,20 @@ class OcrPreferences(
 
     /**
      * The effective engine options for a page. [numThreads] is the device-derived thread count the
-     * engine normally computes itself; the thresholds come from the user preferences above, so
-     * changing them takes effect for every page processed afterwards.
+     * engine normally computes itself; the thresholds come from [effectiveTuning], so changing them
+     * takes effect for every page processed afterwards, and an advanced-tuning opt-out falls back to
+     * the built-in defaults whatever the sliders still store.
      */
-    fun detectionOptions(numThreads: Int): PaddleOcrOptions = PaddleOcrOptions(
-        thresh = detPixelThreshold.get().coerceIn(1, 99) / 100f,
-        boxThresh = detBoxThreshold.get().coerceIn(1, 99) / 100f,
-        unclipRatio = detUnclipRatio.get().coerceIn(100, 300) / 100f,
-        recConfidenceFloor = recConfidenceFloor.get().coerceIn(0, 99) / 100f,
-        numThreads = numThreads,
-    )
+    fun detectionOptions(numThreads: Int): PaddleOcrOptions {
+        val tuning = effectiveTuning()
+        return PaddleOcrOptions(
+            thresh = tuning.detPixelThreshold.coerceIn(1, 99) / 100f,
+            boxThresh = tuning.detBoxThreshold.coerceIn(1, 99) / 100f,
+            unclipRatio = tuning.detUnclipRatio.coerceIn(100, 300) / 100f,
+            recConfidenceFloor = tuning.recConfidenceFloor.coerceIn(0, 99) / 100f,
+            numThreads = numThreads,
+        )
+    }
 
     /**
      * A suffix that distinguishes OCR results produced with different weights or non-default
@@ -147,11 +191,11 @@ class OcrPreferences(
      * to reintroduce, whatever future default is chosen.
      */
     fun cacheSignature(): String {
-        val pixel = detPixelThreshold.get()
-        val box = detBoxThreshold.get()
-        val unclip = detUnclipRatio.get()
-        val floor = recConfidenceFloor.get()
-        return "${resolveModelRelease().release}t${pixel}b${box}u${unclip}r$floor"
+        // The tuning comes from `effectiveTuning()` and not from the sliders, so values stored while
+        // advanced tuning is off neither change the key nor make an old cached page unusable.
+        val tuning = effectiveTuning()
+        return "${resolveModelRelease().release}t${tuning.detPixelThreshold}b${tuning.detBoxThreshold}" +
+            "u${tuning.detUnclipRatio}r${tuning.recConfidenceFloor}"
     }
 
     companion object {
@@ -166,3 +210,34 @@ class OcrPreferences(
     }
     // KUN <--
 }
+
+// KUN -->
+/**
+ * The four engine-tuning values in the whole-number units the preferences store and the sliders
+ * show (percentages; the unclip ratio as `140` = 1.40).
+ *
+ * The defaults are a *set* keyed by detector variant rather than four loose constants, so a future
+ * detector fine-tune can carry its own numbers. **Today every variant shares [SHARED_DEFAULTS]** —
+ * no per-model value has been measured, so none is invented here.
+ */
+data class OcrEngineTuning(
+    val detPixelThreshold: Int,
+    val detBoxThreshold: Int,
+    val detUnclipRatio: Int,
+    val recConfidenceFloor: Int,
+) {
+    companion object {
+        private val SHARED_DEFAULTS = OcrEngineTuning(
+            detPixelThreshold = OcrPreferences.DEFAULT_DET_PIXEL,
+            detBoxThreshold = OcrPreferences.DEFAULT_DET_BOX,
+            detUnclipRatio = OcrPreferences.DEFAULT_DET_UNCLIP,
+            recConfidenceFloor = OcrPreferences.DEFAULT_REC_FLOOR,
+        )
+
+        /** The built-in tuning for [detector]. Every detector variant uses the same numbers today. */
+        fun defaultsFor(detector: DetModelVariant): OcrEngineTuning = when (detector) {
+            DetModelVariant.DIALOGUE, DetModelVariant.SFX -> SHARED_DEFAULTS
+        }
+    }
+}
+// KUN <--

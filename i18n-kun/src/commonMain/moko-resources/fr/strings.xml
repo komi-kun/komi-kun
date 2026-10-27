@@ -229,6 +229,8 @@
     <string name="pref_ocr_auto_on_download_summary">Exécuter l\'OCR sur les chapitres dès qu\'ils sont téléchargés</string>
     <!-- KUN -->
     <string name="pref_ocr_detection">Ajustement de la détection</string>
+    <string name="pref_ocr_advanced_tuning">Réglage avancé</string>
+    <string name="pref_ocr_advanced_tuning_summary">Affiche les curseurs du détecteur et de la reconnaissance. Tant que cette option est désactivée, l\'OCR utilise toujours les valeurs par défaut ; vos propres valeurs sont conservées et reviennent lorsque vous la réactivez.</string>
     <string name="pref_ocr_det_pixel_threshold">Seuil de détection</string>
     <string name="pref_ocr_det_pixel_threshold_summary">Niveau d\'atténuation maximal d\'une région de texte pour être détectée. Des valeurs plus faibles détectent du texte plus pâle mais ajoutent du bruit ; augmentez cette valeur pour éviter que les zones vides ne soient détectées comme du texte.</string>
     <string name="pref_ocr_det_box_threshold">Seuil de score des cadres de détection</string>
@@ -237,6 +239,7 @@
     <string name="pref_ocr_det_unclip_ratio_summary">Mesure d\'agrandissement de chaque cadre détecté avant la reconnaissance (100-300, soit 1.00-3.00). Une valeur plus élevée inclut davantage de traits environnants ; une valeur plus faible réduit les cadres qui empiètent sur les illustrations.</string>
     <string name="pref_ocr_rec_confidence_floor">Seuil minimal de confiance de reconnaissance</string>
     <string name="pref_ocr_rec_confidence_floor_summary">Ignorer les lignes reconnues dont la confiance est inférieure à ce seuil. 0 conserve tout ; augmentez cette valeur pour supprimer les lignes brouillées ou mal lues au risque de perdre le texte pâle.</string>
+    <string name="pref_ocr_tuning_reset">Rétablir les valeurs par défaut</string>
     <string name="pref_ocr_detection_apply_hint">Les modifications s\'appliquent aux pages traitées après le changement ; les pages déjà en cache conservent leurs anciens résultats.</string>
     <string name="ocr_source_automatic">Automatique</string>
     <string name="ocr_source_mokuro">Mokuro</string>
