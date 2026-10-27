@@ -122,9 +122,16 @@ class OwOCRMerger(
         }
 
         return lines.filterNot { line ->
-            val stripped = line.text.trim { it.isWhitespace() || !it.isLetterOrDigit() }
-            if (stripped.isEmpty()) return@filterNot false
-            val cpCount = stripped.codePointCount(0, stripped.length)
+            // KUN -->
+            // Count on the cleaned transcript with its punctuation kept, not on the alphanumeric-only
+            // remainder. `EngineLine` has already run `OcrPreprocessor.clean`, which collapses a
+            // punctuation run to a single `…`, so the recogniser's `話…` arrives as two code points —
+            // stripping the ellipsis turned that column into a "single character" and the oversized
+            // gate below dropped the whole line.
+            val cleaned = line.text.trim()
+            if (cleaned.isEmpty()) return@filterNot false
+            val cpCount = cleaned.codePointCount(0, cleaned.length)
+            // KUN <--
             if (cpCount != 1) return@filterNot false
 
             val lineThickness = minOf(line.bbox.width, line.bbox.height)
