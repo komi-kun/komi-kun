@@ -100,6 +100,28 @@ class OcrBitmapDecoderTest {
         OcrBitmapDecoder.sampleSizeFor(4500, 6400, OcrImageFormat.JPEG) shouldBe 3
     }
 
+    // KUN -->
+    @Test
+    fun `an exif-rotated strip is measured by the decoder header, not the stored bounds`() {
+        // A landscape 12000x2000 strip tagged "rotate 90": the decoder applies the orientation, so the
+        // page decodes as a 2000x12000 strip. Measured on BitmapFactory's stored orientation it is an
+        // ordinary 24 MP page and samples at 3, which halves the strip's text; measured on the header
+        // the tall-strip bypass fires and it stays at native resolution.
+        val header = 2000 to 12000
+        val stored = 12000 to 2000
+        OcrBitmapDecoder.sampleSizeFor(header.first, header.second, OcrImageFormat.JPEG) shouldBe 1
+        OcrBitmapDecoder.sampleSizeFor(stored.first, stored.second, OcrImageFormat.JPEG) shouldBe 3
+
+        // The precedence the manager uses: the header wins, so a revert to bounds-first fails here.
+        samplingDimensions(header, stored, fallback = 1000) shouldBe header
+        // Bounds are the fallback for formats the decoder cannot open...
+        samplingDimensions(null, stored, fallback = 1000) shouldBe stored
+        // ...and only then the default, which the old code also used for unusable measurements.
+        samplingDimensions(null, null, fallback = 1000) shouldBe (1000 to 1000)
+        samplingDimensions(0 to 0, 0 to 0, fallback = 1000) shouldBe (1000 to 1000)
+    }
+    // KUN <--
+
     // ------------------------------------------------------------------ decoded size
 
     @Test

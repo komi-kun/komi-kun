@@ -197,3 +197,24 @@ object OcrBitmapDecoder {
     }
     // KUN <--
 }
+
+// KUN -->
+/**
+ * The page size a sampling decision must use: the decoder header ([header]) when it is usable, else
+ * the stored-orientation bounds ([stored]), else [fallback] on both axes.
+ *
+ * [ImageDecoder] applies the EXIF orientation while decoding, so its `width`/`height` are the
+ * dimensions the page is *decoded* at. `BitmapFactory`'s bounds report the stored orientation, so a
+ * 12000x2000 landscape strip tagged "rotate 90" measures 12000x2000 there but 2000x12000 here —
+ * and [OcrBitmapDecoder.sampleSizeFor]'s tall-strip bypass keys on that aspect ratio. Precedence is
+ * a pure function so it can be tested without a device decoder.
+ */
+internal fun samplingDimensions(
+    header: Pair<Int, Int>?,
+    stored: Pair<Int, Int>?,
+    fallback: Int,
+): Pair<Int, Int> {
+    val usable = { dims: Pair<Int, Int>? -> dims?.takeIf { (width, height) -> width > 0 && height > 0 } }
+    return usable(header) ?: usable(stored) ?: (fallback to fallback)
+}
+// KUN <--
