@@ -288,6 +288,39 @@ class ReaderActivity : BaseActivity() {
     var isScrollingThroughPages = false
         private set
 
+    // KUN -->
+    /**
+     * Called when a chapter is opened while this reader instance still exists.
+     *
+     * This activity is `singleTask` and [newIntent] adds `FLAG_ACTIVITY_CLEAR_TOP`, so opening a
+     * chapter while a reader task is alive (e.g. after tapping the manga title in the reader's
+     * toolbar and picking a chapter on the series page) brings the running reader forward instead
+     * of creating a new one, and the framework hands the intent here. Ignoring it, as the default
+     * does, answers the tap with the chapter the survivor was already on ("tap chapter 1, land on
+     * chapter 4"), so the request is forwarded to the view model, which opens it on the same path a
+     * fresh launch takes.
+     */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+
+        val target = ReaderSessionTarget(
+            mangaId = intent.getLongExtra("manga", -1L),
+            chapterId = intent.getLongExtra("chapter", -1L),
+            page = intent.getIntExtra("page", -1).takeUnless { it == -1 },
+        )
+        // Intents that carry no chapter (the `REMOTE_ACTION` filter, for one) are not requests.
+        if (!target.isValid) return
+
+        // Adopt the intent: `seedColorStatic()` reads the manga from it, and it is what a recreation
+        // starts from.
+        setIntent(intent)
+        // Whatever the dictionary popup was anchored to belongs to the chapter being left.
+        readerOcrHost.detach()
+
+        viewModel.openChapter(target)
+    }
+    // KUN <--
+
     /**
      * Called when the activity is created. Initializes the presenter and configuration.
      */

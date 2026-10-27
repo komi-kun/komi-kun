@@ -193,14 +193,35 @@ class ReaderViewModel(
     private val mutableState = MutableStateFlow(State())
     val state = mutableState.asStateFlow()
 
+    // KUN -->
     /**
-     * Ids of the manga and chapter the reader was launched with, taken from the activity intent.
+     * Ids of the manga and chapter this session was launched with, taken from the activity intent.
+     *
+     * Mutable and mirrored into the saved state: the activity is `singleTask`, so opening a chapter
+     * while a reader task still exists re-targets the running session ([openChapter]) instead of
+     * creating a new one, and a process-killed session has to come back on the target it was last
+     * given.
      */
-    val mangaId = savedState.get<Long>("manga") ?: -1L
-    private val initialChapterId = savedState.get<Long>("chapter") ?: -1L
+    var mangaId = savedState.get<Long>("manga") ?: -1L
+        private set(value) {
+            savedState["manga"] = value
+            field = value
+        }
+    private var initialChapterId = savedState.get<Long>("chapter") ?: -1L
+        private set(value) {
+            savedState["chapter"] = value
+            field = value
+        }
     // SY -->
-    private val initialPage = savedState.get<Int>("page")?.takeUnless { it == -1 }
+    // KUN -->
+    private var initialPage = savedState.get<Int>("page")?.takeUnless { it == -1 }
+        private set(value) {
+            savedState["page"] = value
+            field = value
+        }
+    // KUN <--
     // SY <--
+    // KUN <--
 
     val hasValidArgs = mangaId != -1L && initialChapterId != -1L
 
@@ -464,6 +485,11 @@ class ReaderViewModel(
     var incognitoMode: Boolean = false
     private val downloadAheadAmount = downloadPreferences.autoDownloadWhileReading.get()
 
+    // KUN -->
+    /** The chapter load in flight, so a re-targeted session does not race the one it replaces. */
+    private var initJob: Job? = null
+    // KUN <--
+
     init {
         // To save state
         state.map { it.viewerChapters?.currChapter }
@@ -502,7 +528,9 @@ class ReaderViewModel(
         // SY <--
 
         if (hasValidArgs) {
-            viewModelScope.launch { init() }
+            // KUN -->
+            initJob = viewModelScope.launch { init() }
+            // KUN <--
         }
     }
 
@@ -525,12 +553,54 @@ class ReaderViewModel(
         deletePendingChapters()
     }
 
+    // KUN -->
+    /**
+     * Opens the manga/chapter [target] an intent asked this **already running** session for
+     * (see `ReaderActivity.onNewIntent`).
+     *
+     * The activity is `singleTask` and its intent carries `FLAG_ACTIVITY_CLEAR_TOP`, so opening a
+     * chapter while a reader task still exists brings that reader forward instead of creating a new
+     * one. Dropping the intent there left the survivor showing the chapter it was opened with, so
+     * "tap chapter 1" landed on chapter 4. The request is served by re-running [init] against the
+     * new target — the same path a fresh launch takes — so chapter selection, the requested chapter
+     * being re-added when the manga's filters exclude it, and the page the chapter opens at all
+     * behave as on launch.
+     */
+    fun openChapter(target: ReaderSessionTarget) {
+        // An intent with no chapter (the `REMOTE_ACTION` filter, for one) is not a request.
+        if (!target.isValid) return
+
+        // Stop the load this session is in the middle of before the target below changes under it.
+        initJob?.cancel()
+
+        // Record the progress and history of the chapter being left before init swaps the chapters.
+        saveHistory()
+        restartReadTimer()
+
+        mangaId = target.mangaId
+        initialChapterId = target.chapterId
+        initialPage = target.page
+        // The new chapter opens at its own page, not at the page index of the chapter being left.
+        chapterPageIndex = -1
+
+        initJob = viewModelScope.launch { init(explicitRequest = true) }
+    }
+    // KUN <--
+
     /**
      * Initializes this presenter with the [mangaId] and [initialChapterId] the reader was launched
      * with. This method will fetch the manga from the database and initialize the initial chapter.
      * Failures are reported through [State.initError].
      */
-    private suspend fun init() {
+    // KUN -->
+    // [explicitRequest] is set when [openChapter] re-targeted a running session: the chapter that
+    // request named then wins over the last-read chapter the session recorded, where a restored
+    // session resumes the chapter it was reading (see [resolveChapterToOpen]).
+    private suspend fun init(explicitRequest: Boolean = false) {
+        // A re-targeted session starts this while the previous load may still be unwinding; the
+        // newer target wins, so an older load must not write the manga it was given over it.
+        val requestedMangaId = mangaId
+        // KUN <--
         withContext(Dispatchers.IO) {
             try {
                 val manga = getManga.await(mangaId) ?: error("Requested manga of id $mangaId not found")
@@ -560,6 +630,9 @@ class ReaderViewModel(
                 val relativeTime = uiPreferences.relativeTime.get()
                 val autoScrollFreq = readerPreferences.autoscrollInterval.get()
                 // SY <--
+                // KUN -->
+                if (mangaId != requestedMangaId) return@withContext
+                // KUN <--
                 mutableState.update {
                     it.copy(
                         manga = manga,
@@ -577,7 +650,9 @@ class ReaderViewModel(
                         // SY <--
                     )
                 }
-                if (chapterId == -1L) chapterId = initialChapterId
+                // KUN -->
+                chapterId = resolveChapterToOpen(initialChapterId, chapterId, explicitRequest)
+                // KUN <--
 
                 loader = ChapterLoader(
                     context = context,
