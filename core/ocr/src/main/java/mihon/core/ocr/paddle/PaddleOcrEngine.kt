@@ -208,7 +208,7 @@ class PaddleOcrEngine(
      * Last native init failure reason (e.g. a missing/mismatched `libonnxruntime.so`, or a failed
      * det/rec session), or a short placeholder when the shim does not expose it.
      *
-     * **Not active yet.** The pinned `ocr-models-v3` shim exports only
+     * **Not active yet.** The pinned `ocr-models-v5` shim exports only
      * `nativeInit`/`nativeProcess`/`nativeRelease`, so [nativeGetOrtError] always throws
      * [UnsatisfiedLinkError] and this returns its fallback. The shim's own `nativeInit` already logs
      * the real reason to logcat (`runtime=…`, e.g. `libonnxruntime.so not found`), which is the
@@ -593,7 +593,7 @@ class PaddleOcrEngine(
      * Human-readable reason the native engine's last init failed (the ORT error string), or "" when
      * unavailable.
      *
-     * **Forward-compatible stub.** The pinned `ocr-models-v3` shim does **not** export this symbol
+     * **Forward-compatible stub.** The pinned `ocr-models-v5` shim does **not** export this symbol
      * yet, so calling it throws [UnsatisfiedLinkError] (caught by [nativeOrtError]); it activates on
      * the next shim rebuild that adds the JNI getter (artifact-side work, see `ort-v6-migration.md`
      * §6 “Still open”). Until then the shim's `nativeInit` logcat line is the source of truth.

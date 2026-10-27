@@ -6,7 +6,7 @@ description: Build, publish and wire the PaddleOCR native artifact that :core:oc
 # Releasing the OCR native artifact
 
 `:core:ocr` uses **our own** Apache-2.0 PaddleOCR artifact — not the opaque zip Chimahon ships. It lives
-in the GitHub repo **`komi-kun/komi-kun-ocr-models`** (releases tagged like `ocr-models-v4`), and the
+in the GitHub repo **`komi-kun/komi-kun-ocr-models`** (releases tagged like `ocr-models-v5`), and the
 app fetches it at build time and verifies every SHA-256.
 
 ## What the artifact is
@@ -18,7 +18,9 @@ Two independent things live in `komi-kun/komi-kun-ocr-models`:
 | the **native artifact** (`libpaddle_ocr.so` + `libonnxruntime.so` + `libomp.so` and a copy of the models) | `core/ocr/paddle-manifest.json` | `ocr-models-vN` |
 | the **runtime model releases** the app's selection resolves to | `ModelRelease.kt` | one tag per detector × recogniser pair |
 
-Current native artifact: **`ocr-models-v4`** (ONNX Runtime + PP-OCRv6 small).
+Current native artifact: **`ocr-models-v5`** (ONNX Runtime + PP-OCRv6 small). `v5` is a **shim-only**
+rebuild over `ocr-models-v4`'s model bytes — the same ONNX models and runtime, with `libpaddle_ocr.so`
+taking the detector long side as a 7th `nativeProcess` argument (`maxSideLen`).
 
 The runtime releases are a 2×2 matrix. Every release publishes the **same file names** — the detector
 `ppocrv6_small_det.onnx` is shared by all four — so only the tag identifies the bytes:
