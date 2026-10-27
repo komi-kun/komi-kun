@@ -42,12 +42,13 @@ internal object OcrMergeGeometry {
     /**
      * Smaller/larger thickness needed to consider two boxes the same kind of text.
      *
-     * 0.556 was tried on the labelled pages: it recovered 12 of the 25 within-unit splits
-     * (25 -> 13) and looked text-neutral there, but a page-level diagnosis found it glues
-     * neighbouring bubbles together — a two-glyph column joined the bottom line of the bubble above
-     * through [sameLineFragment] at a thickness ratio of 0.6245 with a 48 px gutter, and the two
-     * bubbles were reported as one paragraph. [sameLineFragment] shares this ratio, so the cross-bubble
-     * join is what 0.65 prevents; [MAX_ADVANCE_OVERLAP] keeps its own relaxation.
+     * 0.556 was tried on the labelled pages: it recovered 12 of the 25 within-unit splits and looked
+     * text-neutral there, but a page-level diagnosis found it glues neighbouring bubbles together — a
+     * two-glyph column joined the bottom line of the bubble above through [sameLineFragment] at a
+     * thickness ratio of 0.6245 with a 48 px gutter, and the two bubbles were reported as one
+     * paragraph. [sameLineFragment] shares this ratio, so the cross-bubble join is what 0.65 prevents;
+     * it stays 0.65. The within-unit splits that were actually fixed came from [MAX_ADVANCE_OVERLAP]
+     * alone.
      */
     const val MIN_THICKNESS_RATIO = 0.65
     // KUN <--
@@ -67,10 +68,15 @@ internal object OcrMergeGeometry {
      * than one following the other. Same-row boxes must go through [sameLineFragment].
      * Relaxed from 0.35 to 0.45 to account for detector unclip expansion (1.40), and then to
      * 0.55 on the labelled pages: the expansion makes successive lines of one paragraph overlap by
-     * up to ~0.5 of the shorter box, and rejecting those was the other half of the within-unit
-     * splits (25 -> 13 in total for both constants), text-neutral on dialogue and train.
+     * up to ~0.5 of the shorter box, and rejecting those was what fixed the within-unit splits
+     * (25 -> 13), text-neutral on dialogue and train.
+     *
+     * **Shared, not re-stated.** The merger's within-paragraph ordering groups lines by this same
+     * threshold (`OwOCRMerger.sortLinesInParagraph`): a pair merged here at (0.45, 0.55] was still
+     * unioned there by a stale 0.45 literal, and the union was then ordered by row/column inside it,
+     * which inverts RTL columns and an indented first line.
      */
-    private const val MAX_ADVANCE_OVERLAP = 0.55
+    internal const val MAX_ADVANCE_OVERLAP = 0.55
 
     /** Overlap on the run axis needed for two boxes to count as successive lines. Relaxed from 0.5 to 0.4 for ragged lines. */
     private const val MIN_RUN_OVERLAP = 0.4
