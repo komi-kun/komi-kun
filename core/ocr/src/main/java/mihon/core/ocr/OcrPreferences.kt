@@ -119,8 +119,8 @@ class OcrPreferences(
     }
 
     /**
-     * The detector long side to use for a chunk whose long side is [longSide] page px: the resolved
-     * mode's request ([OcrDetResolution.limitFor], which applies the `Auto` rule per chunk).
+     * The detector long side to use for a page whose long side is [longSide] page px: the resolved
+     * mode's request ([OcrDetResolution.limitFor], which applies the `Auto` rule).
      *
      * No clamping: the shim's `nativeProcess` takes the limit as its `maxSideLen` argument, so the
      * request reaches the detector as-is (960/1280/1600).
@@ -289,8 +289,8 @@ data class OcrEngineTuning(
  * offer. This is the detector's long-side limit: the longest side a chunk is downscaled to before
  * detection, so it decides how many detector pixels a page's small text gets.
  *
- * [limitSide] is the fixed request, or `null` for [AUTO], which resolves per chunk from the chunk's
- * own long side ([limitFor]).
+ * [limitSide] is the fixed request, or `null` for [AUTO], which resolves from the page's own long
+ * side ([limitFor]) — once per page, so the 4 MP pre-shrink cannot move the detector frame.
  *
  * **Effective only while advanced tuning is on.** `OcrPreferences.effectiveTuning()` reports
  * [DEFAULT] whenever `pref_ocr_advanced_tuning` is off, exactly like the four threshold sliders, so a
@@ -306,18 +306,18 @@ enum class OcrDetResolution(val limitSide: Int?) {
     /** 1600 px long side. */
     VERY_HIGH(1600),
 
-    /** Per chunk: the smallest limit that still covers 60 % of the chunk's long side (capped at 1600). */
+    /** Per page: the smallest limit that still covers 60 % of the page's long side (capped at 1600). */
     AUTO(null),
     ;
 
     /**
-     * The detector long side to request for a chunk whose long side is [longSide] page px.
+     * The detector long side to request for a page whose long side is [longSide] page px.
      *
      * Fixed modes return their own [limitSide]. [AUTO] returns the smallest of
      * `{960, 1280, 1600}` that is `>= 60 %` of [longSide], capped at 1600 — i.e. the page is never
      * downscaled to less than 60 % of its own long side, but a huge page never asks for more than
      * 1600 either (`longSide = 2828 -> 1600`, `2385 -> 1600`, `2000 -> 1280`, `1600 -> 960`,
-     * `1000 -> 960`). A chunk whose long side is already at or below 960 therefore always maps to
+     * `1000 -> 960`). A page whose long side is already at or below 960 therefore always maps to
      * 960: there is nothing to gain from a bigger detector input on a page that small.
      */
     fun limitFor(longSide: Int): Int = limitSide ?: autoLimitFor(longSide)

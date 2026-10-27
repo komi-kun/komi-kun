@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // KUN -->
 // The detector-resolution setting is only real if the limit a page was prepared at reaches the
-// engine. `prepareForOcr` resolves it per chunk against the chunk's own long side (see
-// `ImageChunkingTest`), and this pins the next hop: `OcrManager.recognizePage` hands the chunk's
-// limit to `OcrEngine.recognize(bitmap, …)`. The failure this catches is the one the setting had
-// before: the engine was called without a limit, so every non-default mode silently ran at 960.
+// engine. `prepareForOcr` resolves it once from the page's own long side (see `ImageChunkingTest`),
+// and this pins the next hop: `OcrManager.recognizePage` hands the chunk's limit to
+// `OcrEngine.recognize(bitmap, …)`. The failure this catches is the one the setting had before: the
+// engine was called without a limit, so every non-default mode silently ran at 960.
 // KUN <--
 package mihon.core.ocr.cache
 

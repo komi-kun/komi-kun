@@ -288,9 +288,9 @@ class ImageChunkingTest {
 
     // KUN -->
     // ---------------------------------------------------------------------------------------
-    // Detector resolution is a per-chunk property now: the limit is resolved from each chunk's own
-    // long side and carried on the chunk, so 960/1280/1600 must all keep the frame contract and the
-    // limit must reach the engine rather than falling back to the shim's 960.
+    // Detector resolution is carried on the chunk: the limit is resolved once from the page's own
+    // long side and applied to every chunk, so 960/1280/1600 must all keep the frame contract and
+    // the limit must reach the engine rather than falling back to the shim's 960.
     // ---------------------------------------------------------------------------------------
 
     @Test
@@ -323,7 +323,7 @@ class ImageChunkingTest {
     }
 
     @Test
-    fun `prepareForOcr resolves the limit from each chunk's own long side`() {
+    fun `prepareForOcr resolves the limit once from the page and applies it to every chunk`() {
         mockkStatic(Bitmap::class)
         try {
             every {
@@ -334,16 +334,17 @@ class ImageChunkingTest {
             } answers { bitmapOf(arg(3), arg(4)) }
 
             // A 1910x2150 page (4.1 MP) is shrunk to the 4 MP budget and left untiled. Its own long
-            // side (2150) is the 1600 rung, but the chunk the detector gets is 2121 px long: `Auto`
-            // must therefore resolve to 1280 for the chunk. Resolving from the page — or keeping the
-            // pinned 960 — fails here.
+            // side (2150) is the 1600 rung, and the shrunk 1885x2121 chunk keeps it: re-resolving
+            // from the chunk would not move this one, but the frame contract is the page's, so the
+            // page is the only place the limit may come from (see the near-square 2134x1894 case in
+            // `the AUTO pre-shrink keeps the page's detector frame and does not drop a rung`).
             val shrunk = prepareForOcr(bitmapOf(1910, 2150), OcrDetResolution.AUTO).single()
             OcrDetResolution.AUTO.limitFor(2150) shouldBe 1600
             (shrunk.width to shrunk.height) shouldBe (1885 to 2121)
-            shrunk.detectorLimitSide shouldBe 1280
+            shrunk.detectorLimitSide shouldBe 1600
 
-            // A tiled page: every 2400 px tile carries the limit of its own long side, and the fixed
-            // modes reach it unattended (the old clamp pinned every chunk to 960).
+            // A tiled page: every 2400 px tile carries the page's limit, and the fixed modes reach it
+            // unattended (the old clamp pinned every chunk to 960).
             val tiledAuto = prepareForOcr(bitmapOf(2600, 1500), OcrDetResolution.AUTO)
             tiledAuto.map { it.width to it.height } shouldBe listOf(2400 to 1500, 2400 to 1500)
             tiledAuto.map { it.detectorLimitSide } shouldBe listOf(1600, 1600)
@@ -352,6 +353,55 @@ class ImageChunkingTest {
                 .map { it.detectorLimitSide } shouldBe listOf(1280, 1280)
             prepareForOcr(bitmapOf(2600, 1500), OcrDetResolution.DEFAULT)
                 .map { it.detectorLimitSide } shouldBe listOf(960, 960)
+        } finally {
+            unmockkStatic(Bitmap::class)
+        }
+    }
+
+    @Test
+    fun `the AUTO pre-shrink keeps the page's detector frame and does not drop a rung`() {
+        mockkStatic(Bitmap::class)
+        try {
+            every {
+                Bitmap.createScaledBitmap(any<Bitmap>(), any<Int>(), any<Int>(), any<Boolean>())
+            } answers { bitmapOf(secondArg(), arg(2)) }
+            every {
+                Bitmap.createBitmap(any<Bitmap>(), any<Int>(), any<Int>(), any<Int>(), any<Int>())
+            } answers { bitmapOf(arg(3), arg(4)) }
+
+            // A 2134x1894 page is ~4.04 MP and near square, so the 4 MP pre-shrink lands on
+            // 2122x1883 — across a ladder rung: the page's long side is the 1600 rung, the shrunk
+            // chunk's is the 1280 one (2134: 1600, 2122: 1280). Resolving the limit per chunk made
+            // the detector geometry depend on whether the budget ran, so this page read at
+            // 1600x1408 unbudgeted but 1280x1120 after the shrink.
+            val native = 2134 to 1894
+            val upscaled = (native.first * 4) to (native.second * 4)
+
+            for (detResolution in listOf(OcrDetResolution.AUTO, OcrDetResolution.VERY_HIGH)) {
+                val frames = listOf(native, upscaled).map { (width, height) ->
+                    val pageLimit = detResolution.limitFor(maxOf(width, height))
+                    val chunk = prepareForOcr(bitmapOf(width, height), detResolution).single()
+                    val frame = detectorFrame(chunk.width, chunk.height, chunk.detectorLimitSide)
+                    withClue("${width}x$height $detResolution -> ${chunk.width}x${chunk.height} @ ${chunk.detectorLimitSide} ($frame)") {
+                        // The chunk carries the page's rung, not the one its own shrunk size implies…
+                        chunk.detectorLimitSide shouldBe pageLimit
+                        // …so its frame is the frame the page has when no budget runs at all.
+                        frame shouldBe detectorFrame(width, height, pageLimit)
+                    }
+                    frame
+                }
+                withClue("$detResolution native vs 4x") {
+                    frames[0] shouldBe frames[1]
+                }
+            }
+
+            // Exact geometry of both views: the 1x page and its 4x upscale read at the 1600 rung.
+            val autoNative = prepareForOcr(bitmapOf(native.first, native.second), OcrDetResolution.AUTO).single()
+            detectorFrame(autoNative.width, autoNative.height, autoNative.detectorLimitSide) shouldBe
+                DetectorFrame(width = 1600, height = 1408)
+            // And the rung the shrunk chunk would have resolved on its own — the pre-fix frame.
+            OcrDetResolution.AUTO.limitFor(2122) shouldBe 1280
+            detectorFrame(2122, 1883, 1280) shouldBe DetectorFrame(width = 1280, height = 1120)
         } finally {
             unmockkStatic(Bitmap::class)
         }
