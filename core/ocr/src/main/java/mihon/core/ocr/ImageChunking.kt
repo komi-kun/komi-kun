@@ -49,6 +49,15 @@ data class ImageChunk(
     val globalY: Int,
     val fullWidth: Int,
     val fullHeight: Int,
+    // KUN -->
+    /**
+     * Detector long side this chunk must be recognised at, resolved by [prepareForOcr] from the
+     * chunk's **own** long side (after the 4 MP pre-shrink and the tiling) — never recomputed from a
+     * possibly-resized bitmap downstream. Defaults to [DETECTOR_LIMIT_SIDE] for chunks built outside
+     * [prepareForOcr] (the plain tiler, tests).
+     */
+    val detectorLimitSide: Int = DETECTOR_LIMIT_SIDE,
+    // KUN <--
 ) {
     // KUN -->
     constructor(
@@ -146,19 +155,19 @@ fun prepareForOcr(data: ByteArray): List<ImageChunk> {
 /**
  * Splits a page into the chunks the detector will see.
  *
- * [detResolution] is the user's detector-resolution mode; it is resolved here, against the page's
- * own long side, so `Auto` is decided from the real working size. The request is clamped by
- * [nativeDetectorLimit] to what the pinned native artefact applies, and the budget clamp then keeps
- * the frame that limit produces stable across upscales.
+ * [detResolution] is the user's detector-resolution mode. It is resolved twice, on purpose:
+ * once against the page's own long side, for the 4 MP pre-shrink (which must reproduce the frame
+ * the detector will produce), and then again **per produced chunk** against that chunk's own long
+ * side, which is what each chunk carries to the engine ([ImageChunk.detectorLimitSide]).
  */
 fun prepareForOcr(
     bitmap: Bitmap,
     detResolution: OcrDetResolution = OcrDetResolution.DEFAULT,
 ): List<ImageChunk> {
     // KUN -->
-    // The detector resolution the engine will really use for this page: `Auto` resolves from the
-    // page's long side, and the pinned native limit caps every mode (see nativeDetectorLimit).
-    val limitSide = nativeDetectorLimit(detResolution.limitFor(max(bitmap.width, bitmap.height)))
+    // The limit the pre-shrink must preserve the frame of: resolved from the source page's long
+    // side, because that is the size the page reaches the detector at if the shrink does not run.
+    val limitSide = detResolution.limitFor(max(bitmap.width, bitmap.height))
     // Normalise oversized single pages *before* deciding to tile. Webtoon strips
     // (very tall) keep the old path so their width is not squeezed away.
     val source = if (bitmap.height.toDouble() / bitmap.width <= WEBTOON_ASPECT_RATIO) {
@@ -194,13 +203,21 @@ fun prepareForOcr(
             )
         }
     }
+    // KUN -->
+    // Per-chunk limit: resolved from each chunk's *own* long side, after the pre-shrink and the
+    // tiling, so the engine is handed the limit that matches the bitmap it receives. `Auto` is
+    // therefore decided per chunk rather than from the page (a shrink can move a chunk off the
+    // page's rung), and a fixed mode still lands on the same value for every chunk.
+    val limitedChunks = chunks.map { chunk ->
+        chunk.copy(detectorLimitSide = detResolution.limitFor(max(chunk.width, chunk.height)))
+    }
     // Tiled chunks are independent copies; the single-chunk case owns `source`
     // itself, so only recycle when no chunk references it.
-    if (source !== bitmap && chunks.none { it.bitmap === source }) {
+    if (source !== bitmap && limitedChunks.none { it.bitmap === source }) {
         source.recycle()
     }
     // KUN <--
-    return chunks
+    return limitedChunks
 }
 
 // KUN -->
@@ -289,25 +306,12 @@ fun resizeToMaxPixels(
  * when the side already fits the limit).
  *
  * This is the **default** of the user-selectable detector resolution
- * ([OcrDetResolution.DEFAULT]); the frame helpers below take the limit as a parameter so a non-default
- * request is modelled (and eventually applied) instead of being hard-coded here.
+ * ([OcrDetResolution.DEFAULT]); every limit-consuming helper below takes it as a parameter, and
+ * [mihon.core.ocr.paddle.PaddleOcrEngine] passes the resolved 960/1280/1600 through to the shim's
+ * `maxSideLen` argument.
  */
 internal const val DETECTOR_LIMIT_SIDE = 960
 internal const val DETECTOR_SIDE_ALIGN = 32
-
-/**
- * The detector limit the **pinned native artefact** (`ocr-models-v4`) actually applies to a chunk.
- *
- * `libpaddle_ocr.so` builds its `Options` in `ocr_jni.cpp` and passes `max_side_len` to the engine
- * from `Options`' own default (`960`); `nativeProcess`'s signature carries the thresholds, the
- * furigana flag and the thread count only — there is no limit-side argument. A request above
- * [DETECTOR_LIMIT_SIDE] therefore cannot reach the detector yet, so it is clamped here rather than
- * being fed into the frame math: [budgetedResizeDims] predicts the frame the detector will really
- * produce, and predicting a bigger one would break the frame-preservation invariant the 4 MP clamp
- * exists for. Lifting the clamp is the one-line follow-up in the shim that exposes `max_side_len`;
- * nothing on this side needs to change then.
- */
-internal fun nativeDetectorLimit(requested: Int): Int = min(requested, DETECTOR_LIMIT_SIDE)
 
 /**
  * Distance kept, in detector pixels, from a 32-px bucket edge when a side is snapped into it. Only
@@ -319,8 +323,8 @@ private const val FRAME_EDGE_MARGIN_PX = 0.05
 internal data class DetectorFrame(val width: Int, val height: Int)
 
 /**
- * Detector input for a [width] x [height] chunk at [limitSide] (default: the pinned 960), replicated
- * from the native preprocess.
+ * Detector input for a [width] x [height] chunk at [limitSide] (default: [DETECTOR_LIMIT_SIDE]),
+ * replicated from the native preprocess.
  */
 internal fun detectorFrame(
     width: Int,
@@ -362,8 +366,9 @@ private fun alignedDetectorSide(side: Int, ratio: Double): Int =
  * within [maxTotalPixels]. Below [limitSide] there is no shared frame to preserve: the page is not
  * downscaled at all, so its detector input is just its own size rounded to 32 px.
  *
- * [limitSide] must be the limit the detector **really** applies (see [nativeDetectorLimit]); every
- * comparison below is against the frame that limit produces.
+ * [limitSide] must be the limit the detector **really** applies (see
+ * [OcrPreferences.effectiveDetectorLimit] and [ImageChunk.detectorLimitSide]); every comparison
+ * below is against the frame that limit produces.
  */
 internal fun budgetedResizeDims(
     width: Int,

@@ -120,11 +120,13 @@ class OcrPreferences(
 
     /**
      * The detector long side to use for a chunk whose long side is [longSide] page px: the resolved
-     * mode's request ([OcrDetResolution.limitFor], which applies the `Auto` rule per chunk) clamped
-     * by [nativeDetectorLimit] to what the pinned `libpaddle_ocr.so` actually applies.
+     * mode's request ([OcrDetResolution.limitFor], which applies the `Auto` rule per chunk).
+     *
+     * No clamping: the shim's `nativeProcess` takes the limit as its `maxSideLen` argument, so the
+     * request reaches the detector as-is (960/1280/1600).
      */
     fun effectiveDetectorLimit(longSide: Int): Int =
-        nativeDetectorLimit(effectiveTuning().detResolution.limitFor(longSide))
+        effectiveTuning().detResolution.limitFor(longSide)
 
     /**
      * Writes all five tuning preferences back to their built-in defaults (the settings screen's

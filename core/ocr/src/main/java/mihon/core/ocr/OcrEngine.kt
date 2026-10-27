@@ -14,5 +14,18 @@ import android.graphics.Bitmap
  */
 interface OcrEngine {
     suspend fun recognize(bytes: ByteArray, language: OcrLanguage): List<EngineLine>
-    suspend fun recognize(bitmap: Bitmap, language: OcrLanguage): List<EngineLine> = emptyList()
+
+    // KUN -->
+    /**
+     * Recognises one [bitmap] (a prepared page or a chunk) at detector long side
+     * [detectorLimitSide] — the value [mihon.core.ocr.ImageChunk.detectorLimitSide] carries, resolved
+     * from the chunk's own long side. Defaults to [DETECTOR_LIMIT_SIDE] for the whole-page callers
+     * that have no resolved limit.
+     */
+    suspend fun recognize(
+        bitmap: Bitmap,
+        language: OcrLanguage,
+        detectorLimitSide: Int = DETECTOR_LIMIT_SIDE,
+    ): List<EngineLine> = emptyList()
+    // KUN <--
 }
