@@ -355,8 +355,8 @@ class PaddleOcrEngine(
      * permit (see [recognize]); takes [lock] briefly for lazy init, which
      * never waits on permits, so no deadlock is possible.
      *
-     * [detectorLimitSide] is the detector long side the caller resolved (a chunk's own limit, or the
-     * page's on the whole-page path) and goes straight to the shim's `maxSideLen`.
+     * [detectorLimitSide] is the detector long side the caller resolved (the page's limit, which
+     * `prepareForOcr` carries on every chunk) and goes straight to the shim's `maxSideLen`.
      */
     private fun recognizeLocked(
         bitmap: Bitmap,

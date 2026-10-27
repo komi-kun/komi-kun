@@ -51,10 +51,10 @@ data class ImageChunk(
     val fullHeight: Int,
     // KUN -->
     /**
-     * Detector long side this chunk must be recognised at, resolved by [prepareForOcr] from the
-     * chunk's **own** long side (after the 4 MP pre-shrink and the tiling) — never recomputed from a
-     * possibly-resized bitmap downstream. Defaults to [DETECTOR_LIMIT_SIDE] for chunks built outside
-     * [prepareForOcr] (the plain tiler, tests).
+     * Detector long side this chunk must be recognised at, resolved by [prepareForOcr] **once from
+     * the source page's** long side and carried unchanged through the 4 MP pre-shrink and the
+     * tiling — never recomputed from a possibly-resized bitmap downstream. Defaults to
+     * [DETECTOR_LIMIT_SIDE] for chunks built outside [prepareForOcr] (the plain tiler, tests).
      */
     val detectorLimitSide: Int = DETECTOR_LIMIT_SIDE,
     // KUN <--
@@ -155,10 +155,13 @@ fun prepareForOcr(data: ByteArray): List<ImageChunk> {
 /**
  * Splits a page into the chunks the detector will see.
  *
- * [detResolution] is the user's detector-resolution mode. It is resolved twice, on purpose:
- * once against the page's own long side, for the 4 MP pre-shrink (which must reproduce the frame
- * the detector will produce), and then again **per produced chunk** against that chunk's own long
- * side, which is what each chunk carries to the engine ([ImageChunk.detectorLimitSide]).
+ * [detResolution] is the user's detector-resolution mode, resolved **once** against the page's own
+ * long side and then applied to every chunk ([ImageChunk.detectorLimitSide]). That single
+ * resolution is what keeps the frame independent of the budget: the 4 MP pre-shrink reproduces the
+ * frame of the page at that limit, and a chunk carries the same limit down to the engine. Resolving
+ * per chunk instead let the shrink decide the geometry — a 2134x1894 page is the 1600 rung, but its
+ * pre-shrunk 2122x1883 chunk resolves to 1280, so the same page read at 1600x1408 unbudgeted and
+ * 1280x1120 after the shrink.
  */
 fun prepareForOcr(
     bitmap: Bitmap,
@@ -167,6 +170,7 @@ fun prepareForOcr(
     // KUN -->
     // The limit the pre-shrink must preserve the frame of: resolved from the source page's long
     // side, because that is the size the page reaches the detector at if the shrink does not run.
+    // The same value is applied to every chunk below, so the budget cannot move the frame.
     val limitSide = detResolution.limitFor(max(bitmap.width, bitmap.height))
     // Normalise oversized single pages *before* deciding to tile. Webtoon strips
     // (very tall) keep the old path so their width is not squeezed away.
@@ -204,12 +208,12 @@ fun prepareForOcr(
         }
     }
     // KUN -->
-    // Per-chunk limit: resolved from each chunk's *own* long side, after the pre-shrink and the
-    // tiling, so the engine is handed the limit that matches the bitmap it receives. `Auto` is
-    // therefore decided per chunk rather than from the page (a shrink can move a chunk off the
-    // page's rung), and a fixed mode still lands on the same value for every chunk.
+    // The page-resolved limit, applied to every chunk: the pre-shrink preserves the page's frame at
+    // exactly this limit, so a chunk must never re-resolve it from a possibly-shrunk own long side
+    // (that is what made the frame depend on whether the 4 MP budget ran). A fixed mode resolves to
+    // the same value for every chunk regardless.
     val limitedChunks = chunks.map { chunk ->
-        chunk.copy(detectorLimitSide = detResolution.limitFor(max(chunk.width, chunk.height)))
+        chunk.copy(detectorLimitSide = limitSide)
     }
     // Tiled chunks are independent copies; the single-chunk case owns `source`
     // itself, so only recycle when no chunk references it.
