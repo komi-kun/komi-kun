@@ -22,13 +22,19 @@ internal class EpubPageLoader(private val reader: EpubReader) : PageLoader() {
 
     override suspend fun getPages(): List<ReaderPage> {
         // KUN -->
-        // The enumeration itself reads the mapped buffer: `getImagesFromPages` opens the container,
-        // the package document and **every** spine page's xhtml through `getInputStream`, and
-        // `ChapterLoader.loadChapter` publishes this loader before awaiting `getPages`, so a
+        // One guarded hold per archive read, never one for the whole spine: `getPages` opens the
+        // container, the package document and **every** spine page's xhtml through `getInputStream`,
+        // and `ChapterLoader.loadChapter` publishes this loader before awaiting `getPages`, so a
         // preloaded neighbour that is recycled mid-enumeration used to enumerate a freed mapping.
-        // `EpubReader` exposes that as one opaque call, so the call is the hold: the wait a
-        // `recycle()` can see here is one EPUB page list (one parse pass), never a page stream.
-        val paths = archiveReads.read { reader.getImagesFromPages() }
+        // `recycle()` (which takes the write lock and unmaps, on the main thread) therefore waits for
+        // one step — one header/entry read — instead of for a whole EPUB's page list; the spine
+        // extraction in between parses an already-read document and touches no archive entry.
+        val packageHref = archiveReads.read { reader.getPackageHref() }
+        val packageDocument = archiveReads.read { reader.getPackageDocument(packageHref) }
+        val spine = reader.getPagesFromDocument(packageDocument)
+        val paths = spine.flatMap { page ->
+            archiveReads.read { reader.getPageImagePaths(page, packageHref) }
+        }
         // KUN <--
         return paths.mapIndexed { i, path ->
             // KUN --> guarded: this stream is read later, from any thread.
