@@ -32,6 +32,19 @@ class OcrLineMergerTest {
         language = language,
     )
 
+    // KUN -->
+    /** Three same-orientation dialogue columns, so the page's median column thickness is 0.038. */
+    private fun dialogueColumns(): List<EngineLine> = listOf(
+        line("おはよう", 0.70, 0.10, 0.738, 0.30, direction = WritingDirection.TTB),
+        line("ございます", 0.65, 0.10, 0.688, 0.30, direction = WritingDirection.TTB),
+        line("きょうも", 0.60, 0.10, 0.638, 0.30, direction = WritingDirection.TTB),
+    )
+
+    /** [text] as a vertical column 0.115 wide (1.55x the dialogue median) with no neighbour. */
+    private fun isolatedOversizedColumn(text: String): EngineLine =
+        line(text, 0.20, 0.10, 0.315, 0.30, direction = WritingDirection.TTB)
+    // KUN <--
+
     @Test
     fun `stacked horizontal lines merge into one ordered block`() {
         val merger = OwOCRMerger()
@@ -404,6 +417,40 @@ class OcrLineMergerTest {
         // "心" and "出" must be dropped, while dialogue and "あ" are kept
         val allLines = blocks.flatMap { it.lines }
         allLines shouldBe listOf("おはよう", "ございます", "きょうも", "あ")
+    }
+
+    @Test
+    fun `isolated oversized column read as one character plus an ellipsis is kept`() {
+        val merger = OwOCRMerger()
+        val blocks = merger.merge(dialogueColumns() + isolatedOversizedColumn("話…"), imageW = 1000, imageH = 1000)
+
+        // `話…` is two characters on the cleaned transcript, so the one-character SFX rule does not
+        // apply at all; the line survives as its own block.
+        blocks.flatMap { it.lines } shouldBe listOf("おはよう", "ございます", "きょうも", "話…")
+    }
+
+    @Test
+    fun `isolated oversized single kanji is still dropped`() {
+        val merger = OwOCRMerger()
+        val blocks = merger.merge(dialogueColumns() + isolatedOversizedColumn("話"), imageW = 1000, imageH = 1000)
+
+        blocks.flatMap { it.lines } shouldBe listOf("おはよう", "ございます", "きょうも")
+    }
+
+    @Test
+    fun `isolated oversized single katakana SFX is still dropped`() {
+        val merger = OwOCRMerger()
+        val blocks = merger.merge(dialogueColumns() + isolatedOversizedColumn("ド"), imageW = 1000, imageH = 1000)
+
+        blocks.flatMap { it.lines } shouldBe listOf("おはよう", "ございます", "きょうも")
+    }
+
+    @Test
+    fun `isolated oversized two-glyph line is unaffected`() {
+        val merger = OwOCRMerger()
+        val blocks = merger.merge(dialogueColumns() + isolatedOversizedColumn("はい"), imageW = 1000, imageH = 1000)
+
+        blocks.flatMap { it.lines } shouldBe listOf("おはよう", "ございます", "きょうも", "はい")
     }
 
     @Test
