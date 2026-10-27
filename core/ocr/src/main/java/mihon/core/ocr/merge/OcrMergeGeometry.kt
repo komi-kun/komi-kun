@@ -39,8 +39,16 @@ import kotlin.math.min
 internal object OcrMergeGeometry {
 
     // KUN -->
-    /** Smaller/larger thickness needed to consider two boxes the same kind of text. */
-    const val MIN_THICKNESS_RATIO = 0.65
+    /**
+     * Smaller/larger thickness needed to consider two boxes the same kind of text.
+     *
+     * Tuned on the labelled pages: the detector's unclip expansion routinely makes one line of a
+     * paragraph 0.6-0.65x its neighbour (a short line beside a tall one, a ruby-swallowing column),
+     * and 0.65 rejected those as different kinds of text, which split the paragraph into two units.
+     * 0.556 of the old value's slack recovered 12 of the 25 within-unit splits (25 -> 13) with
+     * dialogue CER -0.30 pp [-0.94, +0.00] and train +0.18 pp, i.e. text-neutral.
+     */
+    const val MIN_THICKNESS_RATIO = 0.556
     // KUN <--
 
     /** Widest whitespace gap (as a fraction of thickness) that can join two line fragments. */
@@ -56,9 +64,12 @@ internal object OcrMergeGeometry {
     /**
      * Overlap on the advance axis above which the boxes are on the same row/column rather
      * than one following the other. Same-row boxes must go through [sameLineFragment].
-     * Relaxed from 0.35 to 0.45 to account for detector unclip expansion (1.40).
+     * Relaxed from 0.35 to 0.45 to account for detector unclip expansion (1.40), and then to
+     * 0.55 on the labelled pages: the expansion makes successive lines of one paragraph overlap by
+     * up to ~0.5 of the shorter box, and rejecting those was the other half of the within-unit
+     * splits (25 -> 13 in total for both constants), text-neutral on dialogue and train.
      */
-    private const val MAX_ADVANCE_OVERLAP = 0.45
+    private const val MAX_ADVANCE_OVERLAP = 0.55
 
     /** Overlap on the run axis needed for two boxes to count as successive lines. Relaxed from 0.5 to 0.4 for ragged lines. */
     private const val MIN_RUN_OVERLAP = 0.4
