@@ -67,6 +67,39 @@ class OcrBitmapDecoderTest {
         OcrBitmapDecoder.sampleSizeFor(12000, 18000, OcrImageFormat.UNKNOWN) shouldBe 6
     }
 
+    // ------------------------------------------------------------------ webtoon strips
+
+    @Test
+    fun `a tall webtoon strip keeps native resolution whatever the format`() {
+        // The strip path tiles at native resolution, so a 4 MP pre-shrink would halve the text
+        // before the tiles are cut. Budget arithmetic alone would sample 800x20000 at 2 and
+        // 2000x30000 at 4, which is exactly the regression this guards.
+        OcrBitmapDecoder.sampleSizeFor(800, 20000, OcrImageFormat.JPEG) shouldBe 1
+        OcrBitmapDecoder.sampleSizeFor(800, 20000, OcrImageFormat.PNG) shouldBe 1
+        OcrBitmapDecoder.sampleSizeFor(800, 20000, OcrImageFormat.UNKNOWN) shouldBe 1
+        OcrBitmapDecoder.sampleSizeFor(2000, 30000, OcrImageFormat.JPEG) shouldBe 1
+        OcrBitmapDecoder.sampleSizeFor(2000, 30000, OcrImageFormat.PNG) shouldBe 1
+    }
+
+    @Test
+    fun `the strip rule is strictly greater than the ratio`() {
+        // Both pages are over the 4 MP budget, so only the ratio decides between them: 4.44 MP just
+        // over 3.0 is a strip, 4.32 MP at exactly 3.0 is an ordinary page and samples at 2.
+        OcrBitmapDecoder.sampleSizeFor(1200, 3700, OcrImageFormat.JPEG) shouldBe 1
+        OcrBitmapDecoder.sampleSizeFor(1200, 3600, OcrImageFormat.JPEG) shouldBe 2
+        // The brief's example at exactly 3.0: 48 MP samples at 4 on the budget path.
+        OcrBitmapDecoder.sampleSizeFor(4000, 12000, OcrImageFormat.JPEG) shouldBe 4
+        // 4000/3 = 1334 px wide and 12000/3 = 4000 px tall, i.e. 5.3 MP, inside the 8 MP guard.
+        OcrBitmapDecoder.sampleSizeFor(4000, 12000, OcrImageFormat.PNG) shouldBe 3
+    }
+
+    @Test
+    fun `an ordinary page still takes the budget path`() {
+        // Portrait pages below the strip ratio are unchanged by the rule.
+        OcrBitmapDecoder.sampleSizeFor(6000, 9000, OcrImageFormat.JPEG) shouldBe 4
+        OcrBitmapDecoder.sampleSizeFor(4500, 6400, OcrImageFormat.JPEG) shouldBe 3
+    }
+
     // ------------------------------------------------------------------ decoded size
 
     @Test
