@@ -143,7 +143,7 @@
 
   function appendSanitizedSvg(container, markup) {
     var root = parseSvgRoot(markup);
-    if (root && !isSvgRootElement(root)) {
+    if (!root || !isSvgRootElement(root)) {
       // Re-parse once with the root namespace declarations injected; only give up after that.
       root = parseSvgRoot(withSvgNamespaces(markup));
     }
