@@ -572,6 +572,139 @@ class ReaderOcrBlockLoaderTest {
     }
 
     /**
+     * Reading chapter A and then opening chapter B must leave **one** on-demand OCR session: A's
+     * page jobs still read A's archive (which the reader recycles on the chapter switch) and race B's
+     * session over the engine and the cache. Only `detach()` ended a session, and the reader switches
+     * chapter inside the same activity, so A's load used to run to completion beside B's.
+     *
+     * The first chapter's load is parked in `GetManga.await`; driving the second chapter's page must
+     * cancel it. The cancelled load is what the latch reports — an implementation that starts B
+     * beside A still calls `GetManga` twice, so only the cancellation proves the switch.
+     */
+    @Test
+    fun `opening another chapter cancels the previous chapter's on-demand load`(): Unit = runBlocking {
+        val chapterB = chapterModel.copy(id = 43L, name = "chapter-b", url = "url-b")
+        val pageB = ReaderPage(index = 0, url = "page-b").apply {
+            this.chapter = ReaderChapter(chapterB)
+        }
+        val firstCancelled = CountDownLatch(1)
+        coEvery { getManga.await(any()) } coAnswers {
+            if (awaitCalls.incrementAndGet() == 1) {
+                try {
+                    awaitCancellation()
+                } finally {
+                    firstCancelled.countDown()
+                }
+            } else {
+                null // chapter B is "not resolvable yet": enough to prove its load started
+            }
+        }
+        val loader = loader(loadTimeoutMs = LOAD_TIMEOUT_MS)
+
+        loader.ensureLoaded(listOf(page))
+        awaitSettled { awaitCalls.get() == 1 }
+
+        loader.ensureLoaded(listOf(pageB))
+
+        firstCancelled.await(2, TimeUnit.SECONDS) shouldBe true
+        awaitSettled { awaitCalls.get() == 2 }
+    }
+
+    /**
+     * The download-triggered queue is **not** on-demand work and must survive an on-demand chapter
+     * switch. Its only link to an open reader is `observeOcrQueue`, which collects the queue on the
+     * injected app-lifetime scope; cancelling that scope instead of the page-work scope would leave
+     * the queue running but the reader frozen (blocks the worker persists stop appearing).
+     *
+     * Chapter B's page is resolved and cached, the session switches to it, and then the queue
+     * advances for B — the observer must still be collecting, so it must invalidate the cache.
+     */
+    @Test
+    fun `a chapter switch leaves the download-triggered queue observer running`(): Unit = runBlocking {
+        // The queue is already OCRing chapter B (the download-triggered path) when the reader opens.
+        val queue = MutableStateFlow(
+            listOf(OcrQueueItem(mangaId = 7L, chapterId = 43L, progress = 0f, currentPage = 0, totalPages = 3)),
+        )
+        val subscribed = CountDownLatch(1)
+        val ocrManager = mockk<OcrManager>(relaxed = true) {
+            every { queueState } answers {
+                subscribed.countDown()
+                queue
+            }
+            every { sourceFor(any()) } returns ReaderOcrSource.PADDLE
+            every { cacheKey(any(), any(), any()) } returns OcrCacheKey(sourceId = 1L, mangaId = 7L, chapterId = 42L)
+        }
+        coEvery { ocrManager.cachedBlocks(any(), any(), any()) } returns null
+        coEvery { ocrManager.recognizeAndCache(any(), any(), any(), any(), any()) } returns listOf(block)
+        coEvery { getManga.await(any()) } returns Manga.create().copy(id = 7L, source = 1L)
+        page.stream = { ByteArrayInputStream(ByteArray(8)) }
+        val chapterB = chapterModel.copy(id = 43L, name = "chapter-b", url = "url-b")
+        val pageB = ReaderPage(index = 0, url = "page-b").apply {
+            this.chapter = ReaderChapter(chapterB)
+        }
+        pageB.stream = { ByteArrayInputStream(ByteArray(8)) }
+        val loader = loader(LOAD_TIMEOUT_MS, ocrManager = ocrManager)
+
+        // The observer is collecting (on the injected app-lifetime scope) before anything switches.
+        subscribed.await(2, TimeUnit.SECONDS) shouldBe true
+        delay(SETTLE_MS)
+
+        loader.ensureLoaded(listOf(page))
+        awaitSettled { loader.blocks.value.containsKey(page.ocrKey()) }
+
+        loader.ensureLoaded(listOf(pageB))
+        awaitSettled { loader.blocks.value.containsKey(pageB.ocrKey()) }
+
+        // The download-triggered queue advances for chapter B. A live observer invalidates the
+        // in-memory cache so the freshly persisted blocks are re-read by the open reader; a dead one
+        // never does, and the reader keeps showing the pre-switch result.
+        queue.value = listOf(OcrQueueItem(mangaId = 7L, chapterId = 43L, progress = 0.3f, currentPage = 1, totalPages = 3))
+        delay(SETTLE_MS)
+        queue.value = listOf(OcrQueueItem(mangaId = 7L, chapterId = 43L, progress = 0.6f, currentPage = 2, totalPages = 3))
+
+        awaitSettled { loader.blocks.value.isEmpty() }
+        loader.blocks.value shouldBe emptyMap<OcrPageKey, List<OcrTextBlock>>()
+    }
+
+    /**
+     * The last-wins rule must not fire on the session's **own** chapter: the reader re-drives
+     * `ensureLoaded` every frame with the visible pages and their neighbours, and a page turn inside
+     * the chapter drives new pages. An implementation that ends the session whenever it is driven
+     * cancels the load it just started, and OCR of the open chapter never completes.
+     */
+    @Test
+    fun `re-driving the same chapter does not cancel its own session`(): Unit = runBlocking {
+        val neighbour = ReaderPage(index = 4, url = "page-next").apply {
+            this.chapter = page.chapter
+        }
+        val firstCancelled = CountDownLatch(1)
+        coEvery { getManga.await(any()) } coAnswers {
+            awaitCalls.incrementAndGet()
+            try {
+                awaitCancellation()
+            } finally {
+                firstCancelled.countDown()
+            }
+        }
+        val loader = loader(loadTimeoutMs = LOAD_TIMEOUT_MS)
+
+        loader.ensureLoaded(listOf(page))
+        awaitSettled { awaitCalls.get() == 1 }
+
+        // A turn inside the same chapter, re-driven over a window (the per-frame driver).
+        awaitNoViolation(
+            drive = { loader.ensureLoaded(listOf(neighbour, page)) },
+            violation = { firstCancelled.count == 0L },
+            violationMessage = "a page turn inside the chapter cancelled the session it belongs to",
+        )
+        // Both pages are still owned by the same, still-live session.
+        awaitSettled { awaitCalls.get() == 2 }
+
+        loader.detach()
+        firstCancelled.await(2, TimeUnit.SECONDS) shouldBe true
+    }
+
+    /**
      * The negative twin of [awaitSettled]: re-runs [drive] for [windowMs] and fails the moment
      * [violation] holds, so a wrongly-started load is caught whenever it reaches its first suspension
      * point instead of only when it happens to win a fixed sleep. [windowMs] is a bound on how long
@@ -581,11 +714,12 @@ class ReaderOcrBlockLoaderTest {
         windowMs: Long = NEGATIVE_WINDOW_MS,
         drive: () -> Unit,
         violation: () -> Boolean,
+        violationMessage: String = "a page load reached GetManga while the redo was still in flight",
     ) {
         val deadline = System.currentTimeMillis() + windowMs
         while (true) {
             drive()
-            if (violation()) fail("a page load reached GetManga while the redo was still in flight")
+            if (violation()) fail(violationMessage)
             if (System.currentTimeMillis() >= deadline) return
             delay(10)
         }

@@ -133,11 +133,23 @@ class ReaderOcrBlockLoader(
      * `munmap`s (it no longer exists once a chapter is switched away or the reader is destroyed).
      * A load launched on the app-lifetime [scope] therefore outlives the archive it reads and used to
      * fault inside libarchive (`SIGSEGV`/`SEGV_MAPERR` in `archive_read_open1`, which no `catch` can
-     * handle — the mapped range is simply gone). This scope is cancelled by [detach], and replaced
-     * so the next reader session still has live work.
+     * handle — the mapped range is simply gone). This scope is cancelled and replaced by
+     * [endSession] — when the reader goes away, and when the reader opens another chapter — so the
+     * next session still has live work.
      */
     @Volatile
     private var work: CoroutineScope = newWorkScope()
+
+    /**
+     * The chapter the current **on-demand** session belongs to, or [NO_CHAPTER] when no session is
+     * running. Exactly one on-demand session exists at a time: the reader is one session per chapter,
+     * so a drive for a different chapter ends the previous one (see [beginSessionFor]).
+     *
+     * Only written from the session entry points, which are main-thread ([ensureLoaded], [redoOcr])
+     * and from [detach].
+     */
+    @Volatile
+    private var sessionChapterId: Long = NO_CHAPTER
 
     /**
      * The in-flight job of each page, so a forced re-run ([redoOcr]) can cancel the load it
@@ -157,15 +169,51 @@ class ReaderOcrBlockLoader(
      * The loader stays usable ([ensureLoaded] afterwards runs on a fresh scope) because it is an
      * app-graph singleton shared by every reader session.
      */
-    fun detach() {
+    fun detach() = endSession()
+
+    /**
+     * Ends the current on-demand session: cancels its page/redo jobs (they read the chapter archive,
+     * which the reader recycles as soon as it leaves that chapter) and drops what they accumulated.
+     * The loader stays usable, because the next drive gets a fresh scope.
+     *
+     * Only [work] is cancelled — never the injected app-lifetime [scope], which also carries
+     * [observeOcrQueue]. The background queue (the download-triggered path) is not part of the
+     * on-demand session and must keep running and keep updating an open reader.
+     */
+    private fun endSession() {
         val previous = work
         work = newWorkScope()
+        sessionChapterId = NO_CHAPTER
         previous.cancel()
         jobs.clear()
         inFlight.clear()
         retryAfter.clear()
         timeoutLogged.clear()
         _blocks.update { emptyMap() }
+    }
+
+    /**
+     * Makes the chapter of [pages] the one on-demand session, ending the previous one when those
+     * pages belong to a **different** chapter.
+     *
+     * This is the last-wins rule: the reader switches chapter inside the same activity (next chapter,
+     * chapter dialog, a re-entry through `onNewIntent`), and nothing used to stop the chapter being
+     * left from finishing its OCR — its page jobs kept reading the archive the reader had already
+     * recycled, and raced the new chapter's session over the engine and the cache.
+     *
+     * A drive for the session's own chapter — the per-frame re-drive of the visible pages and their
+     * neighbours, a page turn inside the chapter, opening the same chapter again — is not a new
+     * session: cancelling there would cancel the very loads the drive is about to need.
+     */
+    private fun beginSessionFor(pages: List<ReaderPage>) {
+        val chapterIds = pages.mapNotNullTo(LinkedHashSet()) { page ->
+            page.chapter.chapter.id.takeIf { it > 0L }
+        }
+        // A chapter that is still on screen keeps the session alive even beside another chapter's
+        // pages: the reader has not left it yet.
+        if (chapterIds.isEmpty() || sessionChapterId in chapterIds) return
+        endSession()
+        sessionChapterId = chapterIds.first()
     }
     // KUN <--
 
@@ -179,6 +227,9 @@ class ReaderOcrBlockLoader(
     fun ensureLoaded(pages: List<ReaderPage>) {
         // KUN --> gate at the work entry: no sidecar/cache/engine reads while the feature is off.
         if (!dictionaryOcrPreferences.isEnabled()) return
+        // KUN <--
+        // KUN --> last-wins: pages from a chapter other than the session's start a new session.
+        beginSessionFor(pages)
         // KUN <--
         val now = System.nanoTime()
         pages.forEach { page ->
@@ -367,6 +418,10 @@ class ReaderOcrBlockLoader(
             onComplete?.invoke(RedoOcrResult.NOTHING_TO_REDO)
             return
         }
+        // KUN <--
+        // KUN --> A forced re-run is on-demand work too: it starts (or joins) the chapter's session,
+        // so a re-run of a chapter the reader has left is cancelled like any other on-demand load.
+        beginSessionFor(listOf(page))
         // KUN <--
         work.launch {
             val pagesToRedo = if (chapter) {
@@ -566,6 +621,9 @@ class ReaderOcrBlockLoader(
 
     private companion object {
         private val DEFAULT_LANGUAGE = OcrLanguage.JAPANESE
+
+        /** No on-demand session has been started (chapter ids are row ids, so always positive). */
+        private const val NO_CHAPTER = 0L
 
         /** Minimum gap between retries of a page that is not resolvable yet (bounds DB/disk churn). */
         private const val RETRY_INTERVAL_NANOS = 1_000_000_000L
