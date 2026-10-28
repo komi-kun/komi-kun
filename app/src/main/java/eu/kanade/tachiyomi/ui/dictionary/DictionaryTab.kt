@@ -242,11 +242,26 @@ data object DictionaryTab : Tab {
                 keyboardActions = KeyboardActions(onSearch = { search(textFieldValue.text) }),
             )
             Box(modifier = Modifier.weight(1f)) {
+                // KUN -->
+                // A first-run tab (no dictionary installed) or a query with no hits used to render a
+                // blank surface because the placeholder was hard-coded to ""; share the popup's
+                // three-state decision instead. Kanji frames carry entry JSONs but no term results.
+                val activeFrame = frame
+                val placeholder = dictionaryPlaceholder(
+                    hasDictionaries = getDictionaryPaths(context, profile).hasAnyDictionaries(),
+                    loading = loading,
+                    query = activeFrame?.query,
+                    hasContent = activeFrame != null &&
+                        (activeFrame.results.isNotEmpty() || !activeFrame.entryJsons.isNullOrEmpty()),
+                )
+                // KUN <--
                 DictionaryEntryWebView(
                     results = frame?.results.orEmpty(),
                     styles = frame?.styles.orEmpty(),
                     mediaDataUris = frame?.mediaDataUris.orEmpty(),
-                    placeholder = "",
+                    // KUN --> A real empty state instead of the hard-coded "".
+                    placeholder = placeholder.text(),
+                    // KUN <--
                     activeProfile = profile,
                     // KUN -->
                     fontSize = prefs.fontSize().get(),

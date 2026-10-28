@@ -32,6 +32,7 @@ import eu.kanade.tachiyomi.ui.dictionary.DictionaryImportOutcome
 import eu.kanade.tachiyomi.ui.dictionary.DictionaryManagementScreen
 import eu.kanade.tachiyomi.ui.dictionary.DictionaryPopupSizing
 import eu.kanade.tachiyomi.ui.dictionary.DictionaryPreferences
+import eu.kanade.tachiyomi.ui.dictionary.ImportedDictionary
 import eu.kanade.tachiyomi.ui.dictionary.YomitanSettingsApplier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -96,7 +97,7 @@ object SettingsDictionaryScreen : SearchableSettings {
         var refresh by remember { mutableIntStateOf(0) }
 
         var rawProfiles by remember { mutableStateOf(prefs.rawProfiles().get()) }
-        var importMessage by remember { mutableStateOf<String?>(null) }
+        var imported by remember { mutableStateOf<ImportedDictionary?>(null) }
         var importFailure by remember { mutableStateOf<DictionaryImportFailure?>(null) }
         var settingsMessage by remember { mutableStateOf<String?>(null) }
         var pendingSettings by remember { mutableStateOf<YomitanSettingsImport?>(null) }
@@ -126,10 +127,9 @@ object SettingsDictionaryScreen : SearchableSettings {
                             DictionaryImportCoordinator.importFromUri(context, uri, prefs, repository)
                         }
                     }
-                    importMessage = outcomes.filterIsInstance<DictionaryImportOutcome.Imported>()
+                    imported = outcomes.filterIsInstance<DictionaryImportOutcome.Imported>()
                         .lastOrNull()
                         ?.dictionary
-                        ?.title
                     importFailure = outcomes.filterIsInstance<DictionaryImportOutcome.Failed>()
                         .firstOrNull()
                         ?.reason
@@ -263,9 +263,24 @@ object SettingsDictionaryScreen : SearchableSettings {
                         ),
                     )
                     // KUN <--
-                    importMessage?.let { message ->
-                        add(Preference.PreferenceItem.TextPreference(title = message))
+                    // KUN -->
+                    imported?.let { dictionary ->
+                        add(
+                            Preference.PreferenceItem.TextPreference(
+                                title = stringResource(
+                                    KUNMR.strings.pref_import_dictionary_success,
+                                    dictionary.termCount,
+                                    dictionary.freqCount + dictionary.pitchCount + dictionary.kanjiCount,
+                                    dictionary.mediaCount,
+                                ),
+                                subtitle = dictionary.title,
+                                // Tapping the row clears it, as on the management screen
+                                // (`clearImportMessage`): the confirmation is transient.
+                                onClick = { imported = null },
+                            ),
+                        )
                     }
+                    // KUN <--
                     // A failed import says why, in the same transient row as the success message.
                     importFailure?.let { failure ->
                         add(Preference.PreferenceItem.TextPreference(title = stringResource(failure.message)))
@@ -411,32 +426,6 @@ object SettingsDictionaryScreen : SearchableSettings {
                     Preference.PreferenceItem.TextPreference(
                         title = stringResource(KUNMR.strings.pref_dict_custom_css),
                         subtitle = stringResource(KUNMR.strings.pref_dict_custom_css_summary),
-                    ),
-                ),
-            ),
-        )
-        // KUN <--
-    }
-
-    /** Anki mining group — phase 6 stub (02 §5.1). Wired in the Anki wave. */
-    @Composable
-    fun ankiPreferences(): List<Preference> {
-        // KUN -->
-        // Anki mining is part of the same immersion feature: the group is gated on the master switch,
-        // which stays on the two ungated screens (this one is hidden while the feature is off).
-        val context = LocalContext.current
-        val dictionaryOcrPreferences = remember(context) { context.appGraph.dictionaryOcrPreferences }
-        val featureEnabled by dictionaryOcrPreferences.enabled.collectAsState()
-        return listOf(
-            Preference.PreferenceGroup(
-                title = stringResource(KUNMR.strings.pref_category_anki),
-                // KUN -->
-                visible = featureEnabled,
-                // KUN <--
-                preferenceItems = listOf(
-                    Preference.PreferenceItem.TextPreference(
-                        title = stringResource(KUNMR.strings.pref_anki_settings_summary),
-                        subtitle = stringResource(KUNMR.strings.anki_not_configured),
                     ),
                 ),
             ),

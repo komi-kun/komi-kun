@@ -751,8 +751,27 @@ class DictionaryManagementViewModel(
         val importFailure: DictionaryImportFailure? = null,
     )
 
-    private val stateFlow = MutableStateFlow(loadData())
+    // KUN -->
+    // Loading reads every installed dictionary's `index.json`, so it must not run on the main
+    // thread from the constructor (the jank grew with the dictionary count). Start empty and fill
+    // in off the main thread; the transient import fields a concurrent action may already have set
+    // are preserved rather than overwritten by the initial load.
+    private val stateFlow = MutableStateFlow(State())
     val state: StateFlow<State> = stateFlow
+
+    init {
+        viewModelScope.launch(Dispatchers.IO) {
+            val loaded = loadData()
+            stateFlow.update { current ->
+                loaded.copy(
+                    isImporting = current.isImporting,
+                    importMessage = current.importMessage,
+                    importFailure = current.importFailure,
+                )
+            }
+        }
+    }
+    // KUN <--
 
     private fun loadData(
         isImporting: Boolean = false,

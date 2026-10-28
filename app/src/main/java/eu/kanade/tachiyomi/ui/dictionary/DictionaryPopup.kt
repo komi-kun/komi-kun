@@ -233,17 +233,14 @@ fun DictionaryPopup(
     // KUN <--
 
     // A visible empty state instead of a blank/black box: distinguish "no dictionaries installed"
-    // from "this word is in no installed dictionary" (BUG 2a).
-    val hasDictionaries = getDictionaryPaths(context, profile).let {
-        it.termPaths.isNotEmpty() || it.freqPaths.isNotEmpty() ||
-            it.pitchPaths.isNotEmpty() || it.kanjiPaths.isNotEmpty()
-    }
-    val placeholder = when {
-        !hasDictionaries -> stringResource(KUNMR.strings.dictionary_no_dictionaries)
-        !loading && current != null && current.results.isEmpty() ->
-            stringResource(KUNMR.strings.dictionary_no_results, current.query)
-        else -> ""
-    }
+    // from "this word is in no installed dictionary" (BUG 2a). The decision itself is shared with
+    // the dictionary tab (`dictionaryPlaceholder`), so both surfaces state the same three things.
+    val placeholder = dictionaryPlaceholder(
+        hasDictionaries = getDictionaryPaths(context, profile).hasAnyDictionaries(),
+        loading = loading,
+        query = current?.query,
+        hasContent = current != null && current.results.isNotEmpty(),
+    ).text()
 
     val bg = MaterialTheme.colorScheme.surface
     val screenWidthPx = with(density) { configuration.screenWidthDp.dp.toPx() }
