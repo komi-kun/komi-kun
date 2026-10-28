@@ -14,7 +14,10 @@
 // the non-canonical IPv4 spellings (`127.1`, `2130706433`, `0x7f.0.0.1`) OkHttp leaves untouched.
 package mihon.core.dictionary.audio
 
+import okhttp3.Dns
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import java.net.InetAddress
+import java.net.UnknownHostException
 
 /**
  * Hard ceiling for one word-audio response body (4 MB). A pronunciation clip is tens of KB, so
@@ -52,9 +55,56 @@ internal fun isAllowedWordAudioUrl(url: String): Boolean {
     // did not understand — refuse it instead of letting it through as a name.
     if (host.contains(':')) return false
 
-    // A DNS name: only DNS could tell whether it points somewhere internal, and the audio fetch must
-    // not resolve names itself (see `AudioCache.audioHttpClient`). Public names are allowed.
+    // A DNS name: *this* check cannot tell what it points at, because only a resolver can — so the
+    // fetch itself re-checks every address the name resolves to (`globalOnlyDns`, installed on
+    // `AudioCache.audioHttpClient`). The name is accepted here, the answer is not: a name that
+    // resolves to loopback, LAN, link-local or a metadata endpoint is refused at fetch time, and so
+    // is a rebinding answer that mixes public and internal addresses.
     return true
+}
+
+/**
+ * Resolves names for the word-audio fetch and refuses any answer that is not entirely global
+ * unicast, so a DNS name (which [isAllowedWordAudioUrl] can only check textually) cannot reach
+ * loopback, a LAN host, link-local metadata (`169.254.169.254`), a unique-local IPv6 range or an
+ * IPv4-mapped internal address — including the classic rebinding answer that is public on the
+ * lookup the policy would have done and internal by the time the connection is made: the fence
+ * runs on the same lookup OkHttp connects with, and a mixed answer is refused as a whole.
+ */
+internal fun globalOnlyDns(upstream: Dns = Dns.SYSTEM): Dns = GlobalOnlyDns(upstream)
+
+private class GlobalOnlyDns(private val upstream: Dns) : Dns {
+    override fun lookup(hostname: String): List<InetAddress> {
+        val addresses = upstream.lookup(hostname)
+        if (addresses.isEmpty()) throw UnknownHostException("$hostname: no addresses")
+        if (addresses.any { !isGlobalAddress(it) }) {
+            throw UnknownHostException("$hostname: refused, resolves outside the global unicast space")
+        }
+        return addresses
+    }
+}
+
+/**
+ * Whether [address] is in the global unicast space — the [InetAddress] form of [isGlobalIpv4] /
+ * [isGlobalIpv6], which the textual URL checks use. IPv4-mapped IPv6 addresses keep their IPv4
+ * classification, so `::ffff:127.0.0.1` is refused like `127.0.0.1`.
+ */
+internal fun isGlobalAddress(address: InetAddress): Boolean {
+    val bytes = address.address
+    return when (bytes.size) {
+        4 -> isGlobalIpv4(
+            ((bytes[0].toInt() and 0xff) shl 24) or
+                ((bytes[1].toInt() and 0xff) shl 16) or
+                ((bytes[2].toInt() and 0xff) shl 8) or
+                (bytes[3].toInt() and 0xff),
+        )
+        16 -> isGlobalIpv6(
+            IntArray(8) { group ->
+                ((bytes[group * 2].toInt() and 0xff) shl 8) or (bytes[group * 2 + 1].toInt() and 0xff)
+            },
+        )
+        else -> false
+    }
 }
 
 private val BLOCKED_HOST_NAMES = setOf("localhost")

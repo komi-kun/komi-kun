@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package mihon.core.dictionary.audio
 
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
+import okhttp3.Dns
 import org.junit.jupiter.api.Test
+import java.net.InetAddress
+import java.net.UnknownHostException
 
 /**
  * The renderer (and therefore any markup it is tricked into running) can call `WordAudioBridge` with
@@ -86,4 +90,46 @@ class WordAudioUrlPolicyTest {
         isAllowedWordAudioUrl("http://user:pass@example.com/audio.mp3") shouldBe false
         isAllowedWordAudioUrl("https://cdn.jisho.org@169.254.169.254/audio.mp3") shouldBe false
     }
+
+    /**
+     * The DNS half of the fence. A name passes the string check (nothing about `http://evil.example`
+     * is internal), so the address is what has to be judged — at fetch time, on the lookup the
+     * connection actually uses, or a rebinding name (public when checked, loopback when connected)
+     * reaches the app's own network stack.
+     */
+    @Test
+    fun `the fetch fence refuses a name that resolves to loopback, metadata or a LAN address`() {
+        // Loopback in both families, and the metadata endpoint rebinding is normally aimed at.
+        shouldThrow<UnknownHostException> { dnsResolvingTo("127.0.0.1").lookup("evil.example") }
+        shouldThrow<UnknownHostException> { dnsResolvingTo("::1").lookup("evil.example") }
+        shouldThrow<UnknownHostException> { dnsResolvingTo("169.254.169.254").lookup("evil.example") }
+        // RFC 1918, CGNAT and IPv6 unique-local.
+        shouldThrow<UnknownHostException> { dnsResolvingTo("10.0.0.5").lookup("evil.example") }
+        shouldThrow<UnknownHostException> { dnsResolvingTo("192.168.1.1").lookup("evil.example") }
+        shouldThrow<UnknownHostException> { dnsResolvingTo("100.64.0.1").lookup("evil.example") }
+        shouldThrow<UnknownHostException> { dnsResolvingTo("fd12:3456::1").lookup("evil.example") }
+        // An IPv4-mapped internal address is the same address.
+        shouldThrow<UnknownHostException> { dnsResolvingTo("::ffff:127.0.0.1").lookup("evil.example") }
+    }
+
+    /** A rebinding answer: one public address is not enough to make the whole answer public. */
+    @Test
+    fun `a mixed answer is refused even when it also holds a public address`() {
+        shouldThrow<UnknownHostException> {
+            dnsResolvingTo("93.184.216.34", "127.0.0.1").lookup("rebind.example")
+        }
+    }
+
+    @Test
+    fun `a public name proceeds and keeps every address`() {
+        dnsResolvingTo("93.184.216.34", "2001:4860:4860::8888").lookup("cdn.jisho.org") shouldBe
+            listOf(InetAddress.getByName("93.184.216.34"), InetAddress.getByName("2001:4860:4860::8888"))
+    }
+
+    /** A resolver stub: the classification of the *answer* is what is under test, not DNS itself. */
+    private fun dnsResolvingTo(vararg literals: String): Dns = globalOnlyDns(
+        object : Dns {
+            override fun lookup(hostname: String): List<InetAddress> = literals.map { InetAddress.getByName(it) }
+        },
+    )
 }

@@ -137,8 +137,10 @@ object AudioCache {
 
     /**
      * [client] with redirect-following switched off, so every request the page influences stays on
-     * the host the [isAllowedWordAudioUrl] fence approved. Derived clients share the connection pool
-     * and dispatcher of [client]; the derivation is cached per source client.
+     * the host the [isAllowedWordAudioUrl] fence approved, and with [globalOnlyDns] as its resolver,
+     * so a host name that answers with loopback, LAN, link-local, metadata or rebinding addresses is
+     * refused at fetch time rather than merely at parse time. Derived clients share the connection
+     * pool and dispatcher of [client]; the derivation is cached per source client.
      */
     internal fun audioHttpClient(client: OkHttpClient): OkHttpClient {
         val cached = noRedirectClient
@@ -146,6 +148,7 @@ object AudioCache {
         val derived = client.newBuilder()
             .followRedirects(false)
             .followSslRedirects(false)
+            .dns(globalOnlyDns())
             .build()
         noRedirectClient = client to derived
         return derived

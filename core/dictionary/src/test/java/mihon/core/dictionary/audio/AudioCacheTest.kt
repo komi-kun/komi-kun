@@ -2,6 +2,7 @@
 // KUN -->
 package mihon.core.dictionary.audio
 
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import okhttp3.OkHttpClient
@@ -9,6 +10,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
+import java.net.UnknownHostException
 
 class AudioCacheTest {
 
@@ -140,6 +142,18 @@ class AudioCacheTest {
         base.followRedirects shouldBe true
         // Derivation is cached, so repeated downloads do not rebuild a client per call.
         (AudioCache.audioHttpClient(base) === audioClient) shouldBe true
+    }
+
+    /**
+     * The textual URL fence cannot know where a *name* points, so the fetch resolves through its own
+     * fence. `localhost` is the one name every JVM resolves without a network, and the system
+     * resolver answers it with loopback — a client whose DNS is not the fence would return it.
+     */
+    @Test
+    fun `audio fetch client refuses a name that resolves to loopback`() {
+        val audioClient = AudioCache.audioHttpClient(OkHttpClient())
+
+        shouldThrow<UnknownHostException> { audioClient.dns.lookup("localhost") }
     }
 
     @Test
