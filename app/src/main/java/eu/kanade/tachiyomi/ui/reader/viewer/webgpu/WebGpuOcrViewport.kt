@@ -213,7 +213,8 @@ class WebGpuOcrViewport(
                 listOf(imagePage)
             }
             for (leaf in leaves) {
-                val r = state.rectOf(leaf) ?: continue
+                // Same rect source as the draw/hit-test path: it folds the live page-turn offset in.
+                val r = pagedSurfaceRect(leaf) ?: continue
                 if (nx in r[0]..r[2] && ny in r[1]..r[3]) return leaf
             }
         }

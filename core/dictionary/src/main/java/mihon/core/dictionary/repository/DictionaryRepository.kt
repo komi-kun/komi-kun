@@ -68,6 +68,10 @@ class DictionaryRepository(
      * True while the user has not opted into the dictionary/OCR features. Every public entry point
      * that would import, open a session, look up or read media is a no-op in that state, so the
      * engine is never touched (and no stale result is served) before the user enables it.
+     *
+     * [close] and [withDictionaryTreeMutation] are deliberately *not* gated: turning the feature off
+     * must still release an open native session and must still let the dictionary tree be replaced
+     * or deleted, so opting out can never strand a heap-pinned session or a half-managed install.
      */
     private fun dictionaryDisabled(): Boolean = !dictionaryOcr.isEnabled()
     // KUN <--

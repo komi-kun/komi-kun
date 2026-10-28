@@ -268,7 +268,13 @@ class SsivOcrViewport(
      * slack), so a block in the lower region forces a zoom; that is the common paged case.
      */
     override fun fitBlockAbove(rect: RectF, lowerFraction: Float): Boolean {
-        val holder = holderProvider() ?: return false
+        // During a page turn more than one holder is laid out; fit the one that actually draws the
+        // looked-up block. The point→page mapping is the same one used for hit-testing, so the fit
+        // follows the same rect source instead of assuming the first holder.
+        val blockPage = screenToImageNormalized(rect.centerX(), rect.centerY())?.page
+        val holder = holdersProvider().firstOrNull { it.page === blockPage || it.extraOcrPage() === blockPage }
+            ?: holdersProvider().firstOrNull()
+            ?: return false
         val ssiv = holder.ocrSubsamplingImageView() ?: return false
         if (!ssiv.isReady || ssiv.sWidth <= 0 || ssiv.sHeight <= 0) return false
         val overlayHeight = overlayView.height.toFloat()

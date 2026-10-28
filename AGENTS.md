@@ -269,7 +269,6 @@ Rules:
 - A field number in the 10000 range costs a 3-byte tag instead of 1-2, which is negligible next to the payload, and backups are gzipped.
 
 ---
-
 ## Extensions & sources
 
 - Catalog sources: installable APK extensions (not in this repo).
@@ -324,7 +323,7 @@ Gradle `-P` flags (`buildSrc/src/main/kotlin/mihon/buildlogic/BuildConfig.kt`):
 **Workflows** (`.github/workflows/`):
 - `build_pull_request.yml` – PR validation: dependency review → wrapper validation → `spotlessCheck` → `assembleNightly` → `testDebugUnitTest` → APK signing (authorized forks)
 - `build_push.yml` – push to `master`: full build + signing
-- `build_nightly.yml` – **the release path**: manual dispatch on `master` → signed `assembleNightly -Pdist=ci` → a prerelease tagged `r<commit-count>` (5 APKs). See the `nightly-release` skill.
+- `build_nightly.yml` – **the release path**: manual dispatch on `master` → signed `assembleNightly -Pdist=ci` → a prerelease tagged `r<commit-count>` (4 APKs). See the `nightly-release` skill.
 - `build_release.yml` – optional `v*`-tag stable build; **dormant** (this fork ships nightlies only)
 - `build_benchmark.yml` – manual benchmark builder
 - `opencode_review.yml` – OpenCode automated PR review: runs on non-draft same-repo PR open / ready-for-review and on `/oc review` or `/opencode review` comments (no run on `synchronize`). It installs a **pinned OpenCode v2 CLI** (version + npm sha512, no `@latest` action) and runs `opencode run --format json` with the read-only `opencode-review` agent, so the model output is captured by the step and **no issue comment is created**. `.github/scripts/post_opencode_review.py` parses the JSONL stream and posts one `github-actions[bot]` review with a summary body (optionally Mermaid) and inline diff threads, falling back to the `opencode-repair` agent if the final message is malformed. The agent reads `build/opencode-review/pr.diff`; its step budget scales with PR size (50–120). Tooling PRs need the `review-tooling` label to self-review, and their parser tests run in a separate secret-free job. Agent definitions live in `.github/opencode-review/*.md`.
