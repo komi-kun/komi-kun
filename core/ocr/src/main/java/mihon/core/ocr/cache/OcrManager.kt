@@ -480,7 +480,18 @@ class OcrManager(
             // provider (a CBZ/zip open) must not happen after the feature was switched off.
             if (ocrDisabled()) break
             // KUN <--
-            val input = inputFor(next)
+            // KUN -->
+            // Resolving the chapter is the one call here that can throw (it opens the download, the
+            // archive and its page provider). Contained like the `null` branch below: the task is
+            // marked `ERROR` and the rest of the queue keeps running, instead of the exception
+            // leaving this `supervisorScope` — which left the task `PENDING` for the next launch while
+            // `OcrWorker` reported `Result.success()` and nothing retried.
+            val input = runCatching { inputFor(next) }.getOrElse { e ->
+                if (e is CancellationException) throw e
+                logcat(LogPriority.WARN, e) { "OcrManager: failed to resolve chapter ${next.chapterId}" }
+                null
+            }
+            // KUN <--
             if (input == null) {
                 logcat(LogPriority.WARN) { "OcrManager: cannot resolve chapter ${next.chapterId}" }
                 updateTask(next.chapterId) { it.copy(status = OcrQueueStatus.ERROR) }

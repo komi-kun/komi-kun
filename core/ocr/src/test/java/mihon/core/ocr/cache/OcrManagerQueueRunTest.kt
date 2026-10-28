@@ -132,6 +132,35 @@ class OcrManagerQueueRunTest {
         manager.isRunning shouldBe false
     }
 
+    @Test
+    fun `a chapter that cannot be resolved aborts only that task, not the run`() {
+        val entries = installQueue(
+            OcrTask(mangaId = MANGA, chapterId = CHAPTER, order = 0, waitForDownload = false),
+        )
+        coEvery { cacheManager.load(any(), any(), any()) } returns listOf(block)
+        val manager = OcrManager(
+            engine = engine,
+            merger = merger,
+            cacheManager = cacheManager,
+            store = store,
+            preferences = OcrPreferences(InMemoryPreferenceStore()),
+            dictionaryOcr = DictionaryOcrPreferences(InMemoryPreferenceStore()).apply { choose(true) },
+            scope = CoroutineScope(Dispatchers.Unconfined),
+        )
+
+        // `inputFor` is the app-side chapter/archive lookup, and it can throw (a broken download, an
+        // unreadable archive). The run must survive it: the task ends up `ERROR` and the runner
+        // returns, rather than the exception escaping `runPendingQueue` — which left the task
+        // `PENDING` while `OcrWorker` reported success, so nothing retried until the next launch.
+        runBlocking {
+            withTimeout(2_000) {
+                manager.runPendingQueue(inputFor = { throw IllegalStateException("archive is unreadable") })
+            }
+        }
+
+        entries.getValue(CHAPTER).status shouldBe OcrQueueStatus.ERROR
+    }
+
     private companion object {
         private const val SOURCE = 1L
         private const val MANGA = 2L
