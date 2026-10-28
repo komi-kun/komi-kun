@@ -19,6 +19,7 @@ import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
+import mihon.core.ocr.OcrPageData
 import mihon.core.ocr.model.OcrTextBlock
 import org.junit.jupiter.api.Test
 import java.io.File
@@ -64,6 +65,31 @@ class OcrCacheManagerTest {
             manager.hasData(key) shouldBe false
             manager.save(key, pageIndex = 0, blocks = blocks, language = "ja", variant = "paddle")
             manager.hasData(key) shouldBe true
+        }
+    }
+
+    /**
+     * The AUTOMATIC cache-key migration: after it, every page is written under a model-identity
+     * variant and every read passes one, so the unversioned `pages` map becomes unreachable — but it
+     * was kept in the JSON forever, doubling the file for the entire cache. A varianted write drops
+     * it, and dropping it is safe because nothing reads it once a variant is in use.
+     */
+    @Test
+    fun `a varianted write drops the unreachable unversioned page map`(): Unit = runBlocking {
+        withTimeout(TIMEOUT_MS) {
+            // A cache written before the migration: no variant, read back through `pages`.
+            manager.save(key, pageIndex = 0, blocks = blocks, language = "ja")
+            manager.load(key, pageIndex = 0) shouldBe blocks
+
+            // The first varianted write migrates the file: only the varianted page survives.
+            manager.save(key, pageIndex = 1, blocks = blocks, language = "ja", variant = "paddle-v2")
+
+            manager.load(key, pageIndex = 1, variant = "paddle-v2") shouldBe blocks
+            manager.load(key, pageIndex = 0, variant = "paddle-v2") shouldBe null
+            manager.load(key, pageIndex = 0) shouldBe null
+            val stored = Json.decodeFromString<OcrChapterData>(manager.internalCacheFile(key).readText())
+            stored.pages shouldBe emptyMap<Int, OcrPageData>()
+            stored.variants.keys shouldBe setOf("paddle-v2")
         }
     }
 

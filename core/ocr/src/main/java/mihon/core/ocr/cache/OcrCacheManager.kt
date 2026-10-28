@@ -232,5 +232,9 @@ private fun OcrChapterData.withPage(
 ): OcrChapterData {
     if (cacheVariant == null) return copy(pages = pages + (pageIndex to pageData))
     val variantPages = variants[cacheVariant].orEmpty() + (pageIndex to pageData)
-    return copy(variants = variants + (cacheVariant to variantPages))
+    // A varianted write means this chapter's cache is keyed by model identity from now on, and
+    // `pages` is only ever read with a *null* variant — so the unversioned map is unreachable from
+    // here on. Drop it instead of carrying a second copy of every pre-migration page in the file
+    // forever (the AUTOMATIC cache-key migration orphaned it exactly like that).
+    return copy(pages = emptyMap(), variants = variants + (cacheVariant to variantPages))
 }
