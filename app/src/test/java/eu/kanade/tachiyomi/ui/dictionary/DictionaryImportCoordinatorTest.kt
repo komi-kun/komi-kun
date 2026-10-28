@@ -38,6 +38,7 @@ import tachiyomi.core.common.preference.DictionaryOcrPreferences
 import tachiyomi.core.common.preference.InMemoryPreferenceStore
 import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.PreferenceStore
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
@@ -46,6 +47,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.zip.CRC32
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 import kotlin.concurrent.thread
@@ -187,6 +189,112 @@ class DictionaryImportCoordinatorTest {
         h.importedTypeDirs("term") shouldBe emptyList()
         File(h.context.getExternalFilesDir(null)!!, "evil").exists() shouldBe false
         File(h.context.cacheDir, "evil").exists() shouldBe false
+    }
+
+    /**
+     * The defect this pins: the pre-check read the title through `ZipFile.getEntry` — a hash lookup
+     * over the central directory — while the engine takes the *first* entry named `index.json`
+     * (`hoshidicts/src/zip/zip.cpp`, `Zip::find`). A ZIP carrying two `index.json` entries
+     * therefore made the two readers disagree: this check judged `{"title":"Safe"}` while the
+     * engine used `{"title":"../../evil"}`, and wrote and deleted outside the dictionary root.
+     * Neither order may be imported.
+     */
+    @Test
+    fun `a zip with two index json entries is refused in either order`() = runBlocking<Unit> {
+        val h = harness()
+        val externalRoot = h.context.getExternalFilesDir(null)!!
+
+        // (a) the engine's (first) entry is safe and the later duplicate is the traversal ...
+        val safeFirst = zipWithEntries(
+            "index.json" to """{"title":"Safe"}""",
+            "index.json" to """{"title":"../../evil"}""",
+        )
+        val firstOutcome = DictionaryImportCoordinator.importFromZip(h.context, safeFirst, h.prefs, h.repository)
+
+        // (b) ... and the other way round: whichever entry each reader picks, a ZIP the two cannot
+        // agree on is never handed to the engine.
+        val evilFirst = zipWithEntries(
+            "index.json" to """{"title":"../../evil"}""",
+            "index.json" to """{"title":"Safe"}""",
+        )
+        val secondOutcome = DictionaryImportCoordinator.importFromZip(h.context, evilFirst, h.prefs, h.repository)
+
+        firstOutcome shouldBe DictionaryImportOutcome.Failed(DictionaryImportFailure.InvalidDictionary)
+        secondOutcome shouldBe DictionaryImportOutcome.Failed(DictionaryImportFailure.InvalidDictionary)
+        // No title reached the engine, and nothing appeared outside the dictionary root.
+        h.engine.importCalls.get() shouldBe 0
+        File(externalRoot, "evil").exists() shouldBe false
+        h.importedTypeDirs("term") shouldBe emptyList()
+    }
+
+    /**
+     * The selection rule one level down: the fence works from exactly one `index.json` entry — the
+     * exact name the engine's `Zip::find` matches, never a lookalike — and a *repeated* entry is
+     * refused instead of one of the two being picked and hoped to be the one the engine picked.
+     * `java.util.zip` resolves entries by name, so re-introducing `ZipFile.getEntry` here makes a
+     * duplicate ZIP answer `Title(...)` again and this fails.
+     */
+    @Test
+    fun `the title fence reads the exact index json name and refuses a repeated one`() {
+        // A lookalike entry carrying a traversal title is not the title entry: the engine ignores it
+        // too, so the import is judged on `index.json` alone.
+        DictionaryImportCoordinator.readIndexTitle(
+            zipWithEntries(
+                "index.json" to """{"title":"$TITLE"}""",
+                "index.json.bak" to """{"title":"../../evil"}""",
+            ),
+        ) shouldBe DictionaryImportCoordinator.IndexTitleCheck.Title(TITLE)
+
+        // Two entries of the exact name: refused in either order, whatever the two titles are.
+        DictionaryImportCoordinator.readIndexTitle(
+            zipWithEntries(
+                "index.json" to """{"title":"Safe"}""",
+                "index.json" to """{"title":"../../evil"}""",
+            ),
+        ) shouldBe DictionaryImportCoordinator.IndexTitleCheck.Duplicate
+        DictionaryImportCoordinator.readIndexTitle(
+            zipWithEntries(
+                "index.json" to """{"title":"../../evil"}""",
+                "index.json" to """{"title":"Safe"}""",
+            ),
+        ) shouldBe DictionaryImportCoordinator.IndexTitleCheck.Duplicate
+    }
+
+    /**
+     * The read is capped: `index.json` is only consulted for `title`, so an entry large enough to
+     * make the fence read a whole file is refused instead of streamed into memory. It is also
+     * *refused* rather than skipped — an unreadable entry is not "nothing to judge".
+     */
+    @Test
+    fun `an index json larger than the read cap is refused instead of read`() = runBlocking<Unit> {
+        val h = harness()
+        val huge = """{"title":"Safe","padding":"${"x".repeat(16 * 1024)}"}"""
+
+        val outcome = DictionaryImportCoordinator.importFromZip(
+            h.context,
+            zipWithIndexTitle(huge),
+            h.prefs,
+            h.repository,
+        )
+
+        outcome shouldBe DictionaryImportOutcome.Failed(DictionaryImportFailure.InvalidDictionary)
+        h.engine.importCalls.get() shouldBe 0
+        // A normal-sized index.json still imports: the cap is generous, not a ban.
+        DictionaryImportCoordinator.importFromZip(
+            h.context,
+            zipWithIndexTitle("""{"title":"$TITLE"}"""),
+            h.prefs,
+            h.repository,
+        ) shouldBe DictionaryImportOutcome.Imported(
+            ImportedDictionary(
+                title = TITLE,
+                termCount = 1,
+                freqCount = 0,
+                pitchCount = 0,
+                kanjiCount = 0,
+                mediaCount = 0,
+            ),
+        )
     }
 
     /**
@@ -468,9 +576,91 @@ class DictionaryImportCoordinatorTest {
         return zip
     }
 
+    /**
+     * A stored (uncompressed) ZIP whose central directory lists [entries] in this order, duplicate
+     * names included: `ZipOutputStream` refuses to write the same name twice, so the bytes are laid
+     * out by hand — local headers, then the central directory, then the end record.
+     */
+    private fun zipWithEntries(vararg entries: Pair<String, String>): File {
+        val body = ByteArrayOutputStream()
+        val central = ByteArrayOutputStream()
+        for ((name, content) in entries) {
+            val data = content.toByteArray(Charsets.UTF_8)
+            val crc = CRC32().apply { update(data) }
+            val nameBytes = name.toByteArray(Charsets.UTF_8)
+            val offset = body.size()
+            body.le32(LOCAL_HEADER_SIG)
+            body.le16(ZIP_VERSION)
+            body.le16(0) // flags
+            body.le16(STORED_METHOD)
+            body.le16(0) // mod time
+            body.le16(0) // mod date
+            body.le32(crc.value.toInt())
+            body.le32(data.size)
+            body.le32(data.size)
+            body.le16(nameBytes.size)
+            body.le16(0) // extra field length
+            body.write(nameBytes)
+            body.write(data)
+
+            central.le32(CENTRAL_HEADER_SIG)
+            central.le16(ZIP_VERSION) // version made by
+            central.le16(ZIP_VERSION) // version needed
+            central.le16(0) // flags
+            central.le16(STORED_METHOD)
+            central.le16(0) // mod time
+            central.le16(0) // mod date
+            central.le32(crc.value.toInt())
+            central.le32(data.size)
+            central.le32(data.size)
+            central.le16(nameBytes.size)
+            central.le16(0) // extra field length
+            central.le16(0) // comment length
+            central.le16(0) // disk number start
+            central.le16(0) // internal attributes
+            central.le32(0) // external attributes
+            central.le32(offset)
+            central.write(nameBytes)
+        }
+        val end = ByteArrayOutputStream().apply {
+            le32(END_OF_CENTRAL_DIRECTORY_SIG)
+            le16(0) // this disk
+            le16(0) // disk with the central directory
+            le16(entries.size) // entries on this disk
+            le16(entries.size) // entries in total
+            le32(central.size())
+            le32(body.size()) // central directory offset
+            le16(0) // comment length
+        }
+        val zip = File(System.getProperty("java.io.tmpdir"), "dict-entries-${System.nanoTime()}.zip")
+        zip.outputStream().use { out ->
+            out.write(body.toByteArray())
+            out.write(central.toByteArray())
+            out.write(end.toByteArray())
+        }
+        return zip
+    }
+
+    private fun ByteArrayOutputStream.le16(value: Int) {
+        write(value and 0xff)
+        write((value ushr 8) and 0xff)
+    }
+
+    private fun ByteArrayOutputStream.le32(value: Int) {
+        le16(value and 0xffff)
+        le16((value ushr 16) and 0xffff)
+    }
+
     private companion object {
         const val TITLE = "TestDict"
         const val OLD_INDEX = """{"title":"Old Revision"}"""
+
+        // The three records a reader needs, little-endian, and the one method we write.
+        const val LOCAL_HEADER_SIG = 0x04034b50
+        const val CENTRAL_HEADER_SIG = 0x02014b50
+        const val END_OF_CENTRAL_DIRECTORY_SIG = 0x06054b50
+        const val ZIP_VERSION = 20
+        const val STORED_METHOD = 0
     }
 }
 

@@ -12,9 +12,11 @@ import mihon.core.dictionary.repository.DictionaryRepository
 import mihon.core.dictionary.ui.invalidateDictionaryTitle
 import org.json.JSONObject
 import tachiyomi.i18n.kun.KUNMR
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 
 /** One dictionary successfully imported through the engine + type-dir copy path. */
@@ -255,16 +257,86 @@ object DictionaryImportCoordinator {
      * Only a title we can actually read is judged: a file that is not a ZIP, has no `index.json`, or
      * whose `index.json` is not JSON is left to the engine, which rejects it before writing
      * anything — that keeps "InvalidDictionary" for corrupt input on the engine's side, as before.
+     * A repeated `index.json` and an entry that cannot be read within [MAX_INDEX_BYTES] are *not*
+     * "nothing to judge": those are refused, see [readIndexTitle].
      */
-    private fun hasUnsafeIndexTitle(zip: File): Boolean {
-        val title = runCatching {
-            ZipFile(zip).use { archive ->
-                val entry = archive.getEntry(INDEX_ENTRY) ?: return@use null
-                archive.getInputStream(entry).use { it.readBytes().toString(Charsets.UTF_8) }
-                    .let { JSONObject(it).optString("title", null) }
+    private fun hasUnsafeIndexTitle(zip: File): Boolean = when (val check = readIndexTitle(zip)) {
+        IndexTitleCheck.None -> false
+        IndexTitleCheck.Unreadable, IndexTitleCheck.Duplicate -> true
+        is IndexTitleCheck.Title -> isUnsafeTitle(check.value)
+    }
+
+    /**
+     * Reads the title out of [zip]'s `index.json` the way the engine reads it.
+     *
+     * * **Exact name, first match.** The engine's own ZIP reader scans the central directory and
+     *   returns the *first* entry whose name equals `index.json` (`hoshidicts/src/zip/zip.cpp`,
+     *   `Zip::find`), while [ZipFile] resolves an entry **by name**: with two `index.json` entries,
+     *   `getEntry` (and even `getInputStream`) answer the last one, so a ZIP like that made this
+     *   fence judge `{"title":"Safe"}` while the engine used `{"title":"../../evil"}` — and the
+     *   engine wrote and deleted outside the dictionary root. The title is therefore taken from the
+     *   first match of [ZipFile.entries] (central-directory order, as the engine scans) and any
+     *   repeated entry is reported as [IndexTitleCheck.Duplicate] and refused outright: with only
+     *   one entry both readers provably see the same bytes. No legitimate Yomitan dictionary ships
+     *   a duplicate.
+     * * **Bounded.** Only `title` is needed, so at most [MAX_INDEX_BYTES] are read; a longer or
+     *   unreadable entry is [IndexTitleCheck.Unreadable] rather than an unbounded read.
+     */
+    internal fun readIndexTitle(zip: File): IndexTitleCheck {
+        val archive = runCatching { ZipFile(zip) }.getOrNull() ?: return IndexTitleCheck.None
+        return archive.use { file ->
+            var first: ZipEntry? = null
+            var count = 0
+            for (entry in file.entries()) {
+                if (entry.name == INDEX_ENTRY) {
+                    if (first == null) first = entry
+                    count++
+                }
             }
-        }.getOrNull() ?: return false
-        return isUnsafeTitle(title)
+            // Refused before reading anything: the bytes behind the two entries are not the ones
+            // this fence would get back, so nothing about the archive can be trusted here.
+            if (count > 1) return@use IndexTitleCheck.Duplicate
+            val entry = first ?: return@use IndexTitleCheck.None
+            val text = readCapped(file, entry)?.toString(Charsets.UTF_8)
+                ?: return@use IndexTitleCheck.Unreadable
+            // Not JSON, or no title: the engine rejects such a file before it writes anything.
+            val title = runCatching { JSONObject(text).optString("title", null) }.getOrNull()
+                ?: return@use IndexTitleCheck.None
+            IndexTitleCheck.Title(title)
+        }
+    }
+
+    /** At most [MAX_INDEX_BYTES] of [entry]; `null` when it cannot be read or is longer. */
+    private fun readCapped(archive: ZipFile, entry: ZipEntry): ByteArray? = runCatching {
+        archive.getInputStream(entry).use { input ->
+            val out = ByteArrayOutputStream()
+            val chunk = ByteArray(1024)
+            var read = input.read(chunk)
+            while (read >= 0) {
+                out.write(chunk, 0, read)
+                if (out.size() > MAX_INDEX_BYTES) return@use null
+                read = input.read(chunk)
+            }
+            out.toByteArray()
+        }
+    }.getOrNull()
+
+    /** What [readIndexTitle] found in a dictionary ZIP. */
+    internal sealed interface IndexTitleCheck {
+        /** No `index.json` at all: nothing to judge, the engine rejects or imports the file. */
+        data object None : IndexTitleCheck
+
+        /** The entry exists but is longer than [MAX_INDEX_BYTES] or could not be read: refused. */
+        data object Unreadable : IndexTitleCheck
+
+        /**
+         * More than one entry is named `index.json`, so the fence and the engine cannot be trusted
+         * to read the same bytes — however the titles compare. Refused.
+         */
+        data object Duplicate : IndexTitleCheck
+
+        /** The single `index.json` title, and therefore the one the engine will use. */
+        data class Title(val value: String) : IndexTitleCheck
     }
 
     /**
@@ -328,5 +400,11 @@ object DictionaryImportCoordinator {
 
     /** The ZIP entry the engine takes the dictionary title from. */
     private const val INDEX_ENTRY = "index.json"
+
+    /**
+     * Cap on the `index.json` bytes the title fence reads. A Yomitan `index.json` only needs a
+     * `title`; a real one is well under a kilobyte, so a few KiB is generous and still bounded.
+     */
+    private const val MAX_INDEX_BYTES = 8 * 1024
 }
 // KUN <--
