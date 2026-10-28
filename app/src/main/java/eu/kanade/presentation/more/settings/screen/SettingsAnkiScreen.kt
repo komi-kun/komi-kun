@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // KUN -->
 // Real Anki mining settings (plan 05 §B5): profiles, deck/model selection, per-field mapping,
-// duplicate handling and screenshot mode. Uses existing KMR keys; the few enum *value* labels
-// that have no key (duplicate scope, screenshot FULL/CROP/NONE) fall back to literals (flagged in
-// the W5 report — add KMR keys if translations are wanted).
+// duplicate handling and screenshot mode. Every user-visible label comes from the `i18n-kun`
+// module (`KUNMR`); nothing here is a hardcoded literal, so all of it is translatable.
 package eu.kanade.presentation.more.settings.screen
 
 import android.content.Context
@@ -29,6 +28,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import eu.kanade.presentation.more.settings.Preference
+import exh.log.xLogE
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.buildJsonObject
@@ -72,6 +73,9 @@ object SettingsAnkiScreen : SearchableSettings {
     override fun isEnabled(): Boolean = Injekt.get<Context>().appGraph.dictionaryOcrPreferences.isEnabled()
     // KUN <--
 
+    /** Whether the AnkiDroid deck/model lists are still being queried, loaded, or failed to load. */
+    private enum class ListLoadState { LOADING, LOADED, FAILED }
+
     @Composable
     override fun getPreferences(): List<Preference> {
         val context = LocalContext.current
@@ -87,16 +91,44 @@ object SettingsAnkiScreen : SearchableSettings {
         var mappingDialogField by remember { mutableStateOf<String?>(null) }
         var mappingDialogValue by remember { mutableStateOf("") }
         var mappingDialogMode by remember { mutableStateOf("overwrite") }
+        // KUN -->
+        // The deck/model lists come from AnkiDroid through a ContentProvider, so they are not
+        // available synchronously and a query can fail. Keeping a tri-state stops an in-flight or
+        // failed load from looking like "this account has no decks" (an empty list).
+        var listLoadState by remember { mutableStateOf(ListLoadState.LOADING) }
+        var deleteProfileDialog by remember { mutableStateOf(false) }
+        // KUN <--
 
         LaunchedEffect(refresh) {
             prefs.migrateIfEmpty()
             installed = withContext(Dispatchers.IO) { bridge.isAnkiDroidInstalled() }
             permitted = bridge.hasPermission()
             if (installed && permitted) {
-                decks = bridge.deckNames()
-                models = bridge.modelNames()
-                val model = prefs.model().get()
-                modelFields = if (model.isNotBlank()) bridge.modelFieldNames(model) else emptyList()
+                // KUN -->
+                // Only a first (or empty/failed) load shows the loading row; a refresh after a
+                // successful load keeps the lists on screen instead of flashing "Loading…".
+                if (decks.isEmpty() && models.isEmpty()) {
+                    listLoadState = ListLoadState.LOADING
+                }
+                try {
+                    decks = bridge.deckNames()
+                    models = bridge.modelNames()
+                    val model = prefs.model().get()
+                    modelFields = if (model.isNotBlank()) bridge.modelFieldNames(model) else emptyList()
+                    listLoadState = ListLoadState.LOADED
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    xLogE("AnkiDroid deck/model query failed", e)
+                    listLoadState = ListLoadState.FAILED
+                }
+                // KUN <--
+            } else {
+                // Nothing to query: the "not installed" / "permission denied" rows explain it.
+                decks = emptyList()
+                models = emptyList()
+                modelFields = emptyList()
+                listLoadState = ListLoadState.LOADED
             }
         }
 
@@ -115,13 +147,7 @@ object SettingsAnkiScreen : SearchableSettings {
 
         if (mappingDialogField != null) {
             val field = mappingDialogField!!
-            val modeLabels = listOf(
-                "overwrite" to stringResource(KUNMR.strings.pref_anki_field_mode_overwrite),
-                "append" to stringResource(KUNMR.strings.pref_anki_field_mode_append),
-                "prepend" to stringResource(KUNMR.strings.pref_anki_field_mode_prepend),
-                "if_empty" to stringResource(KUNMR.strings.pref_anki_field_mode_if_empty),
-                "skip" to stringResource(KUNMR.strings.pref_anki_field_mode_skip),
-            )
+            val modeLabels = fieldModeLabels()
             AlertDialog(
                 onDismissRequest = { mappingDialogField = null },
                 title = { Text(text = field) },
@@ -179,12 +205,49 @@ object SettingsAnkiScreen : SearchableSettings {
             )
         }
 
+        // KUN -->
+        // Deleting a profile is irreversible (it drops the profile's field map and overwrite modes),
+        // so it goes through a confirmation that names the profile; `pref_anki_profile_delete_confirm`
+        // is the same "%s"-formatted string the dictionary screen pattern uses.
+        if (deleteProfileDialog) {
+            AlertDialog(
+                onDismissRequest = { deleteProfileDialog = false },
+                title = { Text(text = stringResource(MR.strings.action_delete)) },
+                text = { Text(text = stringResource(KUNMR.strings.pref_anki_profile_delete_confirm, activeProfile.name)) },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            if (prefs.profileStore.deleteProfile(activeProfile.id)) {
+                                prefs.writeFlatProfile(prefs.profileStore.getActiveProfile())
+                                refresh++
+                            }
+                            deleteProfileDialog = false
+                        },
+                    ) {
+                        Text(
+                            text = stringResource(MR.strings.action_delete),
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { deleteProfileDialog = false }) {
+                        Text(text = stringResource(MR.strings.action_cancel))
+                    }
+                },
+            )
+        }
+        // KUN <--
+
         return listOf(
             ankiStatusGroup(installed, permitted, prefs),
             profileGroup(
                 prefs = prefs,
                 activeProfile = activeProfile,
                 profileEntries = profileEntries,
+                // The store refuses to delete the last profile, so only ask when one can go.
+                canDelete = profileEntries.size > 1,
+                onDelete = { deleteProfileDialog = true },
                 onSwitch = { id ->
                     prefs.profileStore.setActiveProfile(id)
                     prefs.writeFlatProfile(prefs.profileStore.getActiveProfile())
@@ -199,6 +262,7 @@ object SettingsAnkiScreen : SearchableSettings {
                 modelFields = modelFields,
                 fieldMap = fieldMap,
                 overwriteModes = activeProfile.ankiFieldOverwriteModes,
+                listLoadState = listLoadState,
                 onEditField = { field ->
                     mappingDialogField = field
                     mappingDialogValue = fieldMap[field].orEmpty()
@@ -239,11 +303,18 @@ object SettingsAnkiScreen : SearchableSettings {
         prefs: AnkiPreferences,
         activeProfile: AnkiProfile,
         profileEntries: Map<String, String>,
+        canDelete: Boolean,
+        onDelete: () -> Unit,
         onSwitch: (String) -> Unit,
         onChanged: () -> Unit,
     ): Preference.PreferenceGroup = Preference.PreferenceGroup(
         title = stringResource(KUNMR.strings.pref_anki_profiles),
         preferenceItems = buildList {
+            // Resolved in the composable scope: `onClick` below is not one.
+            val newProfileName = stringResource(
+                KUNMR.strings.pref_anki_profile_default_name,
+                prefs.profiles().size + 1,
+            )
             add(
                 Preference.PreferenceItem.BasicListPreference(
                     value = activeProfile.id,
@@ -257,7 +328,7 @@ object SettingsAnkiScreen : SearchableSettings {
                 Preference.PreferenceItem.TextPreference(
                     title = stringResource(KUNMR.strings.pref_anki_profile_new),
                     onClick = {
-                        val profile = AnkiProfile.createDefault(defaultName = "Profile ${prefs.profiles().size + 1}")
+                        val profile = AnkiProfile.createDefault(defaultName = newProfileName)
                         prefs.profileStore.addProfile(profile)
                         prefs.writeFlatProfile(profile)
                         onChanged()
@@ -281,13 +352,14 @@ object SettingsAnkiScreen : SearchableSettings {
             add(
                 Preference.PreferenceItem.TextPreference(
                     title = stringResource(KUNMR.strings.pref_anki_profile_delete),
-                    subtitle = stringResource(KUNMR.strings.pref_anki_profile_cannot_delete_last),
-                    onClick = {
-                        if (prefs.profileStore.deleteProfile(activeProfile.id)) {
-                            prefs.writeFlatProfile(prefs.profileStore.getActiveProfile())
-                            onChanged()
-                        }
+                    // The "cannot delete the last profile" hint is true only while there is a single
+                    // profile; showing it unconditionally contradicted the working delete.
+                    subtitle = if (canDelete) {
+                        null
+                    } else {
+                        stringResource(KUNMR.strings.pref_anki_profile_cannot_delete_last)
                     },
+                    onClick = if (canDelete) onDelete else null,
                 ),
             )
         },
@@ -301,6 +373,7 @@ object SettingsAnkiScreen : SearchableSettings {
         modelFields: List<String>,
         fieldMap: Map<String, String>,
         overwriteModes: Map<String, String>,
+        listLoadState: ListLoadState,
         onEditField: (String) -> Unit,
         onChanged: () -> Unit,
     ): Preference.PreferenceGroup {
@@ -309,6 +382,23 @@ object SettingsAnkiScreen : SearchableSettings {
         return Preference.PreferenceGroup(
             title = stringResource(KUNMR.strings.pref_anki_settings_summary),
             preferenceItems = buildList {
+                // KUN -->
+                // An out-of-date/failed AnkiDroid query leaves the two lists empty, which the rows
+                // below would render as "Select deck" / "Select note type" — indistinguishable from
+                // an AnkiDroid with no decks at all. Surface the load itself instead; once it has
+                // loaded, an empty list really is empty.
+                if (listLoadState != ListLoadState.LOADED) {
+                    add(
+                        Preference.PreferenceItem.TextPreference(
+                            title = if (listLoadState == ListLoadState.LOADING) {
+                                stringResource(KUNMR.strings.pref_anki_loading)
+                            } else {
+                                stringResource(KUNMR.strings.pref_anki_load_failed)
+                            },
+                        ),
+                    )
+                }
+                // KUN <--
                 add(
                     Preference.PreferenceItem.BasicListPreference(
                         value = prefs.deck().get(),
@@ -345,11 +435,14 @@ object SettingsAnkiScreen : SearchableSettings {
                     ),
                 )
                 if (modelFields.isNotEmpty()) {
+                    val modeLabels = fieldModeLabels()
                     modelFields.forEach { field ->
                         val template = fieldMap[field].orEmpty()
                         val mode = overwriteModes[field] ?: "overwrite"
-                        val subtitle = if (mode != "overwrite") {
-                            if (template.isNotBlank()) "$template • [$mode]" else "[$mode]"
+                        // Render the mode's translated label, not its storage key ("[if_empty]").
+                        val modeLabel = modeLabels.firstOrNull { it.first.equals(mode, ignoreCase = true) }?.second
+                        val subtitle = if (modeLabel != null && !mode.equals("overwrite", ignoreCase = true)) {
+                            if (template.isNotBlank()) "$template • $modeLabel" else modeLabel
                         } else {
                             template
                         }
@@ -370,8 +463,11 @@ object SettingsAnkiScreen : SearchableSettings {
     private fun duplicateGroup(prefs: AnkiPreferences, onChanged: () -> Unit): Preference.PreferenceGroup {
         val scopeEntries = linkedMapOf(
             "deck" to stringResource(KUNMR.strings.pref_anki_deck),
-            "deck-root" to "${stringResource(KUNMR.strings.pref_anki_deck)} + children",
-            "collection" to "Collection",
+            "deck-root" to stringResource(
+                KUNMR.strings.pref_anki_duplicate_scope_deck_children,
+                stringResource(KUNMR.strings.pref_anki_deck),
+            ),
+            "collection" to stringResource(KUNMR.strings.pref_anki_duplicate_scope_collection),
         )
         val actionEntries = linkedMapOf(
             "prevent" to stringResource(KUNMR.strings.pref_anki_duplicate_prevent),
@@ -420,9 +516,9 @@ object SettingsAnkiScreen : SearchableSettings {
     @Composable
     private fun screenshotGroup(prefs: AnkiPreferences, onChanged: () -> Unit): Preference.PreferenceGroup {
         val modeEntries = linkedMapOf(
-            AnkiScreenshotMode.FULL.storageValue to "Full page",
-            AnkiScreenshotMode.CROP.storageValue to "Crop to panel",
-            AnkiScreenshotMode.NONE.storageValue to "No screenshot",
+            AnkiScreenshotMode.FULL.storageValue to stringResource(KUNMR.strings.pref_anki_screenshot_full),
+            AnkiScreenshotMode.CROP.storageValue to stringResource(KUNMR.strings.pref_anki_screenshot_crop),
+            AnkiScreenshotMode.NONE.storageValue to stringResource(KUNMR.strings.pref_anki_screenshot_none),
             AnkiScreenshotMode.ANIMATED_SCENE.storageValue to stringResource(KUNMR.strings.pref_anki_screenshot_animated_scene),
         )
         // KUN -->
@@ -460,6 +556,21 @@ object SettingsAnkiScreen : SearchableSettings {
             ),
         )
     }
+
+    /**
+     * The per-field duplicate update modes with their translated labels, in the order the chips
+     * show them. Shared by the mapping dialog and the field-row subtitle so the two can never
+     * disagree, and so no storage key ("if_empty") ever reaches the UI.
+     */
+    @Composable
+    @ReadOnlyComposable
+    private fun fieldModeLabels(): List<Pair<String, String>> = listOf(
+        "overwrite" to stringResource(KUNMR.strings.pref_anki_field_mode_overwrite),
+        "append" to stringResource(KUNMR.strings.pref_anki_field_mode_append),
+        "prepend" to stringResource(KUNMR.strings.pref_anki_field_mode_prepend),
+        "if_empty" to stringResource(KUNMR.strings.pref_anki_field_mode_if_empty),
+        "skip" to stringResource(KUNMR.strings.pref_anki_field_mode_skip),
+    )
 
     private fun mapToJson(map: Map<String, String>): String =
         map.entries.joinToString(prefix = "{", postfix = "}") { (key, value) ->

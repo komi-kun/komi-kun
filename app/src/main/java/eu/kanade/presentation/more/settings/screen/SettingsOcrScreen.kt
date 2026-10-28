@@ -39,8 +39,9 @@ import tachiyomi.presentation.core.util.collectAsState
  * OCR settings (contract §3.4, 03 §5.6). Owned by W3; W2 registers it in
  * `SettingsMainScreen`/`SettingsSearchScreen`.
  *
- * Only existing `KMR` keys are used. The settings/services are built from the app graph / default
- * `PreferenceStore` here rather than a ViewModel, since the screen is a stateless `SearchableSettings`.
+ * All user-visible text comes from the `i18n-kun` module (`KUNMR`). The settings/services are built
+ * from the app graph / default `PreferenceStore` here rather than a ViewModel, since the screen is a
+ * stateless `SearchableSettings`.
  *
  * **Single source of truth (fix B3).** The reader-facing display toggles bind to `ReaderPreferences`
  * (the same keys the GPL-free reader gates/draws from), while the queue/source policy binds to
@@ -92,7 +93,7 @@ object SettingsOcrScreen : SearchableSettings {
             // Surface the actual reason instead of a constant "Error" (F8).
             is ModelDownloadState.Failed -> stringResource(KUNMR.strings.ocr_status_error_reason, state.message)
             is ModelDownloadState.Downloading ->
-                stringResource(KUNMR.strings.ocr_running) + " (${state.downloaded}/${state.total})"
+                stringResource(KUNMR.strings.ocr_download_progress, state.downloaded, state.total)
             ModelDownloadState.Completed -> stringResource(KUNMR.strings.ocr_ready)
             ModelDownloadState.Idle ->
                 if (modelsReady) stringResource(KUNMR.strings.ocr_ready) else stringResource(KUNMR.strings.ocr_not_ready)
