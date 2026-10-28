@@ -147,9 +147,64 @@ class OcrManagerOptInTest {
         manager(enabled = false).markChapterDownloadFailed(CHAPTER) shouldBe true
 
         saved.single().status shouldBe OcrQueueStatus.ERROR
-        saved.single().waitForDownload shouldBe false
+        // Still flagged as waiting for the chapter: the task is `ERROR` because the *download*
+        // failed, and a later successful download has to be able to promote it.
+        saved.single().waitForDownload shouldBe true
         coVerify(exactly = 0) { engine.recognize(any<ByteArray>(), any()) }
         verify(exactly = 0) { store.enqueue(any()) }
+    }
+
+    /**
+     * The sequence the queue actually goes through when a download is retried: the first attempt
+     * fails (`WAITING_DOWNLOAD` → `ERROR`), the next one succeeds. Clearing `waitForDownload` on the
+     * failure made the promotion below impossible — `markChapterReadyForOcr` only promoted
+     * `WAITING_DOWNLOAD`, so the task stayed `ERROR` forever and the chapter was never OCR'd even
+     * though its files were on disk.
+     */
+    @Test
+    fun `a failed download is promoted again by the download that finally succeeds`() {
+        var entry = OcrTask(
+            mangaId = MANGA,
+            chapterId = CHAPTER,
+            order = 0,
+            waitForDownload = true,
+            status = OcrQueueStatus.WAITING_DOWNLOAD,
+        )
+        every { store.get(any()) } answers { entry }
+        every { store.save(any()) } answers { entry = firstArg() }
+        val manager = manager(enabled = true)
+
+        manager.markChapterDownloadFailed(CHAPTER) shouldBe true
+        entry.status shouldBe OcrQueueStatus.ERROR
+        entry.waitForDownload shouldBe true
+
+        // The retry succeeds: the ordinary download path promotes the task.
+        manager.markChapterReadyForOcr(CHAPTER) shouldBe true
+        entry.status shouldBe OcrQueueStatus.PENDING
+        entry.waitForDownload shouldBe false
+        entry.currentPage shouldBe 0
+        entry.totalPages shouldBe 0
+    }
+
+    /**
+     * The failure path is not a promotion: an `ERROR` task that is *not* waiting for a download is
+     * left alone (its chapter is on disk; retrying OCR is the user's call via [OcrManager.retryChapter]).
+     */
+    @Test
+    fun `a download failure does not touch a task that is not waiting for a download`() {
+        every { store.get(CHAPTER) } returns OcrTask(
+            mangaId = MANGA,
+            chapterId = CHAPTER,
+            order = 0,
+            waitForDownload = false,
+            status = OcrQueueStatus.ERROR,
+        )
+        val saved = mutableListOf<OcrTask>()
+        every { store.save(capture(saved)) } just Runs
+
+        manager(enabled = true).markChapterDownloadFailed(CHAPTER) shouldBe false
+
+        saved.shouldBeEmpty()
     }
 
     @Test

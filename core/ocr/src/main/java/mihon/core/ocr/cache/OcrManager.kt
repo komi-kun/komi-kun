@@ -109,7 +109,12 @@ class OcrManager(
 
     /**
      * KUN -->
-     * Promotes a downloaded WAITING_DOWNLOAD task to PENDING.
+     * Promotes a task whose chapter has finished downloading to PENDING.
+     *
+     * Promoted from `WAITING_DOWNLOAD`, and also from `ERROR` while [OcrTask.waitForDownload] is
+     * still set — a download that failed (or was retried by the user and then succeeded) leaves the
+     * task `ERROR` but still waiting for the chapter, so the next successful download must revive it
+     * instead of leaving it failed forever.
      *
      * Not opt-in gated: it only moves queue metadata, so a chapter that was queued while the
      * feature was on and finished downloading while it is off is not stranded as
@@ -117,7 +122,9 @@ class OcrManager(
      */
     fun markChapterReadyForOcr(chapterId: Long): Boolean {
         val current = store.get(chapterId) ?: return false
-        if (current.status != OcrQueueStatus.WAITING_DOWNLOAD) return false
+        val wasWaiting = current.status == OcrQueueStatus.WAITING_DOWNLOAD ||
+            (current.status == OcrQueueStatus.ERROR && current.waitForDownload)
+        if (!wasWaiting) return false
         store.save(
             current.copy(
                 waitForDownload = false,
@@ -137,11 +144,16 @@ class OcrManager(
      * Like [markChapterReadyForOcr] this is queue metadata only, so it stays available while the
      * feature is off — otherwise an enqueued task whose download failed would keep showing
      * `WAITING_DOWNLOAD` forever instead of becoming `ERROR`.
+     *
+     * [OcrTask.waitForDownload] is **kept**: the task is still waiting for its chapter, so a later
+     * successful download (the downloader's own retry, or the user re-downloading) promotes it via
+     * [markChapterReadyForOcr]. Clearing it here made that promotion impossible and stranded the
+     * chapter at `ERROR` even after the download eventually worked.
      */
     fun markChapterDownloadFailed(chapterId: Long): Boolean {
         val current = store.get(chapterId) ?: return false
         if (current.status != OcrQueueStatus.WAITING_DOWNLOAD) return false
-        store.save(current.copy(waitForDownload = false, status = OcrQueueStatus.ERROR, currentPage = 0, totalPages = 0))
+        store.save(current.copy(waitForDownload = true, status = OcrQueueStatus.ERROR, currentPage = 0, totalPages = 0))
         scope.launch { refreshQueueState() }
         return true
     }

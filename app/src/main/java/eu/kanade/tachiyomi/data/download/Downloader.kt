@@ -453,7 +453,9 @@ class Downloader(
             // KUN -->
             // A failed download must not leave its OCR task at WAITING_DOWNLOAD: nothing would ever
             // promote it, so record it as a retryable ERROR instead (queue metadata only, ungated —
-            // exactly like the promotion on the success path below).
+            // exactly like the promotion on the success path below). The task stays flagged as
+            // waiting for its chapter, so a later successful download of the same chapter promotes
+            // it through the same `markChapterReadyForOcr` call every other download makes.
             ocrManager.markChapterDownloadFailed(download.chapter.id)
             // KUN <--
             notifier.onError(e.message, download.chapter.name, download.manga.title, download.manga.id)
