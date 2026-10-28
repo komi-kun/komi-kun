@@ -164,21 +164,27 @@ a Gradle `Exec` task `verifyGplFree` in `:app`, so `./gradlew verifyGplFree` and
 creates both in W1 (§3.1); it is a gate every wave (§5). It scans **only the §1.3 file set**. The **seam list
 is hand-maintained** (the script's `SEAM_FILES` and this section); the **denied set is derived from the tree**:
 every `.kt`/`.kts` under the scanned source roots whose header carries `SPDX-License-Identifier: …GPL…`
-contributes its package and the fully qualified names of its top-level declarations (`class`/`interface`/
-`object`/`typealias`) and top-level `fun`/`val`/`var`. A §1.3 file fails when it:
+contributes its package and the fully qualified name of each of its **top-level** declarations and
+callables (`class`/`interface`/`object`/`typealias`, `fun`, `val`/`var`; nothing nested, no members).
+A §1.3 file fails when it:
 
 - **imports** a denied package or FQN;
-- **uses a GPL declaration of its own package** with no import and no qualifier — the package itself cannot be
-  denied wholesale, since a seam and its GPL `…Bindings` are siblings by design (§1.2);
-- **star-imports a mixed package** (`import a.b.*`) and uses one of that package's GPL declarations;
+- **spells a top-level GPL name of its own package** with no import and no qualifier — the package itself
+  cannot be denied wholesale, since a seam and its GPL `…Bindings` are siblings by design (§1.2);
+- **star-imports a mixed package** (`import a.b.*`) and spells one of that package's top-level GPL names
+  (types, functions and properties alike);
 - **uses a fully qualified GPL name** anywhere in the body, with no `import` line.
+
+The two name-only passes are a textual match on those identifiers in the seam's code (comments and
+string-literal text excluded), not a Kotlin resolution: they cannot tell a GPL name from a same-named
+local the seam declares itself, and they do not see a GPL member reached through an Apache type.
 
 Coarse seeds remain in the script — **deny prefixes**: `mihon.core.dictionary`, `mihon.core.ocr`,
 `mihon.dictionary`, `eu.kanade.tachiyomi.ui.reader.ocr`, `eu.kanade.tachiyomi.ui.reader.overlay`; **deny
 FQNs** for GPL types that live in otherwise-Apache packages; and **allowed FQNs** (Apache seam, §1.2):
 `mihon.dictionary.host.ReaderDictionaryHost`, `mihon.dictionary.host.DictionaryLookupRequest`,
 `eu.kanade.tachiyomi.ui.reader.ocr.OcrViewport`, `…ImagePoint`, `…OcrDisplayTransform`, `…ReaderOcrHost` — but a
-GPL declaration that none of them lists is still denied through its SPDX header. The same task runs the
+top-level GPL name that none of them lists is still denied through its SPDX header. The same task runs the
 guard's self-test (`scripts/test-verify-gpl-free.sh`, fixture tree `scripts/test-fixtures/gpl-free-guard/`),
 which asserts that every shape above fails and that a clean seam file passes.
 `tachiyomi.core.common.ocr.ReaderOcrSource` is Apache → never denied. Distinct seam/impl packages (§1.2) make

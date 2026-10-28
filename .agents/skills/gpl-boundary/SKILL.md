@@ -31,23 +31,30 @@ to **Komikku**. Details: `NOTICE`, `LICENSES/GPL-3.0-or-later.txt`, and the impl
 **only the §1.3 file set**. The **seam list is hand-maintained** (`SEAM_FILES` in the script + contract
 §1.3); the **deny side is derived from the tree**: every `.kt`/`.kts` under the scanned source roots
 whose first five lines carry `SPDX-License-Identifier: …GPL…` contributes its package and the fully
-qualified names of its top-level declarations (`class`/`interface`/`object`/`typealias`) and top-level
-`fun`/`val`/`var`.
+qualified name of each of its **top-level** declarations and callables — `class`/`interface`/`object`/
+`typealias`, `fun`, and `val`/`var` (an extension function contributes its own name). Nothing deeper is
+derived: a nested type or a member of a GPL class is not in the set.
 
 A seam file fails when it:
 
 - **imports** a denied package or FQN;
-- **uses a GPL declaration of its own package** with no import and no qualifier (the seam and its GPL
-  `…Bindings` are siblings by design, so the package itself cannot be denied wholesale);
-- **star-imports a mixed package** (`import a.b.*`) and then uses one of that package's GPL declarations;
+- **spells a top-level GPL name of its own package** with no import and no qualifier (the seam and its
+  GPL `…Bindings` are siblings by design, so the package itself cannot be denied wholesale);
+- **star-imports a mixed package** (`import a.b.*`) and then spells one of that package's top-level GPL
+  names — types, functions and properties alike: a star import brings all three in;
 - **uses a fully qualified GPL name** in the body, with no `import` line at all.
+
+The two name-only passes (same package, star import) are a textual match on those identifiers in the
+seam's code — comments, imports and string-literal text excluded — not a Kotlin resolution: they catch
+the name however it is used, but cannot tell it apart from a same-named local the seam declares itself,
+and they do not see a GPL member reached through an Apache type.
 
 It also **hard-fails if a listed §1.3 path is missing** (path drift can't silently drop coverage) and if
 a §1.3 file carries a GPL SPDX header. Coarse seeds remain in the script — **deny prefixes**
 (`mihon.core.dictionary`, `mihon.core.ocr`, `mihon.dictionary`, `eu.kanade.tachiyomi.ui.reader.ocr`,
 `eu.kanade.tachiyomi.ui.reader.overlay`), a handful of **deny FQNs** for GPL types inside otherwise
 Apache packages, and an **allowlist** of the Apache seam FQNs — but the set derived from the SPDX headers
-is what denies a GPL declaration nobody listed.
+is what denies a top-level GPL name nobody listed.
 
 Each shape above has a case in `scripts/test-verify-gpl-free.sh`, against the fixture tree under
 `scripts/test-fixtures/gpl-free-guard/`; the negative cases (a seam file that must **pass**) matter as
@@ -61,8 +68,9 @@ much as the violations.
   package and declarations in the derived deny set. Add a **deny prefix** only when the whole package
   must be denied, an **exact deny FQN** when the package is mixed with Apache siblings and only the GPL
   type must be denied, and an **allowlist** entry only for an Apache seam FQN.
-- **Changing the guard**: add a self-test case for the shape (or false positive) you touched, and run
-  `/tmp/opencode`-style proof that the new case fails against the pre-fix script.
+- **Changing the guard**: add a self-test case for the shape (or false positive) you touched, and prove
+  that the new case fails against the pre-fix script before committing — run the runner with the old
+  guard in place (a scratch copy of `git show HEAD:scripts/verify-gpl-free.sh`, or the edit stashed).
 - **Changing module dependencies**: `:core:ocr` must never depend on `:core:dictionary` (or vice
   versa); neither may depend on `:app`.
 - **Contributability caveat**: the GPL-free files import `KMR`/`SYMR` strings that exist only in
