@@ -751,7 +751,15 @@ class MainActivity : BaseActivity() {
             // Off the main thread: answering this deserialises the persisted queue JSON, and doing
             // that during composition would stall the first frame.
             val runnableWork = withContext(Dispatchers.IO) { ocrQueueWorkProbe.hasRunnableWork() }
-            if (OcrRuntimePolicy.shouldResumeQueue(enabled, runnableWork)) {
+            // A batch must not run on models that are not the selected release: every release ships
+            // identically named files, so an upgrade across a detector change would OCR the first
+            // batch with the previous detector and mark it COMPLETED, and nothing re-runs those
+            // chapters. Same reason for `Dispatchers.IO` (a marker read plus a few `stat`s); it never
+            // downloads — `MigrateOcrModels` installs the selected release and starts the run then.
+            val modelsReady = withContext(Dispatchers.IO) {
+                context.appGraph.modelDownloader.isPaddleDownloaded
+            }
+            if (OcrRuntimePolicy.shouldResumeQueue(enabled, runnableWork, modelsReady)) {
                 OcrWorker.start(context)
             }
         }
@@ -808,6 +816,10 @@ class MainActivity : BaseActivity() {
                 }
             }
             if (terminal is ModelDownloadState.Failed) context.toast(KUNMR.strings.ocr_not_ready)
+            // The selected release is installed now, so a queue that `ResumeOcrQueue` declined for
+            // want of it must not wait for the next launch: kick the run. Nothing runs on a queue
+            // without runnable work — `doWork` re-applies every gate before it touches anything.
+            if (terminal is ModelDownloadState.Completed) OcrWorker.start(context)
         }
     }
     // KUN <--

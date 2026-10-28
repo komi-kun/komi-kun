@@ -74,6 +74,57 @@ class OcrPolicySourceWiringTest {
         // promotion really runs before the actions. Only the download path at runtime shows that.
     }
 
+    /**
+     * The mirror of the promotion: a chapter whose download **failed** must not stay
+     * `WAITING_DOWNLOAD`, because nothing promotes a task whose download never succeeds and the
+     * launch probe skips waiting-download work (`hasRunnableStatuses`). Every chapter-level exit that
+     * marks the download `ERROR` must therefore also record the OCR failure — so the count of calls
+     * is compared against the count of error exits inside `downloadChapter` rather than hard-coded.
+     */
+    @Test
+    fun `the download failure exits record the OCR task as failed`() {
+        val downloader = app("data/download/Downloader.kt")
+        val chapterDownload = functionBody(downloader, "private suspend fun downloadChapter(")
+
+        val errorExits = Regex("""download\.status\s*=\s*Download\.State\.ERROR""")
+            .findAll(chapterDownload)
+            .count()
+        val ocrFailures = Regex("""ocrManager\.markChapterDownloadFailed\(\s*download\.chapter\.id\s*\)""")
+            .findAll(chapterDownload)
+            .count()
+        check(errorExits > 0) { "no download error exit found in downloadChapter" }
+        ocrFailures shouldBe errorExits
+
+        // Metadata only, exactly like the promotion: gating it on the switch would strand the task
+        // for the whole time the feature is off.
+        chapterDownload shouldNotContainSource
+            """if\s*\(\s*ocrEnabled\s*\)[^{]*\{\s*ocrManager\.markChapterDownloadFailed"""
+        // The cancel/stop path is deliberately excluded: `stopLocked` turns *paused* downloads into
+        // `ERROR` too, and a user pausing the downloader must not fail their queued OCR tasks.
+        functionBody(downloader, "private fun stopLocked(") shouldNotContain "markChapterDownloadFailed"
+
+        // Not asserted: that the task really becomes `ERROR` — `OcrManagerOptInTest` covers the
+        // manager, and only a download run shows the ordering against `download.status`.
+    }
+
+    @Test
+    fun `the worker defers the queue until the selected models are installed`() {
+        val worker = app("data/ocr/OcrWorker.kt")
+        val doWork = functionBody(worker, "override suspend fun doWork()")
+
+        // A superseded install must not OCR the batch with the previous detector...
+        doWork shouldContainSource """!\s*applicationContext\.appGraph\.modelDownloader\.isPaddleDownloaded"""
+        // ...and the check must precede everything the run does: the queue run and the foreground
+        // notification (which is what makes a pointless run visible to the user).
+        val gate = doWork.indexOf("isPaddleDownloaded")
+        val foreground = doWork.indexOf("setForegroundSafely()")
+        val run = doWork.indexOf("ocrJob.start")
+        check(gate >= 0 && foreground > gate && run > gate) { "model gate is missing or too late in doWork" }
+
+        // Not asserted: that `isPaddleDownloaded` reports the *installed* release at runtime —
+        // `ModelDownloaderOptInTest` covers the marker, and this JVM test has no Android context.
+    }
+
     @Test
     fun `the worker refuses to run the queue while the feature is off`() {
         val worker = app("data/ocr/OcrWorker.kt")
@@ -98,6 +149,12 @@ class OcrPolicySourceWiringTest {
         resume shouldContainSource
             """withContext\(\s*Dispatchers\.IO\s*\)\s*\{\s*ocrQueueWorkProbe\.hasRunnableWork\(\)\s*\}"""
         resume shouldContainSource """OcrRuntimePolicy\.shouldResumeQueue\("""
+        // The installed-model readiness is the third input of that decision, read the same way (the
+        // marker read and the `stat`s are I/O too) and never a download: a superseded install must
+        // not OCR its first batch with the previous detector.
+        resume shouldContainSource
+            """withContext\(\s*Dispatchers\.IO\s*\)\s*\{\s*context\.appGraph\.modelDownloader\.isPaddleDownloaded\s*\}"""
+        resume shouldContainSource """shouldResumeQueue\(\s*enabled\s*,\s*runnableWork\s*,\s*modelsReady\s*\)"""
         // Gated: off means the persisted queue is not even read, so the probe must sit *after* the
         // switch check (the resume runs on every switch flip, including the off one).
         resume shouldContainSource """OcrRuntimePolicy\.shouldRunQueue\(\s*enabled\s*\)\s*\)\s*return@LaunchedEffect"""
@@ -163,6 +220,9 @@ class OcrPolicySourceWiringTest {
         migrate shouldContainSource """OcrRuntimePolicy\.shouldRunQueue\(\s*enabled\s*\)\s*\)\s*return@LaunchedEffect"""
         migrate shouldContainSource """modelMigrationChecked\.compareAndSet\(\s*false\s*,\s*true\s*\)"""
         migrate shouldContainSource """modelDownloader\.triggerPaddleDownload\(\)"""
+        // The launch resume declines to run on superseded models, so a completed migration must drain
+        // the queue itself — otherwise the waiting batch only moves on the next launch.
+        migrate shouldContainSource """ModelDownloadState\.Completed\s*\)\s*OcrWorker\.start\(\s*context\s*\)"""
         // And it really is on the launch path, next to the queue resume.
         mainActivity shouldContainSource """ResumeOcrQueue\(\)\s*MigrateOcrModels\(\)"""
 

@@ -33,6 +33,7 @@ import eu.kanade.tachiyomi.util.system.workManager
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import logcat.LogPriority
+import mihon.app.di.appGraph
 import mihon.core.ocr.OcrLanguage
 import mihon.core.ocr.cache.ChapterImageProvider
 import mihon.core.ocr.cache.ChapterOcrInput
@@ -98,6 +99,16 @@ class OcrWorker(
         // the foreground notification before exiting, so check the persisted queue first.
         if (!queueWorkProbe.hasRunnableWork()) {
             logcat(LogPriority.INFO) { "OcrWorker: nothing runnable in the OCR queue; skipping the run" }
+            return Result.success()
+        }
+        // The models the engine will load must be the release the current selection resolves to —
+        // the same input as the launch/rotation resume (`OcrRuntimePolicy.shouldResumeQueue`). Every
+        // release ships identically named files, so a superseded install would OCR this batch with the
+        // previous detector and mark it COMPLETED, and nothing re-runs a completed chapter. Success,
+        // not retry: the queue is left intact for when the selected release is installed (the launch
+        // migration, the Settings CTA), and this path never starts a download itself.
+        if (!applicationContext.appGraph.modelDownloader.isPaddleDownloaded) {
+            logcat(LogPriority.INFO) { "OcrWorker: OCR models are not the selected release; deferring the run" }
             return Result.success()
         }
         // KUN <--

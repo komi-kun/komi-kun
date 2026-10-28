@@ -1,6 +1,6 @@
 -- KUN -->
--- Manga OCR: remember which chapters have cached OCR results, so the reader can show the OCR-ready
--- badge and the OCR queue can skip chapters that were already processed. Mirrors the `ocr_ready`
--- column Chimahon added in its own migration.
+-- Manga OCR: reserved column for per-chapter OCR progress. It is not written or read yet (nothing
+-- sets it to 1, and neither the reader badge nor the OCR queue skips on it), so it stays 0 for
+-- every chapter; a future migration may start populating it from the persisted OCR queue.
 ALTER TABLE chapter ADD COLUMN is_ocr_ready INTEGER NOT NULL DEFAULT 0;
 -- KUN <--

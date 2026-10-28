@@ -51,14 +51,23 @@ class OcrRuntimePolicyTest {
     }
 
     @Test
-    fun `the launch and rotation resume needs both the switch and runnable work`() {
+    fun `the launch and rotation resume needs the switch, runnable work and the selected models`() {
         // Empty / error-only / waiting-download queue: nothing is started, even while enabled.
-        OcrRuntimePolicy.shouldResumeQueue(enabled = true, runnableWork = false) shouldBe false
+        OcrRuntimePolicy.shouldResumeQueue(enabled = true, runnableWork = false, modelsReady = true) shouldBe false
         // Work waiting while the feature was off: the re-enable (and the next launch) resumes it.
-        OcrRuntimePolicy.shouldResumeQueue(enabled = true, runnableWork = true) shouldBe true
+        OcrRuntimePolicy.shouldResumeQueue(enabled = true, runnableWork = true, modelsReady = true) shouldBe true
         // Off never starts anything, even with runnable work persisted.
-        OcrRuntimePolicy.shouldResumeQueue(enabled = false, runnableWork = true) shouldBe false
-        OcrRuntimePolicy.shouldResumeQueue(enabled = false, runnableWork = false) shouldBe false
+        OcrRuntimePolicy.shouldResumeQueue(enabled = false, runnableWork = true, modelsReady = true) shouldBe false
+        OcrRuntimePolicy.shouldResumeQueue(enabled = false, runnableWork = false, modelsReady = true) shouldBe false
+        // The defect this arm exists for: the models on disk are a superseded release (an install
+        // upgraded across a detector change), so a run would OCR this batch with the previous
+        // detector and mark it COMPLETED — and nothing re-runs a completed chapter. Wait for the
+        // migration instead of burning the batch.
+        OcrRuntimePolicy.shouldResumeQueue(enabled = true, runnableWork = true, modelsReady = false) shouldBe false
+        OcrRuntimePolicy.shouldResumeQueue(enabled = false, runnableWork = true, modelsReady = false) shouldBe false
+        // The remaining corner: nothing queued, models missing — still no run.
+        OcrRuntimePolicy.shouldResumeQueue(enabled = true, runnableWork = false, modelsReady = false) shouldBe false
+        OcrRuntimePolicy.shouldResumeQueue(enabled = false, runnableWork = false, modelsReady = false) shouldBe false
     }
 
     @Test

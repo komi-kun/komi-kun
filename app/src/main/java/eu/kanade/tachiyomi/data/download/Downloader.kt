@@ -450,6 +450,12 @@ class Downloader(
 
         val mangaDir = provider.getMangaDir(/* SY --> */ download.manga.ogTitle /* SY <-- */, download.source).getOrElse { e ->
             download.status = Download.State.ERROR
+            // KUN -->
+            // A failed download must not leave its OCR task at WAITING_DOWNLOAD: nothing would ever
+            // promote it, so record it as a retryable ERROR instead (queue metadata only, ungated —
+            // exactly like the promotion on the success path below).
+            ocrManager.markChapterDownloadFailed(download.chapter.id)
+            // KUN <--
             notifier.onError(e.message, download.chapter.name, download.manga.title, download.manga.id)
             return
         }
@@ -457,6 +463,9 @@ class Downloader(
         val availSpace = DiskUtil.getAvailableStorageSpace(mangaDir)
         if (availSpace != -1L && availSpace < MIN_DISK_SPACE) {
             download.status = Download.State.ERROR
+            // KUN -->
+            ocrManager.markChapterDownloadFailed(download.chapter.id)
+            // KUN <--
             notifier.onError(
                 context.stringResource(MR.strings.download_insufficient_space),
                 download.chapter.name,
@@ -533,6 +542,9 @@ class Downloader(
 
             if (!isDownloadSuccessful(download, tmpDir)) {
                 download.status = Download.State.ERROR
+                // KUN -->
+                ocrManager.markChapterDownloadFailed(download.chapter.id)
+                // KUN <--
                 return
             }
 
@@ -589,6 +601,9 @@ class Downloader(
             // If the page list threw, it will resume here
             logcat(LogPriority.ERROR, error)
             download.status = Download.State.ERROR
+            // KUN -->
+            ocrManager.markChapterDownloadFailed(download.chapter.id)
+            // KUN <--
             notifier.onError(error.message, download.chapter.name, download.manga.title, download.manga.id)
         }
     }

@@ -56,14 +56,25 @@ object OcrRuntimePolicy {
     fun shouldRunQueue(enabled: Boolean): Boolean = enabled
 
     /**
-     * Whether to kick a queue run now: the feature must be on **and** there must be work a run would
-     * process. This is what keeps a launch/rotation from starting a foreground worker on an empty
+     * Whether to kick a queue run now: the feature must be on, there must be work a run would
+     * process, **and** the models the engine will load must be the ones the current selection
+     * resolves to. This is what keeps a launch/rotation from starting a foreground worker on an empty
      * queue, while still resuming a promoted `PENDING` task after the switch is turned back on.
      *
      * [runnableWork] comes from `OcrQueueWorkProbe` → `OcrStore.hasRunnableTasks`, i.e. the one
      * predicate in `:core:ocr` (`hasRunnableStatuses`); this policy only composes it with the switch.
+     *
+     * [modelsReady] is `ModelDownloader.isPaddleDownloaded` — the cheap, synchronous check that the
+     * **installed** release is the selected one (a marker read plus a few `stat`s, never a download).
+     * It is a hard input because every release publishes identically named files: an install whose
+     * models are superseded by the selection (an upgrade across a detector change) would otherwise
+     * OCR the first batch with the previous detector and mark those chapters `COMPLETED`, and nothing
+     * re-runs a completed chapter. Declining here is not a dead end — `MainActivity`'s model
+     * migration (or the Settings CTA) installs the selected release, and the next run picks the queue
+     * up intact.
      */
-    fun shouldResumeQueue(enabled: Boolean, runnableWork: Boolean): Boolean = enabled && runnableWork
+    fun shouldResumeQueue(enabled: Boolean, runnableWork: Boolean, modelsReady: Boolean): Boolean =
+        enabled && runnableWork && modelsReady
 
     /**
      * The one-shot upgrade migration: whether launch should fetch [selectedRelease] because the
