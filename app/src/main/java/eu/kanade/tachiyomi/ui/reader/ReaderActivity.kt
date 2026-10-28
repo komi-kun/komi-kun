@@ -98,6 +98,7 @@ import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderSettingsViewModel
 import eu.kanade.tachiyomi.ui.reader.setting.ReadingMode
 import eu.kanade.tachiyomi.ui.reader.viewer.ReaderProgressIndicator
+import eu.kanade.tachiyomi.ui.reader.viewer.Viewer
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.PagerConfig
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.PagerViewer
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.R2LPagerViewer
@@ -115,6 +116,7 @@ import exh.util.defaultReaderType
 import exh.util.mangaType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
@@ -197,6 +199,12 @@ class ReaderActivity : BaseActivity() {
     private val windowInsetsController by lazy { WindowInsetsControllerCompat(window, window.decorView) }
 
     private var loadingIndicator: ReaderProgressIndicator? = null
+
+    /**
+     * Viewer used to display the pages (pager, webtoon, ...).
+     */
+    private val viewerFlow = MutableStateFlow<Viewer?>(null)
+    private val viewer: Viewer? inline get() = viewerFlow.value
 
     var isScrollingThroughPages = false
         private set
@@ -325,6 +333,7 @@ class ReaderActivity : BaseActivity() {
             val settingsViewModel = remember {
                 ReaderSettingsViewModel(
                     readerState = viewModel.state,
+                    viewerFlow = viewerFlow,
                     onChangeReadingMode = viewModel::setMangaReadingMode,
                     onChangeOrientation = viewModel::setMangaOrientationType,
                     preferences = readerPreferences,
@@ -431,14 +440,20 @@ class ReaderActivity : BaseActivity() {
                                 viewModel.saveImage(extra)
                             }
                         },
-                        onShareCombined = viewModel::shareImages,
+                        // KUN --> the viewer is owned by the activity (upstream ca028cb657)
+                        onShareCombined = { copyToClipboard ->
+                            viewModel.shareImages(copyToClipboard, viewer as? PagerViewer)
+                        },
+                        // KUN <--
                         onSaveCombined = {
                             // KMK -->
                             if (externalStoragePermissionNotGranted) {
                                 permissionRequester.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
                             } else {
                                 // KMK <--
-                                viewModel.saveImages()
+                                // KUN -->
+                                viewModel.saveImages(viewer as? PagerViewer)
+                                // KUN <--
                             }
                         },
                         hasExtraPage = (state.dialog as? ReaderViewModel.Dialog.PageActions)?.extraPage != null,
@@ -541,7 +556,7 @@ class ReaderActivity : BaseActivity() {
      */
     override fun onDestroy() {
         super.onDestroy()
-        viewModel.state.value.viewer?.destroy()
+        viewer?.destroy()
         config = null
         menuToggleToast?.cancel()
         readingModeToast?.cancel()
@@ -622,7 +637,7 @@ class ReaderActivity : BaseActivity() {
      * Dispatches a key event. If the viewer doesn't handle it, call the default implementation.
      */
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        val handled = viewModel.state.value.viewer?.handleKeyEvent(event) ?: false
+        val handled = viewer?.handleKeyEvent(event) ?: false
         return handled || super.dispatchKeyEvent(event)
     }
 
@@ -631,7 +646,7 @@ class ReaderActivity : BaseActivity() {
      * implementation.
      */
     override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
-        val handled = viewModel.state.value.viewer?.handleGenericMotionEvent(event) ?: false
+        val handled = viewer?.handleGenericMotionEvent(event) ?: false
         return handled || super.dispatchGenericMotionEvent(event)
     }
 
@@ -660,6 +675,7 @@ class ReaderActivity : BaseActivity() {
     @Composable
     fun AppBars(state: ReaderViewModel.State) {
         val isHttpSource = state.source is HttpSource
+        val viewer by viewerFlow.collectAsState()
 
         val cropBorderPaged by readerPreferences.cropBorders.collectAsState()
         val cropBorderWebtoon by readerPreferences.cropBordersWebtoon.collectAsState()
@@ -679,7 +695,9 @@ class ReaderActivity : BaseActivity() {
             readerPreferences.readerBottomButtons.changes().map { it.toSet() }
         }.collectAsState(setOf())
         val dualPageSplitPaged by readerPreferences.dualPageSplitPaged.collectAsState()
-        val autoScrollGesturesSupported = state.viewer is WebtoonViewer
+        // KUN --> the viewer is owned by the activity (upstream ca028cb657)
+        val autoScrollGesturesSupported = viewer is WebtoonViewer
+        // KUN <--
         val autoScrollGesturesEnabled by readerPreferences.autoscrollGesturesEnabled.collectAsState()
         val autoScrollGestureToastsEnabled by readerPreferences.autoscrollGestureToastsEnabled.collectAsState()
         // SY <--
@@ -705,7 +723,7 @@ class ReaderActivity : BaseActivity() {
             onShare = ::shareChapter.takeIf { isHttpSource },
 
             chapterNavigatorType = if (!verticalNavigator) {
-                if (state.viewer is R2LPagerViewer || (state.viewer as? WebGpuViewer)?.isReversed ?: false) {
+                if (viewer is R2LPagerViewer || (viewer as? WebGpuViewer)?.isReversed ?: false) {
                     ChapterNavigatorType.HORIZONTAL_RTL
                 } else {
                     ChapterNavigatorType.HORIZONTAL_LTR
@@ -777,10 +795,12 @@ class ReaderActivity : BaseActivity() {
             onClickChapterList = viewModel::openChapterListDialog,
             onClickPageLayout = {
                 if (readerPreferences.pageLayout.get() == PagerConfig.PageLayout.AUTOMATIC) {
-                    (viewModel.state.value.viewer as? PagerViewer)?.config?.let { config ->
+                    // KUN --> the viewer is owned by the activity (upstream ca028cb657)
+                    (viewer as? PagerViewer)?.config?.let { config ->
                         config.doublePages = !config.doublePages
                         reloadChapters(config.doublePages, true)
                     }
+                    // KUN <--
                 } else {
                     readerPreferences.pageLayout.set(1 - readerPreferences.pageLayout.get())
                 }
@@ -811,14 +831,18 @@ class ReaderActivity : BaseActivity() {
         readerPreferences.autoscrollGesturesEnabled.changes()
             .distinctUntilChanged()
             .onEach { enabled ->
-                (viewModel.state.value.viewer as? WebtoonViewer)?.setAutoScrollGesturesEnabled(enabled)
+                // KUN --> the viewer is owned by the activity (upstream ca028cb657)
+                (viewer as? WebtoonViewer)?.setAutoScrollGesturesEnabled(enabled)
+                // KUN <--
             }
             .launchIn(lifecycleScope)
 
         readerPreferences.autoscrollGestureToastsEnabled.changes()
             .distinctUntilChanged()
             .onEach { enabled ->
-                (viewModel.state.value.viewer as? WebtoonViewer)?.setAutoScrollGestureToastsEnabled(enabled)
+                // KUN --> the viewer is owned by the activity (upstream ca028cb657)
+                (viewer as? WebtoonViewer)?.setAutoScrollGestureToastsEnabled(enabled)
+                // KUN <--
             }
             .launchIn(lifecycleScope)
 
@@ -828,18 +852,22 @@ class ReaderActivity : BaseActivity() {
             }
             .mapLatest { (intervalFloat, enabled) ->
                 val interval = intervalFloat.seconds
-                (viewModel.state.value.viewer as? WebtoonViewer)?.syncAutoScrollSettings(
+                // KUN --> the viewer is owned by the activity (upstream ca028cb657)
+                (viewer as? WebtoonViewer)?.syncAutoScrollSettings(
                     enabled = enabled,
                     interval = interval,
                     forceInterval = true,
                 )
+                // KUN <--
 
                 if (!enabled) return@mapLatest
 
                 repeatOnLifecycle(Lifecycle.State.STARTED) {
                     while (true) {
                         if (!viewModel.state.value.menuVisible) {
-                            viewModel.state.value.viewer.let { v ->
+                            // KUN --> the viewer is owned by the activity (upstream ca028cb657)
+                            viewer.let { v ->
+                                // KUN <--
                                 when (v) {
                                     is PagerViewer -> {
                                         v.moveToNext()
@@ -914,7 +942,9 @@ class ReaderActivity : BaseActivity() {
     }
 
     private fun exhBoostPage() {
-        viewModel.state.value.viewer ?: return
+        // KUN --> the viewer is owned by the activity (upstream ca028cb657)
+        viewer ?: return
+        // KUN <--
         val curPage = exhCurrentpage() ?: run {
             toast(SYMR.strings.eh_boost_page_invalid)
             return
@@ -938,13 +968,16 @@ class ReaderActivity : BaseActivity() {
     }
 
     private fun exhCurrentpage(): ReaderPage? {
-        val viewer = viewModel.state.value.viewer
+        // KUN --> the viewer is owned by the activity (upstream ca028cb657)
         val currentPage = (((viewer as? PagerViewer)?.currentPage ?: (viewer as? WebtoonViewer)?.currentPage) as? ReaderPage)?.index
+        // KUN <--
         return currentPage?.let { viewModel.state.value.viewerChapters?.currChapter?.pages?.getOrNull(it) }
     }
 
     fun reloadChapters(doublePages: Boolean, force: Boolean = false) {
-        val viewer = viewModel.state.value.viewer as? PagerViewer ?: return
+        // KUN --> the viewer is owned by the activity (upstream ca028cb657)
+        val viewer = this.viewer as? PagerViewer ?: return
+        // KUN <--
         viewer.updateShifting()
         if (!force && viewer.config.autoDoublePages) {
             setDoublePageMode(viewer)
@@ -972,7 +1005,9 @@ class ReaderActivity : BaseActivity() {
     }
 
     private fun shiftDoublePages() {
-        val viewer = viewModel.state.value.viewer as? PagerViewer ?: return
+        // KUN --> the viewer is owned by the activity (upstream ca028cb657)
+        val viewer = this.viewer as? PagerViewer ?: return
+        // KUN <--
         viewer.config.let { config ->
             config.shiftDoublePage = !config.shiftDoublePage
             viewModel.state.value.viewerChapters?.let {
@@ -989,7 +1024,9 @@ class ReaderActivity : BaseActivity() {
      */
     private fun setMenuVisibility(visible: Boolean) {
         viewModel.showMenus(visible)
-        (viewModel.state.value.viewer as? WebtoonViewer)?.setAutoScrollUiBlocked(visible)
+        // KUN --> the viewer is owned by the activity (upstream ca028cb657)
+        (viewer as? WebtoonViewer)?.setAutoScrollUiBlocked(visible)
+        // KUN <--
         if (visible) {
             windowInsetsController.show(WindowInsetsCompat.Type.systemBars())
         } else if (readerPreferences.fullscreen.get()) {
@@ -1001,7 +1038,7 @@ class ReaderActivity : BaseActivity() {
      * Called from the presenter when a manga is ready. Used to instantiate the appropriate viewer.
      */
     private fun updateViewer() {
-        val prevViewer = viewModel.state.value.viewer
+        val prevViewer = viewer
         val newViewer = ReadingMode.toViewer(
             viewModel.getMangaReadingMode(),
             this,
@@ -1024,7 +1061,7 @@ class ReaderActivity : BaseActivity() {
             prevViewer.destroy()
             binding.viewerContainer.removeAllViews()
         }
-        viewModel.onViewerLoaded(newViewer)
+        viewerFlow.value = newViewer
         (newViewer as? WebtoonViewer)?.setAutoScrollUiBlocked(viewModel.state.value.menuVisible)
         (newViewer as? WebtoonViewer)?.setAutoScrollGesturesEnabled(readerPreferences.autoscrollGesturesEnabled.get())
         (newViewer as? WebtoonViewer)?.setAutoScrollGestureToastsEnabled(readerPreferences.autoscrollGestureToastsEnabled.get())
@@ -1124,23 +1161,27 @@ class ReaderActivity : BaseActivity() {
             viewerChapters.currChapter.pages?.find {
                 it.index == state.indexPageToShift && it.chapter.chapter.id == state.indexChapterToShift
             }?.let {
-                (viewModel.state.value.viewer as? PagerViewer)?.updateShifting(it)
+                // KUN --> the viewer is owned by the activity (upstream ca028cb657)
+                (viewer as? PagerViewer)?.updateShifting(it)
+                // KUN <--
             }
             viewModel.setIndexChapterToShift(null)
             viewModel.setIndexPageToShift(null)
         } else if (state.lastShiftDoubleState != null) {
             val currentChapter = viewerChapters.currChapter
-            (viewModel.state.value.viewer as? PagerViewer)?.config?.shiftDoublePage = (
+            // KUN --> the viewer is owned by the activity (upstream ca028cb657)
+            (viewer as? PagerViewer)?.config?.shiftDoublePage = (
                 currentChapter.requestedPage +
                     (
                         currentChapter.pages?.take(currentChapter.requestedPage)
                             ?.count { it.fullPage || it.isolatedPage } ?: 0
                         )
                 ) % 2 != 0
+            // KUN <--
         }
         // SY <--
 
-        viewModel.state.value.viewer?.setChapters(viewerChapters)
+        viewer?.setChapters(viewerChapters)
 
         lifecycleScope.launch(Dispatchers.IO) {
             viewModel.getChapterUrl()?.let { url ->
@@ -1182,7 +1223,7 @@ class ReaderActivity : BaseActivity() {
      * page is not found.
      */
     private fun moveToPageIndex(index: Int) {
-        val viewer = viewModel.state.value.viewer ?: return
+        val viewer = this.viewer ?: return
         val currentChapter = viewModel.state.value.currentChapter ?: return
         val page = currentChapter.pages?.getOrNull(index) ?: return
         viewer.moveToPage(page)
@@ -1217,7 +1258,9 @@ class ReaderActivity : BaseActivity() {
     fun onPageSelected(page: ReaderPage, hasExtraPage: Boolean = false) {
         // SY -->
         val currentPageText = if (hasExtraPage) {
-            val invertDoublePage = (viewModel.state.value.viewer as? PagerViewer)?.config?.invertDoublePages ?: false
+            // KUN --> the viewer is owned by the activity (upstream ca028cb657)
+            val invertDoublePage = (viewer as? PagerViewer)?.config?.invertDoublePages ?: false
+            // KUN <--
             if ((resources.configuration.layoutDirection == View.LAYOUT_DIRECTION_LTR) xor
                 invertDoublePage
             ) {
@@ -1454,10 +1497,12 @@ class ReaderActivity : BaseActivity() {
                 .drop(1)
                 .onEach {
                     viewModel.setDoublePages(
-                        (viewModel.state.value.viewer as? PagerViewer)
+                        // KUN --> the viewer is owned by the activity (upstream ca028cb657)
+                        (viewer as? PagerViewer)
                             ?.config
                             ?.doublePages
                             ?: false,
+                        // KUN <--
                     )
                 }
                 .launchIn(lifecycleScope)
@@ -1465,7 +1510,9 @@ class ReaderActivity : BaseActivity() {
             readerPreferences.dualPageSplitPaged.changes()
                 .drop(1)
                 .onEach {
-                    if (viewModel.state.value.viewer !is PagerViewer) return@onEach
+                    // KUN --> the viewer is owned by the activity (upstream ca028cb657)
+                    if (viewer !is PagerViewer) return@onEach
+                    // KUN <--
                     reloadChapters(
                         !it &&
                             when (readerPreferences.pageLayout.get()) {
