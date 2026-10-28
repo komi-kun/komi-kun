@@ -13,6 +13,7 @@ package eu.kanade.tachiyomi.ui.reader.ocr.impl
 
 import eu.kanade.tachiyomi.data.download.DownloadProvider
 import eu.kanade.tachiyomi.ui.dictionary.DictionaryPreferences
+import eu.kanade.tachiyomi.ui.reader.RedoOcrResult
 import eu.kanade.tachiyomi.ui.reader.model.ReaderChapter
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import io.kotest.matchers.shouldBe
@@ -45,6 +46,7 @@ import tachiyomi.domain.manga.interactor.GetManga
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.source.service.SourceManager
 import java.io.ByteArrayInputStream
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
@@ -459,6 +461,96 @@ class ReaderOcrBlockLoaderTest {
             if (System.currentTimeMillis() >= deadline) break
             delay(10)
         }
+    }
+
+    /**
+     * A forced re-run in which **every** page fails — models not downloaded, engine load failure, no
+     * page bytes — must be reported as [RedoOcrResult.FAILED]. The reader turns a success into
+     * "OCR updated for page N", so an unconditional success told the user the OCR had been updated by
+     * a run that changed nothing at all.
+     */
+    @Test
+    fun `a redo where every page fails reports failure instead of success`(): Unit = runBlocking {
+        val ocrManager = mockk<OcrManager>(relaxed = true) {
+            every { queueState } returns MutableStateFlow(emptyList<OcrQueueItem>())
+            every { sourceFor(any()) } returns ReaderOcrSource.PADDLE
+            every { cacheKey(any(), any(), any()) } returns OcrCacheKey(sourceId = 1L, mangaId = 7L, chapterId = 42L)
+        }
+        coEvery { getManga.await(any()) } returns Manga.create().copy(id = 7L, source = 1L)
+        // The engine is down (models not downloaded): the forced re-run throws for every page.
+        coEvery { ocrManager.forceRecognizeAndCache(any(), any(), any(), any(), any()) } coAnswers {
+            throw IllegalStateException("OCR models are not downloaded")
+        }
+        page.stream = { ByteArrayInputStream(ByteArray(8)) }
+        val loader = loader(LOAD_TIMEOUT_MS, ocrManager = ocrManager)
+
+        val results = CopyOnWriteArrayList<RedoOcrResult>()
+        loader.redoOcr(page) { results += it }
+        awaitSettled { results.isNotEmpty() }
+
+        results.toList() shouldBe listOf(RedoOcrResult.FAILED)
+        loader.blocks.value shouldBe emptyMap<OcrPageKey, List<OcrTextBlock>>()
+    }
+
+    /**
+     * A **partial** success still counts as a success: one page of the chapter failed and one had no
+     * readable bytes, but a page was re-OCR'd, so the reader must report "OCR updated" (and the
+     * re-OCRed page's blocks are cached). The mirror of the test above: an implementation that
+     * reports failure as soon as *any* page failed fails here.
+     */
+    @Test
+    fun `a chapter redo reports success when at least one page was re-OCRed`(): Unit = runBlocking {
+        val chapter = ReaderChapter(chapterModel)
+        val failing = ReaderPage(index = 0, url = "page0").apply { this.chapter = chapter }
+        val unreadable = ReaderPage(index = 1, url = "page1").apply { this.chapter = chapter }
+        val succeeding = ReaderPage(index = 2, url = "page2").apply { this.chapter = chapter }
+        chapter.state = ReaderChapter.State.Loaded(listOf(failing, unreadable, succeeding))
+
+        val ocrManager = mockk<OcrManager>(relaxed = true) {
+            every { queueState } returns MutableStateFlow(emptyList<OcrQueueItem>())
+            every { sourceFor(any()) } returns ReaderOcrSource.PADDLE
+            every { cacheKey(any(), any(), any()) } returns OcrCacheKey(sourceId = 1L, mangaId = 7L, chapterId = 42L)
+        }
+        coEvery { getManga.await(any()) } returns Manga.create().copy(id = 7L, source = 1L)
+        // Page 0 fails inside the engine (it has bytes), page 1 has no bytes at all, page 2 succeeds.
+        failing.stream = { ByteArrayInputStream(ByteArray(8)) }
+        unreadable.stream = null
+        succeeding.stream = { ByteArrayInputStream(ByteArray(8)) }
+        coEvery { ocrManager.forceRecognizeAndCache(any(), any(), any(), any(), any()) } coAnswers {
+            if (args[1] == 0) throw IllegalStateException("page 0 failed") else listOf(block)
+        }
+        val loader = loader(LOAD_TIMEOUT_MS, ocrManager = ocrManager)
+
+        val results = CopyOnWriteArrayList<RedoOcrResult>()
+        loader.redoOcr(failing, chapter = true) { results += it }
+        awaitSettled { results.isNotEmpty() }
+
+        results.toList() shouldBe listOf(RedoOcrResult.UPDATED)
+        // Exactly the page that was re-OCRed got its blocks; the failed and unreadable ones did not.
+        loader.blocks.value shouldBe mapOf(succeeding.ocrKey() to listOf(block))
+    }
+
+    /**
+     * The two early returns used to skip the completion callback entirely, so the reader kept
+     * "Re-running OCR…" as the last thing it told the user and never settled the state. Both now
+     * report [RedoOcrResult.NOTHING_TO_REDO].
+     */
+    @Test
+    fun `a redo with nothing to run reports that instead of leaving the reader waiting`(): Unit = runBlocking {
+        // (a) the chapter has no loaded pages at all.
+        val emptyChapter = ReaderChapter(chapterModel)
+        val noPages = ReaderPage(index = 0, url = "page").apply { this.chapter = emptyChapter }
+        // (b) the manga row is gone, so no page can be resolved into a cache key.
+        coEvery { getManga.await(any()) } returns null
+        val loader = loader(LOAD_TIMEOUT_MS)
+
+        val results = CopyOnWriteArrayList<RedoOcrResult>()
+        loader.redoOcr(noPages, chapter = true) { results += it }
+        awaitSettled { results.size == 1 }
+        loader.redoOcr(page) { results += it }
+        awaitSettled { results.size == 2 }
+
+        results.toList() shouldBe listOf(RedoOcrResult.NOTHING_TO_REDO, RedoOcrResult.NOTHING_TO_REDO)
     }
 
     /**

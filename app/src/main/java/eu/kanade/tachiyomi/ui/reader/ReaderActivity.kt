@@ -706,10 +706,8 @@ class ReaderActivity : BaseActivity() {
                                     onClick = {
                                         onDismissRequest()
                                         toast(stringResource(KUNMR.strings.ocr_redoing_page, page.index + 1))
-                                        readerOcrHost.redoOcr(page, chapter = false) {
-                                            runOnUiThread {
-                                                toast(stringResource(KUNMR.strings.ocr_redo_page_complete, page.index + 1))
-                                            }
+                                        readerOcrHost.redoOcr(page, chapter = false) { result ->
+                                            runOnUiThread { toast(result.toastString(page.index, chapter = false)) }
                                         }
                                     },
                                 )
@@ -720,10 +718,8 @@ class ReaderActivity : BaseActivity() {
                                     onClick = {
                                         onDismissRequest()
                                         toast(stringResource(KUNMR.strings.ocr_redoing_chapter))
-                                        readerOcrHost.redoOcr(page, chapter = true) {
-                                            runOnUiThread {
-                                                toast(stringResource(KUNMR.strings.ocr_redo_chapter_complete))
-                                            }
+                                        readerOcrHost.redoOcr(page, chapter = true) { result ->
+                                            runOnUiThread { toast(result.toastString(page.index, chapter = true)) }
                                         }
                                     },
                                 )
@@ -1566,6 +1562,23 @@ class ReaderActivity : BaseActivity() {
         } else {
             toast(KUNMR.strings.action_redo_ocr)
         }
+    }
+
+    /**
+     * The toast for a finished OCR re-run. Only a run that re-OCRed at least one page reports the
+     * success message; a run in which every page failed (models missing, engine load failure, no
+     * page bytes) and a run with nothing to do report themselves, so "OCR updated" is never shown
+     * for a re-run that changed nothing.
+     */
+    private fun RedoOcrResult.toastString(pageIndex: Int, chapter: Boolean): String = when (this) {
+        RedoOcrResult.UPDATED ->
+            if (chapter) {
+                stringResource(KUNMR.strings.ocr_redo_chapter_complete)
+            } else {
+                stringResource(KUNMR.strings.ocr_redo_page_complete, pageIndex + 1)
+            }
+        RedoOcrResult.FAILED -> stringResource(KUNMR.strings.ocr_redo_failed)
+        RedoOcrResult.NOTHING_TO_REDO -> stringResource(KUNMR.strings.ocr_no_page_to_redo)
     }
     // KUN <--
 

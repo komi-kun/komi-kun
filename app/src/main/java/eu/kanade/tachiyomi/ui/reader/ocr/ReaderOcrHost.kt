@@ -4,6 +4,7 @@ package eu.kanade.tachiyomi.ui.reader.ocr
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import eu.kanade.tachiyomi.ui.reader.RedoOcrResult
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 
 /**
@@ -36,8 +37,15 @@ interface ReaderOcrHost {
     /**
      * Force re-runs OCR for [page] (or the entire chapter if [chapter] is true),
      * updating the cache and overwriting any .mokuro sidecar in the archive.
+     *
+     * [onComplete] is invoked exactly once — also when nothing ran at all — with how the re-run
+     * ended, so the caller never reports success for a run that changed nothing.
      */
-    fun redoOcr(page: ReaderPage, chapter: Boolean = false, onComplete: (() -> Unit)? = null)
+    fun redoOcr(
+        page: ReaderPage,
+        chapter: Boolean = false,
+        onComplete: ((RedoOcrResult) -> Unit)? = null,
+    )
 
     /**
      * Releases everything the host holds for the reader that is going away: the dictionary popup

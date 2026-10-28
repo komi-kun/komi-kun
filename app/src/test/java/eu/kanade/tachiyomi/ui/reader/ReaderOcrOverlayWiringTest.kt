@@ -13,6 +13,11 @@
 // composition order of the non-composed children, so the ordering facts below *are* the layering:
 // `ContentOverlay` (brightness/colour) first, the OCR overlay next, `AppBars` last.
 //
+// Two properties keep the source reads from decaying into greps: comments are stripped first, so a
+// needle can never be satisfied (or broken) by prose, and the structural assertions slice blocks by
+// counting braces/parentheses instead of matching a fixed amount of whitespace, so Spotless
+// reformatting cannot fail them and a mutation cannot pass by merely keeping a token present.
+//
 // Residual gap: source text proves the call order in the file, not the rendered z-order — a nesting
 // or modifier change elsewhere could still reorder what is drawn.
 // KUN <--
@@ -23,11 +28,13 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.fail
 import java.io.File
+import kotlin.math.min
 
 class ReaderOcrOverlayWiringTest {
 
+    /** The reader activity's source, with comments removed. */
     private fun readerActivity(): String =
-        File("src/main/java/eu/kanade/tachiyomi/ui/reader/ReaderActivity.kt").readText()
+        File("src/main/java/eu/kanade/tachiyomi/ui/reader/ReaderActivity.kt").readText().withoutComments()
 
     /** [needle]'s index in [source], failing loudly when it is absent (a rename must not pass). */
     private fun indexOfCall(source: String, needle: String): Int {
@@ -43,7 +50,7 @@ class ReaderOcrOverlayWiringTest {
         // Exactly one overlay call site: a second one — the shape this replaced was the same call as
         // the Box's last sibling — would paint over the chrome again, and no ordering assert below
         // could see which of the two is which.
-        Regex.fromLiteral("readerOcrHost.Overlay(").findAll(source).count() shouldBe 1
+        occurrences(source, Regex.fromLiteral("readerOcrHost.Overlay(")) shouldBe 1
 
         val rootBox = indexOfCall(source, "Box(modifier = Modifier.fillMaxSize())")
         val contentOverlay = indexOfCall(source, "ContentOverlay(state = state)")
@@ -76,6 +83,12 @@ class ReaderOcrOverlayWiringTest {
      * run at all, and none of them may re-derive "is the overlay on" locally. A hidden overlay that
      * still hit-tests eats the gesture: the page does not turn and the menu does not toggle.
      *
+     * Counting the occurrences proves presence only — a local `isEnabled() && …` beside each policy
+     * call, or a policy call moved *after* the gesture-consuming call, keeps the counts equal. So
+     * each site is checked structurally instead: the decision must be **this** site's guard (nothing
+     * that consumes a gesture in between), in the same block as the call it guards, and inside the
+     * `if (` condition when that is what consumes the gesture.
+     *
      * Source-level, like the rest of this file: the three call sites live in an Android `Activity`
      * and the rule itself is covered behaviourally in [ReaderOcrOverlayPolicyTest].
      */
@@ -83,34 +96,224 @@ class ReaderOcrOverlayWiringTest {
     fun `every OCR tap entry point asks the overlay policy before hit-testing`() {
         val source = readerActivity()
 
-        val gates = Regex.fromLiteral("ReaderOcrOverlayPolicy.acceptsLookup(").findAll(source).count()
         val hitTests = listOf(
             "readerOcrHost.hitsBlock(",
             "readerOcrHost.onPageLongPress(",
             "readerOcrHost.onPageSingleTap(",
-        ).sumOf { Regex.fromLiteral(it).findAll(source).count() }
+        )
+        // Each entry point exists exactly once, so "the guard before this call" is unambiguous.
+        hitTests.forEach { occurrences(source, Regex.fromLiteral(it)) shouldBe 1 }
+        occurrences(source, Regex.fromLiteral(GATE)) shouldBe hitTests.size
 
-        hitTests shouldBe 3
-        // Every call that can consume a gesture is preceded by the policy decision: a site that
-        // re-derives "is the overlay on" locally would leave the counts unequal.
-        gates shouldBe hitTests
+        hitTests.forEach { hitTest ->
+            val call = indexOfCall(source, hitTest)
+            val gate = source.lastIndexOf(GATE, call)
+            if (gate < 0) fail("$hitTest is not guarded by $GATE at all")
+
+            // The guard must be *this* site's decision: a call that consumes a gesture between the
+            // nearest preceding decision and this one means the decision guards that call instead
+            // (the shape a policy call moved after its hit test leaves behind).
+            hitTests.filter { it != hitTest }.forEach { other ->
+                if (source.substring(gate, call).contains(other)) {
+                    fail("$hitTest is guarded by the policy decision of another entry point ($other)")
+                }
+            }
+            // ...and it must live in the same block as the call it guards: a decision left behind in
+            // another function or lambda can never gate this one.
+            innermostBlock(source, gate) shouldBe innermostBlock(source, call)
+
+            // Where an `if (` condition consumes the gesture, the decision must be inside that same
+            // condition.
+            enclosingIfCondition(source, call)?.let { condition ->
+                if (!condition.contains(GATE)) {
+                    fail("$hitTest is consumed by an `if (` condition that does not consult the policy: $condition")
+                }
+            }
+        }
+
+        // No site may re-derive the old inline condition beside the policy call: the whole point of
+        // the policy is that "is the overlay on" is decided in exactly one place, in code that a
+        // behavioural test covers.
+        source shouldNotContainSource (
+            """dictionaryOcrPreferences\s*\.\s*isEnabled\(\s*\)\s*&&\s*""" +
+                """readerPreferences\s*\.\s*ocrOverlayEnabled"""
+            )
     }
 
     /**
      * The viewport the hit test maps taps through is recorded by `Overlay`, so it must be dropped
      * when the overlay leaves composition — `detach()` only runs when the reader goes away, and is
      * skipped across a configuration change.
+     *
+     * Sliced to `Overlay`'s body rather than grepped over the file: a `DisposableEffect` moved out of
+     * `Overlay` never runs on the overlay's exit, and an `onDispose` that assigns the viewport back
+     * (instead of clearing it) keeps exactly the stale viewport the hit test must not answer from.
      */
     @Test
     fun `the host drops the recorded viewport when the overlay leaves composition`() {
         val source = File(
             "src/main/java/eu/kanade/tachiyomi/ui/reader/ocr/impl/ReaderOcrHostImpl.kt",
-        ).readText()
+        ).readText().withoutComments()
 
-        assertTrue(source.contains("DisposableEffect"), "the overlay must dispose its recorded viewport")
-        assertTrue(
-            source.contains("this@ReaderOcrHostImpl.viewport = null"),
-            "the disposal must clear the recorded viewport",
-        )
+        val overlay = functionBody(source, "override fun Overlay(")
+        overlay shouldContainSource (
+            """DisposableEffect\s*\(\s*Unit\s*\)\s*\{\s*onDispose\s*\{\s*""" +
+                """this@ReaderOcrHostImpl\s*\.\s*viewport\s*=\s*null\s*\}\s*\}"""
+            )
+        // The recorded viewport is written in exactly one place inside `Overlay`, and it is that
+        // `= null`: no other assignment (in particular none that writes `viewport` back) competes
+        // with the disposal.
+        occurrences(overlay, Regex("""this@ReaderOcrHostImpl\s*\.\s*viewport\s*=""")) shouldBe 1
     }
+
+    private companion object {
+        /** The one place the "may this gesture be looked up" decision is allowed to live. */
+        private const val GATE = "ReaderOcrOverlayPolicy.acceptsLookup("
+    }
+}
+
+/** How many times [pattern] occurs in this text. */
+private fun occurrences(source: String, pattern: Regex): Int = pattern.findAll(source).count()
+
+/** [pattern] must occur somewhere in this text. */
+private infix fun String.shouldContainSource(pattern: String) {
+    if (!Regex(pattern).containsMatchIn(this)) {
+        fail("expected the source to contain /$pattern/")
+    }
+}
+
+/** The mirror: [pattern] must not occur in this text. */
+private infix fun String.shouldNotContainSource(pattern: String) {
+    if (Regex(pattern).containsMatchIn(this)) {
+        fail("expected the source not to contain /$pattern/")
+    }
+}
+
+/**
+ * The index of the `{` opening the innermost block that contains [at], i.e. an identity for "which
+ * function/lambda/`if` body is this code in". Equal indices mean the two positions are in the same
+ * block. (Comments are already gone and the counted files have no braces inside raw strings, so the
+ * count is exact.)
+ */
+private fun innermostBlock(source: String, at: Int): Int {
+    val open = ArrayDeque<Int>()
+    for (i in 0 until at) {
+        when (source[i]) {
+            '{' -> open.addLast(i)
+            '}' -> if (open.isNotEmpty()) open.removeLast()
+        }
+    }
+    return open.lastOrNull() ?: -1
+}
+
+/**
+ * The condition of the `if (` whose parentheses contain [at], or null when [at] is not inside an
+ * `if` condition (a bare expression, or a function body).
+ */
+private fun enclosingIfCondition(source: String, at: Int): String? {
+    var depth = 0
+    var i = at
+    while (i > 0) {
+        i--
+        when (source[i]) {
+            ')' -> depth++
+            '(' -> {
+                if (depth > 0) {
+                    depth--
+                } else {
+                    // The innermost unclosed `(`: it is an `if` condition only if `if` precedes it.
+                    if (!source.substring(0, i).trimEnd().endsWith("if")) return null
+                    return source.substring(i + 1, matchingParen(source, i))
+                }
+            }
+            // A condition never crosses a block boundary: past one, [at] is not inside an `if`
+            // condition at all.
+            '{', '}' -> if (depth == 0) return null
+        }
+    }
+    return null
+}
+
+/** The index of the `)` closing the `(` at [open]. */
+private fun matchingParen(source: String, open: Int): Int {
+    var depth = 0
+    for (i in open until source.length) {
+        when (source[i]) {
+            '(' -> depth++
+            ')' -> {
+                depth--
+                if (depth == 0) return i
+            }
+        }
+    }
+    fail("unbalanced parentheses from index $open")
+    error("unreachable")
+}
+
+/**
+ * The body of the function starting at [signature], found by counting braces from its opening brace,
+ * so the slice survives reformatting.
+ */
+private fun functionBody(source: String, signature: String): String {
+    val start = source.indexOf(signature)
+    if (start < 0) fail("missing call site: $signature")
+    val open = source.indexOf('{', start)
+    if (open < 0) fail("no block for: $signature")
+
+    var depth = 0
+    for (i in open until source.length) {
+        when (source[i]) {
+            '{' -> depth++
+            '}' -> {
+                depth--
+                if (depth == 0) return source.substring(open, i + 1)
+            }
+        }
+    }
+    fail("unterminated body for: $signature")
+    error("unreachable")
+}
+
+/**
+ * This source with `//` line comments and slash-star block comments removed, so a needle is only ever
+ * matched against code. String literals are copied verbatim, which is why a `//` inside one (a URL)
+ * cannot swallow the rest of the line.
+ */
+private fun String.withoutComments(): String {
+    val out = StringBuilder(length)
+    var i = 0
+    while (i < length) {
+        val c = this[i]
+        when {
+            c == '"' -> {
+                out.append(c)
+                i++
+                while (i < length && this[i] != '"') {
+                    if (this[i] == '\\' && i + 1 < length) {
+                        out.append(this[i])
+                        i++
+                    }
+                    out.append(this[i])
+                    i++
+                }
+                if (i < length) {
+                    out.append(this[i])
+                    i++
+                }
+            }
+            c == '/' && i + 1 < length && this[i + 1] == '/' -> {
+                while (i < length && this[i] != '\n') i++
+            }
+            c == '/' && i + 1 < length && this[i + 1] == '*' -> {
+                i += 2
+                while (i + 1 < length && !(this[i] == '*' && this[i + 1] == '/')) i++
+                i = min(i + 2, length)
+            }
+            else -> {
+                out.append(c)
+                i++
+            }
+        }
+    }
+    return out.toString()
 }

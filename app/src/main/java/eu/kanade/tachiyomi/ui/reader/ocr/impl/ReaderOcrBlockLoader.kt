@@ -19,6 +19,7 @@ package eu.kanade.tachiyomi.ui.reader.ocr.impl
 import com.hippo.unifile.UniFile
 import eu.kanade.tachiyomi.data.download.DownloadProvider
 import eu.kanade.tachiyomi.ui.dictionary.DictionaryPreferences
+import eu.kanade.tachiyomi.ui.reader.RedoOcrResult
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -348,8 +349,17 @@ class ReaderOcrBlockLoader(
     /**
      * Force re-runs OCR for [page] (or all pages in the chapter if [chapter] is true),
      * overwriting the persisted cache and overriding any .mokuro sidecar in the archive.
+     *
+     * [onComplete] is called **exactly once**, with how the re-run ended — including when nothing ran
+     * at all. A re-run in which every page failed (models missing, engine load failure, no page
+     * bytes) is a [RedoOcrResult.FAILED], never a success, and the "nothing to redo" early returns
+     * report themselves instead of leaving the reader's "Re-running OCR…" state as the last word.
      */
-    fun redoOcr(page: ReaderPage, chapter: Boolean = false, onComplete: (() -> Unit)? = null) {
+    fun redoOcr(
+        page: ReaderPage,
+        chapter: Boolean = false,
+        onComplete: ((RedoOcrResult) -> Unit)? = null,
+    ) {
         // KUN --> gated work entry: a forced re-run must not bypass the disabled feature.
         if (!dictionaryOcrPreferences.isEnabled()) return
         // KUN <--
@@ -359,10 +369,19 @@ class ReaderOcrBlockLoader(
             } else {
                 listOf(page)
             }
-            if (pagesToRedo.isEmpty()) return@launch
+            if (pagesToRedo.isEmpty()) {
+                onComplete?.invoke(RedoOcrResult.NOTHING_TO_REDO)
+                return@launch
+            }
 
             val ch = page.chapter.chapter
-            val manga = getManga.await(ch.mangaId) ?: return@launch
+            val manga = getManga.await(ch.mangaId)
+            if (manga == null) {
+                // Without the manga row there is no source and no cache key: not one page can run,
+                // so the caller must not be told the OCR was updated.
+                onComplete?.invoke(RedoOcrResult.NOTHING_TO_REDO)
+                return@launch
+            }
             val source = ocrManager.sourceFor(ch.mangaId)
             val cacheKey = ocrManager.cacheKey(
                 sourceId = manga.source,
@@ -371,6 +390,7 @@ class ReaderOcrBlockLoader(
             )
             val language = resolveLanguage(ch.mangaId, manga.source)
 
+            var redone = 0
             for (p in pagesToRedo) {
                 val key = p.ocrKey()
                 // KUN -->
@@ -389,20 +409,28 @@ class ReaderOcrBlockLoader(
                 retryAfter.remove(key)
                 timeoutLogged.remove(key)
 
+                var pageRedone = false
                 try {
-                    val bytes = pageBytes(p) ?: continue
-                    try {
-                        val blocks = ocrManager.forceRecognizeAndCache(
-                            key = cacheKey,
-                            pageIndex = p.index,
-                            bytes = bytes,
-                            language = language,
-                            source = source,
-                        )
-                        _blocks.update { it + (key to blocks) }
-                    } catch (e: Exception) {
-                        if (e is CancellationException) throw e
-                        logcat(LogPriority.WARN, e) { "ReaderOcr: redo OCR failed for page ${p.index}" }
+                    // A page with no readable bytes is a page this re-run gave up on — counted as a
+                    // failure, so an all-unreadable run reports failure instead of success.
+                    val bytes = pageBytes(p)
+                    if (bytes == null) {
+                        logcat(LogPriority.WARN) { "ReaderOcr: redo OCR has no page bytes for page ${p.index}" }
+                    } else {
+                        try {
+                            val blocks = ocrManager.forceRecognizeAndCache(
+                                key = cacheKey,
+                                pageIndex = p.index,
+                                bytes = bytes,
+                                language = language,
+                                source = source,
+                            )
+                            _blocks.update { it + (key to blocks) }
+                            pageRedone = true
+                        } catch (e: Exception) {
+                            if (e is CancellationException) throw e
+                            logcat(LogPriority.WARN, e) { "ReaderOcr: redo OCR failed for page ${p.index}" }
+                        }
                     }
                 } finally {
                     // KUN --> the page is only released once the re-run is over or gave up, so a
@@ -411,8 +439,9 @@ class ReaderOcrBlockLoader(
                     inFlight.remove(key, claim)
                     // KUN <--
                 }
+                if (pageRedone) redone++
             }
-            onComplete?.invoke()
+            onComplete?.invoke(if (redone > 0) RedoOcrResult.UPDATED else RedoOcrResult.FAILED)
         }
     }
 

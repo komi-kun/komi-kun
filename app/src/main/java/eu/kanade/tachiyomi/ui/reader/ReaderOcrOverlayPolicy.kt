@@ -13,6 +13,23 @@
 // KUN <--
 package eu.kanade.tachiyomi.ui.reader
 
+/**
+ * How a forced OCR re-run (`ReaderOcrHost.redoOcr`) ended, so the reader can report it honestly
+ * instead of always claiming success. It sits beside [ReaderOcrOverlayPolicy], in this package, for
+ * the same reason the policy does: `ReaderActivity` is a GPL-free seam file and may not name a type
+ * from the denied `…ui.reader.ocr` package.
+ */
+enum class RedoOcrResult {
+    /** At least one page was re-recognised and its blocks cached. */
+    UPDATED,
+
+    /** There was at least one page, but not one of them could be re-OCR'd. */
+    FAILED,
+
+    /** There was nothing to re-run at all (no page in the chapter, or the manga row is gone). */
+    NOTHING_TO_REDO,
+}
+
 object ReaderOcrOverlayPolicy {
 
     /**
@@ -35,13 +52,17 @@ object ReaderOcrOverlayPolicy {
      * true when a tap/long press may be **hit-tested** against the OCR blocks — i.e. when the OCR
      * host may consume it for a dictionary lookup.
      *
-     * The hit test must accept exactly what the overlay shows: an overlay that is off (the feature
-     * switched off, or the reader's own overlay toggle pressed a second time) must not swallow the
-     * gesture, or the page does not turn and the menu does not toggle — which reads as a dead
-     * reader. [menuVisible] is deliberately **not** part of this rule: with the chrome up the overlay
-     * still composes and its blocks are still where they are drawn, and the viewers route single
-     * taps through the host while the menu is open (`ReaderActivity`), so a tap must keep finding the
-     * block it visibly lands on.
+     * The rule mirrors exactly the two preferences the hit test is allowed to depend on — the
+     * combined dictionary/OCR opt-in and the reader's own overlay toggle — and nothing else: an
+     * overlay that is off (the feature switched off, or the toggle pressed a second time) must not
+     * swallow the gesture, or the page does not turn and the menu does not toggle — which reads as a
+     * dead reader.
+     *
+     * [menuVisible] is deliberately **not** part of this rule, even though [visible] paints nothing
+     * while the chrome is up (`ReaderActivity` composes the overlay with `alpha = 0f`): with the
+     * chrome visible the blocks are still hit-tested **by design**, so a tap while the bars are up
+     * still starts a lookup on the block it lands on instead of being swallowed. Only the painting is
+     * suppressed; the hit test is not.
      */
     fun acceptsLookup(masterEnabled: Boolean, overlayEnabled: Boolean): Boolean =
         masterEnabled && overlayEnabled

@@ -35,6 +35,7 @@ import eu.kanade.presentation.reader.OcrOverlay
 import eu.kanade.presentation.reader.OcrOverlayPage
 import eu.kanade.tachiyomi.ui.dictionary.DictionaryPopupSizing
 import eu.kanade.tachiyomi.ui.dictionary.DictionaryPreferences
+import eu.kanade.tachiyomi.ui.reader.RedoOcrResult
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import eu.kanade.tachiyomi.ui.reader.ocr.ImagePoint
 import eu.kanade.tachiyomi.ui.reader.ocr.OcrViewport
@@ -218,7 +219,7 @@ class ReaderOcrHostImpl(
 
     override fun hitsBlock(overlayPoint: Offset): Boolean = findBlockAt(overlayPoint) != null
 
-    override fun redoOcr(page: ReaderPage, chapter: Boolean, onComplete: (() -> Unit)?) {
+    override fun redoOcr(page: ReaderPage, chapter: Boolean, onComplete: ((RedoOcrResult) -> Unit)?) {
         blockLoader.redoOcr(page, chapter, onComplete)
     }
 
