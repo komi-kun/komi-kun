@@ -12,8 +12,16 @@ package mihon.core.dictionary.ui
  * never copied. `assets/dictionary/kanji-renderer.js` repeats this filtering on its side because the
  * renderer is loaded independently of this payload.
  *
- * Normal glyphs (`<svg viewBox=…><g transform=…><path d=…/></g></svg>`) pass through unchanged.
+ * Normal glyphs (`<svg viewBox=…><g transform=…><path d=…/></g></svg>`) pass through unchanged,
+ * apart from the root element: the renderer re-parses the output as XML (`image/svg+xml`), which
+ * — unlike the HTML parser — requires the SVG namespace to be declared and rejects an undeclared
+ * `xlink:` prefix. So the root always ends up carrying `xmlns="http://www.w3.org/2000/svg"`,
+ * plus `xmlns:xlink` when the markup uses that prefix, and both declarations themselves are
+ * allowed.
  */
+private const val SVG_NAMESPACE = "http://www.w3.org/2000/svg"
+private const val XLINK_NAMESPACE = "http://www.w3.org/1999/xlink"
+
 private val ALLOWED_ELEMENTS = setOf(
     "svg",
     "g",
@@ -41,6 +49,9 @@ private val ALLOWED_ELEMENTS = setOf(
 
 private val ALLOWED_ATTRIBUTES = setOf(
     "xmlns",
+    // Namespace declarations carry no script surface, and XML parsing of the output needs them.
+    "xmlns:xlink",
+    "xml:space",
     "version",
     "viewbox",
     "preserveaspectratio",
@@ -130,6 +141,12 @@ internal fun sanitizeKanjiSvgMarkup(markup: String): String {
     var skipDepth = 0
     var sawRoot = false
     var index = 0
+    // End of the root `<svg>` start tag: the namespace declarations XML parsing needs are only known
+    // once the whole document has been walked, so they are inserted there afterwards.
+    var rootTagEnd = -1
+    var rootDeclaresXmlns = false
+    var declaresXlinkNamespace = false
+    var usesXlinkPrefix = false
 
     for (match in TAG.findAll(markup)) {
         val textEnd = match.range.first
@@ -166,6 +183,7 @@ internal fun sanitizeKanjiSvgMarkup(markup: String): String {
             continue
         }
         if (key == "svg") sawRoot = true
+        val isRootSvg = key == "svg" && rootTagEnd < 0 && open.none { it.lowercase() == "svg" }
 
         // Original spelling is kept (HTML parsing normalises SVG names), so a legitimate glyph keeps
         // its exact markup.
@@ -175,7 +193,12 @@ internal fun sanitizeKanjiSvgMarkup(markup: String): String {
             val attributeKey = attributeName.lowercase()
             val value = attribute.groupValues.drop(2).firstOrNull { it.isNotEmpty() }.orEmpty()
             if (attributeKey !in ALLOWED_ATTRIBUTES || !isSafeAttributeValue(attributeKey, value)) return@forEach
-            out.append(' ').append(attributeName).append("=\"").append(escapeAttribute(value)).append('"')
+            if (attributeKey == "xmlns" && isRootSvg) rootDeclaresXmlns = true
+            if (attributeKey == "xmlns:xlink") declaresXlinkNamespace = true
+            if (attributeKey.startsWith("xlink:")) usesXlinkPrefix = true
+            // The root is rendered as SVG whatever namespace the dictionary claims for it.
+            val keptValue = if (isRootSvg && attributeKey == "xmlns") SVG_NAMESPACE else value
+            out.append(' ').append(attributeName).append("=\"").append(escapeAttribute(keptValue)).append('"')
         }
         if (selfClosing) {
             out.append("/>")
@@ -183,10 +206,21 @@ internal fun sanitizeKanjiSvgMarkup(markup: String): String {
             out.append('>')
             open.add(name)
         }
+        if (isRootSvg) rootTagEnd = out.length - if (selfClosing) 2 else 1
     }
 
     if (skipElement == null) appendEscapedText(out, markup, index, markup.length)
     while (open.isNotEmpty()) out.append("</").append(open.removeAt(open.lastIndex)).append('>')
+
+    if (rootTagEnd >= 0) {
+        val declarations = buildString {
+            if (!rootDeclaresXmlns) append(" xmlns=\"").append(SVG_NAMESPACE).append('"')
+            if (usesXlinkPrefix && !declaresXlinkNamespace) {
+                append(" xmlns:xlink=\"").append(XLINK_NAMESPACE).append('"')
+            }
+        }
+        if (declarations.isNotEmpty()) out.insert(rootTagEnd, declarations)
+    }
 
     val sanitized = out.toString()
     // No `<svg>` root (or nothing left): hand the renderer inert text instead of markup.

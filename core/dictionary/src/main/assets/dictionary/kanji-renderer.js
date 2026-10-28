@@ -35,7 +35,8 @@
     lineargradient: 1, radialgradient: 1, stop: 1
   };
   var SVG_ALLOWED_ATTRIBUTES = {
-    xmlns: 1, version: 1, viewbox: 1, preserveaspectratio: 1, width: 1, height: 1, x: 1, y: 1,
+    xmlns: 1, 'xmlns:xlink': 1, 'xml:space': 1, version: 1, viewbox: 1, preserveaspectratio: 1,
+    width: 1, height: 1, x: 1, y: 1,
     x1: 1, x2: 1, y1: 1, y2: 1, dx: 1, dy: 1, cx: 1, cy: 1, r: 1, rx: 1, ry: 1, d: 1, points: 1,
     transform: 1, rotate: 1, fill: 1, 'fill-opacity': 1, 'fill-rule': 1, stroke: 1,
     'stroke-width': 1, 'stroke-linecap': 1, 'stroke-linejoin': 1, 'stroke-dasharray': 1,
@@ -49,6 +50,11 @@
   };
   var SVG_LOCAL_URL = /^url\(\s*#[-A-Za-z0-9_.:]+\s*\)$/;
   var SVG_IDENTIFIER = /^[-A-Za-z0-9_.:]+$/;
+
+  // Parsing as `image/svg+xml` (rather than assigning HTML) needs the SVG namespace to be declared:
+  // an unnamespaced root is not an SVGSVGElement, and an undeclared `xlink:` prefix is a parse error.
+  var SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
+  var XLINK_NAMESPACE = 'http://www.w3.org/1999/xlink';
 
   function isSafeSvgAttributeValue(name, value) {
     var text = String(value);
@@ -96,21 +102,52 @@
     }
   }
 
-  function appendSanitizedSvg(container, markup) {
-    var root = null;
+  // True when [node] is the SVG root the whitelist expects, i.e. it actually landed in the SVG
+  // namespace (a root without `xmlns` parses into no namespace at all).
+  function isSvgRootElement(node) {
+    return !!node && String(node.nodeName).toLowerCase() === 'svg' &&
+      node.namespaceURI === SVG_NAMESPACE;
+  }
+
+  function parseSvgRoot(markup) {
+    if (typeof DOMParser !== 'function') return null;
     try {
-      if (typeof DOMParser === 'function') {
-        var doc = new DOMParser().parseFromString(markup, 'image/svg+xml');
-        if (doc && doc.documentElement &&
-            String(doc.documentElement.nodeName).toLowerCase() === 'svg' &&
-            !doc.getElementsByTagName('parsererror').length) {
-          root = doc.documentElement;
-        }
+      var doc = new DOMParser().parseFromString(markup, 'image/svg+xml');
+      if (doc && doc.documentElement && !doc.getElementsByTagName('parsererror').length) {
+        return doc.documentElement;
       }
-    } catch (e) {
-      root = null;
+    } catch (e) {}
+    return null;
+  }
+
+  // Declares the root namespaces the markup relies on but does not declare itself, so a re-parse can
+  // land in the SVG (and xlink) namespace instead of failing.
+  function withSvgNamespaces(markup) {
+    var text = String(markup);
+    var rootTag = /<svg(?=[\s/>])[^>]*>/i.exec(text);
+    if (!rootTag) return text;
+    var tag = rootTag[0];
+    var patched = tag;
+    if (/xmlns\s*=/i.test(patched)) {
+      patched = patched.replace(/(xmlns\s*=\s*)("[^"]*"|'[^']*')/i, '$1"' + SVG_NAMESPACE + '"');
+    } else {
+      patched = patched.replace(/^<svg/i, '<svg xmlns="' + SVG_NAMESPACE + '"');
     }
-    if (!root) {
+    if (/xlink:/i.test(text) && !/xmlns:xlink\s*=/i.test(patched)) {
+      patched = patched.replace(/\/?>$/, function(end) {
+        return ' xmlns:xlink="' + XLINK_NAMESPACE + '"' + end;
+      });
+    }
+    return text.slice(0, rootTag.index) + patched + text.slice(rootTag.index + tag.length);
+  }
+
+  function appendSanitizedSvg(container, markup) {
+    var root = parseSvgRoot(markup);
+    if (root && !isSvgRootElement(root)) {
+      // Re-parse once with the root namespace declarations injected; only give up after that.
+      root = parseSvgRoot(withSvgNamespaces(markup));
+    }
+    if (!root || !isSvgRootElement(root)) {
       container.textContent = markup;
       return;
     }
