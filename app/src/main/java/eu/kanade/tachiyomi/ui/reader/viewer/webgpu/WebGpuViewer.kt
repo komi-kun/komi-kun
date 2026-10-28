@@ -7,11 +7,9 @@ import android.os.SystemClock
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
-import android.view.View
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import ca.mpreg.imagedecoder.ImageDecoder
-import ca.mpreg.webgpuviewer.ImageView
 import ca.mpreg.webgpuviewer.closeTo
 import ca.mpreg.webgpuviewer.renderer.GainmapInput
 import ca.mpreg.webgpuviewer.renderer.Image
@@ -89,18 +87,8 @@ open class WebGpuViewer(
     val activity: ReaderActivity,
     val isReversed: Boolean,
     val isVertical: Boolean,
-    // KUN -->
-    // bridge: removed when ReaderActivity draws through Compose. The WebGPU surface is a Compose
-    // view, so until the activity hosts Compose it still needs one to add to its container; the
-    // state below is the one that view draws, so both paths show the same pages.
-    val pager: ImageView = ImageView(activity, isVertical = isVertical, isReversed = isReversed),
-    // KUN <--
+    val viewerState: ImageViewerState = ImageViewerState(isVertical = isVertical, isReversed = isReversed),
 ) : Viewer {
-
-    // KUN -->
-    /** What the pages are drawn from; upstream's constructor parameter, taken from [pager] here. */
-    val viewerState: ImageViewerState = pager.state
-    // KUN <--
 
     open val isContinuous: Boolean = false
 
@@ -1028,11 +1016,6 @@ open class WebGpuViewer(
     override fun Content(modifier: Modifier) {
         ImageViewer(modifier = modifier, state = viewerState)
     }
-
-    // KUN -->
-    // bridge: removed when ReaderActivity draws through Compose.
-    override fun getView(): View = pager
-    // KUN <--
 
     private val cropBorders: Boolean
         get() = if (isContinuous) longStrip.cropBorders else paged.page.cropBorders
