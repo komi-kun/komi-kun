@@ -10,10 +10,12 @@ import mihon.core.dictionary.model.TYPE_SUBDIRS
 import mihon.core.dictionary.model.dictionaryTypeDir
 import mihon.core.dictionary.repository.DictionaryRepository
 import mihon.core.dictionary.ui.invalidateDictionaryTitle
+import org.json.JSONObject
 import tachiyomi.i18n.kun.KUNMR
 import java.io.File
 import java.io.IOException
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.zip.ZipFile
 
 /** One dictionary successfully imported through the engine + type-dir copy path. */
 data class ImportedDictionary(
@@ -87,6 +89,11 @@ object DictionaryImportCoordinator {
             } catch (e: SecurityException) {
                 Log.e(TAG, "opening $uri failed", e)
                 false
+            } catch (e: IOException) {
+                // Reading the picked document failed (deleted, detached volume, I/O error). That is
+                // the *source*, not our storage: only the tree write below is a storage failure.
+                Log.e(TAG, "reading $uri failed", e)
+                false
             }
             if (!copied) {
                 return@guarded DictionaryImportOutcome.Failed(DictionaryImportFailure.UnreadableSource)
@@ -132,6 +139,13 @@ object DictionaryImportCoordinator {
     ): DictionaryImportOutcome {
         val tempImportDir = File(context.cacheDir, "dict_import_tmp_${System.nanoTime()}")
         try {
+            // The engine joins `output_dir / index.title` and creates that directory itself
+            // (`hoshidicts/src/importer.cpp`), i.e. before any title reaches the copy below — an
+            // unsafe title has to be refused *here*, or the engine writes a tree outside
+            // `tempImportDir` and the post-import sanitiser below runs too late to prevent it.
+            if (hasUnsafeIndexTitle(zip)) {
+                return DictionaryImportOutcome.Failed(DictionaryImportFailure.InvalidDictionary)
+            }
             tempImportDir.mkdirs()
             val result = repository.importDictionary(zip, tempImportDir)
             if (!result.success) return DictionaryImportOutcome.Failed(DictionaryImportFailure.InvalidDictionary)
@@ -139,6 +153,12 @@ object DictionaryImportCoordinator {
             val importedDir = tempImportDir.listFiles()?.firstOrNull { it.isDirectory }
                 ?: return DictionaryImportOutcome.Failed(DictionaryImportFailure.InvalidDictionary)
             val title = result.title.ifBlank { importedDir.name }
+            // The title is an untrusted `index.json` field used as a directory name below: sanitise
+            // it *before* the first `File` operation, or `../../anki_media` makes
+            // `dictionaryTypeDir` resolve outside the dictionary root and the delete-and-copy below
+            // destroys an unrelated directory.
+            val dirName = dictionaryPathName(title)
+                ?: return DictionaryImportOutcome.Failed(DictionaryImportFailure.InvalidDictionary)
 
             val targets = buildList {
                 if (result.termCount > 0) add("term")
@@ -153,7 +173,7 @@ object DictionaryImportCoordinator {
             // also what makes the new files visible (see `DictionaryRepository.withDictionaryTreeMutation`).
             repository.withDictionaryTreeMutation {
                 for (type in targets) {
-                    val destDir = dictionaryTypeDir(context, type, title)
+                    val destDir = dictionaryTypeDir(context, type, dirName)
                     if (destDir.exists()) destDir.deleteRecursively()
                     destDir.parentFile?.mkdirs()
                     importedDir.copyRecursively(destDir, overwrite = true)
@@ -162,22 +182,24 @@ object DictionaryImportCoordinator {
 
             val profile = prefs.profileStore.getActiveProfile()
             val order = profile.dictionaryOrder.filter { it.isNotBlank() }
-            if (title !in order) {
+            if (dirName !in order) {
                 prefs.profileStore.updateProfile(
                     profile.copy(
-                        dictionaryOrder = order + title,
+                        dictionaryOrder = order + dirName,
                         enabledDictionaries = if (profile.enabledDictionaries.isNotEmpty()) {
-                            profile.enabledDictionaries + title
+                            profile.enabledDictionaries + dirName
                         } else {
                             profile.enabledDictionaries
                         },
                     ),
                 )
             }
-            invalidateDictionaryTitle(title)
+            invalidateDictionaryTitle(dirName)
 
             return DictionaryImportOutcome.Imported(
                 ImportedDictionary(
+                    // The dictionary's own title, kept verbatim for display and for the backup
+                    // journal; only the path segment (`dirName`) is sanitised.
                     title = title,
                     termCount = result.termCount,
                     freqCount = result.freqCount,
@@ -204,6 +226,64 @@ object DictionaryImportCoordinator {
     }
 
     /**
+     * The single place a dictionary title becomes a path segment.
+     *
+     * The title comes from the ZIP's own `index.json`, so it is untrusted: `../../anki_media` or an
+     * absolute `/…` would make [dictionaryTypeDir] resolve outside the dictionary root, and this
+     * file deletes that directory recursively before copying into it. Separators, NULs, control
+     * characters and a dots-only name therefore never reach a [File]: they are folded to `_` and
+     * surrounding dots dropped (mirroring `sanitizeTitleForPath` in `DictionaryStaging`, plus DEL).
+     *
+     * `null` means nothing usable is left, and the import fails cleanly rather than guessing a name.
+     * Only the path segment changes — the title reported to the UI stays the dictionary's own.
+     */
+    private fun dictionaryPathName(raw: String): String? {
+        val cleaned = buildString(raw.length) {
+            for (c in raw) {
+                when {
+                    c == '/' || c == '\\' || c == '\u0000' || c.code < 0x20 || c.code == 0x7f -> append('_')
+                    else -> append(c)
+                }
+            }
+        }.trim().trim('.').trim()
+        return cleaned.take(MAX_PATH_NAME_CHARS).takeIf { it.isNotEmpty() }
+    }
+
+    /**
+     * Whether [zip]'s own `index.json` carries a title the engine must never see.
+     *
+     * Only a title we can actually read is judged: a file that is not a ZIP, has no `index.json`, or
+     * whose `index.json` is not JSON is left to the engine, which rejects it before writing
+     * anything — that keeps "InvalidDictionary" for corrupt input on the engine's side, as before.
+     */
+    private fun hasUnsafeIndexTitle(zip: File): Boolean {
+        val title = runCatching {
+            ZipFile(zip).use { archive ->
+                val entry = archive.getEntry(INDEX_ENTRY) ?: return@use null
+                archive.getInputStream(entry).use { it.readBytes().toString(Charsets.UTF_8) }
+                    .let { JSONObject(it).optString("title", null) }
+            }
+        }.getOrNull() ?: return false
+        return isUnsafeTitle(title)
+    }
+
+    /**
+     * Whether [raw] cannot be a path segment: separators, NULs and control characters let it point
+     * outside any directory (the engine's `output_dir / title` included), and a name that is only
+     * dots is `.`/`..`.
+     *
+     * Deliberately narrower than [dictionaryPathName]: it flags only what is dangerous, so the
+     * post-import sanitiser still handles merely awkward titles (stray spaces, over-long names).
+     */
+    private fun isUnsafeTitle(raw: String): Boolean {
+        if (raw.isEmpty()) return true
+        for (c in raw) {
+            if (c == '/' || c == '\\' || c == '\u0000' || c.code < 0x20 || c.code == 0x7f) return true
+        }
+        return raw.trim().trim('.').trim().isEmpty()
+    }
+
+    /**
      * Remove all type subdirs for [name] and drop it from the active profile order.
      *
      * The directory deletion and the profile update run inside
@@ -217,6 +297,13 @@ object DictionaryImportCoordinator {
         prefs: DictionaryPreferences,
         repository: DictionaryRepository,
     ) {
+        // Same guard as the import: a name that is not a plain segment could resolve outside the
+        // dictionary root. It is refused rather than sanitised — deleting a *sanitised* variant
+        // could remove a different dictionary than the one the caller meant.
+        if (dictionaryPathName(name) != name) {
+            Log.e(TAG, "refusing to delete non-segment dictionary name")
+            return
+        }
         repository.withDictionaryTreeMutation {
             TYPE_SUBDIRS.forEach { type ->
                 val dir = dictionaryTypeDir(context, type, name)
@@ -235,5 +322,11 @@ object DictionaryImportCoordinator {
     }
 
     private const val TAG = "DictImport"
+
+    /** Cap on a title-derived path segment; the same length `sanitizeTitleForPath` uses. */
+    private const val MAX_PATH_NAME_CHARS = 120
+
+    /** The ZIP entry the engine takes the dictionary title from. */
+    private const val INDEX_ENTRY = "index.json"
 }
 // KUN <--

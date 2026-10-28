@@ -28,6 +28,7 @@ import mihon.core.dictionary.model.KanjiResult
 import mihon.core.dictionary.model.LookupResult
 import mihon.core.dictionary.model.TermResult
 import mihon.core.dictionary.model.TransformGroup
+import mihon.core.dictionary.model.dictionariesDir
 import mihon.core.dictionary.model.dictionaryTypeDir
 import mihon.core.dictionary.repository.DictionaryRepository
 import org.junit.jupiter.api.AfterEach
@@ -38,11 +39,15 @@ import tachiyomi.core.common.preference.InMemoryPreferenceStore
 import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.PreferenceStore
 import java.io.File
+import java.io.IOException
+import java.io.InputStream
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 import kotlin.concurrent.thread
 
 /**
@@ -132,6 +137,113 @@ class DictionaryImportCoordinatorTest {
         // Nothing was copied into the live tree, and the temp ZIP is not left behind in the cache.
         h.termDir.exists() shouldBe false
         h.context.cacheDir.listFiles().orEmpty().map { it.name } shouldBe emptyList()
+    }
+
+    /**
+     * The defect this pins: the ZIP's own `index.json` title went straight into
+     * `dictionaryTypeDir`, so a title of `../../evil` made the delete-and-copy recursively delete
+     * and then overwrite `<externalFiles>/evil` — an arbitrary directory outside the dictionary root.
+     */
+    @Test
+    fun `a traversal title never deletes or writes outside the dictionary root`() = runBlocking<Unit> {
+        val h = harness(title = "../../evil")
+        val externalRoot = h.context.getExternalFilesDir(null)!!
+        // A dictionary already exists, so `dictionaries/term` does too — otherwise the traversal
+        // path simply fails to resolve and nothing is demonstrated.
+        File(dictionariesDir(h.context), "term").mkdirs()
+        val victim = File(externalRoot, "evil").apply { mkdirs() }
+        File(victim, "victim.marker").writeText("keep")
+
+        val outcome = DictionaryImportCoordinator.importFromZip(h.context, File("unused.zip"), h.prefs, h.repository)
+
+        // The unrelated directory is untouched: neither deleted (marker still there) nor written to.
+        File(victim, "victim.marker").readText() shouldBe "keep"
+        File(victim, "index.json").exists() shouldBe false
+        File(victim, "fresh.marker").exists() shouldBe false
+        // The import still landed, as one flat dictionary directory inside the dictionary root.
+        outcome.importedDictionary()?.termCount shouldBe 1L
+        h.importedTypeDirs("term").single().let { dir ->
+            File(dir, "index.json").readText() shouldBe """{"title":"New Revision"}"""
+        }
+    }
+
+    /**
+     * The defect this pins: the engine itself joins `output_dir / index.title` and creates that
+     * directory, so an unsafe title from the ZIP escaped `tempImportDir` *before* the coordinator
+     * saw it — the post-import sanitiser could not prevent the write, only redo it. The title is
+     * therefore read from the archive and refused before the engine is invoked at all.
+     */
+    @Test
+    fun `an unsafe title in the zip is refused before the engine runs`() = runBlocking<Unit> {
+        val h = harness()
+        val zip = zipWithIndexTitle("""{"title":"../../evil"}""")
+
+        val outcome = DictionaryImportCoordinator.importFromZip(h.context, zip, h.prefs, h.repository)
+
+        // The engine must never have been handed a ZIP whose title it would use as a path.
+        h.engine.importCalls.get() shouldBe 0
+        outcome shouldBe DictionaryImportOutcome.Failed(DictionaryImportFailure.InvalidDictionary)
+        // Nothing was created inside the dictionary tree, and nothing outside it either.
+        h.importedTypeDirs("term") shouldBe emptyList()
+        File(h.context.getExternalFilesDir(null)!!, "evil").exists() shouldBe false
+        File(h.context.cacheDir, "evil").exists() shouldBe false
+    }
+
+    /**
+     * The defect this pins: a title containing `/` became a *nested* path under the type dir, so the
+     * "dictionary" was a directory (`Evil/`) holding no `index.json` — invisible to
+     * `allDictionaryNames` and to the engine, and leftovers of a nested tree could not be deleted.
+     */
+    @Test
+    fun `a title containing a separator still lands as one flat dictionary directory`() = runBlocking<Unit> {
+        val h = harness(title = "Evil/Name")
+
+        val outcome = DictionaryImportCoordinator.importFromZip(h.context, File("unused.zip"), h.prefs, h.repository)
+
+        outcome.importedDictionary()?.termCount shouldBe 1L
+        h.importedTypeDirs("term").single().let { dir ->
+            File(dir, "index.json").readText() shouldBe """{"title":"New Revision"}"""
+        }
+    }
+
+    /**
+     * The defect this pins: an `IOException` raised while *reading* the picked document escaped the
+     * inner catch (only `SecurityException` was handled), reached `failureOf(IOException)` and was
+     * reported as "storage full or read-only" — the wrong string, for the wrong cause.
+     */
+    @Test
+    fun `an unreadable picked document is reported as an unreadable source, not storage`() = runBlocking<Unit> {
+        val h = harness()
+        val uri = mockk<Uri>()
+        every { h.resolver.openInputStream(uri) } returns object : InputStream() {
+            override fun read(): Int = throw IOException("device went away")
+        }
+
+        val outcome = DictionaryImportCoordinator.importFromUri(h.context, uri, h.prefs, h.repository)
+
+        outcome shouldBe DictionaryImportOutcome.Failed(DictionaryImportFailure.UnreadableSource)
+        h.context.cacheDir.listFiles().orEmpty().map { it.name } shouldBe emptyList()
+    }
+
+    /**
+     * The defect this pins: a title of `/` made `File(typeDir, "/")` resolve to the filesystem root
+     * itself, so the coordinator's `deleteRecursively()` ran on `/`. This case is deliberately only
+     * exercised after the guard exists — running it against the old code would try to delete the
+     * filesystem root.
+     */
+    @Test
+    fun `an absolute title cannot escape the dictionary root`() = runBlocking<Unit> {
+        val h = harness(title = "/")
+        val externalRoot = h.context.getExternalFilesDir(null)!!
+
+        val outcome = DictionaryImportCoordinator.importFromZip(h.context, File("unused.zip"), h.prefs, h.repository)
+
+        outcome.importedDictionary()?.termCount shouldBe 1L
+        // Everything landed inside the dictionary root; nothing else was created or removed.
+        externalRoot.listFiles().orEmpty().map { it.name }.sorted() shouldBe listOf("dictionaries")
+        h.importedTypeDirs("term").single().let { dir ->
+            File(dir, "index.json").readText() shouldBe """{"title":"New Revision"}"""
+        }
     }
 
     /**
@@ -291,6 +403,12 @@ class DictionaryImportCoordinatorTest {
         val termDir: File get() = dictionaryTypeDir(context, "term", TITLE)
         val paths: DictionaryPaths get() = DictionaryPaths(termPaths = listOf(termDir.absolutePath))
 
+        /** Every directory directly under the `dictionaries/<type>` root, sorted. */
+        fun importedTypeDirs(type: String): List<File> =
+            File(dictionariesDir(context), type).listFiles().orEmpty()
+                .filter { it.isDirectory }
+                .sortedBy { it.name }
+
         /** The tree a previous import left behind, with a marker only the old files have. */
         fun seedOldTree() {
             termDir.mkdirs()
@@ -310,6 +428,7 @@ class DictionaryImportCoordinatorTest {
     private fun harness(
         engineSucceeds: Boolean = true,
         acceptsZip: (File) -> Boolean = { true },
+        title: String = TITLE,
     ): Harness {
         val root = File(System.getProperty("java.io.tmpdir"), "dict-coordinator-${System.nanoTime()}")
         val cache = File(root, "cache").apply { mkdirs() }
@@ -319,7 +438,7 @@ class DictionaryImportCoordinatorTest {
         every { context.cacheDir } returns cache
         every { context.getExternalFilesDir(null) } returns files
         every { context.contentResolver } returns resolver
-        val engine = FakeEngine(succeeds = engineSucceeds, accepts = acceptsZip)
+        val engine = FakeEngine(succeeds = engineSucceeds, accepts = acceptsZip, title = title)
         return Harness(
             context = context,
             resolver = resolver,
@@ -338,6 +457,17 @@ class DictionaryImportCoordinatorTest {
         )
     }
 
+    /** A real ZIP whose `index.json` carries [indexJson] — the only entry the pre-check reads. */
+    private fun zipWithIndexTitle(indexJson: String): File {
+        val zip = File(System.getProperty("java.io.tmpdir"), "dict-index-${System.nanoTime()}.zip")
+        ZipOutputStream(zip.outputStream()).use { out ->
+            out.putNextEntry(ZipEntry("index.json"))
+            out.write(indexJson.toByteArray())
+            out.closeEntry()
+        }
+        return zip
+    }
+
     private companion object {
         const val TITLE = "TestDict"
         const val OLD_INDEX = """{"title":"Old Revision"}"""
@@ -352,6 +482,8 @@ private class FakeEngine(
     private val succeeds: Boolean = true,
     /** Mirrors the engine rejecting a file it cannot read as a Yomitan ZIP. */
     private val accepts: (File) -> Boolean = { true },
+    /** The `index.json` title the engine reports — untrusted input in the real importer. */
+    private val title: String = "TestDict",
 ) : DictionaryEngine {
     override val isAvailable: Boolean = true
 
@@ -403,7 +535,7 @@ private class FakeEngine(
         }
         return ImportResult(
             success = ok,
-            title = "TestDict",
+            title = title,
             termCount = if (ok) 1 else 0,
             metaCount = 0,
             freqCount = 0,

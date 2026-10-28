@@ -189,8 +189,10 @@ class DictionaryBackupImporter(
      * Completed-titles journal, keyed to the backup's name+size, so a re-run after a cancel skips
      * dictionaries that already landed (and a *different* backup is not falsely skipped).
      */
-    private class ResumeManifest(
+    internal class ResumeManifest(
         private val file: File,
+        private val displayName: String,
+        private val sizeBytes: Long,
         val completed: MutableSet<String>,
     ) {
         private var dirty = false
@@ -204,8 +206,19 @@ class DictionaryBackupImporter(
         }
 
         fun flush() {
-            if (!dirty) return
+            if (dirty) write()
+        }
+
+        /**
+         * The only writer of the manifest. All three keys go out together: [open] treats a manifest
+         * whose name/size do not match the picked backup as stale and wipes the staging dir, so a
+         * writer that dropped them turned every later flush into "a different backup" and threw the
+         * resume set away.
+         */
+        private fun write() {
             val json = JSONObject().apply {
+                put("name", displayName)
+                put("size", sizeBytes)
                 put("imported", JSONArray(completed.toList()))
             }
             runCatching { file.writeText(json.toString()) }
@@ -230,14 +243,8 @@ class DictionaryBackupImporter(
                 // Fresh (or mismatched) backup: drop stale staging so we do not mix backups.
                 if (!valid) stagingDir.deleteRecursively()
                 stagingDir.mkdirs()
-                file.writeText(
-                    JSONObject().apply {
-                        put("name", inspection.displayName)
-                        put("size", inspection.sizeBytes)
-                        put("imported", JSONArray(completed.toList()))
-                    }.toString(),
-                )
-                return ResumeManifest(file, completed)
+                return ResumeManifest(file, inspection.displayName, inspection.sizeBytes, completed)
+                    .also { it.write() }
             }
 
             private const val MANIFEST_NAME = "resume.json"
