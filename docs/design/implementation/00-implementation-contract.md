@@ -75,7 +75,9 @@ Exactly these source files, and nothing else (all import no GPL package):
 - `app/…/ui/reader/ReaderActivity.kt`, `ReaderViewModel.kt`, `setting/ReaderPreferences.kt`,
   `setting/ReaderBottomButton.kt`, `eu.kanade.presentation.reader.appbars.ReaderAppBars.kt`;
   `app/…/ui/reader/ReaderOcrTogglePolicy.kt` (the reader overlay toggle decision `ReaderViewModel`
-  calls from the same package — invisible to an import scan, so it is listed explicitly);
+  calls from the same package — invisible to an import scan, so it is listed explicitly) and
+  `app/…/ui/reader/ReaderOcrOverlayPolicy.kt` (the reader overlay *layering* decision
+  `ReaderActivity` calls from the same package — listed for the same reason);
 - `core/common/…/preference/DictionaryOcrPreferences.kt` — the combined dictionary/OCR opt-in in
   Apache `:core:common`; the GPL-free `ReaderActivity`/`ReaderViewModel` gate on it;
 - `domain/…/chapter/model/Chapter.kt`, `domain/…/chapter/model/ChapterUpdate.kt` (add `isOcrReady`);
