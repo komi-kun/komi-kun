@@ -528,11 +528,14 @@ androidComponents {
 // KUN -->
 // GPL-free boundary check (contract §1.3/§1.9). Defined in :app so `./gradlew verifyGplFree`
 // resolves to this task, which wraps scripts/verify-gpl-free.sh so CI and local runs share one
-// code path.
+// code path. The script's self-test runs after it: a guard that only passes on the current tree
+// has not been shown to catch a planted violation of any of the shapes it must catch.
 val verifyGplFree by tasks.registering(Exec::class) {
     group = "verification"
-    description = "Fails if a GPL-free file (§1.3) imports a GPL package (§1.9)."
-    commandLine("bash", layout.settingsDirectory.file("scripts/verify-gpl-free.sh").asFile.absolutePath)
+    description = "Fails if a GPL-free file (§1.3) references a GPL package (§1.9)."
+    val guard = layout.settingsDirectory.file("scripts/verify-gpl-free.sh").asFile.absolutePath
+    val selfTest = layout.settingsDirectory.file("scripts/test-verify-gpl-free.sh").asFile.absolutePath
+    commandLine("bash", "-c", "bash \"$guard\" && bash \"$selfTest\"")
 }
 // KUN <--
 

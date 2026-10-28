@@ -287,9 +287,15 @@ class OcrManager(
         // KUN -->
         if (ocrDisabled()) return emptyList()
         // KUN <--
+        // KUN -->
+        // Pinned *before* recognition, exactly like `runChapter`: the variant names the model bytes
+        // the engine holds, so reading it afterwards would file a page produced by the old weights
+        // under an identity a download that landed mid-inference just created.
+        val variant = cacheVariant(source)
+        // KUN <--
         val blocks = recognizePage(bytes, language)
         if (source.persistsOcrResults && blocks.isNotEmpty()) {
-            cacheManager.save(key, pageIndex, blocks, language.bcp47, cacheVariant(source))
+            cacheManager.save(key, pageIndex, blocks, language.bcp47, variant)
         }
         return blocks
     }
@@ -308,8 +314,12 @@ class OcrManager(
         // KUN -->
         if (ocrDisabled()) return emptyList()
         // KUN <--
+        // KUN -->
+        // Pinned before recognition for the same reason as [recognizeAndCache].
+        val variant = cacheVariant(source)
+        // KUN <--
         val blocks = recognizePage(bytes, language)
-        cacheManager.save(key, pageIndex, blocks, language.bcp47, cacheVariant(source))
+        cacheManager.save(key, pageIndex, blocks, language.bcp47, variant)
         return blocks
     }
 
