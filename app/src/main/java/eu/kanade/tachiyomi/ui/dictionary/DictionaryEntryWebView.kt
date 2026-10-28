@@ -414,8 +414,12 @@ fun DictionaryEntryWebView(
                 state?.pendingExistingExpressions = null
                 state?.pendingMediaDataUris = null
                 state?.pendingRenderSignature = null
-                state?.ankiJsBridge?.onAnkiLookup = null
                 // KUN -->
+                // The entry WebView owns its WebView (the factory creates it), so leaving
+                // composition means this page is gone: tear the bridges down instead of only
+                // dropping the callback, which the next `update` pass would re-arm against a
+                // document that no longer exists.
+                state?.ankiJsBridge?.destroy()
                 state?.audioBridge?.stop()
                 state?.audioBridge?.configProvider = null
                 state?.audioBridge?.languageIsoProvider = null

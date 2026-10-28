@@ -54,5 +54,24 @@ class AnkiJsBridgeTeardownTest {
         // No card creation was requested for the dead popup — for either entry point.
         lookups shouldBe listOf(7 to false, 8 to true)
     }
+
+    /**
+     * The defect this pins: teardown that only clears `onAnkiLookup` is undone by the next wiring
+     * pass — every `DictionaryEntryWebView` `update` reassigns the callback for the results it is
+     * showing — so a discarded page would start creating cards again. `destroy()` cancels the
+     * bridge's scope too, so re-arming the callback cannot bring the dead page back.
+     */
+    @Test
+    fun `re-arming the callback after destroy does not revive the bridge`() {
+        val lookups = mutableListOf<Int>()
+        val bridge = AnkiJsBridge(webViewProvider = { null }, dispatcher = Dispatchers.Unconfined)
+
+        bridge.destroy()
+        bridge.onAnkiLookup = { index, _, _, _, _ -> lookups += index }
+
+        bridge.addToAnki(index = "3", glossary = "0", selectedDict = "dict", popupSelection = "")
+
+        lookups shouldBe emptyList<Int>()
+    }
 }
 // KUN <--
