@@ -42,10 +42,48 @@ class StructuredContentTagAllowListTest {
         val allowed = setLiteral("HTML_STRUCTURED_TAGS") + setLiteral("svgTags")
 
         allowed shouldNotContainAnyOf listOf(
-            "script", "style", "iframe", "object", "embed", "foreignobject", "form", "input",
+            "script", "iframe", "object", "embed", "foreignobject", "form", "input",
             "button", "textarea", "select", "template", "link", "meta", "base", "frame",
             "frameset", "applet", "noscript",
         )
+    }
+
+    /**
+     * `style` is the one admitted tag whose *content* is executable-looking (CSS can import and
+     * load), so it may never be created from the dictionary's text as-is: the renderer's style path
+     * must rebuild the sheet through the property allow-list, and degrade to neutral content when it
+     * cannot (a dictionary stylesheet that imports or references anything external).
+     */
+    @Test
+    fun `a style tag is admitted only through the css allow-list`() {
+        setLiteral("HTML_STRUCTURED_TAGS") shouldContainAll listOf("style")
+
+        val dispatcher = functionBody("function renderStructuredObjectNode(")
+        dispatcher shouldContain "createStyleNode("
+
+        val creator = functionBody("function createStyleNode(")
+        creator shouldContain "sanitizeStyleSheet("
+        // The created element carries the rebuilt sheet, never the dictionary's raw text.
+        creator shouldContain "element.textContent = sheet"
+        creator shouldContain "NEUTRAL_TAG_NAME"
+    }
+
+    /**
+     * The property allow-list exists three times (Kotlin payload boundary, `renderer.js` and
+     * `kanji-renderer.js`, the latter two loaded independently of the payload), so a property added
+     * to one side only would silently be filtered on one surface and survive on another.
+     */
+    @Test
+    fun `the css property allow-list matches both renderers`() {
+        SAFE_STYLE_PROPERTIES shouldBe setLiteral("SAFE_STYLE_PROPERTIES")
+
+        val kanjiRenderer = File("src/main/assets/dictionary/kanji-renderer.js").readText()
+        setLiteralIn(kanjiRenderer, "SAFE_STYLE_PROPERTIES") shouldBe SAFE_STYLE_PROPERTIES
+        // The families (`font-*`) are part of the same contract.
+        kanjiRenderer shouldContain "SAFE_STYLE_PROPERTY_PREFIXES"
+        renderer shouldContain "SAFE_STYLE_PROPERTY_PREFIXES"
+        kanjiRenderer shouldContain "'font-'"
+        renderer shouldContain "'font-'"
     }
 
     @Test
@@ -77,13 +115,16 @@ class StructuredContentTagAllowListTest {
     }
 
     /** Body of the `new Set([...])` declaration, names lower-cased. */
-    private fun setLiteral(declaration: String): Set<String> {
-        val start = renderer.indexOf("const $declaration = new Set([")
-        check(start >= 0) { "$declaration is missing from renderer.js" }
-        val open = renderer.indexOf('[', start)
-        val close = renderer.indexOf(']', open)
+    private fun setLiteral(declaration: String): Set<String> = setLiteralIn(renderer, declaration)
+
+    /** Same, for a specific asset (`kanji-renderer.js` declares its copies with `var`). */
+    private fun setLiteralIn(source: String, declaration: String): Set<String> {
+        val start = source.indexOf("$declaration = new Set([")
+        check(start >= 0) { "$declaration is missing from the renderer" }
+        val open = source.indexOf('[', start)
+        val close = source.indexOf(']', open)
         check(open >= 0 && close > open) { "$declaration has no array literal" }
-        val names = Regex("'([^']+)'").findAll(renderer.substring(open + 1, close))
+        val names = Regex("'([^']+)'").findAll(source.substring(open + 1, close))
             .map { it.groupValues[1].lowercase() }
             .toSet()
         check(names.isNotEmpty()) { "$declaration is empty" }

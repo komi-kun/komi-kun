@@ -46,7 +46,9 @@
     'stop-opacity': 1, offset: 1, gradientunits: 1, gradienttransform: 1, spreadmethod: 1,
     'text-anchor': 1, 'dominant-baseline': 1, 'alignment-baseline': 1, 'baseline-shift': 1,
     'font-family': 1, 'font-size': 1, 'font-weight': 1, 'font-style': 1, 'font-variant': 1,
-    'letter-spacing': 1, 'word-spacing': 1, id: 1, 'class': 1, href: 1, 'xlink:href': 1
+    'letter-spacing': 1, 'word-spacing': 1, id: 1, 'class': 1, href: 1, 'xlink:href': 1,
+    // Inline CSS, filtered property by property below (`sanitizeInlineStyle`).
+    style: 1
   };
   var SVG_LOCAL_URL = /^url\(\s*#[-A-Za-z0-9_.:]+\s*\)$/;
   var SVG_IDENTIFIER = /^[-A-Za-z0-9_.:]+$/;
@@ -69,12 +71,77 @@
     return true;
   }
 
+  // ── Dictionary CSS allow-list ──────────────────────────────────────────────────────────────
+  // An inline `style` attribute from a third-party dictionary is filtered declaration by
+  // declaration: only these properties (and the `font-*` family) survive, and a value that can load
+  // or run something loses its declaration. Mirrors `SAFE_STYLE_PROPERTIES` in
+  // `DictionaryStyleSanitizer.kt` and `renderer.js`; `StructuredContentTagAllowListTest` fails when
+  // the copies drift apart.
+  var SAFE_STYLE_PROPERTIES = new Set(['color', 'fill', 'stroke', 'stroke-width', 'opacity']);
+  var SAFE_STYLE_PROPERTY_PREFIXES = ['font-'];
+  var FORBIDDEN_STYLE_TOKENS = [
+    'url(', '@import', 'expression(', 'javascript:', 'vbscript:', 'behavior:', '-moz-binding',
+    'http:', 'https:', 'ftp:', 'file:', '//'
+  ];
+
+  function isSafeStyleProperty(name) {
+    var key = String(name).trim().toLowerCase();
+    if (!key) return false;
+    if (SAFE_STYLE_PROPERTIES.has(key)) return true;
+    for (var i = 0; i < SAFE_STYLE_PROPERTY_PREFIXES.length; i++) {
+      var prefix = SAFE_STYLE_PROPERTY_PREFIXES[i];
+      if (key.indexOf(prefix) === 0 && key.length > prefix.length) return true;
+    }
+    return false;
+  }
+
+  function isSafeStyleValue(value) {
+    var text = String(value);
+    if (!text.trim()) return false;
+    if (text.indexOf('&#') !== -1) return false;
+    var compact = text.replace(/\s+/g, '').toLowerCase();
+    for (var i = 0; i < FORBIDDEN_STYLE_TOKENS.length; i++) {
+      if (compact.indexOf(FORBIDDEN_STYLE_TOKENS[i]) !== -1) return false;
+    }
+    return true;
+  }
+
+  function sanitizeStyleDeclaration(declaration) {
+    var colon = declaration.indexOf(':');
+    if (colon <= 0) return null;
+    var property = declaration.slice(0, colon).trim().toLowerCase();
+    var value = declaration.slice(colon + 1).trim();
+    if (!isSafeStyleProperty(property) || !isSafeStyleValue(value)) return null;
+    return property + ': ' + value;
+  }
+
+  function sanitizeInlineStyle(css) {
+    if (!css || typeof css !== 'string') return null;
+    var parts = String(css).split(';');
+    var kept = [];
+    for (var i = 0; i < parts.length; i++) {
+      var declaration = sanitizeStyleDeclaration(parts[i]);
+      if (declaration) kept.push(declaration);
+    }
+    return kept.length ? kept.join('; ') : null;
+  }
+
   function sanitizeSvgAttributes(node) {
     var attributes = [];
     for (var i = 0; i < node.attributes.length; i++) attributes.push(node.attributes[i]);
     for (var a = 0; a < attributes.length; a++) {
       var attribute = attributes[a];
       var name = String(attribute.name).toLowerCase();
+      if (name === 'style') {
+        // Rewritten to the allow-listed declarations, or dropped when nothing safe is left.
+        var cleaned = sanitizeInlineStyle(attribute.value);
+        if (!cleaned) {
+          node.removeAttributeNode(attribute);
+        } else {
+          node.setAttribute('style', cleaned);
+        }
+        continue;
+      }
       if (!Object.prototype.hasOwnProperty.call(SVG_ALLOWED_ATTRIBUTES, name) ||
           !isSafeSvgAttributeValue(name, attribute.value)) {
         node.removeAttributeNode(attribute);

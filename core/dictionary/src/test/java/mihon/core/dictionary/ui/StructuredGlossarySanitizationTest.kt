@@ -16,8 +16,12 @@ import org.junit.jupiter.api.Test
  * A Yomitan term's glossary is structured content whose `tag` values come straight from the
  * dictionary file, and the popup is a JS-enabled WebView with native bridges and no CSP. The
  * renderer refuses off-list tags, but the payload is assembled here, so the same allow-list is
- * applied to the JSON on the way out: an executing (`script`, `style`, `iframe`, `object`, `embed`,
+ * applied to the JSON on the way out: an executing (`script`, `iframe`, `object`, `embed`,
  * `foreignObject`) or unknown tag becomes `span` with its children kept.
+ *
+ * `style` is the one allowed tag whose content is CSS: the sheet is rebuilt rule by rule with
+ * `sanitizeStyleSheet` (allow-listed properties only, no at-rules, no external references), and a
+ * sheet that cannot be expressed that way degrades to `span` like any refused tag.
  */
 class StructuredGlossarySanitizationTest {
 
@@ -41,7 +45,7 @@ class StructuredGlossarySanitizationTest {
     }
 
     @Test
-    fun `style, iframe and an unknown tag are all neutralised`() {
+    fun `a style sheet with nothing allow-listed, iframe and an unknown tag are all neutralised`() {
         val raw = """{"type":"structured-content","content":[""" +
             """{"tag":"style","content":"rect{background:red}"},""" +
             """{"tag":"iframe","content":"https://evil.invalid"},""" +
@@ -55,6 +59,42 @@ class StructuredGlossarySanitizationTest {
         sanitized shouldContain "rect{background:red}"
         sanitized shouldContain "https://evil.invalid"
         sanitized shouldContain """"content":"text""""
+    }
+
+    @Test
+    fun `a style sheet is rebuilt from its allow-listed declarations`() {
+        val raw = """{"tag":"style","content":".gloss-sc-div { color: #fff; position: absolute; stroke-width: 2 } "}"""
+
+        val sanitized = glossaryJson(raw)
+
+        sanitized shouldContain """"tag":"style""""
+        sanitized shouldContain ".gloss-sc-div { color: #fff; stroke-width: 2 }"
+        sanitized shouldNotContain "position"
+    }
+
+    /**
+     * The failure the filter exists for: CSS can import and load. A declaration that references
+     * anything external is dropped while the safe ones stay; a sheet that cannot be rebuilt at all
+     * (an at-rule) degrades to neutral, inert text instead of a `<style>` node.
+     */
+    @Test
+    fun `a style sheet never carries an external reference`() {
+        val filtered = glossaryJson(
+            """{"tag":"style","content":".x { color: red; background: url(https://evil.invalid/a.png) }"}""",
+        )
+        filtered shouldContain """"tag":"style""""
+        filtered shouldContain ".x { color: red }"
+        filtered shouldNotContain "evil.invalid"
+
+        for (css in listOf(
+            "@import url(https://evil.invalid/a.css);",
+            ".x { color: red } @media print { .x { color: blue } }",
+        )) {
+            val sanitized = glossaryJson("""{"tag":"style","content":"$css"}""")
+
+            sanitized shouldNotContain """"tag":"style""""
+            sanitized shouldContain """"tag":"span""""
+        }
     }
 
     @Test

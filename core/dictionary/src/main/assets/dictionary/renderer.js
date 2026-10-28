@@ -535,6 +535,89 @@
     return Number.isInteger(rounded) ? String(rounded) : String(rounded);
   }
 
+  // ── Dictionary CSS allow-list ────────────────────────────────────────────────────────────────
+  // A dictionary's `style` attribute / `tag: "style"` is third-party CSS in a JS-enabled WebView
+  // with native bridges attached, so it is rebuilt from an explicit allow-list: only these
+  // properties (and the `font-*` family) survive, and a value that can load or run something rejects
+  // its declaration. Mirrors `SAFE_STYLE_PROPERTIES` in `DictionaryStyleSanitizer.kt` and
+  // `kanji-renderer.js`; `StructuredContentTagAllowListTest` fails when the copies drift apart.
+  const SAFE_STYLE_PROPERTIES = new Set(['color', 'fill', 'stroke', 'stroke-width', 'opacity']);
+  const SAFE_STYLE_PROPERTY_PREFIXES = ['font-'];
+  const FORBIDDEN_STYLE_TOKENS = [
+    'url(', '@import', 'expression(', 'javascript:', 'vbscript:', 'behavior:', '-moz-binding',
+    'http:', 'https:', 'ftp:', 'file:', '//'
+  ];
+
+  function isSafeStyleProperty(name) {
+    const key = String(name).trim().toLowerCase();
+    if (!key) return false;
+    if (SAFE_STYLE_PROPERTIES.has(key)) return true;
+    return SAFE_STYLE_PROPERTY_PREFIXES.some((prefix) => key.startsWith(prefix) && key.length > prefix.length);
+  }
+
+  function isSafeStyleValue(value) {
+    const text = String(value);
+    if (!text.trim()) return false;
+    if (text.indexOf('&#') !== -1) return false;
+    const compact = text.replace(/\s+/g, '').toLowerCase();
+    return !FORBIDDEN_STYLE_TOKENS.some((token) => compact.indexOf(token) !== -1);
+  }
+
+  function sanitizeStyleDeclaration(declaration) {
+    const colon = declaration.indexOf(':');
+    if (colon <= 0) return null;
+    const property = declaration.slice(0, colon).trim().toLowerCase();
+    const value = declaration.slice(colon + 1).trim();
+    if (!isSafeStyleProperty(property) || !isSafeStyleValue(value)) return null;
+    return `${property}: ${value}`;
+  }
+
+  function sanitizeInlineStyle(css) {
+    if (!css || typeof css !== 'string') return null;
+    const declarations = String(css).split(';').map(sanitizeStyleDeclaration).filter(Boolean);
+    return declarations.length ? declarations.join('; ') : null;
+  }
+
+  function sanitizeStyleSheet(css) {
+    if (!css || typeof css !== 'string' || !css.trim()) return null;
+    // No at-rules at all, and nothing but plain rule blocks: what is left cannot import a stylesheet
+    // or reach outside the document.
+    if (css.indexOf('@') !== -1) return null;
+    const rulePattern = /([^{}]+)\{([^{}]*)\}/g;
+    if (css.replace(rulePattern, '').trim()) return null;
+    const rules = [];
+    let match;
+    rulePattern.lastIndex = 0;
+    while ((match = rulePattern.exec(css)) !== null) {
+      const selector = match[1].trim();
+      if (!selector || /[<>]/.test(selector) || selector.indexOf('//') !== -1) continue;
+      const declarations = match[2].split(';').map(sanitizeStyleDeclaration).filter(Boolean);
+      if (declarations.length) rules.push(`${selector} { ${declarations.join('; ')} }`);
+    }
+    return rules.length ? rules.join(' ') : null;
+  }
+
+  function styleNodeText(content) {
+    if (typeof content === 'string') return content;
+    if (Array.isArray(content)) {
+      return content.filter((item) => typeof item === 'string').join('');
+    }
+    return '';
+  }
+
+  function createStyleNode(node, dictName, mediaMap, language) {
+    const sheet = sanitizeStyleSheet(styleNodeText(node.content));
+    if (sheet === null) {
+      // A sheet that cannot be expressed with allow-listed rules gains no `<style>` node: the node
+      // degrades to neutral content exactly like an off-list tag.
+      return createGenericStructuredElement(node, NEUTRAL_TAG_NAME, NEUTRAL_TAG_NAME, dictName, mediaMap, language);
+    }
+    const element = document.createElement('style');
+    element.textContent = sheet;
+    applyCommonStructuredAttributes(element, node);
+    return element;
+  }
+
   function sanitizeHref(href) {
     if (!href) return null;
     const value = String(href).trim();
@@ -1394,7 +1477,10 @@
     'details', 'summary', 'blockquote', 'pre', 'code',
     'b', 'strong', 'i', 'em', 'u', 's', 'del', 'ins', 'mark', 'small', 'sub', 'sup',
     'ruby', 'rb', 'rt', 'rtc', 'rp', 'cite', 'q', 'abbr', 'time', 'kbd', 'samp', 'var',
-    'figure', 'figcaption', 'img', 'a'
+    'figure', 'figcaption', 'img', 'a',
+    // A stylesheet a static dictionary ships for its glossary. `createStyleNode` filters its text
+    // (allow-listed properties only) instead of copying it.
+    'style'
   ]);
 
   const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
@@ -1568,6 +1654,9 @@
     }
 
     const tagNameLower = tagNameRaw.toLowerCase();
+    if (tagNameLower === 'style') {
+      return {kind: 'node', node: createStyleNode(node, dictName, mediaMap, language)};
+    }
     const handler = ELEMENT_REGISTRY[tagNameLower];
     if (handler) {
       return {kind: 'node', node: handler(node, dictName, mediaMap, language)};

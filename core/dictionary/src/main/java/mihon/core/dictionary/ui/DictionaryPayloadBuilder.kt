@@ -455,6 +455,12 @@ internal val STRUCTURED_CONTENT_TAG_ALLOW_LIST = setOf(
     "b", "strong", "i", "em", "u", "s", "del", "ins", "mark", "small", "sub", "sup",
     "ruby", "rb", "rt", "rtc", "rp", "cite", "q", "abbr", "time", "kbd", "samp", "var",
     "figure", "figcaption", "img", "a",
+    // KUN -->
+    // A stylesheet a static dictionary ships for its glossary. Its text is not trusted either: it is
+    // rebuilt rule by rule with `sanitizeStyleSheet` (allow-listed properties only), and a sheet that
+    // cannot be expressed that way degrades to neutral content instead.
+    "style",
+    // KUN <--
 )
 
 /** SVG subset of the allow-list. No `foreignObject`: an HTML island would reopen the tag hole. */
@@ -478,8 +484,48 @@ internal fun sanitizeStructuredGlossary(raw: String): String {
     val head = raw.trimStart()
     if (head.isEmpty() || (head.first() != '{' && head.first() != '[')) return raw
     val parsed = runCatching { Json.parseToJsonElement(raw) }.getOrNull() ?: return raw
-    return neutraliseStructuredTags(parsed).toString()
+    // KUN -->
+    // Tags first (so a `style` node is only reached once it is known to be allowed), then the CSS
+    // they carry.
+    return sanitizeStructuredStyles(neutraliseStructuredTags(parsed)).toString()
+    // KUN <--
 }
+
+/**
+ * KUN -->
+ * Filters the CSS a structured-content `style` node carries.
+ *
+ * The stylesheet is rebuilt from allow-listed declarations ([sanitizeStyleSheet]) and written back as
+ * the node's text; a sheet that cannot be expressed that way (an at-rule, unparsable text) turns the
+ * whole node into neutral content, so the dictionary keeps its vocabulary without gaining a way to
+ * restyle or load anything. `renderer.js` repeats this on its side.
+ */
+private fun sanitizeStructuredStyles(element: JsonElement): JsonElement = when (element) {
+    is JsonArray -> JsonArray(element.map(::sanitizeStructuredStyles))
+    is JsonObject -> {
+        val styleNode = (element["tag"] as? JsonPrimitive)?.takeIf { it.isString }?.content
+            ?.trim()?.lowercase() == "style"
+        val sheet = if (styleNode) sanitizeStyleSheet(styleNodeText(element["content"])) else null
+        buildJsonObject {
+            for ((key, value) in element) {
+                when {
+                    key == "tag" && styleNode && sheet == null -> put(key, JsonPrimitive(NEUTRAL_STRUCTURED_TAG))
+                    key == "content" && styleNode && sheet != null -> put(key, JsonPrimitive(sheet))
+                    else -> put(key, sanitizeStructuredStyles(value))
+                }
+            }
+        }
+    }
+    else -> element
+}
+
+/** The CSS text of a `style` node: a string, or the strings of an array joined in order. */
+private fun styleNodeText(content: JsonElement?): String = when (content) {
+    is JsonPrimitive -> content.takeIf { it.isString }?.content.orEmpty()
+    is JsonArray -> content.mapNotNull { (it as? JsonPrimitive)?.takeIf { p -> p.isString }?.content }.joinToString("")
+    else -> ""
+}
+// KUN <--
 
 private fun neutraliseStructuredTags(element: JsonElement): JsonElement = when (element) {
     is JsonArray -> JsonArray(element.map(::neutraliseStructuredTags))

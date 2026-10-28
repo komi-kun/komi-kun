@@ -142,13 +142,44 @@ class KanjiSvgSanitizationTest {
     }
 
     @Test
-    fun `xml space survives and style stays refused`() {
+    fun `xml space survives and an allow-listed inline style is kept`() {
         val sanitized = sanitizeKanjiSvgMarkup(
-            """<svg><text xml:space="preserve" style="fill:red">一</text></svg>""",
+            """<svg><text xml:space="preserve" style="fill:red;font-size:9px">一</text></svg>""",
         )
 
         sanitized shouldContain """xml:space="preserve""""
-        sanitized shouldNotContain "style="
+        // Rebuilt from parsed declarations (`fill: red`), not copied.
+        sanitized shouldContain """style="fill: red; font-size: 9px""""
+    }
+
+    /**
+     * Inline CSS is third-party input in a JS-enabled WebView: a property outside the allow-list, a
+     * value that loads an external resource, and anything that could execute are all dropped, and a
+     * `style` left with no safe declaration disappears rather than being emitted empty.
+     */
+    @Test
+    fun `an inline style keeps only allow-listed properties and safe values`() {
+        val mixed = sanitizeKanjiSvgMarkup(
+            """<svg><path d="M0 0" style="color:#fff;position:absolute;fill:url(https://evil.invalid/a);""" +
+                """stroke:#000;opacity:0.5"/></svg>""",
+        )
+        mixed shouldContain """style="color: #fff; stroke: #000; opacity: 0.5""""
+
+        // Nothing safe is left: the attribute goes, the glyph stays.
+        sanitizeKanjiSvgMarkup("""<svg><path d="M0 0" style="fill:url(javascript:alert(1))"/></svg>""") shouldBe
+            """<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0"/></svg>"""
+        sanitizeKanjiSvgMarkup("""<svg><path d="M0 0" style="behavior:url(#x)"/></svg>""") shouldBe
+            """<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0"/></svg>"""
+    }
+
+    @Test
+    fun `an inline style that only mixes in an external reference loses that declaration`() {
+        val sanitized = sanitizeKanjiSvgMarkup(
+            """<svg><path d="M0 0" style="fill:http://evil.invalid/a;stroke:#000"/></svg>""",
+        )
+
+        sanitized shouldContain """style="stroke: #000""""
+        sanitized shouldNotContain "evil.invalid"
     }
 
     @Test

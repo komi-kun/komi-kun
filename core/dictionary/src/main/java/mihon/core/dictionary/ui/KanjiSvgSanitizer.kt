@@ -18,6 +18,11 @@ package mihon.core.dictionary.ui
  * `xlink:` prefix. So the root always ends up carrying `xmlns="http://www.w3.org/2000/svg"`,
  * plus `xmlns:xlink` when the markup uses that prefix, and both declarations themselves are
  * allowed.
+ *
+ * An inline `style` attribute is allowed but **filtered**, property by property
+ * (`sanitizeInlineStyle`): only colour/fill/stroke/opacity and `font-*` survive, and a value that
+ * loads or runs something rejects its declaration. `<style>` blocks are not part of the SVG
+ * subset — they are handled where structured glossary HTML is sanitised.
  */
 private const val SVG_NAMESPACE = "http://www.w3.org/2000/svg"
 private const val XLINK_NAMESPACE = "http://www.w3.org/1999/xlink"
@@ -117,6 +122,11 @@ private val ALLOWED_ATTRIBUTES = setOf(
     "class",
     "href",
     "xlink:href",
+    // KUN -->
+    // Inline CSS, filtered property by property (`sanitizeInlineStyle`): static dictionaries colour
+    // glyphs this way, and the allow-list keeps it from becoming a way to load or run anything.
+    "style",
+    // KUN <--
 )
 
 private val TAG = Regex("""<\s*(/?)\s*([A-Za-z][A-Za-z0-9:_.-]*)((?:[^>"']|"[^"]*"|'[^']*')*?)(/?)>""")
@@ -192,12 +202,28 @@ internal fun sanitizeKanjiSvgMarkup(markup: String): String {
             val attributeName = attribute.groupValues[1]
             val attributeKey = attributeName.lowercase()
             val value = attribute.groupValues.drop(2).firstOrNull { it.isNotEmpty() }.orEmpty()
-            if (attributeKey !in ALLOWED_ATTRIBUTES || !isSafeAttributeValue(attributeKey, value)) return@forEach
+            if (attributeKey !in ALLOWED_ATTRIBUTES) return@forEach
+            // KUN --> `style` is filtered declaration by declaration (`sanitizeInlineStyle`): the
+            // whole-value rules below would drop the attribute as soon as one declaration is refused,
+            // so a single `position:absolute` would take the glyph's colour with it.
+            val keptStyle = if (attributeKey == "style") sanitizeInlineStyle(value) else null
+            if (attributeKey == "style") {
+                if (keptStyle == null) return@forEach
+            } else if (!isSafeAttributeValue(attributeKey, value)) {
+                return@forEach
+            }
+            // KUN <--
             if (attributeKey == "xmlns" && isRootSvg) rootDeclaresXmlns = true
             if (attributeKey == "xmlns:xlink") declaresXlinkNamespace = true
             if (attributeKey.startsWith("xlink:")) usesXlinkPrefix = true
             // The root is rendered as SVG whatever namespace the dictionary claims for it.
-            val keptValue = if (isRootSvg && attributeKey == "xmlns") SVG_NAMESPACE else value
+            val keptValue = when {
+                // KUN --> Only the allow-listed declarations survive (computed above).
+                attributeKey == "style" -> keptStyle ?: return@forEach
+                // KUN <--
+                isRootSvg && attributeKey == "xmlns" -> SVG_NAMESPACE
+                else -> value
+            }
             out.append(' ').append(attributeName).append("=\"").append(escapeAttribute(keptValue)).append('"')
         }
         if (selfClosing) {
