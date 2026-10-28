@@ -361,7 +361,12 @@ class ReaderOcrBlockLoader(
         onComplete: ((RedoOcrResult) -> Unit)? = null,
     ) {
         // KUN --> gated work entry: a forced re-run must not bypass the disabled feature.
-        if (!dictionaryOcrPreferences.isEnabled()) return
+        if (!dictionaryOcrPreferences.isEnabled()) {
+            // Still "exactly once": the caller has already been told a re-run started, so this
+            // settles that state instead of leaving "Re-running OCR…" as the last word.
+            onComplete?.invoke(RedoOcrResult.NOTHING_TO_REDO)
+            return
+        }
         // KUN <--
         work.launch {
             val pagesToRedo = if (chapter) {

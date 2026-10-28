@@ -26,7 +26,10 @@ enum class RedoOcrResult {
     /** There was at least one page, but not one of them could be re-OCR'd. */
     FAILED,
 
-    /** There was nothing to re-run at all (no page in the chapter, or the manga row is gone). */
+    /**
+     * There was nothing to re-run at all: no page in the chapter, the manga row is gone, or the
+     * combined dictionary/OCR opt-in is off so the re-run never starts.
+     */
     NOTHING_TO_REDO,
 }
 

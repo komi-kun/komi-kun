@@ -554,6 +554,24 @@ class ReaderOcrBlockLoaderTest {
     }
 
     /**
+     * The opt-out twin of the early returns above: with the feature off, `redoOcr` returns before
+     * its work is launched, so `onComplete` used to never fire and the reader kept whatever it had
+     * already told the user as the last word. The gate is a "nothing ran" outcome like any other.
+     */
+    @Test
+    fun `a redo while the feature is off reports that nothing ran`(): Unit = runBlocking {
+        val loader = loader(LOAD_TIMEOUT_MS, enabled = false)
+
+        val results = CopyOnWriteArrayList<RedoOcrResult>()
+        loader.redoOcr(page) { results += it }
+
+        // Reported synchronously, before any work is launched ...
+        results.toList() shouldBe listOf(RedoOcrResult.NOTHING_TO_REDO)
+        // ... and nothing ran: no manga lookup, hence no page bytes and no engine.
+        awaitCalls.get() shouldBe 0
+    }
+
+    /**
      * The negative twin of [awaitSettled]: re-runs [drive] for [windowMs] and fails the moment
      * [violation] holds, so a wrongly-started load is caught whenever it reaches its first suspension
      * point instead of only when it happens to win a fixed sleep. [windowMs] is a bound on how long
