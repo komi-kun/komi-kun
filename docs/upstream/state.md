@@ -78,3 +78,30 @@ Each already carries an `AI checked` note in `cherrypick_log.md`; the reasons ar
 - `e7dc95dba1` (tachiyomiSY, "Fix possible foreign key errors in migration"): it patches SY's
   `merged_new` / `search_metadata_new` rebuild, tables this schema never had — `43.sqm` here is the
   unrelated `updatesView` change, and the delete-orphans intent already exists in `49.sqm`.
+
+## 5. `library_removal` is redundant — the fork's removal sync came first
+
+The fork already synced library removals and un-read / lower-progress chapters before SY's
+`78e6a65248` was ported: the owner built it in `5d0a67227d` (2026-10-14), `3991bd8537` (#43),
+`c96b78491f` (#51, `data/src/test/java/tachiyomi/data/SyncRepositoryFavoriteTimestampTest.kt` —
+`a removed favorite is still uploaded`) and `a52730100f` (#53). The mechanism is `favorite_modified_at`,
+stamped on unfavorite and **never reset**, so a removed entry stays visible to the upload queries
+(`getMangasToSync`, `getMangasModifiedSince`) unconditionally.
+
+What `78e6a65248` genuinely added, and what to keep:
+
+- the NULL-safe `IS NOT` comparisons for `remote_url` / `remote_description` in the
+  `update_manga_version` trigger (`59.sqm:32-33`);
+- history-only change detection in `needsRestore` (`SyncDelta.kt:287`, `remote.history.any { … }`).
+
+What it added that is redundant today: the `library_removal` table and the two
+`OR id IN (SELECT manga_id FROM library_removal …)` terms (`manga.sq:223`, `:238`). Both triggers share
+the same `is_syncing = 0` guard, and the tombstone's `old.user_favorite_at IS NOT NULL AND
+new.user_favorite_at IS NULL` is a strict subset of `update_last_favorited_at_mangas`'s
+`new.user_favorite_at IS NOT old.user_favorite_at`, so every row the tombstone names is already
+stamped. The table ships unreleased in `59.sqm` and is kept for SY parity, not because anything
+depends on it.
+
+**Latent trap.** If the fork ever ports SY `c54092f4b3` / `570974114c`, which drop `favorite_modified_at`,
+removals silently stop being uploaded on a full sync unless the tombstone is promoted to the primary
+mechanism in the same change. Do not port those commits standalone.
