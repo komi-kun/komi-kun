@@ -501,9 +501,3 @@ androidComponents {
         resSource.addGeneratedSourceDirectory(replaceShortcutsPlaceholderTask) { it.outputDir }
     }
 }
-
-buildscript {
-    dependencies {
-        classpath(kotlinx.gradle)
-    }
-}
