@@ -23,6 +23,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - Add option to set which readers use vertical chapter navigator ([@AntsyLich](https://github.com/AntsyLich)) ([#3528](https://github.com/mihonapp/mihon/pull/3528))
 
 ### Changed
+- Apply the reader's grayscale and inverted colors to pages only, not to transition, loading and error pages ([@AntsyLich](https://github.com/AntsyLich)) ([#4191](https://github.com/mihonapp/mihon/pull/4191))
 - Don't use GMS to detect if GMS is available ([@leodyversemilla07](https://github.com/leodyversemilla07)) ([#3525](https://github.com/mihonapp/mihon/pull/3525))
 
 ### Improved
