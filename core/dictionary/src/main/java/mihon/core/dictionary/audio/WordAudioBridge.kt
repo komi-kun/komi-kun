@@ -90,6 +90,7 @@ class WordAudioBridge(
 
     @JavascriptInterface
     fun playAudio(url: String) {
+        if (!isAllowedWordAudioUrl(url)) return
         val config = configProvider?.invoke() ?: AudioPreferences.DEFAULT
         if (!config.enabled) return
         val ctx = webViewProvider()?.context
@@ -106,7 +107,7 @@ class WordAudioBridge(
         val urls = runCatching {
             val array = JSONArray(urlsJson)
             (0 until array.length()).mapNotNull { array.optString(it).takeIf { s -> s.isNotBlank() } }
-        }.getOrDefault(emptyList())
+        }.getOrDefault(emptyList()).filter { isAllowedWordAudioUrl(it) }
         if (urls.isNotEmpty()) {
             player.playCandidateList(urls, config.volumeFraction)
         }
@@ -119,7 +120,7 @@ class WordAudioBridge(
         val urls = runCatching {
             val array = JSONArray(urlsJson)
             (0 until array.length()).mapNotNull { array.optString(it).takeIf { s -> s.isNotBlank() } }
-        }.getOrDefault(emptyList())
+        }.getOrDefault(emptyList()).filter { isAllowedWordAudioUrl(it) }
         if (urls.isNotEmpty()) {
             player.prefetch(urls)
         }
@@ -183,4 +184,18 @@ class WordAudioBridge(
 
 private fun String.escapeLineSeparators(): String =
     replace("\u2028", "\\u2028").replace("\u2029", "\\u2029")
+
+/**
+ * The renderer may only hand the bridge a network URL or the resolver's own TTS pseudo-URL. A
+ * dictionary page that manages to run script must not be able to make the app read local files
+ * (`file:`, `content:`) or follow any other scheme.
+ */
+internal fun isAllowedWordAudioUrl(url: String): Boolean {
+    val scheme = url.substringBefore(':', missingDelimiterValue = "").lowercase()
+    return when (scheme) {
+        "http", "https" -> url.substringAfter(':', "").startsWith("//")
+        "tts" -> true
+        else -> false
+    }
+}
 // KUN <--

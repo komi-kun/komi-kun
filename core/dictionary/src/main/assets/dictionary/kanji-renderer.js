@@ -22,11 +22,108 @@
     return null;
   }
 
+  // ── SVG whitelist ──────────────────────────────────────────────────────────────────────────
+  // Kanji definitions come from third-party dictionaries and are shown as inline SVG in a
+  // JS-enabled WebView with native bridges attached, so the markup is rebuilt from the whitelist
+  // below instead of being assigned as HTML: `innerHTML` does not run <script> but it does fire
+  // inline handlers (e.g. `<svg onload=…>`) and loads <foreignObject>. The Kotlin payload boundary
+  // (`KanjiSvgSanitizer.kt`) filters too; this copy is the one that holds if the renderer is loaded
+  // on its own or served from a cache.
+  var SVG_ALLOWED_ELEMENTS = {
+    svg: 1, g: 1, defs: 1, symbol: 1, use: 1, path: 1, rect: 1, circle: 1, ellipse: 1, line: 1,
+    polyline: 1, polygon: 1, text: 1, tspan: 1, title: 1, desc: 1, clippath: 1, mask: 1, pattern: 1,
+    lineargradient: 1, radialgradient: 1, stop: 1
+  };
+  var SVG_ALLOWED_ATTRIBUTES = {
+    xmlns: 1, version: 1, viewbox: 1, preserveaspectratio: 1, width: 1, height: 1, x: 1, y: 1,
+    x1: 1, x2: 1, y1: 1, y2: 1, dx: 1, dy: 1, cx: 1, cy: 1, r: 1, rx: 1, ry: 1, d: 1, points: 1,
+    transform: 1, rotate: 1, fill: 1, 'fill-opacity': 1, 'fill-rule': 1, stroke: 1,
+    'stroke-width': 1, 'stroke-linecap': 1, 'stroke-linejoin': 1, 'stroke-dasharray': 1,
+    'stroke-dashoffset': 1, 'stroke-opacity': 1, 'stroke-miterlimit': 1, opacity: 1,
+    'clip-path': 1, 'clip-rule': 1, mask: 1, 'marker-start': 1, 'marker-mid': 1, 'marker-end': 1,
+    'paint-order': 1, 'vector-effect': 1, display: 1, visibility: 1, 'stop-color': 1,
+    'stop-opacity': 1, offset: 1, gradientunits: 1, gradienttransform: 1, spreadmethod: 1,
+    'text-anchor': 1, 'dominant-baseline': 1, 'alignment-baseline': 1, 'baseline-shift': 1,
+    'font-family': 1, 'font-size': 1, 'font-weight': 1, 'font-style': 1, 'font-variant': 1,
+    'letter-spacing': 1, 'word-spacing': 1, id: 1, 'class': 1, href: 1, 'xlink:href': 1
+  };
+  var SVG_LOCAL_URL = /^url\(\s*#[-A-Za-z0-9_.:]+\s*\)$/;
+  var SVG_IDENTIFIER = /^[-A-Za-z0-9_.:]+$/;
+
+  function isSafeSvgAttributeValue(name, value) {
+    var text = String(value);
+    var compact = text.replace(/\s+/g, '').toLowerCase();
+    if (compact.indexOf('javascript:') !== -1) return false;
+    if (compact.indexOf('vbscript:') !== -1) return false;
+    if (compact.indexOf('data:text/html') !== -1) return false;
+    if (text.indexOf('&#') !== -1) return false;
+    if (name === 'href' || name === 'xlink:href') return text.trim().charAt(0) === '#';
+    if (name === 'id') return SVG_IDENTIFIER.test(text.trim());
+    if (/url\(/i.test(text)) return SVG_LOCAL_URL.test(text.trim());
+    return true;
+  }
+
+  function sanitizeSvgAttributes(node) {
+    var attributes = [];
+    for (var i = 0; i < node.attributes.length; i++) attributes.push(node.attributes[i]);
+    for (var a = 0; a < attributes.length; a++) {
+      var attribute = attributes[a];
+      var name = String(attribute.name).toLowerCase();
+      if (!Object.prototype.hasOwnProperty.call(SVG_ALLOWED_ATTRIBUTES, name) ||
+          !isSafeSvgAttributeValue(name, attribute.value)) {
+        node.removeAttributeNode(attribute);
+      }
+    }
+  }
+
+  function sanitizeSvgSubtree(node) {
+    var children = [];
+    for (var i = 0; i < node.childNodes.length; i++) children.push(node.childNodes[i]);
+    for (var c = 0; c < children.length; c++) {
+      var child = children[c];
+      if (child.nodeType === 3) continue;
+      if (child.nodeType !== 1) {
+        node.removeChild(child);
+        continue;
+      }
+      var name = String(child.nodeName).toLowerCase();
+      if (!Object.prototype.hasOwnProperty.call(SVG_ALLOWED_ELEMENTS, name)) {
+        node.removeChild(child);
+        continue;
+      }
+      sanitizeSvgAttributes(child);
+      sanitizeSvgSubtree(child);
+    }
+  }
+
+  function appendSanitizedSvg(container, markup) {
+    var root = null;
+    try {
+      if (typeof DOMParser === 'function') {
+        var doc = new DOMParser().parseFromString(markup, 'image/svg+xml');
+        if (doc && doc.documentElement &&
+            String(doc.documentElement.nodeName).toLowerCase() === 'svg' &&
+            !doc.getElementsByTagName('parsererror').length) {
+          root = doc.documentElement;
+        }
+      }
+    } catch (e) {
+      root = null;
+    }
+    if (!root) {
+      container.textContent = markup;
+      return;
+    }
+    sanitizeSvgAttributes(root);
+    sanitizeSvgSubtree(root);
+    container.appendChild(document.importNode(root, true));
+  }
+
   function renderKanjiContentOrMedia(container, rawText, dictName, mediaMap) {
     if (rawText == null) return;
     var text = String(rawText).trim();
     if (text.startsWith('<svg') && text.endsWith('</svg>')) {
-      container.innerHTML = text;
+      appendSanitizedSvg(container, text);
       return;
     }
     if (text.startsWith('data:image/')) {

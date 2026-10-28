@@ -371,7 +371,7 @@ fun buildKanjiEntryJsonStrings(kanjiResult: KanjiResult): List<String> {
                 buildJsonObject {
                     put("dictName", entry.dictName)
                     putJsonArray("definitions") {
-                        for (d in entry.definitions) add(JsonPrimitive(d))
+                        for (d in entry.definitions) add(JsonPrimitive(sanitizeKanjiRichText(d)))
                     }
                     val onyomiList = entry.onyomi.split("\\s+".toRegex()).filter { it.isNotBlank() }
                     putJsonArray("onyomi") {
@@ -384,7 +384,7 @@ fun buildKanjiEntryJsonStrings(kanjiResult: KanjiResult): List<String> {
                     put("tags", entry.tags)
                     putJsonObject("stats") {
                         for ((k, v) in entry.stats) {
-                            put(k, v)
+                            put(k, sanitizeKanjiRichText(v))
                         }
                     }
                 },
@@ -520,8 +520,8 @@ fun buildKanjiEntryJson(character: String, entry: KanjiEntry): JsonObject = buil
                 }
             }
             put("tags", entry.tags)
-            putJsonArray("definitions") { for (def in entry.definitions) add(JsonPrimitive(def)) }
-            putJsonObject("stats") { for ((key, value) in entry.stats) put(key, value) }
+            putJsonArray("definitions") { for (def in entry.definitions) add(JsonPrimitive(sanitizeKanjiRichText(def))) }
+            putJsonObject("stats") { for ((key, value) in entry.stats) put(key, sanitizeKanjiRichText(value)) }
         },
     )
 }

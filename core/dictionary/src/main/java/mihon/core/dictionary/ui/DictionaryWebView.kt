@@ -18,8 +18,10 @@ import java.net.URLEncoder
  * Prepares a dictionary WebView with the shell HTML, the JS bridges and the `komikun://`
  * URL-scheme router (02 §3.3).
  *
- * Settings: JS + DOM storage on, `blockNetworkLoads=true`, file/content access on, no
- * scrollbars, force-dark off, safe-browsing disabled. State lives on `webView.tag`.
+ * Settings: JS + DOM storage on, `blockNetworkLoads=true`, file/content access **off** (the page is
+ * `loadDataWithBaseURL`'d from an `https` base and media arrive as `data:` URIs, so nothing needs it;
+ * markup from a third-party dictionary must not be able to read local files), no scrollbars,
+ * force-dark off, safe-browsing disabled. State lives on `webView.tag`.
  */
 @SuppressLint("SetJavaScriptEnabled")
 fun prepareDictionaryWebViewShell(
@@ -41,10 +43,10 @@ fun prepareDictionaryWebViewShell(
         settings.domStorageEnabled = true
         settings.loadsImagesAutomatically = true
         settings.blockNetworkLoads = true
-        settings.allowFileAccess = true
-        settings.allowContentAccess = true
-        settings.allowFileAccessFromFileURLs = true
-        settings.allowUniversalAccessFromFileURLs = true
+        settings.allowFileAccess = false
+        settings.allowContentAccess = false
+        settings.allowFileAccessFromFileURLs = false
+        settings.allowUniversalAccessFromFileURLs = false
         settings.setSupportZoom(true)
         settings.displayZoomControls = false
         isVerticalScrollBarEnabled = false
