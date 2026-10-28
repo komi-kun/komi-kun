@@ -10,6 +10,7 @@
 package mihon.core.ocr.cache
 
 import android.graphics.BitmapFactory
+import io.kotest.assertions.fail
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldEndWith
@@ -100,6 +101,54 @@ class OcrManagerCacheVariantTest {
         (sfxAfterDownload == sfxBeforeDownload) shouldBe false
 
         variants.size shouldBe 4
+    }
+
+    /**
+     * AUTOMATIC is the **default** source ([OcrPreferences.defaultSource]) and the only persisting
+     * one, and it is the Paddle path for every page that needs recognition: the `.mokuro` sidecar is
+     * resolved separately by the reader and is never written into this cache, so the only results
+     * this policy stores are the engine's. Its key must therefore carry the same engine generation,
+     * release signature and model-bytes identity as PADDLE. Left without a variant, every result went
+     * into the cache's unversioned `pages` map, so none of the three ever entered the key: a page
+     * OCR'd by a superseded model — or by the SFX detector — was served forever under the dialogue
+     * selection, on every default install.
+     */
+    @Test
+    fun `the default AUTOMATIC source keys its cached pages with the engine identity`(): Unit = runBlocking {
+        val engine = FakeEngine(identity = "release-a|det:100:200")
+        val manager = OcrManager(
+            engine = engine,
+            merger = merger,
+            cacheManager = cacheManager,
+            store = store,
+            preferences = OcrPreferences(InMemoryPreferenceStore()),
+            dictionaryOcr = DictionaryOcrPreferences(InMemoryPreferenceStore()).apply { choose(true) },
+            scope = CoroutineScope(Dispatchers.Unconfined),
+        )
+        coEvery { cacheManager.load(any(), any(), any()) } answers {
+            variants += thirdArg<String?>()
+            null
+        }
+
+        manager.cachedBlocks(key, pageIndex = 0, source = ReaderOcrSource.AUTOMATIC)
+        val automatic = variants.last() ?: fail("AUTOMATIC left the cache key unversioned")
+
+        automatic shouldContain "paddle"
+        automatic shouldContain "-v10"
+        automatic shouldContain "ocr-manga-v4t15b25u140r35"
+        automatic shouldEndWith "-release-a|det:100:200"
+
+        // Both sources mean "recognise with the engine", so they must share one set of pages: a
+        // chapter the queue OCR'd under the default source has to be readable after the user picks
+        // PADDLE (and vice versa) instead of running the engine again into a second cache.
+        manager.cachedBlocks(key, pageIndex = 0, source = ReaderOcrSource.PADDLE)
+        variants.last() shouldBe automatic
+
+        // The genuinely non-persisting source keeps its null variant, and the default keeps reading
+        // `.mokuro` sidecars: fixing the default must not persist the sidecar-only policy either.
+        ReaderOcrSource.MOKURO.persistentCacheVariant shouldBe null
+        ReaderOcrSource.MOKURO.persistsOcrResults shouldBe false
+        ReaderOcrSource.AUTOMATIC.usesMokuro shouldBe true
     }
 
     /** Runs one cache lookup and returns the variant the manager asked the cache for. */

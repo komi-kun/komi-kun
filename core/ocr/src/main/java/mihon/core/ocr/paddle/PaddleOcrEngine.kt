@@ -270,6 +270,19 @@ class PaddleOcrEngine(
 
     // KUN -->
     /**
+     * Whether the engine can run: already initialised, or an init attempted here succeeds (which is
+     * the same work the first [recognize] would do).
+     *
+     * [recognize] answers an empty list when the `.so`/models are missing or the init failed, which
+     * is indistinguishable from a genuinely blank page. `OcrManager` asks this before persisting a
+     * chapter's pages, so an install without models leaves the queue task `PENDING` instead of
+     * caching empty pages and marking the chapter `COMPLETED`.
+     */
+    override fun isAvailable(): Boolean = isInitialized || init()
+    // KUN <--
+
+    // KUN -->
+    /**
      * Identity of the model files on disk **now** — the same value [ensureModelVariant] compares, and
      * never the selection: the release publishes identically named files, so only the bytes say which
      * weights an OCR result came from. The OCR cache key includes it (see `OcrManager.cacheVariant`).

@@ -37,7 +37,12 @@ import java.util.concurrent.atomic.AtomicInteger
 
 class OcrManagerOptInTest {
 
-    private val engine = mockk<OcrEngine>(relaxed = true)
+    // KUN --> A working engine: these tests pin the opt-in gate, and a relaxed mock would report
+    // `isAvailable = false`, which now (correctly) stops every run for a missing engine.
+    private val engine = mockk<OcrEngine>(relaxed = true) {
+        every { isAvailable() } returns true
+    }
+    // KUN <--
     private val merger = mockk<OcrLineMerger>(relaxed = true)
     private val cacheManager = mockk<OcrCacheManager>(relaxed = true)
     private val store = mockk<OcrStore>(relaxed = true)

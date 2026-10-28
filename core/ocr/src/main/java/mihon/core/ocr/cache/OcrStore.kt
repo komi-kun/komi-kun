@@ -108,42 +108,6 @@ class OcrStore(
         preferences.edit().apply { chapterIds.forEach { remove(it.toString()) } }.commit()
     }
 
-    /**
-     * Normalises persisted tasks after a restart: an interrupted [OcrQueueStatus.PROCESSING] task
-     * goes back to `PENDING`, and completed/cancelled tasks are dropped. Returns true when changed.
-     */
-    fun normalizeForRestore(): Boolean {
-        val tasks = getAll()
-        if (tasks.isEmpty()) return false
-
-        var changed = false
-        val normalized = tasks.mapNotNull { task ->
-            when (task.status) {
-                OcrQueueStatus.PROCESSING -> {
-                    changed = true
-                    task.copy(status = OcrQueueStatus.PENDING)
-                }
-                OcrQueueStatus.COMPLETED,
-                OcrQueueStatus.CANCELLED,
-                -> {
-                    changed = true
-                    null
-                }
-                else -> task
-            }
-        }
-
-        if (!changed) return false
-
-        val counter = preferences.getInt(COUNTER_KEY, 0)
-        preferences.edit().apply {
-            clear()
-            putInt(COUNTER_KEY, counter)
-            normalized.forEach { putString(it.chapterId.toString(), serialize(it)) }
-        }.commit()
-        return true
-    }
-
     private fun serialize(task: OcrTask): String = json.encodeToString(task)
 
     private fun deserialize(value: String): OcrTask? = try {

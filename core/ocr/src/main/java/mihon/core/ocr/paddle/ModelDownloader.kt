@@ -299,8 +299,12 @@ class ModelDownloader(
 
     /**
      * Verifies every required model against the manifest — size **and** SHA-256 — and downloads the
-     * ones that are missing or corrupt. Fails (and keeps nothing new) when the manifest lacks a
-     * checksum for a required file, or a downloaded hash mismatches.
+     * ones that are missing or corrupt. Each file is verified before it is renamed into place, so
+     * nothing truncated or unverified is ever installed; the set can still end up **partially
+     * updated**, because file 1 of the new release is already in place when file 2 fails. The
+     * installed-release marker is written only after every required file succeeded, so a partial set
+     * keeps the old marker and is re-verified (and re-downloaded) by the next run. Fails when the
+     * manifest lacks a checksum for a required file, or a downloaded hash mismatches.
      *
      * Runs on [Dispatchers.IO]; this is the only place the (expensive) full-file hashing happens, so
      * the synchronous [isPaddleDownloaded] gate stays cheap.

@@ -38,5 +38,18 @@ interface OcrEngine {
      * tag while the old weights produced it.
      */
     fun modelBytesIdentity(): String? = null
+
+    /**
+     * Whether the engine can actually run right now — its native library and model weights are
+     * installed and initialised.
+     *
+     * [recognize] answers an **empty list both for "the engine cannot run" and for "this page has no
+     * text"**, so a caller that *persists* results must ask this first: caching the first case as an
+     * empty page marks a chapter done with no text, nothing left to retry and nothing in the cache
+     * (see `OcrManager.runChapter`).
+     *
+     * Defaults to `true`: an engine that cannot tell must not make every page look unavailable.
+     */
+    fun isAvailable(): Boolean = true
     // KUN <--
 }

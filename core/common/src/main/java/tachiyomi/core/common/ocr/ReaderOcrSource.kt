@@ -17,6 +17,16 @@ enum class ReaderOcrSource(
     AUTOMATIC(
         usesMokuro = true,
         usesPersistentCache = true,
+        // KUN -->
+        // The default source, and the Paddle path for every page that needs recognition: the
+        // `.mokuro` sidecar is read separately and never written into the OCR cache, so the only
+        // results this policy persists are the engine's. Leaving the variant null filed them in the
+        // cache's unversioned `pages` map, so the engine generation, the release signature and the
+        // installed model bytes never entered the key — a page OCR'd by a superseded model, or by
+        // the SFX detector, was then served forever under the dialogue selection. Same base as
+        // [PADDLE] on purpose: both mean "recognise with the engine", so their pages are one set.
+        persistentCacheVariant = "paddle",
+        // KUN <--
     ),
     MOKURO(
         usesMokuro = true,

@@ -380,6 +380,17 @@ class OcrManager(
                 continue
             }
 
+            // KUN -->
+            // Nothing can be recognised while the engine cannot run (no models/`.so`, or init
+            // failed), and `recognizePage` then answers an empty list — which must not be cached,
+            // counted as done or turned into `COMPLETED`. Abort before the page is even read, leaving
+            // the task `PENDING` like an opt-out so it runs again once the models are installed. An
+            // *available* engine that returns no blocks for a blank page still caches and completes
+            // as before. Pages already cached above are still counted, so a chapter that is fully
+            // cached can complete with the engine down.
+            if (!engine.isAvailable()) return abortForUnavailableEngine(chapterId)
+            // KUN <--
+
             val bytes = try {
                 provider.pageBytes(pageIndex)
             } catch (e: Exception) {
@@ -457,6 +468,16 @@ class OcrManager(
             // [processChapter] now refuses to run.
             if (ocrDisabled()) {
                 logcat(LogPriority.INFO) { "OcrManager: OCR disabled; stopping the queue run" }
+                break
+            }
+            // KUN <--
+            // KUN -->
+            // An unavailable engine (no models/`.so`, or a failed init) leaves a chapter `PENDING`
+            // instead of running it, and the runner would pick that same chapter straight back up —
+            // a hot loop of store writes that OCRs nothing. No task can make progress, so stop the
+            // run here; the tasks stay runnable and drain on the next run once the models are there.
+            if (!engine.isAvailable()) {
+                logcat(LogPriority.WARN) { "OcrManager: OCR engine unavailable; stopping the queue run" }
                 break
             }
             // KUN <--
@@ -560,6 +581,18 @@ class OcrManager(
         updateTask(chapterId) { it.copy(status = OcrQueueStatus.PENDING) }
         return OcrTaskResult.STOPPED
     }
+
+    /**
+     * Aborts [chapterId] because the OCR engine cannot run (models or the native library are missing,
+     * or init failed). The task stays `PENDING`, exactly like an opt-out and for the same reason: the
+     * engine produced nothing, so nothing is cached, the chapter is not counted as done and it runs
+     * again once the models are installed. Its empty result is **not** "this page has no text".
+     */
+    private suspend fun abortForUnavailableEngine(chapterId: Long): OcrTaskResult {
+        logcat(LogPriority.WARN) { "OcrManager: OCR engine unavailable; leaving chapter $chapterId pending" }
+        updateTask(chapterId) { it.copy(status = OcrQueueStatus.PENDING) }
+        return OcrTaskResult.STOPPED
+    }
     // KUN <--
 
     private suspend fun retryFailedPages(input: ChapterOcrInput, pageCount: Int, onRecovered: () -> Unit) {
@@ -571,6 +604,11 @@ class OcrManager(
             if (ocrDisabled()) return
             // KUN <--
             if (input.source.persistsOcrResults && cacheManager.load(input.key, pageIndex, variant) != null) continue
+            // KUN -->
+            // An unavailable engine answers an empty list, which must not be cached as this page's
+            // text: stop the retry pass and leave the chapter failed (it is not counted as completed).
+            if (!engine.isAvailable()) return
+            // KUN <--
             val bytes = try {
                 input.provider.pageBytes(pageIndex)
             } catch (_: Exception) {
