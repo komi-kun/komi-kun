@@ -94,7 +94,8 @@ a failure, because the engine would silently no-op on every page.
 
 ### Tablet procedure (one pass)
 
-1. `adb devices` → the OPD2403 (`4df231a3`) must be listed; accept the debugging prompt on the tablet.
+1. `adb devices` → the OPD2403 must be listed (use the serial it prints for `--serial`/`TB_SERIAL`);
+   accept the debugging prompt on the tablet.
 2. `scripts/track-b-ocr-device-check.py preflight` — record model state and the current variant.
 3. `variant stock --verify-ui` — expect `downloaded during this run: ppocrv6_small_rec.onnx`, three
    `OK … size + SHA-256 match manifest` lines, `OK: ocr-models-v3 models verified…`, `OCR ready`, and

@@ -32,7 +32,7 @@ Last updated: 2026-10-19.
 | `master` | `64fb7b9bf5` (branding + launcher icon; **already merged into the branch**) |
 | Open PR | **#7** `feat/introduce-ocr-and-yomitan` → `master` (the only PR) |
 | Other PRs | none open |
-| Test device | OnePlus Pad `OPD2403`, serial **`4df231a3`**, arm64, Android 16 |
+| Test device | OnePlus Pad `OPD2403`, arm64, Android 16 (its USB serial is the one `adb devices` prints) |
 | App under test | package **`app.komikun.dev`**, installed `versionName` **`1.14.1-10750`** |
 | Build gates | green (see §4) |
 
@@ -84,8 +84,8 @@ flock /tmp/opencode/gradle.lock ./gradlew spotlessApply spotlessCheck \
 ### Device (real hardware — treat it as the user's phone)
 
 ```bash
-adb -s 4df231a3 install -r app/build/outputs/apk/debug/app-arm64-v8a-debug.apk   # update, keeps data
-adb -s 4df231a3 shell pm list packages | grep -i komik     # ALWAYS check package ids first
+adb -s <serial> install -r app/build/outputs/apk/debug/app-arm64-v8a-debug.apk   # update, keeps data
+adb -s <serial> shell pm list packages | grep -i komik     # ALWAYS check package ids first
 ```
 
 - **Only `app.komikun.dev` may be installed/uninstalled/cleared.** The user's own Komikku is
@@ -117,7 +117,8 @@ Nothing essential is lost: the **findings, numbers and conclusions are reproduce
 (§8.5, §10, and **Appendix A**). Anything else can be regenerated — §10 and Appendix A record exactly
 what each report contained and how it was produced.
 
-Wireless/other serials are not relevant; the tablet is USB-attached as `4df231a3`.
+Wireless/other serials are not relevant; the tablet is USB-attached — use the serial `adb devices`
+prints (`<serial>` in the commands below).
 
 ---
 
@@ -225,7 +226,7 @@ displayed by base64-inlining them into `data:` URIs (cap: 20 items / 256 KB per 
   `trimFuriganaBloatedVerticalColumns` in `OwOCRMerger` so vertical kanji columns whose detector box
   swallowed right-hand ruby furigana trim back to normal column width and merge cleanly with their
   paragraph neighbours.
-- **Verified on `4df231a3`:** All 10 pages of a real 10-page chapter re-OCRed under `paddle-v9`;
+- **Verified on the test device:** All 10 pages of a real 10-page chapter re-OCRed under `paddle-v9`;
   a page-1 transcript's four previously merged fragments are cleanly separated,
   and Page 2's 4-column lower-right bubble merges into a single 4-column block.
 
@@ -234,15 +235,15 @@ displayed by base64-inlining them into `data:` URIs (cap: 20 items / 256 KB per 
   and top pan constraints and record expected clamped `settledScale`/`settledCenter` immediately.
   Updated `WebGpuOcrViewport.pagedSurfaceRect` & `visiblePages` and `SsivOcrViewport.imageNormalizedToScreen`
   so stale/off-screen pages never flash detection boxes onto the new page during or after a page turn.
-- **Verified on `4df231a3`:** Tested bottom-edge lookups, popup fit, outside-tap dismissal,
+- **Verified on the test device:** Tested bottom-edge lookups, popup fit, outside-tap dismissal,
   `restoreFit`, and paged page-turn transitions across **WebGPU**, **SSIV Pager**, and **Webtoon**.
 
 ### 8.3 Tab path — pill row shrinking — **VERIFIED ON DEVICE**
-- **Verified on `4df231a3`:** Performed a 3-deep lookup (`[A, B, C]`), selected tab `A`, tapped a
+- **Verified on the test device:** Performed a 3-deep lookup (`[A, B, C]`), selected tab `A`, tapped a
   new word `D` inside `A`, and confirmed `.lookup-tabs` visibly truncated to 2 pills (`[A, D]`).
 
 ### 8.4 Volume keys vs OCR overlay — **VERIFIED ON DEVICE**
-- **Verified on `4df231a3`:** With `reader_volume_keys = true` and menu hidden, `KEYCODE_VOLUME_DOWN`
+- **Verified on the test device:** With `reader_volume_keys = true` and menu hidden, `KEYCODE_VOLUME_DOWN`
   kept the reader on `1 / 10` (routed to media volume) when the OCR overlay was **ON**, and
   immediately paged to `2 / 10` when the OCR overlay was toggled **OFF**.
 
@@ -272,7 +273,7 @@ displayed by base64-inlining them into `data:` URIs (cap: 20 items / 256 KB per 
   Commons `.ogg` search + regional display name), and `text-to-speech` / `text-to-speech-reading`
   (via Android `TextToSpeech` in `WordAudioPlayer`). Added synthesized PCM16 `click` and `bloop`
   fallback sounds via `AudioTrack` (`WordAudioPlayer.playFallback` / `WordAudioBridge.playFallback`).
-- **Verified on `4df231a3`:** Tested fallback click playback and long-press audio source picker
+- **Verified on the test device:** Tested fallback click playback and long-press audio source picker
   dropdown (`CUSTOM URL (JSON)`, `JAPANESEPOD101`, `LANGUAGEPOD101`, `JISHO.ORG`).
 - Note: Media preload cap remains 20 items / 256 KB per lookup (`DictionaryRepository`).
 
@@ -300,7 +301,7 @@ displayed by base64-inlining them into `data:` URIs (cap: 20 items / 256 KB per 
 ## 9. Verification playbook
 
 1. Run the gate suite in §3 (must be green).
-2. `adb -s 4df231a3 install -r …/app-arm64-v8a-debug.apk` (update install keeps dictionaries,
+2. `adb -s <serial> install -r …/app-arm64-v8a-debug.apk` (update install keeps dictionaries,
    settings, local-source series and OCR cache).
 3. On device, for OCR/reader work: open a chapter with a local-source series, enable the overlay
    (two fingers — by hand, or via reader bottom bar), and check boxes + text layer + single-tap lookup.
@@ -386,16 +387,16 @@ flock /tmp/opencode/gradle.lock ./gradlew spotlessApply spotlessCheck \
   verifyGplFree :app:assembleDebug
 
 # install (update, keeps data)
-adb -s 4df231a3 install -r app/build/outputs/apk/debug/app-arm64-v8a-debug.apk
-adb -s 4df231a3 shell dumpsys package app.komikun.dev | grep versionName
+adb -s <serial> install -r app/build/outputs/apk/debug/app-arm64-v8a-debug.apk
+adb -s <serial> shell dumpsys package app.komikun.dev | grep versionName
 
 # merge a finished worktree branch into the integration branch (no PR)
 git fetch origin && git merge origin/<branch> --no-ff && git push
 git push origin --delete <branch>
 
 # OCR evidence
-adb -s 4df231a3 logcat -d -s AndroidRuntime:E        # crashes
-adb -s 4df231a3 logcat -d | grep -E 'Paddle|recognize:|ReaderOcr|OcrCache|DictionaryRender'
+adb -s <serial> logcat -d -s AndroidRuntime:E        # crashes
+adb -s <serial> logcat -d | grep -E 'Paddle|recognize:|ReaderOcr|OcrCache|DictionaryRender'
 ```
 
 ---

@@ -28,8 +28,9 @@ Usage
     scripts/track-b-ocr-device-check.py variant --restore
     scripts/track-b-ocr-device-check.py selftest [--online]
 
-Device selection: `--serial`/`$TB_SERIAL`, else `$TB_SERIAL_DEFAULT` (the OPD2403 tablet,
-`4df231a3`), else the only attached device.
+Device selection: `--serial`/`$TB_SERIAL` (or `$TB_SERIAL_DEFAULT` if you set it), else the only
+device `adb devices` lists. The serial is a piece of the maintainer's hardware, so no default value is
+baked in.
 
 Safety: only the debug package (`app.komikun.dev`) is ever touched. `variant` rewrites one key in the
 app's default SharedPreferences (via `run-as`, so it needs a debuggable build) and prints the previous
@@ -54,7 +55,7 @@ from dataclasses import dataclass
 LOCK_PATH = "/tmp/opencode/komi-kun-tablet.lock"
 LOCK_WAIT_S = float(os.environ.get("TB_LOCK_WAIT", "1800"))
 PKG = "app.komikun.dev"
-DEFAULT_SERIAL = os.environ.get("TB_SERIAL_DEFAULT", "4df231a3")
+DEFAULT_SERIAL = os.environ.get("TB_SERIAL_DEFAULT", "")
 MODELS_DIR = f"files/paddle_ocr"  # relative to the app's filesDir
 PREFS_REL = f"shared_prefs/{PKG}_preferences.xml"
 
@@ -89,16 +90,15 @@ class Adb:
         self.serial = serial or self._resolve_serial()
         if not self.serial:
             die(
-                "no adb device attached (checked `adb devices`). Expected the OPD2403 tablet "
-                f"(serial {DEFAULT_SERIAL}, `adb -s {DEFAULT_SERIAL} devices`). Connect it, accept the "
-                "USB-debugging prompt and re-run."
+                "no adb device attached (checked `adb devices`). Connect the OPD2403 tablet, accept "
+                "the USB-debugging prompt and re-run."
             )
 
     @staticmethod
     def _resolve_serial() -> str | None:
         out = subprocess.run(["adb", "devices"], capture_output=True, text=True).stdout
         online = [line.split()[0] for line in out.splitlines()[1:] if line.strip().endswith("device")]
-        if DEFAULT_SERIAL in online:
+        if DEFAULT_SERIAL and DEFAULT_SERIAL in online:
             return DEFAULT_SERIAL
         if len(online) == 1:
             return online[0]
