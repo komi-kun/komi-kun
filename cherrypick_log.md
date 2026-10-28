@@ -11,8 +11,8 @@ How to update / review: [.agents/skills/cherrypick-log/README.md](.agents/skills
 
 | Upstream | O | ? | X | empty | other | total |
 |---|--:|--:|--:|--:|--:|--:|
-| mihon | 886 | 30 | 65 | 354 | 0 | 1335 |
-| tachiyomiSY | 939 | 2 | 16 | 385 | 0 | 1342 |
+| mihon | 899 | 30 | 65 | 341 | 0 | 1335 |
+| tachiyomiSY | 947 | 2 | 17 | 376 | 0 | 1342 |
 | komikku | 7 | 0 | 0 | 3 | 0 | 10 |
 
 ## Commits
@@ -31,7 +31,7 @@ How to update / review: [.agents/skills/cherrypick-log/README.md](.agents/skills
 | O | [b19c8abeba](https://github.com/mihonapp/mihon/commit/b19c8abeba92a5c4e047751a1e050d9d8f0ee870) | mihon | 2026-10-26 | Keep tab badges visible when the tab label is too long | AntsyLich |  | AI checked 2026-10-28: already present on master before this sync (false negative) |
 | ? | [e8977b4a66](https://github.com/mihonapp/mihon/commit/e8977b4a666093005c3691703b8a444ef444b9ca) | mihon | 2026-10-26 | Revert "Keep tab badges visible when the tab label is too long (#4178)" | AntsyLich |  | Cancels out (script): reverts `7a5632c013` [was: empty] |
 |   | [c1eb1e3cbf](https://github.com/jobobby04/TachiyomiSY/commit/c1eb1e3cbfd7d5ab0156a75642222c59c764b9c9) | tachiyomiSY | 2026-10-28 | Fix merging | Jobobby04 |  |  |
-| O | [9955747216](https://github.com/jobobby04/TachiyomiSY/commit/99557472169f156e36a185eb8112638fefb7a79a) | tachiyomiSY | 2026-10-27 | Fix migration error | Jobobby04 |  |  |
+|   | [9955747216](https://github.com/jobobby04/TachiyomiSY/commit/99557472169f156e36a185eb8112638fefb7a79a) | tachiyomiSY | 2026-10-27 | Fix migration error | Jobobby04 |  | AI checked 2026-10-28: not ported - 61.sqm:49-52 is the pre-fix INSERT INTO merged_entry without SY's MIN(_id) dedupe, so duplicate merge_id/manga_id rows abort the upgrade on the new UNIQUE constraint; needs a follow-up SQL port |
 | O | [d9346ae10b](https://github.com/jobobby04/TachiyomiSY/commit/d9346ae10bcdabaa5c09738c81a609c4b8c44e7f) | tachiyomiSY | 2026-10-27 | Translations update from Hosted Weblate (#1677) | Weblate (bot) |  |  |
 | O | [bb52a5511d](https://github.com/jobobby04/TachiyomiSY/commit/bb52a5511d69f83676f25f76bc53255ca0cd0bf4) | tachiyomiSY | 2026-10-27 | fix(sync): keep restored server chapters from looking locally modified (#1681) | KaiserBh |  |  |
 | O | [c97ffb6025](https://github.com/jobobby04/TachiyomiSY/commit/c97ffb6025b763a1f5d9a5564ddac5d2c7d50ef3) | tachiyomiSY | 2026-10-27 | fix(sync): apply synced category positions without order conflicts (#1680) | KaiserBh |  |  |
@@ -41,7 +41,7 @@ How to update / review: [.agents/skills/cherrypick-log/README.md](.agents/skills
 | O | [166e675baf](https://github.com/jobobby04/TachiyomiSY/commit/166e675baf2b643478fdd3134a3b5f9a9ee370d1) | tachiyomiSY | 2026-10-27 | Support reordering for Keep All chapters | Jobobby04 |  |  |
 | O | [7af7a1c136](https://github.com/jobobby04/TachiyomiSY/commit/7af7a1c136ee6289fac8541bbff9e21c5051a90b) | tachiyomiSY | 2026-10-27 | Improve Merged Manga database schema | Jobobby04 |  |  |
 | O | [74dae544f0](https://github.com/jobobby04/TachiyomiSY/commit/74dae544f06069539be9b2c6f54398fbf7f42765) | tachiyomiSY | 2026-10-27 | Move EditMergedSettingsDialog logic to a ViewModel and add open manga info | Jobobby04 |  |  |
-| O | [bfd8436f8b](https://github.com/jobobby04/TachiyomiSY/commit/bfd8436f8b2aca5f996d2c03376f16f608c3785f) | tachiyomiSY | 2026-10-26 | Disable autoscroll gestures by default | jobobby04 |  |  |
+|   | [bfd8436f8b](https://github.com/jobobby04/TachiyomiSY/commit/bfd8436f8b2aca5f996d2c03376f16f608c3785f) | tachiyomiSY | 2026-10-26 | Disable autoscroll gestures by default | jobobby04 |  | AI checked 2026-10-28: not ported - the preference exists at ReaderPreferences.kt:231-232 but still defaults to true; the one-line flip to false is pending |
 |   | [4b879d1ceb](https://github.com/jobobby04/TachiyomiSY/commit/4b879d1cebbc8c405181cf031f48934d6978ec17) | tachiyomiSY | 2026-10-26 | Bump base Mihon version code | Jobobby04 |  |  |
 |   | [df84ab89ee](https://github.com/jobobby04/TachiyomiSY/commit/df84ab89eed8e2d42aac761c8e429ab3121c9ad5) | tachiyomiSY | 2026-10-26 | Fix build | Jobobby04 |  |  |
 | O | [2e3ea2a3f5](https://github.com/jobobby04/TachiyomiSY/commit/2e3ea2a3f5c5d4cd85591c13d9712501a36b50bf) | tachiyomiSY | 2026-10-26 | Keep tab badges visible when the tab label is too long | AntsyLich |  |  |
@@ -166,7 +166,7 @@ How to update / review: [.agents/skills/cherrypick-log/README.md](.agents/skills
 | O | [13f1c31216](https://github.com/jobobby04/TachiyomiSY/commit/13f1c312169cd27d0c1818d7a2cd6cfebf0fc208) | tachiyomiSY | 2026-10-26 | Fix Mihon backup compatibility | Jobobby04 |  |  |
 | O | [dec92e29e0](https://github.com/jobobby04/TachiyomiSY/commit/dec92e29e0f7f8ddc2dd066e52da4da61c138fdc) | tachiyomiSY | 2026-10-26 | Fix feed tab excess refreshes | Jobobby04 |  |  |
 | O | [18ad09a09e](https://github.com/jobobby04/TachiyomiSY/commit/18ad09a09eb9b79ab1a60427c1b882071f0720f6) | tachiyomiSY | 2026-10-26 | Implement feed re-ordering and feed backups | Jobobby04 |  | AI checked 2026-10-28: already present on master before this sync (false negative) |
-| O | [e7dc95dba1](https://github.com/jobobby04/TachiyomiSY/commit/e7dc95dba1dccdc6a7b217053bd3e9dd5c2f5dd1) | tachiyomiSY | 2026-10-26 | Fix possible foreign key errors in migration | Jobobby04 |  |  |
+| X | [e7dc95dba1](https://github.com/jobobby04/TachiyomiSY/commit/e7dc95dba1dccdc6a7b217053bd3e9dd5c2f5dd1) | tachiyomiSY | 2026-10-26 | Fix possible foreign key errors in migration | Jobobby04 |  | AI checked 2026-10-28: not portable - 43.sqm here is the unrelated updatesView change, not SY's merged_new/search_metadata_new rebuild that this commit patches; the delete-orphans intent already exists at 49.sqm:117-134 |
 | O | [e08f5c10e7](https://github.com/jobobby04/TachiyomiSY/commit/e08f5c10e70f6bba53aee75f3e82e25199e19387) | tachiyomiSY | 2026-10-24 | Re-add edit cover in edit info dialog | Jobobby04 |  |  |
 |   | [df041f0a04](https://github.com/jobobby04/TachiyomiSY/commit/df041f0a04e4c617fda45b41b37c6c80711ce5dd) | tachiyomiSY | 2026-10-24 | Lint | Jobobby04 |  |  |
 | O | [8d7a67bbb7](https://github.com/jobobby04/TachiyomiSY/commit/8d7a67bbb7ed8852b8f88ba397b134d1ff000662) | tachiyomiSY | 2026-10-24 | Merge dedupe in database | Jobobby04 |  |  |
