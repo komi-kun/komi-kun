@@ -55,6 +55,9 @@
     <string name="pref_dict_type_pitch">Pitch</string>
     <string name="pref_dict_type_kanji">Kanji</string>
     <string name="pref_dict_active_profile">Perfil ativo: %1$s</string>
+    <string name="pref_dict_move_up">Mover para cima</string>
+    <string name="pref_dict_move_down">Mover para baixo</string>
+    <string name="pref_dict_revision_label">rev %1$s</string>
     <string name="dictionary_no_dictionaries">Nenhum dicionário disponível. Importe ou ative um em Configurações → Dicionários.</string>
     <string name="dictionary_no_results">Nenhum resultado para “%1$s”</string>
     <string name="dictionary_selection_hint">Toque e segure o texto para selecioná-lo</string>
@@ -185,6 +188,12 @@
     <string name="pref_anki_duplicate_prevent">Não adicionar</string>
     <string name="pref_anki_duplicate_add">Adicionar mesmo assim</string>
     <string name="pref_anki_duplicate_overwrite">Atualizar existente</string>
+    <string name="pref_anki_field_mode_title">Modo de atualização de cartões duplicados:</string>
+    <string name="pref_anki_field_mode_overwrite">Sobrescrever</string>
+    <string name="pref_anki_field_mode_append">Adicionar ao final</string>
+    <string name="pref_anki_field_mode_prepend">Adicionar ao início</string>
+    <string name="pref_anki_field_mode_if_empty">Somente se vazio</string>
+    <string name="pref_anki_field_mode_skip">Ignorar</string>
     <string name="pref_anki_select_deck">Selecionar baralho</string>
     <string name="pref_anki_select_model">Selecionar tipo de nota</string>
     <string name="pref_anki_loading">Carregando…</string>

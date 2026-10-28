@@ -55,6 +55,9 @@
     <string name="pref_dict_type_pitch">アクセント</string>
     <string name="pref_dict_type_kanji">漢字</string>
     <string name="pref_dict_active_profile">有効なプロファイル: %1$s</string>
+    <string name="pref_dict_move_up">上へ</string>
+    <string name="pref_dict_move_down">下へ</string>
+    <string name="pref_dict_revision_label">rev %1$s</string>
     <string name="dictionary_no_dictionaries">利用可能な辞書がありません。設定 → 辞書 からインポートまたは有効化してください。</string>
     <string name="dictionary_no_results">“%1$s” の検索結果はありません</string>
     <string name="dictionary_selection_hint">テキストを長押しして選択</string>
@@ -185,6 +188,12 @@
     <string name="pref_anki_duplicate_prevent">追加しない</string>
     <string name="pref_anki_duplicate_add">それでも追加</string>
     <string name="pref_anki_duplicate_overwrite">既存のカードを更新</string>
+    <string name="pref_anki_field_mode_title">重複カードの更新モード:</string>
+    <string name="pref_anki_field_mode_overwrite">上書き</string>
+    <string name="pref_anki_field_mode_append">末尾に追加</string>
+    <string name="pref_anki_field_mode_prepend">先頭に追加</string>
+    <string name="pref_anki_field_mode_if_empty">空のときのみ</string>
+    <string name="pref_anki_field_mode_skip">スキップ</string>
     <string name="pref_anki_select_deck">デッキを選択</string>
     <string name="pref_anki_select_model">ノートタイプを選択</string>
     <string name="pref_anki_loading">読み込み中…</string>

@@ -549,7 +549,7 @@ class DictionaryManagementScreen : Screen() {
                     }
                     if (!item.revision.isNullOrBlank()) {
                         Text(
-                            text = "rev ${item.revision}",
+                            text = stringResource(KUNMR.strings.pref_dict_revision_label, item.revision),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.outline,
                             maxLines = 1,
@@ -568,13 +568,19 @@ class DictionaryManagementScreen : Screen() {
                             onClick = onMoveUp,
                             enabled = index > 0,
                         ) {
-                            Icon(MaterialSymbols.Rounded.ArrowUpward, contentDescription = "Move up")
+                            Icon(
+                                MaterialSymbols.Rounded.ArrowUpward,
+                                contentDescription = stringResource(KUNMR.strings.pref_dict_move_up),
+                            )
                         }
                         IconButton(
                             onClick = onMoveDown,
                             enabled = index < totalCount - 1,
                         ) {
-                            Icon(MaterialSymbols.Rounded.ArrowDownward, contentDescription = "Move down")
+                            Icon(
+                                MaterialSymbols.Rounded.ArrowDownward,
+                                contentDescription = stringResource(KUNMR.strings.pref_dict_move_down),
+                            )
                         }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {

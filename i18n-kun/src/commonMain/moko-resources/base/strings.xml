@@ -55,6 +55,9 @@
     <string name="pref_dict_type_pitch">Pitch</string>
     <string name="pref_dict_type_kanji">Kanji</string>
     <string name="pref_dict_active_profile">Active profile: %1$s</string>
+    <string name="pref_dict_move_up">Move up</string>
+    <string name="pref_dict_move_down">Move down</string>
+    <string name="pref_dict_revision_label">rev %1$s</string>
     <string name="dictionary_no_dictionaries">No dictionaries available. Import or enable one in Settings \u2192 Dictionaries.</string>
     <string name="dictionary_no_results">No results for \u201c%1$s\u201d</string>
     <string name="dictionary_selection_hint">Long-press text to select it</string>
@@ -185,6 +188,12 @@
     <string name="pref_anki_duplicate_prevent">Don\'t add</string>
     <string name="pref_anki_duplicate_add">Add anyway</string>
     <string name="pref_anki_duplicate_overwrite">Update existing</string>
+    <string name="pref_anki_field_mode_title">Duplicate card update mode:</string>
+    <string name="pref_anki_field_mode_overwrite">Overwrite</string>
+    <string name="pref_anki_field_mode_append">Append</string>
+    <string name="pref_anki_field_mode_prepend">Prepend</string>
+    <string name="pref_anki_field_mode_if_empty">If Empty</string>
+    <string name="pref_anki_field_mode_skip">Skip</string>
     <string name="pref_anki_select_deck">Select deck</string>
     <string name="pref_anki_select_model">Select note type</string>
     <string name="pref_anki_loading">Loading…</string>

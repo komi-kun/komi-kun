@@ -55,6 +55,9 @@
     <string name="pref_dict_type_pitch">声调</string>
     <string name="pref_dict_type_kanji">汉字</string>
     <string name="pref_dict_active_profile">当前配置文件：%1$s</string>
+    <string name="pref_dict_move_up">上移</string>
+    <string name="pref_dict_move_down">下移</string>
+    <string name="pref_dict_revision_label">rev %1$s</string>
     <string name="dictionary_no_dictionaries">没有可用的词典。请在 设置 → 词典 中导入或启用。</string>
     <string name="dictionary_no_results">未找到 “%1$s” 的结果</string>
     <string name="dictionary_selection_hint">长按文本进行选择</string>
@@ -185,6 +188,12 @@
     <string name="pref_anki_duplicate_prevent">不添加</string>
     <string name="pref_anki_duplicate_add">仍然添加</string>
     <string name="pref_anki_duplicate_overwrite">更新现有卡片</string>
+    <string name="pref_anki_field_mode_title">重复卡片更新方式：</string>
+    <string name="pref_anki_field_mode_overwrite">覆盖</string>
+    <string name="pref_anki_field_mode_append">追加到末尾</string>
+    <string name="pref_anki_field_mode_prepend">添加到开头</string>
+    <string name="pref_anki_field_mode_if_empty">仅当为空时</string>
+    <string name="pref_anki_field_mode_skip">跳过</string>
     <string name="pref_anki_select_deck">选择牌组</string>
     <string name="pref_anki_select_model">选择笔记类型</string>
     <string name="pref_anki_loading">正在加载…</string>

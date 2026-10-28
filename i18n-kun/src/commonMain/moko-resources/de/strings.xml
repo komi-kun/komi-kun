@@ -55,6 +55,9 @@
     <string name="pref_dict_type_pitch">Tonhöhe</string>
     <string name="pref_dict_type_kanji">Kanji</string>
     <string name="pref_dict_active_profile">Aktives Profil: %1$s</string>
+    <string name="pref_dict_move_up">Nach oben</string>
+    <string name="pref_dict_move_down">Nach unten</string>
+    <string name="pref_dict_revision_label">rev %1$s</string>
     <string name="dictionary_no_dictionaries">Keine Wörterbücher verfügbar. Importiere oder aktiviere eines unter Einstellungen \u2192 Wörterbücher.</string>
     <string name="dictionary_no_results">Keine Ergebnisse für \u201c%1$s\u201d</string>
     <string name="dictionary_selection_hint">Text lange gedrückt halten, um ihn auszuwählen</string>
@@ -185,6 +188,12 @@
     <string name="pref_anki_duplicate_prevent">Nicht hinzufügen</string>
     <string name="pref_anki_duplicate_add">Trotzdem hinzufügen</string>
     <string name="pref_anki_duplicate_overwrite">Vorhandenes aktualisieren</string>
+    <string name="pref_anki_field_mode_title">Modus zum Aktualisieren doppelter Karten:</string>
+    <string name="pref_anki_field_mode_overwrite">Überschreiben</string>
+    <string name="pref_anki_field_mode_append">Anhängen</string>
+    <string name="pref_anki_field_mode_prepend">Vorstellen</string>
+    <string name="pref_anki_field_mode_if_empty">Nur wenn leer</string>
+    <string name="pref_anki_field_mode_skip">Überspringen</string>
     <string name="pref_anki_select_deck">Stapel auswählen</string>
     <string name="pref_anki_select_model">Notiztyp auswählen</string>
     <string name="pref_anki_loading">Wird geladen…</string>

@@ -116,11 +116,11 @@ object SettingsAnkiScreen : SearchableSettings {
         if (mappingDialogField != null) {
             val field = mappingDialogField!!
             val modeLabels = listOf(
-                "overwrite" to "Overwrite",
-                "append" to "Append",
-                "prepend" to "Prepend",
-                "if_empty" to "If Empty",
-                "skip" to "Skip",
+                "overwrite" to stringResource(KUNMR.strings.pref_anki_field_mode_overwrite),
+                "append" to stringResource(KUNMR.strings.pref_anki_field_mode_append),
+                "prepend" to stringResource(KUNMR.strings.pref_anki_field_mode_prepend),
+                "if_empty" to stringResource(KUNMR.strings.pref_anki_field_mode_if_empty),
+                "skip" to stringResource(KUNMR.strings.pref_anki_field_mode_skip),
             )
             AlertDialog(
                 onDismissRequest = { mappingDialogField = null },
@@ -134,7 +134,7 @@ object SettingsAnkiScreen : SearchableSettings {
                             modifier = Modifier.fillMaxWidth(),
                         )
                         Text(
-                            text = "Duplicate card update mode:",
+                            text = stringResource(KUNMR.strings.pref_anki_field_mode_title),
                             style = MaterialTheme.typography.labelMedium,
                         )
                         Row(

@@ -55,6 +55,9 @@
     <string name="pref_dict_type_pitch">Intonazione</string>
     <string name="pref_dict_type_kanji">Kanji</string>
     <string name="pref_dict_active_profile">Profilo attivo: %1$s</string>
+    <string name="pref_dict_move_up">Sposta su</string>
+    <string name="pref_dict_move_down">Sposta giù</string>
+    <string name="pref_dict_revision_label">rev %1$s</string>
     <string name="dictionary_no_dictionaries">Nessun dizionario disponibile. Importane o abilitane uno in Impostazioni → Dizionari.</string>
     <string name="dictionary_no_results">Nessun risultato per “%1$s”</string>
     <string name="dictionary_selection_hint">Tieni premuto sul testo per selezionarlo</string>
@@ -185,6 +188,12 @@
     <string name="pref_anki_duplicate_prevent">Non aggiungere</string>
     <string name="pref_anki_duplicate_add">Aggiungi comunque</string>
     <string name="pref_anki_duplicate_overwrite">Aggiorna esistente</string>
+    <string name="pref_anki_field_mode_title">Modalità di aggiornamento delle carte duplicate:</string>
+    <string name="pref_anki_field_mode_overwrite">Sovrascrivi</string>
+    <string name="pref_anki_field_mode_append">Aggiungi in coda</string>
+    <string name="pref_anki_field_mode_prepend">Aggiungi in testa</string>
+    <string name="pref_anki_field_mode_if_empty">Solo se vuoto</string>
+    <string name="pref_anki_field_mode_skip">Salta</string>
     <string name="pref_anki_select_deck">Seleziona mazzo</string>
     <string name="pref_anki_select_model">Seleziona tipo di nota</string>
     <string name="pref_anki_loading">Caricamento…</string>
