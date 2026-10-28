@@ -885,8 +885,10 @@ class DictionaryManagementViewModel(
 
     fun importZips(uris: List<Uri>) {
         if (uris.isEmpty()) return
-        // Nothing consults `isImporting` today; two overlapping batches would each clear it, so a
-        // second batch while one runs is dropped instead of interleaving with the coordinator.
+        // `isImporting` drives the progress bar and suppresses the empty state, and both batches write
+        // the same state fields: a second batch would clear the first one's message and switch the bar
+        // off as soon as *either* finished, so a batch started while one runs is dropped instead of
+        // interleaving with the coordinator.
         if (stateFlow.value.isImporting) return
         viewModelScope.launch {
             stateFlow.update { it.copy(isImporting = true, importMessage = null, importFailure = null) }
