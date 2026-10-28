@@ -8,7 +8,6 @@ import eu.kanade.tachiyomi.ui.reader.ReaderViewModel
 import eu.kanade.tachiyomi.ui.reader.viewer.LongStripSettings
 import eu.kanade.tachiyomi.ui.reader.viewer.NavigationSettings
 import eu.kanade.tachiyomi.ui.reader.viewer.PagedSettings
-import eu.kanade.tachiyomi.ui.reader.viewer.Viewer
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.SimplePagedSettings
 import eu.kanade.tachiyomi.ui.reader.viewer.webgpu.WebGpuLongStripSettings
 import eu.kanade.tachiyomi.ui.reader.viewer.webgpu.WebGpuPagedSettings
@@ -35,7 +34,6 @@ import kotlin.time.Duration.Companion.seconds
  */
 class ReaderSettingsViewModel(
     readerState: StateFlow<ReaderViewModel.State>,
-    val viewerFlow: StateFlow<Viewer?>,
     val onChangeReadingMode: (ReadingMode) -> Unit,
     val onChangeOrientation: (ReaderOrientation) -> Unit,
     val preferences: ReaderPreferences,
@@ -374,7 +372,7 @@ class ReaderSettingsViewModel(
 
     /**
      * TachiyomiSY/Komikku's pager dual page choice, as the SSIV viewers see it: `pageLayout` plus the
-     * "split wide pages" flag (`dualPageSplitPaged` disables pairing, matching `PagerConfig`).
+     * "split wide pages" flag (`dualPageSplitPaged` disables pairing, as `PagerConfig` did).
      *
      * The WebGPU renderer never reads `pageLayout`; it reads the newer `dualPageView` pref. This maps
      * the legacy choice onto that pref so a user's dual page layout survives enabling the high quality

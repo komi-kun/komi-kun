@@ -1404,8 +1404,8 @@ class ReaderViewModel(
         // KUN -->
         val viewer = currentViewer ?: return
         // KUN <--
-        val isLTR = (viewer !is R2LPagerViewer) xor (viewer.config.invertDoublePages)
-        val bg = viewer.config.pageCanvasColor
+        val isLTR = (viewer !is R2LPagerViewer) xor (viewer.simplePaged.invertDoublePages)
+        val bg = viewer.general.pageCanvasColor
 
         if (firstPage.status != Page.State.Ready) return
         if (secondPage?.status != Page.State.Ready) return
@@ -1539,8 +1539,8 @@ class ReaderViewModel(
         // KUN -->
         val viewer = currentViewer ?: return
         // KUN <--
-        val isLTR = (viewer !is R2LPagerViewer) xor (viewer.config.invertDoublePages)
-        val bg = viewer.config.pageCanvasColor
+        val isLTR = (viewer !is R2LPagerViewer) xor (viewer.simplePaged.invertDoublePages)
+        val bg = viewer.general.pageCanvasColor
 
         if (firstPage.status != Page.State.Ready) return
         if (secondPage?.status != Page.State.Ready) return

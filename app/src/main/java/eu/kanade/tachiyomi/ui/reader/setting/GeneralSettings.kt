@@ -5,9 +5,8 @@ import android.graphics.Color
 // KUN <--
 
 // KUN -->
-// Destination plane for the step-2 (8124d324a1) settings migration: the activity and every viewer move
-// onto this then, and that step deletes ViewerConfig.kt / PagerConfig.kt / WebtoonConfig.kt /
-// WebGpuConfig.kt.
+// The step-2 (8124d324a1) settings plane: the activity and every viewer read this instead of the
+// retired ViewerConfig / PagerConfig / WebtoonConfig / WebGpuConfig.
 // KUN <--
 /**
  * Settings for the reader as a whole and for every viewer alike.
