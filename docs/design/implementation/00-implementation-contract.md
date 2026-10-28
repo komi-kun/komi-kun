@@ -161,17 +161,29 @@ licenses screen entries. Do **not** use the `main-mit` `hoshidicts` branch to cl
 
 Mechanism (replaces the undefined `:ci:verifyGplFree`): **`scripts/verify-gpl-free.sh`** (ripgrep), wrapped by
 a Gradle `Exec` task `verifyGplFree` in `:app`, so `./gradlew verifyGplFree` and CI share one code path. W1
-creates both in W1 (§3.1); it is a gate every wave (§5). It greps **only the §1.3 file set** for `import`
-lines and fails when an import FQN starts with a **deny prefix** and is not exactly an **allowed seam FQN**:
+creates both in W1 (§3.1); it is a gate every wave (§5). It scans **only the §1.3 file set**. The **seam list
+is hand-maintained** (the script's `SEAM_FILES` and this section); the **denied set is derived from the tree**:
+every `.kt`/`.kts` under the scanned source roots whose header carries `SPDX-License-Identifier: …GPL…`
+contributes its package and the fully qualified names of its top-level declarations (`class`/`interface`/
+`object`/`typealias`) and top-level `fun`/`val`/`var`. A §1.3 file fails when it:
 
-- **Deny prefixes**: `mihon.core.dictionary`, `mihon.core.ocr`, `mihon.dictionary`,
-  `eu.kanade.tachiyomi.ui.reader.ocr`, `eu.kanade.tachiyomi.ui.reader.overlay`.
-- **Allowed FQNs** (Apache seam, §1.2): `mihon.dictionary.host.ReaderDictionaryHost`,
-  `mihon.dictionary.host.DictionaryLookupRequest`, `eu.kanade.tachiyomi.ui.reader.ocr.OcrViewport`,
-  `…ImagePoint`, `…OcrDisplayTransform`, `…ReaderOcrHost`.
-- `tachiyomi.core.common.ocr.ReaderOcrSource` is Apache → never denied. Distinct seam/impl packages (§1.2)
-  make the rule exact; the script asserts every §1.3 path exists, so path drift can't silently disable
-  coverage (fixes S3).
+- **imports** a denied package or FQN;
+- **uses a GPL declaration of its own package** with no import and no qualifier — the package itself cannot be
+  denied wholesale, since a seam and its GPL `…Bindings` are siblings by design (§1.2);
+- **star-imports a mixed package** (`import a.b.*`) and uses one of that package's GPL declarations;
+- **uses a fully qualified GPL name** anywhere in the body, with no `import` line.
+
+Coarse seeds remain in the script — **deny prefixes**: `mihon.core.dictionary`, `mihon.core.ocr`,
+`mihon.dictionary`, `eu.kanade.tachiyomi.ui.reader.ocr`, `eu.kanade.tachiyomi.ui.reader.overlay`; **deny
+FQNs** for GPL types that live in otherwise-Apache packages; and **allowed FQNs** (Apache seam, §1.2):
+`mihon.dictionary.host.ReaderDictionaryHost`, `mihon.dictionary.host.DictionaryLookupRequest`,
+`eu.kanade.tachiyomi.ui.reader.ocr.OcrViewport`, `…ImagePoint`, `…OcrDisplayTransform`, `…ReaderOcrHost` — but a
+GPL declaration that none of them lists is still denied through its SPDX header. The same task runs the
+guard's self-test (`scripts/test-verify-gpl-free.sh`, fixture tree `scripts/test-fixtures/gpl-free-guard/`),
+which asserts that every shape above fails and that a clean seam file passes.
+`tachiyomi.core.common.ocr.ReaderOcrSource` is Apache → never denied. Distinct seam/impl packages (§1.2) make
+the rule exact; the script asserts every §1.3 path exists, so path drift can't silently disable coverage
+(fixes S3).
 
 ---
 
