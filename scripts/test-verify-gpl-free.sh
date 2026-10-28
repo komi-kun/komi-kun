@@ -11,10 +11,13 @@
 #   1. `import` of a GPL FQN                     (the original check)
 #   2. unimported same-package use of a GPL type (evasion (a))
 #   3. fully qualified use with no import        (evasion (c))
+#   4. star import of a *mixed* package plus an unqualified use of its GPL declaration, and the
+#      negative counterpart (star import, Apache sibling only) — plus a same-package GPL name in a
+#      string literal (must pass) and in a string template (must fail).
 #
-# Cases 4-6 repeat (1)/(a) against the *real* tree, with FQNs the hand-maintained deny list never
-# contained (a GPL class, a GPL top-level function, and a GPL bindings object next to its seam), so a
-# regression in the SPDX derivation is caught too.
+# The last three cases repeat (1)/(a) against the *real* tree, with FQNs the hand-maintained deny list
+# never contained (a GPL class, a GPL top-level function, and a GPL bindings object next to its seam),
+# so a regression in the SPDX derivation is caught too.
 #
 # Run directly (`bash scripts/test-verify-gpl-free.sh`) or via `./gradlew verifyGplFree`, which runs
 # it after the boundary scan.
@@ -85,6 +88,26 @@ run_case "same-package reference fails" \
 run_case "fully qualified use fails" \
   "$FIXTURE_ROOT" "$FIXTURE_DIR/cases/qualified.list" "gpl" 1 \
   "references GPL code without an import: 'fixture.gpl.GplThing"
+
+# 3a. A star import of a mixed package plus an unqualified use of its GPL declaration fails.
+run_case "star import of a mixed package fails" \
+  "$FIXTURE_ROOT" "$FIXTURE_DIR/cases/star-import.list" "mixed" 1 \
+  "references GPL code through the star import 'fixture.mixed.*': 'GplMixedThing'"
+
+# 3b. …but star-importing that package to use its Apache declaration passes.
+run_case "star import of a mixed package using only the Apache sibling passes" \
+  "$FIXTURE_ROOT" "$FIXTURE_DIR/cases/star-import-clean.list" "mixed" 0 \
+  "verify-gpl-free: OK"
+
+# 3c. A same-package GPL name in a string literal (a log tag) is prose, not a reference: it passes.
+run_case "string literal naming a same-package GPL declaration passes" \
+  "$FIXTURE_ROOT" "$FIXTURE_DIR/cases/string-literal.list" "gpl" 0 \
+  "verify-gpl-free: OK"
+
+# 3d. …while the same name used inside a string *template* is still a reference: it fails.
+run_case "string template using a same-package GPL declaration fails" \
+  "$FIXTURE_ROOT" "$FIXTURE_DIR/cases/string-interpolation.list" "gpl" 1 \
+  "references GPL code in the same package: 'FixtureGplHelper'"
 
 # 4. Real tree: a GPL class the hand-maintained deny list never listed.
 run_case "real tree: import of an unlisted GPL class fails" \

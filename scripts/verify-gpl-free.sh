@@ -12,7 +12,9 @@
 #   1. an `import` of a denied package / FQN (the original check);
 #   2. an *unimported, same-package* reference to a GPL declaration — the package itself cannot be
 #      denied wholesale because the Apache seam and its GPL `…Bindings` are siblings by design
-#      (e.g. `…reader.ocr.OcrViewport` next to `…reader.ocr.OcrHostBindings`);
+#      (e.g. `…reader.ocr.OcrViewport` next to `…reader.ocr.OcrHostBindings`) — and the same
+#      name-based check for a GPL declaration reached through a star import (`import a.b.*`) of a
+#      mixed package, which the import check cannot see because that line names only the package;
 #   3. a fully-qualified use anywhere in the body, with no `import` line at all.
 #
 # It also fails if a §1.3 file declares a GPL license header, and if a listed path is missing
@@ -160,10 +162,10 @@ match_in() {
   fi
 }
 
-# strip_comments FILE — drop `//` comments and comment-only lines, so prose about a GPL type is not
-# mistaken for a reference to it.
+# strip_comments FILE — drop `//` comments, inline `/* … */` comments and comment-only lines, so prose
+# about a GPL type is not mistaken for a reference to it.
 strip_comments() {
-  sed -E -e 's/[[:space:]]+\/\/.*$//' -e 's/^[[:space:]]*(\/\/|\*|\/\*).*$//' "$1"
+  sed -E -e 's:/[*][^*]*[*]/::g' -e 's/[[:space:]]+\/\/.*$//' -e 's/^[[:space:]]*(\/\/|\*|\/\*).*$//' "$1"
 }
 
 # referencing_code FILE — the file minus comments, its own `package` line and its `import` lines,
@@ -173,8 +175,19 @@ referencing_code() {
   strip_comments "$1" | grep -vE '^[[:space:]]*(import|package)[[:space:]]' || true
 }
 
+# unqualified_code FILE — referencing_code without the text of string literals: a name in a log tag
+# (`private const val TAG = "GplBinding"`) is prose, not a reference. A template interpolation
+# (`"$GplBinding"`, `"${GplBinding.name}"`) *is* code, so it is hoisted onto its own line before the
+# quoting is stripped.
+unqualified_code() {
+  referencing_code "$1" \
+    | sed -E -e 's/\$\{([^{}]*)\}/\n\1\n/g' -e 's/\$([A-Za-z_][A-Za-z0-9_]*)/\n\1\n/g' \
+    | sed -E -e 's/"[^"]*"/""/g'
+}
+
+# `import a.b.*` ends in `*`, which the character class below cannot match on its own.
 extract_imports() {
-  match_in '^[[:space:]]*import[[:space:]]+[A-Za-z0-9_.]+' "$1" \
+  match_in '^[[:space:]]*import[[:space:]]+[A-Za-z0-9_.]+[*]?' "$1" \
     | sed -E 's/^[[:space:]]*import[[:space:]]+//'
 }
 
@@ -340,6 +353,21 @@ is_pending() {
   return 1
 }
 
+# fail_unqualified_reference FILE PKG WHERE — fail on an unqualified use, in FILE, of a GPL top-level
+# declaration of package PKG. Used for the file's own package (the package cannot be denied wholesale:
+# the seam and its GPL `…Bindings` are siblings by design) and for the packages it star-imports.
+fail_unqualified_reference() {
+  local file="$1" pkg="$2" where="$3" names pattern reference
+  names="${GPL_TYPES_IN_PKG[$pkg]:-}"
+  [[ -z "$names" ]] && return 0
+  pattern="\\b($(printf '%s' "$names" | tr ' ' '|'))\\b"
+  while IFS= read -r reference; do
+    [[ -z "$reference" ]] && continue
+    echo "verify-gpl-free: ERROR: '$file' references GPL code $where: '$reference'" >&2
+    fail=1
+  done < <(unqualified_code "$file" | grep -oE "$pattern" | sort -u || true)
+}
+
 fail=0
 scanned=0
 
@@ -363,10 +391,21 @@ for file in "${GPL_FREE_FILES[@]}"; do
     fail=1
   fi
 
-  # (1) imports
+  # (1) imports — a star import names only a package, so it is split off: the package itself is
+  # denied if it is wholly GPL, otherwise it is remembered for the unqualified-name pass below.
+  STAR_IMPORTS=()
   while IFS= read -r fqn; do
     [[ -z "$fqn" ]] && continue
-    fqn="${fqn%.\*}" # tolerate a `.*` star-import suffix
+    if [[ "$fqn" == *'*' ]]; then
+      fqn="${fqn%.\*}"
+      if matches_deny "$fqn" || matches_deny_fqn "$fqn"; then
+        echo "verify-gpl-free: ERROR: '$file' imports a GPL package: '$fqn'" >&2
+        fail=1
+        continue
+      fi
+      STAR_IMPORTS+=("$fqn")
+      continue
+    fi
     is_allowed "$fqn" && continue
     if matches_deny "$fqn" || matches_deny_fqn "$fqn"; then
       echo "verify-gpl-free: ERROR: '$file' imports a GPL package: '$fqn'" >&2
@@ -388,18 +427,16 @@ for file in "${GPL_FREE_FILES[@]}"; do
   # seam and its GPL `…Bindings` share it by design), but no seam file may *use* a GPL type that
   # lives beside it: that use has no import and no package qualifier, so neither pass above sees it.
   file_pkg="$(package_of "$file")"
-  same_pkg_types=""
   if [[ -n "$file_pkg" ]]; then
-    same_pkg_types="${GPL_TYPES_IN_PKG[$file_pkg]:-}"
+    fail_unqualified_reference "$file" "$file_pkg" "in the same package"
   fi
-  if [[ -n "$same_pkg_types" ]]; then
-    same_pkg_pattern="\\b($(printf '%s' "$same_pkg_types" | tr ' ' '|'))\\b"
-    while IFS= read -r reference; do
-      [[ -z "$reference" ]] && continue
-      echo "verify-gpl-free: ERROR: '$file' references GPL code in the same package: '$reference'" >&2
-      fail=1
-    done < <(referencing_code "$file" | grep -oE "$same_pkg_pattern" | sort -u || true)
-  fi
+
+  # (2b) star import of a *mixed* package (`import a.b.*`): the import line names the package, not
+  # the GPL declaration, so the name-based pass above is the only thing that can see the use.
+  for star_pkg in ${STAR_IMPORTS[@]+"${STAR_IMPORTS[@]}"}; do
+    [[ "$star_pkg" == "$file_pkg" ]] && continue
+    fail_unqualified_reference "$file" "$star_pkg" "through the star import '$star_pkg.*'"
+  done
 done
 
 if [[ "$fail" -ne 0 ]]; then
