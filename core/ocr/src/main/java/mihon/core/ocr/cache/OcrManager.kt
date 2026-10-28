@@ -16,6 +16,7 @@ import android.graphics.BitmapFactory
 import ca.mpreg.imagedecoder.ImageDecoder
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -476,7 +477,17 @@ class OcrManager(
                 continue
             }
 
-            val job = launch(Dispatchers.IO) {
+            // KUN -->
+            // LAZY start so the job is registered in [runningJobs] *before* it can run (and remove
+            // itself). Launched eagerly, a task that finishes before the `runningJobs[...] = job`
+            // below left its own finished Job in the map: `firstOrNull { !runningJobs.containsKey(..) }`
+            // then skipped that chapter forever, the loop below re-read the store every
+            // [QUEUE_POLL_MS] for the life of the process (it only exits on an empty map), and
+            // `isRunning` never went false — so `OcrWorker`'s `ocrJob.isRunning.first { !it }` never
+            // returned and its foreground notification stayed up. Same pattern as
+            // `ReaderOcrBlockLoader.ensureLoaded`.
+            val job = launch(Dispatchers.IO, start = CoroutineStart.LAZY) {
+                val self = coroutineContext[Job]
                 try {
                     when (processChapter(input, stopRequested)) {
                         OcrTaskResult.SUCCESS,
@@ -494,11 +505,22 @@ class OcrManager(
                     logcat(LogPriority.ERROR, e) { "OcrManager: task ${next.chapterId} failed" }
                     updateTask(next.chapterId) { it.copy(status = OcrQueueStatus.ERROR) }
                 } finally {
-                    runningJobs.remove(next.chapterId)
+                    // KUN -->
+                    // Compare-and-remove with this job's own handle, so a finishing (or cancelled) job
+                    // can never drop a registration a newer run made for the same chapter.
+                    if (self != null) {
+                        runningJobs.remove(next.chapterId, self)
+                    } else {
+                        runningJobs.remove(next.chapterId)
+                    }
+                    // KUN <--
                     refreshQueueState()
                 }
             }
             runningJobs[next.chapterId] = job
+            // KUN --> Registered: it may run (and release its own registration) from here on.
+            job.start()
+            // KUN <--
         }
         runningJobs.values.forEach { it.cancel() }
         runningJobs.clear()
