@@ -236,5 +236,12 @@ private fun OcrChapterData.withPage(
     // `pages` is only ever read with a *null* variant — so the unversioned map is unreachable from
     // here on. Drop it instead of carrying a second copy of every pre-migration page in the file
     // forever (the AUTOMATIC cache-key migration orphaned it exactly like that).
-    return copy(pages = emptyMap(), variants = variants + (cacheVariant to variantPages))
+    // KUN -->
+    // Superseded variants go too: every read passes the *current* variant, so a page cached under an
+    // older engine generation / model identity / threshold signature can never be served again — it
+    // was only kept as an append-only growth of the file (a chapter edited across several model
+    // downloads carried one full page map per variant). Keeping the current variant's map is what
+    // bounds the file to the one set of results that is still readable.
+    return copy(pages = emptyMap(), variants = mapOf(cacheVariant to variantPages))
+    // KUN <--
 }

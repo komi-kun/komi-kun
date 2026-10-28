@@ -93,6 +93,33 @@ class OcrCacheManagerTest {
         }
     }
 
+    /**
+     * A superseded variant is dead weight, not a fallback: every read passes the *current* variant, so
+     * no code path can ever return a page cached under an older engine generation, model identity or
+     * threshold signature. Before this held, each model download / slider change appended a whole new
+     * page map to every chapter file and the old ones stayed until the chapter was deleted.
+     */
+    @Test
+    fun `a varianted write drops the superseded variants`(): Unit = runBlocking {
+        withTimeout(TIMEOUT_MS) {
+            manager.save(key, pageIndex = 0, blocks = blocks, language = "ja", variant = "paddle-v3")
+            manager.save(key, pageIndex = 1, blocks = blocks, language = "ja", variant = "paddle-v3")
+
+            // The model identity changed: the next page is written under the new variant.
+            manager.save(key, pageIndex = 2, blocks = blocks, language = "ja", variant = "paddle-v4")
+
+            // The current variant keeps every page written under it (reads still work)...
+            manager.load(key, pageIndex = 2, variant = "paddle-v4") shouldBe blocks
+            // ...while the superseded one is gone from the file, so its pages are re-OCR'd instead
+            // of being carried forever in a map nothing reads.
+            manager.load(key, pageIndex = 0, variant = "paddle-v3") shouldBe null
+            manager.load(key, pageIndex = 1, variant = "paddle-v3") shouldBe null
+            val stored = Json.decodeFromString<OcrChapterData>(manager.internalCacheFile(key).readText())
+            stored.variants.keys shouldBe setOf("paddle-v4")
+            stored.variants.getValue("paddle-v4").keys shouldBe setOf(2)
+        }
+    }
+
     private companion object {
         /** Long enough for file I/O, short enough that a deadlock fails fast instead of hanging CI. */
         private const val TIMEOUT_MS = 10_000L
