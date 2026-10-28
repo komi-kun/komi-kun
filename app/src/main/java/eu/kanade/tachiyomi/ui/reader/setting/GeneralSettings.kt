@@ -33,12 +33,16 @@ data class GeneralSettings(
      */
     val usePageTransitionsWebtoon: Boolean,
     /** SY: seconds between autoscroll steps, `-1` when autoscroll is off. */
+    // KUN: populated but read by the preference owner until step 5 wires autoscroll onto the plane.
     val autoscrollInterval: Float,
     /** SY: glide a screen per autoscroll step instead of jumping one page. */
+    // KUN: populated but read by the preference owner until step 5 wires autoscroll onto the plane.
     val smoothAutoScroll: Boolean,
     /** SY: two-finger tap / long-press / swipe autoscroll gestures. */
+    // KUN: populated but read by the preference owner until step 5 wires autoscroll onto the plane.
     val autoscrollGesturesEnabled: Boolean,
     /** SY: toast what an autoscroll gesture did. */
+    // KUN: populated but read by the preference owner until step 5 wires autoscroll onto the plane.
     val autoscrollGestureToastsEnabled: Boolean,
     // KUN <--
 ) {
