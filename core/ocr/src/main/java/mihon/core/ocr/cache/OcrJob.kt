@@ -51,4 +51,13 @@ class OcrJob(
         job = null
         _isRunning.value = false
     }
+
+    /**
+     * Returns the number of failed tasks that were made runnable again.
+     *
+     * Called by the app worker before it asks WorkManager to retry a failed run: an `ERROR` task is
+     * not picked up by [OcrManager.runPendingQueue], so without this the retried run would find an
+     * empty queue and give up on the chapters the failed run had marked failed.
+     */
+    fun requeueFailedTasks(): Int = manager.requeueFailedTasks()
 }

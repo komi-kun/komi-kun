@@ -188,7 +188,8 @@ class OcrManagerOptInTest {
 
     /**
      * The failure path is not a promotion: an `ERROR` task that is *not* waiting for a download is
-     * left alone (its chapter is on disk; retrying OCR is the user's call via [OcrManager.retryChapter]).
+     * left alone (its chapter is on disk; re-running it is the queue's own bounded retry, not a
+     * download promotion).
      */
     @Test
     fun `a download failure does not touch a task that is not waiting for a download`() {
@@ -263,14 +264,6 @@ class OcrManagerOptInTest {
 
         saved.single().status shouldBe OcrQueueStatus.PENDING
         saved.single().waitForDownload shouldBe false
-    }
-
-    @Test
-    fun `retrying errors is a no-op while disabled`() {
-        manager(enabled = false).retryAllErrors()
-
-        verify(exactly = 0) { store.getAll() }
-        verify(exactly = 0) { store.save(any()) }
     }
 
     @Test

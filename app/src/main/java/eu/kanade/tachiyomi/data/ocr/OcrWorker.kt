@@ -123,7 +123,22 @@ class OcrWorker(
             throw e
         } catch (e: Exception) {
             logcat(LogPriority.ERROR, e) { "OcrWorker: OCR queue failed" }
-            Result.failure()
+            // KUN -->
+            // A failed run is retried a bounded number of times instead of being terminal on the
+            // first exception (see `OcrRuntimePolicy.workerFailureDisposition`). The retry has to
+            // find runnable work, so the tasks the failed run left `ERROR` are requeued first — only
+            // a run that used every attempt leaves them `ERROR`.
+            if (OcrRuntimePolicy.workerFailureDisposition(runAttemptCount) == OcrWorkerFailure.RETRY) {
+                val requeued = ocrJob.requeueFailedTasks()
+                logcat(LogPriority.WARN) {
+                    "OcrWorker: retrying the OCR queue (attempt ${runAttemptCount + 1}/" +
+                        "${OcrRuntimePolicy.OCR_WORKER_MAX_ATTEMPTS}, requeued $requeued)"
+                }
+                Result.retry()
+            } else {
+                Result.failure()
+            }
+            // KUN <--
         }
     }
 

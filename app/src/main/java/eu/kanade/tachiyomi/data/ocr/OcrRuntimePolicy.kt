@@ -27,7 +27,37 @@ data class DownloadOcrActions(
     val startWorker: Boolean,
 )
 
+/** What a failed queue run reports back to WorkManager (see [OcrRuntimePolicy.workerFailureDisposition]). */
+enum class OcrWorkerFailure {
+    /** Ask WorkManager to run the worker again; the queue is left runnable for that run. */
+    RETRY,
+
+    /** Terminal: the run has used every attempt, so the failure stands. */
+    FAIL,
+}
+
 object OcrRuntimePolicy {
+
+    /**
+     * How many attempts one queue run may take before a failure is terminal.
+     *
+     * Failures used to be terminal on the first exception: `OcrWorker` returned a terminal result,
+     * the tasks the run had not reached stayed `ERROR`, and nothing ran them again until the user
+     * retried by hand. A transient cause (a lock held by the download, a full disk, a decoder
+     * hiccup) then cost the whole queue. The cap keeps a permanently broken chapter from retrying
+     * forever — WorkManager would otherwise back off and re-run it for the life of the app.
+     */
+    const val OCR_WORKER_MAX_ATTEMPTS = 3
+
+    /**
+     * The retry decision for a failed run: [OcrWorkerFailure.RETRY] while the attempt count is below
+     * [OCR_WORKER_MAX_ATTEMPTS] (`0` on the first run), then [OcrWorkerFailure.FAIL]. The queue
+     * status follows it: only a terminal failure leaves the failed tasks `ERROR`; on a retry they are
+     * requeued (`OcrManager.requeueFailedTasks`), because an `ERROR` task is not runnable and the
+     * retried run would otherwise have nothing to do.
+     */
+    fun workerFailureDisposition(runAttemptCount: Int): OcrWorkerFailure =
+        if (runAttemptCount < OCR_WORKER_MAX_ATTEMPTS) OcrWorkerFailure.RETRY else OcrWorkerFailure.FAIL
 
     /**
      * The download hook's action truth table. It is evaluated **after**

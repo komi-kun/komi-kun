@@ -117,4 +117,25 @@ class OcrRuntimePolicyTest {
             selectedRelease = "ocr-manga-v4",
         ) shouldBe false
     }
+
+    /**
+     * The defect this pins: one exception used to end the queue for good — `OcrWorker` returned a
+     * terminal result on the first failure, so a transient cause cost every chapter the run had not
+     * reached. The retry has to be bounded too, or a permanently broken chapter re-runs forever.
+     */
+    @Test
+    fun `a failed queue run is retried up to the cap and then reported as failed`() {
+        val dispositions = (0..OcrRuntimePolicy.OCR_WORKER_MAX_ATTEMPTS).map {
+            OcrRuntimePolicy.workerFailureDisposition(it)
+        }
+
+        // Attempts 0..MAX-1 ask WorkManager for another run; the attempt that reaches the cap is
+        // terminal. `runAttemptCount` is 0 on the very first run, so MAX means MAX retries follow it.
+        dispositions shouldBe List(OcrRuntimePolicy.OCR_WORKER_MAX_ATTEMPTS) { OcrWorkerFailure.RETRY } +
+            OcrWorkerFailure.FAIL
+        // Past the cap stays terminal: an attempt count WorkManager would not normally reach must
+        // not resurrect the retry loop.
+        OcrRuntimePolicy.workerFailureDisposition(OcrRuntimePolicy.OCR_WORKER_MAX_ATTEMPTS + 5) shouldBe
+            OcrWorkerFailure.FAIL
+    }
 }

@@ -87,8 +87,6 @@ class OcrManager(
 
     val isRunning: Boolean get() = _queueState.value.any { it.status.isActionable() }
 
-    fun isChapterQueued(chapterId: Long): Boolean = store.get(chapterId) != null
-
     fun isChapterRunning(chapterId: Long): Boolean = _queueState.value.any {
         it.chapterId == chapterId && it.status == OcrQueueStatus.PROCESSING
     }
@@ -158,31 +156,28 @@ class OcrManager(
         return true
     }
 
-    fun retryChapter(chapterId: Long): Boolean {
-        // KUN -->
-        if (ocrDisabled()) return false
-        // KUN <--
-        val task = store.get(chapterId) ?: return false
-        if (task.status != OcrQueueStatus.ERROR) return false
-        store.save(task.copy(status = OcrQueueStatus.PENDING))
-        scope.launch { refreshQueueState() }
-        return true
-    }
-
-    fun retryAllErrors() {
-        // KUN -->
-        if (ocrDisabled()) return
-        // KUN <--
-        store.getAll().filter { it.status == OcrQueueStatus.ERROR }.forEach { task ->
-            store.save(task.copy(status = OcrQueueStatus.PENDING))
+    /**
+     * KUN -->
+     * Re-arms the tasks a failed queue run left `ERROR`, so the retried run has work to do.
+     *
+     * `OcrWorker` calls this before returning `Result.retry()`: `runPendingQueue` only picks up
+     * `PENDING`/`PROCESSING`, so a retry over an `ERROR`-only queue would drain nothing and the
+     * chapters the failed attempt gave up on would stay failed. Returns how many tasks were
+     * requeued.
+     *
+     * A task whose **download** failed stays `ERROR` (`waitForDownload` is still set): it is not an
+     * OCR failure, and its retry is the download's, which promotes it through
+     * [markChapterReadyForOcr] when the files finally land.
+     */
+    fun requeueFailedTasks(): Int {
+        if (ocrDisabled()) return 0
+        val failed = store.getAll().filter { it.status == OcrQueueStatus.ERROR && !it.waitForDownload }
+        if (failed.isEmpty()) return 0
+        failed.forEach { task ->
+            store.save(task.copy(status = OcrQueueStatus.PENDING, currentPage = 0, totalPages = 0))
         }
         scope.launch { refreshQueueState() }
-    }
-
-    suspend fun cancelChapter(chapterId: Long) {
-        store.remove(chapterId)
-        runningJobs[chapterId]?.cancel()
-        stateMutex.withLock { _queueState.update { current -> current.filterNot { it.chapterId == chapterId } } }
+        return failed.size
     }
 
     fun clearPendingChapters(chapterIds: Collection<Long>) {
