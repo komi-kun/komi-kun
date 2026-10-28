@@ -202,6 +202,13 @@
     <string name="pref_anki_crop_preset">切り抜き比率</string>
     <string name="pref_anki_crop_preset_full">比率を固定しない</string>
     <string name="pref_anki_screenshot_animated_scene">アニメーションシーン</string>
+    <string name="pref_anki_screenshot_full">ページ全体</string>
+    <string name="pref_anki_screenshot_crop">コマにトリミング</string>
+    <string name="pref_anki_screenshot_none">スクリーンショットなし</string>
+    <string name="pref_anki_duplicate_scope_collection">コレクション全体</string>
+    <string name="pref_anki_duplicate_scope_deck_children">%1$s + 子デッキ</string>
+    <string name="pref_anki_profile_default_name">プロファイル %1$d</string>
+    <string name="pref_anki_load_failed">AnkiDroid からデッキとノートタイプを読み込めませんでした。</string>
     <string name="anki_add_to">Ankiに追加</string>
     <string name="anki_card_added">カードをAnkiに追加しました</string>
     <string name="anki_card_error">カードの追加に失敗しました: %1$s</string>
@@ -283,6 +290,9 @@
     <string name="ocr_ready">OCRの準備完了</string>
     <string name="ocr_not_ready">OCRの準備ができていません</string>
     <string name="ocr_running">OCR実行中…</string>
+    <string name="ocr_download_progress">モデルをダウンロード中… %1$d/%2$d</string>
+    <string name="ocr_redo_failed">OCRを再実行できませんでした。OCRモデルがダウンロードされているか確認してください。</string>
+    <string name="ocr_no_page_to_redo">ここにOCRするページがありません。</string>
     <string name="ocr_processing">OCR処理中</string>
     <string name="ocr_waiting_download">ダウンロード待機中…</string>
     <string name="ocr_status_pending">保留中</string>

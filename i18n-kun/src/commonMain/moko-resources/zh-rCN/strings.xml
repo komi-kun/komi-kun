@@ -200,6 +200,13 @@
     <string name="pref_anki_no_ankidroid">未安装 AnkiDroid</string>
     <string name="pref_anki_permission_denied">AnkiDroid 权限被拒绝</string>
     <string name="pref_anki_screenshot_animated_scene">动画场景</string>
+    <string name="pref_anki_screenshot_full">整页</string>
+    <string name="pref_anki_screenshot_crop">裁剪到画格</string>
+    <string name="pref_anki_screenshot_none">不截图</string>
+    <string name="pref_anki_duplicate_scope_collection">整个牌组集</string>
+    <string name="pref_anki_duplicate_scope_deck_children">%1$s + 子牌组</string>
+    <string name="pref_anki_profile_default_name">配置 %1$d</string>
+    <string name="pref_anki_load_failed">无法从 AnkiDroid 加载牌组和笔记类型。</string>
     <string name="anki_add_to">添加到 Anki</string>
     <string name="anki_card_added">卡片已添加到 Anki</string>
     <string name="anki_card_error">添加卡片失败：%1$s</string>
@@ -264,6 +271,9 @@
     <string name="ocr_ready">OCR 已就绪</string>
     <string name="ocr_not_ready">OCR 未就绪</string>
     <string name="ocr_running">OCR 运行中…</string>
+    <string name="ocr_download_progress">正在下载模型… %1$d/%2$d</string>
+    <string name="ocr_redo_failed">无法重新运行 OCR。请确认 OCR 模型已下载。</string>
+    <string name="ocr_no_page_to_redo">此处没有可进行 OCR 的页面。</string>
     <string name="ocr_processing">OCR 处理中</string>
     <string name="ocr_waiting_download">等待下载中…</string>
     <string name="ocr_status_pending">等待中</string>

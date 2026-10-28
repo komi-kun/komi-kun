@@ -202,6 +202,13 @@
     <string name="pref_anki_crop_preset">Crop preset</string>
     <string name="pref_anki_crop_preset_full">No fixed ratio</string>
     <string name="pref_anki_screenshot_animated_scene">Animated Scene</string>
+    <string name="pref_anki_screenshot_full">Full page</string>
+    <string name="pref_anki_screenshot_crop">Crop to panel</string>
+    <string name="pref_anki_screenshot_none">No screenshot</string>
+    <string name="pref_anki_duplicate_scope_collection">Collection</string>
+    <string name="pref_anki_duplicate_scope_deck_children">%1$s + children</string>
+    <string name="pref_anki_profile_default_name">Profile %1$d</string>
+    <string name="pref_anki_load_failed">Could not load decks and note types from AnkiDroid.</string>
     <string name="anki_add_to">Add to Anki</string>
     <string name="anki_card_added">Card added to Anki</string>
     <string name="anki_card_error">Failed to add card: %1$s</string>
@@ -283,6 +290,7 @@
     <string name="ocr_ready">OCR ready</string>
     <string name="ocr_not_ready">OCR not ready</string>
     <string name="ocr_running">OCR running…</string>
+    <string name="ocr_download_progress">Downloading models… %1$d/%2$d</string>
     <string name="ocr_processing">OCR processing</string>
     <string name="ocr_waiting_download">Waiting for download…</string>
     <string name="ocr_status_pending">Pending</string>
@@ -296,6 +304,8 @@
     <string name="ocr_redoing_chapter">Re-running OCR for chapter…</string>
     <string name="ocr_redo_page_complete">OCR updated for page %1$d</string>
     <string name="ocr_redo_chapter_complete">OCR updated for chapter</string>
+    <string name="ocr_redo_failed">Could not re-run OCR. Check that the OCR models are downloaded.</string>
+    <string name="ocr_no_page_to_redo">There is no page to OCR here.</string>
     <!-- Immersion opt-in: dictionaries + OCR share one switch -->
     <string name="dictionary_ocr_setup_title">Dictionaries &amp; OCR</string>
     <string name="dictionary_ocr_setup_description">Look up words straight from a manga page and read recognised text over the artwork. Everything runs on your device.</string>

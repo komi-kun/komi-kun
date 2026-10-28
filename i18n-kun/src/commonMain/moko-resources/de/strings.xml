@@ -202,6 +202,13 @@
     <string name="pref_anki_crop_preset">Zuschnittformat</string>
     <string name="pref_anki_crop_preset_full">Kein festes Format</string>
     <string name="pref_anki_screenshot_animated_scene">Animierte Szene</string>
+    <string name="pref_anki_screenshot_full">Ganze Seite</string>
+    <string name="pref_anki_screenshot_crop">Auf Panel zuschneiden</string>
+    <string name="pref_anki_screenshot_none">Kein Screenshot</string>
+    <string name="pref_anki_duplicate_scope_collection">Sammlung</string>
+    <string name="pref_anki_duplicate_scope_deck_children">%1$s + Unterkarten</string>
+    <string name="pref_anki_profile_default_name">Profil %1$d</string>
+    <string name="pref_anki_load_failed">Stapel und Notiztypen konnten nicht von AnkiDroid geladen werden.</string>
     <string name="anki_add_to">Zu Anki hinzufügen</string>
     <string name="anki_card_added">Karte zu Anki hinzugefügt</string>
     <string name="anki_card_error">Karte konnte nicht hinzugefügt werden: %1$s</string>
@@ -283,6 +290,9 @@
     <string name="ocr_ready">OCR bereit</string>
     <string name="ocr_not_ready">OCR nicht bereit</string>
     <string name="ocr_running">OCR läuft…</string>
+    <string name="ocr_download_progress">Modelle werden heruntergeladen… %1$d/%2$d</string>
+    <string name="ocr_redo_failed">OCR konnte nicht erneut ausgeführt werden. Prüfe, ob die OCR-Modelle heruntergeladen sind.</string>
+    <string name="ocr_no_page_to_redo">Hier gibt es keine Seite für OCR.</string>
     <string name="ocr_processing">OCR-Verarbeitung</string>
     <string name="ocr_waiting_download">Warte auf Download…</string>
     <string name="ocr_status_pending">Ausstehend</string>

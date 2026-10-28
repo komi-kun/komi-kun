@@ -200,6 +200,13 @@
     <string name="pref_anki_no_ankidroid">O AnkiDroid não está instalado</string>
     <string name="pref_anki_permission_denied">Permissão do AnkiDroid negada</string>
     <string name="pref_anki_screenshot_animated_scene">Cena animada</string>
+    <string name="pref_anki_screenshot_full">Página inteira</string>
+    <string name="pref_anki_screenshot_crop">Recortar para o painel</string>
+    <string name="pref_anki_screenshot_none">Sem captura</string>
+    <string name="pref_anki_duplicate_scope_collection">Coleção</string>
+    <string name="pref_anki_duplicate_scope_deck_children">%1$s + subbaralhos</string>
+    <string name="pref_anki_profile_default_name">Perfil %1$d</string>
+    <string name="pref_anki_load_failed">Não foi possível carregar baralhos e tipos de nota do AnkiDroid.</string>
     <string name="anki_add_to">Adicionar ao Anki</string>
     <string name="anki_card_added">Carta adicionada ao Anki</string>
     <string name="anki_card_error">Falha ao adicionar carta: %1$s</string>
@@ -264,6 +271,9 @@
     <string name="ocr_ready">OCR pronto</string>
     <string name="ocr_not_ready">OCR não pronto</string>
     <string name="ocr_running">OCR em execução…</string>
+    <string name="ocr_download_progress">Baixando modelos… %1$d/%2$d</string>
+    <string name="ocr_redo_failed">Não foi possível executar o OCR novamente. Verifique se os modelos de OCR foram baixados.</string>
+    <string name="ocr_no_page_to_redo">Não há nenhuma página para aplicar OCR aqui.</string>
     <string name="ocr_processing">Processamento de OCR</string>
     <string name="ocr_waiting_download">Aguardando download…</string>
     <string name="ocr_status_pending">Pendente</string>

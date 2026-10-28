@@ -200,6 +200,13 @@
     <string name="pref_anki_no_ankidroid">AnkiDroid не установлен</string>
     <string name="pref_anki_permission_denied">Разрешение для AnkiDroid отклонено</string>
     <string name="pref_anki_screenshot_animated_scene">Анимированная сцена</string>
+    <string name="pref_anki_screenshot_full">Вся страница</string>
+    <string name="pref_anki_screenshot_crop">Обрезать по панели</string>
+    <string name="pref_anki_screenshot_none">Без снимка</string>
+    <string name="pref_anki_duplicate_scope_collection">Коллекция</string>
+    <string name="pref_anki_duplicate_scope_deck_children">%1$s + подколоды</string>
+    <string name="pref_anki_profile_default_name">Профиль %1$d</string>
+    <string name="pref_anki_load_failed">Не удалось загрузить колоды и типы записей из AnkiDroid.</string>
     <string name="anki_add_to">Добавить в Anki</string>
     <string name="anki_card_added">Карточка добавлена в Anki</string>
     <string name="anki_card_error">Не удалось добавить карточку: %1$s</string>
@@ -264,6 +271,9 @@
     <string name="ocr_ready">OCR готово</string>
     <string name="ocr_not_ready">OCR не готово</string>
     <string name="ocr_running">OCR выполняется…</string>
+    <string name="ocr_download_progress">Загрузка моделей… %1$d/%2$d</string>
+    <string name="ocr_redo_failed">Не удалось повторно выполнить OCR. Проверьте, загружены ли модели OCR.</string>
+    <string name="ocr_no_page_to_redo">Здесь нет страницы для OCR.</string>
     <string name="ocr_processing">Обработка OCR</string>
     <string name="ocr_waiting_download">Ожидание загрузки…</string>
     <string name="ocr_status_pending">В очереди</string>
