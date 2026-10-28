@@ -211,7 +211,9 @@ top_level_declaration_names() {
 # Top-level functions and properties are importable/qualifiable FQNs too (`import
 # eu.kanade.tachiyomi.ui.dictionary.DictionaryEntryWebView` imports a Composable *function*), so they
 # are derived as well. Extension functions reduce to the extension name (`String.foo` -> `foo`),
-# which is what an import names.
+# which is what an import names. `fun` is in MODIFIERS, but `val`/`var` are not (they are what the
+# pattern selects on), so the property keyword is stripped separately — otherwise every top-level
+# property would derive the literal name `val`/`var` instead of its own identifier.
 TOP_LEVEL_CALLABLE="^((@[A-Za-z_][A-Za-z0-9_.]*(\\([^)]*\\))?[[:space:]]+)|((${MODIFIERS})[[:space:]]+))*(fun|val|var)[[:space:]]+"
 
 lines_matching() {
@@ -226,6 +228,7 @@ top_level_callable_names() {
   lines_matching "$TOP_LEVEL_CALLABLE" "$1" \
     | sed -E -e 's/^(@[A-Za-z_][A-Za-z0-9_.]*(\([^)]*\))?[[:space:]]+)*//' \
       -e "s/^((${MODIFIERS})[[:space:]]+)*//" \
+    | sed -E 's/^(val|var)[[:space:]]+//' \
     | sed -E 's/^<[^>]*>[[:space:]]*//' \
     | sed -E -e 's/[[:space:]].*$//' -e 's/[(:={].*$//' \
     | sed -E -e 's/.*\.//' -e 's/[<>?].*$//' \
@@ -257,6 +260,16 @@ list_gpl_sources() {
 declare -A GPL_TYPES_IN_PKG=()
 DERIVED_FQNS=()
 
+# record_denied_name PKG NAME — one top-level GPL name of PKG. It counts twice: as a denied FQN (the
+# import / fully-qualified passes) and as a *simple* name of PKG (the same-package and star-import
+# passes, which have neither a qualifier nor a declaration to look at). Callables are recorded as well
+# as declarations: `import a.b.*` brings in GPL functions and properties, not only types.
+record_denied_name() {
+  local pkg="$1" name="$2"
+  DERIVED_FQNS+=("$pkg.$name")
+  GPL_TYPES_IN_PKG["$pkg"]="${GPL_TYPES_IN_PKG[$pkg]:-}${GPL_TYPES_IN_PKG[$pkg]:+ }$name"
+}
+
 for root in "${SCAN_ROOTS[@]}"; do
   if [[ ! -d "$root" ]]; then
     echo "verify-gpl-free: ERROR: source root is missing: '$root' (cannot derive the denied set)" >&2
@@ -270,12 +283,11 @@ while IFS= read -r source; do
   [[ -z "$pkg" ]] && continue
   while IFS= read -r name; do
     [[ -z "$name" ]] && continue
-    DERIVED_FQNS+=("$pkg.$name")
-    GPL_TYPES_IN_PKG["$pkg"]="${GPL_TYPES_IN_PKG[$pkg]:-}${GPL_TYPES_IN_PKG[$pkg]:+ }$name"
+    record_denied_name "$pkg" "$name"
   done < <(top_level_declaration_names "$source")
   while IFS= read -r name; do
     [[ -z "$name" ]] && continue
-    DERIVED_FQNS+=("$pkg.$name")
+    record_denied_name "$pkg" "$name"
   done < <(top_level_callable_names "$source")
 done < <(list_gpl_sources)
 

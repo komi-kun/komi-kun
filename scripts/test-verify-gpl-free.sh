@@ -11,13 +11,16 @@
 #   1. `import` of a GPL FQN                     (the original check)
 #   2. unimported same-package use of a GPL type (evasion (a))
 #   3. fully qualified use with no import        (evasion (c))
-#   4. star import of a *mixed* package plus an unqualified use of its GPL declaration, and the
-#      negative counterpart (star import, Apache sibling only) — plus a same-package GPL name in a
-#      string literal (must pass) and in a string template (must fail).
+#   4. star import of a *mixed* package plus an unqualified use of its GPL declaration — as a type, as
+#      a top-level `fun`, and as a top-level `const val` (the last one also pins the derivation of a
+#      property's own identifier instead of the `val` keyword) — and the negative counterpart (star
+#      import, Apache sibling only) — plus a same-package GPL name in a string literal (must pass) and
+#      in a string template (must fail).
 #
-# The last three cases repeat (1)/(a) against the *real* tree, with FQNs the hand-maintained deny list
-# never contained (a GPL class, a GPL top-level function, and a GPL bindings object next to its seam),
-# so a regression in the SPDX derivation is caught too.
+# The last four cases repeat (1)/(a)/(2b) against the *real* tree, with FQNs the hand-maintained deny
+# list never contained (a GPL class, a GPL top-level function, a GPL bindings object next to its seam,
+# and a star-imported GPL function from the mixed `…ui.dictionary` package), so a regression in the
+# SPDX derivation is caught too.
 #
 # Run directly (`bash scripts/test-verify-gpl-free.sh`) or via `./gradlew verifyGplFree`, which runs
 # it after the boundary scan.
@@ -94,6 +97,18 @@ run_case "star import of a mixed package fails" \
   "$FIXTURE_ROOT" "$FIXTURE_DIR/cases/star-import.list" "mixed" 1 \
   "references GPL code through the star import 'fixture.mixed.*': 'GplMixedThing'"
 
+# 3a-i. …and so does a star-imported GPL *function*: a star import brings callables in like types, so
+# the package's name map has to hold them, not only its class/object declarations.
+run_case "star import of a mixed package GPL function fails" \
+  "$FIXTURE_ROOT" "$FIXTURE_DIR/cases/star-import-function.list" "mixed" 1 \
+  "references GPL code through the star import 'fixture.mixed.*': 'gplMixedFunction'"
+
+# 3a-ii. …and a star-imported GPL top-level `const val`, which must be filed under its own identifier:
+# deriving the keyword `val` instead leaves the use invisible.
+run_case "star import of a mixed package GPL const val fails" \
+  "$FIXTURE_ROOT" "$FIXTURE_DIR/cases/star-import-constant.list" "mixed" 1 \
+  "references GPL code through the star import 'fixture.mixed.*': 'GPL_MIXED_CONSTANT'"
+
 # 3b. …but star-importing that package to use its Apache declaration passes.
 run_case "star import of a mixed package using only the Apache sibling passes" \
   "$FIXTURE_ROOT" "$FIXTURE_DIR/cases/star-import-clean.list" "mixed" 0 \
@@ -123,6 +138,13 @@ run_case "real tree: import of a GPL function fails" \
 run_case "real tree: same-package GPL reference fails" \
   "$ROOT_DIR" "$FIXTURE_REL/cases/realtree-same-package.list" "" 1 \
   "references GPL code in the same package: 'OcrHostBindings'"
+
+# 7. Real tree: a star import of the GPL-mixed `…ui.dictionary` package plus a call to its GPL
+# top-level function. The import line names only the package, so this only fails when that package's
+# name map holds callables.
+run_case "real tree: star-imported GPL function fails" \
+  "$ROOT_DIR" "$FIXTURE_REL/cases/realtree-star-import-function.list" "" 1 \
+  "references GPL code through the star import 'eu.kanade.tachiyomi.ui.dictionary.*': 'DictionaryEntryWebView'"
 
 if [[ "$fail" -ne 0 ]]; then
   echo "test-verify-gpl-free: FAILED — $fail of $((pass + fail)) case(s) did not behave as required." >&2
