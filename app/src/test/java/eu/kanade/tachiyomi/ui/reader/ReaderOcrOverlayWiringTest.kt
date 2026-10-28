@@ -69,4 +69,48 @@ class ReaderOcrOverlayWiringTest {
                 "(overlay=$overlay, appBars=$appBars)",
         )
     }
+
+    /**
+     * Every entry point that consumes a tap through the OCR host — the outside-tap detector's
+     * `hitsBlock`, the long press and the single tap — must ask the **policy** whether a lookup may
+     * run at all, and none of them may re-derive "is the overlay on" locally. A hidden overlay that
+     * still hit-tests eats the gesture: the page does not turn and the menu does not toggle.
+     *
+     * Source-level, like the rest of this file: the three call sites live in an Android `Activity`
+     * and the rule itself is covered behaviourally in [ReaderOcrOverlayPolicyTest].
+     */
+    @Test
+    fun `every OCR tap entry point asks the overlay policy before hit-testing`() {
+        val source = readerActivity()
+
+        val gates = Regex.fromLiteral("ReaderOcrOverlayPolicy.acceptsLookup(").findAll(source).count()
+        val hitTests = listOf(
+            "readerOcrHost.hitsBlock(",
+            "readerOcrHost.onPageLongPress(",
+            "readerOcrHost.onPageSingleTap(",
+        ).sumOf { Regex.fromLiteral(it).findAll(source).count() }
+
+        hitTests shouldBe 3
+        // Every call that can consume a gesture is preceded by the policy decision: a site that
+        // re-derives "is the overlay on" locally would leave the counts unequal.
+        gates shouldBe hitTests
+    }
+
+    /**
+     * The viewport the hit test maps taps through is recorded by `Overlay`, so it must be dropped
+     * when the overlay leaves composition — `detach()` only runs when the reader goes away, and is
+     * skipped across a configuration change.
+     */
+    @Test
+    fun `the host drops the recorded viewport when the overlay leaves composition`() {
+        val source = File(
+            "src/main/java/eu/kanade/tachiyomi/ui/reader/ocr/impl/ReaderOcrHostImpl.kt",
+        ).readText()
+
+        assertTrue(source.contains("DisposableEffect"), "the overlay must dispose its recorded viewport")
+        assertTrue(
+            source.contains("this@ReaderOcrHostImpl.viewport = null"),
+            "the disposal must clear the recorded viewport",
+        )
+    }
 }

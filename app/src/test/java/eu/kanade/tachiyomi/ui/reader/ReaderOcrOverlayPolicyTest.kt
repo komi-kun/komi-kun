@@ -40,4 +40,17 @@ class ReaderOcrOverlayPolicyTest {
         ReaderOcrOverlayPolicy.visible(masterEnabled = true, overlayEnabled = false, menuVisible = false) shouldBe false
         ReaderOcrOverlayPolicy.visible(masterEnabled = true, overlayEnabled = false, menuVisible = true) shouldBe false
     }
+
+    @Test
+    fun `a tap is only hit-tested while the overlay is on`() {
+        // Overlay off (the OCR button pressed a second time, or the two-finger toggle): the boxes
+        // are not drawn, so a tap must not be consumed by a hidden block — it has to reach the
+        // viewer and turn the page / toggle the menu as usual.
+        ReaderOcrOverlayPolicy.acceptsLookup(masterEnabled = true, overlayEnabled = false) shouldBe false
+        // Both switches on: the normal lookup path.
+        ReaderOcrOverlayPolicy.acceptsLookup(masterEnabled = true, overlayEnabled = true) shouldBe true
+        // Feature off: nothing is hit-tested, whatever the (hidden) overlay preference says.
+        ReaderOcrOverlayPolicy.acceptsLookup(masterEnabled = false, overlayEnabled = true) shouldBe false
+        ReaderOcrOverlayPolicy.acceptsLookup(masterEnabled = false, overlayEnabled = false) shouldBe false
+    }
 }

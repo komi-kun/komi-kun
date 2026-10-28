@@ -270,9 +270,13 @@ class ReaderActivity : BaseActivity() {
                 }
             }
             onOutsideTap = { x, y ->
-                val targetsBlock = dictionaryOcrPreferences.isEnabled() &&
-                    readerPreferences.ocrOverlayEnabled.get() &&
-                    readerOcrHost.hitsBlock(Offset(x, y))
+                // KUN -->
+                // Same rule as the tap handlers below: a hit test is only run for a visible overlay.
+                val targetsBlock = ReaderOcrOverlayPolicy.acceptsLookup(
+                    masterEnabled = dictionaryOcrPreferences.isEnabled(),
+                    overlayEnabled = readerPreferences.ocrOverlayEnabled.get(),
+                ) && readerOcrHost.hitsBlock(Offset(x, y))
+                // KUN <--
                 if (!targetsBlock) readerDictionaryHost.dismiss()
             }
         }
@@ -1477,8 +1481,10 @@ class ReaderActivity : BaseActivity() {
         // and the press landed on an OCR block, the host starts a dictionary lookup and consumes the
         // gesture; otherwise fall through to the upstream page-actions dialog.
         if (point != null &&
-            dictionaryOcrPreferences.isEnabled() &&
-            readerPreferences.ocrOverlayEnabled.get() &&
+            ReaderOcrOverlayPolicy.acceptsLookup(
+                masterEnabled = dictionaryOcrPreferences.isEnabled(),
+                overlayEnabled = readerPreferences.ocrOverlayEnabled.get(),
+            ) &&
             readerOcrHost.onPageLongPress(page, extraPage, Offset(point.x, point.y))
         ) {
             return
@@ -1502,7 +1508,18 @@ class ReaderActivity : BaseActivity() {
      * boxes.
      */
     fun onPageSingleTap(page: ReaderPage, extraPage: ReaderPage?, point: PointF): Boolean {
-        if (!dictionaryOcrPreferences.isEnabled() || !readerPreferences.ocrOverlayEnabled.get()) return false
+        // KUN -->
+        // The hit test runs only while the overlay is visible: a hidden overlay must never consume a
+        // tap, or the page turn / menu toggle it swallowed is simply lost. Same predicate as the
+        // long press and the outside-tap detector (`ReaderOcrOverlayPolicy.acceptsLookup`).
+        if (!ReaderOcrOverlayPolicy.acceptsLookup(
+                masterEnabled = dictionaryOcrPreferences.isEnabled(),
+                overlayEnabled = readerPreferences.ocrOverlayEnabled.get(),
+            )
+        ) {
+            return false
+        }
+        // KUN <--
         return readerOcrHost.onPageSingleTap(page, extraPage, Offset(point.x, point.y))
     }
     // KUN <--

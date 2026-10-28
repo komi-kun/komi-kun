@@ -15,6 +15,7 @@ import android.content.Context
 import android.graphics.RectF
 import android.os.SystemClock
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -103,6 +104,16 @@ class ReaderOcrHostImpl(
         // Recording the viewport is a side effect, not composition: keep it out of the compose
         // phase so recomposition stays pure (the hit-test only reads it after a long-press).
         SideEffect { this.viewport = viewport }
+        // KUN -->
+        // ...and drop it again when the overlay leaves composition (the feature or the reader's
+        // overlay toggle was switched off). `detach()` is not enough: it only runs when the reader
+        // really goes away — and is skipped across a configuration change — so a stale viewport
+        // outlived the overlay it described, and a later hit test could still be answered from a
+        // viewer this reader no longer draws.
+        DisposableEffect(Unit) {
+            onDispose { this@ReaderOcrHostImpl.viewport = null }
+        }
+        // KUN <--
         val loaded by blockLoader.blocks.collectAsState()
         val active by activeBlock
         val outlineVisible = readerPreferences.ocrOutlineVisible.get()

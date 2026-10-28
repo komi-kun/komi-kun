@@ -29,4 +29,21 @@ object ReaderOcrOverlayPolicy {
      */
     fun visible(masterEnabled: Boolean, overlayEnabled: Boolean, menuVisible: Boolean): Boolean =
         masterEnabled && overlayEnabled && !menuVisible
+
+    /**
+     * KUN -->
+     * true when a tap/long press may be **hit-tested** against the OCR blocks — i.e. when the OCR
+     * host may consume it for a dictionary lookup.
+     *
+     * The hit test must accept exactly what the overlay shows: an overlay that is off (the feature
+     * switched off, or the reader's own overlay toggle pressed a second time) must not swallow the
+     * gesture, or the page does not turn and the menu does not toggle — which reads as a dead
+     * reader. [menuVisible] is deliberately **not** part of this rule: with the chrome up the overlay
+     * still composes and its blocks are still where they are drawn, and the viewers route single
+     * taps through the host while the menu is open (`ReaderActivity`), so a tap must keep finding the
+     * block it visibly lands on.
+     */
+    fun acceptsLookup(masterEnabled: Boolean, overlayEnabled: Boolean): Boolean =
+        masterEnabled && overlayEnabled
+    // KUN <--
 }
