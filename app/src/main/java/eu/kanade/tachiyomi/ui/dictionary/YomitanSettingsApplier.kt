@@ -52,6 +52,10 @@ object YomitanSettingsApplier {
                 name = source.name,
                 dictionaryOrder = source.dictionaryOrder,
                 enabledDictionaries = source.enabledDictionaries,
+                // Yomitan has no equivalent of this komi-kun-only mode, so an in-place update keeps
+                // the user's choice; a genuinely new profile gets the default.
+                dictionaryCollapseMode = current?.dictionaryCollapseMode
+                    ?: DictionaryProfile.DICTIONARY_COLLAPSE_EXPAND_ALL,
                 dictionaryDisplayModes = source.dictionaryDisplayModes,
                 languageCode = source.languageCode,
                 scanResolution = source.scanResolution,
