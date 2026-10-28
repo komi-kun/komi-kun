@@ -29,7 +29,7 @@ class BackupProtoNumberTest {
     }
 
     @Test
-    fun `every backup field number is unique and inside the fork block or an upstream number`() {
+    fun `every backup field number is unique and is the fork block or a documented upstream number`() {
         val descriptors = backupSerializers()
 
         assertTrue(
@@ -37,6 +37,8 @@ class BackupProtoNumberTest {
             "expected every Backup* model in ${BackupManga::class.java.packageName}, found " +
                 descriptors.map { it.serialName },
         )
+
+        val upstreamNumbersInUse = mutableSetOf<Int>()
 
         for (descriptor in descriptors) {
             val numbers = protoNumbers(descriptor)
@@ -48,13 +50,24 @@ class BackupProtoNumberTest {
                 "${descriptor.serialName} reuses a proto number",
             )
 
-            val outsideForkBlock = numbers.filter { (_, number) -> number >= 1000 && number !in FORK_BLOCK }
+            val nonFork = numbers.filter { (_, number) -> number !in FORK_BLOCK }
+            val unknown = nonFork.filter { (_, number) -> number !in UPSTREAM_NUMBERS }
             assertEquals(
                 emptyList<Pair<String, Int>>(),
-                outsideForkBlock,
-                "${descriptor.serialName} has a field number outside the fork block $FORK_BLOCK",
+                unknown,
+                "${descriptor.serialName} has a field number outside the fork block $FORK_BLOCK " +
+                    "that is not an upstream allocation $UPSTREAM_NUMBERS",
             )
+            upstreamNumbersInUse += nonFork.map { it.second }
         }
+
+        // Both directions: a new low number fails above, and dropping or renumbering an upstream
+        // field (which would break decoding of shipped backups) fails here.
+        assertEquals(
+            UPSTREAM_NUMBERS,
+            upstreamNumbersInUse,
+            "the models no longer use exactly the upstream proto numbers AGENTS.md documents",
+        )
     }
 
     private fun protoNumbers(descriptor: SerialDescriptor): List<Pair<String, Int>> =
@@ -122,6 +135,24 @@ class BackupProtoNumberTest {
     private companion object {
         /** komi-kun's reserved block (AGENTS.md "Backup protobuf field numbers"). */
         val FORK_BLOCK = 10000..10999
+
+        /**
+         * Upstream numbers no current model uses: `15` is the 1.x manga `flags` field and `102` the
+         * legacy history model, both kept as commented-out `// retired:` lines in `BackupManga`.
+         */
+        val RETIRED_UPSTREAM_NUMBERS: Set<Int> = setOf(15, 102)
+
+        /**
+         * Every upstream number the current models use (AGENTS.md "Upstream ownership"): Mihon
+         * `1-18` and `100-113`, TachiyomiSY `600-603`, Komikku `610`, the J2K-via-SY `800-805` block
+         * (`803` is skipped — an earlier build used a duplicate, and no model uses it) and Komikku
+         * `900`, minus [RETIRED_UPSTREAM_NUMBERS]. Open upstream claims (`604`, `611`, `650`, `806`,
+         * `807`, `901`) are deliberately absent: no model uses them, so a field carrying one is a
+         * mistake, not an allocation.
+         */
+        val UPSTREAM_NUMBERS: Set<Int> =
+            ((1..18).toSet() + (100..113) + (600..603) + setOf(610, 800, 801, 802, 804, 805, 900)) -
+                RETIRED_UPSTREAM_NUMBERS
     }
 }
 // KUN <--
