@@ -319,6 +319,26 @@ private fun DrawScope.drawTategakiText(
 private data class MeasuredGlyph(val text: String, val layout: TextLayoutResult)
 
 /**
+ * 1 em of the reference text in px — the font size the glyph was measured at (`BASE_TEXT_SP`), read
+ * back from the layout so it includes the display density and font scale the measurement used. The
+ * ink table (`VERTICAL_INK_CENTRE_EM`) is in em, so this is what turns it into the px the layout
+ * places glyphs in. `0f` when the style's size has no px meaning (an em- or unspecified-sized
+ * style), which the ink correction treats as "not measurable" and skips.
+ *
+ * The non-px case is reported as an `IllegalStateException`, not an `IllegalArgumentException`:
+ * `Density.TextUnit.toPx()` is `checkPrecondition(type == TextUnitType.Sp) { "Only Sp can convert
+ * to Px" }` (Compose UI 1.13 `androidx/compose/ui/unit/Density.kt`), and `checkPrecondition`
+ * throws `IllegalStateException`. Catching only `IllegalArgumentException` — as this did — let an
+ * em- or unspecified-sized style crash the draw pass instead of skipping the correction, so the
+ * fallback this KDoc promises never ran.
+ */
+private fun TextLayoutResult.referenceEmPx(): Float = try {
+    with(layoutInput.density) { layoutInput.style.fontSize.toPx() }
+} catch (_: IllegalStateException) {
+    0f
+}
+
+/**
  * Cached horizontal text layout for an [OcrTextBlock].
  * Pre-measured at reference [baseTextStyle] so the draw pass only scales and translates via [withTransform].
  */
@@ -436,9 +456,19 @@ private class OcrTextLayoutCache(
                 MeasuredGlyph(glyph, layout)
             }
         }
+        // KUN -->
+        // The layout needs pixels, the ink table is in em: 1 em is the font size the glyphs were
+        // measured at, read back from the layout's own density, and the ink's vertical position is
+        // anchored on the measurement's own first baseline. A style whose size cannot be converted
+        // yields 0 and the ink correction is skipped (the glyph keeps its advance-box centring).
+        val emPx = measuredColumns.first().first().layout.referenceEmPx()
         val metrics = measuredColumns.map { column ->
-            column.map { GlyphMetric(it.text, it.layout.size.width.toFloat(), it.layout.size.height.toFloat()) }
+            column.map {
+                GlyphMetric(it.text, it.layout.size.width.toFloat(), it.layout.size.height.toFloat())
+                    .withTategakiInkCentre(verticalGlyphForm(it.text), it.layout.firstBaseline, emPx)
+            }
         }
+        // KUN <--
         val flattened = measuredColumns.flatten()
         if (flattened.isEmpty()) return null
 

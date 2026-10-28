@@ -8,17 +8,34 @@
 // rotating the whole run 90°, which leaves every glyph on its side ("縦書き rendered as 横書き, just
 // rotated"). Real tategaki stacks **upright** glyphs top-to-bottom down a column; [layoutVerticalText]
 // does exactly that, one glyph per cell, columns ordered right-to-left.
+//
+// The cells themselves are centred on a glyph's *advance* box and line box, which is right for CJK
+// ink but wrong for the four marks a font never centres for us (`!` `?` `！` `？`): their ink is what
+// the reader sees, so [VERTICAL_INK_CENTRE_EM] carries the measured ink centre and
+// [layoutVerticalText] centres *that* in the cell instead — see [GlyphMetric.inkCentreX].
 // KUN <--
 package eu.kanade.presentation.reader
 
 import kotlin.math.max
 import kotlin.math.min
 
-/** A glyph measured at the overlay's reference font size. [text] is one glyph (see [splitGlyphs]). */
+/**
+ * A glyph measured at the overlay's reference font size. [text] is one glyph (see [splitGlyphs]);
+ * [width] is its advance and [height] its line box, the two boxes [layoutVerticalText] centres.
+ *
+ * [inkCentreX] / [inkCentreY] carry the centre of the glyph's **ink** — the mark the reader actually
+ * sees — in reference px from the layout box's top-left, or `null` for every glyph [VERTICAL_INK_CENTRE_EM]
+ * does not list. Ink and box disagree for the four marks a font does not centre (see
+ * [VERTICAL_INK_CENTRE_EM]); carrying the ink lets the layout centre the mark itself, while a null
+ * pair keeps the long-standing advance/line-box centring for every other glyph (kana, kanji,
+ * `、。「」・` …) unchanged.
+ */
 internal data class GlyphMetric(
     val text: String,
     val width: Float,
     val height: Float,
+    val inkCentreX: Float? = null,
+    val inkCentreY: Float? = null,
 )
 
 /**
@@ -61,6 +78,12 @@ internal data class PlacedGlyph(
  * centred in its own cell. [minScale] is the legibility floor, and [glyphScale] is the user's
  * overlay text size preference; when the floor wins the column overflows the box and the caller's
  * clip trims it.
+ *
+ * A glyph that carries an ink centre ([GlyphMetric.inkCentreX] / [GlyphMetric.inkCentreY]) is
+ * centred by its **ink** instead: the drawn box is nudged so the mark lands on the cell centre. That
+ * is what fixes `!` `?` `！` `？`, which the advance/line-box rule leaves off-centre — the font's
+ * tategaki `！`/`？` form draws its mark 0.22 em right of the advance centre. Every other glyph has
+ * no ink centre and keeps the rule above untouched.
  *
  * What can only be judged visually: the exact glyph size against the printed text under it, whether
  * the plate alpha reads well over artwork, and whether the few marks that still rotate look right —
@@ -119,10 +142,15 @@ internal fun layoutVerticalText(
         column.forEachIndexed { glyphIndex, glyph ->
             val width = glyph.width * scale
             val height = glyph.height * scale
+            // Ink-centred marks (! ? ！ ？): move the drawn box so the *mark* lands on the cell centre.
+            // The offsets are in reference px, so multiplying by [scale] keeps them correct at any
+            // glyph size; a glyph without a measured ink centre contributes exactly 0.
+            val inkDx = glyph.inkCentreX?.let { -(it - glyph.width / 2f) * scale } ?: 0f
+            val inkDy = glyph.inkCentreY?.let { -(it - glyph.height / 2f) * scale } ?: 0f
             placed += PlacedGlyph(
                 text = glyph.text,
-                left = columnCenterX - width / 2f,
-                top = rectTop + topInset + cell * glyphIndex + (cell - height) / 2f,
+                left = columnCenterX - width / 2f + inkDx,
+                top = rectTop + topInset + cell * glyphIndex + (cell - height) / 2f + inkDy,
                 scale = scale,
                 rotated = isRotatedInVertical(glyph.text),
             )
@@ -361,3 +389,77 @@ internal val VERTICAL_GLYPH_FORMS: Map<Int, Char> = mapOf(
     0xFF5B to '\uFE37', // ｛ ︷
     0xFF5D to '\uFE38', // ｝ ︸
 )
+
+/**
+ * Where a glyph's **ink** sits inside its measured layout box, in em: [xEm] is the horizontal centre
+ * measured from the pen origin, [yEm] the vertical centre measured from the baseline (positive up, as
+ * font bounding boxes are). Both are font measurements, not guesses — see [VERTICAL_INK_CENTRE_EM].
+ */
+internal data class InkCentreEm(val xEm: Float, val yEm: Float)
+
+/**
+ * The ink centres of the only four marks whose ink the *font's* tategaki form does not centre in the
+ * cell: `！` `？` `!` `?`. Keyed by the **vertical form** [verticalGlyphForm] produces (the string the
+ * overlay actually measures), so `！` (`U+FF01`) is looked up as its `vert`/FE form `︕` (`U+FE15`)
+ * while ASCII `!` stays `U+0021`.
+ *
+ * Why they are special — the `vert` feature moves `！` and `？` off the advance centre instead of
+ * centring them:
+ *
+ * - `！` → `︕` U+FE15: ink x 660..788 of a 1000-unit em, so its centre is **0.724 em** from the pen
+ *   origin while the advance is 1 em (centre 0.5 em): drawing the advance box on the cell centre puts
+ *   the mark **0.224 em (≈22%) right of it**. That is the visible tategaki misplacement.
+ * - `？` → `︖` U+FE16: ink x 479..963, centre **0.721 em** (0.221 em right of the advance centre).
+ * - ASCII `!` (`U+0021`, measured plain, no `vert` substitution) and `?` (`U+003F`) are already
+ *   advance-centred horizontally (ink centre 0.132 em against an advance centre of 0.129 em), but
+ *   their ink sits low in the line box — and *how* low depends on the device font's ascent and
+ *   descent, so a box fraction would be the wrong anchor there.
+ *
+ * Only these four are listed, deliberately: kana/kanji and the CJK punctuation the font does centre
+ * in its vertical form (`、。「」・` …) must keep the advance/line-box rule, and adding them here would
+ * shift glyphs that are already printed correctly.
+ *
+ * These are **table constants, not runtime measurements**: they were read once with fontTools and
+ * are applied unchanged to whatever font the device actually draws with. `︕`/`︖` come from Noto
+ * Sans CJK JP 2.004 (UPM 1000 — the same font whose GSUB `vert` table [VERTICAL_GLYPH_FORMS] came
+ * from), which is the family Android's CJK fallback resolves to. `!`/`?` come from **Roboto 3.016**
+ * (UPM 2048), the platform's default Latin family — but the overlay never measures the device's
+ * Latin font, so those two rows are a best fit to it, not a measurement of it. The residual is small
+ * because both marks are already advance-centred horizontally: at worst (the `!` row) the table is
+ * 0.003 em off the true advance centre, i.e. **< 0.01 em horizontally** on any font whose `!`/`?`
+ * are centred the usual way; a font that draws them visibly off-centre would need its own row. The
+ * vertical centre is the ink bounding box's midpoint from the baseline: `︕` y 69..822 → 0.4455 em,
+ * `︖` y 69..835 → 0.452 em, `!` y −12..1456 → 0.3525 em, `?` y −12..1476 → 0.3574 em.
+ */
+internal val VERTICAL_INK_CENTRE_EM: Map<Int, InkCentreEm> = mapOf(
+    0xFE15 to InkCentreEm(xEm = 0.724f, yEm = 0.4455f), // ！ ︕
+    0xFE16 to InkCentreEm(xEm = 0.721f, yEm = 0.452f), // ？ ︖
+    0x0021 to InkCentreEm(xEm = 0.132f, yEm = 0.3525f), // ! (plain, no vert form)
+    0x003F to InkCentreEm(xEm = 0.235f, yEm = 0.3574f), // ?
+)
+
+/**
+ * The measured ink centre of [form] (a glyph's tategaki form, see [verticalGlyphForm]), or `null`
+ * when the glyph is not one of [VERTICAL_INK_CENTRE_EM] and must keep the advance/line-box centring.
+ */
+internal fun verticalInkCentre(form: String): InkCentreEm? =
+    if (form.isEmpty()) null else VERTICAL_INK_CENTRE_EM[form.codePointAt(0)]
+
+/**
+ * The same metric with the ink centre of [form] baked in, in reference px: [emPx] is 1 em of the
+ * reference font size (the size the glyph was measured at) and [baselinePx] that measurement's first
+ * baseline from the layout box's top edge. The layout needs pixels, the font measurement is in em, and
+ * the baseline is the only stable anchor across fonts — hence both.
+ *
+ * Returns the metric unchanged when the glyph has no ink entry, or when [emPx]/[baselinePx] are not
+ * usable (an unresolved font size or an unmeasured layout), so a caller can funnel every glyph through
+ * it: a glyph that is not ink-centred keeps the box centring it has always had.
+ */
+internal fun GlyphMetric.withTategakiInkCentre(form: String, baselinePx: Float, emPx: Float): GlyphMetric {
+    if (!(emPx > 0f) || !emPx.isFinite() || !baselinePx.isFinite()) return this
+    val ink = verticalInkCentre(form) ?: return this
+    return copy(
+        inkCentreX = ink.xEm * emPx,
+        inkCentreY = baselinePx - ink.yEm * emPx,
+    )
+}
