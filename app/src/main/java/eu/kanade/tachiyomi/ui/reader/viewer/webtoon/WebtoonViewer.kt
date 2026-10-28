@@ -310,6 +310,7 @@ class WebtoonViewer(
             }
         }
     }
+    // KUN <--
 
     private fun checkAllowPreload(page: ReaderPage?): Boolean {
         // Page is transition page - preload allowed

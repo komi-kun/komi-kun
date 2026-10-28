@@ -335,7 +335,7 @@ class ReaderSettingsViewModel(
             if (viewerMode == null) return@flatMapLatest flowOf(null)
 
             val usesWebtoonZones = viewerMode.readingMode.type == ReadingMode.ViewerType.Webtoon &&
-                !viewerMode.isWebGpu
+                viewerMode.isWebtoonViewer
             val settings = if (usesWebtoonZones) {
                 simpleLongStrip.map { it.navigation }
             } else {
@@ -358,8 +358,12 @@ class ReaderSettingsViewModel(
     /**
      * Called when a viewer is made for [readingMode].
      */
-    fun setViewerReadingMode(readingMode: ReadingMode) {
-        viewerMode.value = ViewerMode(readingMode, isWebGpu.get())
+    fun setViewerReadingMode(readingMode: ReadingMode, isWebtoonViewer: Boolean) {
+        // KUN -->
+        // `isWebtoonViewer` is the viewer `ReadingMode.toViewer` built, not the high quality renderer
+        // preference: a device that falls back from WebGPU still gets a `WebtoonViewer` for a long strip.
+        viewerMode.value = ViewerMode(readingMode, isWebtoonViewer)
+        // KUN <--
     }
 
     // KUN -->
@@ -381,6 +385,8 @@ class ReaderSettingsViewModel(
 
     private data class ViewerMode(
         val readingMode: ReadingMode,
-        val isWebGpu: Boolean,
+        // KUN --> the viewer `ReadingMode.toViewer` made, not the renderer preference
+        val isWebtoonViewer: Boolean,
+        // KUN <--
     )
 }
