@@ -43,11 +43,12 @@ GPL_FREE_FILES=(
   "data/src/main/java/tachiyomi/data/chapter/ChapterMapper.kt"
   "data/src/main/sqldelight/tachiyomi/data/chapter.sq"
   # Apache by necessity, not by accident: the §1.3 reader files gate on these two. The preference is
-  # imported by `ReaderActivity`/`ReaderViewModel`; the toggle policy is *called* by `ReaderViewModel`
-  # from the same package, so an import-based scan cannot see it — listing it here is the only guard
-  # that it never gains a GPL header or GPL import.
+  # imported by `ReaderActivity`/`ReaderViewModel`; the two reader policies are *called* by
+  # `ReaderActivity`/`ReaderViewModel` from the same package, so an import-based scan cannot see them
+  # — listing them here is the only guard that they never gain a GPL header or GPL import.
   "core/common/src/main/kotlin/tachiyomi/core/common/preference/DictionaryOcrPreferences.kt"
   "app/src/main/java/eu/kanade/tachiyomi/ui/reader/ReaderOcrTogglePolicy.kt"
+  "app/src/main/java/eu/kanade/tachiyomi/ui/reader/ReaderOcrOverlayPolicy.kt"
 )
 
 # Created by a later wave; absent until then (W3 adds 54.sqm).

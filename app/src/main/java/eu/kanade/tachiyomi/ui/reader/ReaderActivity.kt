@@ -50,6 +50,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -466,20 +467,49 @@ class ReaderActivity : BaseActivity() {
 
                 ContentOverlay(state = state)
 
-                AppBars(state = state)
-
                 // KUN -->
-                // OCR block outlines. Draw-only, adds no pointer input, so it never intercepts
-                // viewer gestures (plan 04 §2.1). Drawn only while the combined dictionary/OCR
-                // opt-in is on AND the overlay itself is enabled; a null viewport means the viewer
-                // has no mapping yet.
+                // OCR block outlines and text belong to the **page layer**: drawn here, between the
+                // brightness/colour overlay and the reader chrome, so the top bar, bottom bar and
+                // side navigator paint *over* it. It is drawn above the page indicator — that one is
+                // an earlier sibling of this `Box` and is page-layer HUD, not interactive chrome, so
+                // it must stay underneath. It used to be the last sibling of this `Box` (after
+                // `AppBars`), i.e. drawn over the whole reader UI. It is
+                // draw-only and adds no pointer input, so it never intercepts viewer gestures
+                // (plan 04 §2.1). Contents, preferences and the tap/long-press path are unchanged;
+                // only the layer moved.
+                //
+                // While the chrome is up the overlay still *composes* but paints nothing:
+                // - it must not paint, because the bars are only 0.9 (dark) / 0.95 (light) opaque,
+                //   so boxes underneath would ghost through them;
+                // - it must stay composed, because `Overlay` also records the viewport the tap /
+                //   long-press hit-test reads (a `SideEffect`) and drives block priming plus
+                //   dictionary-popup anchoring from its `produceState` loop — unmounting it while
+                //   the menu is up would freeze those, and `PagerViewer`/`WebtoonViewer` still
+                //   route single taps through `onPageSingleTap` with the menu open.
+                // Drawn only while the combined dictionary/OCR opt-in is on AND the overlay itself
+                // is enabled; a null viewport means the viewer has no mapping yet.
+                val paintOcrOverlay = ReaderOcrOverlayPolicy.visible(
+                    masterEnabled = dictionaryOcrEnabled,
+                    overlayEnabled = ocrOverlayEnabled,
+                    menuVisible = state.menuVisible,
+                )
                 if (dictionaryOcrEnabled && ocrOverlayEnabled) {
                     readerOcrHost.Overlay(
                         viewport = state.viewer?.ocrViewport(),
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer { alpha = if (paintOcrOverlay) 1f else 0f },
                     )
                 }
                 // KUN <--
+
+                // KUN -->
+                // Must stay **after** the OCR overlay above: it is the reader chrome, and the overlay
+                // is a page-layer draw that the bars are meant to cover (they are only translucent,
+                // hence the alpha gate above). Moving `AppBars` back above it is guarded by
+                // `ReaderOcrOverlayWiringTest`.
+                // KUN <--
+                AppBars(state = state)
             }
 
             // KMK -->
