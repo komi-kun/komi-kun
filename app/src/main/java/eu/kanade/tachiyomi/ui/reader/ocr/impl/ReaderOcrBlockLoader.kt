@@ -501,6 +501,12 @@ class ReaderOcrBlockLoader(
             // The attempt did not bring the engine up; back off before trying again.
             engineRetryAfter.set(System.nanoTime() + ENGINE_RETRY_COOLDOWN_NANOS)
             logcat(LogPriority.INFO) { "ReaderOcr: local OCR engine unavailable, backing off" }
+            // KUN --> An attempt that the engine never came up for produced no text, which is "not
+            // resolvable yet", not "this page has no text": returning the (empty) result would cache
+            // it as a resolved page, and `ensureLoaded` skips pages already in `_blocks`, so the
+            // page would stay blank until the reader is reopened even after the models arrive.
+            return null
+            // KUN <--
         }
         return result
     }

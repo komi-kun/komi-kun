@@ -33,6 +33,7 @@ import mihon.core.ocr.cache.OcrCacheKey
 import mihon.core.ocr.cache.OcrManager
 import mihon.core.ocr.cache.OcrQueueItem
 import mihon.core.ocr.model.OcrTextBlock
+import mihon.core.ocr.paddle.PaddleOcrEngine
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.fail
@@ -85,9 +86,12 @@ class ReaderOcrBlockLoaderTest {
         dictionaryOcr: DictionaryOcrPreferences = DictionaryOcrPreferences(InMemoryPreferenceStore()).apply {
             choose(enabled)
         },
+        // KUN -->
+        engine: OcrEngine = mockk(relaxed = true),
+        // KUN <--
     ): ReaderOcrBlockLoader = ReaderOcrBlockLoader(
         ocrManager = ocrManager,
-        engine = mockk<OcrEngine>(relaxed = true),
+        engine = engine,
         getManga = getManga,
         downloadProvider = mockk<DownloadProvider>(relaxed = true),
         sourceManager = mockk<SourceManager>(relaxed = true),
@@ -207,6 +211,55 @@ class ReaderOcrBlockLoaderTest {
         preferences.choose(true)
         loader.ensureLoaded(listOf(page))
         awaitSettled { recognitions.get() == 2 }
+
+        recognitions.get() shouldBe 2
+        loader.blocks.value shouldBe mapOf(page.ocrKey() to listOf(block))
+    }
+
+    /**
+     * An engine that is not up (models not downloaded yet, a native init failure, a device whose ABI
+     * has no artifact) produces no lines, so the manager answers with an **empty** block list — from
+     * the loader's side indistinguishable from "this page has no text". Caching that empty list as a
+     * resolved page is the defect: `ensureLoaded` skips pages already in `_blocks`, so the page stays
+     * blank until the reader is reopened, even after the models land mid-session.
+     */
+    @Test
+    fun `an engine that never came up leaves the page unresolved instead of caching it empty`(): Unit = runBlocking {
+        // The concrete engine carries `isInitialized()`; the loader keys its "unavailable" branch on
+        // exactly that type.
+        val engine = mockk<PaddleOcrEngine>(relaxed = true)
+        var initialized = false
+        every { engine.isInitialized() } answers { initialized }
+        val ocrManager = mockk<OcrManager>(relaxed = true) {
+            every { queueState } returns MutableStateFlow(emptyList<OcrQueueItem>())
+            every { sourceFor(any()) } returns ReaderOcrSource.PADDLE
+            every { cacheKey(any(), any(), any()) } returns OcrCacheKey(sourceId = 1L, mangaId = 7L, chapterId = 42L)
+        }
+        val recognitions = AtomicInteger(0)
+        coEvery { ocrManager.cachedBlocks(any(), any(), any()) } returns null
+        // Mirrors `OcrManager.recognizeAndCache`: with no engine up there are no lines and no blocks;
+        // once it is up the page has text.
+        coEvery { ocrManager.recognizeAndCache(any(), any(), any(), any(), any()) } coAnswers {
+            recognitions.incrementAndGet()
+            if (initialized) listOf(block) else emptyList()
+        }
+        coEvery { getManga.await(any()) } returns Manga.create().copy(id = 7L, source = 1L)
+        page.stream = { ByteArrayInputStream(ByteArray(8)) }
+        val loader = loader(LOAD_TIMEOUT_MS, ocrManager = ocrManager, engine = engine)
+
+        loader.ensureLoaded(listOf(page))
+        awaitSettled { recognitions.get() == 1 }
+        recognitions.get() shouldBe 1
+        // The attempt left the engine uninitialised: the page is *not* resolved (and not "empty").
+        loader.blocks.value shouldBe emptyMap<OcrPageKey, List<OcrTextBlock>>()
+
+        // The models finish downloading during the same reader session. Past the bounded retry
+        // window the page must be OCRed again and resolve; an implementation that cached the empty
+        // result never re-runs it (`recognitions` stays 1) and `blocks` keeps the empty entry.
+        initialized = true
+        delay(RETRY_BACKOFF_MS + 300)
+        loader.ensureLoaded(listOf(page))
+        awaitSettled { loader.blocks.value.isNotEmpty() }
 
         recognitions.get() shouldBe 2
         loader.blocks.value shouldBe mapOf(page.ocrKey() to listOf(block))
