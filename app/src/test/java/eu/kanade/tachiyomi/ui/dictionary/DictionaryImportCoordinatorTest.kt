@@ -6,7 +6,9 @@
 // a same-title re-import is picked up instead of being served from the pre-import native query.
 package eu.kanade.tachiyomi.ui.dictionary
 
+import android.content.ContentResolver
 import android.content.Context
+import android.net.Uri
 import android.util.Log
 import io.kotest.matchers.shouldBe
 import io.mockk.every
@@ -75,6 +77,7 @@ class DictionaryImportCoordinatorTest {
         val before = h.engine.sessions.single()
 
         val imported = DictionaryImportCoordinator.importFromZip(h.context, File("unused.zip"), h.prefs, h.repository)
+            .importedDictionary()
 
         imported?.title shouldBe TITLE
         imported?.termCount shouldBe 1L
@@ -103,14 +106,62 @@ class DictionaryImportCoordinatorTest {
         h.repository.lookup("食べる", h.paths)
         val session = h.engine.sessions.single()
 
-        val imported = DictionaryImportCoordinator.importFromZip(h.context, File("broken.zip"), h.prefs, h.repository)
+        val outcome = DictionaryImportCoordinator.importFromZip(h.context, File("broken.zip"), h.prefs, h.repository)
 
-        imported shouldBe null
+        outcome shouldBe DictionaryImportOutcome.Failed(DictionaryImportFailure.InvalidDictionary)
         File(h.termDir, "old.marker").exists() shouldBe true
         File(h.termDir, "index.json").readText() shouldBe OLD_INDEX
         session.closed shouldBe false
         session.closeCount shouldBe 0
         h.engine.sessions.size shouldBe 1
+    }
+
+    /**
+     * The defect this pins: `importFromUri` used to return `null` for *every* failure, so both entry
+     * points rendered nothing at all after the user picked a file. A non-ZIP must now carry a reason.
+     */
+    @Test
+    fun `importing a corrupt non-zip uri reports a reason instead of nothing`() = runBlocking<Unit> {
+        val h = harness(acceptsZip = { zip -> zip.readText().startsWith("PK") })
+        val uri = mockk<Uri>()
+        every { h.resolver.openInputStream(uri) } returns "this is not a zip".byteInputStream()
+
+        val outcome = DictionaryImportCoordinator.importFromUri(h.context, uri, h.prefs, h.repository)
+
+        outcome shouldBe DictionaryImportOutcome.Failed(DictionaryImportFailure.InvalidDictionary)
+        // Nothing was copied into the live tree, and the temp ZIP is not left behind in the cache.
+        h.termDir.exists() shouldBe false
+        h.context.cacheDir.listFiles().orEmpty().map { it.name } shouldBe emptyList()
+    }
+
+    /**
+     * The defect this pins: the coordinator could be entered twice (two taps, two pickers) and both
+     * engine imports + delete-and-copy ran interleaved over the same type dirs.
+     */
+    @Test
+    fun `a second import while one is in flight is rejected instead of interleaved`() {
+        val h = harness()
+        h.engine.blockNextImport()
+        var first: DictionaryImportOutcome? = null
+        val importer = thread(name = "first-import") {
+            first = runBlocking {
+                DictionaryImportCoordinator.importFromZip(h.context, File("unused.zip"), h.prefs, h.repository)
+            }
+        }
+        h.engine.importEntered.await(5, TimeUnit.SECONDS) shouldBe true
+
+        val second = runBlocking {
+            DictionaryImportCoordinator.importFromZip(h.context, File("unused.zip"), h.prefs, h.repository)
+        }
+
+        // Rejected straight away, and it never reached the engine: one import ran, not two.
+        second shouldBe DictionaryImportOutcome.Failed(DictionaryImportFailure.AlreadyRunning)
+        h.engine.importCalls.get() shouldBe 1
+
+        h.engine.releaseImport()
+        importer.join(5_000)
+        (first as DictionaryImportOutcome.Imported).dictionary.title shouldBe TITLE
+        h.engine.importCalls.get() shouldBe 1
     }
 
     @Test
@@ -123,9 +174,10 @@ class DictionaryImportCoordinatorTest {
         h.repository.lookup("食べる", DictionaryPaths(termPaths = listOf("/nope")))
         val session = h.engine.sessions.single()
 
-        val imported = DictionaryImportCoordinator.importFromZip(h.context, File("unused.zip"), h.prefs, h.repository)
+        val outcome = DictionaryImportCoordinator.importFromZip(h.context, File("unused.zip"), h.prefs, h.repository)
 
-        imported shouldBe null
+        // A write that fails is a storage problem, not "not a dictionary".
+        outcome shouldBe DictionaryImportOutcome.Failed(DictionaryImportFailure.StorageFailure)
         // The tree was partially mutated, so the pre-mutation session must not survive it.
         session.closed shouldBe true
         session.closeCount shouldBe 1
@@ -144,7 +196,7 @@ class DictionaryImportCoordinatorTest {
         h.engine.lookupEntered.await(5, TimeUnit.SECONDS) shouldBe true
 
         val importDone = AtomicBoolean(false)
-        var imported: ImportedDictionary? = null
+        var imported: DictionaryImportOutcome? = null
         val importer = thread(name = "import") {
             imported = runBlocking {
                 DictionaryImportCoordinator.importFromZip(h.context, File("unused.zip"), h.prefs, h.repository)
@@ -164,7 +216,7 @@ class DictionaryImportCoordinatorTest {
         importer.join(5_000)
 
         importDone.get() shouldBe true
-        imported?.title shouldBe TITLE
+        imported?.importedDictionary()?.title shouldBe TITLE
         File(h.termDir, "old.marker").exists() shouldBe false
         File(h.termDir, "index.json").readText() shouldBe """{"title":"New Revision"}"""
         h.engine.sessions.single().closed shouldBe true
@@ -231,6 +283,7 @@ class DictionaryImportCoordinatorTest {
 
     private class Harness(
         val context: Context,
+        val resolver: ContentResolver,
         val prefs: DictionaryPreferences,
         val engine: FakeEngine,
         val repository: DictionaryRepository,
@@ -254,16 +307,22 @@ class DictionaryImportCoordinatorTest {
         }
     }
 
-    private fun harness(engineSucceeds: Boolean = true): Harness {
+    private fun harness(
+        engineSucceeds: Boolean = true,
+        acceptsZip: (File) -> Boolean = { true },
+    ): Harness {
         val root = File(System.getProperty("java.io.tmpdir"), "dict-coordinator-${System.nanoTime()}")
         val cache = File(root, "cache").apply { mkdirs() }
         val files = File(root, "files").apply { mkdirs() }
+        val resolver = mockk<ContentResolver>()
         val context = mockk<Context>(relaxed = true)
         every { context.cacheDir } returns cache
         every { context.getExternalFilesDir(null) } returns files
-        val engine = FakeEngine(succeeds = engineSucceeds)
+        every { context.contentResolver } returns resolver
+        val engine = FakeEngine(succeeds = engineSucceeds, accepts = acceptsZip)
         return Harness(
             context = context,
+            resolver = resolver,
             // The shared fakes: `InMemoryPreferenceStore` writes through by key (like the real
             // `AndroidPreferenceStore`), so profiles written by the coordinator are read back by the
             // same store — no test-local `PreferenceStore` reimplementation needed.
@@ -285,17 +344,28 @@ class DictionaryImportCoordinatorTest {
     }
 }
 
+/** The success payload of an outcome, or `null` — keeps the pre-outcome assertions readable. */
+private fun DictionaryImportOutcome.importedDictionary(): ImportedDictionary? =
+    (this as? DictionaryImportOutcome.Imported)?.dictionary
+
 private class FakeEngine(
     private val succeeds: Boolean = true,
+    /** Mirrors the engine rejecting a file it cannot read as a Yomitan ZIP. */
+    private val accepts: (File) -> Boolean = { true },
 ) : DictionaryEngine {
     override val isAvailable: Boolean = true
 
     val sessions = CopyOnWriteArrayList<FakeSession>()
     val usedAfterClose = AtomicInteger()
     val lookupEntered = CountDownLatch(1)
+    val importEntered = CountDownLatch(1)
+    val importCalls = AtomicInteger()
 
     @Volatile
     private var lookupRelease: CountDownLatch? = null
+
+    @Volatile
+    private var importRelease: CountDownLatch? = null
 
     fun blockNextLookup() {
         lookupRelease = CountDownLatch(1)
@@ -306,20 +376,35 @@ private class FakeEngine(
         lookupRelease = null
     }
 
+    fun blockNextImport() {
+        importRelease = CountDownLatch(1)
+    }
+
+    fun releaseImport() {
+        importRelease?.countDown()
+        importRelease = null
+    }
+
     override suspend fun importDictionary(
         zip: File,
         outputDir: File,
         onProgress: (ImportProgress) -> Unit,
     ): ImportResult {
-        if (succeeds) {
+        importCalls.incrementAndGet()
+        importRelease?.let { release ->
+            importEntered.countDown()
+            release.await(5, TimeUnit.SECONDS)
+        }
+        val ok = succeeds && accepts(zip)
+        if (ok) {
             val imported = File(outputDir, "imported").apply { mkdirs() }
             File(imported, "index.json").writeText("""{"title":"New Revision"}""")
             File(imported, "fresh.marker").writeText("new")
         }
         return ImportResult(
-            success = succeeds,
+            success = ok,
             title = "TestDict",
-            termCount = if (succeeds) 1 else 0,
+            termCount = if (ok) 1 else 0,
             metaCount = 0,
             freqCount = 0,
             pitchCount = 0,

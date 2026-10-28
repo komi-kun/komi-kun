@@ -109,6 +109,10 @@
     <string name="pref_import_dictionary_summ">Importa un file ZIP di dizionario Yomitan</string>
     <string name="pref_import_dictionary_success">Dizionario importato (%1$d termini, %2$d metadati, %3$d elementi multimediali)</string>
     <string name="pref_import_dictionary_failed">Importazione del dizionario non riuscita</string>
+    <string name="pref_import_dictionary_failed_source">Impossibile leggere il file selezionato</string>
+    <string name="pref_import_dictionary_failed_invalid">Il file selezionato non è un dizionario che questa app può importare</string>
+    <string name="pref_import_dictionary_failed_storage">Impossibile scrivere il dizionario: memoria piena o di sola lettura</string>
+    <string name="pref_import_dictionary_failed_busy">Un\'importazione del dizionario è già in corso</string>
     <!-- Yomitan settings import -->
     <string name="pref_import_yomitan_settings">Importa impostazioni Yomitan (.json)</string>
     <string name="pref_import_yomitan_settings_summ">Importa profili del dizionario, preferenze del popup e Anki da un backup delle impostazioni di Yomitan</string>

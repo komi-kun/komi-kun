@@ -109,6 +109,10 @@
     <string name="pref_import_dictionary_summ">导入 Yomitan 词典 ZIP 文件</string>
     <string name="pref_import_dictionary_success">词典导入成功（%1$d 个词条、%2$d 个元数据、%3$d 个媒体文件）</string>
     <string name="pref_import_dictionary_failed">词典导入失败</string>
+    <string name="pref_import_dictionary_failed_source">无法读取所选文件</string>
+    <string name="pref_import_dictionary_failed_invalid">所选文件不是本应用可以导入的词典</string>
+    <string name="pref_import_dictionary_failed_storage">无法写入词典：存储空间已满或为只读</string>
+    <string name="pref_import_dictionary_failed_busy">已有词典正在导入</string>
     <!-- Yomitan settings import -->
     <string name="pref_import_yomitan_settings">导入 Yomitan 设置 (.json)</string>
     <string name="pref_import_yomitan_settings_summ">从 Yomitan 设置备份导入词典配置文件、弹窗与 Anki 偏好设置</string>

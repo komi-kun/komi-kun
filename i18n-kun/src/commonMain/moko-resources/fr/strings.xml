@@ -109,6 +109,10 @@
     <string name="pref_import_dictionary_summ">Importer un fichier ZIP de dictionnaire Yomitan</string>
     <string name="pref_import_dictionary_success">Dictionnaire importé (%1$d termes, %2$d métadonnées, %3$d médias)</string>
     <string name="pref_import_dictionary_failed">Échec de l\'importation du dictionnaire</string>
+    <string name="pref_import_dictionary_failed_source">Impossible de lire le fichier sélectionné</string>
+    <string name="pref_import_dictionary_failed_invalid">Le fichier sélectionné n\'est pas un dictionnaire importable par cette application</string>
+    <string name="pref_import_dictionary_failed_storage">Impossible d\'écrire le dictionnaire : stockage plein ou en lecture seule</string>
+    <string name="pref_import_dictionary_failed_busy">Une importation de dictionnaire est déjà en cours</string>
     <!-- Yomitan settings import -->
     <string name="pref_import_yomitan_settings">Importer les paramètres Yomitan (.json)</string>
     <string name="pref_import_yomitan_settings_summ">Importer les profils de dictionnaire, les préférences de fenêtre contextuelle et d\'Anki depuis une sauvegarde Yomitan</string>

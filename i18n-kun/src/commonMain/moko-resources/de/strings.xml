@@ -109,6 +109,10 @@
     <string name="pref_import_dictionary_summ">Eine Yomitan-Wörterbuch-ZIP-Datei importieren</string>
     <string name="pref_import_dictionary_success">Wörterbuch importiert (%1$d Begriffe, %2$d Metadaten, %3$d Medien)</string>
     <string name="pref_import_dictionary_failed">Wörterbuch-Import fehlgeschlagen</string>
+    <string name="pref_import_dictionary_failed_source">Ausgewählte Datei konnte nicht gelesen werden</string>
+    <string name="pref_import_dictionary_failed_invalid">Die ausgewählte Datei ist kein Wörterbuch, das diese App importieren kann</string>
+    <string name="pref_import_dictionary_failed_storage">Wörterbuch konnte nicht geschrieben werden: Speicher voll oder schreibgeschützt</string>
+    <string name="pref_import_dictionary_failed_busy">Ein Wörterbuch-Import läuft bereits</string>
     <!-- Yomitan settings import -->
     <string name="pref_import_yomitan_settings">Yomitan-Einstellungen importieren (.json)</string>
     <string name="pref_import_yomitan_settings_summ">Wörterbuchprofile, Popup- und Anki-Einstellungen aus einem Yomitan-Einstellungs-Backup importieren</string>

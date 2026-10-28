@@ -109,6 +109,10 @@
     <string name="pref_import_dictionary_summ">Импортировать ZIP-архив словаря Yomitan</string>
     <string name="pref_import_dictionary_success">Словарь импортирован (%1$d слов, %2$d метаданных, %3$d медиа)</string>
     <string name="pref_import_dictionary_failed">Не удалось импортировать словарь</string>
+    <string name="pref_import_dictionary_failed_source">Не удалось прочитать выбранный файл</string>
+    <string name="pref_import_dictionary_failed_invalid">Выбранный файл не является словарём, который это приложение может импортировать</string>
+    <string name="pref_import_dictionary_failed_storage">Не удалось записать словарь: хранилище заполнено или доступно только для чтения</string>
+    <string name="pref_import_dictionary_failed_busy">Импорт словаря уже выполняется</string>
     <!-- Yomitan settings import -->
     <string name="pref_import_yomitan_settings">Импортировать настройки Yomitan (.json)</string>
     <string name="pref_import_yomitan_settings_summ">Импортировать профили словарей, настройки окна и параметры Anki из копии настроек Yomitan</string>

@@ -121,15 +121,15 @@ class DictionaryBackupImporter(
                     },
                     onDictionaryReady = { staged ->
                         try {
-                            val dictionary = DictionaryImportCoordinator.importFromZip(
+                            val outcome = DictionaryImportCoordinator.importFromZip(
                                 context = context,
                                 zip = staged.zip,
                                 prefs = prefs,
                                 repository = repository,
                             )
-                            if (dictionary != null) {
-                                imported += dictionary
-                                manifest.record(dictionary.title)
+                            if (outcome is DictionaryImportOutcome.Imported) {
+                                imported += outcome.dictionary
+                                manifest.record(outcome.dictionary.title)
                             } else {
                                 failed += BackupImportFailure(staged.title, "engine import failed")
                             }

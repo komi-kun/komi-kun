@@ -177,6 +177,33 @@ class DictionaryManagementScreen : Screen() {
                     }
                 }
 
+                // A failed import says why, through the same dismissible card as the success message.
+                state.importFailure?.let { failure ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = stringResource(failure.message),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.weight(1f),
+                            )
+                            IconButton(onClick = { viewModel.clearImportMessage() }) {
+                                Icon(MaterialSymbols.Rounded.Close, contentDescription = null)
+                            }
+                        }
+                    }
+                }
+
                 if (state.dictionaries.isEmpty() && !state.isImporting) {
                     EmptyState(
                         onImport = {
@@ -715,6 +742,7 @@ class DictionaryManagementViewModel(
         val activeProfile: DictionaryProfile = DictionaryProfile.EMPTY,
         val isImporting: Boolean = false,
         val importMessage: String? = null,
+        val importFailure: DictionaryImportFailure? = null,
     )
 
     private val stateFlow = MutableStateFlow(loadData())
@@ -723,6 +751,7 @@ class DictionaryManagementViewModel(
     private fun loadData(
         isImporting: Boolean = false,
         importMessage: String? = null,
+        importFailure: DictionaryImportFailure? = null,
     ): State {
         val profiles = prefs.profileStore.getProfiles()
         val activeProfile = prefs.profileStore.getActiveProfile()
@@ -774,6 +803,7 @@ class DictionaryManagementViewModel(
             activeProfile = activeProfile,
             isImporting = isImporting,
             importMessage = importMessage,
+            importFailure = importFailure,
         )
     }
 
@@ -782,6 +812,7 @@ class DictionaryManagementViewModel(
         stateFlow.value = loadData(
             isImporting = current.isImporting,
             importMessage = current.importMessage,
+            importFailure = current.importFailure,
         )
     }
 
@@ -848,25 +879,33 @@ class DictionaryManagementViewModel(
 
     fun importZips(uris: List<Uri>) {
         if (uris.isEmpty()) return
+        // Nothing consults `isImporting` today; two overlapping batches would each clear it, so a
+        // second batch while one runs is dropped instead of interleaving with the coordinator.
+        if (stateFlow.value.isImporting) return
         viewModelScope.launch {
-            stateFlow.update { it.copy(isImporting = true, importMessage = null) }
-            val imported = withContext(Dispatchers.IO) {
-                uris.mapNotNull { uri ->
-                    DictionaryImportCoordinator.importFromUri(context, uri, prefs, repository)?.title
+            stateFlow.update { it.copy(isImporting = true, importMessage = null, importFailure = null) }
+            val outcomes = withContext(Dispatchers.IO) {
+                uris.map { uri ->
+                    DictionaryImportCoordinator.importFromUri(context, uri, prefs, repository)
                 }
             }
+            val imported = outcomes.filterIsInstance<DictionaryImportOutcome.Imported>()
+                .map { it.dictionary.title }
+            val failure = outcomes.filterIsInstance<DictionaryImportOutcome.Failed>()
+                .firstOrNull()
+                ?.reason
             val message = if (imported.isNotEmpty()) {
                 imported.joinToString(", ")
             } else {
                 null
             }
-            stateFlow.update { it.copy(isImporting = false, importMessage = message) }
+            stateFlow.update { it.copy(isImporting = false, importMessage = message, importFailure = failure) }
             refresh()
         }
     }
 
     fun clearImportMessage() {
-        stateFlow.update { it.copy(importMessage = null) }
+        stateFlow.update { it.copy(importMessage = null, importFailure = null) }
     }
 
     private companion object {

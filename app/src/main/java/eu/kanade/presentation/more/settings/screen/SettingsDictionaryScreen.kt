@@ -27,6 +27,8 @@ import eu.kanade.presentation.more.settings.Preference
 import eu.kanade.tachiyomi.ui.dictionary.DictionaryAudioSettingsScreen
 import eu.kanade.tachiyomi.ui.dictionary.DictionaryBackupImportScreen
 import eu.kanade.tachiyomi.ui.dictionary.DictionaryImportCoordinator
+import eu.kanade.tachiyomi.ui.dictionary.DictionaryImportFailure
+import eu.kanade.tachiyomi.ui.dictionary.DictionaryImportOutcome
 import eu.kanade.tachiyomi.ui.dictionary.DictionaryManagementScreen
 import eu.kanade.tachiyomi.ui.dictionary.DictionaryPopupSizing
 import eu.kanade.tachiyomi.ui.dictionary.DictionaryPreferences
@@ -95,6 +97,7 @@ object SettingsDictionaryScreen : SearchableSettings {
 
         var rawProfiles by remember { mutableStateOf(prefs.rawProfiles().get()) }
         var importMessage by remember { mutableStateOf<String?>(null) }
+        var importFailure by remember { mutableStateOf<DictionaryImportFailure?>(null) }
         var settingsMessage by remember { mutableStateOf<String?>(null) }
         var pendingSettings by remember { mutableStateOf<YomitanSettingsImport?>(null) }
 
@@ -118,12 +121,18 @@ object SettingsDictionaryScreen : SearchableSettings {
         ) { uris: List<Uri> ->
             if (uris.isNotEmpty()) {
                 scope.launch {
-                    val imported = withContext(Dispatchers.IO) {
-                        uris.mapNotNull { uri ->
-                            DictionaryImportCoordinator.importFromUri(context, uri, prefs, repository)?.title
+                    val outcomes = withContext(Dispatchers.IO) {
+                        uris.map { uri ->
+                            DictionaryImportCoordinator.importFromUri(context, uri, prefs, repository)
                         }
                     }
-                    importMessage = imported.lastOrNull()
+                    importMessage = outcomes.filterIsInstance<DictionaryImportOutcome.Imported>()
+                        .lastOrNull()
+                        ?.dictionary
+                        ?.title
+                    importFailure = outcomes.filterIsInstance<DictionaryImportOutcome.Failed>()
+                        .firstOrNull()
+                        ?.reason
                     refresh++
                 }
             }
@@ -256,6 +265,10 @@ object SettingsDictionaryScreen : SearchableSettings {
                     // KUN <--
                     importMessage?.let { message ->
                         add(Preference.PreferenceItem.TextPreference(title = message))
+                    }
+                    // A failed import says why, in the same transient row as the success message.
+                    importFailure?.let { failure ->
+                        add(Preference.PreferenceItem.TextPreference(title = stringResource(failure.message)))
                     }
                     settingsMessage?.let { message ->
                         add(Preference.PreferenceItem.TextPreference(title = message))

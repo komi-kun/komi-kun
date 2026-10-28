@@ -109,6 +109,10 @@
     <string name="pref_import_dictionary_summ">Yomitan形式の辞書ZIPファイルをインポート</string>
     <string name="pref_import_dictionary_success">辞書をインポートしました (%1$d 単語, %2$d メタデータ, %3$d メディア)</string>
     <string name="pref_import_dictionary_failed">辞書のインポートに失敗しました</string>
+    <string name="pref_import_dictionary_failed_source">選択したファイルを読み込めませんでした</string>
+    <string name="pref_import_dictionary_failed_invalid">選択したファイルはこのアプリでインポートできる辞書ではありません</string>
+    <string name="pref_import_dictionary_failed_storage">辞書を書き込めませんでした: ストレージがいっぱいか読み取り専用です</string>
+    <string name="pref_import_dictionary_failed_busy">辞書のインポートは既に実行中です</string>
     <!-- Yomitan settings import -->
     <string name="pref_import_yomitan_settings">Yomitan設定をインポート (.json)</string>
     <string name="pref_import_yomitan_settings_summ">Yomitanの設定バックアップから辞書プロファイル、ポップアップ、Anki設定をインポート</string>
