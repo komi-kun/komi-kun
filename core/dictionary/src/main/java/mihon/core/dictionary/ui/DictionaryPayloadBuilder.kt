@@ -2,6 +2,9 @@
 package mihon.core.dictionary.ui
 
 import android.content.Context
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -439,9 +442,65 @@ private fun dictionaryPriorityMap(
 private fun dictionaryPriority(priorityMap: Map<String, Int>, dictName: String?): Int =
     dictName?.let { priorityMap[it] } ?: Int.MAX_VALUE
 
-private fun buildGlossaryPayload(glossary: GlossaryEntry): JsonObject = buildJsonObject {
+/**
+ * Structured-content tag names the popup renderer may create. A dictionary's glossary `tag` is
+ * untrusted input, so both sides of the boundary decide from an explicit allow-list; keep this in
+ * sync with `HTML_STRUCTURED_TAGS` / `svgTags` in `assets/dictionary/renderer.js`
+ * (`StructuredContentTagAllowListTest` fails when the two lists drift).
+ */
+internal val STRUCTURED_CONTENT_TAG_ALLOW_LIST = setOf(
+    "div", "span", "p", "br", "hr", "ul", "ol", "li", "dl", "dt", "dd",
+    "table", "caption", "colgroup", "col", "thead", "tbody", "tfoot", "tr", "th", "td",
+    "details", "summary", "blockquote", "pre", "code",
+    "b", "strong", "i", "em", "u", "s", "del", "ins", "mark", "small", "sub", "sup",
+    "ruby", "rb", "rt", "rtc", "rp", "cite", "q", "abbr", "time", "kbd", "samp", "var",
+    "figure", "figcaption", "img", "a",
+)
+
+/** SVG subset of the allow-list. No `foreignObject`: an HTML island would reopen the tag hole. */
+internal val STRUCTURED_CONTENT_SVG_TAG_ALLOW_LIST = setOf(
+    "svg", "g", "path", "rect", "circle", "ellipse", "line", "polyline", "polygon",
+    "text", "tspan", "textpath", "defs", "symbol", "use", "marker", "pattern",
+    "mask", "clippath", "lineargradient", "radialgradient", "stop", "view",
+)
+
+/** Tag an off-list structured-content node degrades to; its children and attributes are kept. */
+internal const val NEUTRAL_STRUCTURED_TAG = "span"
+
+/**
+ * Neutralise every structured-content `tag` that is not on [STRUCTURED_CONTENT_TAG_ALLOW_LIST] or
+ * [STRUCTURED_CONTENT_SVG_TAG_ALLOW_LIST] by renaming it to [NEUTRAL_STRUCTURED_TAG]. A dictionary
+ * supplies this JSON, so `script`/`style`/`iframe`/`object`/`embed`/`foreignObject` must never
+ * reach the renderer as a creatable tag. Plain-text glossaries, and anything that is not valid
+ * JSON, pass through byte-for-byte (the renderer then treats them as text).
+ */
+internal fun sanitizeStructuredGlossary(raw: String): String {
+    val head = raw.trimStart()
+    if (head.isEmpty() || (head.first() != '{' && head.first() != '[')) return raw
+    val parsed = runCatching { Json.parseToJsonElement(raw) }.getOrNull() ?: return raw
+    return neutraliseStructuredTags(parsed).toString()
+}
+
+private fun neutraliseStructuredTags(element: JsonElement): JsonElement = when (element) {
+    is JsonArray -> JsonArray(element.map(::neutraliseStructuredTags))
+    is JsonObject -> buildJsonObject {
+        for ((key, value) in element) {
+            if (key == "tag") put(key, allowedStructuredTag(value)) else put(key, neutraliseStructuredTags(value))
+        }
+    }
+    else -> element
+}
+
+private fun allowedStructuredTag(value: JsonElement): JsonElement {
+    val name = (value as? JsonPrimitive)?.takeIf { it.isString }?.content?.trim()?.lowercase()
+    val allowed = name != null &&
+        (name in STRUCTURED_CONTENT_TAG_ALLOW_LIST || name in STRUCTURED_CONTENT_SVG_TAG_ALLOW_LIST)
+    return if (allowed) value else JsonPrimitive(NEUTRAL_STRUCTURED_TAG)
+}
+
+internal fun buildGlossaryPayload(glossary: GlossaryEntry): JsonObject = buildJsonObject {
     put("dictName", glossary.dictName)
-    put("glossary", glossary.glossary)
+    put("glossary", sanitizeStructuredGlossary(glossary.glossary))
     put("definitionTags", glossary.definitionTags)
     putJsonArray("definitionTagList") {
         for (tag in splitTags(glossary.definitionTags)) add(JsonPrimitive(tag))

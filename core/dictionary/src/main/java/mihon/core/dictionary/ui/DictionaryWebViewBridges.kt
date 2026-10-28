@@ -72,7 +72,18 @@ class AnkiJsBridge(
 ) {
     var onAnkiLookup: ((Int, Int?, String?, String?, Boolean) -> Unit)? = null
 
-    private val scope = CoroutineScope(Dispatchers.Main + Job())
+    private val scopeJob = Job()
+    private val scope = CoroutineScope(Dispatchers.Main + scopeJob)
+
+    /**
+     * Idempotent teardown for a discarded WebView: cancels in-flight lookups and drops the callback,
+     * so a recycled (or `destroy()`ed) popup cannot complete a card creation for its dead document.
+     * Safe to call twice, and never re-arms the bridge: a later `addToAnki` is a no-op.
+     */
+    fun destroy() {
+        onAnkiLookup = null
+        scopeJob.cancel()
+    }
 
     @JavascriptInterface
     fun addToAnki(index: String, glossary: String, selectedDict: String, popupSelection: String) {

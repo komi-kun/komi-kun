@@ -2,7 +2,10 @@
 package mihon.core.dictionary.ui
 
 import android.annotation.SuppressLint
+import android.content.ActivityNotFoundException
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.SystemClock
 import android.util.Log
@@ -85,36 +88,46 @@ fun prepareDictionaryWebViewShell(
             }
 
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
-                val url = request?.url ?: return false
+                val url = request?.url ?: return true
                 val s = view?.tag as? DictionaryWebViewState
-                if (url.scheme == KOMIKUN_SCHEME) {
-                    when (url.host) {
-                        KOMIKUN_HOST_LOOKUP -> {
-                            val q = url.getQueryParameter("q") ?: return true
-                            val sentence = url.getQueryParameter("sentence")
-                            val sentenceOffset = url.getQueryParameter("offset")?.toIntOrNull()
-                            val x = url.getQueryParameter("x")?.toFloatOrNull()
-                            val y = url.getQueryParameter("y")?.toFloatOrNull()
-                            if (q.isNotBlank()) s?.onRecursiveLookup?.invoke(q, sentence, sentenceOffset, x, y, null)
-                            return true
-                        }
-                        KOMIKUN_HOST_TAB -> {
-                            url.getQueryParameter("index")?.toIntOrNull()?.let { s?.onTabSelect?.invoke(it) }
-                            return true
-                        }
-                        KOMIKUN_HOST_BACK -> {
-                            s?.onBack?.invoke()
-                            return true
-                        }
-                        KOMIKUN_HOST_KANJI -> {
-                            val q = url.getQueryParameter("q") ?: return true
-                            if (q.isNotBlank()) s?.onRecursiveLookup?.invoke(q, null, null, null, null, "kanji")
-                            return true
-                        }
+                // A definition link (`<a href="https://…">`) is common in Jitendex/Wiktionary-style
+                // dictionaries. The shell is loaded with `blockNetworkLoads=true` and is only
+                // reloaded when `bootstrapHtml` changes, so letting the WebView navigate itself
+                // would leave every later lookup rendering into a dead document until process
+                // death: nothing but a `komikun://` URL may reach this document.
+                when (classifyDictionaryNavigation(url.toString())) {
+                    DictionaryNavigation.EXTERNAL -> {
+                        openExternalUrl(view?.context ?: context, url)
+                        return true
                     }
-                    return true
+                    DictionaryNavigation.DROP -> return true
+                    DictionaryNavigation.INTERNAL -> Unit
                 }
-                return false
+                when (url.host) {
+                    KOMIKUN_HOST_LOOKUP -> {
+                        val q = url.getQueryParameter("q") ?: return true
+                        val sentence = url.getQueryParameter("sentence")
+                        val sentenceOffset = url.getQueryParameter("offset")?.toIntOrNull()
+                        val x = url.getQueryParameter("x")?.toFloatOrNull()
+                        val y = url.getQueryParameter("y")?.toFloatOrNull()
+                        if (q.isNotBlank()) s?.onRecursiveLookup?.invoke(q, sentence, sentenceOffset, x, y, null)
+                        return true
+                    }
+                    KOMIKUN_HOST_TAB -> {
+                        url.getQueryParameter("index")?.toIntOrNull()?.let { s?.onTabSelect?.invoke(it) }
+                        return true
+                    }
+                    KOMIKUN_HOST_BACK -> {
+                        s?.onBack?.invoke()
+                        return true
+                    }
+                    KOMIKUN_HOST_KANJI -> {
+                        val q = url.getQueryParameter("q") ?: return true
+                        if (q.isNotBlank()) s?.onRecursiveLookup?.invoke(q, null, null, null, null, "kanji")
+                        return true
+                    }
+                }
+                return true
             }
         }
 
@@ -358,3 +371,48 @@ private const val KOMIKUN_HOST_LOOKUP = "lookup"
 private const val KOMIKUN_HOST_TAB = "tab"
 private const val KOMIKUN_HOST_BACK = "back"
 private const val KOMIKUN_HOST_KANJI = "kanji"
+
+/** What the popup shell does with a URL a click inside the WebView produced. */
+internal enum class DictionaryNavigation {
+    /** A `komikun://` URL, routed to the app (lookup/tab/back/kanji). */
+    INTERNAL,
+
+    /** A web link: handed to an external app, never to the popup. */
+    EXTERNAL,
+
+    /** Anything else: dropped, leaving the loaded shell untouched. */
+    DROP,
+}
+
+private val EXTERNAL_NAVIGATION_SCHEMES = setOf("http", "https")
+
+/** RFC 3986 `scheme` = ALPHA *( ALPHA / DIGIT / "+" / "-" / "." ). */
+private val URL_SCHEME = Regex("^[A-Za-z][A-Za-z0-9+.\\-]*$")
+
+/**
+ * Decide how the popup shell treats [url]. No [WebView] is involved, so the decision is testable on
+ * the JVM: only `komikun://` is the popup's own, http(s) goes to an external browser, and anything
+ * else is dropped — the loaded document must never be navigated away from.
+ */
+internal fun classifyDictionaryNavigation(url: String?): DictionaryNavigation {
+    val scheme = url?.substringBefore(':').orEmpty()
+    if (!URL_SCHEME.matches(scheme)) return DictionaryNavigation.DROP
+    return when {
+        scheme.equals(KOMIKUN_SCHEME, ignoreCase = true) -> DictionaryNavigation.INTERNAL
+        EXTERNAL_NAVIGATION_SCHEMES.any { it.equals(scheme, ignoreCase = true) } -> DictionaryNavigation.EXTERNAL
+        else -> DictionaryNavigation.DROP
+    }
+}
+
+/**
+ * Hand [url] to the app that owns it. The popup usually runs on the application context, hence
+ * `NEW_TASK`; a device with no handler must not crash the reader.
+ */
+private fun openExternalUrl(context: Context?, url: Uri) {
+    val target = context ?: return
+    try {
+        target.startActivity(Intent(Intent.ACTION_VIEW, url).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    } catch (_: ActivityNotFoundException) {
+        // No browser installed: the popup stays on its current document.
+    }
+}

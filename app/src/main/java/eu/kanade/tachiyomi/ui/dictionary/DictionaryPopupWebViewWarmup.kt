@@ -70,6 +70,13 @@ internal object DictionaryPopupWebViewWarmup {
             if (warmedWebView == null || warmedWebView === webView) {
                 warmedWebView = webView
             } else {
+                // A discarded WebView must not keep its JS bridges alive: `destroy()` alone left the
+                // audio bridge's TextToSpeech binding and its in-flight audio downloads running.
+                (webView.tag as? DictionaryWebViewState)?.audioBridge?.destroy()
+                // KUN --> Same for the Anki bridge's coroutine scope: a recycled popup must not
+                // complete a card creation for the document it no longer shows.
+                (webView.tag as? DictionaryWebViewState)?.ankiJsBridge?.destroy()
+                // KUN <--
                 webView.destroy()
             }
         }

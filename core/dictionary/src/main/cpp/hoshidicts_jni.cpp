@@ -34,6 +34,17 @@ namespace {
         uint64_t offset;
     };
 
+    // `FILE*` that closes itself, so a `try`/`catch` cannot leak a handle when an allocation inside
+    // the guarded body throws.
+    struct FileCloser {
+        void operator()(FILE *file) const {
+            if (file != nullptr) {
+                fclose(file);
+            }
+        }
+    };
+    using FilePtr = std::unique_ptr<FILE, FileCloser>;
+
     struct LookupObject {
         DictionaryQuery query;
         Deinflector deinflector;
@@ -86,8 +97,73 @@ namespace {
         }
     }
 
+    // The engine returns ordinary UTF-8, but `NewStringUTF` requires *modified* UTF-8: a 4-byte
+    // sequence (U+10000 and above — 𠮟, most emoji) is invalid there, so CheckJNI aborts the
+    // process and a release build gets a null `jstring` back, which violates the Kotlin non-null
+    // parameter and degrades the whole lookup to an empty list. Decode to UTF-16 and hand the code
+    // units to `NewString` instead. A malformed sequence yields an empty string (never null): a
+    // broken dictionary string must not take the JNI call down with it.
+    std::u16string utf8_to_utf16(const std::string &value) {
+        std::u16string output;
+        output.reserve(value.size());
+        size_t i = 0;
+        const size_t size = value.size();
+        while (i < size) {
+            const auto lead = static_cast<unsigned char>(value[i]);
+            uint32_t code_point = 0;
+            size_t length = 0;
+            uint32_t minimum = 0;
+            if (lead < 0x80) {
+                code_point = lead;
+                length = 1;
+            } else if ((lead & 0xE0) == 0xC0) {
+                code_point = lead & 0x1Fu;
+                length = 2;
+                minimum = 0x80;
+            } else if ((lead & 0xF0) == 0xE0) {
+                code_point = lead & 0x0Fu;
+                length = 3;
+                minimum = 0x800;
+            } else if ((lead & 0xF8) == 0xF0) {
+                code_point = lead & 0x07u;
+                length = 4;
+                minimum = 0x10000;
+            } else {
+                return {};
+            }
+            if (i + length > size) {
+                return {};
+            }
+            for (size_t k = 1; k < length; ++k) {
+                const auto continuation = static_cast<unsigned char>(value[i + k]);
+                if ((continuation & 0xC0) != 0x80) {
+                    return {};
+                }
+                code_point = (code_point << 6) | (continuation & 0x3Fu);
+            }
+            // Reject overlong encodings, lone surrogates and out-of-range code points.
+            if (code_point < minimum || code_point > 0x10FFFF ||
+                (code_point >= 0xD800 && code_point <= 0xDFFF)) {
+                return {};
+            }
+            if (code_point <= 0xFFFF) {
+                output.push_back(static_cast<char16_t>(code_point));
+            } else {
+                const uint32_t adjusted = code_point - 0x10000;
+                output.push_back(static_cast<char16_t>(0xD800 + (adjusted >> 10)));
+                output.push_back(static_cast<char16_t>(0xDC00 + (adjusted & 0x3FF)));
+            }
+            i += length;
+        }
+        return output;
+    }
+
     jstring new_string(JNIEnv *env, const std::string &value) {
-        return env->NewStringUTF(value.c_str());
+        const std::u16string utf16 = utf8_to_utf16(value);
+        // `data()` is never null for a `std::u16string`, so even an empty or undecodable value
+        // produces an empty `jstring` instead of a null reference.
+        return env->NewString(reinterpret_cast<const jchar *>(utf16.data()),
+                              static_cast<jsize>(utf16.size()));
     }
 
     // Kotlin `List<T>` is a `java.util.ArrayList` at the JNI boundary.
@@ -880,92 +956,106 @@ Java_mihon_core_dictionary_engine_HoshiDictsNative_probeEntryTypes(JNIEnv *env, 
     std::string hashPath = dir + "/hash.table";
     std::string blobsPath = dir + "/blobs.bin";
 
-    FILE *hashFile = fopen(hashPath.c_str(), "rb");
-    if (!hashFile) return make_zeros();
+    // Everything below is driven by files a dictionary supplies, so the whole body is guarded the
+    // way the other entry points are: an allocation failure or a short read returns zero counts.
+    try {
+        FilePtr hashFile(fopen(hashPath.c_str(), "rb"));
+        if (!hashFile) return make_zeros();
 
-    uint32_t capacity;
-    if (fread(&capacity, sizeof(capacity), 1, hashFile) != 1) {
-        fclose(hashFile);
-        return make_zeros();
-    }
+        uint32_t capacity = 0;
+        if (fread(&capacity, sizeof(capacity), 1, hashFile.get()) != 1) {
+            return make_zeros();
+        }
 
-    std::vector<Slot> slots(capacity);
-    if (fread(slots.data(), sizeof(Slot), capacity, hashFile) != capacity) {
-        fclose(hashFile);
-        return make_zeros();
-    }
-    fclose(hashFile);
+        // `capacity` is dictionary-controlled: only the file length bounds it, so a corrupt or
+        // hostile `hash.table` must not be able to size an arbitrarily large `slots` vector.
+        if (fseek(hashFile.get(), 0, SEEK_END) != 0) return make_zeros();
+        const long hashSize = ftell(hashFile.get());
+        if (hashSize < 0 || static_cast<size_t>(hashSize) < sizeof(capacity)) return make_zeros();
+        const size_t slotBytes = static_cast<size_t>(hashSize) - sizeof(capacity);
+        if (capacity > slotBytes / sizeof(Slot)) return make_zeros();
+        if (fseek(hashFile.get(), static_cast<long>(sizeof(capacity)), SEEK_SET) != 0) return make_zeros();
 
-    FILE *blobsFile = fopen(blobsPath.c_str(), "rb");
-    if (!blobsFile) return make_zeros();
+        std::vector<Slot> slots(capacity);
+        if (fread(slots.data(), sizeof(Slot), capacity, hashFile.get()) != capacity) {
+            return make_zeros();
+        }
+        hashFile.reset();
 
-    fseek(blobsFile, 0, SEEK_END);
-    size_t blobsSize = static_cast<size_t>(ftell(blobsFile));
-    fseek(blobsFile, 0, SEEK_SET);
-    std::vector<uint8_t> blobs(blobsSize);
-    if (fread(blobs.data(), 1, blobsSize, blobsFile) != blobsSize) {
-        fclose(blobsFile);
-        return make_zeros();
-    }
-    fclose(blobsFile);
+        FilePtr blobsFile(fopen(blobsPath.c_str(), "rb"));
+        if (!blobsFile) return make_zeros();
 
-    uint64_t termCount = 0, freqCount = 0, pitchCount = 0, kanjiCount = 0;
+        if (fseek(blobsFile.get(), 0, SEEK_END) != 0) return make_zeros();
+        const long blobsLength = ftell(blobsFile.get());
+        if (blobsLength < 0) return make_zeros();
+        const size_t blobsSize = static_cast<size_t>(blobsLength);
+        if (fseek(blobsFile.get(), 0, SEEK_SET) != 0) return make_zeros();
+        std::vector<uint8_t> blobs(blobsSize);
+        if (fread(blobs.data(), 1, blobsSize, blobsFile.get()) != blobsSize) {
+            return make_zeros();
+        }
+        blobsFile.reset();
 
-    for (uint32_t i = 0; i < capacity; i++) {
-        if (slots[i].hash == 0) continue;
+        uint64_t termCount = 0, freqCount = 0, pitchCount = 0, kanjiCount = 0;
 
-        uint64_t blobOffset = slots[i].offset;
-        if (blobOffset + sizeof(uint32_t) > blobsSize) continue;
+        for (uint32_t i = 0; i < capacity; i++) {
+            if (slots[i].hash == 0) continue;
 
-        uint32_t entryCount;
-        std::memcpy(&entryCount, blobs.data() + blobOffset, sizeof(entryCount));
-        size_t idx = blobOffset + sizeof(entryCount);
+            uint64_t blobOffset = slots[i].offset;
+            if (blobOffset + sizeof(uint32_t) > blobsSize) continue;
 
-        for (uint32_t j = 0; j < entryCount; j++) {
-            if (idx + sizeof(uint64_t) > blobsSize) break;
-            uint64_t entryOffset;
-            std::memcpy(&entryOffset, blobs.data() + idx, sizeof(entryOffset));
-            idx += sizeof(entryOffset);
+            uint32_t entryCount;
+            std::memcpy(&entryCount, blobs.data() + blobOffset, sizeof(entryCount));
+            size_t idx = blobOffset + sizeof(entryCount);
 
-            if (entryOffset + 1 > blobsSize) continue;
-            uint8_t type = blobs[entryOffset];
+            for (uint32_t j = 0; j < entryCount; j++) {
+                if (idx + sizeof(uint64_t) > blobsSize) break;
+                uint64_t entryOffset;
+                std::memcpy(&entryOffset, blobs.data() + idx, sizeof(entryOffset));
+                idx += sizeof(entryOffset);
 
-            if (type == 0) {
-                termCount++;
-            } else if (type == 1) {
-                size_t pos = entryOffset + 1;
-                if (pos + 2 > blobsSize) continue;
-                uint16_t exprLen;
-                std::memcpy(&exprLen, blobs.data() + pos, sizeof(exprLen));
-                pos += 2 + exprLen;
-                if (pos + 1 > blobsSize) continue;
-                uint8_t modeLen = blobs[pos];
-                pos += 1;
-                if (pos + static_cast<size_t>(modeLen) > blobsSize) continue;
-                std::string mode(reinterpret_cast<const char *>(blobs.data() + pos), modeLen);
+                if (entryOffset + 1 > blobsSize) continue;
+                uint8_t type = blobs[entryOffset];
 
-                if (mode == "freq") {
-                    freqCount++;
-                } else if (mode == "pitch") {
-                    pitchCount++;
+                if (type == 0) {
+                    termCount++;
+                } else if (type == 1) {
+                    size_t pos = entryOffset + 1;
+                    if (pos + 2 > blobsSize) continue;
+                    uint16_t exprLen;
+                    std::memcpy(&exprLen, blobs.data() + pos, sizeof(exprLen));
+                    pos += 2 + exprLen;
+                    if (pos + 1 > blobsSize) continue;
+                    uint8_t modeLen = blobs[pos];
+                    pos += 1;
+                    if (pos + static_cast<size_t>(modeLen) > blobsSize) continue;
+                    std::string mode(reinterpret_cast<const char *>(blobs.data() + pos), modeLen);
+
+                    if (mode == "freq") {
+                        freqCount++;
+                    } else if (mode == "pitch") {
+                        pitchCount++;
+                    }
+                } else if (type == 2) {
+                    kanjiCount++;
                 }
-            } else if (type == 2) {
-                kanjiCount++;
             }
         }
-    }
 
-    jlongArray result = env->NewLongArray(4);
-    if (result == nullptr) {
-        return nullptr;
+        jlongArray result = env->NewLongArray(4);
+        if (result == nullptr) {
+            return nullptr;
+        }
+        jlong counts[4] = {
+                static_cast<jlong>(termCount),
+                static_cast<jlong>(freqCount),
+                static_cast<jlong>(pitchCount),
+                static_cast<jlong>(kanjiCount),
+        };
+        env->SetLongArrayRegion(result, 0, 4, counts);
+        return result;
+    } catch (...) {
+        return make_zeros();
     }
-    jlong counts[4] = {
-            static_cast<jlong>(termCount),
-            static_cast<jlong>(freqCount),
-            static_cast<jlong>(pitchCount),
-            static_cast<jlong>(kanjiCount),
-    };
-    env->SetLongArrayRegion(result, 0, 4, counts);
-    return result;
 }
 // KUN <--

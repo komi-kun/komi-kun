@@ -1383,16 +1383,37 @@
 
   const ELEMENT_REGISTRY = createElementRegistry();
 
-  function isValidTagName(tagName) {
-    return /^[a-z][a-z0-9:-]*$/i.test(tagName);
-  }
+  // Allow-list of every tag name structured content may create. A glossary's `tag` comes straight
+  // from the dictionary file, so `document.createElement` must never see an unchecked name: a
+  // `script`/`iframe`/`object`/`embed` node would execute or run plugin content inside a JS-enabled
+  // WebView that carries native bridges, and `style` would let one dictionary restyle the popup.
+  // A tag outside these sets degrades to neutral content (see renderStructuredObjectNode).
+  const HTML_STRUCTURED_TAGS = new Set([
+    'div', 'span', 'p', 'br', 'hr', 'ul', 'ol', 'li', 'dl', 'dt', 'dd',
+    'table', 'caption', 'colgroup', 'col', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td',
+    'details', 'summary', 'blockquote', 'pre', 'code',
+    'b', 'strong', 'i', 'em', 'u', 's', 'del', 'ins', 'mark', 'small', 'sub', 'sup',
+    'ruby', 'rb', 'rt', 'rtc', 'rp', 'cite', 'q', 'abbr', 'time', 'kbd', 'samp', 'var',
+    'figure', 'figcaption', 'img', 'a'
+  ]);
 
   const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
+  // No `foreignObject`: an HTML island inside a glyph SVG would reopen the tag hole above.
   const svgTags = new Set([
     'svg', 'g', 'path', 'rect', 'circle', 'ellipse', 'line', 'polyline', 'polygon',
     'text', 'tspan', 'textpath', 'defs', 'symbol', 'use', 'marker', 'pattern',
-    'mask', 'clippath', 'lineargradient', 'radialgradient', 'stop', 'view', 'foreignobject'
+    'mask', 'clippath', 'lineargradient', 'radialgradient', 'stop', 'view'
   ]);
+
+  /** Element a tag outside the allow-list degrades to: the node's children survive, its tag does not. */
+  const NEUTRAL_TAG_NAME = 'span';
+
+  function isValidTagName(name) {
+    if (typeof name !== 'string') return false;
+    const lower = name.trim().toLowerCase();
+    if (!lower) return false;
+    return HTML_STRUCTURED_TAGS.has(lower) || svgTags.has(lower);
+  }
 
   const svgAttributeMap = {
     viewBox: 'viewBox',
@@ -1433,6 +1454,11 @@
   }
 
   function createElementForTag(tagName, isSvgElement) {
+    // Defence in depth: even if a caller skips the allow-list, an off-list name never reaches
+    // createElement/createElementNS — it becomes a neutral span that keeps its children.
+    if (!isValidTagName(tagName)) {
+      return document.createElement(NEUTRAL_TAG_NAME);
+    }
     return isSvgElement
       ? document.createElementNS(SVG_NAMESPACE, tagName)
       : document.createElement(tagName);
@@ -1530,7 +1556,15 @@
     }
 
     if (!isValidTagName(tagNameRaw)) {
-      return {kind: 'nested', content: node.content};
+      // Unknown or dangerous tag (`script`, `style`, `iframe`, `object`, `embed`, anything else):
+      // never create it. A neutral span keeps the node's children, `lang`/`title`/`data-*` and its
+      // block structure, so the glossary still reads but no dictionary-chosen tag can exist.
+      return {
+        kind: 'node',
+        node: createGenericStructuredElement(
+          node, NEUTRAL_TAG_NAME, NEUTRAL_TAG_NAME, dictName, mediaMap, language
+        )
+      };
     }
 
     const tagNameLower = tagNameRaw.toLowerCase();
