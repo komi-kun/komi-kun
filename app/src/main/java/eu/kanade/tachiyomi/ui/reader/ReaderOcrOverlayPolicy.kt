@@ -55,19 +55,18 @@ object ReaderOcrOverlayPolicy {
      * true when a tap/long press may be **hit-tested** against the OCR blocks — i.e. when the OCR
      * host may consume it for a dictionary lookup.
      *
-     * The rule mirrors exactly the two preferences the hit test is allowed to depend on — the
-     * combined dictionary/OCR opt-in and the reader's own overlay toggle — and nothing else: an
-     * overlay that is off (the feature switched off, or the toggle pressed a second time) must not
-     * swallow the gesture, or the page does not turn and the menu does not toggle — which reads as a
-     * dead reader.
+     * It is exactly [visible], and deliberately so: a block that is not painted must not be
+     * tappable. Consuming a gesture for an overlay the user cannot see is the worst of both worlds —
+     * the lookup happens invisibly and the page does not turn, the menu does not toggle, which reads
+     * as a dead reader. So the hit test stands down while the overlay is off, while the feature is
+     * off, **and while the reader chrome is up** (the bars are translucent just like for painting, so
+     * a tap on that layer belongs to the page controls the bars expose). Taps then fall through to
+     * the viewer's normal single-tap/long-press handling.
      *
-     * [menuVisible] is deliberately **not** part of this rule, even though [visible] paints nothing
-     * while the chrome is up (`ReaderActivity` composes the overlay with `alpha = 0f`): with the
-     * chrome visible the blocks are still hit-tested **by design**, so a tap while the bars are up
-     * still starts a lookup on the block it lands on instead of being swallowed. Only the painting is
-     * suppressed; the hit test is not.
+     * [menuVisible] is therefore an input, not just a paint decision: passing it here is what keeps
+     * the two in step (`ReaderOcrOverlayWiringTest` fails if a call site forgets it).
      */
-    fun acceptsLookup(masterEnabled: Boolean, overlayEnabled: Boolean): Boolean =
-        masterEnabled && overlayEnabled
+    fun acceptsLookup(masterEnabled: Boolean, overlayEnabled: Boolean, menuVisible: Boolean): Boolean =
+        visible(masterEnabled = masterEnabled, overlayEnabled = overlayEnabled, menuVisible = menuVisible)
     // KUN <--
 }

@@ -275,6 +275,7 @@ class ReaderActivity : BaseActivity() {
                 val targetsBlock = ReaderOcrOverlayPolicy.acceptsLookup(
                     masterEnabled = dictionaryOcrPreferences.isEnabled(),
                     overlayEnabled = readerPreferences.ocrOverlayEnabled.get(),
+                    menuVisible = viewModel.state.value.menuVisible,
                 ) && readerOcrHost.hitsBlock(Offset(x, y))
                 // KUN <--
                 if (!targetsBlock) readerDictionaryHost.dismiss()
@@ -1480,6 +1481,7 @@ class ReaderActivity : BaseActivity() {
             ReaderOcrOverlayPolicy.acceptsLookup(
                 masterEnabled = dictionaryOcrPreferences.isEnabled(),
                 overlayEnabled = readerPreferences.ocrOverlayEnabled.get(),
+                menuVisible = viewModel.state.value.menuVisible,
             ) &&
             readerOcrHost.onPageLongPress(page, extraPage, Offset(point.x, point.y))
         ) {
@@ -1494,13 +1496,14 @@ class ReaderActivity : BaseActivity() {
      * Single-tap OCR entry point, called by every viewer *before* its normal single-tap navigation
      * (`PagerViewer`/`WebtoonViewer` `tapListener`, `WebGpuViewer` `state.onTap`).
      *
-     * While the OCR overlay is enabled and the tap lands on an OCR block, the host starts a
-     * dictionary lookup (the same hit-test + lookup path as [onPageLongTap]) and returns `true`, so
-     * the viewer consumes the tap and does not also page-turn or toggle the menu. A miss - or the
-     * overlay being off - returns `false` and the normal navigation runs unchanged.
+     * While the OCR overlay is **painted** (feature on, overlay on, reader chrome hidden) and the
+     * tap lands on an OCR block, the host starts a dictionary lookup (the same hit-test + lookup path
+     * as [onPageLongTap]) and returns `true`, so the viewer consumes the tap and does not also
+     * page-turn or toggle the menu. A miss, the overlay being off, or the chrome being up (the
+     * overlay paints nothing then) returns `false` and the normal navigation runs unchanged.
      *
      * Tying this to the existing overlay flag (no extra preference) keeps it to "when the overlay is
-     * on, one tap looks a word up"; the two-finger toggle therefore turns it on and off with the
+     * painted, one tap looks a word up"; the two-finger toggle therefore turns it on and off with the
      * boxes.
      */
     fun onPageSingleTap(page: ReaderPage, extraPage: ReaderPage?, point: PointF): Boolean {
@@ -1511,6 +1514,7 @@ class ReaderActivity : BaseActivity() {
         if (!ReaderOcrOverlayPolicy.acceptsLookup(
                 masterEnabled = dictionaryOcrPreferences.isEnabled(),
                 overlayEnabled = readerPreferences.ocrOverlayEnabled.get(),
+                menuVisible = viewModel.state.value.menuVisible,
             )
         ) {
             return false
