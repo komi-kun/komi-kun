@@ -24,7 +24,6 @@ import eu.kanade.tachiyomi.data.LibraryUpdateStatus
 import eu.kanade.tachiyomi.data.SyncStatus
 import eu.kanade.tachiyomi.data.backup.create.BackupCreateWorker
 import eu.kanade.tachiyomi.data.backup.restore.BackupRestoreWorker
-import eu.kanade.tachiyomi.data.cache.ChapterCache
 import eu.kanade.tachiyomi.data.cache.CoverCache
 import eu.kanade.tachiyomi.data.cache.PagePreviewCache
 import eu.kanade.tachiyomi.data.connections.ConnectionsManager
@@ -59,6 +58,7 @@ import exh.source.ExhPreferences
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.protobuf.ProtoBuf
 import mihon.core.metro.IsDebugBuild
+import mihon.data.cache.ChapterCache
 import mihon.domain.chapter.interactor.FilterChaptersForDownload
 import mihon.domain.extension.interactor.GetExtensionStoreCountAsFlow
 import mihon.domain.extension.interactor.GetExtensionStores
@@ -77,7 +77,8 @@ import tachiyomi.domain.manga.interactor.GetExhFavoriteMangaWithMetadata
 import tachiyomi.domain.manga.interactor.GetFavorites
 import tachiyomi.domain.manga.interactor.GetFlatMetadataById
 import tachiyomi.domain.manga.interactor.GetManga
-import tachiyomi.domain.manga.interactor.GetMergedReferencesById
+import tachiyomi.domain.manga.interactor.GetMergeSettings
+import tachiyomi.domain.manga.interactor.GetMergedEntriesById
 import tachiyomi.domain.manga.interactor.InsertFlatMetadata
 import tachiyomi.domain.manga.interactor.NetworkToLocalManga
 import tachiyomi.domain.manga.interactor.ResetViewerFlags
@@ -170,7 +171,8 @@ interface AppGraph : ViewModelGraph {
     val ehEntaiUpdateHelper: EHentaiUpdateHelper
     val getManga: GetManga
     val insertFlatMetadata: InsertFlatMetadata
-    val getMergedReferencesById: GetMergedReferencesById
+    val getMergedEntriesById: GetMergedEntriesById
+    val getMergeSettings: GetMergeSettings
     val networkToLocalManga: NetworkToLocalManga
     val updateMangaFromRemote: UpdateMangaFromRemote
     val filterChaptersForDownload: FilterChaptersForDownload

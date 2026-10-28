@@ -32,7 +32,6 @@ import eu.kanade.domain.track.interactor.TrackChapter
 import eu.kanade.domain.track.service.TrackPreferences
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.presentation.manga.components.ChapterDownloadAction
-import eu.kanade.tachiyomi.data.cache.ChapterCache
 import eu.kanade.tachiyomi.data.cache.CoverCache
 import eu.kanade.tachiyomi.data.download.DownloadCache
 import eu.kanade.tachiyomi.data.download.DownloadManager
@@ -101,6 +100,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import logcat.LogPriority
 import mihon.core.metro.AppCoroutineScope
+import mihon.data.cache.ChapterCache
 import tachiyomi.core.common.preference.toggle
 import tachiyomi.core.common.storage.UniFileTempFileManager
 import tachiyomi.core.common.util.lang.launchIO
@@ -123,7 +123,6 @@ import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.domain.manga.interactor.GetFlatMetadataById
 import tachiyomi.domain.manga.interactor.GetManga
 import tachiyomi.domain.manga.interactor.GetMergedMangaById
-import tachiyomi.domain.manga.interactor.GetMergedReferencesById
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.source.local.image.LocalCoverManager
@@ -165,7 +164,6 @@ class ReaderViewModel(
     private val sourcePreferences: SourcePreferences,
     private val getFlatMetadataById: GetFlatMetadataById,
     private val getMergedMangaById: GetMergedMangaById,
-    private val getMergedReferencesById: GetMergedReferencesById,
     private val getMergedChaptersByMangaId: GetMergedChaptersByMangaId,
     // SY <--
     private val coverManager: LocalCoverManager,
@@ -515,13 +513,6 @@ class ReaderViewModel(
                 } else {
                     null
                 }
-                val mergedReferences = if (source is MergedSource) {
-                    runBlocking {
-                        getMergedReferencesById.await(manga.id)
-                    }
-                } else {
-                    emptyList()
-                }
                 val mergedManga = if (source is MergedSource) {
                     runBlocking {
                         getMergedMangaById.await(manga.id)
@@ -564,7 +555,6 @@ class ReaderViewModel(
                     sourceManager = sourceManager,
                     readerPrefs = readerPreferences,
                     sourcePreferences = sourcePreferences,
-                    mergedReferences = mergedReferences,
                     mergedManga = mergedManga,
                     // SY <--
                 )
@@ -1042,14 +1032,21 @@ class ReaderViewModel(
                     chapter.chapterNumber == readerChapter.chapter.chapterNumber
                 ) {
                     ChapterUpdate(chapter.id) { read = true }
-                        // KMK -->
-                        .also { deleteDupChapterIfNeeded(ReaderChapter(chapter.copy(read = true))) }
-                    // KMK <--
                 } else {
                     null
                 }
             }
         updateChapter.awaitAll(duplicateUnreadChapters)
+        // SY -->
+        duplicateUnreadChapters.forEach { chapterUpdate ->
+            val chapter = unfilteredChapterList.first { it.id == chapterUpdate.id }
+            // KUN -->
+            // Komikku removes the duplicate itself and ignores chapters flagged unread, so pass it
+            // as read: the list above was loaded before these were marked read.
+            deleteDupChapterIfNeeded(ReaderChapter(chapter.copy(read = true)))
+            // KUN <--
+        }
+        // SY <--
     }
 
     fun restartReadTimer() {
@@ -1299,6 +1296,14 @@ class ReaderViewModel(
 
     fun openAutoScrollHelpDialog() {
         mutableState.update { it.copy(dialog = Dialog.AutoScrollHelp) }
+    }
+
+    fun openAutoScrollGesturesHelpDialog() {
+        mutableState.update { it.copy(dialog = Dialog.AutoScrollGesturesHelp) }
+    }
+
+    fun openAutoScrollGestureToastsHelpDialog() {
+        mutableState.update { it.copy(dialog = Dialog.AutoScrollGestureToastsHelp) }
     }
 
     fun openBoostPageHelp() {
@@ -1713,6 +1718,8 @@ class ReaderViewModel(
 
         // SY -->
         data object AutoScrollHelp : Dialog
+        data object AutoScrollGesturesHelp : Dialog
+        data object AutoScrollGestureToastsHelp : Dialog
         data object RetryAllHelp : Dialog
         data object BoostPageHelp : Dialog
         // SY <--

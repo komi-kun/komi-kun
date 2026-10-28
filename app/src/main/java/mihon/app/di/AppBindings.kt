@@ -49,6 +49,10 @@ object AppBindings {
         context: Context,
         securityPreferences: SecurityPreferences,
         // KUN -->
+        // Komikku 8efcaecbc5: debug builds run without the prepared statement cache (see below).
+        @IsDebugBuild isDebugBuild: Boolean,
+        // KUN <--
+        // KUN -->
         // Provided by :data's DatabaseBindings, so the app does not reference the generated Database.
         schema: SqlSchema<QueryResult.AsyncValue<Unit>>,
         // KUN <--
@@ -92,6 +96,13 @@ object AppBindings {
                 configuration = AndroidxSqliteConfiguration(
                     isForeignKeyConstraintsEnabled = true,
                     // KUN -->
+                    // Komikku 8efcaecbc5: Android Studio's Database Inspector holds a connection from
+                    // prepare() until the statement is closed, and cached statements never close, so
+                    // skipping the cache in debug builds keeps the inspector from force-unlocking and
+                    // crashing the app.
+                    cacheSize = if (isDebugBuild) 0 else 25,
+                    // KUN <--
+                    // KUN -->
                     // Mihon 61cd786e7f: WAL on every device (the configuration default), one reader
                     // on low-RAM devices, four otherwise. SQLCipher's driver reports its own
                     // connection pool, so this is mostly informational on the encrypted path.
@@ -129,6 +140,11 @@ object AppBindings {
             schema = schema,
             configuration = AndroidxSqliteConfiguration(
                 isForeignKeyConstraintsEnabled = true,
+                // KUN -->
+                // Komikku 8efcaecbc5: no prepared statement cache in debug builds, so Android Studio's
+                // Database Inspector can release the connection it holds (see the encrypted path above).
+                cacheSize = if (isDebugBuild) 0 else 25,
+                // KUN <--
                 // KUN -->
                 // Mihon 61cd786e7f: WAL on every device; one reader on low-RAM, four otherwise.
                 // KUN <--
@@ -205,19 +221,21 @@ object AppBindings {
 
     // SY -->
     // KMK -->
-    // Metro cannot bind a function type, so DeleteCategory's sync tombstone callback is wired here.
+    // DeleteCategory is not `@Inject`-annotated upstream (its sync hook used to be a function type,
+    // which Metro cannot bind), so it is built here. The hook is now the `CategoryTombstones`
+    // service, contributed by `SyncCategoryTombstones`.
     @Provides
     @SingleIn(AppScope::class)
     fun providesDeleteCategory(
         categoryRepository: tachiyomi.domain.category.repository.CategoryRepository,
         libraryPreferences: tachiyomi.domain.library.service.LibraryPreferences,
         downloadPreferences: tachiyomi.domain.download.service.DownloadPreferences,
-        syncPreferences: eu.kanade.domain.sync.SyncPreferences,
+        categoryTombstones: tachiyomi.domain.category.service.CategoryTombstones,
     ): tachiyomi.domain.category.interactor.DeleteCategory = tachiyomi.domain.category.interactor.DeleteCategory(
         categoryRepository = categoryRepository,
         libraryPreferences = libraryPreferences,
         downloadPreferences = downloadPreferences,
-        onCategoryDeleted = syncPreferences::rememberDeletedCategory,
+        categoryTombstones = categoryTombstones,
     )
     // KMK <--
     // SY <--

@@ -388,6 +388,7 @@ dependencies {
 
     // Tests
     testImplementation(libs.bundles.test)
+    testImplementation(libs.sqldelight.sqlite.driver)
     testRuntimeOnly(libs.junit.platform.launcher)
 
     // For detecting memory leaks; see https://square.github.io/leakcanary/
@@ -499,11 +500,5 @@ androidComponents {
             shortcutsFile.set(layout.projectDirectory.file("src/main/shortcuts.xml"))
         }
         resSource.addGeneratedSourceDirectory(replaceShortcutsPlaceholderTask) { it.outputDir }
-    }
-}
-
-buildscript {
-    dependencies {
-        classpath(kotlinx.gradle)
     }
 }

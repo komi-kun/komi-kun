@@ -324,6 +324,14 @@
     <string name="eh_autoscroll">Autoscroll</string>
     <string name="eh_retry_all">Retry all</string>
     <string name="eh_boost_page">Boost page</string>
+    <string name="eh_autoscroll_gestures">Autoscroll gestures</string>
+    <string name="eh_autoscroll_gestures_help">Autoscroll gestures help</string>
+    <string name="eh_autoscroll_gestures_help_message">Autoscroll on:\n- Tap to pause or resume\n- Swipe up or down to adjust speed\n- Drag with two fingers to scroll manually\n- Swipe sideways to stop\n\nAutoscroll off:\n- Swipe sideways to start\n\nClose the reader menu to use gestures.</string>
+    <string name="eh_autoscroll_gesture_toasts">Gesture toasts</string>
+    <string name="eh_autoscroll_gesture_toasts_help">Gesture toasts help</string>
+    <string name="eh_autoscroll_gesture_toasts_help_message">When this option is enabled, the reader shows toast messages after autoscroll gestures perform actions such as start, pause, resume, stop, speed changes, or moving through the chapter.
+
+When this option is disabled, the gestures still work the same way, but those informational toast messages are not shown.</string>
     <string name="eh_autoscroll_help">Autoscroll help</string>
     <string name="eh_autoscroll_help_message">Automatically scroll to the next page in the specified interval. Interval is specified in seconds.</string>
     <string name="eh_autoscroll_freq_invalid">Invalid frequency</string>
@@ -393,20 +401,20 @@
     <string name="merge_unknown_entry">Unknown entry ID: %1$d</string>
     <string name="merged_already">This entry is already merged with the current entry!</string>
     <string name="merge_duplicate">This merged entry is a duplicate!</string>
+    <string name="remove_merged_entries">Remove entries from the library</string>
 
     <!-- Entry Info Edit -->
-    <string name="reset_tags">Reset Tags</string>
+    <string name="reset_tags">Reset tags</string>
+    <string name="collate_tags">Collate tags</string>
     <string name="add_tags">Add Tags</string>
-    <string name="reset_info">Reset Info</string>
-    <string name="title_hint">Title: %1$s</string>
-    <string name="description_hint">Description: %1$s</string>
-    <string name="author_hint">Author: %1$s</string>
-    <string name="artist_hint">Artist: %1$s</string>
-    <string name="thumbnail_url_hint">Thumbnail Url: %1$s</string>
+    <string name="reset_info">Reset info</string>
     <string name="multi_tags_comma_separated">Enter tag(s), seperated by commas.</string>
     <string name="select_tracker">Select a tracker</string>
     <string name="entry_not_tracked">Entry is not tracked.</string>
     <string name="fill_from_tracker">Fill from tracker</string>
+    <string name="entry_description">Description</string>
+    <string name="entry_tags">Tags</string>
+    <string name="source_value_hint">Source: %1$s</string>
 
     <!-- Browse -->
     <!-- Sources Tab -->
@@ -441,7 +449,7 @@
     <string name="feed_add">Add %1$s to feed?</string>
 
     <!-- Sort by tags -->
-    <string name="add_tag">Add Tag</string>
+    <string name="add_tag">Add tag</string>
     <string name="pref_tag_sorting">Tag sorting tags</string>
     <string name="tag_sorting">Tag sorting</string>
     <string name="action_add_tags_message">Read this! Tags must be exact, there are no partial matches, you cannot do netorare to filter out female:netorare or similar!\nThe style for namespace tags is\n\"female: sole female\"\nwithout quotes!\nAdding multiple variants of the same tag is supported, so feel free to do \"tag: netorare\" for NHentai and \"female: netorare\" for E-Hentai!</string>
@@ -483,11 +491,10 @@
     <string name="skipping_">(skipping %1$d)</string>
 
     <!-- Bulk recommendation search -->
-    <string name="rec_search">Find common recommendations</string>
-    <string name="rec_hide_library_entries">Hide results already in your library</string>
-    <string name="rec_services_to_search">Recommendation services to search</string>
-    <string name="rec_group_source">Source recommendations</string>
-    <string name="rec_group_tracker">Tracker recommendations</string>
+    <string name="rec_hide_library_entries">Hide entries in library</string>
+    <string name="rec_search_in">Search in</string>
+    <string name="rec_sources_summary">Each entry\'s own source</string>
+    <string name="rec_trackers_summary">Your logged-in tracking services</string>
     <string name="rec_common_recommendations">Common recommendations</string>
     <string name="rec_search_short">Find recommendations</string>
     <string name="rec_no_results">No recommendations found</string>
@@ -627,7 +634,7 @@
     <string name="id">Id</string>
     <string name="token">Token</string>
     <string name="is_exhentai_gallery">is Exhentai gallery</string>
-    <string name="thumbnail_url">Thumbnail url</string>
+    <string name="thumbnail_url">Thumbnail URL</string>
     <string name="genre">Genre</string>
     <string name="date_posted">Date posted</string>
     <string name="page_count">Page count</string>
@@ -688,13 +695,17 @@
     <string name="merged_references_invalid">Merged references invalid</string>
     <string name="merged_chapter_updates_error">Toggle chapter updates error</string>
     <string name="merged_toggle_download_chapters_error">Toggle download chapters error</string>
-    <string name="allow_deduplication">Allow deduplication:</string>
-    <string name="deduplication_mode">Dedupe mode:</string>
-    <string name="deduplication_entry_info">Info entry:</string>
-    <string name="no_dedupe">No dedupe</string>
-    <string name="dedupe_priority">Dedupe by priority</string>
-    <string name="dedupe_most_chapters">Show source with most chapters</string>
-    <string name="dedupe_highest_chapter">Show source with highest chapter number</string>
+    <string name="merge_duplicate_chapters">Duplicate chapters</string>
+    <string name="merge_dedupe_keep_all">Keep all</string>
+    <string name="merge_dedupe_priority">Priority</string>
+    <string name="merge_dedupe_most">Most</string>
+    <string name="merge_dedupe_highest">Highest</string>
+    <string name="merge_dedupe_keep_all_summary">Show every chapter from every entry, ordered by entry priority.</string>
+    <string name="merge_dedupe_priority_summary">Show each chapter once, from the highest entry below that has it.</string>
+    <string name="merge_dedupe_most_summary">Show only the chapters of the entry with the most chapters.</string>
+    <string name="merge_dedupe_highest_summary">Show only the chapters of the entry with the highest chapter number.</string>
+    <string name="merge_info_source">Info source</string>
+    <string name="merge_drag_to_set_priority">Drag to set priority</string>
 
     <!-- MangaDex -->
     <string name="md_follows_unfollowed">Unfollowed</string>

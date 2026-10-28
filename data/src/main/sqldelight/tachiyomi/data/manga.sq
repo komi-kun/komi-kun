@@ -105,8 +105,9 @@ CREATE TRIGGER update_manga_version AFTER UPDATE ON manga
 BEGIN
     UPDATE manga SET version = version + 1
     WHERE id = new.id AND new.is_syncing = 0 AND (
-        new.remote_url != old.remote_url OR
-        new.remote_description != old.remote_description OR
+        -- `!=` is never true against NULL, so clearing a nullable field never bumped the version
+        new.remote_url IS NOT old.remote_url OR
+        new.remote_description IS NOT old.remote_description OR
         new.user_favorite_at IS NOT old.user_favorite_at OR
         new.user_reader_flags != old.user_reader_flags OR
         new.user_chapter_flags != old.user_chapter_flags OR
@@ -199,7 +200,7 @@ FROM manga;
 -- user_favorite_at set with favorite_modified_at NULL. Treat currently favorited rows as
 -- ever-favorited too, or they stay invisible to every sync upload query.
 -- KUN <--
-getMangasWithFavoriteTimestamp:
+getMangasToSync:
 SELECT
     id, source_id, remote_url, remote_title, remote_author, remote_artist, remote_description,
     remote_genre, remote_status, remote_cover, remote_update_strategy, remote_memo,
@@ -210,17 +211,32 @@ SELECT
     user_title, user_author, user_artist, user_thumbnail_url, user_description, user_genre, user_status
 FROM manga
 -- KUN -->
-WHERE favorite_modified_at IS NOT NULL OR user_favorite_at IS NOT NULL;
+-- Ever-favorited rows are uploaded unconditionally: `favorite_modified_at` is stamped when an entry is
+-- unfavorited and is never reset, so a manga removed from the library is still carried here. That is
+-- the fork's rule and the single source of truth (`5d0a67227d`, `3991bd8537`, `c96b78491f`).
+-- The `library_removal` term below is belt-and-braces, kept for SY parity (`78e6a65248`): its
+-- `record_library_removal` guard is a strict subset of `update_last_favorited_at_mangas`'s, so every
+-- row it names is already covered by the term above. Do not treat it as what makes removals
+-- uploadable, and do not port SY's `c54092f4b3` / `570974114c` (they drop `favorite_modified_at`)
+-- without promoting the tombstone to the primary mechanism in the same change.
+WHERE favorite_modified_at IS NOT NULL OR user_favorite_at IS NOT NULL
+OR id IN (SELECT manga_id FROM library_removal WHERE removed_at >= :removedSince);
 -- KUN <--
 
 getMangasModifiedSince:
 SELECT M.*
 FROM manga M
 -- KUN -->
+-- A manga inserted while the favorite-timestamp trigger was missing can have
+-- user_favorite_at set with favorite_modified_at NULL. Treat currently favorited rows as
+-- ever-favorited too, or they stay invisible to every sync upload query.
 WHERE (M.favorite_modified_at IS NOT NULL OR M.user_favorite_at IS NOT NULL)
 -- KUN <--
 AND (M.last_modified_at >= :since
-OR EXISTS (SELECT 1 FROM chapter C WHERE C.manga_id = M.id AND C.last_modified_at >= :since));
+OR EXISTS (SELECT 1 FROM chapter C WHERE C.manga_id = M.id AND C.last_modified_at >= :since))
+-- KUN -->
+OR M.id IN (SELECT manga_id FROM library_removal WHERE removed_at >= :since);
+-- KUN <--
 -- SY <--
 
 getSourceIdWithFavoriteCount:
@@ -385,7 +401,7 @@ AND (
 )
 -- SY -->
 AND id NOT IN (
-     SELECT DISTINCT manga_id FROM merged WHERE manga_id != merge_id
+    SELECT DISTINCT manga_id FROM merged_entry
 )
 -- SY <--
 ;

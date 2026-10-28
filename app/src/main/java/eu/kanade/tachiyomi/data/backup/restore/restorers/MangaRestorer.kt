@@ -9,6 +9,8 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import tachiyomi.domain.backup.model.RestoredHistory
 import tachiyomi.domain.backup.model.RestoredManga
+import tachiyomi.domain.backup.model.RestoredMergeSettings
+import tachiyomi.domain.backup.model.RestoredMergedEntry
 import tachiyomi.domain.backup.repository.RestoreRepository
 import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.domain.manga.interactor.FetchInterval
@@ -110,9 +112,24 @@ class MangaRestorer(
                 tracks = backupManga.tracking.map { it.getTrackImpl() },
                 excludedScanlators = backupManga.excludedScanlators,
                 // SY -->
-                mergedMangaReferences = backupManga.mergedMangaReferences.map {
-                    EXHMigrations.migrateBackupMergedMangaReference(it).getMergedMangaReference()
-                },
+                mergedEntries = backupManga.mergedEntries
+                    // KUN -->
+                    // A pre-split payload also lists the merge itself as a `manga_source = 6969`
+                    // reference carrying the merge-level settings; it is not a child, and storing it
+                    // would make the merge its own entry (61.sqm drops exactly that shape).
+                    .filterNot { it.mangaSourceId == MERGED_SOURCE_ID }
+                    // KUN <--
+                    .map { ref ->
+                        val migrated = EXHMigrations.migrateBackupMergedEntry(ref)
+                        RestoredMergedEntry(
+                            mangaUrl = migrated.mangaUrl,
+                            mangaSourceId = migrated.mangaSourceId,
+                            fetchChapterUpdates = migrated.fetchChapterUpdates,
+                            downloadChapters = migrated.downloadChapters,
+                            chapterPriority = migrated.chapterPriority,
+                        )
+                    },
+                mergeSettings = resolveMergeSettings(backupManga),
                 // KUN -->
                 mergedMangaReferencesIncluded = backupManga.mergedMangaReferencesIncluded,
                 // KUN <--
@@ -142,10 +159,41 @@ class MangaRestorer(
             if (preservedNextUpdate != null) update.apply { nextUpdate = preservedNextUpdate } else update
         }
     }
-
     // KMK/SY -->
     suspend fun updateManga(manga: Manga) {
         restoreRepository.updateManga(manga, isSync)
     }
     // KMK/SY <--
+
+    // SY -->
+
+    /**
+     * The merge-level settings for a restored entry. New backups carry them in [BackupManga.mergeSettings]
+     */
+    private fun resolveMergeSettings(backupManga: BackupManga): RestoredMergeSettings? {
+        val settings = backupManga.mergeSettings
+        if (settings != null) {
+            return RestoredMergeSettings(
+                chapterSortMode = settings.chapterSortMode,
+                infoMangaUrl = settings.infoMangaUrl,
+                infoMangaSourceId = settings.infoMangaSourceId,
+            )
+        }
+        val refs = backupManga.mergedEntries
+        if (refs.isEmpty()) return null
+        // KUN -->
+        // A pre-split payload carries the merge's sort mode only on its self-reference
+        // (`manga_source = 6969`), which is appended last; a child row's mode is always 0, so the
+        // first row would silently reset the merge to "no dedupe".
+        val sortMode = (refs.firstOrNull { it.mangaSourceId == MERGED_SOURCE_ID } ?: refs.firstOrNull())
+            ?.chapterSortMode ?: 0
+        // KUN <--
+        val infoRef = refs.firstOrNull { it.isInfoManga }
+        return RestoredMergeSettings(
+            chapterSortMode = sortMode,
+            infoMangaUrl = infoRef?.mangaUrl.orEmpty(),
+            infoMangaSourceId = infoRef?.mangaSourceId ?: 0L,
+        )
+    }
+    // SY <--
 }
