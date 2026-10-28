@@ -4,6 +4,7 @@ package mihon.core.dictionary.audio
 
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import okhttp3.OkHttpClient
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
@@ -120,6 +121,44 @@ class AudioCacheTest {
         AudioCache.purgeLegacyDiskCache(tempDir)
 
         legacyDir.exists() shouldBe false
+    }
+
+    @Test
+    fun `audio fetch client does not follow redirects`() {
+        val base = OkHttpClient.Builder()
+            .followRedirects(true)
+            .followSslRedirects(true)
+            .build()
+
+        val audioClient = AudioCache.audioHttpClient(base)
+
+        // A 302 must surface as a failed fetch: following it would let a page-reachable host bounce
+        // the request to a host the WordAudioBridge fence never approved.
+        audioClient.followRedirects shouldBe false
+        audioClient.followSslRedirects shouldBe false
+        // The source client is untouched (it also serves the resolver's config requests).
+        base.followRedirects shouldBe true
+        // Derivation is cached, so repeated downloads do not rebuild a client per call.
+        (AudioCache.audioHttpClient(base) === audioClient) shouldBe true
+    }
+
+    @Test
+    fun `readAudioBodyCapped returns the body up to the cap`() {
+        val bytes = ByteArray(2048) { it.toByte() }
+
+        AudioCache.readAudioBodyCapped(bytes.inputStream(), maxBytes = 2048L) shouldBe bytes
+    }
+
+    @Test
+    fun `readAudioBodyCapped rejects a body one byte over the cap`() {
+        val bytes = ByteArray(2049) { it.toByte() }
+
+        AudioCache.readAudioBodyCapped(bytes.inputStream(), maxBytes = 2048L) shouldBe null
+        // The real cap is a bounded few MB, not unbounded growth.
+        MAX_WORD_AUDIO_BYTES shouldBe 4L * 1024 * 1024
+
+        val huge = ByteArray((MAX_WORD_AUDIO_BYTES + 1).toInt()) { 1 }
+        AudioCache.readAudioBodyCapped(huge.inputStream()) shouldBe null
     }
 }
 // KUN <--

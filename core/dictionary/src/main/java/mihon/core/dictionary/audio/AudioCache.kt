@@ -8,7 +8,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.InputStream
 
 /**
  * Thread-safe, in-memory LRU audio cache for word pronunciation clips.
@@ -28,6 +30,9 @@ object AudioCache {
     }
     private var currentMemoryBytes: Long = 0L
     private var maxMemoryBytes: Long = DEFAULT_MAX_MEMORY_BYTES
+
+    @Volatile
+    private var noRedirectClient: Pair<OkHttpClient, OkHttpClient>? = null
 
     fun setMaxMemoryBytes(bytes: Long) {
         synchronized(lock) {
@@ -98,6 +103,11 @@ object AudioCache {
      * Returns cached audio bytes from memory if present, or fetches via [client] on [Dispatchers.IO]
      * directly into memory. Returns null if download fails or content is the dummy placeholder.
      * Zero storage/disk I/O.
+     *
+     * The fetch is bounded: redirects are not followed (a `302` to a host the
+     * [isAllowedWordAudioUrl] fence never saw would otherwise turn this into an open proxy) and a
+     * body larger than [MAX_WORD_AUDIO_BYTES] is dropped while streaming, so a hostile response
+     * cannot be inflated into RAM before the cache trim runs.
      */
     suspend fun getOrDownload(url: String, client: OkHttpClient): ByteArray? = withContext(Dispatchers.IO) {
         if (url.isBlank() || url.startsWith("tts:")) return@withContext null
@@ -106,13 +116,14 @@ object AudioCache {
 
         try {
             val request = Request.Builder().url(url).build()
-            client.newCall(request).execute().use { response ->
+            audioHttpClient(client).newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return@withContext null
                 val body = response.body
                 val declaredLength = body.contentLength()
                 if (declaredLength == JPOD_DUMMY_AUDIO_BYTES.toLong()) return@withContext null
+                if (declaredLength > MAX_WORD_AUDIO_BYTES) return@withContext null
 
-                val bytes = body.bytes()
+                val bytes = readAudioBodyCapped(body.byteStream()) ?: return@withContext null
                 if (bytes.isEmpty() || bytes.size == JPOD_DUMMY_AUDIO_BYTES) {
                     return@withContext null
                 }
@@ -121,6 +132,42 @@ object AudioCache {
             }
         } catch (_: Exception) {
             null
+        }
+    }
+
+    /**
+     * [client] with redirect-following switched off, so every request the page influences stays on
+     * the host the [isAllowedWordAudioUrl] fence approved. Derived clients share the connection pool
+     * and dispatcher of [client]; the derivation is cached per source client.
+     */
+    internal fun audioHttpClient(client: OkHttpClient): OkHttpClient {
+        val cached = noRedirectClient
+        if (cached != null && cached.first === client) return cached.second
+        val derived = client.newBuilder()
+            .followRedirects(false)
+            .followSslRedirects(false)
+            .build()
+        noRedirectClient = client to derived
+        return derived
+    }
+
+    /**
+     * Reads [stream] into memory, returning null as soon as it exceeds [maxBytes] (the stream is
+     * abandoned rather than truncated, so no partial clip is ever cached or played).
+     */
+    internal fun readAudioBodyCapped(
+        stream: InputStream,
+        maxBytes: Long = MAX_WORD_AUDIO_BYTES,
+    ): ByteArray? {
+        val out = ByteArrayOutputStream()
+        val buffer = ByteArray(16 * 1024)
+        var total = 0L
+        while (true) {
+            val read = stream.read(buffer)
+            if (read == -1) return out.toByteArray()
+            total += read
+            if (total > maxBytes) return null
+            out.write(buffer, 0, read)
         }
     }
 

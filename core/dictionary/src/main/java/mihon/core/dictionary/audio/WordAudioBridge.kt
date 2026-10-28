@@ -18,6 +18,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -140,8 +141,17 @@ class WordAudioBridge(
         player.stop()
     }
 
-    /** Destroy player resources (called when popup bridge is torn down). */
+    @Volatile
+    private var destroyed = false
+
+    /**
+     * Destroy player resources (called when the popup bridge is torn down). Idempotent: the WebView
+     * teardown paths may reach it more than once, and it must not resurrect a cancelled scope.
+     */
     fun destroy() {
+        if (destroyed) return
+        destroyed = true
+        scope.cancel()
         player.destroy()
     }
 
@@ -185,17 +195,6 @@ class WordAudioBridge(
 private fun String.escapeLineSeparators(): String =
     replace("\u2028", "\\u2028").replace("\u2029", "\\u2029")
 
-/**
- * The renderer may only hand the bridge a network URL or the resolver's own TTS pseudo-URL. A
- * dictionary page that manages to run script must not be able to make the app read local files
- * (`file:`, `content:`) or follow any other scheme.
- */
-internal fun isAllowedWordAudioUrl(url: String): Boolean {
-    val scheme = url.substringBefore(':', missingDelimiterValue = "").lowercase()
-    return when (scheme) {
-        "http", "https" -> url.substringAfter(':', "").startsWith("//")
-        "tts" -> true
-        else -> false
-    }
-}
+// The renderer's URL fence (scheme *and* host, so a page cannot reach LAN/metadata endpoints) lives
+// in `WordAudioUrlPolicy.kt` next to `isAllowedWordAudioUrl`.
 // KUN <--
