@@ -20,6 +20,7 @@
 // KUN <--
 package eu.kanade.presentation.more.onboarding
 
+import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.fail
 import java.io.File
@@ -63,9 +64,32 @@ class DictionaryOcrSetupLayoutTest {
         }
     }
 
+    /**
+     * The upgrade prompt answers with two equally weighted buttons, each enabled, each storing its
+     * value and dismissing in one tap. The shape it replaced had a single accept button disabled
+     * until an in-content switch was flipped, next to a "Not now" secondary action — two controls
+     * answering the same question, one of them silently inert.
+     */
+    @Test
+    fun `source guard - the upgrade prompt offers two enabled answers that both store the choice`() {
+        val screen = source(SETUP_SCREEN)
+
+        // Equal standing: the shared button bar puts both answers in one weighted row...
+        screen shouldContainSource """equalActionButtons\s*=\s*true"""
+        // ...and neither is ever disabled, nor is the in-content switch used as the answer.
+        screen shouldNotContainSource """canAccept\s*=\s*(enabled|false)"""
+        screen shouldContainSource """showEnableSwitch\s*=\s*false"""
+        // Both answers are stored: one tap writes `true`, the other an explicit `false`.
+        screen shouldContainSource """accepted\s*=\s*true"""
+        screen shouldContainSource """accepted\s*=\s*false"""
+        occurrences(screen, Regex("""navigator\s*\.\s*pop\(\s*\)""")) shouldBe 2
+    }
+
     private companion object {
         const val SETUP_CONTENT =
             "src/main/java/eu/kanade/presentation/more/onboarding/DictionaryOcrSetupContent.kt"
+        const val SETUP_SCREEN =
+            "src/main/java/eu/kanade/tachiyomi/ui/more/DictionaryOcrSetupScreen.kt"
         const val INFO_SCREEN =
             "../presentation-core/src/main/java/tachiyomi/presentation/core/screens/InfoScreen.kt"
     }
@@ -77,6 +101,16 @@ private infix fun String.shouldNotContainSource(pattern: String) {
         fail("expected the source NOT to contain /$pattern/")
     }
 }
+
+/** The mirror of [shouldNotContainSource]: [pattern] must occur in the source. */
+private infix fun String.shouldContainSource(pattern: String) {
+    if (!Regex(pattern).containsMatchIn(this)) {
+        fail("expected the source to contain /$pattern/")
+    }
+}
+
+/** How many times [pattern] occurs in this text. */
+private fun occurrences(source: String, pattern: Regex): Int = pattern.findAll(source).count()
 
 /**
  * Drops comments before asserting: the composable's KUN header *documents* the rule by naming

@@ -313,8 +313,8 @@
     <string name="dictionary_ocr_setup_enable_summary">Fügt den Wörterbuch-Tab, die Wortsuche im Reader und OCR-Overlays hinzu.</string>
     <string name="dictionary_ocr_setup_body">Standardmäßig aus; bis du es einschaltest, passiert nichts. Es auszulassen ist eine endgültige Antwort und keine spätere Erinnerung – du kannst es jederzeit in Einstellungen → Wörterbücher oder Einstellungen → OCR einschalten.</string>
     <string name="dictionary_ocr_setup_privacy">Wörterbücher und OCR-Modelle werden lokal gespeichert und verarbeitet; keine Seite verlässt dein Gerät.</string>
-    <string name="dictionary_ocr_setup_accept">Aktivieren</string>
-    <string name="dictionary_ocr_setup_decline">Jetzt nicht</string>
+    <string name="dictionary_ocr_setup_accept">Einschalten</string>
+    <string name="dictionary_ocr_setup_decline">Aus lassen</string>
     <string name="pref_dictionary_ocr_enabled">Wörterbücher &amp; OCR</string>
     <string name="pref_dictionary_ocr_enabled_summary">Wortsuche, der Wörterbuch-Tab und Manga-OCR. Ausschalten blendet alles aus.</string>
     <string name="pref_dictionary_ocr_disabled_hint">Wörterbücher und OCR sind aus, daher sind die folgenden Einstellungen ausgeblendet. Schalte den Schalter oben ein, um Wörterbücher und OCR zu verwalten.</string>

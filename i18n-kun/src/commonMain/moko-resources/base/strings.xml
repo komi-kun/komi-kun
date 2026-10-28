@@ -313,8 +313,8 @@
     <string name="dictionary_ocr_setup_enable_summary">Adds the Dictionary tab, in-reader word lookup and OCR overlays.</string>
     <string name="dictionary_ocr_setup_body">This is off by default and nothing happens until you turn it on. Leaving it off is a final answer, not a reminder for later, and you can still turn it on any time in Settings → Dictionaries or Settings → OCR.</string>
     <string name="dictionary_ocr_setup_privacy">Dictionaries and OCR models are stored and processed locally; no page leaves the device.</string>
-    <string name="dictionary_ocr_setup_accept">Enable</string>
-    <string name="dictionary_ocr_setup_decline">Not now</string>
+    <string name="dictionary_ocr_setup_accept">Turn on</string>
+    <string name="dictionary_ocr_setup_decline">Keep off</string>
     <string name="pref_dictionary_ocr_enabled">Dictionaries &amp; OCR</string>
     <string name="pref_dictionary_ocr_enabled_summary">Word lookup, the Dictionary tab and manga OCR. Turn off to hide all of them.</string>
     <string name="pref_dictionary_ocr_disabled_hint">Dictionaries and OCR are off, so the settings below are hidden. Turn the switch above on to manage dictionaries and OCR.</string>

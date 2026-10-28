@@ -46,6 +46,14 @@ fun InfoScreen(
     rejectText: String? = null,
     onRejectClick: (() -> Unit)? = null,
     rejectAction: (@Composable RowScope.() -> Unit)? = null,
+    // KUN -->
+    /**
+     * Give [acceptText] and [rejectText] the same row and weight instead of putting the accept
+     * action full-width above a secondary reject button. Used by a prompt whose two answers are
+     * equally valid and equally one tap away (`DictionaryOcrSetupScreen`).
+     */
+    equalActionButtons: Boolean = false,
+    // KUN <--
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Scaffold(
@@ -69,24 +77,48 @@ fun InfoScreen(
                         vertical = MaterialTheme.padding.small,
                     ),
             ) {
-                Button(
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = canAccept,
-                    onClick = onAcceptClick,
-                ) {
-                    Text(text = acceptText)
-                }
-                if (rejectText != null && onRejectClick != null) {
+                // KUN -->
+                // Two answers of equal standing: one row, equal weight, both enabled and both one
+                // tap away — no disabled accept that hides which action actually commits.
+                val equalRow = equalActionButtons && rejectText != null && onRejectClick != null
+                if (equalRow) {
                     Row(horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.extraSmall)) {
+                        Button(
+                            modifier = Modifier.weight(1f),
+                            enabled = canAccept,
+                            onClick = onAcceptClick,
+                        ) {
+                            Text(text = acceptText)
+                        }
                         OutlinedButton(
                             modifier = Modifier.weight(1f),
-                            onClick = onRejectClick,
+                            onClick = { onRejectClick?.invoke() },
                         ) {
-                            Text(text = rejectText)
+                            Text(text = rejectText.orEmpty())
                         }
                         rejectAction?.invoke(this)
                     }
+                } else {
+                    Button(
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = canAccept,
+                        onClick = onAcceptClick,
+                    ) {
+                        Text(text = acceptText)
+                    }
+                    if (rejectText != null && onRejectClick != null) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.extraSmall)) {
+                            OutlinedButton(
+                                modifier = Modifier.weight(1f),
+                                onClick = onRejectClick,
+                            ) {
+                                Text(text = rejectText)
+                            }
+                            rejectAction?.invoke(this)
+                        }
+                    }
                 }
+                // KUN <--
             }
         },
     ) { paddingValues ->

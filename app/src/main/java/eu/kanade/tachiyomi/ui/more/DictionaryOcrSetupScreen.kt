@@ -4,21 +4,20 @@
 //
 // It is *not* a standalone settings shortcut: `MainActivity` pushes it at most once, only while
 // `BasePreferences.shownOnboardingFlow` is true (an install that already finished onboarding) and
-// `DictionaryOcrPreferences.hasChosen()` is false (never asked). Both buttons store an explicit
-// answer, and there is no dismiss path — back and every "dismiss" affordance are blocked — so the
-// prompt cannot be left half-asked.
+// `DictionaryOcrPreferences.hasChosen()` is false (never asked). Both answers are **buttons of equal
+// standing** — "Turn on" and "Keep off" — each storing its value and dismissing the screen in one
+// tap, and there is no dismiss path: back and every "dismiss" affordance are blocked, so the prompt
+// cannot be left half-asked. There is deliberately no disabled accept either: a greyed-out button
+// tied to an in-content switch leaves the user guessing which control actually answers.
 //
-// It renders the same `DictionaryOcrSetupContent` the onboarding step renders.
+// It renders the same `DictionaryOcrSetupContent` the onboarding step renders (without the switch,
+// since the buttons *are* the answer).
 // KUN <--
 package eu.kanade.tachiyomi.ui.more
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
@@ -40,13 +39,9 @@ class DictionaryOcrSetupScreen : Screen() {
         val navigator = LocalNavigator.currentOrThrow
         val preferences = remember(context) { context.appGraph.dictionaryOcrPreferences }
 
-        // Starts from the stored value (off on a fresh upgrade, since nothing auto-enables it) and
-        // only the accept button commits it.
-        var enabled by rememberSaveable { mutableStateOf(preferences.isEnabled()) }
-
-        // No dismiss without an answer: back is swallowed, and InfoScreen is given both actions.
+        // No dismiss without an answer: back is swallowed, and both answers are buttons.
         BackHandler(enabled = true) {
-            // Intentionally empty; the user must accept or decline.
+            // Intentionally empty; the user must turn it on or keep it off.
         }
 
         InfoScreen(
@@ -54,9 +49,9 @@ class DictionaryOcrSetupScreen : Screen() {
             headingText = stringResource(KUNMR.strings.dictionary_ocr_setup_title),
             subtitleText = stringResource(KUNMR.strings.dictionary_ocr_setup_description),
             acceptText = stringResource(KUNMR.strings.dictionary_ocr_setup_accept),
-            // Enabling is the accept path, so it requires the switch to be on: the button can never
-            // write a value the user did not see selected.
-            canAccept = enabled,
+            // Both buttons are always enabled: each one *is* an answer, so neither may be disabled.
+            canAccept = true,
+            equalActionButtons = true,
             onAcceptClick = {
                 DictionaryOcrSetupPolicy.recordAnswer(preferences, accepted = true)
                 navigator.pop()
@@ -69,8 +64,9 @@ class DictionaryOcrSetupScreen : Screen() {
             },
         ) {
             DictionaryOcrSetupContent(
-                enabled = enabled,
-                onEnabledChange = { enabled = it },
+                enabled = false,
+                onEnabledChange = {},
+                showEnableSwitch = false,
             )
         }
     }

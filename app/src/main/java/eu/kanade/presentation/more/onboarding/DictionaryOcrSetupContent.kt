@@ -34,13 +34,18 @@ import tachiyomi.presentation.core.i18n.stringResource
 /**
  * Shared body of the dictionary/OCR opt-in. [enabled] is the switch state and [onEnabledChange] is
  * the only way to change it: the caller decides whether the switch *is* the answer (onboarding) or
- * whether an explicit button commits it (upgrade screen).
+ * whether the two explicit buttons are (upgrade screen).
+ *
+ * [showEnableSwitch] is off on the upgrade screen, where "Turn on"/"Keep off" are the answers: a
+ * switch beside two buttons would leave the user unsure which of them commits, and the buttons
+ * already state both values.
  */
 @Composable
 internal fun DictionaryOcrSetupContent(
     enabled: Boolean,
     onEnabledChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
+    showEnableSwitch: Boolean = true,
 ) {
     Column(
         // No `verticalScroll` here on purpose: `InfoScreen` already scrolls its content slot, and a
@@ -53,23 +58,35 @@ internal fun DictionaryOcrSetupContent(
     ) {
         Text(stringResource(KUNMR.strings.dictionary_ocr_setup_description))
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = stringResource(KUNMR.strings.dictionary_ocr_setup_enable),
-                    style = MaterialTheme.typography.titleSmall,
-                )
-                Text(
-                    text = stringResource(KUNMR.strings.dictionary_ocr_setup_enable_summary),
-                    style = MaterialTheme.typography.bodySmall,
+        if (showEnableSwitch) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(KUNMR.strings.dictionary_ocr_setup_enable),
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+                    Text(
+                        text = stringResource(KUNMR.strings.dictionary_ocr_setup_enable_summary),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                Switch(
+                    checked = enabled,
+                    onCheckedChange = onEnabledChange,
                 )
             }
-            Switch(
-                checked = enabled,
-                onCheckedChange = onEnabledChange,
+        } else {
+            // The buttons are the answer; the heading still names what they turn on.
+            Text(
+                text = stringResource(KUNMR.strings.dictionary_ocr_setup_enable),
+                style = MaterialTheme.typography.titleSmall,
+            )
+            Text(
+                text = stringResource(KUNMR.strings.dictionary_ocr_setup_enable_summary),
+                style = MaterialTheme.typography.bodySmall,
             )
         }
 

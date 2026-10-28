@@ -304,4 +304,6 @@
     <string name="ocr_redoing_chapter">Volviendo a ejecutar OCR para el capítulo…</string>
     <string name="ocr_redo_page_complete">OCR actualizado para la página %1$d</string>
     <string name="ocr_redo_chapter_complete">OCR actualizado para el capítulo</string>
+    <string name="dictionary_ocr_setup_accept">Activar</string>
+    <string name="dictionary_ocr_setup_decline">Dejarlo desactivado</string>
 </resources>
