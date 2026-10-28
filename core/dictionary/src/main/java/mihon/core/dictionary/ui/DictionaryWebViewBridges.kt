@@ -4,6 +4,7 @@ package mihon.core.dictionary.ui
 import android.os.Build
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -69,11 +70,14 @@ class PayloadBridge {
  */
 class AnkiJsBridge(
     private val webViewProvider: () -> WebView?,
+    // KUN --> lookup coroutine dispatcher: the main thread in the app, an immediate one in JVM tests.
+    dispatcher: CoroutineDispatcher = Dispatchers.Main,
+    // KUN <--
 ) {
     var onAnkiLookup: ((Int, Int?, String?, String?, Boolean) -> Unit)? = null
 
     private val scopeJob = Job()
-    private val scope = CoroutineScope(Dispatchers.Main + scopeJob)
+    private val scope = CoroutineScope(dispatcher + scopeJob)
 
     /**
      * Idempotent teardown for a discarded WebView: cancels in-flight lookups and drops the callback,
