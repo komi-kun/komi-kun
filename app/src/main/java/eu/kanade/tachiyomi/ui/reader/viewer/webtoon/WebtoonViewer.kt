@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.ui.reader.viewer.webtoon
 
+import android.graphics.ColorFilter
 import android.graphics.PointF
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -9,6 +10,12 @@ import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.animation.LinearInterpolator
 import android.widget.Toast
 import androidx.annotation.ColorInt
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asAndroidColorFilter
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.app.ActivityCompat
 import androidx.core.view.doOnLayout
 import androidx.core.view.isGone
@@ -21,7 +28,9 @@ import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import eu.kanade.tachiyomi.ui.reader.model.ViewerChapters
 import eu.kanade.tachiyomi.ui.reader.setting.GeneralSettings
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
+import eu.kanade.tachiyomi.ui.reader.viewer.LocalPageColorFilter
 import eu.kanade.tachiyomi.ui.reader.viewer.LongStripSettings
+import eu.kanade.tachiyomi.ui.reader.viewer.ReaderPageImageView
 import eu.kanade.tachiyomi.ui.reader.viewer.Viewer
 import eu.kanade.tachiyomi.ui.reader.viewer.ViewerNavigation
 import eu.kanade.tachiyomi.ui.reader.viewer.ViewerNavigation.NavigationRegion
@@ -35,7 +44,9 @@ import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.sy.SYMR
+import java.util.Collections
 import java.util.Locale
+import java.util.WeakHashMap
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -345,12 +356,37 @@ class WebtoonViewer(
         }
     }
 
+    /** The page images' colours, for pages bound later - see [LocalPageColorFilter]. */
+    var pageColorFilter: ColorFilter? = null
+        private set
+
+    /** Every page view made, as the recycler's cached ones are neither children nor always bound again. */
+    private val pageViews = Collections.newSetFromMap(WeakHashMap<ReaderPageImageView, Boolean>())
+
+    fun onPageViewCreated(view: ReaderPageImageView) {
+        pageViews += view
+    }
+
+    @Composable
+    override fun Content(modifier: Modifier) {
+        val filter = LocalPageColorFilter.current
+        val pageFilter = remember(filter) { filter?.asAndroidColorFilter() }
+        SideEffect {
+            pageColorFilter = pageFilter
+            pageViews.forEach { it.pageColorFilter = pageFilter }
+        }
+        AndroidView(factory = { frame }, modifier = modifier)
+    }
+
+    // KUN -->
+    // bridge: removed when ReaderActivity draws through Compose.
     /**
      * Returns the view this viewer uses.
      */
     override fun getView(): View {
         return frame
     }
+    // KUN <--
 
     /**
      * Destroys this viewer. Called when leaving the reader or swapping viewers.
