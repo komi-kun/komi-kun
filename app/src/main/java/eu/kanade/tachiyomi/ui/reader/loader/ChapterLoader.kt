@@ -153,14 +153,20 @@ class ChapterLoader(
             }
             // SY <--
             // KUN -->
-            // **`LocalSource` before `isDownloaded`, deliberately.** For a local source every chapter
-            // is "downloaded": `DownloadProvider` maps the local source tree to the chapters' own
-            // files, so `isChapterDownloadedOnDisk` is true for the chapter itself. Taking the
-            // download branch then asked `DownloadPageLoader` for the *bare chapter name*
-            // (`DownloadProvider` builds that candidate for the local source), a document that does
-            // not exist but whose provider answers `exists()` anyway — so opening a local `.cbz` (or
-            // folder) chapter threw `FileNotFoundException: ENOENT`. The chapter's own format is the
-            // only correct loader for it, so this branch has to precede the generic download one.
+            // **`LocalSource` before `isDownloaded`, deliberately.** A local chapter is not a
+            // download, but the download lookup can still resolve for one:
+            // `DownloadProvider.getValidChapterDirNames` tries `<name>` and then `<name>.cbz`, so a
+            // local `.cbz` whose DB name is its file's bare name is reported "downloaded" and the
+            // generic branch below would take it. That branch then resolved the **bare-name**
+            // candidate first — a document that is not on disk, but which the document provider still
+            // answers `exists()` for — and treated it as the chapter's directory, so the reader could
+            // not open a chapter whose archive was right there. The chapter's own format, resolved
+            // from `chapter.url` by `LocalSource.getFormat`, is the only loader that opens the real
+            // file; the fixed candidates never match a `.zip`/`.rar`/`.epub` chapter or one whose
+            // `ComicInfo` title differs from its file name, which is why only the `.cbz` case broke.
+            //
+            // The order is the protection: upstream has `isDownloaded` first and an upstream merge
+            // will try to put it back, which silently breaks local `.cbz` chapters again.
             source is LocalSource -> source.getFormat(chapter.chapter.toSChapter()).let { format ->
                 when (format) {
                     is Format.Directory -> DirectoryPageLoader(format.file)

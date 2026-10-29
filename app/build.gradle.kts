@@ -212,14 +212,27 @@ android {
 }
 
 // KUN -->
-// Native debug symbols for the dictionary/OCR libraries are **variant-conditional**: a debug build
-// keeps them (they are how a native crash in `libhoshidicts_jni`/Paddle is symbolicated), while the
-// release-type variants (release, releaseTest, foss, nightly, benchmark) ship them stripped.
+// Native debug symbols for the dictionary/OCR libraries are **variant-conditional**: a debuggable
+// build keeps them (they are how a native crash in `libhoshidicts_jni`/Paddle is symbolicated while
+// debugging), while the non-debuggable build types (release, releaseTest, foss, nightly, benchmark)
+// ship them stripped.
 //
 // Measured on `libhoshidicts_jni.so`: 14.2 MB unstripped vs 1.73 MB stripped; `libomp` 1.23 MB vs
 // 0.97 MB — about 12.5 MB per ABI that used to reach every release user for no runtime benefit.
 // The upstream entries in `packaging.jniLibs.keepDebugSymbols` above are left exactly as upstream
 // has them; only these four are added, and only for a debuggable build type.
+//
+// The thing this costs is **not** only a debugging convenience: the build that reports crashes is the
+// nightly, and it is not debuggable. With `-Pdist=ci` it enables telemetry (Crashlytics), unless the
+// `GOOGLE_SERVICES_JSON` secret is missing, which turns it off — and telemetry is exactly what the
+// stripped symbols would have helped. Nothing sets `ndk.debugSymbolLevel` either, and only the
+// Java/Kotlin mapping upload is configured (`Config.uploadCrashlyticsMapping`, GITHUB distribution
+// only), so there is no separate native symbol file to fall back on: a native crash in these
+// libraries reaches Crashlytics unsymbolicated.
+//
+// Giving the telemetry builds `ndk.debugSymbolLevel = "FULL"` (plus a native symbol upload) would fix
+// that and is worth a follow-up of its own; it is not done here, because it is a build/CI change with
+// its own artifact-size and release-pipeline consequences, not a symbol-keeping tweak.
 val kunDebuggableBuildTypes = android.buildTypes.filter { it.isDebuggable }.map { it.name }.toSet()
 
 androidComponents {

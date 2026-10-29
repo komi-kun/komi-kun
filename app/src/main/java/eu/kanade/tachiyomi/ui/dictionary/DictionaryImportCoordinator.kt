@@ -106,9 +106,12 @@ object DictionaryImportCoordinator {
             }
             importZipLocked(context, tempZip, prefs, repository)
         } catch (e: CancellationException) {
-            // Leaving the screen cancels the import. Cancellation is not a failed import: swallowing
-            // it here turned it into `Failed(Unknown)` and let the coroutine carry on into the tree
-            // mutation, writing a dictionary nobody was importing any more.
+            // Leaving the screen cancels the import. The `catch (Throwable)` below would report that
+            // as `Failed(Unknown)` — the user who simply left the screen told "the import failed" —
+            // and swallowing it also consumed the cancellation, so the caller's coroutine carried on
+            // as if nothing had happened. A cancellation is not an import outcome, so it is rethrown
+            // unchanged (nothing continues into the tree mutation either way: the import body has
+            // already stopped at the point it was cancelled).
             throw e
         } catch (e: Throwable) {
             Log.e(TAG, "import failed", e)
