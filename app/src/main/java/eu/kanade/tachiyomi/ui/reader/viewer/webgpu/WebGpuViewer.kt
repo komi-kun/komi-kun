@@ -7,9 +7,10 @@ import android.os.SystemClock
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
-import android.view.View
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
 import ca.mpreg.imagedecoder.ImageDecoder
-import ca.mpreg.webgpuviewer.ImageView
 import ca.mpreg.webgpuviewer.closeTo
 import ca.mpreg.webgpuviewer.renderer.GainmapInput
 import ca.mpreg.webgpuviewer.renderer.Image
@@ -29,7 +30,9 @@ import ca.mpreg.webgpuviewer.transition.TransitionStackRight
 import ca.mpreg.webgpuviewer.transition.TransitionStackUp
 import ca.mpreg.webgpuviewer.viewer.AnimationFrame
 import ca.mpreg.webgpuviewer.viewer.ImagePage
+import ca.mpreg.webgpuviewer.viewer.ImageViewer
 import ca.mpreg.webgpuviewer.viewer.ImageViewerContinuousState
+import ca.mpreg.webgpuviewer.viewer.ImageViewerState
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.ui.reader.ReaderActivity
 import eu.kanade.tachiyomi.ui.reader.loader.HttpPageLoader
@@ -37,11 +40,16 @@ import eu.kanade.tachiyomi.ui.reader.model.DownloadStream
 import eu.kanade.tachiyomi.ui.reader.model.ReaderChapter
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import eu.kanade.tachiyomi.ui.reader.model.ViewerChapters
+import eu.kanade.tachiyomi.ui.reader.setting.GeneralSettings
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences.TransitionAnimation
+import eu.kanade.tachiyomi.ui.reader.viewer.LongStripSettings
+import eu.kanade.tachiyomi.ui.reader.viewer.PagedSettings
 import eu.kanade.tachiyomi.ui.reader.viewer.ReaderPageImageView.ZoomStartPosition
 import eu.kanade.tachiyomi.ui.reader.viewer.Viewer
 import eu.kanade.tachiyomi.ui.reader.viewer.ViewerNavigation.NavigationRegion
+import eu.kanade.tachiyomi.ui.reader.viewer.collectChanges
+import eu.kanade.tachiyomi.ui.reader.viewer.position
 import eu.kanade.tachiyomi.util.system.createReaderThemeContext
 import eu.kanade.tachiyomi.util.system.readerBackgroundColor
 import kotlinx.coroutines.CancellationException
@@ -52,6 +60,8 @@ import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -78,7 +88,7 @@ open class WebGpuViewer(
     val activity: ReaderActivity,
     val isReversed: Boolean,
     val isVertical: Boolean,
-    val pager: ImageView = ImageView(activity, isVertical = isVertical, isReversed = isReversed),
+    val viewerState: ImageViewerState = ImageViewerState(isVertical = isVertical, isReversed = isReversed),
 ) : Viewer {
 
     open val isContinuous: Boolean = false
@@ -87,11 +97,9 @@ open class WebGpuViewer(
     @Volatile
     private var cachedBackgroundColor: Int? = null
 
-    val readerPreferences by lazy { activity.appGraph.readerPreferences }
-
-    internal fun readerBackgroundColor(): Int =
-        cachedBackgroundColor ?: activity.baseContext.readerBackgroundColor(config.theme)
-            .also { cachedBackgroundColor = it }
+    internal fun readerBackgroundColor(): Int = cachedBackgroundColor ?: activity.baseContext
+        .readerBackgroundColor(general.theme)
+        .also { cachedBackgroundColor = it }
 
     @Volatile
     private var cachedThemedContext: Context? = null
@@ -264,10 +272,42 @@ open class WebGpuViewer(
         }
     }
 
+    private val settingsViewModel = activity.settingsViewModel
+
     /**
-     * Configuration used by the pager, like allow taps, scale mode on images, page transitions...
+     * Settings every paged viewer uses, like scale mode on images or tap zones, which the long strip uses too.
      */
-    val config = WebGpuConfig(this, scope, readerPreferences)
+    val paged: PagedSettings
+        get() = settingsViewModel.paged.value
+
+    /**
+     * Settings every long strip viewer uses, like crop image borders.
+     */
+    val longStrip: LongStripSettings
+        get() = settingsViewModel.longStrip.value
+
+    /**
+     * Settings only the paged WebGPU viewers use, like page transitions, which the long strip uses too.
+     */
+    val webgpuPaged: WebGpuPagedSettings
+        get() = settingsViewModel.webgpuPaged.value
+
+    /**
+     * Settings only the long strip WebGPU viewer uses, like the page gap.
+     */
+    val webgpuLongStrip: WebGpuLongStripSettings
+        get() = settingsViewModel.webgpuLongStrip.value
+
+    /**
+     * Settings shared by every viewer, like allow taps.
+     */
+    val general: GeneralSettings
+        get() = settingsViewModel.general.value
+
+    val imageZoomType: ZoomStartPosition
+        get() = paged.page.zoomStart.position(
+            auto = if (isReversed) ZoomStartPosition.RIGHT else ZoomStartPosition.LEFT,
+        )
 
     // Read from the render and decode threads, via the prevChapter/nextChapter getters.
     @Volatile
@@ -593,7 +633,7 @@ open class WebGpuViewer(
                         preloadChapterThenRetry(prevChapter)
                     }
 
-                    if (config.alwaysShowChapterTransition) {
+                    if (general.alwaysShowChapterTransition) {
                         getPage(prevChapter, page.chapter, currentPage)
                     } else {
                         prevChapter.pages?.lastOrNull()?.let { getPage(it, currentPage) }
@@ -610,7 +650,7 @@ open class WebGpuViewer(
                         preloadChapterThenRetry(nextChapter)
                     }
 
-                    if (config.alwaysShowChapterTransition) {
+                    if (general.alwaysShowChapterTransition) {
                         getPage(page.chapter, nextChapter, currentPage)
                     } else {
                         nextChapter.pages?.firstOrNull()?.let { getPage(it, currentPage) }
@@ -620,7 +660,7 @@ open class WebGpuViewer(
     }
 
     /** Read live: these pages are built before the surface has a size, and outlive a rotation. */
-    private fun viewportPageWidth(half: Boolean): Int = if (half) pager.state.width / 2 else pager.state.width
+    private fun viewportPageWidth(half: Boolean): Int = if (half) viewerState.width / 2 else viewerState.width
 
     /**
      * Check if dual page mode is currently active based on config and view dimensions.
@@ -628,16 +668,34 @@ open class WebGpuViewer(
      */
     fun isDualPageMode(): Boolean {
         if (isContinuous) return false
-        return when (config.dualPageView) {
+        return when (webgpuPaged.page.dualPageView) {
             ReaderPreferences.DualPageView.NEVER -> false
             ReaderPreferences.DualPageView.ALWAYS -> true
-            ReaderPreferences.DualPageView.WIDE -> {
-                val width = pager.state.width
-                val height = pager.state.height
-                width > 0 && height > 0 && width.toFloat() / height > 1f
-            }
+            // KUN -->
+            // The WIDE comparison itself is [isWideViewport]'s, the one place it is made: the
+            // settings sheet is handed the same answer for the box the viewer is drawn in.
+            ReaderPreferences.DualPageView.WIDE -> isWideViewport(viewerState.width, viewerState.height)
+            // KUN <--
         }
     }
+
+    // KUN -->
+    /**
+     * Whether a [width] x [height] viewport is wide enough for a spread. The only place the WIDE
+     * rule compares width to height, so [isDualPageMode] and the settings sheet cannot disagree.
+     */
+    private fun isWideViewport(width: Int, height: Int): Boolean =
+        width > 0 && height > 0 && width.toFloat() / height > 1f
+
+    /**
+     * Publishes the box the viewer is drawn in to the settings sheet, which cannot measure the
+     * viewer itself. Every [Content] override takes it, the long strip's included, so no viewer
+     * leaves the sheet on a stale or a missing answer.
+     */
+    protected fun Modifier.publishViewerViewport(): Modifier = onSizeChanged { size ->
+        settingsViewModel.setViewerWideViewport(isWideViewport(size.width, size.height))
+    }
+    // KUN <--
 
     /** The half a spread opens on: right reading right-to-left, left otherwise. */
     private val anchorPosition get() = if (isReversed) SpreadPosition.RIGHT else SpreadPosition.LEFT
@@ -761,7 +819,7 @@ open class WebGpuViewer(
     }
 
     init {
-        pager.state.apply {
+        viewerState.apply {
             fetchPage = fetch@{ index ->
                 val current = currentPage ?: return@fetch null
 
@@ -781,7 +839,10 @@ open class WebGpuViewer(
             }
 
             onTap = { offset ->
-                when (config.navigator.getAction(PointF(offset.x, offset.y))) {
+                // KUN --> the tap zones come from the settings view model (upstream 00335b2a70)
+                val region = activity.settingsViewModel.navigation.value?.getAction(PointF(offset.x, offset.y))
+                when (region ?: NavigationRegion.MENU) {
+                    // KUN <--
                     NavigationRegion.MENU -> activity.toggleMenu()
                     NavigationRegion.NEXT -> moveToNext()
                     NavigationRegion.PREV -> moveToPrevious()
@@ -791,105 +852,139 @@ open class WebGpuViewer(
             }
 
             onLongTap = { _ ->
-                if (activity.viewModel.state.value.menuVisible || config.longTapEnabled) {
+                if (activity.viewModel.state.value.menuVisible || general.longTapEnabled) {
                     (currentPage as? ViewerReaderPage)?.let { activity.onPageLongTap(it.page) }
                 }
             }
         }
 
-        config.imagePropertyChangedListener = {
-            // A theme change comes through here.
-            cachedBackgroundColor = null
-            cachedThemedContext = null
+        // The pages are made with all of these, applied at first only from the WebGPU paged ones every mode reads
+        settingsViewModel.general.collectChanges(scope) { old, new ->
+            if (old != null && old.theme != new.theme) {
+                onPageSettingsChanged()
+            }
+        }
+        settingsViewModel.webgpuPaged.collectChanges(scope) { old, new ->
+            if (old?.page != new.page) {
+                onPageSettingsChanged()
+            }
+        }
+        if (isContinuous) {
+            settingsViewModel.longStrip.collectChanges(scope) { old, _ ->
+                if (old != null) {
+                    onPageSettingsChanged()
+                }
+            }
+            settingsViewModel.webgpuLongStrip.collectChanges(scope) { old, new ->
+                if (old != null && old.page != new.page) {
+                    onPageSettingsChanged()
+                }
+            }
+        }
+        val common = if (isContinuous) {
+            settingsViewModel.webgpuLongStrip.map { it.common }
+        } else {
+            settingsViewModel.webgpuPaged.map { it.common }
+        }
+        common.distinctUntilChanged().collectChanges(scope) { old, new ->
+            if (old?.doubleTapGesturesDisabled != new.doubleTapGesturesDisabled) {
+                viewerState.doubleTapGesturesEnabled = !new.doubleTapGesturesDisabled
+            }
+            if (old?.imageFilters != new.imageFilters) {
+                // Else an older, slower load could land last.
+                imageFiltersJob?.cancel()
+                imageFiltersJob = scope.launch { viewerState.imageFilters = loadFilters(new.imageFilters) }
+            }
+            if (old?.tileFilters != new.tileFilters) {
+                tileFiltersJob?.cancel()
+                tileFiltersJob = scope.launch { viewerState.tileFilters = loadFilters(new.tileFilters) }
+            }
+        }
+        settingsViewModel.paged.collectChanges(scope) { old, new ->
+            if (old != null && old.page != new.page) {
+                onPageSettingsChanged()
+            }
+        }
+    }
 
-            val isDual = isDualPageMode()
-            pager.state.apply {
-                transition = when (if (isDual) config.transitionAnimationDual else config.transitionAnimation) {
-                    TransitionAnimation.BASIC -> if (isVertical) TransitionBasic.Vertical else TransitionBasic
-                    TransitionAnimation.FLIP -> TransitionFlip
-                    TransitionAnimation.FLIP_LEFT -> TransitionFlipLeft
-                    TransitionAnimation.FLIP_RIGHT -> TransitionFlipRight
-                    TransitionAnimation.STACK_LEFT -> TransitionStackLeft
-                    TransitionAnimation.STACK_RIGHT -> TransitionStackRight
-                    TransitionAnimation.STACK_UP -> TransitionStackUp
-                    TransitionAnimation.STACK_DOWN -> TransitionStackDown
-                    TransitionAnimation.SPHERE -> TransitionSphere
-                    TransitionAnimation.CUBE_INSIDE -> TransitionCube
-                    TransitionAnimation.CUBE_OUTSIDE -> TransitionCubeOuter
-                    TransitionAnimation.FADE -> TransitionFade
-                    TransitionAnimation.FADE_WHITE -> TransitionFadeWhite
-                    TransitionAnimation.NONE -> TransitionNone
+    /**
+     * Applies what the pages are made with and remakes them.
+     */
+    private fun onPageSettingsChanged() {
+        val pageSettings = webgpuPaged.page
+        // A theme change comes through here.
+        cachedBackgroundColor = null
+        cachedThemedContext = null
+
+        val isDual = isDualPageMode()
+        viewerState.apply {
+            transition = when (if (isDual) pageSettings.transitionAnimationDual else pageSettings.transitionAnimation) {
+                TransitionAnimation.BASIC -> if (isVertical) TransitionBasic.Vertical else TransitionBasic
+                TransitionAnimation.FLIP -> TransitionFlip
+                TransitionAnimation.FLIP_LEFT -> TransitionFlipLeft
+                TransitionAnimation.FLIP_RIGHT -> TransitionFlipRight
+                TransitionAnimation.STACK_LEFT -> TransitionStackLeft
+                TransitionAnimation.STACK_RIGHT -> TransitionStackRight
+                TransitionAnimation.STACK_UP -> TransitionStackUp
+                TransitionAnimation.STACK_DOWN -> TransitionStackDown
+                TransitionAnimation.SPHERE -> TransitionSphere
+                TransitionAnimation.CUBE_INSIDE -> TransitionCube
+                TransitionAnimation.CUBE_OUTSIDE -> TransitionCubeOuter
+                TransitionAnimation.FADE -> TransitionFade
+                TransitionAnimation.FADE_WHITE -> TransitionFadeWhite
+                TransitionAnimation.NONE -> TransitionNone
+            }
+
+            when (if (isDual) pageSettings.cutoutModeDual else pageSettings.cutoutMode) {
+                ReaderPreferences.CutoutMode.IGNORE -> avoidCutout = false
+                ReaderPreferences.CutoutMode.AVOID -> {
+                    avoidCutout = true
+                    alwaysAvoidCutout = false
                 }
 
-                when (if (isDual) config.cutoutModeDual else config.cutoutMode) {
-                    ReaderPreferences.CutoutMode.IGNORE -> avoidCutout = false
-                    ReaderPreferences.CutoutMode.AVOID -> {
-                        avoidCutout = true
-                        alwaysAvoidCutout = false
-                    }
-
-                    ReaderPreferences.CutoutMode.SHIFT -> {
-                        avoidCutout = true
-                        alwaysAvoidCutout = true
-                    }
-                }
-
-                (this as? ImageViewerContinuousState)?.let {
-                    backgroundColor = readerBackgroundColor()
-                    homeScale = config.continuousMinWidth / 100f
-                    scale = homeScale
-                    cropBorders = this@WebGpuViewer.cropBorders
-                    minScale = if (config.zoomOutDisabled) 0f else 0.1f
-
-                    (this@WebGpuViewer as? WebGpuViewerContinuous)?.let {
-                        if (this@WebGpuViewer.useGap) {
-                            pageGap = config.continuousGap / 100f
-                        }
-                    }
+                ReaderPreferences.CutoutMode.SHIFT -> {
+                    avoidCutout = true
+                    alwaysAvoidCutout = true
                 }
             }
 
-            synchronized(lock) {
-                decodeQueue.clear()
-                loadJobs.values.forEach { it.cancel() }
-                loadJobs.clear()
-                watchJobs.values.forEach { it.cancel() }
-                watchJobs.clear()
-                pageCache.values.forEach {
-                    it.state = PageState.IDLE
-                    (it as? ViewerReaderPage)?.spreadPage?.let(::cleanupImage)
-                    cleanupImage(it.imagePage)
-                }
-                pageCache.clear()
+            (this as? ImageViewerContinuousState)?.let {
+                backgroundColor = readerBackgroundColor()
+                homeScale = webgpuLongStrip.page.continuousMinWidth / 100f
+                scale = homeScale
+                cropBorders = this@WebGpuViewer.cropBorders
+                minScale = if (longStrip.zoomOutDisabled) 0f else 0.1f
 
-                currentPage = (currentPage as? ViewerReaderPage)?.page?.let { getPage(it) }
-                    ?: (currentPage as? ViewerTransitionPage)?.let {
-                        getPage(it.prevChapter, it.nextChapter)
+                (this@WebGpuViewer as? WebGpuViewerContinuous)?.let {
+                    if (this@WebGpuViewer.useGap) {
+                        pageGap = webgpuLongStrip.page.continuousGap / 100f
                     }
-
-                currentPage?.let { preloadPages(it) }
+                }
             }
-
-            pager.state.invalidate()
         }
 
-        config.navigationModeChangedListener = {
-            val showOnStart = config.navigationOverlayOnStart || config.forceNavigationOverlay
-            activity.binding.navigationOverlay.setNavigation(config.navigator, showOnStart)
+        synchronized(lock) {
+            decodeQueue.clear()
+            loadJobs.values.forEach { it.cancel() }
+            loadJobs.clear()
+            watchJobs.values.forEach { it.cancel() }
+            watchJobs.clear()
+            pageCache.values.forEach {
+                it.state = PageState.IDLE
+                (it as? ViewerReaderPage)?.spreadPage?.let(::cleanupImage)
+                cleanupImage(it.imagePage)
+            }
+            pageCache.clear()
+
+            currentPage = (currentPage as? ViewerReaderPage)?.page?.let { getPage(it) }
+                ?: (currentPage as? ViewerTransitionPage)?.let {
+                    getPage(it.prevChapter, it.nextChapter)
+                }
+
+            currentPage?.let { preloadPages(it) }
         }
 
-        config.imageFiltersChangedListener = {
-            val shaders = config.imageFilters
-            // Else an older, slower load could land last.
-            imageFiltersJob?.cancel()
-            imageFiltersJob = scope.launch { pager.state.imageFilters = loadFilters(shaders) }
-        }
-
-        config.tileFiltersChangedListener = {
-            val shaders = config.tileFilters
-            tileFiltersJob?.cancel()
-            tileFiltersJob = scope.launch { pager.state.tileFilters = loadFilters(shaders) }
-        }
+        viewerState.invalidate()
     }
 
     private var imageFiltersJob: Job? = null
@@ -936,10 +1031,24 @@ open class WebGpuViewer(
         }
     }
 
-    override fun getView(): View = pager
+    @Composable
+    override fun Content(modifier: Modifier) {
+        // KUN -->
+        // The settings sheet cannot measure the viewer - it is a dialog over the reader - and the
+        // window is not the viewer: on a foldable, in a split-screen pane, or behind the cutout and
+        // system bar insets this modifier carries, the window can be landscape over a portrait
+        // viewer or the reverse. So the viewer publishes the box it is drawn in, which is the box
+        // its surface gets, and the sheet asks for the WIDE rule's answer to that box
+        // ([isWideViewport]) instead of comparing the window's dp.
+        ImageViewer(
+            modifier = modifier.publishViewerViewport(),
+            state = viewerState,
+        )
+        // KUN <--
+    }
 
     private val cropBorders: Boolean
-        get() = if (isContinuous) config.imageCropBordersWebtoon else config.imageCropBorders
+        get() = if (isContinuous) longStrip.cropBorders else paged.page.cropBorders
 
     /**
      * Asks the loader for [page], after whatever it was asked for before; a request replaces
@@ -972,7 +1081,7 @@ open class WebGpuViewer(
         synchronized(lock) {
             if (pageInCache(page)) queueForDecode(page, prioritize = true)
         }
-        pager.state.invalidate()
+        viewerState.invalidate()
     }
 
     /** Downloads [page] if needed, then re-queues it for decode once ready. */
@@ -1044,7 +1153,7 @@ open class WebGpuViewer(
                         if (old is ProgressPage) {
                             page.imagePage = ErrorPage(this@WebGpuViewer, page, status.error)
                             cleanupImage(old)
-                            pager.state.invalidate()
+                            viewerState.invalidate()
                         }
                     }
                     if (pageInCache(page) && page.state == PageState.LOADING) {
@@ -1184,7 +1293,7 @@ open class WebGpuViewer(
                         page.preview = null
                         page.imagePage = ErrorPage(this@WebGpuViewer, page, status.error)
                         cleanupImage(preview)
-                        pager.state.invalidate()
+                        viewerState.invalidate()
                     }
                     if (pageInCache(page) && !page.isDecoded && page.state == PageState.IDLE &&
                         page.page.status == Page.State.Ready
@@ -1246,7 +1355,7 @@ open class WebGpuViewer(
             }
         }
 
-        val backgroundColor = if (config.automaticBackground) null else readerBackgroundColor()
+        val backgroundColor = if (general.automaticBackground) null else readerBackgroundColor()
 
         // SDR only: HDR skips Image's tone mapping; a gain map may need float textures.
         var previewing = streaming && !dec.isHdr && dec.hdrKind != ImageDecoder.HdrKind.GAINMAP
@@ -1296,7 +1405,7 @@ open class WebGpuViewer(
                         cleanupImage(old)
                         if (old.isOnScreen) single.fadeIn()
                         if (!isDualPageMode() && !applyWideZoomIfNeeded(single)) applyFitModeAnchor(single)
-                        pager.state.invalidate()
+                        viewerState.invalidate()
                     }
                 }
                 if (installed) preview = single else single.cleanup()
@@ -1311,7 +1420,7 @@ open class WebGpuViewer(
                 shown.image?.update(f.image, rect)
                 shown.invalidate()
                 // A spread's page isn't on screen itself.
-                pager.state.invalidate()
+                viewerState.invalidate()
             }
         }
 
@@ -1451,7 +1560,7 @@ open class WebGpuViewer(
                         }
                     }
                     noteIfLone(page)
-                    pager.state.invalidate()
+                    viewerState.invalidate()
                 }
             }
         } finally {
@@ -1487,10 +1596,10 @@ open class WebGpuViewer(
     }
 
     private fun applyWideZoomIfNeeded(page: ImagePage.ImageSingle): Boolean {
-        if (!config.landscapeZoom) return false
+        if (!paged.page.landscapeZoom) return false
 
-        val screenW = pager.state.width
-        val screenH = pager.state.viewportHeight
+        val screenW = viewerState.width
+        val screenH = viewerState.viewportHeight
         if (screenW <= 0 || screenH <= 0) return false
 
         // don't zoom if it fits at original scale
@@ -1513,7 +1622,7 @@ open class WebGpuViewer(
             (aspectRatio > 2f * screenW.toFloat() / screenH)
         if (!isWide) return false
 
-        page.parent = pager.state
+        page.parent = viewerState
 
         // Half the image width fills the screen width.
         page.homeScale = screenW.toFloat() / (page.trimWidth / 2f)
@@ -1523,7 +1632,7 @@ open class WebGpuViewer(
         val minX = page.minX(page.homeScale)
         val maxX = page.maxX(page.homeScale)
 
-        page.x = when (config.imageZoomType) {
+        page.x = when (imageZoomType) {
             ZoomStartPosition.LEFT -> maxX
             ZoomStartPosition.RIGHT -> minX
             ZoomStartPosition.CENTER -> 0f
@@ -1535,28 +1644,34 @@ open class WebGpuViewer(
     }
 
     private fun applyFitModeAnchor(page: ImagePage.ImageSingle) {
-        val scaleType = config.imageScaleType
-        if (scaleType != 3 && scaleType != 4 && scaleType != 5) return
+        val scaleType = paged.page.imageScaleType
+        if (
+            scaleType != ReaderPreferences.ScaleType.FIT_WIDTH &&
+            scaleType != ReaderPreferences.ScaleType.FIT_HEIGHT &&
+            scaleType != ReaderPreferences.ScaleType.ORIGINAL_SIZE
+        ) {
+            return
+        }
 
-        val screenW = pager.state.width
-        val screenH = pager.state.viewportHeight
+        val screenW = viewerState.width
+        val screenH = viewerState.viewportHeight
         if (screenW <= 0 || screenH <= 0) return
 
         val w = page.trimWidth.toFloat()
         val h = page.trimHeight.toFloat()
         if (w <= 0f || h <= 0f) return
 
-        page.parent = pager.state
+        page.parent = viewerState
 
         page.homeScale = when (scaleType) {
-            3 -> screenW / w
-            4 -> screenH / h
-            else -> 1f // original size
+            ReaderPreferences.ScaleType.FIT_WIDTH -> screenW / w
+            ReaderPreferences.ScaleType.FIT_HEIGHT -> screenH / h
+            else -> 1f
         }.coerceAtLeast(0.01f)
 
         page.scale = page.homeScale
 
-        if (scaleType == 5) { // original size
+        if (scaleType == ReaderPreferences.ScaleType.ORIGINAL_SIZE) {
             if (page.homeScale < page.minScale) {
                 page.minScale = page.homeScale
             }
@@ -1565,7 +1680,7 @@ open class WebGpuViewer(
         val minX = page.minX(page.homeScale)
         val maxX = page.maxX(page.homeScale)
 
-        page.x = when (config.imageZoomType) {
+        page.x = when (imageZoomType) {
             ZoomStartPosition.LEFT -> maxX
             ZoomStartPosition.RIGHT -> minX
             ZoomStartPosition.CENTER -> 0f
@@ -1689,7 +1804,7 @@ open class WebGpuViewer(
         progressPage(anchor)?.let { activity.onPageSelected(it.page) }
         preloadPages(anchor)
 
-        pager.state.apply {
+        viewerState.apply {
             onPageChange = onPageChange@{ delta ->
                 // The viewer already showed the page at fetchPage(delta).
                 // We need to update currentPage to match that.
@@ -1795,14 +1910,14 @@ open class WebGpuViewer(
         if (direction != 0 && fromSpread != null) {
             animateTurn(direction, fromSpread)
         } else {
-            pager.state.invalidate()
+            viewerState.invalidate()
         }
     }
 
     /** How a [moveToPage] turn is shown. [direction] is 1 forward through the pages, -1 back. */
     protected open fun animateTurn(direction: Int, fromSpread: ImagePage) {
-        pager.state.transitionFromPage = fromSpread
-        pager.state.animatePageTurn(if (isReversed) direction else -direction)
+        viewerState.transitionFromPage = fromSpread
+        viewerState.animatePageTurn(if (isReversed) direction else -direction)
     }
 
     // moveRight/moveLeft are screen directions, so a right-to-left book's next is to the left.
@@ -1815,14 +1930,14 @@ open class WebGpuViewer(
     }
 
     protected open fun moveRight() {
-        pager.state.getPage(0)?.let { page ->
-            if (config.navigateToPan) {
+        viewerState.getPage(0)?.let { page ->
+            if (paged.navigateToPan) {
                 val minX = page.minX(page.scale)
                 val maxX = page.maxX(page.scale)
                 // Where a running pan is headed, else where it sits.
                 val currentX = page.animationTargetX ?: page.x
 
-                val c = if (isVertical && config.imageZoomType == ZoomStartPosition.RIGHT) -1 else 1
+                val c = if (isVertical && imageZoomType == ZoomStartPosition.RIGHT) -1 else 1
                 val x = (currentX - c / page.scale).coerceIn(minX, maxX)
 
                 if (!currentX.closeTo(x)) {
@@ -1836,13 +1951,13 @@ open class WebGpuViewer(
     }
 
     protected open fun moveLeft() {
-        pager.state.getPage(0)?.let { page ->
-            if (config.navigateToPan) {
+        viewerState.getPage(0)?.let { page ->
+            if (paged.navigateToPan) {
                 val minX = page.minX(page.scale)
                 val maxX = page.maxX(page.scale)
                 val currentX = page.animationTargetX ?: page.x
 
-                val c = if (isVertical && config.imageZoomType == ZoomStartPosition.RIGHT) -1 else 1
+                val c = if (isVertical && imageZoomType == ZoomStartPosition.RIGHT) -1 else 1
                 val x = (currentX + c / page.scale).coerceIn(minX, maxX)
 
                 if (!currentX.closeTo(x)) {
@@ -1894,18 +2009,18 @@ open class WebGpuViewer(
         val ctrlPressed = event.metaState.and(KeyEvent.META_CTRL_ON) > 0
         when (event.keyCode) {
             KeyEvent.KEYCODE_VOLUME_DOWN -> {
-                if (!config.volumeKeysEnabled || activity.viewModel.state.value.menuVisible) {
+                if (!general.volumeKeysEnabled || activity.viewModel.state.value.menuVisible) {
                     return false
                 } else if (isUp) {
-                    if (!config.volumeKeysInverted) moveDown() else moveUp()
+                    if (!general.volumeKeysInverted) moveDown() else moveUp()
                 }
             }
 
             KeyEvent.KEYCODE_VOLUME_UP -> {
-                if (!config.volumeKeysEnabled || activity.viewModel.state.value.menuVisible) {
+                if (!general.volumeKeysEnabled || activity.viewModel.state.value.menuVisible) {
                     return false
                 } else if (isUp) {
-                    if (!config.volumeKeysInverted) moveUp() else moveDown()
+                    if (!general.volumeKeysInverted) moveUp() else moveDown()
                 }
             }
 

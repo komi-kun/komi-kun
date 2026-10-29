@@ -42,7 +42,6 @@ import eu.kanade.tachiyomi.ui.reader.setting.ReadingMode
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import logcat.LogPriority
-import mihon.app.di.appGraph
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.Add
 import mihon.icons.materialsymbols.rounded.Delete
@@ -65,28 +64,21 @@ import java.text.NumberFormat
 internal fun WebGpuViewerSettings(viewModel: ReaderSettingsViewModel) {
     HeadingItem(MR.strings.pref_category_for_this_series)
     val manga by viewModel.mangaFlow.collectAsState()
-    val viewer by viewModel.viewerFlow.collectAsState()
 
     val readingMode = remember(manga) { ReadingMode.fromPreference(manga?.readingMode?.toInt()) }
     SettingsChipRow(MR.strings.pref_category_reading_mode) {
         ReadingMode.entries.map {
             FilterChip(
                 selected = it == readingMode,
-                onClick = { viewModel.onChangeReadingMode(it) },
+                onClick = { viewModel.setReadingMode(it) },
                 label = { Text(stringResource(it.stringRes)) },
             )
         }
     }
 
-    val default = LocalContext.current.appGraph.readerPreferences.defaultReadingMode.get()
-    val resolved = ReadingMode.fromPreference(
-        when {
-            readingMode == ReadingMode.DEFAULT -> default
-            else -> manga?.readingMode?.toInt() ?: default
-        },
-    )
+    val resolved by viewModel.readingMode.collectAsState()
+    val dualPageView by viewModel.preferences.dualPageView.collectAsState()
     if (resolved == ReadingMode.LEFT_TO_RIGHT || resolved == ReadingMode.RIGHT_TO_LEFT) {
-        val dualPageView by viewModel.preferences.dualPageView.collectAsState()
         SettingsChipRow(MR.strings.pref_dual_page_view) {
             ReaderPreferences.DualPageView.entries.map {
                 FilterChip(
@@ -137,7 +129,7 @@ internal fun WebGpuViewerSettings(viewModel: ReaderSettingsViewModel) {
         ReaderOrientation.entries.forEach {
             FilterChip(
                 selected = it == orientation,
-                onClick = { viewModel.onChangeOrientation(it) },
+                onClick = { viewModel.setOrientation(it) },
                 label = { Text(stringResource(it.stringRes)) },
             )
         }
@@ -145,7 +137,21 @@ internal fun WebGpuViewerSettings(viewModel: ReaderSettingsViewModel) {
 
     HeadingItem(MR.strings.webgpu_viewer)
 
-    val isDual = (viewer as? WebGpuViewer)?.isDualPageMode() == true
+    // KUN -->
+    // The WIDE rule is the viewer's, answered for the box the viewer is drawn in and published by
+    // it - not `LocalConfiguration`: the window can be landscape over a portrait viewer on a
+    // foldable, in a split-screen pane, or behind the cutout and system bar insets, which would
+    // offer the dual-page controls to a single-page viewer, or hide them from a dual-page one.
+    // Null before any viewer has been drawn (the sheet can be opened first), which reads as not
+    // wide - the answer the viewer's own WIDE test gives a viewport with no size yet.
+    val viewerWideViewport by viewModel.viewerWideViewport.collectAsState()
+    val isDual = resolved.type is ReadingMode.ViewerType.Pager &&
+        when (dualPageView) {
+            ReaderPreferences.DualPageView.NEVER -> false
+            ReaderPreferences.DualPageView.ALWAYS -> true
+            ReaderPreferences.DualPageView.WIDE -> viewerWideViewport == true
+        }
+    // KUN <--
 
     val navigationModePager by viewModel.preferences.navigationModePager.collectAsState()
     val pagerNavInverted by viewModel.preferences.pagerNavInverted.collectAsState()

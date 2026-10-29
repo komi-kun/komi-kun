@@ -13,9 +13,7 @@ import eu.kanade.tachiyomi.ui.reader.setting.ReaderOrientation
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderSettingsViewModel
 import eu.kanade.tachiyomi.ui.reader.setting.ReadingMode
-import eu.kanade.tachiyomi.ui.reader.viewer.webgpu.WebGpuViewer
 import eu.kanade.tachiyomi.ui.reader.viewer.webgpu.WebGpuViewerSettings
-import eu.kanade.tachiyomi.ui.reader.viewer.webtoon.WebtoonViewer
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
 import tachiyomi.i18n.sy.SYMR
@@ -29,12 +27,16 @@ import java.text.NumberFormat
 
 @Composable
 internal fun ReadingModePage(viewModel: ReaderSettingsViewModel) {
-    val viewer by viewModel.viewerFlow.collectAsState()
-
-    if (viewer is WebGpuViewer) {
+    // KUN -->
+    // Keyed off the viewer the activity built (see ReaderSettingsViewModel.isWebGpuViewer), not the
+    // `highQualityRenderer` preference: when the capability gate falls back to a pager or webtoon
+    // viewer, those are the knobs that work, and the WebGPU ones write preferences it never reads.
+    val isWebGpuViewer by viewModel.isWebGpuViewer.collectAsState()
+    if (isWebGpuViewer) {
         WebGpuViewerSettings(viewModel)
         return
     }
+    // KUN <--
 
     HeadingItem(MR.strings.pref_category_for_this_series)
     val manga by viewModel.mangaFlow.collectAsState()
@@ -43,7 +45,7 @@ internal fun ReadingModePage(viewModel: ReaderSettingsViewModel) {
         ReadingMode.entries.map {
             FilterChip(
                 selected = it == readingMode,
-                onClick = { viewModel.onChangeReadingMode(it) },
+                onClick = { viewModel.setReadingMode(it) },
                 label = { Text(stringResource(it.stringRes)) },
             )
         }
@@ -54,25 +56,25 @@ internal fun ReadingModePage(viewModel: ReaderSettingsViewModel) {
         ReaderOrientation.entries.map {
             FilterChip(
                 selected = it == orientation,
-                onClick = { viewModel.onChangeOrientation(it) },
+                onClick = { viewModel.setOrientation(it) },
                 label = { Text(stringResource(it.stringRes)) },
             )
         }
     }
 
-    when (viewer) {
-        is WebtoonViewer -> {
-            WebtoonViewerSettings(
-                viewModel,
-                // KMK -->
-                readingMode,
-                // KMK <--
-            )
-            // SY -->
-            WebtoonWithGapsViewerSettings(viewModel)
-            // SY <--
-        }
-        else -> PagerViewerSettings(viewModel)
+    val resolvedReadingMode by viewModel.readingMode.collectAsState()
+    if (resolvedReadingMode.type is ReadingMode.ViewerType.Webtoon) {
+        WebtoonViewerSettings(
+            viewModel,
+            // KMK -->
+            readingMode,
+            // KMK <--
+        )
+        // SY -->
+        WebtoonWithGapsViewerSettings(viewModel)
+        // SY <--
+    } else {
+        PagerViewerSettings(viewModel)
     }
 }
 
