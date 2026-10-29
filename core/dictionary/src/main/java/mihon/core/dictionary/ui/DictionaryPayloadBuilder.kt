@@ -19,6 +19,7 @@ import mihon.core.dictionary.model.KanjiEntry
 import mihon.core.dictionary.model.KanjiResult
 import mihon.core.dictionary.model.LookupResult
 import mihon.core.dictionary.model.dictionariesDir
+import mihon.core.dictionary.model.isDictionaryArtifactName
 import java.io.File
 import java.text.Collator
 import java.util.Locale
@@ -222,7 +223,9 @@ fun getFrequencyMode(context: Context, dictTitleOrDir: String): String {
             val dictionariesDir = dictionariesDir(context)
             val freqDir = File(dictionariesDir, "frequency")
             if (freqDir.exists()) {
-                val subdirs = freqDir.listFiles() ?: emptyArray()
+                // Import artifacts (`<name>.importing`/`.replacing`) are not dictionaries: their
+                // `index.json` is a half-written or previous-revision copy of a real one.
+                val subdirs = freqDir.listFiles()?.filterNot { isDictionaryArtifactName(it.name) }.orEmpty()
                 for (sub in subdirs) {
                     val indexFile = File(sub, "index.json")
                     if (indexFile.exists()) {

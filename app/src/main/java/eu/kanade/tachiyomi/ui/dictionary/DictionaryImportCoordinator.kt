@@ -7,6 +7,8 @@ import android.net.Uri
 import android.util.Log
 import dev.icerock.moko.resources.StringResource
 import kotlinx.coroutines.CancellationException
+import mihon.core.dictionary.model.DICTIONARY_BACKUP_SUFFIX
+import mihon.core.dictionary.model.DICTIONARY_STAGING_SUFFIX
 import mihon.core.dictionary.model.TYPE_SUBDIRS
 import mihon.core.dictionary.model.dictionariesDir
 import mihon.core.dictionary.model.dictionaryTypeDir
@@ -247,7 +249,8 @@ object DictionaryImportCoordinator {
      *
      * **Not** guaranteed: a *process kill* in the window between the two renames of a type (or between
      * two types) leaves no chance to roll back, so `<type>/<name>` can be missing while its content
-     * sits in `<type>/<name>.replacing`, plus a `<name>.importing` staging copy.
+     * sits in `<type>/<name>.replacing`, plus a `<name>.importing` staging copy. Neither is ever
+     * reported as a dictionary (`allDictionaryNames` skips both suffixes), and
      * [cleanupStaleSwapArtifacts] recovers or deletes them at the start of the next import; nothing
      * repairs them in between, so until then that type simply has no dictionary directory.
      */
@@ -265,7 +268,7 @@ object DictionaryImportCoordinator {
         try {
             for (type in targets) {
                 val destDir = File(File(root, type), dirName)
-                val stagingDir = File(destDir.parentFile, "${destDir.name}$STAGING_SUFFIX")
+                val stagingDir = File(destDir.parentFile, "${destDir.name}$DICTIONARY_STAGING_SUFFIX")
                 if (stagingDir.exists()) stagingDir.deleteRecursively()
                 destDir.parentFile?.mkdirs()
                 importedDir.copyRecursively(stagingDir, overwrite = true)
@@ -277,7 +280,7 @@ object DictionaryImportCoordinator {
                 // swapped, so it is moved aside rather than deleted; `swapped` records it *before*
                 // the second rename, so that rename failing restores it too.
                 val backupDir = if (destDir.exists()) {
-                    val backup = File(destDir.parentFile, "${destDir.name}$BACKUP_SUFFIX")
+                    val backup = File(destDir.parentFile, "${destDir.name}$DICTIONARY_BACKUP_SUFFIX")
                     if (backup.exists()) backup.deleteRecursively()
                     if (!destDir.renameTo(backup)) {
                         throw IOException("could not move $destDir aside to $backup")
@@ -332,11 +335,11 @@ object DictionaryImportCoordinator {
             val entries = typeDir.listFiles() ?: continue
             for (entry in entries) {
                 when {
-                    entry.name.endsWith(STAGING_SUFFIX) -> if (!entry.deleteRecursively()) {
+                    entry.name.endsWith(DICTIONARY_STAGING_SUFFIX) -> if (!entry.deleteRecursively()) {
                         Log.e(TAG, "could not delete stale staging dir $entry")
                     }
-                    entry.name.endsWith(BACKUP_SUFFIX) -> {
-                        val destDir = File(typeDir, entry.name.removeSuffix(BACKUP_SUFFIX))
+                    entry.name.endsWith(DICTIONARY_BACKUP_SUFFIX) -> {
+                        val destDir = File(typeDir, entry.name.removeSuffix(DICTIONARY_BACKUP_SUFFIX))
                         if (destDir.exists()) {
                             if (!entry.deleteRecursively()) Log.e(TAG, "could not delete stale backup $entry")
                         } else if (!entry.renameTo(destDir)) {
@@ -525,11 +528,9 @@ object DictionaryImportCoordinator {
 
     private const val TAG = "DictImport"
 
-    /** Suffix of the sibling directory a type is staged into before it replaces the live one. */
-    private const val STAGING_SUFFIX = ".importing"
-
-    /** Suffix of the sibling directory the live tree is moved aside to while a type swaps. */
-    private const val BACKUP_SUFFIX = ".replacing"
+    // The staging/backup suffixes the swap writes come from `:core:dictionary`
+    // (`DICTIONARY_STAGING_SUFFIX`/`DICTIONARY_BACKUP_SUFFIX`): the scanner there filters exactly what
+    // this file writes, so the two cannot drift apart.
 
     /** Cap on a title-derived path segment; the same length `sanitizeTitleForPath` uses. */
     private const val MAX_PATH_NAME_CHARS = 120
