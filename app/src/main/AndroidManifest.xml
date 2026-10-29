@@ -299,6 +299,23 @@
             android:foregroundServiceType="dataSync"
             tools:node="merge" />
 
+        <!-- KUN -->
+        <!-- WorkManager must not initialise itself with its default configuration: that happens in a
+             `ContentProvider` (before `Application.onCreate`), so `App.onCreate` would find
+             `WorkManager.isInitialized()` already true and its custom `WorkerFactory` — the only way to
+             build the six-argument `OcrWorker` — would never be installed. With this entry removed,
+             `WorkManager.getInstance` asks `App` (a `Configuration.Provider`) on first use. -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false"
+            tools:node="merge">
+            <meta-data
+                android:name="androidx.work.WorkManagerInitializer"
+                tools:node="remove" />
+        </provider>
+        <!-- KUN -->
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.provider"

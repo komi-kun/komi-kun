@@ -128,11 +128,46 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 import kotlin.concurrent.thread
 
-class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factory, GraphProvider<AppGraph> {
+class App :
+    Application(),
+    DefaultLifecycleObserver,
+    SingletonImageLoader.Factory,
+    GraphProvider<AppGraph>,
+    // KUN -->
+    Configuration.Provider {
+    // KUN <--
 
     override val graph: AppGraph by lazy {
         createGraphFactory<AppGraph.Factory>().create(context = this, isDebugBuild = isDebugBuildType)
     }
+
+    // KUN -->
+    /**
+     * The WorkManager configuration, i.e. where this app installs its [KomikunWorkerFactory].
+     *
+     * WorkManager no longer initialises itself with a default configuration: the
+     * `androidx.work.WorkManagerInitializer` startup entry is removed in `AndroidManifest.xml`, and
+     * `WorkManager.getInstance` asks this app for its configuration on first use instead. Without
+     * that removal the default initialiser runs (as a `ContentProvider`, i.e. *before* `onCreate`),
+     * WorkManager is already initialised here, and the factory below is never installed —
+     * which is fatal, because [OcrWorker] takes six constructor parameters and WorkManager's
+     * reflection fallback only knows `(Context, WorkerParameters)`.
+     *
+     * The factory holds `Lazy<…>` values, so building this configuration (possibly from a headless
+     * WorkManager process) constructs no OCR engine or service.
+     */
+    override val workManagerConfiguration: Configuration
+        get() = Configuration.Builder()
+            .setWorkerFactory(
+                KomikunWorkerFactory(
+                    ocrJob,
+                    ocrChapterResolver,
+                    dictionaryOcrPreferences,
+                    ocrQueueWorkProbe,
+                ),
+            )
+            .build()
+    // KUN <--
 
     @Inject private lateinit var preferenceStore: PreferenceStore
 
@@ -314,23 +349,12 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
         ).start(scope)
         // KUN <--
 
-        if (!WorkManager.isInitialized()) {
-            WorkManager.initialize(
-                this,
-                Configuration.Builder()
-                    // KUN -->
-                    .setWorkerFactory(
-                        KomikunWorkerFactory(
-                            ocrJob,
-                            ocrChapterResolver,
-                            dictionaryOcrPreferences,
-                            ocrQueueWorkProbe,
-                        ),
-                    )
-                    // KUN <--
-                    .build(),
-            )
-        }
+        // KUN -->
+        // WorkManager is not initialised here: `workManagerConfiguration` above is consulted lazily
+        // by `WorkManager.getInstance` (the default startup initialiser is removed in the manifest),
+        // which is the only way to install `KomikunWorkerFactory` — by `onCreate` the default
+        // initialiser had already won the race from a `ContentProvider`. See `workManagerConfiguration`.
+        // KUN <--
         initializeMigrator()
 
         // KUN -->
