@@ -9,6 +9,7 @@ import android.view.KeyEvent
 import android.view.MotionEvent
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
 import ca.mpreg.imagedecoder.ImageDecoder
 import ca.mpreg.webgpuviewer.closeTo
 import ca.mpreg.webgpuviewer.renderer.GainmapInput
@@ -670,13 +671,22 @@ open class WebGpuViewer(
         return when (webgpuPaged.page.dualPageView) {
             ReaderPreferences.DualPageView.NEVER -> false
             ReaderPreferences.DualPageView.ALWAYS -> true
-            ReaderPreferences.DualPageView.WIDE -> {
-                val width = viewerState.width
-                val height = viewerState.height
-                width > 0 && height > 0 && width.toFloat() / height > 1f
-            }
+            // KUN -->
+            // The WIDE comparison itself is [isWideViewport]'s, the one place it is made: the
+            // settings sheet is handed the same answer for the box the viewer is drawn in.
+            ReaderPreferences.DualPageView.WIDE -> isWideViewport(viewerState.width, viewerState.height)
+            // KUN <--
         }
     }
+
+    // KUN -->
+    /**
+     * Whether a [width] x [height] viewport is wide enough for a spread. The only place the WIDE
+     * rule compares width to height, so [isDualPageMode] and the settings sheet cannot disagree.
+     */
+    private fun isWideViewport(width: Int, height: Int): Boolean =
+        width > 0 && height > 0 && width.toFloat() / height > 1f
+    // KUN <--
 
     /** The half a spread opens on: right reading right-to-left, left otherwise. */
     private val anchorPosition get() = if (isReversed) SpreadPosition.RIGHT else SpreadPosition.LEFT
@@ -1014,7 +1024,20 @@ open class WebGpuViewer(
 
     @Composable
     override fun Content(modifier: Modifier) {
-        ImageViewer(modifier = modifier, state = viewerState)
+        // KUN -->
+        // The settings sheet cannot measure the viewer - it is a dialog over the reader - and the
+        // window is not the viewer: on a foldable, in a split-screen pane, or behind the cutout and
+        // system bar insets this modifier carries, the window can be landscape over a portrait
+        // viewer or the reverse. So the viewer publishes the box it is drawn in, which is the box
+        // its surface gets, and the sheet asks for the WIDE rule's answer to that box
+        // ([isWideViewport]) instead of comparing the window's dp.
+        ImageViewer(
+            modifier = modifier.onSizeChanged { size ->
+                settingsViewModel.setViewerWideViewport(isWideViewport(size.width, size.height))
+            },
+            state = viewerState,
+        )
+        // KUN <--
     }
 
     private val cropBorders: Boolean
