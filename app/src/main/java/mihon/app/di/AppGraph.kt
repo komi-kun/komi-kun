@@ -33,6 +33,7 @@ import eu.kanade.tachiyomi.data.download.DownloadWorker
 import eu.kanade.tachiyomi.data.library.LibraryUpdateWorker
 import eu.kanade.tachiyomi.data.library.MetadataUpdateWorker
 import eu.kanade.tachiyomi.data.notification.NotificationReceiver
+import eu.kanade.tachiyomi.data.ocr.OcrQueueWorkProbe
 import eu.kanade.tachiyomi.data.sync.SyncDataJob
 import eu.kanade.tachiyomi.data.sync.service.GoogleDriveService
 import eu.kanade.tachiyomi.data.track.TrackerManager
@@ -216,6 +217,11 @@ interface AppGraph : ViewModelGraph {
     // `ModelDownloader` must drive state and downloads — its single-flight gate and `_state` flow
     // are only meaningful when every caller (the source-picker CTA, the status-row retry) shares it.
     val modelDownloader: ModelDownloader
+
+    // "Does the persisted OCR queue hold work a run would process?" — the same probe the launch
+    // resume consults, exposed so the settings screen can start the run a *finished model download*
+    // left waiting without duplicating the queue predicate.
+    val ocrQueueWorkProbe: OcrQueueWorkProbe
 
     // The single dictionary/OCR opt-in (`pref_dictionary_ocr_enabled`): the setup surfaces, the
     // settings master switches, the navigation filter and every runtime gate read this one instance.

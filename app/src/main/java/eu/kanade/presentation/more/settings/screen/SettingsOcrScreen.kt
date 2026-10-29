@@ -18,6 +18,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.icerock.moko.resources.StringResource
 import eu.kanade.presentation.more.settings.Preference
 import eu.kanade.presentation.reader.OcrDisplayScale
+import eu.kanade.tachiyomi.data.ocr.OcrRuntimePolicy
+import eu.kanade.tachiyomi.data.ocr.OcrWorker
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import kotlinx.coroutines.launch
 import mihon.app.di.appGraph
@@ -98,6 +100,27 @@ object SettingsOcrScreen : SearchableSettings {
             ModelDownloadState.Idle ->
                 if (modelsReady) stringResource(KUNMR.strings.ocr_ready) else stringResource(KUNMR.strings.ocr_not_ready)
         }
+
+        // KUN -->
+        // A **completed download is a run start**. The queue defers while the selected release is
+        // not installed (`OcrWorker.doWork` returns success and leaves the tasks `PENDING`), and the
+        // launch/rotation resume in `MainActivity` is keyed on the switch, not on the download — so
+        // without this the first successful download left every queued chapter waiting until the app
+        // was restarted. Same guard as that resume (`OcrRuntimePolicy.shouldResumeQueue`), so an
+        // empty, error-only or waiting-download queue — and a download that finished on a superseded
+        // selection — still starts nothing, and the worker's foreground notification is never raised
+        // for a run that would find nothing to do. Only the `Completed` transition acts.
+        val queueWorkProbe = remember(context) { context.appGraph.ocrQueueWorkProbe }
+        LaunchedEffect(downloadState) {
+            if (downloadState != ModelDownloadState.Completed) return@LaunchedEffect
+            // Both inputs are I/O: the persisted queue JSON and the installed-release marker.
+            val runnableWork = withIOContext { queueWorkProbe.hasRunnableWork() }
+            val installedModelsReady = withIOContext { modelDownloader.isPaddleDownloaded }
+            if (OcrRuntimePolicy.shouldResumeQueue(featureEnabled, runnableWork, installedModelsReady)) {
+                OcrWorker.start(context)
+            }
+        }
+        // KUN <--
 
         var cacheSizeText by remember { mutableStateOf<String?>(null) }
         var showClearDialog by remember { mutableStateOf(false) }

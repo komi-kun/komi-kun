@@ -254,6 +254,39 @@ class OcrPolicySourceWiringTest {
     }
 
     /**
+     * A **finished model download is the trigger the queue was waiting for**. `OcrWorker.doWork`
+     * returns success while the selected release is not installed and leaves its tasks `PENDING`, and
+     * `MainActivity`'s resume is keyed on the master switch — so a first-time download that installed
+     * nothing else left every queued chapter waiting until an app restart or an unrelated download,
+     * and the feature looked dead exactly when the user had just set it up. Deleting this effect
+     * reintroduces that, and no behavioural test can see it: the trigger lives in a Compose screen.
+     */
+    @Test
+    fun `a completed model download starts the queue run the deferral left waiting`() {
+        val settings = presentation("more/settings/screen/SettingsOcrScreen.kt")
+
+        // Only the `Completed` transition acts: progress, failure and idle must never raise a
+        // foreground run.
+        settings shouldContainSource
+            """if\s*\(\s*downloadState\s*!=\s*ModelDownloadState\.Completed\s*\)\s*return@LaunchedEffect"""
+        // The run is gated on the same three inputs as the launch/rotation resume: the switch, real
+        // runnable work (so no notification for an empty queue), and the installed release.
+        settings shouldContainSource """OcrRuntimePolicy\.shouldResumeQueue\("""
+        settings shouldContainSource """queueWorkProbe\s*\.\s*hasRunnableWork\(\s*\)"""
+        settings shouldContainSource """modelDownloader\s*\.\s*isPaddleDownloaded"""
+        // The start happens after the state gate, i.e. only on the completed transition.
+        val completedGate = settings.indexOf("downloadState != ModelDownloadState.Completed")
+        val start = settings.indexOf("OcrWorker.start(")
+        check(completedGate >= 0 && start > completedGate) {
+            "the completed-download queue start is missing or precedes the Completed check"
+        }
+
+        // Not asserted: that `ModelDownloader.state` really reaches `Completed` on a successful
+        // install, or that the start drains the queue — the policy is pinned by `OcrRuntimePolicyTest`
+        // and the run by `OcrManagerQueueRunTest`.
+    }
+
+    /**
      * The body of the function starting at [signature], found by counting braces from its opening
      * brace, so the guard survives reformatting. (A `{`/`}` inside a string literal in those bodies
      * would confuse it; both are plain calls, and a copy change would fail loudly rather than
