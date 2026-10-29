@@ -301,22 +301,34 @@ object DictionaryImportCoordinator {
             swapped.forEach { (_, backupDir) ->
                 if (backupDir != null && backupDir.exists()) backupDir.deleteRecursively()
             }
-            (TYPE_SUBDIRS - targets.toSet()).forEach { type ->
-                val stale = File(File(root, type), dirName)
-                if (stale.exists()) stale.deleteRecursively()
-            }
         } catch (e: Throwable) {
             // Restore every type already swapped from its backup, then drop the staging copies, so
             // the previous dictionary is left exactly as it was and the caller can report the
             // storage failure.
             swapped.asReversed().forEach { (destDir, backupDir) ->
-                if (destDir.exists()) destDir.deleteRecursively()
-                if (backupDir != null && backupDir.exists() && !backupDir.renameTo(destDir)) {
-                    Log.e(TAG, "could not restore $destDir from $backupDir")
+                // Nothing is deleted unless the previous revision is really there to put back. A
+                // `null` backup is a type that did not exist before, so the new dir *is* everything
+                // this type had — deleting it restores "absent". A backup that no longer exists
+                // means the throw came from past the cleanup above: the new tree is then the only
+                // content left, and dropping it would leave the type empty with nothing to restore.
+                when {
+                    backupDir == null -> if (destDir.exists()) destDir.deleteRecursively()
+                    backupDir.exists() -> {
+                        if (destDir.exists()) destDir.deleteRecursively()
+                        if (!backupDir.renameTo(destDir)) {
+                            Log.e(TAG, "could not restore $destDir from $backupDir")
+                        }
+                    }
                 }
             }
             staged.forEach { (stagingDir, _) -> if (stagingDir.exists()) stagingDir.deleteRecursively() }
             throw e
+        }
+        // Outside the `try`, so a failure here can never reach the rollback: by now every backup is
+        // gone, and the rollback would have no previous revision left to put back.
+        (TYPE_SUBDIRS - targets.toSet()).forEach { type ->
+            val stale = File(File(root, type), dirName)
+            if (stale.exists()) stale.deleteRecursively()
         }
     }
 
