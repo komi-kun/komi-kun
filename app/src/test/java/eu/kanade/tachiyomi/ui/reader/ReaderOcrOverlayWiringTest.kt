@@ -168,25 +168,43 @@ class ReaderOcrOverlayWiringTest {
      * when the overlay leaves composition — `detach()` only runs when the reader goes away, and is
      * skipped across a configuration change.
      *
+     * The same disposal is where an open lookup has to be closed: turning the overlay off removes
+     * the per-frame loop (`updatePopupAnchor`) that dismisses a popup and undoes its "keep the block
+     * visible" fit, so without this an open lookup stayed at its last rect over a zoomed page with
+     * `activeBlock` still set, and only recovered once the overlay was enabled again.
+     *
      * Sliced to `Overlay`'s body rather than grepped over the file: a `DisposableEffect` moved out of
      * `Overlay` never runs on the overlay's exit, and an `onDispose` that assigns the viewport back
      * (instead of clearing it) keeps exactly the stale viewport the hit test must not answer from.
+     * The dismiss/`restoreFit` needles are absent from the rest of `Overlay`, so they can only be
+     * satisfied by the disposal block.
      */
     @Test
-    fun `the host drops the recorded viewport when the overlay leaves composition`() {
+    fun `the host drops the recorded viewport and closes the open lookup when the overlay leaves composition`() {
         val source = File(
             "src/main/java/eu/kanade/tachiyomi/ui/reader/ocr/impl/ReaderOcrHostImpl.kt",
         ).readText().withoutComments()
 
         val overlay = functionBody(source, "override fun Overlay(")
+
+        // The clear is identity-conditional: a rotation disposes the old composition after the new
+        // one recorded its viewport, and an unconditional clear would blank that one.
         overlay shouldContainSource (
-            """DisposableEffect\s*\(\s*Unit\s*\)\s*\{\s*onDispose\s*\{\s*""" +
-                """this@ReaderOcrHostImpl\s*\.\s*viewport\s*=\s*null\s*\}\s*\}"""
+            """if\s*\(\s*this@ReaderOcrHostImpl\s*\.\s*viewport\s*===\s*latestViewport\s*\.\s*value\s*\)"""
             )
         // The recorded viewport is written in exactly one place inside `Overlay`, and it is that
         // `= null`: no other assignment (in particular none that writes `viewport` back) competes
         // with the disposal.
-        occurrences(overlay, Regex("""this@ReaderOcrHostImpl\s*\.\s*viewport\s*=""")) shouldBe 1
+        occurrences(overlay, Regex("""this@ReaderOcrHostImpl\s*\.\s*viewport\s*=(?!=)""")) shouldBe 1
+        occurrences(overlay, Regex("""this@ReaderOcrHostImpl\s*\.\s*viewport\s*=\s*null""")) shouldBe 1
+
+        // An open lookup is dismissed and its fit undone on the same exit...
+        overlay shouldContainSource """dictionaryHost\s*\.\s*isOpen\(\s*\)"""
+        overlay shouldContainSource """dictionaryHost\s*\.\s*dismiss\(\s*\)"""
+        overlay shouldContainSource """latestViewport\s*\.\s*value\s*\?\s*\.\s*restoreFit\(\s*\)"""
+        overlay shouldContainSource """activeBlock\s*\.\s*value\s*=\s*null"""
+        // ...but not while the activity is being recreated, where the popup must survive.
+        overlay shouldContainSource """hostActivity\s*\?\s*\.\s*isChangingConfigurations\s*!=\s*true"""
     }
 
     private companion object {

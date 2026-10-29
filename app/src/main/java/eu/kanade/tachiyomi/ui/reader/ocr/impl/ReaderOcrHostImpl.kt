@@ -11,6 +11,7 @@
 // KUN <--
 package eu.kanade.tachiyomi.ui.reader.ocr.impl
 
+import android.app.Activity
 import android.content.Context
 import android.graphics.RectF
 import android.os.SystemClock
@@ -22,10 +23,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.IntSize
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
@@ -111,8 +114,30 @@ class ReaderOcrHostImpl(
         // really goes away — and is skipped across a configuration change — so a stale viewport
         // outlived the overlay it described, and a later hit test could still be answered from a
         // viewer this reader no longer draws.
+        //
+        // Leaving composition also removes the only loop that undoes a lookup's "keep the block
+        // visible" move (the per-frame `updatePopupAnchor` below), so an open lookup is dismissed and
+        // the page fit restored here. Otherwise turning the overlay off with a popup open — reachable
+        // through the two-finger toggle, which `OutsideTapDismissDetector` ignores — left the popup at
+        // its last rect over a zoomed page with `activeBlock` still set, until the overlay came back.
+        // Skipped across a configuration change, where the open popup must survive.
+        val latestViewport = rememberUpdatedState(viewport)
+        val hostActivity = LocalContext.current as? Activity
         DisposableEffect(Unit) {
-            onDispose { this@ReaderOcrHostImpl.viewport = null }
+            onDispose {
+                if (hostActivity?.isChangingConfigurations != true) {
+                    if (dictionaryHost.isOpen()) dictionaryHost.dismiss()
+                    latestViewport.value?.restoreFit()
+                    activeBlock.value = null
+                    popupAnchor.clear()
+                }
+                // Only forget *this* composition's viewport: after a configuration change the new
+                // composition may already have recorded its own, and clearing that one would leave
+                // the new reader without a viewport to hit-test through.
+                if (this@ReaderOcrHostImpl.viewport === latestViewport.value) {
+                    this@ReaderOcrHostImpl.viewport = null
+                }
+            }
         }
         // KUN <--
         val loaded by blockLoader.blocks.collectAsState()
