@@ -44,6 +44,16 @@ android {
         buildConfigField("boolean", "TELEMETRY_INCLUDED", "${Config.includeTelemetry}")
         buildConfigField("boolean", "UPDATER_ENABLED", "${Config.enableUpdater}")
 
+        // KUN -->
+        // `splits.abi.include` (below) only decides which split APKs exist: the universal APK still
+        // packages every ABI a dependency ships, so the third-party AARs alone put a 32-bit `x86`
+        // native set back into it. Filtering here is what makes the universal APK carry exactly the
+        // three supported ABIs, the same set the dictionary engine and Paddle OCR build for.
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+        }
+        // KUN <--
+
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
