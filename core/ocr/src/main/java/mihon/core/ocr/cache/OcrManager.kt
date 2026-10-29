@@ -186,14 +186,40 @@ class OcrManager(
         scope.launch { refreshQueueState() }
     }
 
-    /** Deletes a chapter's persisted OCR results and clears its queue entry. */
+    /**
+     * Deletes a chapter's persisted OCR results and clears its queue entry.
+     *
+     * Inert while the feature is off: nothing was ever recognised (so there is nothing to delete) and
+     * the caller — bulk chapter deletion — would otherwise pay a file delete, a synchronous
+     * `SharedPreferences.commit()` and a full queue re-read for *every* chapter, on the default path.
+     */
     suspend fun deleteOcrForChapter(key: OcrCacheKey) {
+        if (ocrDisabled()) return
         cacheManager.deleteChapter(key)
         store.remove(key.chapterId)
         refreshQueueState()
     }
 
+    /**
+     * Deletes the persisted OCR results of [keys] in one pass: one file delete per chapter, one store
+     * write for all of them and **one** queue refresh.
+     *
+     * The per-chapter method above is the wrong unit for bulk deletion: deleting a 1000-chapter manga
+     * through it means 1000 `commit()`s (each an fsync) and 1000 full queue scans.
+     */
+    suspend fun deleteOcrForChapters(keys: List<OcrCacheKey>) {
+        if (ocrDisabled() || keys.isEmpty()) return
+        keys.forEach { cacheManager.deleteChapter(it) }
+        store.removeAll(keys.map { it.chapterId })
+        refreshQueueState()
+    }
+
+    /**
+     * Deletes every persisted OCR result of a manga. Inert while the feature is off, like
+     * [deleteOcrForChapter]: with nothing ever recognised, a library removal must not walk the cache.
+     */
     suspend fun deleteOcrForManga(sourceId: Long, mangaId: Long) {
+        if (ocrDisabled()) return
         cacheManager.deleteManga(sourceId, mangaId)
     }
 

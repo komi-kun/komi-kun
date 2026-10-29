@@ -281,6 +281,61 @@ class OcrManagerOptInTest {
     }
 
     /**
+     * The default path must cost nothing. These two methods are called from bulk chapter deletion and
+     * library removal, and with the feature off they used to do the work anyway: a cache file delete,
+     * a synchronous `SharedPreferences.commit()` (an fsync) and a full queue re-read — per chapter, so
+     * deleting a 1000-chapter manga paid 1000 of each for a cache that is empty by construction.
+     */
+    @Test
+    fun `pruning a deleted chapter or manga costs nothing while disabled`(): Unit = runBlocking {
+        val manager = manager(enabled = false)
+
+        manager.deleteOcrForChapter(key)
+        manager.deleteOcrForChapters(listOf(key, key.copy(chapterId = OTHER_CHAPTER)))
+        manager.deleteOcrForManga(SOURCE, MANGA)
+
+        coVerify(exactly = 0) { cacheManager.deleteChapter(any()) }
+        coVerify(exactly = 0) { cacheManager.deleteManga(any(), any()) }
+        verify(exactly = 0) { store.remove(any()) }
+        verify(exactly = 0) { store.removeAll(any()) }
+        // Not even the queue re-read: that (not the file delete) is the per-chapter cost.
+        verify(exactly = 0) { store.getAll() }
+    }
+
+    /**
+     * The batch unit bulk deletion needs: one queue refresh for the whole list. Iterating the
+     * per-chapter method instead deserialises the persisted queue once per chapter — 1000 full scans
+     * of a 1000-chapter delete.
+     */
+    @Test
+    fun `a batch delete refreshes the queue once instead of once per chapter`(): Unit = runBlocking {
+        val keys = listOf(CHAPTER, CHAPTER + 1, CHAPTER + 2).map { key.copy(chapterId = it) }
+        val manager = manager(enabled = true)
+
+        manager.deleteOcrForChapters(keys)
+
+        keys.forEach { deleted -> coVerify(exactly = 1) { cacheManager.deleteChapter(deleted) } }
+        // One write for all of them, and exactly one queue refresh.
+        verify(exactly = 1) { store.removeAll(listOf(CHAPTER, CHAPTER + 1, CHAPTER + 2)) }
+        verify(exactly = 0) { store.remove(any()) }
+        verify(exactly = 1) { store.getAll() }
+    }
+
+    /** The positive control for the gate above: with the feature on, one chapter is still pruned. */
+    @Test
+    fun `pruning a deleted chapter still works while enabled`(): Unit = runBlocking {
+        val manager = manager(enabled = true)
+
+        manager.deleteOcrForChapter(key)
+        manager.deleteOcrForManga(SOURCE, MANGA)
+
+        coVerify(exactly = 1) { cacheManager.deleteChapter(key) }
+        coVerify(exactly = 1) { cacheManager.deleteManga(SOURCE, MANGA) }
+        verify(exactly = 1) { store.remove(CHAPTER) }
+        verify(exactly = 1) { store.getAll() }
+    }
+
+    /**
      * The mid-run disable case: the queue starts enabled work and the user turns the feature off
      * while the chapter is being resolved, so the task comes back `PENDING`. An implementation that
      * only checks the switch before the loop keeps re-resolving and re-requeueing it forever — this
@@ -576,5 +631,6 @@ class OcrManagerOptInTest {
         private const val SOURCE = 1L
         private const val MANGA = 2L
         private const val CHAPTER = 3L
+        private const val OTHER_CHAPTER = 4L
     }
 }

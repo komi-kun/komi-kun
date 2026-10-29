@@ -316,7 +316,9 @@ class OcrPolicySourceWiringTest {
      * chapters and manga they were recognised from; only the manual "Clear cache" action ever
      * reclaimed any. `DownloadManager` is where every deletion converges (chapter delete and pending
      * delete-after-read, library removal, "delete downloads", migration), so the pruning belongs
-     * there. Deleting a chapter drops its entry; deleting a manga its whole directory.
+     * there. Deleting chapters drops their entries **in one batch call** (the per-chapter one costs a
+     * synchronous queue write and a full queue re-read per chapter); deleting a manga its whole
+     * directory.
      */
     @Test
     fun `deleting a chapter or a manga prunes its OCR cache`() {
@@ -324,18 +326,21 @@ class OcrPolicySourceWiringTest {
 
         val deleteChapters = functionBody(downloads, "suspend fun deleteChapters(")
         deleteChapters shouldContainSource
-            """ocrManager\s*\.\s*deleteOcrForChapter\(\s*ocrManager\s*\.\s*cacheKey\("""
+            """ocrManager\s*\.\s*deleteOcrForChapters\("""
         // Keyed exactly as `OcrChapterResolver` keys the entry it wrote: source, manga, chapter.
         deleteChapters shouldContainSource
             """cacheKey\(\s*manga\s*\.\s*source\s*,\s*chapter\s*\.\s*mangaId\s*,\s*chapter\s*\.\s*id\s*\)"""
+        // One call for the whole list, not one per chapter.
+        deleteChapters shouldNotContainSource """ocrManager\s*\.\s*deleteOcrForChapter\("""
 
         val deleteManga = functionBody(downloads, "suspend fun deleteManga(")
         deleteManga shouldContainSource
             """ocrManager\s*\.\s*deleteOcrForManga\(\s*manga\s*\.\s*source\s*,\s*manga\s*\.\s*id\s*\)"""
 
         // Not asserted: that the cache files really disappear (`OcrCacheManagerTest` covers the
-        // manager), nor that a chapter row deleted *without* its files is pruned — that path does
-        // not touch `DownloadManager`, so it keeps its cache.
+        // manager), that the batch is cheaper than the loop (`OcrManagerOptInTest` counts the queue
+        // scans), nor that a chapter row deleted *without* its files is pruned — that path does not
+        // touch `DownloadManager`, so it keeps its cache.
     }
 
     /**

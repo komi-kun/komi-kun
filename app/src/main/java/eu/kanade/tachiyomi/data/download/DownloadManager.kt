@@ -319,10 +319,12 @@ class DownloadManager(
             // The pages these results were recognised from are gone, so drop their OCR cache entries
             // too (~1–2 MB per chapter in `filesDir/ocr_cache`, and nothing else pruned them: only
             // the manual "Clear cache" action ever did, so a deleted chapter kept its results for
-            // the life of the install). Keyed exactly like `OcrChapterResolver` keys them.
-            filteredChapters.forEach { chapter ->
-                ocrManager.deleteOcrForChapter(ocrManager.cacheKey(manga.source, chapter.mangaId, chapter.id))
-            }
+            // the life of the install). Keyed exactly like `OcrChapterResolver` keys them, and in
+            // **one** batch call: the per-chapter method writes the persisted queue once per chapter
+            // — a synchronous `commit()` plus a full queue re-read for every one of them.
+            ocrManager.deleteOcrForChapters(
+                filteredChapters.map { chapter -> ocrManager.cacheKey(manga.source, chapter.mangaId, chapter.id) },
+            )
             // KUN <--
 
             // Delete manga directory if empty
