@@ -311,6 +311,34 @@ class OcrPolicySourceWiringTest {
     }
 
     /**
+     * The defect this pins: `OcrManager.deleteOcrForChapter`/`deleteOcrForManga` had **no call
+     * sites**, so the per-chapter OCR results (~1–2 MB each under `filesDir/ocr_cache`) outlived the
+     * chapters and manga they were recognised from; only the manual "Clear cache" action ever
+     * reclaimed any. `DownloadManager` is where every deletion converges (chapter delete and pending
+     * delete-after-read, library removal, "delete downloads", migration), so the pruning belongs
+     * there. Deleting a chapter drops its entry; deleting a manga its whole directory.
+     */
+    @Test
+    fun `deleting a chapter or a manga prunes its OCR cache`() {
+        val downloads = app("data/download/DownloadManager.kt")
+
+        val deleteChapters = functionBody(downloads, "suspend fun deleteChapters(")
+        deleteChapters shouldContainSource
+            """ocrManager\s*\.\s*deleteOcrForChapter\(\s*ocrManager\s*\.\s*cacheKey\("""
+        // Keyed exactly as `OcrChapterResolver` keys the entry it wrote: source, manga, chapter.
+        deleteChapters shouldContainSource
+            """cacheKey\(\s*manga\s*\.\s*source\s*,\s*chapter\s*\.\s*mangaId\s*,\s*chapter\s*\.\s*id\s*\)"""
+
+        val deleteManga = functionBody(downloads, "suspend fun deleteManga(")
+        deleteManga shouldContainSource
+            """ocrManager\s*\.\s*deleteOcrForManga\(\s*manga\s*\.\s*source\s*,\s*manga\s*\.\s*id\s*\)"""
+
+        // Not asserted: that the cache files really disappear (`OcrCacheManagerTest` covers the
+        // manager), nor that a chapter row deleted *without* its files is pruned — that path does
+        // not touch `DownloadManager`, so it keeps its cache.
+    }
+
+    /**
      * The body of the function starting at [signature], found by counting braces from its opening
      * brace, so the guard survives reformatting. (A `{`/`}` inside a string literal in those bodies
      * would confuse it; both are plain calls, and a copy change would fail loudly rather than
