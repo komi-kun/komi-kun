@@ -125,6 +125,30 @@ class OcrPolicySourceWiringTest {
         // `ModelDownloaderOptInTest` covers the marker, and this JVM test has no Android context.
     }
 
+    /**
+     * The defect this pins: WorkManager stopping the worker (constraints gone, unique work replaced)
+     * cancelled `doWork` and dropped the foreground notification, while the OCR run — which lives on
+     * `@AppCoroutineScope`, not on the worker — kept going for minutes with no foreground service,
+     * the state Android kills the process for. `OcrJob.stop()` had no caller at all.
+     */
+    @Test
+    fun `a stopped worker stops the OCR job it left running`() {
+        val worker = app("data/ocr/OcrWorker.kt")
+        val doWork = functionBody(worker, "override suspend fun doWork()")
+
+        // Gated on `isStopped`, so only a WorkManager stop aborts the run.
+        doWork shouldContainSource """if\s*\(\s*isStopped\s*\)\s*ocrJob\s*\.\s*stop\(\s*\)"""
+        // In the `finally`, because the cancellation path rethrows: a catch branch would not be the
+        // way out of the worker.
+        val finallyAt = doWork.indexOf("finally {")
+        val stopAt = doWork.indexOf("ocrJob.stop()")
+        check(finallyAt >= 0 && stopAt > finallyAt) { "the OCR job stop is missing from doWork's finally" }
+
+        // Not asserted: that a real WorkManager cancellation reaches this `finally` at runtime (that
+        // needs the work-runtime test harness), nor that `stop()` really interrupts an in-flight
+        // engine call — `OcrManagerQueueRunTest` covers the run, `OcrJob` its cancellation.
+    }
+
     @Test
     fun `the worker refuses to run the queue while the feature is off`() {
         val worker = app("data/ocr/OcrWorker.kt")

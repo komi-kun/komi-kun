@@ -139,6 +139,16 @@ class OcrWorker(
                 Result.failure()
             }
             // KUN <--
+        } finally {
+            // KUN -->
+            // A **stopped** worker must stop the OCR run too. WorkManager stops this worker when its
+            // constraints go away or its unique work is replaced: `doWork` returns (through the
+            // `CancellationException` above) and the foreground notification drops, but the run
+            // lives on the app scope and would keep OCR-ing for minutes with no foreground service —
+            // exactly the state Android kills the process for. `isStopped` rather than the
+            // cancellation itself, so an unrelated cancellation does not abort a healthy run.
+            if (isStopped) ocrJob.stop()
+            // KUN <--
         }
     }
 
