@@ -11,10 +11,12 @@ import android.content.Context
 import android.net.Uri
 import android.util.Log
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.instanceOf
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import mihon.core.dictionary.engine.DictionaryEngine
 import mihon.core.dictionary.engine.DictionarySession
@@ -548,6 +550,51 @@ class DictionaryImportCoordinatorTest {
         h.engine.usedAfterClose.get() shouldBe 0
     }
 
+    /**
+     * The defect this pins: both `catch (e: Throwable)` blocks in the coordinator swallowed
+     * `CancellationException` too, so leaving the import screen mid-import was reported to the user as
+     * "import failed" (`Failed(Unknown)`) and the coroutine kept its cancellation suppressed. A
+     * cancelled import must surface as cancellation.
+     */
+    @Test
+    fun `cancellation during the engine import is rethrown, not reported as a failure`() {
+        val h = harness(cancels = true)
+
+        val thrown = runBlocking {
+            runCatching {
+                DictionaryImportCoordinator.importFromZip(h.context, File("unused.zip"), h.prefs, h.repository)
+            }.exceptionOrNull()
+        }
+
+        thrown shouldBe instanceOf<CancellationException>()
+        thrown?.message shouldBe IMPORT_CANCELLED
+        // Nothing reached the tree: a cancelled import never rewrites the dictionary.
+        h.termDir.exists() shouldBe false
+    }
+
+    /**
+     * The other `catch (e: Throwable)`: the one wrapping the picked document. An `IOException` there
+     * is a source failure, but a `CancellationException` is the caller going away — it must not be
+     * folded into an outcome the UI reports as "import failed".
+     */
+    @Test
+    fun `cancellation while the picked document is copied is rethrown too`() {
+        val h = harness()
+        val uri = mockk<Uri>()
+        every { h.resolver.openInputStream(uri) } returns object : InputStream() {
+            override fun read(): Int = throw CancellationException(IMPORT_CANCELLED)
+        }
+
+        val thrown = runBlocking {
+            runCatching {
+                DictionaryImportCoordinator.importFromUri(h.context, uri, h.prefs, h.repository)
+            }.exceptionOrNull()
+        }
+
+        thrown shouldBe instanceOf<CancellationException>()
+        thrown?.message shouldBe IMPORT_CANCELLED
+    }
+
     private class Harness(
         val context: Context,
         val resolver: ContentResolver,
@@ -585,6 +632,7 @@ class DictionaryImportCoordinatorTest {
         acceptsZip: (File) -> Boolean = { true },
         title: String = TITLE,
         freqCount: Int = 0,
+        cancels: Boolean = false,
     ): Harness {
         val root = File(System.getProperty("java.io.tmpdir"), "dict-coordinator-${System.nanoTime()}")
         val cache = File(root, "cache").apply { mkdirs() }
@@ -599,6 +647,7 @@ class DictionaryImportCoordinatorTest {
             accepts = acceptsZip,
             title = title,
             freqCount = freqCount,
+            cancels = cancels,
         )
         return Harness(
             context = context,
@@ -717,6 +766,9 @@ class DictionaryImportCoordinatorTest {
     }
 }
 
+/** The message a cancelled import carries, so both cancellation tests can tell it apart. */
+private const val IMPORT_CANCELLED = "left the import screen"
+
 /** The success payload of an outcome, or `null` — keeps the pre-outcome assertions readable. */
 private fun DictionaryImportOutcome.importedDictionary(): ImportedDictionary? =
     (this as? DictionaryImportOutcome.Imported)?.dictionary
@@ -729,6 +781,8 @@ private class FakeEngine(
     private val title: String = "TestDict",
     /** Frequency entries in the imported dictionary; drives which type dirs the import targets. */
     private val freqCount: Int = 0,
+    /** Mirrors the caller being cancelled mid-import (the screen was left). */
+    private val cancels: Boolean = false,
 ) : DictionaryEngine {
     override val isAvailable: Boolean = true
 
@@ -768,6 +822,7 @@ private class FakeEngine(
         onProgress: (ImportProgress) -> Unit,
     ): ImportResult {
         importCalls.incrementAndGet()
+        if (cancels) throw CancellationException(IMPORT_CANCELLED)
         importRelease?.let { release ->
             importEntered.countDown()
             release.await(5, TimeUnit.SECONDS)

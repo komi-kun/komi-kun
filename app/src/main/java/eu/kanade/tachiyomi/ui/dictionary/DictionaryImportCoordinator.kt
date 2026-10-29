@@ -6,6 +6,7 @@ import android.content.Context
 import android.net.Uri
 import android.util.Log
 import dev.icerock.moko.resources.StringResource
+import kotlinx.coroutines.CancellationException
 import mihon.core.dictionary.model.TYPE_SUBDIRS
 import mihon.core.dictionary.model.dictionariesDir
 import mihon.core.dictionary.model.dictionaryTypeDir
@@ -102,6 +103,11 @@ object DictionaryImportCoordinator {
                 return@guarded DictionaryImportOutcome.Failed(DictionaryImportFailure.UnreadableSource)
             }
             importZipLocked(context, tempZip, prefs, repository)
+        } catch (e: CancellationException) {
+            // Leaving the screen cancels the import. Cancellation is not a failed import: swallowing
+            // it here turned it into `Failed(Unknown)` and let the coroutine carry on into the tree
+            // mutation, writing a dictionary nobody was importing any more.
+            throw e
         } catch (e: Throwable) {
             Log.e(TAG, "import failed", e)
             DictionaryImportOutcome.Failed(failureOf(e))
@@ -207,6 +213,10 @@ object DictionaryImportCoordinator {
                     mediaCount = result.mediaCount,
                 ),
             )
+        } catch (e: CancellationException) {
+            // Same as `importFromUri`: a cancelled import is not a failed one, and the caller is
+            // told so instead of being handed an `Unknown` failure for a deliberate cancellation.
+            throw e
         } catch (e: Throwable) {
             Log.e(TAG, "import failed", e)
             return DictionaryImportOutcome.Failed(failureOf(e))
