@@ -64,8 +64,9 @@ published to `komi-kun/komi-kun-ocr-models` (release **`ocr-models-v5`**) togeth
 
 - `fetchPaddleNativeLibs` reads `core/ocr/paddle-manifest.json`, downloads each **native** entry by
   its flat release-asset name (`entry["path"]`, e.g. `arm64-v8a_libpaddle_ocr.so`), verifies the
-  SHA-256 and **hard-fails on mismatch**. Entries without an `abi` are the runtime-downloaded models
-  and are skipped here.
+  SHA-256 and **hard-fails on mismatch**. The manifest lists **only** those native libs: the `.onnx`
+  models and the dict are runtime downloads resolved through `ModelRelease` (below), not manifest
+  entries.
 - **Wiring choice.** The task is wired as a dependency of `:core:ocr`'s per-variant JNI / native-lib
   merge tasks (`merge*JniLibFolders`, `merge*NativeLibs`), so every `assemble*` (local and CI)
   packages the fetched `.so`s with no workflow change. It is deliberately **not** hooked into

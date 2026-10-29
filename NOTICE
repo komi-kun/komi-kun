@@ -48,7 +48,7 @@ Other bundled / linked components
 - **PaddleOCR** — <https://github.com/PaddlePaddle/PaddleOCR> — **Apache-2.0**. The PP-OCRv6 `small`
   detection model and recogniser ONNX graphs are used; they download at runtime, opt-in and
   checksum-verified. The **default** recogniser is a komi-kun fine-tune of the official
-  `PP-OCRv6_small_rec` weights (published as `komi-kun/komi-kun-ocr-models` release `ocr-manga-v2`);
+  `PP-OCRv6_small_rec` weights (published as `komi-kun/komi-kun-ocr-models` release `ocr-manga-v4`);
   the stock weights remain selectable in Settings → OCR. Training code:
   <https://github.com/komi-kun/komi-kun-ocr-finetune>. The `manga_*_fp16` Paddle-Lite fine-tune
   considered early on is **not used**.

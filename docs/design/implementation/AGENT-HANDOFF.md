@@ -141,11 +141,11 @@ i18n / i18n-sy  upstream `MR` / `SYMR` — do not add to them
 `OcrBindings`, `DictionaryHostBindings`, `OcrHostBindings` (registered in `AppGraph`).
 `AppBindings.kt` is intentionally frozen for this port.
 
-**Native artifact.** `komi-kun/komi-kun-ocr-models`, release **`ocr-models-v3`**: our Apache-2.0
+**Native artifact.** `komi-kun/komi-kun-ocr-models`, release **`ocr-models-v5`**: our Apache-2.0
 `libpaddle_ocr.so` (JNI shim over the **ORT C API**, `dlopen`s `libonnxruntime.so`), Microsoft's
 `libonnxruntime.so` **1.31.0** (MIT), `libomp.so`, and **PP-OCRv6 small** det/rec ONNX + dict.
 Fetched + checksum-verified by `./gradlew :core:ocr:fetchPaddleNativeLibs` into
-`core/ocr/src/main/jniLibs/<abi>/` (git-ignored). The artifact repo's **`main`** holds the v3
+`core/ocr/src/main/jniLibs/<abi>/` (git-ignored). The artifact repo's **`main`** holds the v5
 sources. ABIs: `arm64-v8a`, `armeabi-v7a`, `x86_64` (OCR now works on all three).
 
 ---

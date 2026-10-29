@@ -177,7 +177,7 @@ Ship a **`komi-kun/komi-kun-ocr-models`** release (or GitHub Packages) built by 
 
 - **ABI:** `arm64-v8a`, `armeabi-v7a`, `x86_64` (matches the manifest and `PaddleOcrEngine`); ONNX
   Runtime publishes all three and the ONNX graphs are architecture-independent, so x86_64 is supported.
-- **Hosting:** pinned release tag (e.g. `ocr-models-v3`); a `manifest.json` with per-file
+- **Hosting:** pinned release tag (e.g. `ocr-models-v5`); a `manifest.json` with per-file
   **SHA-256**, byte size, ABI, and SPDX id (`MIT` for ONNX Runtime, `Apache-2.0` for Paddle + our `.so`;
   NDK runtime libs under their terms). **`ModelDownloader` must verify checksums** (Chimahon does not —
   §7 R2).

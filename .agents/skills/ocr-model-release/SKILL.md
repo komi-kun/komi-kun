@@ -15,8 +15,16 @@ Two independent things live in `komi-kun/komi-kun-ocr-models`:
 
 | what | pinned in | tags |
 |---|---|---|
-| the **native artifact** (`libpaddle_ocr.so` + `libonnxruntime.so` + `libomp.so` and a copy of the models) | `core/ocr/paddle-manifest.json` | `ocr-models-vN` |
-| the **runtime model releases** the app's selection resolves to | `ModelRelease.kt` | one tag per detector × recogniser pair |
+| the **native artifact** (`libpaddle_ocr.so` + `libonnxruntime.so` + `libomp.so` and a copy of the models) | `core/ocr/paddle-manifest.json` | `ocr-models-vN` so far (legacy naming) → **`ocr-native-vN`** for new cuts |
+| the **runtime model releases** the app's selection resolves to | `ModelRelease.kt` | one tag per detector × recogniser pair (`ocr-manga-vN` / `ocr-models-vN`) |
+
+**Naming rule — two axes, never mixed.** The native artifact and the model releases are separate
+version axes. A future **native** artifact release is tagged **`ocr-native-vN`**; do **not** keep
+numbering it `ocr-models-vN`, because `ocr-models-v3` / `ocr-models-v4` already name two of the four
+*model* releases (the `DIALOGUE`/`SFX` × `STOCK` pair). Model releases keep their names
+(`ocr-manga-vN` for a fine-tune, `ocr-models-vN` for a stock pair). **Existing tags are never
+renamed** (see "never re-tag a release with different bytes" below) — `ocr-models-v5` stays the
+native pin it is today.
 
 Current native artifact: **`ocr-models-v5`** (ONNX Runtime + PP-OCRv6 small). `v5` is a **shim-only**
 rebuild over `ocr-models-v4`'s model bytes — the same ONNX models and runtime, with `libpaddle_ocr.so`

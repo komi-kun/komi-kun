@@ -2,6 +2,11 @@
   "_comment": [
     "Consumed by :core:ocr:fetchPaddleNativeLibs. sha256 must match the file published at",
     "<baseUrl>/<path>. Regenerate with build.sh --manifest-only if the release is republished.",
+    "This manifest describes ONLY the build-time native artifact: `release` is the native",
+    "artifact tag, and `files` holds its libpaddle_ocr.so / libonnxruntime.so / libomp.so per ABI.",
+    "It is a different version axis from the runtime *model* releases (ocr-manga-v4,",
+    "ocr-manga-v3, ocr-models-v3, ocr-models-v4 - see ModelRelease.kt): the .onnx models and the",
+    "dict are downloaded at runtime by paddle/ModelDownloader and are deliberately NOT listed here.",
     "libc++_shared.so is deliberately NOT listed: AGP already packages the NDK copy for any",
     "module built with -DANDROID_STL=c++_shared (:core:dictionary), and a second copy in",
     "jniLibs fails the app merge with a duplicate-path error. Re-add the release's",
@@ -19,14 +24,6 @@
     { "abi": "armeabi-v7a", "name": "libomp.so", "path": "armeabi-v7a_libomp.so", "sha256": "c533187575eedfa92b56f8b462ba66bb8ab809b03a04d951d07bff7720ef9c5f", "size": 994812, "spdx": "Apache-2.0 WITH LLVM-exception" },
     { "abi": "x86_64", "name": "libpaddle_ocr.so", "path": "x86_64_libpaddle_ocr.so", "sha256": "8bfcbfde4049a55eff42305e37453acdfa96380db864cd8d671482da47828e4d", "size": 3730664, "spdx": "Apache-2.0" },
     { "abi": "x86_64", "name": "libonnxruntime.so", "path": "x86_64_libonnxruntime.so", "sha256": "068896846a7fe679cf780c1c532745286d9ef2e469f3dbde5bb9cf2c02095b18", "size": 40827944, "spdx": "MIT" },
-    { "abi": "x86_64", "name": "libomp.so", "path": "x86_64_libomp.so", "sha256": "dbd0e8727752ff227ebb0c2a4dcb23a76a9c66d90bb86d22c30f47bb719022bf", "size": 1164912, "spdx": "Apache-2.0 WITH LLVM-exception" },
-    { "name": "ppocrv6_small_det.onnx", "path": "ppocrv6_small_det.onnx", "sha256": "bf5ed74a98dbbb16f6f4122fd1660692eeccc651933cc7582e38b112dbf01677", "size": 9929569, "spdx": "Apache-2.0" },
-    { "name": "ppocrv6_small_rec.onnx", "path": "ppocrv6_small_rec.onnx", "sha256": "5435fd747c9e0efe15a96d0b378d5bd157e9492ed8fd80edf08f30d02fa24634", "size": 21159378, "spdx": "Apache-2.0" },
-    { "name": "ppocrv6_small_dict.txt", "path": "ppocrv6_small_dict.txt", "sha256": "b5f2bfe2bdd9448429e3e82b51c789775d9b42f2403d082b00662eb77e401c5d", "size": 74947, "spdx": "Apache-2.0" }
-  ],
-  "models": {
-    "det": ["ppocrv6_small_det.onnx"],
-    "rec": ["ppocrv6_small_rec.onnx"],
-    "dict": ["ppocrv6_small_dict.txt"]
-  }
+    { "abi": "x86_64", "name": "libomp.so", "path": "x86_64_libomp.so", "sha256": "dbd0e8727752ff227ebb0c2a4dcb23a76a9c66d90bb86d22c30f47bb719022bf", "size": 1164912, "spdx": "Apache-2.0 WITH LLVM-exception" }
+  ]
 }

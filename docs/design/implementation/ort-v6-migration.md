@@ -107,6 +107,11 @@ the app pins `baseUrl = .../releases/download/ocr-models-v3`. Its `INTEGRATION.m
 drop-in diff applied by phase 2; `app-paddle-manifest.json` is copied verbatim to
 `core/ocr/paddle-manifest.json`.
 
+> **Historical.** The `ocr-models-v3` pin above records what phase 2 applied; the app now pins the
+> **`ocr-models-v5`** native artifact (see `core/ocr/paddle-manifest.json`). `ocr-models-v3`/`-v4`
+> also name two of the four runtime *model* releases, a separate version axis from the native
+> artifact tag.
+
 ## 6. Review-loop log
 
 Each iteration = a **fresh-context** review agent on the diff, then fixes for findings I agree with.
