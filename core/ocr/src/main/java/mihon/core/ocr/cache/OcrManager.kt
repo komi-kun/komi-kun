@@ -189,13 +189,21 @@ class OcrManager(
     /**
      * Deletes a chapter's persisted OCR results and clears its queue entry.
      *
-     * Inert while the feature is off: nothing was ever recognised (so there is nothing to delete) and
-     * the caller — bulk chapter deletion — would otherwise pay a file delete, a synchronous
-     * `SharedPreferences.commit()` and a full queue re-read for *every* chapter, on the default path.
+     * **The file is the user's disk, the store is our bookkeeping.** The cache file is always
+     * deleted, but while the feature is off the store write (a synchronous
+     * `SharedPreferences.commit()`, i.e. an fsync) and the queue re-read are skipped: the caller —
+     * bulk chapter deletion — would otherwise pay both for *every* chapter on the default path.
+     * Skipping the file delete instead would leak it: turning the feature off does not purge
+     * `filesDir/ocr_cache` (the preference is all that is written) and the only UI that clears the
+     * cache is hidden while the feature is off, so results recognised before a disable could never
+     * be reclaimed. The stale store entry is harmless — the queue runner is gated on the same switch
+     * and ignores it.
      */
     suspend fun deleteOcrForChapter(key: OcrCacheKey) {
-        if (ocrDisabled()) return
+        // KUN -->
         cacheManager.deleteChapter(key)
+        if (ocrDisabled()) return
+        // KUN <--
         store.remove(key.chapterId)
         refreshQueueState()
     }
@@ -206,21 +214,29 @@ class OcrManager(
      *
      * The per-chapter method above is the wrong unit for bulk deletion: deleting a 1000-chapter manga
      * through it means 1000 `commit()`s (each an fsync) and 1000 full queue scans.
+     *
+     * Split like [deleteOcrForChapter] for the same reason: the files are reclaimed either way, only
+     * the store write and the refresh are skipped while the feature is off.
      */
     suspend fun deleteOcrForChapters(keys: List<OcrCacheKey>) {
-        if (ocrDisabled() || keys.isEmpty()) return
+        if (keys.isEmpty()) return
+        // KUN -->
         keys.forEach { cacheManager.deleteChapter(it) }
+        if (ocrDisabled()) return
+        // KUN <--
         store.removeAll(keys.map { it.chapterId })
         refreshQueueState()
     }
 
     /**
-     * Deletes every persisted OCR result of a manga. Inert while the feature is off, like
-     * [deleteOcrForChapter]: with nothing ever recognised, a library removal must not walk the cache.
+     * Deletes every persisted OCR result of a manga — unconditionally, like the file deletes above:
+     * with no store entry to maintain there is nothing to skip, and a library removal must still
+     * reclaim the cache a chapter recognised before the feature was turned off.
      */
     suspend fun deleteOcrForManga(sourceId: Long, mangaId: Long) {
-        if (ocrDisabled()) return
+        // KUN -->
         cacheManager.deleteManga(sourceId, mangaId)
+        // KUN <--
     }
 
     suspend fun getStorageSize(): String = cacheManager.readableSize()

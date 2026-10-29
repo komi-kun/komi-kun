@@ -10,6 +10,7 @@
 // KUN <--
 package mihon.core.ocr.cache
 
+import android.content.Context
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
@@ -24,6 +25,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import kotlinx.serialization.json.Json
 import mihon.core.ocr.OcrEngine
 import mihon.core.ocr.OcrLanguage
 import mihon.core.ocr.OcrPreferences
@@ -33,6 +35,7 @@ import org.junit.jupiter.api.Test
 import tachiyomi.core.common.ocr.ReaderOcrSource
 import tachiyomi.core.common.preference.DictionaryOcrPreferences
 import tachiyomi.core.common.preference.InMemoryPreferenceStore
+import java.nio.file.Files
 import java.util.concurrent.atomic.AtomicInteger
 
 class OcrManagerOptInTest {
@@ -281,24 +284,77 @@ class OcrManagerOptInTest {
     }
 
     /**
-     * The default path must cost nothing. These two methods are called from bulk chapter deletion and
-     * library removal, and with the feature off they used to do the work anyway: a cache file delete,
-     * a synchronous `SharedPreferences.commit()` (an fsync) and a full queue re-read — per chapter, so
-     * deleting a 1000-chapter manga paid 1000 of each for a cache that is empty by construction.
+     * The default path must cost nothing *in bookkeeping*. These two methods are called from bulk
+     * chapter deletion and library removal, and with the feature off they used to write the store
+     * anyway: a synchronous `SharedPreferences.commit()` (an fsync) and a full queue re-read — per
+     * chapter, so deleting a 1000-chapter manga paid 1000 of each.
+     *
+     * The cache **file** is still deleted while off (see the test below): turning the feature off does
+     * not purge `filesDir/ocr_cache`, so skipping it would leak every result recognised before the
+     * disable. That is why this test pins the store cost only.
      */
     @Test
-    fun `pruning a deleted chapter or manga costs nothing while disabled`(): Unit = runBlocking {
+    fun `pruning a deleted chapter or manga costs no store write or queue read while disabled`(): Unit = runBlocking {
         val manager = manager(enabled = false)
 
         manager.deleteOcrForChapter(key)
         manager.deleteOcrForChapters(listOf(key, key.copy(chapterId = OTHER_CHAPTER)))
         manager.deleteOcrForManga(SOURCE, MANGA)
 
-        coVerify(exactly = 0) { cacheManager.deleteChapter(any()) }
-        coVerify(exactly = 0) { cacheManager.deleteManga(any(), any()) }
+        // The files are still reclaimed...
+        coVerify(exactly = 2) { cacheManager.deleteChapter(key) }
+        coVerify(exactly = 1) { cacheManager.deleteChapter(key.copy(chapterId = OTHER_CHAPTER)) }
+        coVerify(exactly = 1) { cacheManager.deleteManga(SOURCE, MANGA) }
+        // ...but none of the bookkeeping happens.
         verify(exactly = 0) { store.remove(any()) }
         verify(exactly = 0) { store.removeAll(any()) }
         // Not even the queue re-read: that (not the file delete) is the per-chapter cost.
+        verify(exactly = 0) { store.getAll() }
+    }
+
+    /**
+     * The leak the split gate exists to close: a user OCRs a chapter, turns the feature off and then
+     * deletes the chapter/manga. The switch does not purge the cache and the only UI that clears it is
+     * hidden while the feature is off, so if the deletion path skipped the files those results stayed
+     * on disk forever (~1-2 MB per chapter) with no way to reclaim them.
+     *
+     * A real [OcrCacheManager] over a temp directory: the assertion is about files that are really
+     * there, not about a mock call.
+     */
+    @Test
+    fun `deleting a chapter while disabled still reclaims its cache file`(): Unit = runBlocking {
+        val filesDir = Files.createTempDirectory("ocr-manager-off-delete").toFile()
+        val context = mockk<Context>()
+        every { context.filesDir } returns filesDir
+        val realCache = OcrCacheManager(context, Json)
+        val manager = OcrManager(
+            engine = engine,
+            merger = merger,
+            cacheManager = realCache,
+            store = store,
+            preferences = OcrPreferences(InMemoryPreferenceStore()),
+            dictionaryOcr = DictionaryOcrPreferences(InMemoryPreferenceStore()).apply { choose(false) },
+            scope = CoroutineScope(Dispatchers.Unconfined),
+        )
+        val other = key.copy(chapterId = OTHER_CHAPTER)
+        realCache.save(key, pageIndex = 0, blocks = listOf(block), language = "ja")
+        realCache.save(other, pageIndex = 0, blocks = listOf(block), language = "ja")
+        realCache.internalCacheFile(key).isFile shouldBe true
+        realCache.internalCacheFile(other).isFile shouldBe true
+
+        manager.deleteOcrForChapter(key)
+
+        realCache.internalCacheFile(key).isFile shouldBe false
+        realCache.internalCacheFile(other).isFile shouldBe true
+        // Bookkeeping is still skipped: the entry (harmlessly) stays, and nothing re-reads the queue.
+        verify(exactly = 0) { store.remove(any()) }
+        verify(exactly = 0) { store.getAll() }
+
+        // Same for the manga-wide variant: the whole per-manga directory goes.
+        manager.deleteOcrForManga(SOURCE, MANGA)
+
+        realCache.internalCacheFile(other).isFile shouldBe false
+        verify(exactly = 0) { store.remove(any()) }
         verify(exactly = 0) { store.getAll() }
     }
 
