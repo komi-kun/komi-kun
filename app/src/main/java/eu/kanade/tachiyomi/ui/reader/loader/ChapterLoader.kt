@@ -162,8 +162,8 @@ class ChapterLoader(
             // answers `exists()` for — and treated it as the chapter's directory, so the reader could
             // not open a chapter whose archive was right there. The chapter's own format, resolved
             // from `chapter.url` by `LocalSource.getFormat`, is the only loader that opens the real
-            // file; the fixed candidates never match a `.zip`/`.rar`/`.epub` chapter or one whose
-            // `ComicInfo` title differs from its file name, which is why only the `.cbz` case broke.
+            // file: the bare-name candidate can resolve to a document that is not the chapter, and the
+            // reader then cannot open the archive sitting right next to it.
             //
             // The order is the protection: upstream has `isDownloaded` first and an upstream merge
             // will try to put it back, which silently breaks local `.cbz` chapters again.
