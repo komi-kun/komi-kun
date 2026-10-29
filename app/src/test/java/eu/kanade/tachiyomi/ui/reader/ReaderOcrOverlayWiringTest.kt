@@ -205,6 +205,11 @@ class ReaderOcrOverlayWiringTest {
         overlay shouldContainSource """activeBlock\s*\.\s*value\s*=\s*null"""
         // ...but not while the activity is being recreated, where the popup must survive.
         overlay shouldContainSource """hostActivity\s*\?\s*\.\s*isChangingConfigurations\s*!=\s*true"""
+        // ...and the activity is *unwrapped* rather than cast: `LocalContext.current as? Activity`
+        // answers null for a wrapped context, which turned the guard into the destroy branch and made
+        // a rotation dismiss the very popup it protects.
+        overlay shouldContainSource """hostActivity\s*=\s*LocalContext\s*\.\s*current\s*\.\s*findActivity\(\)"""
+        overlay shouldNotContainSource """LocalContext\s*\.\s*current\s+as\?\s+Activity"""
     }
 
     private companion object {

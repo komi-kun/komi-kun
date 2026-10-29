@@ -13,6 +13,7 @@ package eu.kanade.tachiyomi.ui.reader.ocr.impl
 
 import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
 import android.graphics.RectF
 import android.os.SystemClock
 import androidx.compose.runtime.Composable
@@ -122,7 +123,7 @@ class ReaderOcrHostImpl(
         // its last rect over a zoomed page with `activeBlock` still set, until the overlay came back.
         // Skipped across a configuration change, where the open popup must survive.
         val latestViewport = rememberUpdatedState(viewport)
-        val hostActivity = LocalContext.current as? Activity
+        val hostActivity = LocalContext.current.findActivity()
         DisposableEffect(Unit) {
             onDispose {
                 if (hostActivity?.isChangingConfigurations != true) {
@@ -428,3 +429,24 @@ class ReaderOcrHostImpl(
         // KUN <--
     }
 }
+
+// KUN -->
+/**
+ * The [Activity] behind this context, or null when there is none.
+ *
+ * `LocalContext.current` is usually the Activity, but not always — Compose hands down a
+ * `ContextThemeWrapper`, a host may pass its own wrapped context, and the overlay only needs to
+ * *ask* the activity one question (`isChangingConfigurations`). A plain `as? Activity` then answers
+ * "no activity" for a context that is merely wrapped, and the caller's rotation guard reads
+ * `null != true` as "this is a real destroy": a rotation with an open lookup would dismiss the popup
+ * it exists to keep, invisibly. Unwrapping `ContextWrapper.baseContext` finds the Activity instead.
+ */
+internal fun Context.findActivity(): Activity? {
+    var current: Context = this
+    while (current is ContextWrapper) {
+        if (current is Activity) return current
+        current = current.baseContext
+    }
+    return null
+}
+// KUN <--
