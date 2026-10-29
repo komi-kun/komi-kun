@@ -42,6 +42,8 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
+import java.nio.file.Files
+import java.nio.file.attribute.PosixFilePermissions
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -456,6 +458,100 @@ class DictionaryImportCoordinatorTest {
         File(dictionariesDir(h.context), "term").listFiles().orEmpty().map { it.name } shouldBe listOf(TITLE)
     }
 
+    /**
+     * The defect this pins: the live directory of each type was deleted *before* the staged copy was
+     * renamed onto it, so a failure **inside the swap loop** (not while staging) left every type that
+     * had already swapped with the new revision and nothing to go back to — the previous dictionary
+     * was destroyed by a re-import that then reported a storage failure. Moving the live tree aside
+     * to `<name>.replacing` and restoring it on failure is what keeps the previous content intact.
+     *
+     * The injection: the second type (`frequency`) can be neither rebuilt from its stale backup nor
+     * have its live directory moved aside, so the swap fails after `term` has already swapped. Both
+     * directories are made read-only for the run (POSIX: nothing inside them can be deleted).
+     */
+    @Test
+    fun `a failure inside the swap loop restores every type's previous content`() = runBlocking<Unit> {
+        val h = harness(freqCount = 1)
+        h.seedOldTree()
+        val oldFreqDir = dictionaryTypeDir(h.context, "frequency", TITLE).apply { mkdirs() }
+        File(oldFreqDir, "index.json").writeText(OLD_INDEX)
+        File(oldFreqDir, "old.freq").writeText("stale")
+        // A `.replacing` backup left read-only by an interrupted earlier swap: it cannot be deleted,
+        // so moving this type's live directory aside fails.
+        val stuckBackup = File(oldFreqDir.parentFile, "$TITLE$BACKUP_SUFFIX").apply { mkdirs() }
+        File(stuckBackup, "stuck.marker").writeText("stuck")
+        oldFreqDir.makeUnwritable()
+        stuckBackup.makeUnwritable()
+
+        try {
+            val outcome = DictionaryImportCoordinator.importFromZip(h.context, File("unused.zip"), h.prefs, h.repository)
+
+            outcome shouldBe DictionaryImportOutcome.Failed(DictionaryImportFailure.StorageFailure)
+            // `term` had already been swapped to the new revision when the failure hit: the rollback
+            // put the previous one back, so the dictionary that worked before still works.
+            File(h.termDir, "old.marker").readText() shouldBe "stale"
+            File(h.termDir, "index.json").readText() shouldBe OLD_INDEX
+            File(h.termDir, "fresh.marker").exists() shouldBe false
+            // The type that could not swap still holds exactly what it held before.
+            File(oldFreqDir, "old.freq").readText() shouldBe "stale"
+            File(oldFreqDir, "index.json").readText() shouldBe OLD_INDEX
+            // No staging copy and no `.replacing` backup of the rolled-back type is left behind.
+            h.importedTypeDirs("term").map { it.name } shouldBe listOf(TITLE)
+            h.importedTypeDirs("frequency").map { it.name } shouldBe listOf(TITLE, "$TITLE$BACKUP_SUFFIX")
+        } finally {
+            oldFreqDir.makeWritable()
+            stuckBackup.makeWritable()
+        }
+    }
+
+    /**
+     * The other half of the same guarantee, which a process kill can reach: the previous tree only
+     * exists under `<name>.replacing`, with no live directory. The next import must put it back
+     * instead of deleting it, and must drop the dead import's unfinished staging copy.
+     */
+    @Test
+    fun `an interrupted swap is recovered from its backup instead of losing the dictionary`() {
+        val h = harness()
+        val freqTypeDir = File(dictionariesDir(h.context), "frequency").apply { mkdirs() }
+        // Exactly what a kill between `dest → dest.replacing` and `staging → dest` leaves behind.
+        val orphanBackup = File(freqTypeDir, "$TITLE$BACKUP_SUFFIX").apply { mkdirs() }
+        File(orphanBackup, "index.json").writeText(OLD_INDEX)
+        File(orphanBackup, "old.freq").writeText("stale")
+        val orphanStaging = File(freqTypeDir, "$TITLE$STAGING_SUFFIX").apply { mkdirs() }
+        File(orphanStaging, "half.freq").writeText("incomplete")
+
+        DictionaryImportCoordinator.cleanupStaleSwapArtifacts(dictionariesDir(h.context))
+
+        // The previous revision is back at its live name, complete.
+        val liveDir = dictionaryTypeDir(h.context, "frequency", TITLE)
+        File(liveDir, "old.freq").readText() shouldBe "stale"
+        File(liveDir, "index.json").readText() shouldBe OLD_INDEX
+        File(liveDir, "half.freq").exists() shouldBe false
+        // ...and neither artifact is left behind.
+        File(freqTypeDir, "$TITLE$BACKUP_SUFFIX").exists() shouldBe false
+        File(freqTypeDir, "$TITLE$STAGING_SUFFIX").exists() shouldBe false
+    }
+
+    /**
+     * The mirror: a backup whose swap *did* complete is the previous revision and must be dropped,
+     * never renamed over the live (new) tree — that would silently roll the import back.
+     */
+    @Test
+    fun `a completed swap's backup is deleted instead of replacing the live tree`() {
+        val h = harness()
+        val freqTypeDir = File(dictionariesDir(h.context), "frequency").apply { mkdirs() }
+        val liveDir = dictionaryTypeDir(h.context, "frequency", TITLE).apply { mkdirs() }
+        File(liveDir, "fresh.freq").writeText("new")
+        val staleBackup = File(freqTypeDir, "$TITLE$BACKUP_SUFFIX").apply { mkdirs() }
+        File(staleBackup, "old.freq").writeText("stale")
+
+        DictionaryImportCoordinator.cleanupStaleSwapArtifacts(dictionariesDir(h.context))
+
+        File(liveDir, "fresh.freq").readText() shouldBe "new"
+        File(liveDir, "old.freq").exists() shouldBe false
+        File(freqTypeDir, "$TITLE$BACKUP_SUFFIX").exists() shouldBe false
+    }
+
     @Test
     fun `the coordinator cannot touch the tree while a lookup holds the session`() {
         val h = harness()
@@ -757,6 +853,10 @@ class DictionaryImportCoordinatorTest {
         const val TITLE = "TestDict"
         const val OLD_INDEX = """{"title":"Old Revision"}"""
 
+        // The siblings the swap writes next to a live type directory (`DictionaryImportCoordinator`).
+        const val STAGING_SUFFIX = ".importing"
+        const val BACKUP_SUFFIX = ".replacing"
+
         // The three records a reader needs, little-endian, and the one method we write.
         const val LOCAL_HEADER_SIG = 0x04034b50
         const val CENTRAL_HEADER_SIG = 0x02014b50
@@ -772,6 +872,18 @@ private const val IMPORT_CANCELLED = "left the import screen"
 /** The success payload of an outcome, or `null` — keeps the pre-outcome assertions readable. */
 private fun DictionaryImportOutcome.importedDictionary(): ImportedDictionary? =
     (this as? DictionaryImportOutcome.Imported)?.dictionary
+
+/**
+ * Removes the write bit from [dir], so nothing inside it can be deleted or renamed over: how the swap
+ * tests force a failure on a destination the code cannot get out of the way of.
+ */
+private fun File.makeUnwritable() {
+    Files.setPosixFilePermissions(toPath(), PosixFilePermissions.fromString("r-xr-xr-x"))
+}
+
+private fun File.makeWritable() {
+    Files.setPosixFilePermissions(toPath(), PosixFilePermissions.fromString("rwxr-xr-x"))
+}
 
 private class FakeEngine(
     private val succeeds: Boolean = true,

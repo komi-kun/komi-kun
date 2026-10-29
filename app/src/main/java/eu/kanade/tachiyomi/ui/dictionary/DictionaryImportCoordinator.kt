@@ -233,13 +233,23 @@ object DictionaryImportCoordinator {
      * code deleted the live directory and copied onto it in place; `copyRecursively`'s default
      * `onError` rethrows, so a disk-full or interrupted re-import destroyed the working dictionary and
      * left nothing (not even the `dictionaryOrder` entry) to look up with — the whole feature was
-     * dead until the user re-imported. Now a failure leaves the previous tree exactly as it was: the
-     * staging directories are removed and the swap never starts.
+     * dead until the user re-imported.
      *
-     * The swap is one rename per type (same parent directory, so no copy), after which the types the
-     * new build has **no data for** are deleted: `targets` only lists the types the fresh import
-     * produced, so without that a re-import that dropped e.g. the pitch entries kept serving the
-     * previous dictionary's pitches.
+     * The swap itself is **reversible**, in two renames per type (both inside the same parent
+     * directory, so the tree is never copied): the live directory is first moved aside to
+     * `<destDir>.replacing`, then the staging copy is renamed onto `<destDir>`. Only after *every*
+     * type has swapped are the `.replacing` backups deleted. A failure anywhere — while staging, or in
+     * the middle of the swap — therefore leaves every type with the content it had before the import:
+     * the types already swapped are rolled back from their backups and the staging copies are
+     * removed. The types the new build has **no data for** are deleted last, since `targets` only
+     * lists the types the fresh import produced (a re-import that dropped e.g. the pitch entries used
+     * to keep serving the previous dictionary's pitches).
+     *
+     * **Not** guaranteed: a *process kill* in the window between the two renames of a type (or between
+     * two types) leaves no chance to roll back, so `<type>/<name>` can be missing while its content
+     * sits in `<type>/<name>.replacing`, plus a `<name>.importing` staging copy.
+     * [cleanupStaleSwapArtifacts] recovers or deletes them at the start of the next import; nothing
+     * repairs them in between, so until then that type simply has no dictionary directory.
      */
     internal fun replaceDictionaryTrees(
         root: File,
@@ -247,7 +257,11 @@ object DictionaryImportCoordinator {
         dirName: String,
         targets: List<String>,
     ) {
+        cleanupStaleSwapArtifacts(root)
         val staged = ArrayList<Pair<File, File>>(targets.size)
+        // (destination, its `.replacing` backup) per type already swapped, in swap order: what a
+        // rollback has to put back.
+        val swapped = ArrayList<Pair<File, File?>>(targets.size)
         try {
             for (type in targets) {
                 val destDir = File(File(root, type), dirName)
@@ -258,21 +272,79 @@ object DictionaryImportCoordinator {
                 staged += stagingDir to destDir
             }
             for ((stagingDir, destDir) in staged) {
-                if (destDir.exists()) destDir.deleteRecursively()
                 destDir.parentFile?.mkdirs()
+                // The live tree is the only copy of the previous dictionary until this type has
+                // swapped, so it is moved aside rather than deleted; `swapped` records it *before*
+                // the second rename, so that rename failing restores it too.
+                val backupDir = if (destDir.exists()) {
+                    val backup = File(destDir.parentFile, "${destDir.name}$BACKUP_SUFFIX")
+                    if (backup.exists()) backup.deleteRecursively()
+                    if (!destDir.renameTo(backup)) {
+                        throw IOException("could not move $destDir aside to $backup")
+                    }
+                    backup
+                } else {
+                    null
+                }
+                swapped += destDir to backupDir
                 if (!stagingDir.renameTo(destDir)) {
                     throw IOException("could not move $stagingDir into place at $destDir")
                 }
+            }
+            // Every type is in place, so the previous revision is only now disposable.
+            swapped.forEach { (_, backupDir) ->
+                if (backupDir != null && backupDir.exists()) backupDir.deleteRecursively()
             }
             (TYPE_SUBDIRS - targets.toSet()).forEach { type ->
                 val stale = File(File(root, type), dirName)
                 if (stale.exists()) stale.deleteRecursively()
             }
         } catch (e: Throwable) {
-            // The previous dictionary is still where it was: drop the staging copies and let the
-            // caller report the storage failure.
+            // Restore every type already swapped from its backup, then drop the staging copies, so
+            // the previous dictionary is left exactly as it was and the caller can report the
+            // storage failure.
+            swapped.asReversed().forEach { (destDir, backupDir) ->
+                if (destDir.exists()) destDir.deleteRecursively()
+                if (backupDir != null && backupDir.exists() && !backupDir.renameTo(destDir)) {
+                    Log.e(TAG, "could not restore $destDir from $backupDir")
+                }
+            }
             staged.forEach { (stagingDir, _) -> if (stagingDir.exists()) stagingDir.deleteRecursively() }
             throw e
+        }
+    }
+
+    /**
+     * Recover or delete what a swap killed mid-way left behind, before a new import starts.
+     *
+     * A `<name>.importing` entry is always an unfinished staging copy and is deleted. A
+     * `<name>.replacing` entry is the previous revision of `<name>`: it is renamed back when the live
+     * directory is missing (the kill landed between the two renames) and deleted when it is there
+     * (the swap of that type completed and only the cleanup was lost). Runs inside the caller's
+     * tree mutation, like [replaceDictionaryTrees] itself.
+     *
+     * A dictionary whose *sanitised title* ends with one of those suffixes is indistinguishable from
+     * an artifact and is treated as one; titles are the user's, the suffixes are ours.
+     */
+    internal fun cleanupStaleSwapArtifacts(root: File) {
+        for (type in TYPE_SUBDIRS) {
+            val typeDir = File(root, type)
+            val entries = typeDir.listFiles() ?: continue
+            for (entry in entries) {
+                when {
+                    entry.name.endsWith(STAGING_SUFFIX) -> if (!entry.deleteRecursively()) {
+                        Log.e(TAG, "could not delete stale staging dir $entry")
+                    }
+                    entry.name.endsWith(BACKUP_SUFFIX) -> {
+                        val destDir = File(typeDir, entry.name.removeSuffix(BACKUP_SUFFIX))
+                        if (destDir.exists()) {
+                            if (!entry.deleteRecursively()) Log.e(TAG, "could not delete stale backup $entry")
+                        } else if (!entry.renameTo(destDir)) {
+                            Log.e(TAG, "could not restore $destDir from $entry")
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -455,6 +527,9 @@ object DictionaryImportCoordinator {
 
     /** Suffix of the sibling directory a type is staged into before it replaces the live one. */
     private const val STAGING_SUFFIX = ".importing"
+
+    /** Suffix of the sibling directory the live tree is moved aside to while a type swaps. */
+    private const val BACKUP_SUFFIX = ".replacing"
 
     /** Cap on a title-derived path segment; the same length `sanitizeTitleForPath` uses. */
     private const val MAX_PATH_NAME_CHARS = 120
