@@ -23,9 +23,6 @@ object ChapterMapper {
         version: Long,
         @Suppress("UNUSED_PARAMETER")
         isSyncing: Long,
-        // KUN -->
-        isOcrReady: Boolean,
-        // KUN <--
     ): Chapter = Chapter(
         id = id,
         mangaId = mangaId,
@@ -42,8 +39,5 @@ object ChapterMapper {
         lastModifiedAt = lastModifiedAt,
         version = version,
         memo = remoteMemo,
-        // KUN -->
-        isOcrReady = isOcrReady,
-        // KUN <--
     )
 }

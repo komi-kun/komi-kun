@@ -54,9 +54,6 @@ class ChapterRepositoryImpl(
                         version = chapter.version,
                         isSyncing = 0L,
                         // SY <--
-                        // KUN -->
-                        isOcrReady = chapter.isOcrReady,
-                        // KUN <--
                     ).awaitAsOneOrNull() ?: return@mapNotNull null
                     // KUN <--
                     chapter.copy(id = lastInsertId)
@@ -143,9 +140,6 @@ class ChapterRepositoryImpl(
                         version = chapter.version,
                         isSyncing = 0L,
                         // SY <--
-                        // KUN -->
-                        isOcrReady = chapter.isOcrReady,
-                        // KUN <--
                     ).awaitAsOneOrNull() ?: return@mapNotNull null
                     // KUN <--
                     chapter.copy(id = lastInsertId)
@@ -181,9 +175,6 @@ class ChapterRepositoryImpl(
                     lastModifiedAt = null,
                     isSyncing = null,
                     // SY <--
-                    // KUN -->
-                    isOcrReady = chapterUpdate.isOcrReady,
-                    // KUN <--
                 )
             }
         }
