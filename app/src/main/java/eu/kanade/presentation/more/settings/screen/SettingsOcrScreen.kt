@@ -88,9 +88,15 @@ object SettingsOcrScreen : SearchableSettings {
         // Runtime model-download status (contract §1.7). `isPaddleDownloaded` is a cheap synchronous
         // gate; the state flow adds live progress and makes a first-time failure visible instead of
         // silent (the download itself is triggered opt-in on Paddle selection below).
-        val modelsReady = remember(downloadState) {
-            downloadState == ModelDownloadState.Completed || modelDownloader.isPaddleDownloaded
+        // KUN -->
+        // Only probed while the switch is on: `isPaddleDownloaded` stats the installed model files,
+        // and the status row it feeds is itself gated on `featureEnabled`, so an off screen (and
+        // Settings search, which composes it) touches no OCR files at all.
+        val modelsReady = remember(downloadState, featureEnabled) {
+            featureEnabled &&
+                (downloadState == ModelDownloadState.Completed || modelDownloader.isPaddleDownloaded)
         }
+        // KUN <--
         val modelStatus = when (val state = downloadState) {
             // Surface the actual reason instead of a constant "Error" (F8).
             is ModelDownloadState.Failed -> stringResource(KUNMR.strings.ocr_status_error_reason, state.message)

@@ -92,7 +92,13 @@ object SettingsDictionaryScreen : SearchableSettings {
         val context = LocalContext.current
         val navigator = LocalNavigator.currentOrThrow
         val prefs = remember(context) { context.appGraph.dictionaryPreferences }
-        val repository = remember(context) { context.appGraph.dictionaryRepository }
+        // KUN -->
+        // Deferred, not resolved in composition: `dictionaryRepository` constructs the GPL engine,
+        // whose initialiser `dlopen`s `libhoshidicts_jni`. This screen — and Settings search, which
+        // composes every enabled screen's preferences — must not pay for that while the feature is
+        // off, so the only reader is the import callback below, which the gated rows alone reach.
+        val repository by remember(context) { lazy { context.appGraph.dictionaryRepository } }
+        // KUN <--
         val scope = rememberCoroutineScope()
         var refresh by remember { mutableIntStateOf(0) }
 
@@ -113,7 +119,13 @@ object SettingsDictionaryScreen : SearchableSettings {
         val settingsErrorText = stringResource(KUNMR.strings.pref_import_yomitan_settings_error)
         val settingsDoneText = stringResource(KUNMR.strings.pref_import_yomitan_settings_done)
 
-        val dictionaries = remember(refresh) { allDictionaryNames(context) }
+        val dictionaries = remember(refresh, featureEnabled) {
+            // KUN -->
+            // A storage listing (external files, SAF tree) is part of the on-path screen only: while
+            // the feature is off the only rows are the master switch and its hint.
+            if (featureEnabled) allDictionaryNames(context) else emptyList()
+            // KUN <--
+        }
         val activeProfile = remember(rawProfiles, refresh) { prefs.profileStore.getActiveProfile() }
         val profileEntries = remember(rawProfiles) { prefs.profileStore.getProfiles().associate { it.id to it.name } }
 
