@@ -63,6 +63,7 @@ import eu.kanade.presentation.util.Screen
 import eu.kanade.presentation.util.isTabletUi
 import eu.kanade.tachiyomi.source.ConfigurableSource
 import eu.kanade.tachiyomi.source.Source
+import eu.kanade.tachiyomi.source.getNameForMangaInfo
 import eu.kanade.tachiyomi.source.getOrStubOrNull
 import eu.kanade.tachiyomi.source.isLocalOrStub
 import eu.kanade.tachiyomi.source.online.HttpSource
@@ -76,6 +77,7 @@ import eu.kanade.tachiyomi.ui.browse.source.globalsearch.GlobalSearchScreen
 import eu.kanade.tachiyomi.ui.category.CategoryScreen
 import eu.kanade.tachiyomi.ui.home.HomeScreen
 import eu.kanade.tachiyomi.ui.manga.merged.EditMergedSettingsDialog
+import eu.kanade.tachiyomi.ui.manga.merged.EditMergedSettingsViewModel
 import eu.kanade.tachiyomi.ui.manga.notes.MangaNotesScreen
 import eu.kanade.tachiyomi.ui.manga.track.TrackInfoDialogHomeScreen
 import eu.kanade.tachiyomi.ui.reader.ReaderActivity
@@ -366,7 +368,11 @@ class MangaScreen(
             },
             onMigrateClicked = {
                 navigator.push(MigrationConfigScreen(successState.manga.id))
-            }.takeIf { successState.manga.favorite },
+            }.takeIf {
+                // SY -->
+                successState.manga.favorite && successState.manga.source != MERGED_SOURCE_ID
+                // SY <--
+            },
             // SY -->
             previewsRowCount = successState.previewsRowCount,
             onMetadataViewerClicked = {
@@ -593,6 +599,7 @@ class MangaScreen(
                             when (it) {
                                 EditCoverAction.EDIT -> getContent.launch("image/*")
                                 EditCoverAction.DELETE -> vm.deleteCustomCover(context)
+                                EditCoverAction.ADD_TO_LIBRARY -> vm.addToLibraryWarning(context)
                             }
                         },
                         onDismissRequest = onDismissRequest,
@@ -623,27 +630,42 @@ class MangaScreen(
             }
             // SY -->
             is MangaViewModel.Dialog.EditMangaInfo -> {
+                val coverVm =
+                    assistedMetroViewModel<MangaCoverViewModel, MangaCoverViewModel.Factory> {
+                        create(mangaId = mangaId)
+                    }
+                val coverManga by coverVm.state.collectAsStateWithLifecycle()
+                val getContent = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) {
+                    if (it == null) return@rememberLauncherForActivityResult
+                    coverVm.editCover(context, it)
+                }
                 EditMangaDialog(
                     manga = dialog.manga,
+                    coverManga = coverManga,
                     // KMK -->
                     coverRatio = coverRatio,
                     // KMK <--
+                    sourceName = successState.source.getNameForMangaInfo(),
+                    mergedManga = successState.mergedData?.manga?.values?.toList()?.ifEmpty { null },
                     onDismissRequest = viewModel::dismissDialog,
                     onPositiveClick = viewModel::updateMangaInfo,
+                    onCoverClick = { getContent.launch("image/*") },
+                    onResetCoverClick = { coverVm.deleteCustomCover(context) },
                 )
             }
-
-            is MangaViewModel.Dialog.EditMergedSettings -> {
+            MangaViewModel.Dialog.EditMergedSettings -> {
+                val mergedVM =
+                    assistedMetroViewModel<EditMergedSettingsViewModel, EditMergedSettingsViewModel.Factory> {
+                        create(mangaId = mangaId)
+                    }
                 EditMergedSettingsDialog(
-                    mergedData = dialog.mergedData,
+                    viewModel = mergedVM,
+                    onMangaClick = { navigator.push(MangaScreen(it.mangaId ?: return@EditMergedSettingsDialog)) },
                     onDismissRequest = viewModel::dismissDialog,
-                    onDeleteClick = viewModel::deleteMerge,
-                    onPositiveClick = viewModel::updateMergeSettings,
-                    // KMK -->
-                    onOpenEntryClick = { merge ->
-                        merge.mangaId?.let { navigator.push(MangaScreen(it)) }
-                    },
-                    // KMK <--
+                    // KUN -->
+                    // Opening an entry from the settings sheet is upstream's `onMangaClick` now;
+                    // Komikku had the same action through the removed `onOpenEntryClick`.
+                    // KUN <--
                 )
             }
             // SY <--

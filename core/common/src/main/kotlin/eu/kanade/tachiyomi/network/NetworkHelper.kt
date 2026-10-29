@@ -8,7 +8,6 @@ import eu.kanade.tachiyomi.network.interceptor.CloudflareInterceptor
 import eu.kanade.tachiyomi.network.interceptor.UncaughtExceptionInterceptor
 import eu.kanade.tachiyomi.network.interceptor.UserAgentInterceptor
 import exh.log.EHLogLevel
-import exh.pref.DelegateSourcePreferences
 import kotlinx.coroutines.CoroutineScope
 import logcat.LogPriority
 import mihon.core.metro.AppCoroutineScope
@@ -33,16 +32,9 @@ open /* SY <-- */ class NetworkHelper(
     @AppCoroutineScope private val scope: CoroutineScope,
     private val context: Context,
     private val preferences: NetworkPreferences,
-    // KMK -->
-    val delegateSourcePreferences: DelegateSourcePreferences,
-    // KMK <--
 ) {
 
     /* SY --> */ open /* SY <-- */val cookieJar = AndroidCookieJar()
-
-    // KMK -->
-    private val delegatedSourcesEnabled = delegateSourcePreferences.delegateSources.get()
-    // KMK <--
 
     /**
      * Timeout in unit of seconds.
@@ -111,30 +103,6 @@ open /* SY <-- */ class NetworkHelper(
             .addInterceptor(
                 CloudflareInterceptor(context, cookieJar, scope, ::defaultUserAgentProvider),
             )
-            // KMK -->
-            // FIXME (KMK): Dirty hack to fetch MangaDex covers
-            .addInterceptor { chain ->
-                val originalRequest = chain.request()
-                val url = originalRequest.url
-
-                if (!delegatedSourcesEnabled ||
-                    url.host != "uploads.mangadex.org" ||
-                    !url.encodedPath.startsWith("/covers/")
-                ) {
-                    return@addInterceptor chain.proceed(originalRequest)
-                }
-
-                val newRequest = originalRequest
-                    .newBuilder()
-                    .header("Referer", "https://mangadex.org/")
-                    .header("Origin", "https://mangadex.org")
-                    .header("sec-fetch-dest", "image")
-                    .header("sec-fetch-mode", "no-cors")
-                    .build()
-
-                chain.proceed(newRequest)
-            }
-            // KMK <--
             .build()
     }
 

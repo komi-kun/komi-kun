@@ -23,6 +23,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - Add option to set which readers use vertical chapter navigator ([@AntsyLich](https://github.com/AntsyLich)) ([#3528](https://github.com/mihonapp/mihon/pull/3528))
 
 ### Changed
+- Apply the reader's grayscale and inverted colors to pages only, not to transition, loading and error pages ([@AntsyLich](https://github.com/AntsyLich)) ([#4191](https://github.com/mihonapp/mihon/pull/4191))
 - Don't use GMS to detect if GMS is available ([@leodyversemilla07](https://github.com/leodyversemilla07)) ([#3525](https://github.com/mihonapp/mihon/pull/3525))
 
 ### Improved
@@ -36,6 +37,9 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - Fix chapter's `memo` field not being updated for existing chapters ([@cuong-tran](https://github.com/cuong-tran)) ([#3538](https://github.com/mihonapp/mihon/pull/3538))
 - Fix app not reading `tachiyomix.extensionLib` extension metadata ([@AntsyLich](https://github.com/AntsyLich)) ([#3545](https://github.com/mihonapp/mihon/pull/3545), [#3559](https://github.com/mihonapp/mihon/pull/3559))
 - Fix reader navigator slider steps not updating after changing chapter ([@AntsyLich](https://github.com/AntsyLich)) ([#3549](https://github.com/mihonapp/mihon/pull/3549))
+- Fixed Shizuku extension installer being unavailable with Sui ([@AntsyLich](https://github.com/AntsyLich))
+- Fix extension settings showing duplicate entries after the app is restored from the background ([@AntsyLich](https://github.com/AntsyLich))
+- Replace the chapter cache with a disk cache whose entries expire, and stop reading the disk synchronously ([@AntsyLich](https://github.com/AntsyLich))
 - Restore TachiyomiSY's EH/NHentai metadata search in the library. `artist:`, `group:`, `parody:`, `character:`, `uploader:`, `female:`, `male:`, `reclass:` and the short aliases `a:`, `c:`/`char:`, `f:`, `g:`/`creator:`/`circle:`, `l:`, `m:`, `p:`/`series:`, `r:` now match the stored EH metadata; they previously matched unrelated manga fields (`artist:`) or nothing. `language:`/`lang:` keep matching the source language. The other Mihon fields (`id:`, `src:`, wildcards, ...) are unchanged.
 
 ## [v0.20.0] - 2026-06-27

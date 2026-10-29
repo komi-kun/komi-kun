@@ -11,7 +11,12 @@
 // The defect it pins was real: the overlay used to be the **last** sibling of the root `Box`, i.e.
 // drawn over the whole reader UI instead of under the chrome. In a `Box` the draw order is the
 // composition order of the non-composed children, so the ordering facts below *are* the layering:
-// `ContentOverlay` (brightness/colour) first, the OCR overlay next, `AppBars` last.
+// `ReaderContentOverlay` (brightness/colour) first, the OCR overlay next, then the reader chrome
+// (`ReaderNavigationOverlay` and `AppBars`) last.
+//
+// The needles follow the Compose reader root (upstream 00335b2a70): the root `Box` is the one that
+// paints the reader background, the brightness/colour overlay is `ReaderContentOverlay`, and the
+// side navigator is `ReaderNavigationOverlay`.
 //
 // Two properties keep the source reads from decaying into greps: comments are stripped first, so a
 // needle can never be satisfied (or broken) by prose, and the structural assertions slice blocks by
@@ -52,9 +57,12 @@ class ReaderOcrOverlayWiringTest {
         // could see which of the two is which.
         occurrences(source, Regex.fromLiteral("readerOcrHost.Overlay(")) shouldBe 1
 
-        val rootBox = indexOfCall(source, "Box(modifier = Modifier.fillMaxSize())")
-        val contentOverlay = indexOfCall(source, "ContentOverlay(state = state)")
+        // The root Box is the one painting the reader background: `Box(` alone would also match any
+        // Box composed before it, which would make the containment assert below pass vacuously.
+        val rootBox = indexOfCall(source, ".background(backgroundColor)")
+        val contentOverlay = indexOfCall(source, "ReaderContentOverlay(")
         val overlay = indexOfCall(source, "readerOcrHost.Overlay(")
+        val navigationOverlay = indexOfCall(source, "ReaderNavigationOverlay(state = navigationOverlayState)")
         val appBars = indexOfCall(source, "AppBars(state = state)")
 
         // Root Box first: the overlay must be a child of the page-layer Box, not a sibling of it.
@@ -65,11 +73,16 @@ class ReaderOcrOverlayWiringTest {
         // Inside the Box, after the brightness/colour overlay, so it is drawn on top of the page...
         assertTrue(
             contentOverlay < overlay,
-            "the OCR overlay must be composed after ContentOverlay " +
+            "the OCR overlay must be composed after ReaderContentOverlay " +
                 "(contentOverlay=$contentOverlay, overlay=$overlay)",
         )
         // ...and before the chrome, so the top/bottom bars and the side navigator paint over it. This
-        // is the assertion that fails if `AppBars` is ever moved back above the OCR block.
+        // is the assertion that fails if either chrome sibling is moved back above the OCR block.
+        assertTrue(
+            overlay < navigationOverlay,
+            "the OCR overlay must be composed before ReaderNavigationOverlay, or the navigator stops " +
+                "covering it (overlay=$overlay, navigationOverlay=$navigationOverlay)",
+        )
         assertTrue(
             overlay < appBars,
             "the OCR overlay must be composed before AppBars, or the chrome stops covering it " +

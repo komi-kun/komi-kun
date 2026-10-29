@@ -9,6 +9,7 @@ import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
 import android.os.Looper
+import android.os.SystemClock
 import android.view.View
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -48,7 +49,9 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.util.Consumer
 import androidx.interpolator.view.animation.FastOutSlowInInterpolator
 import androidx.interpolator.view.animation.LinearOutSlowInInterpolator
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.Navigator
 import cafe.adriel.voyager.navigator.NavigatorDisposeBehavior
@@ -78,7 +81,6 @@ import eu.kanade.tachiyomi.data.BackupRestoreStatus
 import eu.kanade.tachiyomi.data.LibraryUpdateStatus
 import eu.kanade.tachiyomi.data.SyncStatus
 import eu.kanade.tachiyomi.data.backup.create.BackupCreateWorker
-import eu.kanade.tachiyomi.data.cache.ChapterCache
 import eu.kanade.tachiyomi.data.coil.MangaCoverMetadata
 import eu.kanade.tachiyomi.data.connections.discord.DiscordRPCService
 import eu.kanade.tachiyomi.data.download.DownloadCache
@@ -115,6 +117,7 @@ import exh.debug.DebugToggles
 import exh.eh.EHentaiUpdateWorker
 import exh.log.DebugModeOverlay
 import exh.source.ExhPreferences
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.delay
@@ -136,6 +139,7 @@ import mihon.core.metro.metroGraph
 import mihon.core.migration.Migrator
 import mihon.core.migration.Migrator.scope
 import mihon.core.ocr.paddle.ModelDownloadState
+import mihon.data.cache.ChapterCache
 import mihon.domain.database.repository.DatabaseRepository
 import tachiyomi.core.common.Constants
 import tachiyomi.core.common.i18n.stringResource
@@ -156,6 +160,7 @@ import java.util.LinkedList
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.days
+import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 import kotlin.time.TimeSource
@@ -557,9 +562,7 @@ class MainActivity : BaseActivity() {
         setSplashScreenExitAnimation(splashScreen)
 
         if (isLaunch && libraryPreferences.autoClearChapterCache.get()) {
-            lifecycleScope.launch(Dispatchers.IO) {
-                chapterCache.clear()
-            }
+            lifecycleScope.launch { chapterCache.clear() }
         }
     }
 
@@ -654,23 +657,36 @@ class MainActivity : BaseActivity() {
             // updater is disabled for this build type.
             AppUpdateJob.setupTask(context)
             // KMK <--
-            if (updaterEnabled) {
-                try {
-                    val result = context.appGraph.updateChecker.checkForUpdate(context)
-                    if (
-                        result is GetApplicationRelease.Result.NewUpdate &&
-                        result.release.version != preferences.skippedAppUpdate.get()
-                    ) {
-                        val updateScreen = NewUpdateScreen(
-                            versionName = result.release.version,
-                            changelogInfo = result.release.info,
-                            releaseLink = result.release.releaseLink,
-                            downloadLink = result.release.downloadLink,
-                        )
-                        navigator.push(updateScreen)
+            if (!updaterEnabled) return@LaunchedEffect
+            var lastCheck: Long? = null
+            // The app can stay open for days now, so a cold start alone rarely checks.
+            // Elapsed realtime keeps counting while the device sleeps, unlike the monotonic clock.
+            lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                while (true) {
+                    lastCheck?.let {
+                        delay(it + APP_UPDATE_CHECK_INTERVAL.inWholeMilliseconds - SystemClock.elapsedRealtime())
                     }
-                } catch (e: Exception) {
-                    logcat(LogPriority.ERROR, e)
+                    lastCheck = SystemClock.elapsedRealtime()
+                    try {
+                        val result = context.appGraph.updateChecker.checkForUpdate(context)
+                        if (
+                            result is GetApplicationRelease.Result.NewUpdate &&
+                            result.release.version != preferences.skippedAppUpdate.get() &&
+                            navigator.items.none { it is NewUpdateScreen }
+                        ) {
+                            val updateScreen = NewUpdateScreen(
+                                versionName = result.release.version,
+                                changelogInfo = result.release.info,
+                                releaseLink = result.release.releaseLink,
+                                downloadLink = result.release.downloadLink,
+                            )
+                            navigator.push(updateScreen)
+                        }
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        logcat(LogPriority.ERROR, e)
+                    }
                 }
             }
         }
@@ -987,3 +1003,4 @@ private const val MIGRATION_NOTICE_TIMEOUT_MS = 30_000L
 // KUN <--
 
 private val MIGRATING_SCREEN_MIN_DURATION = 1.seconds
+private val APP_UPDATE_CHECK_INTERVAL = 6.hours

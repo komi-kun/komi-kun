@@ -32,6 +32,7 @@ import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.domain.category.repository.CategoryRepository
 import tachiyomi.domain.chapter.repository.ChapterRepository
+import tachiyomi.domain.history.repository.HistoryRepository
 import tachiyomi.domain.sync.repository.SyncRepository
 import java.util.concurrent.TimeUnit
 
@@ -61,6 +62,8 @@ class SyncDataJob(private val context: Context, workerParams: WorkerParameters) 
     @Inject private lateinit var syncRepository: SyncRepository
 
     @Inject private lateinit var chapterRepository: ChapterRepository
+
+    @Inject private lateinit var historyRepository: HistoryRepository
 
     @Inject private lateinit var categoryRepository: CategoryRepository
 
@@ -97,6 +100,7 @@ class SyncDataJob(private val context: Context, workerParams: WorkerParameters) 
                 context = context,
                 syncRepository = syncRepository,
                 chapterRepository = chapterRepository,
+                historyRepository = historyRepository,
                 categoryRepository = categoryRepository,
                 syncPreferences = syncPreferences,
                 getCategories = getCategories,

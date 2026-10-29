@@ -1,0 +1,6 @@
+-- KUN -->
+-- Manga OCR: reserved column for per-chapter OCR progress. It is not written or read yet (nothing
+-- sets it to 1, and neither the reader badge nor the OCR queue skips on it), so it stays 0 for
+-- every chapter; a future migration may start populating it from the persisted OCR queue.
+ALTER TABLE chapter ADD COLUMN is_ocr_ready INTEGER NOT NULL DEFAULT 0;
+-- KUN <--

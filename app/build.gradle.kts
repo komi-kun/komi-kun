@@ -407,6 +407,7 @@ dependencies {
 
     // Tests
     testImplementation(libs.bundles.test)
+    testImplementation(libs.sqldelight.sqlite.driver)
     testRuntimeOnly(libs.junit.platform.launcher)
     // KUN -->
     // Real org.json for JVM unit tests (Android's is stubbed and throws "not mocked").
@@ -538,9 +539,3 @@ val verifyGplFree by tasks.registering(Exec::class) {
     commandLine("bash", "-c", "bash \"$guard\" && bash \"$selfTest\"")
 }
 // KUN <--
-
-buildscript {
-    dependencies {
-        classpath(kotlinx.gradle)
-    }
-}

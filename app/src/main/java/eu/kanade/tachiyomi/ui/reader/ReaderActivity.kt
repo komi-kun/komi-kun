@@ -1,7 +1,6 @@
 package eu.kanade.tachiyomi.ui.reader
 
 import android.Manifest
-import android.annotation.SuppressLint
 import android.app.assist.AssistContent
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -10,8 +9,6 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.Color
-import android.graphics.ColorMatrix
-import android.graphics.ColorMatrixColorFilter
 import android.graphics.Paint
 import android.graphics.PointF
 import android.net.Uri
@@ -20,7 +17,6 @@ import android.os.Bundle
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
-import android.view.View.LAYER_TYPE_HARDWARE
 import android.view.ViewConfiguration
 import android.view.WindowManager
 import android.widget.Toast
@@ -28,44 +24,60 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.ui.graphics.asAndroidColorFilter
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.keepScreenOn
+import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.getSystemService
-import androidx.core.graphics.Insets
 import androidx.core.net.toUri
-import androidx.core.transition.doOnEnd
-import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import com.davemorrissey.labs.subscaleview.SubsamplingScaleImageView
-import com.google.android.material.transition.platform.MaterialContainerTransform
 import com.hippo.unifile.UniFile
 import dev.zacsweers.metro.Inject
 import eu.kanade.domain.base.BasePreferences
@@ -77,6 +89,8 @@ import eu.kanade.presentation.reader.ChapterListDialog
 import eu.kanade.presentation.reader.DisplayRefreshHost
 import eu.kanade.presentation.reader.OrientationSelectDialog
 import eu.kanade.presentation.reader.ReaderContentOverlay
+import eu.kanade.presentation.reader.ReaderNavigationOverlay
+import eu.kanade.presentation.reader.ReaderNavigationOverlayState
 import eu.kanade.presentation.reader.ReaderPageActionsDialog
 import eu.kanade.presentation.reader.ReaderPageIndicator
 import eu.kanade.presentation.reader.ReadingModeSelectDialog
@@ -89,7 +103,6 @@ import eu.kanade.tachiyomi.data.connections.discord.DiscordRPCService
 import eu.kanade.tachiyomi.data.connections.discord.ReaderData
 import eu.kanade.tachiyomi.data.notification.NotificationReceiver
 import eu.kanade.tachiyomi.data.notification.Notifications
-import eu.kanade.tachiyomi.databinding.ReaderActivityBinding
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.ui.base.activity.BaseActivity
@@ -107,16 +120,15 @@ import eu.kanade.tachiyomi.ui.reader.setting.ReaderOrientation
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderSettingsViewModel
 import eu.kanade.tachiyomi.ui.reader.setting.ReadingMode
+import eu.kanade.tachiyomi.ui.reader.viewer.LocalPageColorFilter
 import eu.kanade.tachiyomi.ui.reader.viewer.OcrTwoFingerTapDetector
 import eu.kanade.tachiyomi.ui.reader.viewer.OutsideTapDismissDetector
-import eu.kanade.tachiyomi.ui.reader.viewer.ReaderProgressIndicator
-import eu.kanade.tachiyomi.ui.reader.viewer.pager.PagerConfig
+import eu.kanade.tachiyomi.ui.reader.viewer.Viewer
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.PagerViewer
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.R2LPagerViewer
 import eu.kanade.tachiyomi.ui.reader.viewer.webgpu.WebGpuViewer
 import eu.kanade.tachiyomi.ui.reader.viewer.webtoon.WebtoonViewer
 import eu.kanade.tachiyomi.ui.webview.WebViewActivity
-import eu.kanade.tachiyomi.util.system.isNightMode
 import eu.kanade.tachiyomi.util.system.openInBrowser
 import eu.kanade.tachiyomi.util.system.readerBackgroundColor
 import eu.kanade.tachiyomi.util.system.toShareIntent
@@ -127,6 +139,7 @@ import exh.util.defaultReaderType
 import exh.util.mangaType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
@@ -135,7 +148,6 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.launch
 import logcat.LogPriority
 import mihon.app.di.AppGraph
@@ -149,7 +161,6 @@ import tachiyomi.core.common.i18n.pluralStringResource
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.preference.DictionaryOcrPreferences
 import tachiyomi.core.common.util.lang.launchIO
-import tachiyomi.core.common.util.lang.launchNonCancellable
 import tachiyomi.core.common.util.system.UrlUtils
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.manga.model.MangaCover
@@ -159,6 +170,7 @@ import tachiyomi.i18n.kmk.KMR
 import tachiyomi.i18n.kun.KUNMR
 import tachiyomi.i18n.sy.SYMR
 import tachiyomi.presentation.core.components.ActionButton
+import tachiyomi.presentation.core.screens.LoadingScreen
 import tachiyomi.presentation.core.util.collectAsState
 import java.io.ByteArrayOutputStream
 import kotlin.time.Duration.Companion.seconds
@@ -209,15 +221,30 @@ class ReaderActivity : BaseActivity() {
     @Inject private lateinit var connectionsPreferences: ConnectionsPreferences
     // <-- AM (CONNECTIONS)
 
-    lateinit var binding: ReaderActivityBinding
-
     val viewModel by viewModels<ReaderViewModel> { graph.viewModelFactory }
+    val settingsViewModel by viewModels<ReaderSettingsViewModel> {
+        viewModelFactory {
+            initializer {
+                ReaderSettingsViewModel(
+                    readerState = viewModel.state,
+                    // KUN -->
+                    // The fork's settings view model takes the reader state and the manga's setters
+                    // rather than the ReaderViewModel itself. `readingMode` is resolved through the same
+                    // `getMangaReadingMode` this activity builds the viewer from, so the settings page
+                    // and the viewer agree, auto-webtoon resolution (R45) included.
+                    onChangeReadingMode = viewModel::setMangaReadingMode,
+                    onChangeOrientation = viewModel::setMangaOrientationType,
+                    // KUN <--
+                    preferences = readerPreferences,
+                    basePreferences = preferences,
+                    // KUN -->
+                    resolveReadingMode = { ReadingMode.fromPreference(viewModel.getMangaReadingMode()) },
+                    // KUN <--
+                )
+            }
+        }
+    }
     private var assistUrl: String? = null
-
-    /**
-     * Configuration at reader level, like background color or forced orientation.
-     */
-    private var config: ReaderConfig? = null
 
     private var menuToggleToast: Toast? = null
     private var readingModeToast: Toast? = null
@@ -225,6 +252,10 @@ class ReaderActivity : BaseActivity() {
     // Constructed lazily (TachiyomiSY 68fd60274e): the field's dependencies are not ready at
     // property-initialisation time, which crashed the reader on open.
     private val displayRefreshHost by lazy { DisplayRefreshHost() }
+    // KUN <--
+
+    // KUN -->
+    private val navigationOverlayState = ReaderNavigationOverlayState()
     // KUN <--
 
     // KUN -->
@@ -285,11 +316,28 @@ class ReaderActivity : BaseActivity() {
 
     /** Scratch buffer for the compose overlay's screen location; UI thread only. */
     private val composeOverlayLocation = IntArray(2)
+
+    /**
+     * The Compose content root (`setComposeContent`) - the window-relative origin every OCR overlay
+     * and dictionary popup coordinate is reported in. It replaced the layout's `compose_overlay`
+     * ComposeView when the reader moved to one Compose root (upstream 00335b2a70).
+     */
+    val composeOverlayRoot: View get() = findViewById(android.R.id.content)
     // KUN <--
 
     private val windowInsetsController by lazy { WindowInsetsControllerCompat(window, window.decorView) }
 
-    private var loadingIndicator: ReaderProgressIndicator? = null
+    // KUN -->
+    // Whether the viewer is still being loaded. The Compose root draws the loading chrome over it
+    // (upstream 00335b2a70) instead of the activity adding a progress view to its container.
+    private var isLoadingViewer by mutableStateOf(false)
+    // KUN <--
+
+    /**
+     * Viewer used to display the pages (pager, webtoon, ...).
+     */
+    private val viewerFlow = MutableStateFlow<Viewer?>(null)
+    private val viewer: Viewer? inline get() = viewerFlow.value
 
     var isScrollingThroughPages = false
         private set
@@ -352,9 +400,13 @@ class ReaderActivity : BaseActivity() {
 
         super.onCreate(savedInstanceState)
 
-        binding = ReaderActivityBinding.inflate(layoutInflater)
-        setContentView(binding.root)
-        binding.setComposeOverlay()
+        // KUN -->
+        // Upstream 00335b2a70 draws the reader through Compose: one Compose root holds the viewer,
+        // the chrome and the dialogs, replacing the XML binding the activity used to inflate.
+        setComposeContent {
+            ReaderScreen()
+        }
+        // KUN <--
 
         if (!viewModel.hasValidArgs) {
             finish()
@@ -367,7 +419,64 @@ class ReaderActivity : BaseActivity() {
             Notifications.ID_NEW_CHAPTERS,
         )
 
-        config = ReaderConfig()
+        settingsViewModel.brightness
+            .onEach(::setCustomBrightnessValue)
+            .launchIn(lifecycleScope)
+        // KUN -->
+        // The tap zones are drawn by the Compose overlay: the viewer publishes its navigator into
+        // `settingsViewModel.navigation` (upstream 00335b2a70) and this pushes it into the overlay.
+        // The fork reads the "new user" flag here rather than through the settings view model, so the
+        // overlay is still shown once to a reader new to the app.
+        val showOverlayForNewUser = readerPreferences.showNavigationOverlayNewUser.get().also { first ->
+            if (first) readerPreferences.showNavigationOverlayNewUser.set(false)
+        }
+        settingsViewModel.navigation
+            .filterNotNull()
+            .onEach { navigation ->
+                val showOnStart = showOverlayForNewUser ||
+                    settingsViewModel.general.value.navigationOverlayOnStart
+                navigationOverlayState.setNavigation(navigation, showOnStart)
+            }
+            .launchIn(lifecycleScope)
+        // The display profile is a loaded image the SSIV decoders read (KMK), not a value in the
+        // settings plane, so it keeps its own observer.
+        preferences.displayProfile.changes()
+            .onEach { setDisplayProfile(it) }
+            .launchIn(lifecycleScope)
+        // The dual page engine's own reactions to the SY layout preferences. Step 4 rebuilds it.
+        readerPreferences.pageLayout.changes()
+            .drop(1)
+            .onEach {
+                viewModel.setDoublePages(
+                    // KUN --> the viewer is owned by the activity (upstream ca028cb657)
+                    (viewer as? PagerViewer)
+                        ?.doublePages
+                        ?: false,
+                    // KUN <--
+                )
+            }
+            .launchIn(lifecycleScope)
+
+        readerPreferences.dualPageSplitPaged.changes()
+            .drop(1)
+            .onEach {
+                // KUN --> the viewer is owned by the activity (upstream ca028cb657)
+                if (viewer !is PagerViewer) return@onEach
+                // KUN <--
+                reloadChapters(
+                    !it &&
+                        when (ReaderPreferences.PageLayout.fromValue(readerPreferences.pageLayout.get())) {
+                            ReaderPreferences.PageLayout.DOUBLE_PAGES -> true
+                            ReaderPreferences.PageLayout.AUTOMATIC ->
+                                resources.configuration.orientation ==
+                                    Configuration.ORIENTATION_LANDSCAPE
+                            else -> false
+                        },
+                    true,
+                )
+            }
+            .launchIn(lifecycleScope)
+        // KUN <--
         setMenuVisibility(viewModel.state.value.menuVisible)
 
         // EXH -->
@@ -436,7 +545,11 @@ class ReaderActivity : BaseActivity() {
             .launchIn(lifecycleScope)
     }
 
-    private fun ReaderActivityBinding.setComposeOverlay(): Unit = composeOverlay.setComposeContent {
+    // KUN -->
+    // KMK: the reader's chrome is drawn in the cover-seeded theme (R19). `setComposeOverlay` wrapped
+    // the old `ComposeView` in it; the Compose root does the same, so the seed survives the move.
+    @Composable
+    private fun ReaderScreen() {
         // KMK -->
         TachiyomiTheme(
             seedColor = seedColorState().takeIf { themeCoverBased },
@@ -447,21 +560,56 @@ class ReaderActivity : BaseActivity() {
             val context = LocalContext.current
             // KMK <--
             val state by viewModel.state.collectAsState()
+            // KUN -->
+            // The viewer is owned by the activity (upstream ca028cb657): the OCR overlay maps
+            // through the viewer the reader is currently drawing.
+            val viewer by viewerFlow.collectAsState()
+            // KUN <--
+            val general by settingsViewModel.general.collectAsState()
             val showPageNumber by readerPreferences.showPageNumber.collectAsState()
             // KUN -->
             val dictionaryOcrEnabled by dictionaryOcrPreferences.enabled.collectAsState()
             val ocrOverlayEnabled by readerPreferences.ocrOverlayEnabled.collectAsState()
             // KUN <--
-            val settingsViewModel = remember {
-                ReaderSettingsViewModel(
-                    readerState = viewModel.state,
-                    onChangeReadingMode = viewModel::setMangaReadingMode,
-                    onChangeOrientation = viewModel::setMangaOrientationType,
-                    preferences = readerPreferences,
-                )
+            val flashOnPageChange by readerPreferences.flashOnPageChange.collectAsState()
+            val colorOverlayEnabled by readerPreferences.colorFilter.collectAsState()
+            val colorOverlay by readerPreferences.colorFilterValue.collectAsState()
+            val colorOverlayMode by readerPreferences.colorFilterMode.collectAsState()
+
+            val backgroundColor = remember(general.theme) {
+                ComposeColor(baseContext.readerBackgroundColor(general.theme))
+            }
+            val colorOverlayBlendMode = remember(colorOverlayMode) {
+                ReaderPreferences.ColorFilterMode.getOrNull(colorOverlayMode)?.second
             }
 
-            Box(modifier = Modifier.fillMaxSize()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(backgroundColor)
+                    .pointerInput(Unit) {
+                        awaitEachGesture {
+                            awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                            navigationOverlayState.hide()
+                        }
+                    }
+                    .then(if (general.keepScreenOn) Modifier.keepScreenOn() else Modifier),
+            ) {
+                ReaderViewer()
+
+                if (isLoadingViewer) {
+                    // KUN --> R20: the seed reaches this spinner from ReaderScreen's ambient theme
+                    LoadingScreen()
+                    // KUN <--
+                    return@Box
+                }
+
+                ReaderContentOverlay(
+                    brightness = state.brightnessOverlayValue,
+                    color = colorOverlay.takeIf { colorOverlayEnabled },
+                    colorBlendMode = colorOverlayBlendMode,
+                )
+
                 if (!state.menuVisible && showPageNumber) {
                     ReaderPageIndicator(
                         // SY -->
@@ -474,7 +622,9 @@ class ReaderActivity : BaseActivity() {
                     )
                 }
 
-                ContentOverlay(state = state)
+                if (flashOnPageChange) {
+                    DisplayRefreshHost(hostState = displayRefreshHost)
+                }
 
                 // KUN -->
                 // OCR block outlines and text belong to the **page layer**: drawn here, between the
@@ -497,6 +647,12 @@ class ReaderActivity : BaseActivity() {
                 //   route single taps through `onPageSingleTap` with the menu open.
                 // Drawn only while the combined dictionary/OCR opt-in is on AND the overlay itself
                 // is enabled; a null viewport means the viewer has no mapping yet.
+                //
+                // It is drawn below `ReaderNavigationOverlay` and `AppBars` for that page-layer
+                // reason, and it sits below the loading screen's early return: while a new viewer
+                // loads the overlay is not composed at all, and `ReaderOcrHostImpl.Overlay` clears
+                // the viewport it recorded when it leaves composition, so a swapped viewer can
+                // never be hit-tested against the one before it.
                 val paintOcrOverlay = ReaderOcrOverlayPolicy.visible(
                     masterEnabled = dictionaryOcrEnabled,
                     overlayEnabled = ocrOverlayEnabled,
@@ -504,13 +660,15 @@ class ReaderActivity : BaseActivity() {
                 )
                 if (dictionaryOcrEnabled && ocrOverlayEnabled) {
                     readerOcrHost.Overlay(
-                        viewport = state.viewer?.ocrViewport(),
+                        viewport = viewer?.ocrViewport(),
                         modifier = Modifier
                             .fillMaxSize()
                             .graphicsLayer { alpha = if (paintOcrOverlay) 1f else 0f },
                     )
                 }
                 // KUN <--
+
+                ReaderNavigationOverlay(state = navigationOverlayState)
 
                 // KUN -->
                 // Must stay **after** the OCR overlay above: it is the reader chrome, and the overlay
@@ -603,14 +761,20 @@ class ReaderActivity : BaseActivity() {
                                 viewModel.saveImage(extra)
                             }
                         },
-                        onShareCombined = viewModel::shareImages,
+                        // KUN --> the viewer is owned by the activity (upstream ca028cb657)
+                        onShareCombined = { copyToClipboard ->
+                            viewModel.shareImages(copyToClipboard, viewer as? PagerViewer)
+                        },
+                        // KUN <--
                         onSaveCombined = {
                             // KMK -->
                             if (externalStoragePermissionNotGranted) {
                                 permissionRequester.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
                             } else {
                                 // KMK <--
-                                viewModel.saveImages()
+                                // KUN -->
+                                viewModel.saveImages(viewer as? PagerViewer)
+                                // KUN <--
                             }
                         },
                         hasExtraPage = (state.dialog as? ReaderViewModel.Dialog.PageActions)?.extraPage != null,
@@ -657,6 +821,28 @@ class ReaderActivity : BaseActivity() {
                     },
                     title = { Text(text = stringResource(SYMR.strings.eh_autoscroll_help)) },
                     text = { Text(text = stringResource(SYMR.strings.eh_autoscroll_help_message)) },
+                )
+
+                ReaderViewModel.Dialog.AutoScrollGesturesHelp -> AlertDialog(
+                    onDismissRequest = onDismissRequest,
+                    confirmButton = {
+                        TextButton(onClick = onDismissRequest) {
+                            Text(text = stringResource(MR.strings.action_ok))
+                        }
+                    },
+                    title = { Text(text = stringResource(SYMR.strings.eh_autoscroll_gestures_help)) },
+                    text = { Text(text = stringResource(SYMR.strings.eh_autoscroll_gestures_help_message)) },
+                )
+
+                ReaderViewModel.Dialog.AutoScrollGestureToastsHelp -> AlertDialog(
+                    onDismissRequest = onDismissRequest,
+                    confirmButton = {
+                        TextButton(onClick = onDismissRequest) {
+                            Text(text = stringResource(MR.strings.action_ok))
+                        }
+                    },
+                    title = { Text(text = stringResource(SYMR.strings.eh_autoscroll_gesture_toasts_help)) },
+                    text = { Text(text = stringResource(SYMR.strings.eh_autoscroll_gesture_toasts_help_message)) },
                 )
 
                 ReaderViewModel.Dialog.BoostPageHelp -> AlertDialog(
@@ -742,14 +928,14 @@ class ReaderActivity : BaseActivity() {
             // KUN <--
         }
     }
+    // KUN <--
 
     /**
-     * Called when the activity is destroyed. Cleans up the viewer, configuration and any view.
+     * Called when the activity is destroyed. Cleans up the viewer and any view.
      */
     override fun onDestroy() {
         super.onDestroy()
-        viewModel.state.value.viewer?.destroy()
-        config = null
+        viewer?.destroy()
         menuToggleToast?.cancel()
         readingModeToast?.cancel()
         // KUN -->
@@ -836,7 +1022,7 @@ class ReaderActivity : BaseActivity() {
      * Dispatches a key event. If the viewer doesn't handle it, call the default implementation.
      */
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        val handled = viewModel.state.value.viewer?.handleKeyEvent(event) ?: false
+        val handled = viewer?.handleKeyEvent(event) ?: false
         return handled || super.dispatchKeyEvent(event)
     }
 
@@ -851,8 +1037,9 @@ class ReaderActivity : BaseActivity() {
         // KUN -->
         // Dismiss the non-modal dictionary popup on an outside tap. Convert the screen coordinates
         // into the compose-overlay space the popup bounds are reported in; the detector never
-        // consumes, so the viewer's own gestures are unaffected.
-        binding.composeOverlay.getLocationOnScreen(composeOverlayLocation)
+        // consumes, so the viewer's own gestures are unaffected. The Compose content root replaced
+        // the old `compose_overlay` ComposeView (upstream 00335b2a70).
+        composeOverlayRoot.getLocationOnScreen(composeOverlayLocation)
         dictionaryOutsideTapDetector.onTouchEvent(
             ev,
             ev.rawX - composeOverlayLocation[0],
@@ -868,35 +1055,120 @@ class ReaderActivity : BaseActivity() {
      * implementation.
      */
     override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
-        val handled = viewModel.state.value.viewer?.handleGenericMotionEvent(event) ?: false
+        val handled = viewer?.handleGenericMotionEvent(event) ?: false
         return handled || super.dispatchGenericMotionEvent(event)
     }
 
+    // KUN -->
+    /**
+     * Hosts the current viewer (upstream 00335b2a70). The reader's grayscale and inverted colours
+     * reach the SSIV page images through [LocalPageColorFilter], and the WebGPU viewer - its pages
+     * and its own transition, progress and error pages alike - through the layer
+     * [WebGpuViewerHost] puts over its composition. The reader's own loading screen, bars and
+     * overlays are outside both, and the SSIV transitions, spinners and error views keep theirs.
+     */
     @Composable
-    private fun ContentOverlay(state: ReaderViewModel.State) {
-        val flashOnPageChange by readerPreferences.flashOnPageChange.collectAsState()
-
-        val colorOverlayEnabled by readerPreferences.colorFilter.collectAsState()
-        val colorOverlay by readerPreferences.colorFilterValue.collectAsState()
-        val colorOverlayMode by readerPreferences.colorFilterMode.collectAsState()
-        val colorOverlayBlendMode = remember(colorOverlayMode) {
-            ReaderPreferences.ColorFilterMode.getOrNull(colorOverlayMode)?.second
+    private fun ReaderViewer() {
+        val viewer by viewerFlow.collectAsState()
+        val general by settingsViewModel.general.collectAsState()
+        val insets = when {
+            !general.fullscreen -> WindowInsets.systemBars
+            !general.drawUnderCutout -> WindowInsets.displayCutout
+            else -> WindowInsets(0)
+        }
+        val colorFilter = remember(general.grayscale, general.invertedColors) {
+            viewerColorFilter(general.grayscale, general.invertedColors)
         }
 
-        ReaderContentOverlay(
-            brightness = state.brightnessOverlayValue,
-            color = colorOverlay.takeIf { colorOverlayEnabled },
-            colorBlendMode = colorOverlayBlendMode,
-        )
-
-        if (flashOnPageChange) {
-            DisplayRefreshHost(hostState = displayRefreshHost)
+        CompositionLocalProvider(LocalPageColorFilter provides colorFilter) {
+            key(viewer) {
+                val modifier = Modifier
+                    .fillMaxSize()
+                    .windowInsetsPadding(insets)
+                // A WebGPU viewer's pages are the `webgpuviewer` surface, which reads no
+                // [LocalPageColorFilter], so below API 34 the reader's colours are a hardware layer
+                // over the viewer instead (`WebGpuViewerHost`), which takes that viewer's own
+                // transition, progress and error pages with it. From API 34 on, the surface is a
+                // `SurfaceView` in a layer of its own, which no ancestor can filter - the mechanism
+                // this replaced could not filter it either.
+                val currentViewer = viewer
+                if (currentViewer is WebGpuViewer && Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    // The cover seed travels with the viewer: its own chrome is composed in the
+                    // host's nested composition, which starts from an unseeded `TachiyomiTheme`.
+                    WebGpuViewerHost(
+                        viewer = currentViewer,
+                        pageColorFilter = colorFilter,
+                        modifier = modifier,
+                        seedColor = seedColorState().takeIf { themeCoverBased },
+                    )
+                } else {
+                    currentViewer?.Content(modifier)
+                }
+            }
         }
     }
+
+    /**
+     * Hosts [viewer] in a View of the reader's own, so the grayscale and inverted colours are a
+     * hardware layer over it, as master's `viewerContainer.setLayerType` was.
+     *
+     * On API 26-33 the `webgpuviewer` surface is an `AndroidEmbeddedExternalSurface`, a TextureView
+     * drawn into the hierarchy, so a layer paint on its host filters it.
+     *
+     * The layer is the WebGPU-only fallback, and what it covers is that viewer's whole composition:
+     * its own chapter transition, progress and error pages are pages it draws, so they are filtered
+     * along with the surface, exactly as master's container layer filtered them. The reader's own
+     * loading screen, app bars and overlays are siblings of this view in the reader root, not inside
+     * it, so they stay unfiltered. The SSIV viewers are not hosted here at all: their pages keep
+     * [LocalPageColorFilter], so their transitions, spinners and error views keep their own colours.
+     *
+     * [seedColor] is the reader's cover seed (R19). The nested composition starts from
+     * `setComposeContent`'s unseeded `TachiyomiTheme`, so without re-providing it here the pages this
+     * viewer draws itself - its error page, which reads `MaterialTheme.colorScheme.onBackground`, and
+     * its transition page - would be drawn in the default palette on API 26-33 only. It is wrapped the
+     * way [ReaderTransitionView] wraps its own Compose content, and kept current through
+     * [rememberUpdatedState] so a seed that arrives after the host is created still reaches it.
+     */
+    @Composable
+    private fun WebGpuViewerHost(
+        viewer: WebGpuViewer,
+        pageColorFilter: ColorFilter?,
+        modifier: Modifier,
+        seedColor: ComposeColor?,
+    ) {
+        val paint = remember(pageColorFilter) {
+            pageColorFilter?.asAndroidColorFilter()?.let { Paint().apply { colorFilter = it } }
+        }
+        val currentSeed by rememberUpdatedState(seedColor)
+        AndroidView(
+            modifier = modifier,
+            factory = { context ->
+                ComposeView(context).apply {
+                    setComposeContent {
+                        TachiyomiTheme(seedColor = currentSeed) {
+                            viewer.Content(Modifier.fillMaxSize())
+                        }
+                    }
+                }
+            },
+            update = { view ->
+                view.setLayerType(
+                    if (paint == null) View.LAYER_TYPE_NONE else View.LAYER_TYPE_HARDWARE,
+                    paint,
+                )
+            },
+            onRelease = { view ->
+                view.setLayerType(View.LAYER_TYPE_NONE, null)
+                view.disposeComposition()
+            },
+        )
+    }
+    // KUN <--
 
     @Composable
     fun AppBars(state: ReaderViewModel.State) {
         val isHttpSource = state.source is HttpSource
+        val viewer by viewerFlow.collectAsState()
 
         val cropBorderPaged by readerPreferences.cropBorders.collectAsState()
         val cropBorderWebtoon by readerPreferences.cropBordersWebtoon.collectAsState()
@@ -916,6 +1188,11 @@ class ReaderActivity : BaseActivity() {
             readerPreferences.readerBottomButtons.changes().map { it.toSet() }
         }.collectAsState(setOf())
         val dualPageSplitPaged by readerPreferences.dualPageSplitPaged.collectAsState()
+        // KUN --> the viewer is owned by the activity (upstream ca028cb657)
+        val autoScrollGesturesSupported = viewer is WebtoonViewer
+        // KUN <--
+        val autoScrollGesturesEnabled by readerPreferences.autoscrollGesturesEnabled.collectAsState()
+        val autoScrollGestureToastsEnabled by readerPreferences.autoscrollGestureToastsEnabled.collectAsState()
         // SY <--
 
         // KUN -->
@@ -944,7 +1221,7 @@ class ReaderActivity : BaseActivity() {
             onShare = ::shareChapter.takeIf { isHttpSource },
 
             chapterNavigatorType = if (!verticalNavigator) {
-                if (state.viewer is R2LPagerViewer || (state.viewer as? WebGpuViewer)?.isReversed ?: false) {
+                if (viewer is R2LPagerViewer || (viewer as? WebGpuViewer)?.isReversed ?: false) {
                     ChapterNavigatorType.HORIZONTAL_RTL
                 } else {
                     ChapterNavigatorType.HORIZONTAL_LTR
@@ -992,6 +1269,13 @@ class ReaderActivity : BaseActivity() {
             isAutoScroll = state.autoScroll,
             isAutoScrollEnabled = state.isAutoScrollEnabled,
             onToggleAutoscroll = viewModel::toggleAutoScroll,
+            autoScrollGesturesSupported = autoScrollGesturesSupported,
+            autoScrollGesturesEnabled = autoScrollGesturesEnabled,
+            onSetAutoScrollGesturesEnabled = { readerPreferences.autoscrollGesturesEnabled.set(it) },
+            onClickAutoScrollGesturesHelp = viewModel::openAutoScrollGesturesHelpDialog,
+            autoScrollGestureToastsEnabled = autoScrollGestureToastsEnabled,
+            onSetAutoScrollGestureToastsEnabled = { readerPreferences.autoscrollGestureToastsEnabled.set(it) },
+            onClickAutoScrollGestureToastsHelp = viewModel::openAutoScrollGestureToastsHelpDialog,
             autoScrollFrequency = state.ehAutoscrollFreq,
             onSetAutoScrollFrequency = viewModel::setAutoScrollFrequency,
             onClickAutoScrollHelp = viewModel::openAutoScrollHelpDialog,
@@ -1016,11 +1300,15 @@ class ReaderActivity : BaseActivity() {
             doublePages = state.doublePages,
             onClickChapterList = viewModel::openChapterListDialog,
             onClickPageLayout = {
-                if (readerPreferences.pageLayout.get() == PagerConfig.PageLayout.AUTOMATIC) {
-                    (viewModel.state.value.viewer as? PagerViewer)?.config?.let { config ->
-                        config.doublePages = !config.doublePages
-                        reloadChapters(config.doublePages, true)
+                if (ReaderPreferences.PageLayout.fromValue(readerPreferences.pageLayout.get()) ==
+                    ReaderPreferences.PageLayout.AUTOMATIC
+                ) {
+                    // KUN --> the viewer is owned by the activity (upstream ca028cb657)
+                    (viewer as? PagerViewer)?.let { pagerViewer ->
+                        pagerViewer.doublePages = !pagerViewer.doublePages
+                        reloadChapters(pagerViewer.doublePages, true)
                     }
+                    // KUN <--
                 } else {
                     readerPreferences.pageLayout.set(1 - readerPreferences.pageLayout.get())
                 }
@@ -1064,36 +1352,78 @@ class ReaderActivity : BaseActivity() {
 
     // EXH -->
     private fun enableExhAutoScroll() {
+        readerPreferences.autoscrollGesturesEnabled.changes()
+            .distinctUntilChanged()
+            .onEach { enabled ->
+                // KUN --> the viewer is owned by the activity (upstream ca028cb657)
+                (viewer as? WebtoonViewer)?.setAutoScrollGesturesEnabled(enabled)
+                // KUN <--
+            }
+            .launchIn(lifecycleScope)
+
+        readerPreferences.autoscrollGestureToastsEnabled.changes()
+            .distinctUntilChanged()
+            .onEach { enabled ->
+                // KUN --> the viewer is owned by the activity (upstream ca028cb657)
+                (viewer as? WebtoonViewer)?.setAutoScrollGestureToastsEnabled(enabled)
+                // KUN <--
+            }
+            .launchIn(lifecycleScope)
+
         readerPreferences.autoscrollInterval.changes()
             .combine(viewModel.state.map { it.autoScroll }.distinctUntilChanged()) { interval, enabled ->
                 interval.toDouble() to enabled
-            }.mapLatest { (intervalFloat, enabled) ->
-                if (enabled) {
-                    repeatOnLifecycle(Lifecycle.State.STARTED) {
-                        val interval = intervalFloat.seconds
-                        while (true) {
-                            if (!viewModel.state.value.menuVisible) {
-                                viewModel.state.value.viewer.let { v ->
-                                    when (v) {
-                                        is PagerViewer -> v.moveToNext()
-                                        is WebtoonViewer -> {
-                                            if (readerPreferences.smoothAutoScroll.get()) {
-                                                v.linearScroll(interval)
-                                            } else {
-                                                v.scrollDown()
-                                            }
-                                        }
+            }
+            .mapLatest { (intervalFloat, enabled) ->
+                val interval = intervalFloat.seconds
+                // KUN --> the viewer is owned by the activity (upstream ca028cb657)
+                (viewer as? WebtoonViewer)?.syncAutoScrollSettings(
+                    enabled = enabled,
+                    interval = interval,
+                    forceInterval = true,
+                )
+                // KUN <--
+
+                if (!enabled) return@mapLatest
+
+                repeatOnLifecycle(Lifecycle.State.STARTED) {
+                    while (true) {
+                        if (!viewModel.state.value.menuVisible) {
+                            // KUN --> the viewer is owned by the activity (upstream ca028cb657)
+                            viewer.let { v ->
+                                // KUN <--
+                                when (v) {
+                                    is PagerViewer -> {
+                                        v.moveToNext()
+                                        delay(interval)
                                     }
+                                    is WebtoonViewer -> {
+                                        v.syncAutoScrollSettings(enabled = true, interval = interval)
+                                        v.performAutoScrollStep(readerPreferences.smoothAutoScroll.get())
+                                        delayAutoScroll(v.autoScrollDelayMillis(), v)
+                                    }
+                                    else -> delay(100)
                                 }
-                                delay(interval)
-                            } else {
-                                delay(100)
                             }
+                        } else {
+                            delay(100)
                         }
                     }
                 }
             }
             .launchIn(lifecycleScope)
+    }
+
+    private suspend fun delayAutoScroll(durationMillis: Long, viewer: WebtoonViewer) {
+        var remaining = durationMillis
+        while (remaining > 0) {
+            val slice = remaining.coerceAtMost(100L)
+            delay(slice)
+            remaining -= slice
+            if (viewer.consumeAutoScrollDelayInterrupt()) {
+                break
+            }
+        }
     }
 
     private fun exhRetryAll() {
@@ -1136,7 +1466,9 @@ class ReaderActivity : BaseActivity() {
     }
 
     private fun exhBoostPage() {
-        viewModel.state.value.viewer ?: return
+        // KUN --> the viewer is owned by the activity (upstream ca028cb657)
+        viewer ?: return
+        // KUN <--
         val curPage = exhCurrentpage() ?: run {
             toast(SYMR.strings.eh_boost_page_invalid)
             return
@@ -1160,12 +1492,15 @@ class ReaderActivity : BaseActivity() {
     }
 
     private fun exhCurrentpage(): ReaderPage? {
-        val viewer = viewModel.state.value.viewer
         // KUN -->
-        val pageFromViewer = when (viewer) {
-            is PagerViewer -> viewer.currentPage as? ReaderPage
-            is WebtoonViewer -> viewer.currentPage as? ReaderPage
-            is WebGpuViewer -> (viewer.currentPage as? WebGpuViewer.ViewerReaderPage)?.page
+        // The reader pages the viewer is actually drawing: WebGPU included (its current page is a
+        // `ViewerReaderPage`), with the state's page index as the fallback when a viewer has none
+        // yet. The viewer is owned by the activity (upstream ca028cb657).
+        val currentViewer = viewer
+        val pageFromViewer = when (currentViewer) {
+            is PagerViewer -> currentViewer.currentPage as? ReaderPage
+            is WebtoonViewer -> currentViewer.currentPage as? ReaderPage
+            is WebGpuViewer -> (currentViewer.currentPage as? WebGpuViewer.ViewerReaderPage)?.page
             else -> null
         }
         if (pageFromViewer != null) return pageFromViewer
@@ -1177,19 +1512,21 @@ class ReaderActivity : BaseActivity() {
     }
 
     fun reloadChapters(doublePages: Boolean, force: Boolean = false) {
-        val viewer = viewModel.state.value.viewer as? PagerViewer ?: return
+        // KUN --> the viewer is owned by the activity (upstream ca028cb657)
+        val viewer = this.viewer as? PagerViewer ?: return
+        // KUN <--
         viewer.updateShifting()
-        if (!force && viewer.config.autoDoublePages) {
+        if (!force && viewer.autoDoublePages) {
             setDoublePageMode(viewer)
         } else {
-            viewer.config.doublePages = doublePages
-            viewModel.setDoublePages(viewer.config.doublePages)
+            viewer.doublePages = doublePages
+            viewModel.setDoublePages(viewer.doublePages)
         }
         val currentChapter = viewModel.state.value.currentChapter
         if (doublePages) {
             // If we're moving from singe to double, we want the current page to be the first page
             val currentPage = viewModel.state.value.currentPage
-            viewer.config.shiftDoublePage = (
+            viewer.shiftDoublePage = (
                 currentPage + (currentChapter?.pages?.take(currentPage)?.count { it.fullPage || it.isolatedPage } ?: 0)
                 ) % 2 != 0
         }
@@ -1200,19 +1537,19 @@ class ReaderActivity : BaseActivity() {
 
     private fun setDoublePageMode(viewer: PagerViewer) {
         val currentOrientation = resources.configuration.orientation
-        viewer.config.doublePages = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
-        viewModel.setDoublePages(viewer.config.doublePages)
+        viewer.doublePages = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
+        viewModel.setDoublePages(viewer.doublePages)
     }
 
     private fun shiftDoublePages() {
-        val viewer = viewModel.state.value.viewer as? PagerViewer ?: return
-        viewer.config.let { config ->
-            config.shiftDoublePage = !config.shiftDoublePage
-            viewModel.state.value.viewerChapters?.let {
-                viewer.updateShifting()
-                viewer.setChaptersInternal(it)
-                invalidateOptionsMenu()
-            }
+        // KUN --> the viewer is owned by the activity (upstream ca028cb657)
+        val viewer = this.viewer as? PagerViewer ?: return
+        // KUN <--
+        viewer.shiftDoublePage = !viewer.shiftDoublePage
+        viewModel.state.value.viewerChapters?.let {
+            viewer.updateShifting()
+            viewer.setChaptersInternal(it)
+            invalidateOptionsMenu()
         }
     }
     // EXH <--
@@ -1222,6 +1559,9 @@ class ReaderActivity : BaseActivity() {
      */
     private fun setMenuVisibility(visible: Boolean) {
         viewModel.showMenus(visible)
+        // KUN --> the viewer is owned by the activity (upstream ca028cb657)
+        (viewer as? WebtoonViewer)?.setAutoScrollUiBlocked(visible)
+        // KUN <--
         if (visible) {
             windowInsetsController.show(WindowInsetsCompat.Type.systemBars())
         } else if (readerPreferences.fullscreen.get()) {
@@ -1233,39 +1573,46 @@ class ReaderActivity : BaseActivity() {
      * Called from the presenter when a manga is ready. Used to instantiate the appropriate viewer.
      */
     private fun updateViewer() {
-        val prevViewer = viewModel.state.value.viewer
+        val prevViewer = viewer
+        // KUN --> the reading mode the viewer is made from is also the one the tap zones resolve
+        // (upstream 00335b2a70), so `settingsViewModel.navigation` matches this viewer.
+        val readingMode = viewModel.getMangaReadingMode()
         val newViewer = ReadingMode.toViewer(
-            viewModel.getMangaReadingMode(),
+            readingMode,
             this,
             // KMK -->
             seedColor = seedColorStatic()?.toArgb(),
             // KMK <--
         )
+        // KUN -->
+        // Passed rather than read from the preference: `toViewer`'s capability gate may have fallen
+        // back from the WebGPU renderer, so only the viewer it actually made says which tap zones
+        // apply and which settings page the sheet shows.
+        settingsViewModel.setViewerReadingMode(
+            ReadingMode.fromPreference(readingMode),
+            isWebtoonViewer = newViewer is WebtoonViewer,
+            isWebGpuViewer = newViewer is WebGpuViewer,
+        )
+        // KUN <--
 
-        if (window.sharedElementEnterTransition is MaterialContainerTransform) {
-            // Wait until transition is complete to avoid crash on API 26
-            window.sharedElementEnterTransition.doOnEnd {
-                setOrientation(viewModel.getMangaOrientation())
-            }
-        } else {
-            setOrientation(viewModel.getMangaOrientation())
-        }
+        setOrientation(viewModel.getMangaOrientation())
+        // KUN <--
 
         // Destroy previous viewer if there was one
-        if (prevViewer != null) {
-            prevViewer.destroy()
-            binding.viewerContainer.removeAllViews()
-        }
-        viewModel.onViewerLoaded(newViewer)
-        updateViewerInset(readerPreferences.fullscreen.get(), readerPreferences.drawUnderCutout.get())
-        binding.viewerContainer.addView(newViewer.getView())
+        prevViewer?.destroy()
+        viewerFlow.value = newViewer
+        (newViewer as? WebtoonViewer)?.setAutoScrollUiBlocked(viewModel.state.value.menuVisible)
+        (newViewer as? WebtoonViewer)?.setAutoScrollGesturesEnabled(readerPreferences.autoscrollGesturesEnabled.get())
+        (newViewer as? WebtoonViewer)?.setAutoScrollGestureToastsEnabled(readerPreferences.autoscrollGestureToastsEnabled.get())
 
         // SY -->
         if (newViewer is PagerViewer) {
-            if (readerPreferences.pageLayout.get() == PagerConfig.PageLayout.AUTOMATIC) {
+            if (ReaderPreferences.PageLayout.fromValue(readerPreferences.pageLayout.get()) ==
+                ReaderPreferences.PageLayout.AUTOMATIC
+            ) {
                 setDoublePageMode(newViewer)
             }
-            viewModel.state.value.lastShiftDoubleState?.let { newViewer.config.shiftDoublePage = it }
+            viewModel.state.value.lastShiftDoubleState?.let { newViewer.shiftDoublePage = it }
         }
 
         val manga = viewModel.state.value.manga
@@ -1285,15 +1632,15 @@ class ReaderActivity : BaseActivity() {
             showReadingModeToast(viewModel.getMangaReadingMode())
         }
 
-        loadingIndicator = ReaderProgressIndicator(
-            context = this,
-            // KMK -->
-            seedColor = seedColorStatic()?.toArgb(),
-            // KMK <--
-        )
-        binding.readerContainer.addView(loadingIndicator)
-
-        startPostponedEnterTransition()
+        // KUN -->
+        // R20: the loading chrome shows until the new viewer has chapters. `setChapters` is the only
+        // place the flag is cleared and it is driven by the chapters stream, so the chapters the
+        // state already holds are handed to the new viewer right here: a manga emission that rebuilds
+        // the viewer without re-emitting chapters would otherwise leave the reader spinning behind
+        // the loading screen for ever, with no bars and no page indicator.
+        isLoadingViewer = true
+        viewModel.state.value.viewerChapters?.let(::setChapters)
+        // KUN <--
     }
 
     private fun openMangaScreen() {
@@ -1344,32 +1691,35 @@ class ReaderActivity : BaseActivity() {
      * method to the current viewer, but also set the subtitle on the toolbar, and
      * hides or disables the reader prev/next buttons if there's a prev or next chapter
      */
-    @SuppressLint("RestrictedApi")
     private fun setChapters(viewerChapters: ViewerChapters) {
-        binding.readerContainer.removeView(loadingIndicator)
+        isLoadingViewer = false
         // SY -->
         val state = viewModel.state.value
         if (state.indexChapterToShift != null && state.indexPageToShift != null) {
             viewerChapters.currChapter.pages?.find {
                 it.index == state.indexPageToShift && it.chapter.chapter.id == state.indexChapterToShift
             }?.let {
-                (viewModel.state.value.viewer as? PagerViewer)?.updateShifting(it)
+                // KUN --> the viewer is owned by the activity (upstream ca028cb657)
+                (viewer as? PagerViewer)?.updateShifting(it)
+                // KUN <--
             }
             viewModel.setIndexChapterToShift(null)
             viewModel.setIndexPageToShift(null)
         } else if (state.lastShiftDoubleState != null) {
             val currentChapter = viewerChapters.currChapter
-            (viewModel.state.value.viewer as? PagerViewer)?.config?.shiftDoublePage = (
+            // KUN --> the viewer is owned by the activity (upstream ca028cb657)
+            (viewer as? PagerViewer)?.shiftDoublePage = (
                 currentChapter.requestedPage +
                     (
                         currentChapter.pages?.take(currentChapter.requestedPage)
                             ?.count { it.fullPage || it.isolatedPage } ?: 0
                         )
                 ) % 2 != 0
+            // KUN <--
         }
         // SY <--
 
-        viewModel.state.value.viewer?.setChapters(viewerChapters)
+        viewer?.setChapters(viewerChapters)
 
         lifecycleScope.launch(Dispatchers.IO) {
             viewModel.getChapterUrl()?.let { url ->
@@ -1411,7 +1761,7 @@ class ReaderActivity : BaseActivity() {
      * page is not found.
      */
     private fun moveToPageIndex(index: Int) {
-        val viewer = viewModel.state.value.viewer ?: return
+        val viewer = this.viewer ?: return
         val currentChapter = viewModel.state.value.currentChapter ?: return
         val page = currentChapter.pages?.getOrNull(index) ?: return
         viewer.moveToPage(page)
@@ -1446,7 +1796,9 @@ class ReaderActivity : BaseActivity() {
     fun onPageSelected(page: ReaderPage, hasExtraPage: Boolean = false) {
         // SY -->
         val currentPageText = if (hasExtraPage) {
-            val invertDoublePage = (viewModel.state.value.viewer as? PagerViewer)?.config?.invertDoublePages ?: false
+            // KUN --> the viewer is owned by the activity (upstream ca028cb657)
+            val invertDoublePage = (viewer as? PagerViewer)?.invertDoublePages ?: false
+            // KUN <--
             if ((resources.configuration.layoutDirection == View.LAYOUT_DIRECTION_LTR) xor
                 invertDoublePage
             ) {
@@ -1526,17 +1878,26 @@ class ReaderActivity : BaseActivity() {
 
     // KUN -->
     /**
-     * Converts a point in [source]'s local coordinates to the `compose_overlay` coordinate space
+     * Converts a point in [source]'s local coordinates to the reader overlay's coordinate space
      * (both are window-relative, so only the views' window positions differ).
      */
     fun toOverlayPoint(source: View, x: Float, y: Float): PointF {
         val location = IntArray(2)
         source.getLocationInWindow(location)
+        return toOverlayPoint(location[0].toFloat(), location[1].toFloat(), x, y)
+    }
+
+    /**
+     * [toOverlayPoint] for a surface that is not a View: [viewWindowX]/[viewWindowY] are its origin
+     * in window space, published by its own owner (the WebGPU viewer's `ImageViewer` modifier). The
+     * rest of the conversion is the same - the overlay's origin is the Compose content root.
+     */
+    fun toOverlayPoint(viewWindowX: Float, viewWindowY: Float, x: Float, y: Float): PointF {
         val overlayLocation = IntArray(2)
-        binding.composeOverlay.getLocationInWindow(overlayLocation)
+        composeOverlayRoot.getLocationInWindow(overlayLocation)
         return PointF(
-            (location[0] - overlayLocation[0]) + x,
-            (location[1] - overlayLocation[1]) + y,
+            (viewWindowX - overlayLocation[0]) + x,
+            (viewWindowY - overlayLocation[1]) + y,
         )
     }
 
@@ -1697,207 +2058,46 @@ class ReaderActivity : BaseActivity() {
         }
     }
 
+    // KMK -->
     /**
-     * Updates viewer inset depending on fullscreen reader preferences.
+     * Sets the display profile to [path].
      */
-    private fun updateViewerInset(fullscreen: Boolean, drawUnderCutout: Boolean) {
-        if (!::binding.isInitialized) return
-        val view = binding.viewerContainer
-
-        view.applyInsetsPadding(ViewCompat.getRootWindowInsets(view), fullscreen, drawUnderCutout)
-        ViewCompat.setOnApplyWindowInsetsListener(view) { view, windowInsets ->
-            view.applyInsetsPadding(windowInsets, fullscreen, drawUnderCutout)
-            windowInsets
+    private fun setDisplayProfile(path: String) {
+        val file = UniFile.fromUri(baseContext, path.toUri())
+        if (file != null && file.exists()) {
+            val inputStream = file.openInputStream()
+            val outputStream = ByteArrayOutputStream()
+            inputStream.use { input ->
+                outputStream.use { output ->
+                    input.copyTo(output)
+                }
+            }
+            val data = outputStream.toByteArray()
+            SubsamplingScaleImageView.setDisplayProfile(data)
         }
     }
-
-    private fun View.applyInsetsPadding(
-        windowInsets: WindowInsetsCompat?,
-        fullscreen: Boolean,
-        drawUnderCutout: Boolean,
-    ) {
-        val insets = when {
-            !fullscreen -> windowInsets?.getInsets(WindowInsetsCompat.Type.systemBars())
-            !drawUnderCutout -> windowInsets?.getInsets(WindowInsetsCompat.Type.displayCutout())
-            else -> null
-        }
-            ?: Insets.NONE
-
-        setPadding(insets.left, insets.top, insets.right, insets.bottom)
-    }
+    // KMK <--
 
     /**
-     * Class that handles the user preferences of the reader.
+     * Sets the brightness of the screen. Range is [-75, 100].
+     * From -75 to -1 a semi-transparent black view is overlaid with the minimum brightness.
+     * From 1 to 100 it sets that value as brightness.
+     * 0 sets system brightness and hides the overlay.
      */
-    private inner class ReaderConfig {
-
-        private fun getCombinedPaint(grayscale: Boolean, invertedColors: Boolean): Paint {
-            return Paint().apply {
-                colorFilter = ColorMatrixColorFilter(
-                    ColorMatrix().apply {
-                        if (grayscale) {
-                            setSaturation(0f)
-                        }
-                        if (invertedColors) {
-                            postConcat(
-                                ColorMatrix(
-                                    floatArrayOf(
-                                        -1f, 0f, 0f, 0f, 255f,
-                                        0f, -1f, 0f, 0f, 255f,
-                                        0f, 0f, -1f, 0f, 255f,
-                                        0f, 0f, 0f, 1f, 0f,
-                                    ),
-                                ),
-                            )
-                        }
-                    },
-                )
+    private fun setCustomBrightnessValue(value: Int) {
+        // Calculate and set reader brightness.
+        val readerBrightness = when {
+            value > 0 -> {
+                value / 100f
             }
-        }
-
-        /*
-         * Initializes the reader subscriptions.
-         */
-        init {
-            readerPreferences.readerTheme.changes()
-                .onEach { theme ->
-                    binding.readerContainer.setBackgroundColor(baseContext.readerBackgroundColor(theme))
-                }
-                .launchIn(lifecycleScope)
-
-            preferences.displayProfile.changes()
-                .onEach { setDisplayProfile(it) }
-                .launchIn(lifecycleScope)
-
-            readerPreferences.keepScreenOn.changes()
-                .onEach(::setKeepScreenOn)
-                .launchIn(lifecycleScope)
-
-            readerPreferences.customBrightness.changes()
-                .onEach(::setCustomBrightness)
-                .launchIn(lifecycleScope)
-
-            combine(
-                readerPreferences.grayscale.changes(),
-                readerPreferences.invertedColors.changes(),
-            ) { grayscale, invertedColors -> grayscale to invertedColors }
-                .onEach { (grayscale, invertedColors) ->
-                    setLayerPaint(grayscale, invertedColors)
-                }
-                .launchIn(lifecycleScope)
-
-            combine(
-                readerPreferences.fullscreen.changes(),
-                readerPreferences.drawUnderCutout.changes(),
-            ) { fullscreen, drawUnderCutout -> fullscreen to drawUnderCutout }
-                .onEach { (fullscreen, drawUnderCutout) ->
-                    updateViewerInset(fullscreen, drawUnderCutout)
-                }
-                .launchIn(lifecycleScope)
-
-            // SY -->
-            readerPreferences.pageLayout.changes()
-                .drop(1)
-                .onEach {
-                    viewModel.setDoublePages(
-                        (viewModel.state.value.viewer as? PagerViewer)
-                            ?.config
-                            ?.doublePages
-                            ?: false,
-                    )
-                }
-                .launchIn(lifecycleScope)
-
-            readerPreferences.dualPageSplitPaged.changes()
-                .drop(1)
-                .onEach {
-                    if (viewModel.state.value.viewer !is PagerViewer) return@onEach
-                    reloadChapters(
-                        !it &&
-                            when (readerPreferences.pageLayout.get()) {
-                                PagerConfig.PageLayout.DOUBLE_PAGES -> true
-                                PagerConfig.PageLayout.AUTOMATIC ->
-                                    resources.configuration.orientation ==
-                                        Configuration.ORIENTATION_LANDSCAPE
-                                else -> false
-                            },
-                        true,
-                    )
-                }
-                .launchIn(lifecycleScope)
-            // SY <--
-        }
-
-        // KMK -->
-        /**
-         * Sets the display profile to [path].
-         */
-        private fun setDisplayProfile(path: String) {
-            val file = UniFile.fromUri(baseContext, path.toUri())
-            if (file != null && file.exists()) {
-                val inputStream = file.openInputStream()
-                val outputStream = ByteArrayOutputStream()
-                inputStream.use { input ->
-                    outputStream.use { output ->
-                        input.copyTo(output)
-                    }
-                }
-                val data = outputStream.toByteArray()
-                SubsamplingScaleImageView.setDisplayProfile(data)
+            value < 0 -> {
+                0.01f
             }
+            else -> WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
         }
-        // KMK <--
+        window.attributes = window.attributes.apply { screenBrightness = readerBrightness }
 
-        /**
-         * Sets the keep screen on mode according to [enabled].
-         */
-        private fun setKeepScreenOn(enabled: Boolean) {
-            if (enabled) {
-                window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-            } else {
-                window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-            }
-        }
-
-        /**
-         * Sets the custom brightness overlay according to [enabled].
-         */
-        private fun setCustomBrightness(enabled: Boolean) {
-            if (enabled) {
-                readerPreferences.customBrightnessValue.changes()
-                    .sample(0.1.seconds)
-                    .onEach(::setCustomBrightnessValue)
-                    .launchIn(lifecycleScope)
-            } else {
-                setCustomBrightnessValue(0)
-            }
-        }
-
-        /**
-         * Sets the brightness of the screen. Range is [-75, 100].
-         * From -75 to -1 a semi-transparent black view is overlaid with the minimum brightness.
-         * From 1 to 100 it sets that value as brightness.
-         * 0 sets system brightness and hides the overlay.
-         */
-        private fun setCustomBrightnessValue(value: Int) {
-            // Calculate and set reader brightness.
-            val readerBrightness = when {
-                value > 0 -> {
-                    value / 100f
-                }
-                value < 0 -> {
-                    0.01f
-                }
-                else -> WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
-            }
-            window.attributes = window.attributes.apply { screenBrightness = readerBrightness }
-
-            viewModel.setBrightnessOverlayValue(value)
-        }
-        private fun setLayerPaint(grayscale: Boolean, invertedColors: Boolean) {
-            val paint = if (grayscale || invertedColors) getCombinedPaint(grayscale, invertedColors) else null
-            binding.viewerContainer.setLayerType(LAYER_TYPE_HARDWARE, paint)
-        }
+        viewModel.setBrightnessOverlayValue(value)
     }
 
     // KMK -->
@@ -1944,3 +2144,28 @@ class ReaderActivity : BaseActivity() {
     }
     // KMK <--
 }
+
+// KUN -->
+/**
+ * The reader's grayscale and inverted colours, for page images only: the SSIV transitions, spinners
+ * and error views keep theirs. Null when both are off (upstream 00335b2a70).
+ */
+private fun viewerColorFilter(grayscale: Boolean, invertedColors: Boolean): ColorFilter? {
+    if (!grayscale && !invertedColors) return null
+    val matrix = ColorMatrix()
+    if (invertedColors) {
+        matrix *= ColorMatrix(
+            floatArrayOf(
+                -1f, 0f, 0f, 0f, 255f,
+                0f, -1f, 0f, 0f, 255f,
+                0f, 0f, -1f, 0f, 255f,
+                0f, 0f, 0f, 1f, 0f,
+            ),
+        )
+    }
+    if (grayscale) {
+        matrix *= ColorMatrix().apply { setToSaturation(0f) }
+    }
+    return ColorFilter.colorMatrix(matrix)
+}
+// KUN <--

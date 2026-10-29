@@ -30,13 +30,23 @@ internal object OcrOverlayCoords {
     fun offsetOf(view: View, overlay: View): PointF {
         val location = IntArray(2)
         view.getLocationInWindow(location)
+        return offsetOf(location[0].toFloat(), location[1].toFloat(), overlay)
+    }
+
+    // KUN -->
+    /**
+     * [offsetOf] for a surface that is not a View: its window origin is published by its owner
+     * (the WebGPU viewer's `ImageViewer` modifier), everything else is the same conversion.
+     */
+    fun offsetOf(viewWindowX: Float, viewWindowY: Float, overlay: View): PointF {
         val overlayLocation = IntArray(2)
         overlay.getLocationInWindow(overlayLocation)
         return PointF(
-            (location[0] - overlayLocation[0]).toFloat(),
-            (location[1] - overlayLocation[1]).toFloat(),
+            viewWindowX - overlayLocation[0],
+            viewWindowY - overlayLocation[1],
         )
     }
+    // KUN <--
 }
 
 /**
@@ -189,7 +199,7 @@ class SsivOcrViewport(
     private val holdersProvider: () -> List<PagerPageHolder>,
 ) : OcrViewport {
 
-    private val overlayView: View get() = activity.binding.composeOverlay
+    private val overlayView: View get() = activity.composeOverlayRoot
 
     override fun visiblePages(): List<ReaderPage> =
         holdersProvider().flatMap { listOfNotNull(it.page, it.extraOcrPage()) }

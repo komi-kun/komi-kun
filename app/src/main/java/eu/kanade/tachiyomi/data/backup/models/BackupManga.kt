@@ -1,6 +1,7 @@
 package eu.kanade.tachiyomi.data.backup.models
 
 import eu.kanade.tachiyomi.source.model.UpdateStrategy
+import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.protobuf.ProtoNumber
 import mihon.core.common.extensions.JsonObjectEmptyBytes
@@ -13,8 +14,10 @@ import tachiyomi.domain.manga.model.Manga
 class BackupManga(
     // in 1.x some of these values have different names
     // SY -->
+    @EncodeDefault
     @ProtoNumber(1) var source: Long = 0,
     // url is called key in 1.x
+    @EncodeDefault
     @ProtoNumber(2) var url: String = "",
     // SY <--
     @ProtoNumber(3) var title: String = "",
@@ -53,10 +56,18 @@ class BackupManga(
     @ProtoNumber(113) var nextUpdate: Long = 0,
 
     // SY specific values
-    @ProtoNumber(600) var mergedMangaReferences: List<BackupMergedMangaReference> = emptyList(),
+    @ProtoNumber(600) var mergedEntries: List<BackupMergedEntry> = emptyList(),
     @ProtoNumber(601) var flatMetadata: BackupFlatMetadata? = null,
     @ProtoNumber(602) var customStatus: Int = 0,
     @ProtoNumber(603) var customThumbnailUrl: String? = null,
+    // KUN -->
+    // Upstream spells the merge-level settings as field 604, but 604 is already claimed for a
+    // different wire type by an open SY PR (`List<BackupSortedScanlator>`, SY #1420), and a
+    // protobuf number cannot hold two types. Take a field from the fork-reserved BackupManga block
+    // instead (AGENTS.md, "Backup protobuf field numbers"): a peer that speaks upstream's 604 keeps
+    // its entries at 600, so the merge still restores without its sort mode/info entry.
+    @ProtoNumber(10002) var mergeSettings: BackupMergeSettings? = null,
+    // KUN <--
 
     // J2K specific values
     @ProtoNumber(800) var customTitle: String? = null,

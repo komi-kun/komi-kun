@@ -3,7 +3,6 @@ package eu.kanade.tachiyomi.ui.reader.loader
 import android.content.Context
 import eu.kanade.domain.chapter.model.toSChapter
 import eu.kanade.domain.source.service.SourcePreferences
-import eu.kanade.tachiyomi.data.cache.ChapterCache
 import eu.kanade.tachiyomi.data.download.DownloadManager
 import eu.kanade.tachiyomi.data.download.DownloadProvider
 import eu.kanade.tachiyomi.source.Source
@@ -16,10 +15,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import mihon.core.archive.archiveReader
 import mihon.core.archive.epubReader
+import mihon.data.cache.ChapterCache
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.manga.model.Manga
-import tachiyomi.domain.manga.model.MergedMangaReference
 import tachiyomi.domain.source.model.StubSource
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.i18n.MR
@@ -42,7 +41,6 @@ class ChapterLoader(
     private val sourceManager: SourceManager,
     private val readerPrefs: ReaderPreferences,
     private val sourcePreferences: SourcePreferences,
-    private val mergedReferences: List<MergedMangaReference>,
     private val mergedManga: Map<Long, Manga>?,
     // SY <--
 ) {
@@ -113,12 +111,12 @@ class ChapterLoader(
         return when {
             // SY -->
             source is MergedSource -> {
-                val mangaReference = mergedReferences.firstOrNull {
-                    it.mangaId == chapter.chapter.mangaId
-                } ?: error("Merge reference null")
-                val source = sourceManager.get(mangaReference.mangaSourceId)
-                    ?: error("Source ${mangaReference.mangaSourceId} was null")
+                // KUN -->
+                // The entry no longer carries its source, and the fork's map is nullable.
                 val manga = mergedManga?.get(chapter.chapter.mangaId) ?: error("Manga for merged chapter was null")
+                val source = sourceManager.get(manga.source)
+                    ?: error("Source ${manga.source} was null")
+                // KUN <--
                 val isMergedMangaDownloaded = downloadManager.isChapterDownloadedOnDisk(
                     chapterName = chapter.chapter.name,
                     chapterScanlator = chapter.chapter.scanlator,

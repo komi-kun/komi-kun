@@ -60,7 +60,12 @@ class MigrationTest {
                 driver.triggerExists("insert_category_uid") shouldBe true
 
                 // Komikku/SY extra tables survive
-                driver.tableExists("merged") shouldBe true
+                // KUN -->
+                // `merged` was split into `merge` + `merged_entry` by 61.sqm.
+                driver.tableExists("merged") shouldBe false
+                driver.tableExists("merge") shouldBe true
+                driver.tableExists("merged_entry") shouldBe true
+                // KUN <--
                 driver.tableExists("search_metadata") shouldBe true
                 driver.tableExists("search_tags") shouldBe true
                 driver.tableExists("search_titles") shouldBe true
@@ -126,12 +131,20 @@ class MigrationTest {
                 driver.scalarLong("SELECT category_id FROM manga_category") shouldBe 1
                 driver.scalarLong("SELECT last_modified_at FROM manga_category") shouldBe 999
 
-                // The `merged` row that referenced a removed member follows it onto the survivor
-                driver.scalarLong("SELECT count(*) FROM merged") shouldBe 2
-                driver.scalarLong("SELECT manga_id FROM merged WHERE _id = 1") shouldBe 1
-                driver.scalarLong("SELECT merge_id FROM merged WHERE _id = 1") shouldBe 2
-                driver.scalarLong("SELECT manga_id FROM merged WHERE _id = 2") shouldBe 2
-                driver.scalarLong("SELECT merge_id FROM merged WHERE _id = 2") shouldBe 1
+                // The entry that referenced a removed member follows it onto the survivor
+                // KUN -->
+                // The split keeps one `merge` row per merge and one `merged_entry` row per child.
+                driver.scalarLong("SELECT count(*) FROM merge") shouldBe 2
+                driver.scalarLong("SELECT count(*) FROM merged_entry") shouldBe 2
+                driver.scalarLong("SELECT manga_id FROM merged_entry WHERE _id = 1") shouldBe 1
+                driver.scalarLong("SELECT merge_id FROM merged_entry WHERE _id = 1") shouldBe 2
+                driver.scalarLong("SELECT manga_id FROM merged_entry WHERE _id = 2") shouldBe 2
+                driver.scalarLong("SELECT merge_id FROM merged_entry WHERE _id = 2") shouldBe 1
+                // No `manga_source = 6969` self-reference in this seed, so there is no sort mode and
+                // no info entry to carry over.
+                driver.scalarLong("SELECT chapter_sort_mode FROM merge WHERE manga_id = 2") shouldBe 0
+                driver.scalarLong("SELECT count(*) FROM merge WHERE info_manga_id IS NOT NULL") shouldBe 0
+                // KUN <--
 
                 // The unique-keyed extras collapse to one row per surviving entry before the re-point
                 driver.scalarLong("SELECT count(*) FROM search_metadata") shouldBe 1
@@ -203,6 +216,112 @@ class MigrationTest {
             }
         }
     }
+
+    /**
+     * The pre-split `merged` table was keyed on `_id` alone, so one child could be listed twice under
+     * the same merge entry. The split's `merged_entry` has `UNIQUE(merge_id, manga_id)`, which turned
+     * such a pair into an aborted upgrade (SY 9955747216).
+     */
+    @Test
+    fun `migration from version 49 keeps one merged_entry per merge and manga pair`() {
+        runBlocking {
+            val dbFile = Files.createTempFile("komikku-migration-merged-entry-test", ".db")
+            Files.copy(Path.of("src/main/sqldelight/49.db"), dbFile, REPLACE_EXISTING)
+            val driver = JdbcSqliteDriver("jdbc:sqlite:$dbFile")
+            try {
+                populateOldSchema(driver)
+                // A merge parent and its child, neither a duplicate of anything in the seed, so the
+                // group merge cannot collapse the pair on its own.
+                driver.execute(
+                    null,
+                    "INSERT INTO mangas(_id,source,url,title,status,favorite,initialized,viewer,chapter_flags,cover_last_modified,date_added) " +
+                        "VALUES (50,6969,'https://merge50','Merge 50',0,1,1,0,0,0,1100)," +
+                        "(51,100,'https://child51','Child 51',0,1,1,0,0,0,1101)",
+                    0,
+                ).await()
+                // The same pair twice, with different entry settings: `_id` 10 is the older row.
+                driver.execute(
+                    null,
+                    "INSERT INTO merged(_id,info_manga,get_chapter_updates,chapter_sort_mode,chapter_priority,download_chapters,merge_id,merge_url,manga_id,manga_url,manga_source) " +
+                        "VALUES (10,0,1,0,5,0,50,'https://merge50',51,'https://child51',100)," +
+                        "(11,0,0,0,9,1,50,'https://merge50',51,'https://child51',100)",
+                    0,
+                ).await()
+
+                Database.Schema.migrate(driver, 49L, Database.Schema.version).await()
+
+                // The upgrade completes and keeps exactly one row for the duplicated pair
+                driver.scalarLong("SELECT count(*) FROM merged_entry WHERE merge_id = 50 AND manga_id = 51") shouldBe 1
+                // ... the one from the lowest `_id`, carrying that row's own entry settings (the new
+                // table allocates fresh ids, so `_id` itself cannot be checked here)
+                driver.scalarLong("SELECT chapter_priority FROM merged_entry WHERE merge_id = 50 AND manga_id = 51") shouldBe 5
+                driver.scalarLong("SELECT download_chapters FROM merged_entry WHERE merge_id = 50 AND manga_id = 51") shouldBe 0
+                // The merge row itself is still built from the pair's merge id
+                driver.scalarLong("SELECT count(*) FROM merge WHERE manga_id = 50") shouldBe 1
+                driver.foreignKeyViolations() shouldBe 0
+            } finally {
+                driver.close()
+            }
+        }
+    }
+
+    // KUN -->
+    /**
+     * Migration from version 49 for a pre-split merge.
+     *
+     * The `merged` self-reference (`manga_source = 6969`) carried the merge-level chapter-sort mode
+     * and the info flag; `61.sqm` moves both to the `merge` row and must not keep the self-reference
+     * as a child entry — the new `merged_entry` has no such row on a live database either, and the
+     * restore path refuses to create one.
+     */
+    @Test
+    fun `migration from version 49 carries the self-reference settings to the merge row`() {
+        runBlocking {
+            val dbFile = Files.createTempFile("komikku-migration-merge-settings-test", ".db")
+            Files.copy(Path.of("src/main/sqldelight/49.db"), dbFile, REPLACE_EXISTING)
+            val driver = JdbcSqliteDriver("jdbc:sqlite:$dbFile")
+            try {
+                populateOldSchema(driver)
+                // A merge parent with two children and the legacy self-reference row.
+                driver.execute(
+                    null,
+                    "INSERT INTO mangas(_id,source,url,title,status,favorite,initialized,viewer,chapter_flags,cover_last_modified,date_added) " +
+                        "VALUES (60,6969,'https://merge60','Merge 60',0,1,1,0,0,0,1200)," +
+                        "(61,100,'https://child61','Child 61',0,1,1,0,0,0,1201)," +
+                        "(62,100,'https://child62','Child 62',0,1,1,0,0,0,1202)",
+                    0,
+                ).await()
+                driver.execute(
+                    null,
+                    "INSERT INTO merged(_id,info_manga,get_chapter_updates,chapter_sort_mode,chapter_priority,download_chapters,merge_id,merge_url,manga_id,manga_url,manga_source) " +
+                        // The self-reference: the only row that carries the sort mode.
+                        "VALUES (20,0,0,2,0,0,60,'https://merge60',60,'https://merge60',6969)," +
+                        // The info entry is a child row, flagged here.
+                        "(21,1,1,0,1,0,60,'https://merge60',61,'https://child61',100)," +
+                        "(22,0,1,0,2,0,60,'https://merge60',62,'https://child62',100)",
+                    0,
+                ).await()
+
+                Database.Schema.migrate(driver, 49L, Database.Schema.version).await()
+
+                // The merge-level settings moved off the self-reference onto the merge row.
+                driver.scalarLong("SELECT chapter_sort_mode FROM merge WHERE manga_id = 60") shouldBe 2
+                driver.scalarLong("SELECT info_manga_id FROM merge WHERE manga_id = 60") shouldBe 61
+                // Both children survive as entries...
+                driver.scalarLong("SELECT count(*) FROM merged_entry WHERE merge_id = 60") shouldBe 2
+                driver.scalarLong(
+                    "SELECT count(*) FROM merged_entry WHERE merge_id = 60 AND manga_id IN (61, 62)",
+                ) shouldBe 2
+                // ...and the self-reference is not one of them: no merge lists itself.
+                driver.scalarLong("SELECT count(*) FROM merged_entry WHERE merge_id = 60 AND manga_id = 60") shouldBe 0
+                driver.scalarLong("SELECT count(*) FROM merged_entry WHERE merge_id = manga_id") shouldBe 0
+                driver.foreignKeyViolations() shouldBe 0
+            } finally {
+                driver.close()
+            }
+        }
+    }
+    // KUN <--
 
     private fun populateOldSchema(driver: SqlDriver) = runBlocking {
         // The old schema's triggers would otherwise bump version/last_modified_at while seeding

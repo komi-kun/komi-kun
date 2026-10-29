@@ -249,7 +249,7 @@ komi-kun owns this block. No upstream uses `>= 1000`, so a collision can be avoi
 | `10300-10399` | `BackupTracking` |
 | `10400-10499` | `BackupHistory` |
 | `10500-10599` | `Backup` root |
-| `10600-10699` | `BackupMergedMangaReference` |
+| `10600-10699` | `BackupMergedEntry` / `BackupMergeSettings` |
 | `10700-10799` | `BackupFlatMetadata` / metadata |
 | `10800-10899` | Saved search / feed / extension store / source / preference |
 | `10900-10999` | New models / overflow |
@@ -258,6 +258,7 @@ Current komi-kun allocations:
 
 - `BackupManga.customInfoIncluded` = `10000`
 - `BackupManga.mergedMangaReferencesIncluded` = `10001`
+- `BackupManga.mergeSettings` = `10002` (upstream's `604` is claimed by an open SY PR for a different wire type)
 
 Rules:
 
@@ -365,6 +366,7 @@ Gradle `-P` flags (`buildSrc/src/main/kotlin/mihon/buildlogic/BuildConfig.kt`):
 - Commits that cancel each other out (revert chains the fork has none of) are flagged `?` by the script with a `Cancels out (script):` note, for review.
 - Pre-2024 rows at the end come from a one-off pass and may be deleted by hand.
 - Never hand-edit columns other than Status and Notes; use the script's `mark` command.
+- **A blank or `?` status is not proof of absence**: ports here land as squash merges, so no pick trailer reaches `master`; the current position and the open work are in [`docs/upstream/state.md`](docs/upstream/state.md), and presence must be adjudicated by content (see the `upstream-port` skill).
 
 Rules, commands and the porting guide: `.agents/skills/cherrypick-log/README.md`.
 

@@ -34,7 +34,7 @@ class WebtoonOcrViewport(
 ) : OcrViewport {
 
     private val activity: ReaderActivity get() = viewer.activity
-    private val overlayView: View get() = activity.binding.composeOverlay
+    private val overlayView: View get() = activity.composeOverlayRoot
 
     override fun visiblePages(): List<ReaderPage> =
         viewer.ocrVisibleHolders().mapNotNull { it.ocrPage() }

@@ -32,7 +32,6 @@ import eu.kanade.domain.track.interactor.TrackChapter
 import eu.kanade.domain.track.service.TrackPreferences
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.presentation.manga.components.ChapterDownloadAction
-import eu.kanade.tachiyomi.data.cache.ChapterCache
 import eu.kanade.tachiyomi.data.cache.CoverCache
 import eu.kanade.tachiyomi.data.download.DownloadCache
 import eu.kanade.tachiyomi.data.download.DownloadManager
@@ -58,7 +57,6 @@ import eu.kanade.tachiyomi.ui.reader.model.ViewerChapters
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderOrientation
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.ui.reader.setting.ReadingMode
-import eu.kanade.tachiyomi.ui.reader.viewer.Viewer
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.PagerViewer
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.R2LPagerViewer
 import eu.kanade.tachiyomi.util.chapter.filterDownloaded
@@ -101,6 +99,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import logcat.LogPriority
 import mihon.core.metro.AppCoroutineScope
+import mihon.data.cache.ChapterCache
 import tachiyomi.core.common.preference.DictionaryOcrPreferences
 import tachiyomi.core.common.preference.toggle
 import tachiyomi.core.common.storage.UniFileTempFileManager
@@ -124,7 +123,6 @@ import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.domain.manga.interactor.GetFlatMetadataById
 import tachiyomi.domain.manga.interactor.GetManga
 import tachiyomi.domain.manga.interactor.GetMergedMangaById
-import tachiyomi.domain.manga.interactor.GetMergedReferencesById
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.source.local.image.LocalCoverManager
@@ -166,7 +164,6 @@ class ReaderViewModel(
     private val sourcePreferences: SourcePreferences,
     private val getFlatMetadataById: GetFlatMetadataById,
     private val getMergedMangaById: GetMergedMangaById,
-    private val getMergedReferencesById: GetMergedReferencesById,
     private val getMergedChaptersByMangaId: GetMergedChaptersByMangaId,
     // SY <--
     private val coverManager: LocalCoverManager,
@@ -613,13 +610,6 @@ class ReaderViewModel(
                 } else {
                     null
                 }
-                val mergedReferences = if (source is MergedSource) {
-                    runBlocking {
-                        getMergedReferencesById.await(manga.id)
-                    }
-                } else {
-                    emptyList()
-                }
                 val mergedManga = if (source is MergedSource) {
                     runBlocking {
                         getMergedMangaById.await(manga.id)
@@ -667,7 +657,6 @@ class ReaderViewModel(
                     sourceManager = sourceManager,
                     readerPrefs = readerPreferences,
                     sourcePreferences = sourcePreferences,
-                    mergedReferences = mergedReferences,
                     mergedManga = mergedManga,
                     // SY <--
                 )
@@ -876,12 +865,6 @@ class ReaderViewModel(
             return
         }
         eventChannel.trySend(Event.ReloadViewerChapters)
-    }
-
-    fun onViewerLoaded(viewer: Viewer?) {
-        mutableState.update {
-            it.copy(viewer = viewer)
-        }
     }
 
     /**
@@ -1145,14 +1128,21 @@ class ReaderViewModel(
                     chapter.chapterNumber == readerChapter.chapter.chapterNumber
                 ) {
                     ChapterUpdate(chapter.id) { read = true }
-                        // KMK -->
-                        .also { deleteDupChapterIfNeeded(ReaderChapter(chapter.copy(read = true))) }
-                    // KMK <--
                 } else {
                     null
                 }
             }
         updateChapter.awaitAll(duplicateUnreadChapters)
+        // SY -->
+        duplicateUnreadChapters.forEach { chapterUpdate ->
+            val chapter = unfilteredChapterList.first { it.id == chapterUpdate.id }
+            // KUN -->
+            // Komikku removes the duplicate itself and ignores chapters flagged unread, so pass it
+            // as read: the list above was loaded before these were marked read.
+            deleteDupChapterIfNeeded(ReaderChapter(chapter.copy(read = true)))
+            // KUN <--
+        }
+        // SY <--
     }
 
     fun restartReadTimer() {
@@ -1404,6 +1394,14 @@ class ReaderViewModel(
         mutableState.update { it.copy(dialog = Dialog.AutoScrollHelp) }
     }
 
+    fun openAutoScrollGesturesHelpDialog() {
+        mutableState.update { it.copy(dialog = Dialog.AutoScrollGesturesHelp) }
+    }
+
+    fun openAutoScrollGestureToastsHelpDialog() {
+        mutableState.update { it.copy(dialog = Dialog.AutoScrollGestureToastsHelp) }
+    }
+
     fun openBoostPageHelp() {
         mutableState.update { it.copy(dialog = Dialog.BoostPageHelp) }
     }
@@ -1505,11 +1503,18 @@ class ReaderViewModel(
     }
 
     // SY -->
-    fun saveImages() {
+    fun saveImages(
+        // KUN -->
+        // The viewer is owned by the activity (upstream ca028cb657 takes it out of the state).
+        currentViewer: PagerViewer?,
+        // KUN <--
+    ) {
         val (firstPage, secondPage) = (state.value.dialog as? Dialog.PageActions ?: return)
-        val viewer = state.value.viewer as? PagerViewer ?: return
-        val isLTR = (viewer !is R2LPagerViewer) xor (viewer.config.invertDoublePages)
-        val bg = viewer.config.pageCanvasColor
+        // KUN -->
+        val viewer = currentViewer ?: return
+        // KUN <--
+        val isLTR = (viewer !is R2LPagerViewer) xor (viewer.simplePaged.invertDoublePages)
+        val bg = viewer.general.pageCanvasColor
 
         if (firstPage.status != Page.State.Ready) return
         if (secondPage?.status != Page.State.Ready) return
@@ -1632,11 +1637,19 @@ class ReaderViewModel(
     }
 
     // SY -->
-    fun shareImages(copyToClipboard: Boolean) {
+    fun shareImages(
+        copyToClipboard: Boolean,
+        // KUN -->
+        // The viewer is owned by the activity (upstream ca028cb657 takes it out of the state).
+        currentViewer: PagerViewer?,
+        // KUN <--
+    ) {
         val (firstPage, secondPage) = (state.value.dialog as? Dialog.PageActions ?: return)
-        val viewer = state.value.viewer as? PagerViewer ?: return
-        val isLTR = (viewer !is R2LPagerViewer) xor (viewer.config.invertDoublePages)
-        val bg = viewer.config.pageCanvasColor
+        // KUN -->
+        val viewer = currentViewer ?: return
+        // KUN <--
+        val isLTR = (viewer !is R2LPagerViewer) xor (viewer.simplePaged.invertDoublePages)
+        val bg = viewer.general.pageCanvasColor
 
         if (firstPage.status != Page.State.Ready) return
         if (secondPage?.status != Page.State.Ready) return
@@ -1779,11 +1792,6 @@ class ReaderViewModel(
         val bookmarked: Boolean = false,
         val isLoadingAdjacentChapter: Boolean = false,
         val currentPage: Int = -1,
-
-        /**
-         * Viewer used to display the pages (pager, webtoon, ...).
-         */
-        val viewer: Viewer? = null,
         val dialog: Dialog? = null,
         val menuVisible: Boolean = false,
         @field:IntRange(from = -100, to = 100) val brightnessOverlayValue: Int = 0,
@@ -1830,6 +1838,8 @@ class ReaderViewModel(
 
         // SY -->
         data object AutoScrollHelp : Dialog
+        data object AutoScrollGesturesHelp : Dialog
+        data object AutoScrollGestureToastsHelp : Dialog
         data object RetryAllHelp : Dialog
         data object BoostPageHelp : Dialog
         // SY <--

@@ -36,8 +36,8 @@ class WebGpuOcrViewport(
     private val viewer: WebGpuViewer,
 ) : OcrViewport {
 
-    private val state get() = viewer.pager.state
-    private val overlayView: View get() = viewer.activity.binding.composeOverlay
+    private val state get() = viewer.viewerState
+    private val overlayView: View get() = viewer.activity.composeOverlayRoot
 
     private val continuousState: ImageViewerContinuousState?
         get() = state as? ImageViewerContinuousState
@@ -143,7 +143,7 @@ class WebGpuOcrViewport(
             PagedFit(page, page.scale, page.x, page.y).also { session = it }
         }
 
-        val off = OcrOverlayCoords.offsetOf(viewer.pager, overlayView)
+        val off = OcrOverlayCoords.offsetOf(viewer.viewerWindowX, viewer.viewerWindowY, overlayView)
         val surfaceW = state.width.toFloat()
         val scaleNow = page.scale
         if (scaleNow <= 0f || surfaceW <= 0f) return false
@@ -203,7 +203,7 @@ class WebGpuOcrViewport(
         val surfaceW = state.width.toFloat()
         val surfaceH = state.height.toFloat()
         if (surfaceW <= 0f || surfaceH <= 0f) return null
-        val off = OcrOverlayCoords.offsetOf(viewer.pager, overlayView)
+        val off = OcrOverlayCoords.offsetOf(viewer.viewerWindowX, viewer.viewerWindowY, overlayView)
         val nx = (x - off.x) / surfaceW
         val ny = (y - off.y) / surfaceH
         for (imagePage in state.visiblePages) {
@@ -266,7 +266,7 @@ class WebGpuOcrViewport(
         val surfaceW = state.width.toFloat()
         val surfaceH = state.height.toFloat()
         if (surfaceW <= 0f || surfaceH <= 0f) return null
-        val off = OcrOverlayCoords.offsetOf(viewer.pager, overlayView)
+        val off = OcrOverlayCoords.offsetOf(viewer.viewerWindowX, viewer.viewerWindowY, overlayView)
         val x0 = r[0]
         val y0 = r[1]
         val x1 = r[2]
@@ -339,7 +339,7 @@ class WebGpuOcrViewport(
         val surfaceW = state.width.toFloat()
         val surfaceH = state.height.toFloat()
         if (surfaceW <= 0f || surfaceH <= 0f) return null
-        val off = OcrOverlayCoords.offsetOf(viewer.pager, overlayView)
+        val off = OcrOverlayCoords.offsetOf(viewer.viewerWindowX, viewer.viewerWindowY, overlayView)
         val nx = (x - off.x) / surfaceW
         val ny = (y - off.y) / surfaceH
         for (imagePage in state.visiblePages) {
@@ -383,7 +383,7 @@ class WebGpuOcrViewport(
         val widthPx = scale * cs.width
         val heightPx = scale * cs.getPageHeight(imagePage)
         if (widthPx <= 0f || heightPx <= 0f) return null
-        val off = OcrOverlayCoords.offsetOf(viewer.pager, overlayView)
+        val off = OcrOverlayCoords.offsetOf(viewer.viewerWindowX, viewer.viewerWindowY, overlayView)
         val left = off.x + cs.width * (0.5f * (1f - scale) + scale * cs.offsetX)
         val top = off.y + scale * (slotOffset(cs, index) - cs.scrollOffsetY)
         return RectF(
@@ -398,7 +398,7 @@ class WebGpuOcrViewport(
         val scale = cs.scale
         val widthPx = scale * cs.width
         if (widthPx <= 0f) return null
-        val off = OcrOverlayCoords.offsetOf(viewer.pager, overlayView)
+        val off = OcrOverlayCoords.offsetOf(viewer.viewerWindowX, viewer.viewerWindowY, overlayView)
         val left = off.x + cs.width * (0.5f * (1f - scale) + scale * cs.offsetX)
         val u = (x - left) / widthPx
         if (u < 0f || u > 1f) return null
