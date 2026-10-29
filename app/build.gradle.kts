@@ -174,12 +174,6 @@ android {
                 "libconscrypt_jni",
                 "libimagedecoder",
                 "libquickjs",
-                // KUN -->
-                "libhoshidicts_jni",
-                "libpaddle_ocr",
-                "libonnxruntime",
-                "libomp",
-                // KUN <--
             )
                 .map { "**/$it.so" }
         }
@@ -216,6 +210,32 @@ android {
         checkReleaseBuilds = false
     }
 }
+
+// KUN -->
+// Native debug symbols for the dictionary/OCR libraries are **variant-conditional**: a debug build
+// keeps them (they are how a native crash in `libhoshidicts_jni`/Paddle is symbolicated), while the
+// release-type variants (release, releaseTest, foss, nightly, benchmark) ship them stripped.
+//
+// Measured on `libhoshidicts_jni.so`: 14.2 MB unstripped vs 1.73 MB stripped; `libomp` 1.23 MB vs
+// 0.97 MB — about 12.5 MB per ABI that used to reach every release user for no runtime benefit.
+// The upstream entries in `packaging.jniLibs.keepDebugSymbols` above are left exactly as upstream
+// has them; only these four are added, and only for a debuggable build type.
+val kunDebuggableBuildTypes = android.buildTypes.filter { it.isDebuggable }.map { it.name }.toSet()
+
+androidComponents {
+    onVariants { variant ->
+        if (variant.buildType !in kunDebuggableBuildTypes) return@onVariants
+        variant.packaging.jniLibs.keepDebugSymbols.addAll(
+            listOf(
+                "libhoshidicts_jni",
+                "libpaddle_ocr",
+                "libonnxruntime",
+                "libomp",
+            ).map { "**/$it.so" },
+        )
+    }
+}
+// KUN <--
 
 kotlin {
     compilerOptions {
