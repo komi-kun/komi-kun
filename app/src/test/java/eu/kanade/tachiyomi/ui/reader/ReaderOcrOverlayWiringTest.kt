@@ -11,8 +11,10 @@
 // The defect it pins was real: the overlay used to be the **last** sibling of the root `Box`, i.e.
 // drawn over the whole reader UI instead of under the chrome. In a `Box` the draw order is the
 // composition order of the non-composed children, so the ordering facts below *are* the layering:
-// `ReaderContentOverlay` (brightness/colour) first, the OCR overlay next, then the reader chrome
-// (`ReaderNavigationOverlay` and `AppBars`) last.
+// `ReaderContentOverlay` (brightness/colour) first, then the side navigator, then the OCR overlay,
+// then the top/bottom bars (`AppBars`) last. The OCR overlay therefore draws **above the side
+// navigator and below the bars** — the pre-merge z-order, when the navigator was the native
+// `ReaderNavigationOverlayView` sibling that preceded the Compose root in `reader_activity.xml`.
 //
 // The needles follow the Compose reader root (upstream 00335b2a70): the root `Box` is the one that
 // paints the reader background, the brightness/colour overlay is `ReaderContentOverlay`, and the
@@ -49,7 +51,7 @@ class ReaderOcrOverlayWiringTest {
     }
 
     @Test
-    fun `the OCR overlay is composed once, inside the root box, under the reader chrome`() {
+    fun `the OCR overlay is composed once, inside the root box, above the side navigator and under the bars`() {
         val source = readerActivity()
 
         // Exactly one overlay call site: a second one — the shape this replaced was the same call as
@@ -76,13 +78,16 @@ class ReaderOcrOverlayWiringTest {
             "the OCR overlay must be composed after ReaderContentOverlay " +
                 "(contentOverlay=$contentOverlay, overlay=$overlay)",
         )
-        // ...and before the chrome, so the top/bottom bars and the side navigator paint over it. This
-        // is the assertion that fails if either chrome sibling is moved back above the OCR block.
+        // ...and after the side navigator, so the OCR overlay draws on top of it — the pre-merge
+        // z-order. This is the assertion that fails if `ReaderNavigationOverlay` is composed after
+        // the OCR block again.
         assertTrue(
-            overlay < navigationOverlay,
-            "the OCR overlay must be composed before ReaderNavigationOverlay, or the navigator stops " +
-                "covering it (overlay=$overlay, navigationOverlay=$navigationOverlay)",
+            navigationOverlay < overlay,
+            "the OCR overlay must be composed after ReaderNavigationOverlay, or the side navigator " +
+                "starts covering it (navigationOverlay=$navigationOverlay, overlay=$overlay)",
         )
+        // ...and before `AppBars`, so the top/bottom bars paint over it. This is the assertion that
+        // fails if the bars are moved back above the OCR block.
         assertTrue(
             overlay < appBars,
             "the OCR overlay must be composed before AppBars, or the chrome stops covering it " +

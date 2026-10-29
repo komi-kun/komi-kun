@@ -627,15 +627,28 @@ class ReaderActivity : BaseActivity() {
                 }
 
                 // KUN -->
+                // Composed **before** the OCR overlay so the overlay draws above the side navigator
+                // (pre-merge order: the native navigator `View` preceded the Compose root). Moving
+                // it back below the OCR block is guarded by `ReaderOcrOverlayWiringTest`.
+                // KUN <--
+                ReaderNavigationOverlay(state = navigationOverlayState)
+
+                // KUN -->
                 // OCR block outlines and text belong to the **page layer**: drawn here, between the
-                // brightness/colour overlay and the reader chrome, so the top bar, bottom bar and
-                // side navigator paint *over* it. It is drawn above the page indicator — that one is
-                // an earlier sibling of this `Box` and is page-layer HUD, not interactive chrome, so
-                // it must stay underneath. It used to be the last sibling of this `Box` (after
-                // `AppBars`), i.e. drawn over the whole reader UI. It is
-                // draw-only and adds no pointer input, so it never intercepts viewer gestures
-                // (plan 04 §2.1). Contents, preferences and the tap/long-press path are unchanged;
-                // only the layer moved.
+                // brightness/colour overlay and the reader chrome. Sibling order in a `Box` is draw
+                // order, so the overlay sits **above the side navigator and below the bars**:
+                // - `ReaderNavigationOverlay` is composed before it (pre-merge the navigator was the
+                //   native `ReaderNavigationOverlayView`, a `FrameLayout` sibling preceding
+                //   `compose_overlay` in the deleted `reader_activity.xml`, so the overlay drew over
+                //   it — this order restores that);
+                // - the page indicator is an earlier sibling too: it is page-layer HUD, not
+                //   interactive chrome, so it must stay underneath;
+                // - the top/bottom `AppBars` are composed after it and are only 0.9 (dark) / 0.95
+                //   (light) opaque, hence the alpha gate below.
+                // It used to be the last sibling of this `Box` (after `AppBars`), i.e. drawn over the
+                // whole reader UI. It is draw-only and adds no pointer input, so it never intercepts
+                // viewer gestures (plan 04 §2.1). Contents, preferences and the tap/long-press path
+                // are unchanged; only the layer moved.
                 //
                 // While the chrome is up the overlay still *composes* but paints nothing:
                 // - it must not paint, because the bars are only 0.9 (dark) / 0.95 (light) opaque,
@@ -648,7 +661,7 @@ class ReaderActivity : BaseActivity() {
                 // Drawn only while the combined dictionary/OCR opt-in is on AND the overlay itself
                 // is enabled; a null viewport means the viewer has no mapping yet.
                 //
-                // It is drawn below `ReaderNavigationOverlay` and `AppBars` for that page-layer
+                // It is drawn above `ReaderNavigationOverlay` and below `AppBars` for that page-layer
                 // reason, and it sits below the loading screen's early return: while a new viewer
                 // loads the overlay is not composed at all, and `ReaderOcrHostImpl.Overlay` clears
                 // the viewport it recorded when it leaves composition, so a swapped viewer can
@@ -667,8 +680,6 @@ class ReaderActivity : BaseActivity() {
                     )
                 }
                 // KUN <--
-
-                ReaderNavigationOverlay(state = navigationOverlayState)
 
                 // KUN -->
                 // Must stay **after** the OCR overlay above: it is the reader chrome, and the overlay

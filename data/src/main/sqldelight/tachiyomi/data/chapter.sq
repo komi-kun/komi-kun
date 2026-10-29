@@ -23,7 +23,7 @@ CREATE TABLE chapter(
     is_syncing INTEGER NOT NULL DEFAULT 0,
     -- SY <--
     -- KUN -->
-    -- Unused on purpose: nothing writes or reads this column (see migrations/59.sqm). It is kept so
+    -- Unused on purpose: nothing writes or reads this column (see migrations/62.sqm). It is kept so
     -- an install that already ran the migration stays on the same schema.
     is_ocr_ready INTEGER AS Boolean NOT NULL DEFAULT 0,
     -- KUN <--

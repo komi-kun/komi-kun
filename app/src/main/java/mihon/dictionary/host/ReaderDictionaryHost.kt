@@ -20,9 +20,10 @@ interface ReaderDictionaryHost {
 
     // KUN -->
     /**
-     * The visible popup's bounds in `compose_overlay` (window-local) coordinates, or null when no
-     * popup is shown. The Apache-headed reader uses it to dismiss the non-modal popup on an
-     * outside tap without installing a gesture-swallowing scrim.
+     * The visible popup's bounds in window-local coordinates anchored to the Compose content root
+     * (`activity.composeOverlayRoot`), or null when no popup is shown. The Apache-headed reader uses
+     * it to dismiss the non-modal popup on an outside tap without installing a gesture-swallowing
+     * scrim.
      */
     fun popupBounds(): RectF?
 
