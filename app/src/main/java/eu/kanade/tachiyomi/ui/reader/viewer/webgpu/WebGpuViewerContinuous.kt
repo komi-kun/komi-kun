@@ -26,7 +26,12 @@ class WebGpuViewerContinuous(activity: ReaderActivity, val useGap: Boolean = fal
 
     @Composable
     override fun Content(modifier: Modifier) {
-        ImageViewerContinuous(modifier = modifier, state = state)
+        // KUN -->
+        // The base class's Content is what publishes the box the viewer is drawn in, and this
+        // override replaces it, so the long strip takes the same modifier instead of leaving the
+        // settings sheet on the null this viewer would otherwise never replace.
+        ImageViewerContinuous(modifier = modifier.publishViewerViewport(), state = state)
+        // KUN <--
     }
 
     init {

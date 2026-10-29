@@ -686,6 +686,15 @@ open class WebGpuViewer(
      */
     private fun isWideViewport(width: Int, height: Int): Boolean =
         width > 0 && height > 0 && width.toFloat() / height > 1f
+
+    /**
+     * Publishes the box the viewer is drawn in to the settings sheet, which cannot measure the
+     * viewer itself. Every [Content] override takes it, the long strip's included, so no viewer
+     * leaves the sheet on a stale or a missing answer.
+     */
+    protected fun Modifier.publishViewerViewport(): Modifier = onSizeChanged { size ->
+        settingsViewModel.setViewerWideViewport(isWideViewport(size.width, size.height))
+    }
     // KUN <--
 
     /** The half a spread opens on: right reading right-to-left, left otherwise. */
@@ -1032,9 +1041,7 @@ open class WebGpuViewer(
         // its surface gets, and the sheet asks for the WIDE rule's answer to that box
         // ([isWideViewport]) instead of comparing the window's dp.
         ImageViewer(
-            modifier = modifier.onSizeChanged { size ->
-                settingsViewModel.setViewerWideViewport(isWideViewport(size.width, size.height))
-            },
+            modifier = modifier.publishViewerViewport(),
             state = viewerState,
         )
         // KUN <--
