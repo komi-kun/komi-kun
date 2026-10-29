@@ -420,12 +420,25 @@ fun DictionaryEntryWebView(
                 // dropping the callback, which the next `update` pass would re-arm against a
                 // document that no longer exists.
                 state?.ankiJsBridge?.destroy()
-                state?.audioBridge?.stop()
+                // `destroy()` (idempotent, and it stops playback itself) closes the bridge's scope
+                // and its TextToSpeech engine; `stop()` alone left the TTS binding and the
+                // `ServiceConnection` alive for the lifetime of the process.
+                state?.audioBridge?.destroy()
                 state?.audioBridge?.configProvider = null
                 state?.audioBridge?.languageIsoProvider = null
                 // KUN <--
                 state?.payloadBridge?.rawPayloadJson = ""
                 state?.payloadBridge?.rawEntryJsons = emptyList()
+                // KUN -->
+                // `onRelease` is the only place this WebView instance goes away, and nothing else
+                // ever calls `destroy()` on it — the warmup's
+                // `DictionaryPopupWebViewWarmup.recycle`, the only other destroy site, has no
+                // callers — so every lookup leaked a WebView built with the reader Activity as its
+                // `Context` (10-40 MB PSS plus its renderer process). Destroying per entry rather
+                // than wiring the warmup's `acquire`/`recycle` leaves the WebView reuse behaviour
+                // exactly as it is.
+                webView.destroy()
+                // KUN <--
             },
         )
     }
