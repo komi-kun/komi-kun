@@ -7,6 +7,7 @@ import android.net.Uri
 import android.util.Log
 import dev.icerock.moko.resources.StringResource
 import mihon.core.dictionary.model.TYPE_SUBDIRS
+import mihon.core.dictionary.model.dictionariesDir
 import mihon.core.dictionary.model.dictionaryTypeDir
 import mihon.core.dictionary.repository.DictionaryRepository
 import mihon.core.dictionary.ui.invalidateDictionaryTitle
@@ -169,17 +170,13 @@ object DictionaryImportCoordinator {
                 if (result.kanjiCount > 0) add("kanji")
             }.ifEmpty { TYPE_SUBDIRS }
 
-            // The delete+copy runs inside the repository's serialized tree mutation: the open native
-            // session is dropped first and no lookup/media read can run until the new tree is in
-            // place. A same-title re-import keeps every configured path identical, so this close is
-            // also what makes the new files visible (see `DictionaryRepository.withDictionaryTreeMutation`).
+            // The staging + swap runs inside the repository's serialized tree mutation: the open
+            // native session is dropped first and no lookup/media read can run until the new tree is
+            // in place. A same-title re-import keeps every configured path identical, so this close
+            // is also what makes the new files visible (see
+            // `DictionaryRepository.withDictionaryTreeMutation`).
             repository.withDictionaryTreeMutation {
-                for (type in targets) {
-                    val destDir = dictionaryTypeDir(context, type, dirName)
-                    if (destDir.exists()) destDir.deleteRecursively()
-                    destDir.parentFile?.mkdirs()
-                    importedDir.copyRecursively(destDir, overwrite = true)
-                }
+                replaceDictionaryTrees(dictionariesDir(context), importedDir, dirName, targets)
             }
 
             val profile = prefs.profileStore.getActiveProfile()
@@ -215,6 +212,57 @@ object DictionaryImportCoordinator {
             return DictionaryImportOutcome.Failed(failureOf(e))
         } finally {
             if (tempImportDir.exists()) tempImportDir.deleteRecursively()
+        }
+    }
+
+    /**
+     * Put the freshly imported tree in place of the previous one, type dir by type dir.
+     *
+     * Every type is **staged** next to its destination (`<destDir>.importing`) and only then swapped
+     * in, inside the caller's [DictionaryRepository.withDictionaryTreeMutation] section. The previous
+     * code deleted the live directory and copied onto it in place; `copyRecursively`'s default
+     * `onError` rethrows, so a disk-full or interrupted re-import destroyed the working dictionary and
+     * left nothing (not even the `dictionaryOrder` entry) to look up with — the whole feature was
+     * dead until the user re-imported. Now a failure leaves the previous tree exactly as it was: the
+     * staging directories are removed and the swap never starts.
+     *
+     * The swap is one rename per type (same parent directory, so no copy), after which the types the
+     * new build has **no data for** are deleted: `targets` only lists the types the fresh import
+     * produced, so without that a re-import that dropped e.g. the pitch entries kept serving the
+     * previous dictionary's pitches.
+     */
+    internal fun replaceDictionaryTrees(
+        root: File,
+        importedDir: File,
+        dirName: String,
+        targets: List<String>,
+    ) {
+        val staged = ArrayList<Pair<File, File>>(targets.size)
+        try {
+            for (type in targets) {
+                val destDir = File(File(root, type), dirName)
+                val stagingDir = File(destDir.parentFile, "${destDir.name}$STAGING_SUFFIX")
+                if (stagingDir.exists()) stagingDir.deleteRecursively()
+                destDir.parentFile?.mkdirs()
+                importedDir.copyRecursively(stagingDir, overwrite = true)
+                staged += stagingDir to destDir
+            }
+            for ((stagingDir, destDir) in staged) {
+                if (destDir.exists()) destDir.deleteRecursively()
+                destDir.parentFile?.mkdirs()
+                if (!stagingDir.renameTo(destDir)) {
+                    throw IOException("could not move $stagingDir into place at $destDir")
+                }
+            }
+            (TYPE_SUBDIRS - targets.toSet()).forEach { type ->
+                val stale = File(File(root, type), dirName)
+                if (stale.exists()) stale.deleteRecursively()
+            }
+        } catch (e: Throwable) {
+            // The previous dictionary is still where it was: drop the staging copies and let the
+            // caller report the storage failure.
+            staged.forEach { (stagingDir, _) -> if (stagingDir.exists()) stagingDir.deleteRecursively() }
+            throw e
         }
     }
 
@@ -394,6 +442,9 @@ object DictionaryImportCoordinator {
     }
 
     private const val TAG = "DictImport"
+
+    /** Suffix of the sibling directory a type is staged into before it replaces the live one. */
+    private const val STAGING_SUFFIX = ".importing"
 
     /** Cap on a title-derived path segment; the same length `sanitizeTitleForPath` uses. */
     private const val MAX_PATH_NAME_CHARS = 120

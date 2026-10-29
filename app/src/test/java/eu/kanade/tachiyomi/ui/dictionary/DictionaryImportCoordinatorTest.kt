@@ -396,13 +396,62 @@ class DictionaryImportCoordinatorTest {
 
         // A write that fails is a storage problem, not "not a dictionary".
         outcome shouldBe DictionaryImportOutcome.Failed(DictionaryImportFailure.StorageFailure)
-        // The tree was partially mutated, so the pre-mutation session must not survive it.
+        // The mutation section closed the session, and the tree write failed inside it, so the
+        // pre-mutation session must not survive it either way.
         session.closed shouldBe true
         session.closeCount shouldBe 1
         // The next lookup opens a session over whatever is actually on disk.
         h.repository.lookup("食べる", DictionaryPaths(termPaths = listOf("/nope")))
         h.engine.sessions.size shouldBe 2
         h.engine.usedAfterClose.get() shouldBe 0
+    }
+
+    /**
+     * The defect this pins: the swapped-in tree used to be written only for the types with a
+     * non-zero count in the *new* import, so a re-import that dropped a type left the previous
+     * dictionary's files in `dictionaries/<type>/<name>` — and the engine kept serving them.
+     */
+    @Test
+    fun `a re-import that drops a type deletes that type's stale directory`() = runBlocking<Unit> {
+        val h = harness()
+        h.seedOldTree()
+        // What an earlier import that *did* have pitches left behind.
+        val stalePitchDir = dictionaryTypeDir(h.context, "pitch", TITLE).apply { mkdirs() }
+        File(stalePitchDir, "old.pitches").writeText("stale")
+
+        val outcome = DictionaryImportCoordinator.importFromZip(h.context, File("unused.zip"), h.prefs, h.repository)
+
+        outcome.importedDictionary()?.termCount shouldBe 1L
+        File(h.termDir, "fresh.marker").exists() shouldBe true
+        // The type the new import has no data for is gone, not shadowed by the old files.
+        stalePitchDir.exists() shouldBe false
+        // And the successful swap leaves no staging directories behind.
+        File(dictionariesDir(h.context), "term").listFiles().orEmpty().map { it.name } shouldBe listOf(TITLE)
+    }
+
+    /**
+     * The defect this pins: the live directory was deleted and then copied onto, so any failure of
+     * that copy (disk full, an I/O error, an interrupted re-import) left **no working dictionary** —
+     * the old files were gone and the new ones were half-written. Staging next to each destination
+     * and swapping only once every type is staged keeps the previous dictionary intact.
+     */
+    @Test
+    fun `a staging failure leaves the previous dictionary intact`() = runBlocking<Unit> {
+        val h = harness(freqCount = 1)
+        h.seedOldTree()
+        // A file where the `frequency` type directory belongs makes that type's staging fail, after
+        // `term` was already staged (targets are `term` then `frequency`).
+        File(dictionariesDir(h.context), "frequency").writeText("not a directory")
+
+        val outcome = DictionaryImportCoordinator.importFromZip(h.context, File("unused.zip"), h.prefs, h.repository)
+
+        outcome shouldBe DictionaryImportOutcome.Failed(DictionaryImportFailure.StorageFailure)
+        // The dictionary that worked before the failed re-import still works: same files, untouched.
+        File(h.termDir, "old.marker").readText() shouldBe "stale"
+        File(h.termDir, "index.json").readText() shouldBe OLD_INDEX
+        File(h.termDir, "fresh.marker").exists() shouldBe false
+        // No half-staged copy is left for the next import to trip over.
+        File(dictionariesDir(h.context), "term").listFiles().orEmpty().map { it.name } shouldBe listOf(TITLE)
     }
 
     @Test
@@ -535,6 +584,7 @@ class DictionaryImportCoordinatorTest {
         engineSucceeds: Boolean = true,
         acceptsZip: (File) -> Boolean = { true },
         title: String = TITLE,
+        freqCount: Int = 0,
     ): Harness {
         val root = File(System.getProperty("java.io.tmpdir"), "dict-coordinator-${System.nanoTime()}")
         val cache = File(root, "cache").apply { mkdirs() }
@@ -544,7 +594,12 @@ class DictionaryImportCoordinatorTest {
         every { context.cacheDir } returns cache
         every { context.getExternalFilesDir(null) } returns files
         every { context.contentResolver } returns resolver
-        val engine = FakeEngine(succeeds = engineSucceeds, accepts = acceptsZip, title = title)
+        val engine = FakeEngine(
+            succeeds = engineSucceeds,
+            accepts = acceptsZip,
+            title = title,
+            freqCount = freqCount,
+        )
         return Harness(
             context = context,
             resolver = resolver,
@@ -672,6 +727,8 @@ private class FakeEngine(
     private val accepts: (File) -> Boolean = { true },
     /** The `index.json` title the engine reports — untrusted input in the real importer. */
     private val title: String = "TestDict",
+    /** Frequency entries in the imported dictionary; drives which type dirs the import targets. */
+    private val freqCount: Int = 0,
 ) : DictionaryEngine {
     override val isAvailable: Boolean = true
 
@@ -726,7 +783,7 @@ private class FakeEngine(
             title = title,
             termCount = if (ok) 1 else 0,
             metaCount = 0,
-            freqCount = 0,
+            freqCount = if (ok) freqCount.toLong() else 0L,
             pitchCount = 0,
             kanjiCount = 0,
             mediaCount = 0,
