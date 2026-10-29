@@ -134,9 +134,13 @@ val fetchPaddleNativeLibs = tasks.register("fetchPaddleNativeLibs") {
             val name = entry["name"] as? String ?: error("[ocr] manifest entry without `name`")
             val expectedSha = (entry["sha256"] as? String)?.lowercase().orEmpty()
             val target = jniLibs.resolve("$abi/$name")
-            if (expectedSha.isEmpty()) {
-                logger.warn("[ocr] $abi/$name has no checksum in the manifest — skipping (artifact not published yet)")
-                return@forEach
+            // A native lib entry without a checksum is a broken manifest, not a "not published yet"
+            // state: every other gate in this task fails hard, and warning-and-skipping here produced
+            // an `assembleNightly` whose APK simply had no `.so` in it — a crash that only surfaces on
+            // a device. Runtime-downloaded models carry no `abi` and never reach this branch, so there
+            // is no genuinely optional native entry to keep optional.
+            check(expectedSha.isNotEmpty()) {
+                "[ocr] $abi/$name has no sha256 in paddle-manifest.json — every native lib must be checksum-verified"
             }
             if (target.isFile && sha256Hex(target) == expectedSha) {
                 logger.lifecycle("[ocr] $abi/$name already present + verified")
