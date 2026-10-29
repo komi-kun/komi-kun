@@ -18,18 +18,30 @@ import java.security.MessageDigest
  * through untouched, and stores a copy under `{filesDir}/mokuro_ocr/{sha256(url)}.json`. The GPL
  * `.mokuro` parser/resolver lives in `:core:ocr`; only the URL→cache-file mapping is shared here.
  *
- * Not registered on the shared client by default — callers add it to the client that fetches the
- * sidecar.
+ * **Inert while the immersion feature is off.** [isEnabled] is the combined dictionary/OCR opt-in
+ * (`DictionaryOcrPreferences.isEnabled`) and is consulted per request, not in the constructor, so
+ * turning the feature on later needs no process restart. While it is off no `.mokuro` body is
+ * buffered or written, and the cache directory is never created (it is created lazily, on the first
+ * `.mokuro` response that is actually cached) — a user who never opted in gets no `mokuro_ocr/`
+ * directory and nothing buffers a sidecar body. Existing cached files are left alone when the
+ * switch goes off: the cache belongs to the user.
  */
 class MokuroOcrInterceptor(
     context: Context,
+    private val isEnabled: () -> Boolean,
 ) : Interceptor {
 
-    private val cacheDir: File = cacheDir(context)
+    // Lazy, so construction (which happens for every process, feature on or off) never creates
+    // `{filesDir}/mokuro_ocr/`.
+    private val cacheDir: File by lazy { cacheDir(context) }
 
     override fun intercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
         if (!isMokuroRequest(request.url.encodedPath)) {
+            return chain.proceed(request)
+        }
+        // Only `.mokuro` traffic pays for the preference read.
+        if (!isEnabled()) {
             return chain.proceed(request)
         }
 
