@@ -5,31 +5,54 @@
 #
 # Neither native bridge uses `RegisterNatives`: `:core:dictionary` (`libhoshidicts_jni.so`, built by
 # CMake) and `:core:ocr` (`libpaddle_ocr.so`, fetched by `fetchPaddleNativeLibs`) are bound by the
-# JVM's *name-based* lookup, i.e. `Java_<package>_<Class>_<method>` with `_`, `/` and `$` escaped.
-# Nothing in the build reads that contract, so a renamed C++ export, a changed signature, or a
-# Kotlin `external fun` that drifted from the shim compiles cleanly, passes CI and fails only on a
-# device, at the first call, with `UnsatisfiedLinkError`. Only 8 of the dictionary natives have any
-# behavioural coverage and the OCR natives have none, so this is the only check that looks at the
-# actual `.so`.
+# JVM's *name-based* lookup, i.e. `Java_<package>_<Class>_<method>` with `_`, `/` and `$` escaped in
+# the class part *and* `_` escaped in the method part (`native_open` is looked up as
+# `Java_…_native_1open`, never `Java_…_native_open`). Nothing in the build reads that contract, so a
+# renamed C++ export or a Kotlin `external fun` that drifted from the shim compiles cleanly, passes CI
+# and fails only on a device, at the first call, with `UnsatisfiedLinkError`. Only 8 of the dictionary
+# natives have any behavioural coverage and the OCR natives have none, so this is the only check that
+# looks at the actual `.so`.
 #
-# What it does:
+# What it covers — symbol *names*, and nothing else:
 #   1. finds every `external fun` in `core/dictionary/src/main/java/**` and `core/ocr/src/main/java/**`
-#      and derives the JNI symbol the JVM will look up (package + enclosing classes, `$` -> `_00024`,
-#      `_` -> `_1`, and the `__<mangled-signature>` suffix when a method is overloaded);
-#   2. reads the *exported dynamic* symbols of each module's `.so` for every ABI the module declares
-#      in its `abiFilters` (NDK `llvm-nm --defined-only --dynamic`, GNU `nm -D` as fallback);
+#      and derives the JNI symbol the JVM will look up: package + enclosing classes (`_` -> `_1`,
+#      `.` -> `_`, `$` -> `_00024`, so a `companion object` is `Outer_00024Companion`), the method name
+#      escaped the same way (`_` -> `_1` first, then the other escapes), and the
+#      `__<mangled-signature>` suffix when — and only when — a method is overloaded;
+#   2. reads the *exported dynamic* symbols of each module's `.so` for **every** ABI the module
+#      declares in its `abiFilters` (NDK `llvm-nm --defined-only --dynamic`, GNU `nm -D` as fallback)
+#      and requires every declared symbol in **each** ABI. Per-ABI, not a union: a union would let one
+#      ABI's export hide another ABI's drift. A short ABI is named individually in the failure;
 #   3. fails, naming the Kotlin declaration site, when a declared `external fun` has no exported
-#      counterpart in any ABI; exports with no Kotlin declaration are reported as warnings.
+#      counterpart in an ABI; exports with no Kotlin declaration are reported as warnings;
+#   4. fails when it finds an `external fun` it did *not* parse (a raw token count per file, compared
+#      with the parsed declarations): a declaration the parser cannot read must never drop silently
+#      out of the gate, and an annotation that renames the JVM entry point (`@JvmName`) is changed by
+#      the JVM, not by us — so `@JvmName` is **rejected**, not honoured.
+#
+# What it does NOT cover (and cannot, by name lookup alone):
+#   * **Signature drift.** The `__<signature>` suffix exists only for *overloaded* natives; the JVM
+#     binds a non-overloaded native method by name alone, so changing `Int` -> `Long`, reordering two
+#     parameters of the same type, or changing the C++ implementation behind an unchanged export keeps
+#     every name intact and passes this gate. That is covered behaviourally (the module unit tests) or
+#     by `-Xcheck:jni` on a device — not here.
+#   * **Arity of the exported implementation** (a C++ function that matches the name but takes other
+#     arguments). Same reason; same mitigation.
+#
+# Variants: the gate reads the **Debug** artifact the Gradle task depends on
+# (`:core:dictionary:externalNativeBuildDebug`, `fetchPaddleNativeLibs`). A tree that only has some
+# other variant fails with an explicit message instead of silently validating a different build.
 #
 # A missing library is an *error*, not a skip: a gate that silently passes when it has nothing to
 # read is worse than no gate (the `fetchPaddleNativeLibs` checksum-less entry was exactly that bug).
 #
 # Declared-but-not-yet-exported natives are recorded in `scripts/jni-symbol-allowlist.txt` with a
 # reason, so an intentional forward declaration is visible on every run instead of being invisible.
-# A stale entry (the symbol is exported now) is reported as a warning, never a failure.
+# A stale entry (the symbol is exported in every ABI now) is reported as a warning, never a failure.
 #
 # Run directly (`bash scripts/verify-jni-symbols.sh`) or via `./gradlew verifyJniSymbols`, which
-# depends on the CMake external build and the OCR native fetch and then runs this script.
+# depends on the CMake external build and the OCR native fetch, runs this script, and then runs its
+# self-test (`scripts/test-verify-jni-symbols.sh`, fixtures in `scripts/test-fixtures/jni-symbols/`).
 #
 # Environment overrides (for exercising the gate on a fixture tree):
 #   VERIFY_JNI_ROOT       tree to scan                       (default: the repository root)
@@ -113,9 +136,15 @@ package_of() {
   sed -n -E 's/^[[:space:]]*package[[:space:]]+([A-Za-z0-9_.]+).*/\1/p' "$1" | head -n 1
 }
 
-# declarations_in FILE — one tab-separated `<line> \t <enclosing types> \t <method>` per
-# `external fun`. The enclosing chain is found by indentation (Spotless keeps 4-space indents), so a
-# nested class yields `Outer$Inner` — the shape the JNI name has to mangle.
+# declarations_in FILE — one tab-separated
+# `<line> \t <enclosing types> \t <method> \t <jvm-name annotation?>` per `external fun`.
+# The enclosing chain is found by indentation (Spotless keeps 4-space indents), so a nested class
+# yields `Outer$Inner` — the shape the JNI name has to mangle. A *companion object* is a real JVM
+# class (`Outer$Companion` / `Outer$Name`), so it stays in the chain either way, named or not.
+# The fourth field is non-empty when a preceding-line annotation renames the JVM entry point
+# (`@JvmName`): that is a name this script cannot derive, so it is reported and rejected.
+# A declaration the parser cannot read is *not* printed here; the raw-vs-parsed token count below
+# turns it into a failure instead of a silent drop.
 declarations_in() {
   awk '
     function indent_of(s,   n) {
@@ -124,21 +153,51 @@ declarations_in() {
       return n
     }
     function strip_lead(s) { sub(/^[[:space:]]+/, "", s); return s }
-    BEGIN { depth = 0 }
+    function push_type(tname, tind) {
+      while (depth > 0 && ind_of[depth] >= tind) depth--
+      depth++
+      ind_of[depth] = tind
+      name_of[depth] = tname
+    }
+    function chain_at(tind,   chain, d) {
+      chain = ""
+      for (d = 1; d <= depth; d++) {
+        if (ind_of[d] < tind) chain = chain (chain == "" ? "" : "$") name_of[d]
+      }
+      return chain
+    }
+    BEGIN { depth = 0; annotation = "" }
     {
       raw = $0
       ind = indent_of(raw)
       line = strip_lead(raw)
+
+      # Blank and comment-only lines carry nothing; they do not end an annotation block.
+      if (line == "" || line ~ /^\/\// || line ~ /^\*/ || line ~ /^\/\*/) next
+
+      # An annotation on its own line belongs to the next declaration. Remember it (an `@JvmName`
+      # would rename the JVM entry point away from the Kotlin name derived here).
+      if (line ~ /^@/) {
+        annotation = annotation " " line
+        next
+      }
+
+      # An *unnamed* `companion object` (followed by `{`, `: Super()` or nothing) is the JVM class
+      # `Outer$Companion`, so it contributes `Companion` to the chain. A *named* companion is a named
+      # object and is caught by the rule below.
+      if (line ~ /^((internal|private|public|protected)[[:space:]]+)*companion[[:space:]]+object([[:space:]]*[{(:]|$)/) {
+        push_type("Companion", ind)
+        annotation = ""
+        next
+      }
 
       # A type declaration at this indentation closes every deeper (or same-depth sibling) type.
       if (line ~ /^(@[A-Za-z_][A-Za-z0-9_.]*[[:space:]]+)?((internal|private|public|protected|abstract|open|sealed|final|data|value|annotation|enum|inner|companion|fun|expect|actual)[[:space:]]+)*(class|object|interface)[[:space:]]+[A-Za-z_][A-Za-z0-9_]*/) {
         name = line
         sub(/^.*(class|object|interface)[[:space:]]+/, "", name)
         sub(/[^A-Za-z0-9_].*$/, "", name)
-        while (depth > 0 && ind_of[depth] >= ind) depth--
-        depth++
-        ind_of[depth] = ind
-        name_of[depth] = name
+        push_type(name, ind)
+        annotation = ""
         next
       }
 
@@ -147,12 +206,43 @@ declarations_in() {
         sub(/^.*external[[:space:]]+fun[[:space:]]+/, "", method)
         sub(/[^A-Za-z0-9_].*$/, "", method)
         # The enclosing types of *this* line: everything declared above at a smaller indent.
-        chain = ""
-        for (d = 1; d <= depth; d++) {
-          if (ind_of[d] < ind) chain = chain (chain == "" ? "" : "$") name_of[d]
-        }
-        printf "%d\t%s\t%s\n", NR, chain, method
+        printf "%d\t%s\t%s\t%s\n", NR, chain_at(ind), method, (annotation ~ /JvmName/ ? "renamed" : "")
+        annotation = ""
+        next
       }
+
+      annotation = ""
+    }
+  ' "$1"
+}
+
+# external_fun_lines FILE — every line holding an `external fun` token sequence in *code* (line and
+# block comments stripped), as `<line> \t <code text>`. Compared against declarations_in's output:
+# an occurrence the parser did not record is a declaration that would otherwise drop silently out of
+# the gate, so the caller fails on it.
+external_fun_lines() {
+  awk '
+    BEGIN { blk = 0 }
+    {
+      s = $0
+      out = ""
+      i = 1
+      n = length(s)
+      while (i <= n) {
+        if (blk) {
+          p = index(substr(s, i), "*/")
+          if (p == 0) { i = n + 1; break }
+          i = i + p + 1
+          blk = 0
+        } else {
+          p = index(substr(s, i), "/*")
+          c = index(substr(s, i), "//")
+          if (c > 0 && (p == 0 || c < p)) { out = out substr(s, i, c - 1); i = n + 1; break }
+          if (p > 0) { out = out substr(s, i, p - 1); i = i + p + 1; blk = 1 }
+          else { out = out substr(s, i); i = n + 1 }
+        }
+      }
+      if (out ~ /(^|[^A-Za-z0-9_])external[[:space:]]+fun([^A-Za-z0-9_]|$)/) printf "%d\t%s\n", NR, out
     }
   ' "$1"
 }
@@ -203,6 +293,19 @@ mangle_name() {
   s="${s//_/_1}"
   s="${s//./_}"
   s="${s//\$/_00024}"
+  printf '%s' "$s"
+}
+
+# mangle_method NAME — JNI's escape for the *method* part. The same rules apply (and in the same
+# order: `_` -> `_1` first, then `/` -> `_`, `;` -> `_2`, `[` -> `_3`), so `native_open` is looked up
+# as `…_native_1open`. Skipping this escape (a) passes a `.so` that exports the unescaped name, which
+# the JVM can never bind, and (b) reports a correct `.so` as missing.
+mangle_method() {
+  local s="$1"
+  s="${s//_/_1}"
+  s="${s//\//_}"
+  s="${s//;/_2}"
+  s="${s//\[/_3}"
   printf '%s' "$s"
 }
 
@@ -333,9 +436,16 @@ declare -A MODULE_LIB=(
   [dictionary]="hoshidicts_jni"
   [ocr]="paddle_ocr"
 )
-# Where the built/fetched `.so` lives: the CMake tree for the dictionary, the fetched jniLibs for
-# OCR. Both are searched recursively for `<abi>/lib<name>.so`.
-declare -A MODULE_LIB_ROOTS=(
+# Where the *Debug* artifact lives — the same build the Gradle task depends on
+# (`:core:dictionary:externalNativeBuildDebug`, `fetchPaddleNativeLibs`). Only these roots are read:
+# a `Release` object from an earlier build must never stand in for a Debug rebuild, or a rename the
+# Debug build picked up would be verified against stale bytes.
+declare -A MODULE_DEBUG_LIB_ROOTS=(
+  [dictionary]="core/dictionary/build/intermediates/cmake/debug/obj core/dictionary/build/intermediates/cxx/Debug core/dictionary/build/intermediates/stripped_native_libs/debug"
+  [ocr]="core/ocr/src/main/jniLibs"
+)
+# Every variant — used only to *diagnose* a missing Debug artifact, never to validate against.
+declare -A MODULE_ANY_LIB_ROOTS=(
   [dictionary]="core/dictionary/build/intermediates/cxx core/dictionary/build/intermediates/cmake core/dictionary/build/intermediates/stripped_native_libs"
   [ocr]="core/ocr/src/main/jniLibs"
 )
@@ -355,15 +465,10 @@ abis_of() {
     grep -oE '"[^"]+"' | tr -d '"'
 }
 
-# locate_lib MODULE ABI — the library path for one ABI, or empty.
+# locate_lib MODULE ABI — the *Debug* library path for one ABI, or empty.
 locate_lib() {
   local module="$1" abi="$2" lib="lib${MODULE_LIB[$1]}.so" dir found
-  if [[ "$module" == "ocr" ]]; then
-    found="$ROOT_DIR/core/ocr/src/main/jniLibs/$abi/$lib"
-    [[ -f "$found" ]] && printf '%s' "$found"
-    return 0
-  fi
-  for dir in ${MODULE_LIB_ROOTS[$module]}; do
+  for dir in ${MODULE_DEBUG_LIB_ROOTS[$module]}; do
     [[ -d "$ROOT_DIR/$dir" ]] || continue
     found="$(find "$ROOT_DIR/$dir" -type f -path "*/$abi/$lib" -printf '%T@ %p\n' 2>/dev/null |
       sort -nr | head -n 1 | cut -d' ' -f2- || true)"
@@ -371,6 +476,27 @@ locate_lib() {
       printf '%s' "$found"
       return 0
     }
+  done
+  return 0
+}
+
+# locate_other_variant_lib MODULE ABI — a library for that ABI that is *not* a Debug artifact, used
+# only to explain why locate_lib came up empty (never to validate).
+locate_other_variant_lib() {
+  local module="$1" abi="$2" lib="lib${MODULE_LIB[$1]}.so" dir path debug is_debug
+  for dir in ${MODULE_ANY_LIB_ROOTS[$module]}; do
+    [[ -d "$ROOT_DIR/$dir" ]] || continue
+    while IFS= read -r path; do
+      [[ -n "$path" ]] || continue
+      is_debug=0
+      for debug in ${MODULE_DEBUG_LIB_ROOTS[$module]}; do
+        [[ "$path" == "$ROOT_DIR/$debug/"* ]] && is_debug=1
+      done
+      [[ $is_debug -eq 0 ]] && {
+        printf '%s' "$path"
+        return 0
+      }
+    done < <(find "$ROOT_DIR/$dir" -type f -path "*/$abi/$lib" 2>/dev/null | sort)
   done
   return 0
 }
@@ -388,6 +514,9 @@ DECL_SYMBOL=()
 declare -A METHOD_COUNT=()
 declare -A METHOD_LINE=()
 
+UNPARSED=()
+RENAMED=()
+
 for module in "${MODULES[@]}"; do
   SOURCES=(${MODULE_SOURCES[$module]})
   for source in "${SOURCES[@]}"; do
@@ -399,8 +528,11 @@ for module in "${MODULES[@]}"; do
   while IFS= read -r file; do
     pkg="$(package_of "$file")"
     [[ -z "$pkg" ]] && continue
-    while IFS=$'\t' read -r line chain method; do
+    parsed_lines=" "
+    while IFS=$'\t' read -r line chain method renamed; do
       [[ -z "$method" ]] && continue
+      parsed_lines="$parsed_lines$line "
+      [[ -z "$renamed" ]] || RENAMED+=("$file:$line"$'\t'"$(declaration_text "$file" "$line")")
       fqn="$pkg.${chain:-}"
       [[ -n "$chain" ]] || {
         err "cannot determine the enclosing type of $file:$line"
@@ -414,8 +546,37 @@ for module in "${MODULES[@]}"; do
       METHOD_COUNT["$fqn#$method"]=$((${METHOD_COUNT["$fqn#$method"]:-0} + 1))
       METHOD_LINE["$fqn#$method"]="$file:$line"
     done < <(declarations_in "$file")
+    # Every `external fun` in the file must be one of those declarations: a token the parser did not
+    # record is a native that would otherwise be missing from the gate entirely.
+    while IFS=$'\t' read -r line text; do
+      [[ -z "$line" ]] && continue
+      [[ "$parsed_lines" == *" $line "* ]] && continue
+      UNPARSED+=("$file:$line"$'\t'"$text")
+    done < <(external_fun_lines "$file")
   done < <(find "${SOURCES[@]}" -name '*.kt' -not -path '*/build/*' | sort)
 done
+
+if [[ "${#RENAMED[@]}" -gt 0 ]]; then
+  err "${#RENAMED[@]} external fun(s) carry a JVM-name annotation, which this gate cannot derive:"
+  for entry in "${RENAMED[@]}"; do
+    err "  ${entry%%$'\t'*}: ${entry#*$'\t'}"
+  done
+  err "An '@JvmName' renames the JVM entry point, so the derived symbol would be wrong. Honour it by"
+  err "hand (add the symbol to the allow-list with a reason) or drop the annotation; this gate rejects"
+  err "the declaration rather than guess."
+  exit 2
+fi
+
+if [[ "${#UNPARSED[@]}" -gt 0 ]]; then
+  err "${#UNPARSED[@]} 'external fun' occurrence(s) were not parsed, so they would silently escape the gate:"
+  for entry in "${UNPARSED[@]}"; do
+    err "  ${entry%%$'\t'*}: ${entry#*$'\t'}"
+  done
+  err "Write the declaration in the shape the parser reads — modifiers, then 'external fun <name>(' on"
+  err "one line, with any annotation on its own line (an '@JvmName' that renames the JVM entry point is"
+  err "refused above), or extend declarations_in()."
+  exit 2
+fi
 
 if [[ "${#DECL_METHOD[@]}" -eq 0 ]]; then
   err "found no 'external fun' declaration under ${MODULE_SOURCES[*]} — the parser is broken"
@@ -426,7 +587,7 @@ fi
 OVERLOADED=()
 for i in "${!DECL_FILE[@]}"; do
   key="${DECL_FQN[$i]}#${DECL_METHOD[$i]}"
-  symbol="Java_$(mangle_name "${DECL_FQN[$i]}")_${DECL_METHOD[$i]}"
+  symbol="Java_$(mangle_name "${DECL_FQN[$i]}")_$(mangle_method "${DECL_METHOD[$i]}")"
   if [[ "${METHOD_COUNT[$key]}" -gt 1 ]]; then
     SOURCES=(${MODULE_SOURCES[${DECL_MODULE[$i]}]})
     signature="$(signature_of "${DECL_FILE[$i]}" "${DECL_LINE[$i]}")" || exit 2
@@ -437,7 +598,7 @@ for i in "${!DECL_FILE[@]}"; do
 done
 
 # ---------------------------------------------------------------------------------------------
-# Check every declared symbol against every built ABI, and report exports nobody declares.
+# Check every declared symbol in *every* ABI the module declares, and report exports nobody declares.
 # ---------------------------------------------------------------------------------------------
 declare -A DECLARED_BY_MODULE=()
 for i in "${!DECL_SYMBOL[@]}"; do
@@ -456,49 +617,63 @@ for module in "${MODULES[@]}"; do
     exit 2
   fi
 
-  declare -A union=()
+  # `<abi>|<symbol>` -> 1. Per ABI on purpose: a module-wide union would let one ABI's export cover
+  # another ABI's missing symbol, and the summary would still claim "every ABI".
+  declare -A exported_in=()
   for abi in "${abis[@]}"; do
     lib="$(locate_lib "$module" "$abi")"
     if [[ -z "$lib" ]]; then
-      err "no lib${MODULE_LIB[$module]}.so for '$abi' — build it first:"
+      err "no Debug lib${MODULE_LIB[$module]}.so for '$abi' — build it first:"
       if [[ "$module" == "ocr" ]]; then
         err "    ./gradlew :core:ocr:fetchPaddleNativeLibs"
       else
         err "    ./gradlew :core:dictionary:externalNativeBuildDebug"
       fi
-      err "  (searched: ${MODULE_LIB_ROOTS[$module]}; a half-verified gate must not pass)"
+      err "  (searched: ${MODULE_DEBUG_LIB_ROOTS[$module]}; a half-verified gate must not pass)"
+      other="$(locate_other_variant_lib "$module" "$abi")"
+      if [[ -n "$other" ]]; then
+        err "  only a non-Debug build is present: ${other#"$ROOT_DIR"/}"
+        err "  this gate validates the Debug artifact the Gradle task depends on, so a stale/other"
+        err "  variant is an error, not a fallback: rebuild the Debug target above."
+      fi
       exit 2
     fi
     exports="$(exported_symbols "$lib")" || exit 2
     java_exports="$(grep -E '^Java_' <<<"$exports" | sort -u || true)"
     while IFS= read -r symbol; do
-      [[ -n "$symbol" ]] && union["$symbol"]=1
+      [[ -n "$symbol" ]] && exported_in["$abi|$symbol"]=1
     done <<<"$java_exports"
     note "$module $abi: $(wc -l <<<"$java_exports" | tr -d ' ') exported Java_ symbol(s) in ${lib#"$ROOT_DIR"/}"
   done
 
   # Reverse direction: an export no Kotlin declaration claims is the other half of the drift.
-  for symbol in "${!union[@]}"; do
+  for key in "${!exported_in[@]}"; do
+    symbol="${key#*|}"
+    abi="${key%%|*}"
     if ! grep -qw -- "$symbol" <<<"${DECLARED_BY_MODULE[$module]:-}"; then
-      WARNINGS+=("exported but not declared: $symbol ($module)")
+      WARNINGS+=("exported in $abi but not declared: $symbol ($module)")
     fi
   done
 
   for i in "${!DECL_SYMBOL[@]}"; do
     [[ "${DECL_MODULE[$i]}" == "$module" ]] || continue
     symbol="${DECL_SYMBOL[$i]}"
-    if [[ -n "${union[$symbol]:-}" ]]; then
+    absent_in=()
+    for abi in "${abis[@]}"; do
+      [[ -n "${exported_in["$abi|$symbol"]:-}" ]] || absent_in+=("$abi")
+    done
+    if [[ "${#absent_in[@]}" -eq 0 ]]; then
       CHECKED=$((CHECKED + 1))
       [[ -n "${ALLOWED[$symbol]:-}" ]] &&
-        WARNINGS+=("allow-list entry is stale, '$symbol' is exported now — remove it from $ALLOWLIST_FILE")
+        WARNINGS+=("allow-list entry is stale, '$symbol' is exported in every ABI now — remove it from $ALLOWLIST_FILE")
       continue
     fi
     if [[ -n "${ALLOWED[$symbol]:-}" ]]; then
       ALLOWLISTED=$((ALLOWLISTED + 1))
-      warn "declared but not exported (allow-listed): $symbol — ${ALLOWED[$symbol]}"
+      warn "declared but not exported (allow-listed): $symbol — not in: ${absent_in[*]} — ${ALLOWED[$symbol]}"
       continue
     fi
-    MISSING+=("$symbol"$'\t'"${DECL_FILE[$i]}:${DECL_LINE[$i]}"$'\t'"$(declaration_text "${DECL_FILE[$i]}" "${DECL_LINE[$i]}")"$'\t'"${abis[*]}")
+    MISSING+=("$symbol"$'\t'"${DECL_FILE[$i]}:${DECL_LINE[$i]}"$'\t'"$(declaration_text "${DECL_FILE[$i]}" "${DECL_LINE[$i]}")"$'\t'"missing in: ${absent_in[*]}")
   done
 done
 
@@ -516,7 +691,7 @@ else
 fi
 
 if [[ "${#MISSING[@]}" -gt 0 ]]; then
-  err "${#MISSING[@]} declared external fun(s) have no exported JNI symbol:"
+  err "${#MISSING[@]} declared external fun(s) have no exported JNI symbol in every declared ABI:"
   for entry in "${MISSING[@]}"; do
     symbol="${entry%%$'\t'*}"
     rest="${entry#*$'\t'}"
@@ -528,9 +703,13 @@ if [[ "${#MISSING[@]}" -gt 0 ]]; then
     err "      declared at $site  ($abis)"
     err "      $text"
   done
-  err "A C++ export was renamed or its signature changed, or the Kotlin declaration drifted from the"
-  err "shim. Fix the bridge (both sides), or record an intentional forward declaration in $ALLOWLIST_FILE."
+  err "A C++ export was renamed, the Kotlin declaration drifted from the shim, or an ABI is behind."
+  err "Fix the bridge (both sides), rebuild the missing ABI, or record an intentional forward"
+  err "declaration in $ALLOWLIST_FILE."
   exit 1
 fi
 
+note "scope: symbol names per ABI (plus the __<signature> suffix for overloaded natives) — a changed"
+note "       parameter list or return type is NOT checked here; JNI binds a non-overloaded native by"
+note "       name alone, so cover signature drift with the module tests or '-Xcheck:jni' on a device."
 note "OK: $CHECKED declared external fun(s) match an exported symbol in every ABI (${ALLOWLISTED} allow-listed, ${#WARNINGS[@]} warning(s))"

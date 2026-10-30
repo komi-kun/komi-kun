@@ -583,18 +583,26 @@ val verifyGplFree by tasks.registering(Exec::class) {
 }
 
 // JNI symbol check. Neither native bridge uses `RegisterNatives`, so every `external fun` must have
-// an exported `Java_…` counterpart in each built ABI; without this gate a C++ rename or a drifted
-// Kotlin declaration compiles, passes CI and fails only on a device. Defined in :app (like
-// `verifyGplFree`) so `./gradlew verifyJniSymbols` resolves from the root, and it depends on the two
-// tasks that produce the libraries it reads — the CMake external build for `libhoshidicts_jni.so`
-// and `fetchPaddleNativeLibs` for `libpaddle_ocr.so` — so the gate never reads a stale or absent
-// artifact (the script fails, rather than skips, when a library is missing).
+// an exported `Java_…` counterpart in *every* ABI the module declares. It is a *name* check: the
+// class and method parts are escaped (`_` -> `_1`, `$` -> `_00024`) and the `__<signature>` suffix is
+// derived for overloaded natives — a changed parameter list or return type is NOT covered, because
+// the JVM binds a non-overloaded native by name alone (signature drift needs the module tests or
+// `-Xcheck:jni` on a device). Without this gate a C++ rename or a drifted Kotlin declaration
+// compiles, passes CI and fails only on a device. Defined in :app (like `verifyGplFree`) so
+// `./gradlew verifyJniSymbols` resolves from the root, and it depends on the two tasks that produce
+// the libraries it reads — the CMake external build for `libhoshidicts_jni.so` and
+// `fetchPaddleNativeLibs` for `libpaddle_ocr.so` — so the gate never reads a stale or absent
+// artifact (the script fails, rather than skips, when a library is missing). The script's self-test
+// runs after it: a guard that only passes on the current tree has not been shown to catch the shapes
+// it must catch (an unescaped method name, a symbol missing from one ABI, an unparseable declaration,
+// a Release tree standing in for the Debug one).
 val verifyJniSymbols by tasks.registering(Exec::class) {
     group = "verification"
-    description = "Fails if a declared `external fun` has no exported JNI symbol in a built ABI."
+    description = "Fails if a declared `external fun` has no exported JNI symbol in every declared ABI (names only; signature drift is out of scope)."
     dependsOn(":core:dictionary:externalNativeBuildDebug")
     dependsOn(":core:ocr:fetchPaddleNativeLibs")
-    val script = layout.settingsDirectory.file("scripts/verify-jni-symbols.sh").asFile.absolutePath
-    commandLine("bash", script)
+    val guard = layout.settingsDirectory.file("scripts/verify-jni-symbols.sh").asFile.absolutePath
+    val selfTest = layout.settingsDirectory.file("scripts/test-verify-jni-symbols.sh").asFile.absolutePath
+    commandLine("bash", "-c", "bash \"$guard\" && bash \"$selfTest\"")
 }
 // KUN <--
