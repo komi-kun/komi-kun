@@ -86,6 +86,8 @@
     <string name="pref_dict_popup_swipe_threshold">Swipe-to-dismiss distance</string>
     <string name="pref_dict_custom_css">Custom CSS</string>
     <string name="pref_dict_custom_css_summary">Inject custom CSS into the dictionary renderer</string>
+    <string name="pref_dict_custom_css_reset">Reset custom CSS</string>
+    <string name="pref_dict_custom_css_reset_summary">Clear the custom CSS so entries render with the default styles</string>
     <string name="pref_dict_theme_pure_black">Pure black</string>
     <string name="pref_dict_layout">Layout</string>
     <string name="pref_dict_typography">Typography</string>

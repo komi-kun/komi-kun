@@ -86,6 +86,8 @@
     <string name="pref_dict_popup_swipe_threshold">Distância de deslizamento para fechar</string>
     <string name="pref_dict_custom_css">CSS personalizado</string>
     <string name="pref_dict_custom_css_summary">Injetar CSS personalizado no renderizador do dicionário</string>
+    <string name="pref_dict_custom_css_reset">Redefinir CSS personalizado</string>
+    <string name="pref_dict_custom_css_reset_summary">Limpar o CSS personalizado para que as entradas usem os estilos padrão</string>
     <string name="pref_dict_theme_pure_black">Preto puro</string>
     <string name="pref_dict_layout">Layout</string>
     <string name="pref_dict_typography">Tipografia</string>

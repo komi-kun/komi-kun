@@ -86,6 +86,8 @@
     <string name="pref_dict_popup_swipe_threshold">Wisch-Distanz zum Schließen</string>
     <string name="pref_dict_custom_css">Benutzerdefiniertes CSS</string>
     <string name="pref_dict_custom_css_summary">Benutzerdefiniertes CSS in den Wörterbuch-Renderer einbinden</string>
+    <string name="pref_dict_custom_css_reset">Benutzerdefiniertes CSS zurücksetzen</string>
+    <string name="pref_dict_custom_css_reset_summary">Benutzerdefiniertes CSS löschen, damit Einträge mit den Standardstilen dargestellt werden</string>
     <string name="pref_dict_theme_pure_black">Reines Schwarz</string>
     <string name="pref_dict_layout">Layout</string>
     <string name="pref_dict_typography">Typografie</string>

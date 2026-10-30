@@ -86,6 +86,8 @@
     <string name="pref_dict_popup_swipe_threshold">Distance de balayage pour fermer</string>
     <string name="pref_dict_custom_css">CSS personnalisé</string>
     <string name="pref_dict_custom_css_summary">Injecter du CSS personnalisé dans le moteur de rendu du dictionnaire</string>
+    <string name="pref_dict_custom_css_reset">Réinitialiser le CSS personnalisé</string>
+    <string name="pref_dict_custom_css_reset_summary">Effacer le CSS personnalisé pour que les entrées s’affichent avec les styles par défaut</string>
     <string name="pref_dict_theme_pure_black">Noir pur</string>
     <string name="pref_dict_layout">Disposition</string>
     <string name="pref_dict_typography">Typographie</string>

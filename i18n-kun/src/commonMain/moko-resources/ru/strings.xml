@@ -86,6 +86,8 @@
     <string name="pref_dict_popup_swipe_threshold">Расстояние смахивания для закрытия</string>
     <string name="pref_dict_custom_css">Пользовательский CSS</string>
     <string name="pref_dict_custom_css_summary">Внедрить собственный CSS в модуль отображения словаря</string>
+    <string name="pref_dict_custom_css_reset">Сбросить пользовательский CSS</string>
+    <string name="pref_dict_custom_css_reset_summary">Удалить пользовательский CSS, чтобы записи отображались со стандартными стилями</string>
     <string name="pref_dict_theme_pure_black">Глубокий чёрный</string>
     <string name="pref_dict_layout">Макет</string>
     <string name="pref_dict_typography">Типографика</string>

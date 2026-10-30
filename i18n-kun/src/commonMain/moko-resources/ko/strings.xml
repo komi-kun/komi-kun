@@ -83,6 +83,8 @@
     <string name="pref_dict_popup_swipe_threshold">스와이프로 닫기 거리</string>
     <string name="pref_dict_custom_css">사용자 지정 CSS</string>
     <string name="pref_dict_custom_css_summary">사전 렌더러에 사용자 지정 CSS 삽입</string>
+    <string name="pref_dict_custom_css_reset">사용자 지정 CSS 재설정</string>
+    <string name="pref_dict_custom_css_reset_summary">사용자 지정 CSS를 지우고 기본 스타일로 항목을 표시합니다</string>
     <string name="pref_dict_theme_pure_black">완전한 블랙</string>
     <string name="pref_dict_layout">레이아웃</string>
     <string name="pref_dict_typography">서체</string>

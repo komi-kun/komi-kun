@@ -86,6 +86,8 @@
     <string name="pref_dict_popup_swipe_threshold">スワイプで閉じる距離</string>
     <string name="pref_dict_custom_css">カスタムCSS</string>
     <string name="pref_dict_custom_css_summary">辞書レンダラーにカスタムCSSを適用</string>
+    <string name="pref_dict_custom_css_reset">カスタムCSSをリセット</string>
+    <string name="pref_dict_custom_css_reset_summary">カスタムCSSを削除し、既定のスタイルで項目を表示します</string>
     <string name="pref_dict_theme_pure_black">ピュアブラック</string>
     <string name="pref_dict_layout">レイアウト</string>
     <string name="pref_dict_typography">タイポグラフィ</string>

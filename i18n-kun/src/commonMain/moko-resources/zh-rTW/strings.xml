@@ -83,6 +83,8 @@
     <string name="pref_dict_popup_swipe_threshold">滑動關閉距離</string>
     <string name="pref_dict_custom_css">自訂 CSS</string>
     <string name="pref_dict_custom_css_summary">向辭典渲染器插入自訂 CSS</string>
+    <string name="pref_dict_custom_css_reset">重設自訂 CSS</string>
+    <string name="pref_dict_custom_css_reset_summary">清除自訂 CSS，讓條目以預設樣式顯示</string>
     <string name="pref_dict_theme_pure_black">純黑</string>
     <string name="pref_dict_layout">版面配置</string>
     <string name="pref_dict_typography">排版</string>
