@@ -30,6 +30,18 @@ class ByteArrayMediaDataSourceTest {
         val buffer = ByteArray(5)
         source.readAt(position = 3L, buffer = buffer, offset = 0, size = 2) shouldBe -1
         source.readAt(position = 10L, buffer = buffer, offset = 0, size = 2) shouldBe -1
+        source.readAt(position = -1L, buffer = buffer, offset = 0, size = 2) shouldBe -1
+    }
+
+    @Test
+    fun `readAt returns 0 when size is 0 even at end of data`() {
+        val data = byteArrayOf(1, 2, 3)
+        val source = ByteArrayMediaDataSource(data)
+        val buffer = ByteArray(5)
+
+        source.readAt(position = 0L, buffer = buffer, offset = 0, size = 0) shouldBe 0
+        source.readAt(position = 3L, buffer = buffer, offset = 0, size = 0) shouldBe 0
+        source.readAt(position = 10L, buffer = buffer, offset = 0, size = 0) shouldBe 0
     }
 
     @Test

@@ -6,8 +6,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.Response
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.InputStream
@@ -136,11 +138,53 @@ object AudioCache {
     }
 
     /**
-     * [client] with redirect-following switched off, so every request the page influences stays on
-     * the host the [isAllowedWordAudioUrl] fence approved, and with [globalOnlyDns] as its resolver,
-     * so a host name that answers with loopback, LAN, link-local, metadata or rebinding addresses is
-     * refused at fetch time rather than merely at parse time. Derived clients share the connection
-     * pool and dispatcher of [client]; the derivation is cached per source client.
+     * Follows HTTP/HTTPS redirects safely up to [maxRedirects] hops, ensuring every redirected URL
+     * passes [isAllowedWordAudioUrl] before proceeding. This allows legitimate CDN redirects
+     * (e.g. JapanesePod101 assets -> CloudFront/CDN) while preventing SSRF bounces to internal hosts.
+     */
+    internal class SafeAudioRedirectInterceptor(
+        private val maxRedirects: Int = 10,
+    ) : Interceptor {
+        override fun intercept(chain: Interceptor.Chain): Response {
+            var request = chain.request()
+            var response = chain.proceed(request)
+            var redirects = 0
+            while (response.isRedirect && redirects < maxRedirects) {
+                val location = response.header("Location") ?: break
+                val nextHttpUrl = response.request.url.resolve(location) ?: break
+                val nextUrl = nextHttpUrl.toString()
+
+                // Reject HTTPS -> HTTP downgrade
+                if (request.url.isHttps && !nextHttpUrl.isHttps) {
+                    break
+                }
+
+                if (!isAllowedWordAudioUrl(nextUrl)) {
+                    break
+                }
+                response.close()
+                redirects++
+
+                val requestBuilder = request.newBuilder().url(nextHttpUrl)
+                if (request.url.host != nextHttpUrl.host) {
+                    requestBuilder.removeHeader("Authorization")
+                    requestBuilder.removeHeader("Cookie")
+                }
+                request = requestBuilder.build()
+                response = chain.proceed(request)
+            }
+            return response
+        }
+    }
+
+    /**
+     * [client] with OkHttp's built-in blind redirect-following switched off, replaced with
+     * [SafeAudioRedirectInterceptor] so redirects to legitimate CDNs (e.g. JapanesePod101) are
+     * followed while every intermediate/target URL is checked against [isAllowedWordAudioUrl],
+     * and with [globalOnlyDns] as its resolver, so a host name that answers with loopback, LAN,
+     * link-local, metadata or rebinding addresses is refused at fetch time rather than merely at
+     * parse time. Derived clients share the connection pool and dispatcher of [client]; the
+     * derivation is cached per source client.
      */
     internal fun audioHttpClient(client: OkHttpClient): OkHttpClient {
         val cached = noRedirectClient
@@ -148,6 +192,7 @@ object AudioCache {
         val derived = client.newBuilder()
             .followRedirects(false)
             .followSslRedirects(false)
+            .addInterceptor(SafeAudioRedirectInterceptor())
             .dns(globalOnlyDns())
             .build()
         noRedirectClient = client to derived

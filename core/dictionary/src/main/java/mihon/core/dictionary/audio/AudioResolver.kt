@@ -486,7 +486,7 @@ class AudioResolver(
             val index = html.indexOf("id=\"audio_$term:$reading\"")
             if (index < 0) return null
             val match = SOURCE_TAG.find(html, index) ?: return null
-            return unescapeHtml(match.groupValues[1])
+            return normalizeUrl(unescapeHtml(match.groupValues[1]), "https://jisho.org")
         }
 
         private fun unescapeHtml(value: String): String = value
