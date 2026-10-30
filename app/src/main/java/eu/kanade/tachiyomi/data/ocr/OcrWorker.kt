@@ -34,6 +34,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import logcat.LogPriority
 import mihon.app.di.appGraph
+import mihon.core.archive.ArchiveReader
+import mihon.core.archive.archiveReader
 import mihon.core.ocr.OcrLanguage
 import mihon.core.ocr.cache.ChapterImageProvider
 import mihon.core.ocr.cache.ChapterOcrInput
@@ -48,7 +50,6 @@ import tachiyomi.domain.chapter.interactor.GetChapter
 import tachiyomi.domain.manga.interactor.GetManga
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.i18n.kun.KUNMR
-import java.util.zip.ZipInputStream
 
 /**
  * Drives the persisted OCR queue in a foreground worker. Constructed by the app's `WorkerFactory`
@@ -184,6 +185,10 @@ class OcrChapterResolver(
     private val sourceManager: SourceManager,
     private val ocrManager: OcrManager,
     private val dictionaryPreferences: DictionaryPreferences,
+    // KUN -->
+    /** Opens a downloaded CBZ through the archive stack the reader uses (see [UniFileChapterImageProvider]). */
+    private val context: Context,
+    // KUN <--
 ) {
     suspend fun resolve(task: OcrTask): ChapterOcrInput? {
         val chapter = getChapter.await(task.chapterId) ?: return null
@@ -206,7 +211,7 @@ class OcrChapterResolver(
             ),
             language = resolveLanguage(chapter.mangaId, manga.source),
             source = ocrManager.sourceFor(chapter.mangaId),
-            provider = UniFileChapterImageProvider(chapterDir),
+            provider = UniFileChapterImageProvider(context, chapterDir),
         )
     }
 
@@ -221,8 +226,23 @@ class OcrChapterResolver(
  * [ChapterImageProvider] over a downloaded chapter [UniFile]: a directory of image files or a CBZ
  * archive. Reading through `UniFile` keeps it working on storage-access-framework locations where no
  * plain [File] path exists (03 §5.2).
+ *
+ * A CBZ is read with [ArchiveReader] — the libarchive-backed reader the reader itself uses — and
+ * **not** with `java.util.zip.ZipInputStream`.
+ *
+ * Why: `ZipWriter` writes the archive through libarchive with `COMPRESSION_STORE`, and libarchive
+ * emits each streamed entry as a *stored* entry whose local header carries no size plus an extended
+ * data descriptor. `ZipInputStream` refuses that layout (`only DEFLATED entries can have EXT
+ * descriptor`, thrown by the first `getNextEntry`), so the entry list came back empty or one-entry
+ * and `readBytes()` answered 0 bytes for the page. A 48-page chapter therefore looked like a
+ * one-page chapter whose only page was empty: the run persisted that empty page, counted it as the
+ * whole chapter, marked the task `COMPLETED` and dropped it from the queue — the chapter was never
+ * OCR'd and the reader had to recognise every page live. [ArchiveReader] reads the central
+ * directory, so the entry list and the entry bytes are the real ones, and it also reads the
+ * encrypted archives `CbzCrypto` can produce.
  */
 class UniFileChapterImageProvider(
+    context: Context,
     private val chapterFile: UniFile,
 ) : ChapterImageProvider {
 
@@ -235,21 +255,33 @@ class UniFileChapterImageProvider(
         emptyList()
     }
 
-    private val archiveEntries: List<String> = if (!chapterFile.isDirectory) {
+    /**
+     * The archive, or null when [chapterFile] is a directory or cannot be opened as an archive. A
+     * [pageCount] of 0 then leaves the chapter failed instead of silently "completing" it with no
+     * pages (`OcrManager.runChapter`).
+     */
+    private val archive: ArchiveReader? = if (chapterFile.isDirectory) {
+        null
+    } else {
+        runCatching { chapterFile.archiveReader(context) }.getOrNull()
+    }
+
+    /**
+     * Image entries of the archive, in the reader's page order (the same case-insensitive natural
+     * order and the same image predicate as `ArchivePageLoader`), so page indices mean the same page
+     * here and in the reader.
+     */
+    private val archiveEntries: List<String> = archive?.let { reader ->
         runCatching {
-            chapterFile.openInputStream().use { input ->
-                ZipInputStream(input).use { zip ->
-                    generateSequence { zip.nextEntry }
-                        .filter { !it.isDirectory && ImageUtil.isImage(it.name) }
-                        .map { it.name }
-                        .sortedWith { a, b -> a.compareToCaseInsensitiveNaturalOrder(b) }
-                        .toList()
-                }
+            reader.useEntries { entries ->
+                entries
+                    .filter { it.isFile && ImageUtil.isImage(it.name) { reader.getInputStream(it.name)!! } }
+                    .map { it.name }
+                    .sortedWith { a, b -> a.compareToCaseInsensitiveNaturalOrder(b) }
+                    .toList()
             }
         }.getOrDefault(emptyList())
-    } else {
-        emptyList()
-    }
+    }.orEmpty()
 
     override val pageCount: Int
         get() = if (chapterFile.isDirectory) directoryPages.size else archiveEntries.size
@@ -260,14 +292,10 @@ class UniFileChapterImageProvider(
         }
     } else {
         val wanted = archiveEntries.getOrNull(pageIndex) ?: return null
-        runCatching {
-            chapterFile.openInputStream().use { input ->
-                ZipInputStream(input).use { zip ->
-                    generateSequence { zip.nextEntry }
-                        .firstOrNull { !it.isDirectory && it.name == wanted }
-                        ?.let { zip.readBytes() }
-                }
-            }
-        }.getOrNull()
+        runCatching { archive?.getInputStream(wanted)?.use { it.readBytes() } }.getOrNull()
+    }
+
+    override fun close() {
+        archive?.close()
     }
 }

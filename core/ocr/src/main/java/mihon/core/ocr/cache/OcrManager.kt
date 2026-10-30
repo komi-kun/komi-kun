@@ -446,11 +446,19 @@ class OcrManager(
                 logcat(LogPriority.WARN, e) { "OcrManager: failed to read page $pageIndex" }
                 null
             }
-            if (bytes == null) {
+            // KUN -->
+            // Empty bytes are a page that could not be read, never a page without text: persisting the
+            // empty result `recognizePage` then answers would cache "nothing to show" for a page that
+            // was never recognised, and `countCachedPages` would count it as done — which is how a
+            // chapter whose provider could not read its archive was marked `COMPLETED` after a single
+            // bogus page and dropped from the queue. A page whose bytes cannot be read fails the page
+            // instead, so the chapter stays incomplete (and retryable) until it can really be read.
+            if (bytes == null || bytes.isEmpty()) {
                 failedPages++
                 progress(chapterId, pageIndex, pageCount)
                 continue
             }
+            // KUN <--
 
             try {
                 val blocks = retryWithBackoff(times = 3) { recognizePage(bytes, input.language) }
@@ -581,9 +589,19 @@ class OcrManager(
                 val self = coroutineContext[Job]
                 try {
                     when (processChapter(input, stopRequested)) {
-                        OcrTaskResult.SUCCESS,
-                        OcrTaskResult.CANCELLED,
-                        -> store.remove(next.chapterId)
+                        // KUN -->
+                        // Only a run that persisted **every** page of the chapter may drop its task:
+                        // `SUCCESS` is reached exactly when `countCachedPages` covers the provider's
+                        // page count. An interrupted run (`STOPPED`, `CANCELLED`, or a cancelled job)
+                        // must leave the chapter resumable — the next run skips the pages that are
+                        // already cached and recognises the rest — so a `CANCELLED` task is re-armed
+                        // instead of removed, and a task that vanished from the store in the meantime
+                        // simply has nothing left to re-arm.
+                        OcrTaskResult.SUCCESS -> store.remove(next.chapterId)
+                        OcrTaskResult.CANCELLED -> updateTask(next.chapterId) {
+                            it.copy(status = OcrQueueStatus.PENDING)
+                        }
+                        // KUN <--
                         OcrTaskResult.ERROR -> Unit
                         OcrTaskResult.STOPPED -> updateTask(next.chapterId) { it.copy(status = OcrQueueStatus.PENDING) }
                     }
@@ -662,7 +680,9 @@ class OcrManager(
                 input.provider.pageBytes(pageIndex)
             } catch (_: Exception) {
                 null
-            } ?: continue
+                // KUN --> Empty bytes are an unreadable page, exactly as in `runChapter`.
+            }?.takeIf { it.isNotEmpty() } ?: continue
+            // KUN <--
             try {
                 val blocks = retryWithBackoff(times = 3) { recognizePage(bytes, input.language) }
                 // KUN -->
