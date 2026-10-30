@@ -21,6 +21,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -49,6 +50,20 @@ class WordAudioBridge(
         }
     }
 
+    private fun updateAllowedLoopbackPorts(config: AudioPreferences) {
+        val customPorts = config.sources.mapNotNull { src ->
+            runCatching {
+                val parsed = src.url.replace("{term}", "a").replace("{reading}", "a").toHttpUrlOrNull()
+                if (parsed != null && (parsed.host == "localhost" || parsed.host.endsWith(".localhost") || parsed.host == "127.0.0.1" || parsed.host == "::1")) {
+                    parsed.port
+                } else {
+                    null
+                }
+            }.getOrNull()
+        }.toSet()
+        allowedLoopbackPorts = DEFAULT_ALLOWED_LOOPBACK_PORTS + customPorts
+    }
+
     private fun getResolver(): AudioResolver {
         val currentHttp = http
         val cached = cachedResolver
@@ -64,6 +79,7 @@ class WordAudioBridge(
     fun fetchAudio(expression: String, reading: String, callbackId: String) {
         val webView = webViewProvider() ?: return
         val config = configProvider?.invoke() ?: return
+        updateAllowedLoopbackPorts(config)
         if (!config.enabled) {
             deliver(webView, callbackId, AudioResolution(emptyList(), emptyList()))
             return
@@ -91,8 +107,9 @@ class WordAudioBridge(
 
     @JavascriptInterface
     fun playAudio(url: String) {
-        if (!isAllowedWordAudioUrl(url)) return
         val config = configProvider?.invoke() ?: AudioPreferences.DEFAULT
+        updateAllowedLoopbackPorts(config)
+        if (!isAllowedWordAudioUrl(url)) return
         if (!config.enabled) return
         val ctx = webViewProvider()?.context
         if (ctx != null) player.attachContext(ctx)
@@ -102,6 +119,7 @@ class WordAudioBridge(
     @JavascriptInterface
     fun playCandidates(urlsJson: String) {
         val config = configProvider?.invoke() ?: AudioPreferences.DEFAULT
+        updateAllowedLoopbackPorts(config)
         if (!config.enabled) return
         val ctx = webViewProvider()?.context
         if (ctx != null) player.attachContext(ctx)
@@ -117,6 +135,7 @@ class WordAudioBridge(
     @JavascriptInterface
     fun prefetchAudio(urlsJson: String) {
         val ctx = webViewProvider()?.context ?: return
+        configProvider?.invoke()?.let { updateAllowedLoopbackPorts(it) }
         player.attachContext(ctx)
         val urls = runCatching {
             val array = JSONArray(urlsJson)

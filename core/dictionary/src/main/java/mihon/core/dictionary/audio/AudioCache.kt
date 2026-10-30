@@ -181,9 +181,9 @@ object AudioCache {
      * [client] with OkHttp's built-in blind redirect-following switched off, replaced with
      * [SafeAudioRedirectInterceptor] so redirects to legitimate CDNs (e.g. JapanesePod101) are
      * followed while every intermediate/target URL is checked against [isAllowedWordAudioUrl],
-     * and with [globalOnlyDns] as its resolver, so a host name that answers with loopback, LAN,
-     * link-local, metadata or rebinding addresses is refused at fetch time rather than merely at
-     * parse time. Derived clients share the connection pool and dispatcher of [client]; the
+     * and with [globalOnlyDns] as its resolver, so an external host name that answers with LAN,
+     * link-local, metadata or rebinding addresses (or unexpected loopback) is refused at fetch time
+     * rather than merely at parse time. Derived clients share the connection pool and dispatcher of [client]; the
      * derivation is cached per source client.
      */
     internal fun audioHttpClient(client: OkHttpClient): OkHttpClient {
@@ -193,7 +193,7 @@ object AudioCache {
             .followRedirects(false)
             .followSslRedirects(false)
             .addInterceptor(SafeAudioRedirectInterceptor())
-            .dns(globalOnlyDns())
+            .dns(globalOnlyDns(client.dns))
             .build()
         noRedirectClient = client to derived
         return derived

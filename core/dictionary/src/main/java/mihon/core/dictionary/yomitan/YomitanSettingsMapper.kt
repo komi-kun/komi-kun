@@ -148,11 +148,21 @@ object YomitanSettingsMapper {
         val name = obj["name"].stringOrNull()?.takeIf { it.isNotBlank() } ?: "Profile ${index + 1}"
         val options = obj["options"].asObjectOrNull()
 
+        val rawDicts = options?.get("dictionaries").asArrayOrNull().orEmpty().mapNotNull { it.asObjectOrNull() }
+        // Yomitan assigns `priority: Int` to dictionaries (higher number = higher priority).
+        // Sort descending by priority (stable sort) so custom priorities are honored,
+        // while preserving array order when priorities are absent or equal.
+        val hasExplicitPriorities = rawDicts.any { it["priority"].intOrNull() != null }
+        val sortedDicts = if (hasExplicitPriorities) {
+            rawDicts.sortedByDescending { it["priority"].intOrNull() ?: 0 }
+        } else {
+            rawDicts
+        }
+
         val order = mutableListOf<String>()
         val enabled = mutableSetOf<String>()
         val displayModes = LinkedHashMap<String, String>()
-        options?.get("dictionaries").asArrayOrNull()?.forEach { element ->
-            val entry = element.asObjectOrNull() ?: return@forEach
+        sortedDicts.forEach { entry ->
             val dictName = entry["name"].stringOrNull()?.takeIf { it.isNotBlank() } ?: return@forEach
             order += dictName
             if (entry["enabled"].booleanOr(true)) enabled += dictName
