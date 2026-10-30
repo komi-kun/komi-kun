@@ -31,12 +31,15 @@ class DictionaryReadyBridge(
         webView.post {
             if (state.contentReadyGeneration != generation) return@post
             stateProvider()?.onContentReady?.invoke()
-            Log.i(
-                "DictionaryRender",
-                "webview_ready entry_count=${state.payloadBridge.rawEntryJsons.size} " +
-                    "payload_len=${state.payloadBridge.rawPayloadJson.length} " +
-                    "alpha=${webView.alpha}",
-            )
+            if (state.lastLoggedReadyGeneration != generation) {
+                state.lastLoggedReadyGeneration = generation
+                Log.i(
+                    "DictionaryRender",
+                    "webview_ready entry_count=${state.payloadBridge.rawEntryJsons.size} " +
+                        "payload_len=${state.payloadBridge.rawPayloadJson.length} " +
+                        "alpha=${webView.alpha}",
+                )
+            }
         }
     }
 // KUN <--
