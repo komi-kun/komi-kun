@@ -36,6 +36,7 @@ import kotlinx.coroutines.withContext
 import mihon.app.di.appGraph
 import mihon.core.dictionary.model.getDictionaryPaths
 import mihon.core.dictionary.ui.KanaConverter
+import mihon.core.dictionary.ui.KanaInputConversion
 import mihon.core.dictionary.ui.buildKanjiEntryJsonStrings
 import mihon.core.dictionary.ui.orderLookupResultsForDisplay
 import mihon.icons.materialsymbols.MaterialSymbols
@@ -201,22 +202,27 @@ data object DictionaryTab : Tab {
             OutlinedTextField(
                 value = textFieldValue,
                 onValueChange = { newVal ->
-                    if (autoKana && newVal.text != textFieldValue.text) {
-                        if (newVal.text.length < textFieldValue.text.length) {
-                            textFieldValue = newVal
-                        } else {
-                            val (converted, newCursor) = KanaConverter.toKanaIME(
-                                newVal.text,
-                                newVal.selection.start,
-                            )
-                            textFieldValue = TextFieldValue(
-                                text = converted,
-                                selection = TextRange(newCursor),
-                            )
-                        }
+                    // KUN -->
+                    // Convert only when the edit is ours to convert: while an IME composes
+                    // (composition != null) the IME owns the text and a write-back would cancel
+                    // its composition on every keystroke. KanaInputConversion is pure, so the rule
+                    // is unit-tested away from Compose.
+                    val converted = if (autoKana) {
+                        KanaInputConversion.convert(
+                            newText = newVal.text,
+                            cursor = newVal.selection.start,
+                            previousText = textFieldValue.text,
+                            isComposing = newVal.composition != null,
+                        )
                     } else {
-                        textFieldValue = newVal
+                        null
                     }
+                    textFieldValue = if (converted != null) {
+                        TextFieldValue(converted.text, TextRange(converted.cursor))
+                    } else {
+                        newVal
+                    }
+                    // KUN <--
                 },
                 modifier = Modifier
                     .fillMaxWidth()
