@@ -51,6 +51,9 @@ internal class AppUpdateNotifier(private val context: Context) {
             context,
             release.downloadLink,
             release.version,
+            // KUN -->
+            release.digest,
+            // KUN <--
         )
 
         val releaseIntent = Intent(Intent.ACTION_VIEW, release.releaseLink.toUri()).run {
@@ -169,6 +172,10 @@ internal class AppUpdateNotifier(private val context: Context) {
         // KMK -->
         error: String? = null,
         // KMK <--
+        // KUN -->
+        title: String? = null,
+        digest: String? = null,
+        // KUN <--
     ) {
         with(notificationBuilder) {
             setContentText(
@@ -185,7 +192,9 @@ internal class AppUpdateNotifier(private val context: Context) {
             addAction(
                 MaterialSymbolsR.drawable.rounded_refresh,
                 context.stringResource(MR.strings.action_retry),
-                NotificationReceiver.downloadAppUpdatePendingBroadcast(context, url),
+                // KUN -->
+                NotificationReceiver.downloadAppUpdatePendingBroadcast(context, url, title, digest),
+                // KUN <--
             )
             addAction(
                 MaterialSymbolsR.drawable.rounded_close,

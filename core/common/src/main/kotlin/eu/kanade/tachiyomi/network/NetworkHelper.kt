@@ -7,6 +7,7 @@ import dev.zacsweers.metro.SingleIn
 import eu.kanade.tachiyomi.network.interceptor.CloudflareInterceptor
 import eu.kanade.tachiyomi.network.interceptor.UncaughtExceptionInterceptor
 import eu.kanade.tachiyomi.network.interceptor.UserAgentInterceptor
+import eu.kanade.tachiyomi.util.lang.Hash
 import exh.log.EHLogLevel
 import kotlinx.coroutines.CoroutineScope
 import logcat.LogPriority
@@ -135,11 +136,21 @@ open /* SY <-- */ class NetworkHelper(
      * Allow to download a big file with retry & resume capability because
      * normally it would get a Timeout exception.
      */
-    fun downloadFileWithResume(url: String, outputFile: File, progressListener: ProgressListener) {
+    fun downloadFileWithResume(
+        url: String,
+        outputFile: File,
+        progressListener: ProgressListener,
+        // KUN -->
+        expectedDigest: String? = null,
+        // KUN <--
+    ) {
         val client = clientWithTimeOut(
             callTimeout = 120,
         )
 
+        // KUN -->
+        val expectedSha256 = Hash.extractSha256(expectedDigest)
+        // KUN <--
         var downloadedBytes: Long
 
         var attempt = 0
@@ -158,11 +169,39 @@ open /* SY <-- */ class NetworkHelper(
 
                 var failed = false
                 client.newCachelessCallWithProgress(request, progressListener).execute().use { response ->
-                    if (response.isSuccessful || response.code == 206) { // 206 indicates partial content
-                        saveResponseToFile(response, outputFile, downloadedBytes)
-                        if (response.isSuccessful) {
+                    val isPartial = response.code == 206
+                    if (response.isSuccessful || isPartial) { // 206 indicates partial content
+                        // KUN -->
+                        val contentType = response.header("Content-Type")?.lowercase()
+                        if (contentType?.contains("text/html") == true) {
+                            logcat(LogPriority.ERROR) { "Unexpected HTML response for APK download. Deleting and retrying..." }
+                            outputFile.delete()
+                            attempt++
+                            failed = true
+                            return@use
+                        }
+
+                        val startPosition = if (isPartial) downloadedBytes else 0L
+                        saveResponseToFile(response, outputFile, startPosition)
+
+                        // Verify integrity if expected hash is known
+                        if (expectedSha256 != null) {
+                            val actualSha256 = Hash.sha256(outputFile)
+                            if (!actualSha256.equals(expectedSha256, ignoreCase = true)) {
+                                logcat(LogPriority.ERROR) {
+                                    "Downloaded file checksum mismatch: expected $expectedSha256, got $actualSha256. Deleting and retrying..."
+                                }
+                                outputFile.delete()
+                                attempt++
+                                failed = true
+                                return@use
+                            }
+                        }
+
+                        if (response.isSuccessful || isPartial) {
                             return
                         }
+                        // KUN <--
                     } else {
                         attempt++
                         logcat(LogPriority.ERROR) { "Unexpected response code: ${response.code}. Retrying..." }
@@ -181,7 +220,15 @@ open /* SY <-- */ class NetworkHelper(
                 exponentialBackoff(attempt - 1)
             }
         }
-        throw IOException("Max retry attempts reached.")
+        // KUN -->
+        outputFile.delete()
+        val errorMsg = if (expectedSha256 != null) {
+            "Max retry attempts reached. Downloaded APK failed SHA-256 verification ($expectedSha256)."
+        } else {
+            "Max retry attempts reached."
+        }
+        throw IOException(errorMsg)
+        // KUN <--
     }
 
     // Helper function to save data incrementally
@@ -190,6 +237,11 @@ open /* SY <-- */ class NetworkHelper(
 
         // Use RandomAccessFile to write from specific position
         RandomAccessFile(outputFile, "rw").use { file ->
+            // KUN -->
+            if (startPosition == 0L) {
+                file.setLength(0)
+            }
+            // KUN <--
             file.seek(startPosition)
             body.byteStream().use { input ->
                 val buffer = ByteArray(8 * 1024)

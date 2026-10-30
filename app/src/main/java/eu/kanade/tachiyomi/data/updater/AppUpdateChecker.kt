@@ -58,6 +58,9 @@ class AppUpdateChecker(
                             context = context,
                             url = result.release.downloadLink,
                             title = result.release.version,
+                            // KUN -->
+                            digest = result.release.digest,
+                            // KUN <--
                             scheduled = true,
                         )
                     }
