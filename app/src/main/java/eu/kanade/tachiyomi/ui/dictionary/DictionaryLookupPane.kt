@@ -3,8 +3,6 @@
 package eu.kanade.tachiyomi.ui.dictionary
 
 import android.content.Context
-import android.os.SystemClock
-import android.util.Log
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
@@ -20,11 +18,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import logcat.LogPriority
 import mihon.app.di.appGraph
 import mihon.core.dictionary.anki.AnkiScreenshotProvider
 import mihon.core.dictionary.model.DictionaryPaths
@@ -37,6 +38,7 @@ import mihon.core.dictionary.ui.LookupPath
 import mihon.core.dictionary.ui.TabInfo
 import mihon.core.dictionary.ui.buildKanjiEntryJsonStrings
 import mihon.core.dictionary.ui.orderLookupResultsForDisplay
+import tachiyomi.core.common.util.system.logcat
 
 /** One frame (term + results) of the recursive-lookup path (02 §3.2). */
 internal data class LookupFrame(
@@ -157,6 +159,8 @@ internal class DictionaryLookupState(
     private val coroutineScope: CoroutineScope,
     private val profileProvider: () -> DictionaryProfile,
     val logTag: String = "lookup",
+    private val defaultDispatcher: CoroutineDispatcher = Dispatchers.Default,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
     var path by mutableStateOf(LookupPath<LookupFrame>())
         internal set
@@ -199,13 +203,15 @@ internal class DictionaryLookupState(
     fun lookup(query: String, resetPath: Boolean, lookupType: String? = null) {
         if (query.isBlank()) return
         val profile = profileProvider()
-        val startedAt = SystemClock.elapsedRealtime()
+        val startedAt = System.currentTimeMillis()
         currentLookupJob?.cancel()
         loading = true
         val job = coroutineScope.launch {
             try {
-                val paths = getDictionaryPaths(context, profile)
-                val frame = withContext(Dispatchers.Default) {
+                var resolvedPaths = DictionaryPaths()
+                val frame = withContext(defaultDispatcher) {
+                    val paths = getDictionaryPaths(context, profile)
+                    resolvedPaths = paths
                     executeDictionaryLookup(
                         context = context,
                         repository = repository,
@@ -222,16 +228,15 @@ internal class DictionaryLookupState(
                     path = path.push(frame)
                 }
                 loading = false
-                Log.i(
-                    "DictionaryLookup",
+                logcat(LogPriority.INFO) {
                     "${logTag}_lookup query=$query results=${frame.results.size} " +
                         "entry_jsons=${frame.entryJsons?.size ?: 0} " +
-                        "term_paths=${paths.termPaths.size} " +
-                        "kanji_paths=${paths.kanjiPaths.size} " +
-                        "elapsed_ms=${SystemClock.elapsedRealtime() - startedAt}",
-                )
+                        "term_paths=${resolvedPaths.termPaths.size} " +
+                        "kanji_paths=${resolvedPaths.kanjiPaths.size} " +
+                        "elapsed_ms=${System.currentTimeMillis() - startedAt}"
+                }
                 if (frame.results.isNotEmpty()) {
-                    val media = withContext(Dispatchers.IO) { repository.loadMediaAsync(frame.results) }
+                    val media = withContext(ioDispatcher) { repository.loadMediaAsync(frame.results) }
                     if (media.isNotEmpty()) {
                         path = path.copy(
                             entries = path.entries.map { if (it === frame) it.copy(mediaDataUris = media) else it },
@@ -305,7 +310,7 @@ internal fun DictionaryLookupPane(
     val placeholderDiagnostics = "state=$placeholder has_dictionaries=$hasDictionaries " +
         "loading=${state.loading} has_content=$hasDrawableContent"
     LaunchedEffect(placeholderDiagnostics) {
-        Log.i("DictionaryLookup", "${state.logTag}_placeholder $placeholderDiagnostics")
+        logcat(LogPriority.INFO) { "DictionaryLookup ${state.logTag}_placeholder $placeholderDiagnostics" }
     }
 
     Box(modifier = modifier) {

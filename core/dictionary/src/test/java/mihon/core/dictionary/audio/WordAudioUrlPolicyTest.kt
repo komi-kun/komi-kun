@@ -47,21 +47,34 @@ class WordAudioUrlPolicyTest {
     }
 
     @Test
-    fun `loopback hosts are accepted for local audio servers`() {
-        // Loopback, in standard spellings the URL parser accepts.
-        isAllowedWordAudioUrl("http://localhost/audio.mp3") shouldBe true
-        isAllowedWordAudioUrl("http://LOCALHOST:8080/audio.mp3") shouldBe true
-        isAllowedWordAudioUrl("http://localhost./audio.mp3") shouldBe true
-        isAllowedWordAudioUrl("http://127.0.0.1/audio.mp3") shouldBe true
-        isAllowedWordAudioUrl("http://[::1]/audio.mp3") shouldBe true
-        isAllowedWordAudioUrl("http://[0:0:0:0:0:0:0:1]/audio.mp3") shouldBe true
-        isAllowedWordAudioUrl("http://[::ffff:127.0.0.1]/audio.mp3") shouldBe true
-        isAllowedWordAudioUrl("http://0x7f.0.0.1/audio.mp3") shouldBe true
+    fun `loopback hosts are accepted for configured local audio server ports only`() {
+        // Allowed loopback port (default 8765 for AnkiConnect / Local Audio Server)
+        isAllowedWordAudioUrl("http://localhost:8765/audio.mp3") shouldBe true
+        isAllowedWordAudioUrl("http://LOCALHOST:8765/audio.mp3") shouldBe true
+        isAllowedWordAudioUrl("http://localhost.:8765/audio.mp3") shouldBe true
+        isAllowedWordAudioUrl("http://127.0.0.1:8765/audio.mp3") shouldBe true
+        isAllowedWordAudioUrl("http://[::1]:8765/audio.mp3") shouldBe true
+        isAllowedWordAudioUrl("http://[0:0:0:0:0:0:0:1]:8765/audio.mp3") shouldBe true
+        isAllowedWordAudioUrl("http://[::ffff:127.0.0.1]:8765/audio.mp3") shouldBe true
+        isAllowedWordAudioUrl("http://0x7f.0.0.1:8765/audio.mp3") shouldBe true
         isAllowedWordAudioUrl("http://localhost:8765/localaudio/get/?term=%E4%B8%80&reading=%E3%81%84%E3%81%A1") shouldBe true
 
+        // Arbitrary unapproved loopback ports are refused to protect local services from HTML probes
+        isAllowedWordAudioUrl("http://localhost/audio.mp3") shouldBe false
+        isAllowedWordAudioUrl("http://localhost:8080/audio.mp3") shouldBe false
+        isAllowedWordAudioUrl("http://127.0.0.1/audio.mp3") shouldBe false
+        isAllowedWordAudioUrl("http://127.0.0.1:3000/audio.mp3") shouldBe false
+        isAllowedWordAudioUrl("http://[::1]/audio.mp3") shouldBe false
+        isAllowedWordAudioUrl("http://[::1]:8080/audio.mp3") shouldBe false
+
+        // Custom configured loopback ports can be permitted
+        isAllowedWordAudioUrl("http://localhost:9000/audio.mp3", loopbackPorts = setOf(9000)) shouldBe true
+        isAllowedWordAudioUrl("http://127.0.0.1:9000/audio.mp3", loopbackPorts = setOf(9000)) shouldBe true
+        isAllowedWordAudioUrl("http://localhost:8765/audio.mp3", loopbackPorts = setOf(9000)) shouldBe false
+
         // Non-canonical IPv4 spellings (non-dotted-quad) are refused outright.
-        isAllowedWordAudioUrl("http://127.1/audio.mp3") shouldBe false
-        isAllowedWordAudioUrl("http://2130706433/audio.mp3") shouldBe false
+        isAllowedWordAudioUrl("http://127.1:8765/audio.mp3") shouldBe false
+        isAllowedWordAudioUrl("http://2130706433:8765/audio.mp3") shouldBe false
     }
 
     @Test

@@ -850,7 +850,13 @@ class DictionaryManagementViewModel(
         val active = prefs.profileStore.getActiveProfile()
         val allNames = allDictionaryNames(context)
         val currentEnabled = active.enabledDictionaries
-        val newEnabled = if (currentEnabled.isEmpty()) {
+        val resolvedCurrent = if (currentEnabled.isEmpty()) {
+            emptySet()
+        } else {
+            currentEnabled.mapNotNull { matchDictionaryName(it, allNames, context) }.toSet()
+                .ifEmpty { currentEnabled }
+        }
+        val newEnabled = if (resolvedCurrent.isEmpty()) {
             if (!enabled) {
                 val remaining = allNames.toSet() - name
                 if (remaining.isEmpty()) setOf(DISABLED_SENTINEL) else remaining
@@ -859,10 +865,10 @@ class DictionaryManagementViewModel(
             }
         } else {
             if (enabled) {
-                val updated = currentEnabled - DISABLED_SENTINEL + name
+                val updated = resolvedCurrent - DISABLED_SENTINEL + name
                 if (updated.containsAll(allNames)) emptySet() else updated
             } else {
-                val remaining = currentEnabled - name
+                val remaining = resolvedCurrent - name
                 if (remaining.isEmpty()) setOf(DISABLED_SENTINEL) else remaining
             }
         }

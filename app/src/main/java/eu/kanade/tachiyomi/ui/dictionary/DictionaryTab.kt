@@ -19,6 +19,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -113,10 +114,17 @@ data object DictionaryTab : Tab {
             lookupState.back()
         }
 
+        var lastSubmittedQuery by rememberSaveable { mutableStateOf<String?>(null) }
+
         LaunchedEffect(lookupState.current?.query) {
             val activeQuery = lookupState.current?.query
             if (activeQuery != null && activeQuery != textFieldValue.text) {
-                textFieldValue = TextFieldValue(activeQuery, TextRange(activeQuery.length))
+                // If a lookup completes while the user is typing a new query in the search field,
+                // do not clobber their in-progress input.
+                if (!lookupState.loading || textFieldValue.text == lastSubmittedQuery || textFieldValue.text.isEmpty()) {
+                    textFieldValue = TextFieldValue(activeQuery, TextRange(activeQuery.length))
+                    lastSubmittedQuery = activeQuery
+                }
             }
         }
 
@@ -128,6 +136,7 @@ data object DictionaryTab : Tab {
             } else {
                 query
             }
+            lastSubmittedQuery = effective
             if (effective != textFieldValue.text) {
                 textFieldValue = TextFieldValue(effective, TextRange(effective.length))
             }

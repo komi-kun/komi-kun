@@ -17,7 +17,10 @@ data class DictionaryPaths(
 )
 
 /** Directory holding the imported dictionary tree: `externalFilesDir/dictionaries`. */
-fun dictionariesDir(context: Context): File = File(context.getExternalFilesDir(null), "dictionaries")
+fun dictionariesDir(context: Context): File {
+    val dir = context.getExternalFilesDir(null) ?: context.filesDir ?: File("/tmp")
+    return File(dir, "dictionaries")
+}
 
 /**
  * Suffix of the sibling directory a type is staged into before it replaces the live one.
@@ -84,12 +87,13 @@ fun getDictionaryPaths(context: Context, profile: DictionaryProfile): Dictionary
     val allNames = allDictionaryNames(context)
     if (allNames.isEmpty()) return DictionaryPaths()
 
-    val ordered = resolveDictionaryOrder(allNames, profile.dictionaryOrder, context)
+    val titles = getDictionaryTitles(context)
+    val ordered = resolveDictionaryOrder(allNames, profile.dictionaryOrder, context, titles)
     val enabled = profile.enabledDictionaries
     val finalNames = if (enabled.isEmpty()) {
         ordered
     } else {
-        val resolvedEnabled = enabled.mapNotNull { matchDictionaryName(it, allNames, context) }.toSet()
+        val resolvedEnabled = enabled.mapNotNull { matchDictionaryName(it, allNames, context, titles) }.toSet()
         if (resolvedEnabled.isEmpty()) {
             ordered.filter { it in enabled }
         } else {
@@ -145,16 +149,49 @@ fun readDictionaryIndexTitle(context: Context, dirName: String): String? {
     return null
 }
 
+private var cachedTitleMap: Map<String, String>? = null
+private var cachedTitleMapDirModified: Long = 0L
+
+/**
+ * Returns a map of dirName -> index.json title for installed dictionaries,
+ * memoized against dictionariesDir mtime.
+ */
+fun getDictionaryTitles(context: Context): Map<String, String> {
+    val root = dictionariesDir(context)
+    if (!root.exists()) return emptyMap()
+    val currentModified = root.lastModified()
+    val cached = cachedTitleMap
+    if (cached != null && cachedTitleMapDirModified == currentModified) {
+        return cached
+    }
+    val allNames = allDictionaryNames(context)
+    val map = HashMap<String, String>(allNames.size)
+    for (name in allNames) {
+        val title = readDictionaryIndexTitle(context, name)
+        if (title != null) {
+            map[name] = title
+        }
+    }
+    cachedTitleMap = map
+    cachedTitleMapDirModified = currentModified
+    return map
+}
+
 /**
  * Resolves a dictionary name (which may be a raw Yomitan title, an alias, or a dirName)
  * to an installed [dirName] from [allNames].
  */
-fun matchDictionaryName(name: String, allNames: List<String>, context: Context): String? {
+fun matchDictionaryName(
+    name: String,
+    allNames: List<String>,
+    context: Context,
+    titles: Map<String, String> = getDictionaryTitles(context),
+): String? {
     if (name in allNames) return name
 
     // 1. Exact match on index.json title
     for (candidate in allNames) {
-        val title = readDictionaryIndexTitle(context, candidate)
+        val title = titles[candidate]
         if (title != null && title.equals(name, ignoreCase = true)) {
             return candidate
         }
@@ -164,7 +201,7 @@ fun matchDictionaryName(name: String, allNames: List<String>, context: Context):
     val normName = normalizeDictionaryTitle(name)
     if (normName.isNotBlank()) {
         for (candidate in allNames) {
-            val title = readDictionaryIndexTitle(context, candidate)
+            val title = titles[candidate]
             if (title != null && normalizeDictionaryTitle(title) == normName) {
                 return candidate
             }
@@ -184,12 +221,13 @@ fun resolveDictionaryOrder(
     allNames: List<String>,
     profileOrder: List<String>,
     context: Context,
+    titles: Map<String, String> = getDictionaryTitles(context),
 ): List<String> {
     if (profileOrder.isEmpty()) return allNames
     val matchedDirNames = mutableListOf<String>()
     val seen = mutableSetOf<String>()
     for (orderItem in profileOrder) {
-        val matched = matchDictionaryName(orderItem, allNames, context)
+        val matched = matchDictionaryName(orderItem, allNames, context, titles)
         if (matched != null && seen.add(matched)) {
             matchedDirNames.add(matched)
         }

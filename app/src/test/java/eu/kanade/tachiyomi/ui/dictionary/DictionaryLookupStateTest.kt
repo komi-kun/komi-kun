@@ -4,30 +4,42 @@ package eu.kanade.tachiyomi.ui.dictionary
 
 import android.content.Context
 import io.kotest.matchers.shouldBe
+import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runTest
 import mihon.core.dictionary.model.DictionaryProfile
 import mihon.core.dictionary.repository.DictionaryRepository
 import mihon.core.dictionary.ui.LookupPath
 import org.junit.jupiter.api.Test
+import java.io.File
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class DictionaryLookupStateTest {
 
-    private val context = mockk<Context>(relaxed = true)
+    private val externalRoot = File(System.getProperty("java.io.tmpdir"), "dict-lookup-${System.nanoTime()}").apply { mkdirs() }
+    private val context = mockk<Context>(relaxed = true).also { ctx ->
+        every { ctx.getExternalFilesDir(null) } returns externalRoot
+    }
     private val repository = mockk<DictionaryRepository>(relaxed = true)
     private val prefs = mockk<DictionaryPreferences>(relaxed = true)
-    private val testScope = TestScope()
+    private val testDispatcher = StandardTestDispatcher()
+    private val testScope = TestScope(testDispatcher)
     private val profile = DictionaryProfile(id = "default", name = "Default", languageCode = "ja")
 
-    private fun createState(): DictionaryLookupState = DictionaryLookupState(
+    private fun createState(dispatcher: CoroutineDispatcher = testDispatcher): DictionaryLookupState = DictionaryLookupState(
         context = context,
         repository = repository,
         prefs = prefs,
         coroutineScope = testScope,
         profileProvider = { profile },
         logTag = "test",
+        defaultDispatcher = dispatcher,
+        ioDispatcher = dispatcher,
     )
 
     private fun frameOf(query: String) = LookupFrame(
@@ -96,6 +108,34 @@ class DictionaryLookupStateTest {
         state.current shouldBe null
         state.canGoBack shouldBe false
         state.tabs shouldBe emptyList()
+    }
+
+    @Test
+    fun `lookup updates path and handles cancellation cleanly`() = testScope.runTest {
+        val state = createState()
+
+        // 1. First lookup with resetPath = true
+        state.lookup("犬", resetPath = true)
+        testScheduler.advanceUntilIdle()
+        state.loading shouldBe false
+        state.current?.query shouldBe "犬"
+        state.tabs.size shouldBe 1
+
+        // 2. Second lookup with resetPath = false pushes a new tab
+        state.lookup("猫", resetPath = false)
+        testScheduler.advanceUntilIdle()
+        state.loading shouldBe false
+        state.current?.query shouldBe "猫"
+        state.tabs.size shouldBe 2
+        state.canGoBack shouldBe true
+
+        // 3. A superseded lookup cancels the previous one and loading returns to false
+        state.lookup("鳥", resetPath = false)
+        state.loading shouldBe true
+        state.lookup("魚", resetPath = false) // supersedes "鳥"
+        testScheduler.advanceUntilIdle()
+        state.loading shouldBe false
+        state.current?.query shouldBe "魚"
     }
 
     @Test

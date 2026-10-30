@@ -6,18 +6,26 @@
 // renderer shell exposes `WordAudioBridge` to it. So `playAudio` / `playCandidates` / `prefetchAudio`
 // receive attacker-controlled strings, and whatever they accept the app fetches natively
 // ([AudioCache.getOrDownload]) — the page must not be able to turn the app into a proxy for
-// loopback, link-local, private-range or cloud-metadata requests (SSRF), nor smuggle a blocked host
-// past the check via userinfo or an alternative IP spelling.
+// link-local, private-range, cloud-metadata requests (SSRF), or arbitrary local servers: loopback
+// is strictly restricted to configured local audio server ports (e.g. AnkiConnect Android 8765),
+// nor smuggle a blocked host past the check via userinfo or an alternative IP spelling.
 //
 // So: an explicit scheme + authority, a strict WHATWG parse (OkHttp), no userinfo, and a host that
-// is neither an internal name nor an IPv4/IPv6 literal outside the global unicast space — including
-// the non-canonical IPv4 spellings (`127.1`, `2130706433`, `0x7f.0.0.1`) OkHttp leaves untouched.
+// is neither an internal name nor an IPv4/IPv6 literal outside the global unicast space (with loopback
+// restricted to allowed ports) — including the non-canonical IPv4 spellings (`127.1`, `2130706433`,
+// `0x7f.0.0.1`) OkHttp leaves untouched.
 package mihon.core.dictionary.audio
 
 import okhttp3.Dns
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import java.net.InetAddress
 import java.net.UnknownHostException
+
+/** Standard loopback ports permitted for local audio servers (e.g. AnkiConnect Android). */
+internal val DEFAULT_ALLOWED_LOOPBACK_PORTS = setOf(8765)
+
+@Volatile
+internal var allowedLoopbackPorts: Set<Int> = DEFAULT_ALLOWED_LOOPBACK_PORTS
 
 /**
  * Hard ceiling for one word-audio response body (4 MB). A pronunciation clip is tens of KB, so
@@ -26,7 +34,10 @@ import java.net.UnknownHostException
  */
 internal const val MAX_WORD_AUDIO_BYTES = 4L * 1024 * 1024
 
-internal fun isAllowedWordAudioUrl(url: String): Boolean {
+internal fun isAllowedWordAudioUrl(
+    url: String,
+    loopbackPorts: Set<Int> = allowedLoopbackPorts,
+): Boolean {
     // The resolver's own TTS pseudo-URL (`tts://speak?text=…`) never leaves the device.
     if (url.startsWith("tts:", ignoreCase = true)) return true
 
@@ -43,13 +54,28 @@ internal fun isAllowedWordAudioUrl(url: String): Boolean {
     val host = parsed.host.removeSurrounding("[", "]").removeSuffix(".")
     if (host.isEmpty()) return false
 
-    if (host in BLOCKED_HOST_NAMES || BLOCKED_HOST_SUFFIXES.any { host.endsWith(it) }) return false
+    if (BLOCKED_HOST_SUFFIXES.any { host.endsWith(it) }) return false
+
+    val isExplicitLoopback = host == "localhost" || host.endsWith(".localhost")
+    if (isExplicitLoopback) {
+        return parsed.port in loopbackPorts
+    }
 
     val ipv4 = parseIpv4Literal(host)
-    if (ipv4 != null) return ipv4
+    if (ipv4 != null) {
+        val (isAllowed, isLoopback) = ipv4
+        if (!isAllowed) return false
+        if (isLoopback && parsed.port !in loopbackPorts) return false
+        return true
+    }
 
     val ipv6 = parseIpv6Literal(host)
-    if (ipv6 != null) return isAllowedAudioIpv6(ipv6)
+    if (ipv6 != null) {
+        val (isAllowed, isLoopback) = isAllowedAudioIpv6(ipv6)
+        if (!isAllowed) return false
+        if (isLoopback && parsed.port !in loopbackPorts) return false
+        return true
+    }
 
     // A DNS name can never contain ':', so anything left that does is an IPv6 literal this parser
     // did not understand — refuse it instead of letting it through as a name.
@@ -58,18 +84,15 @@ internal fun isAllowedWordAudioUrl(url: String): Boolean {
     // A DNS name: *this* check cannot tell what it points at, because only a resolver can — so the
     // fetch itself re-checks every address the name resolves to (`globalOnlyDns`, installed on
     // `AudioCache.audioHttpClient`). The name is accepted here, the answer is not: a name that
-    // resolves to loopback, LAN, link-local or a metadata endpoint is refused at fetch time, and so
-    // is a rebinding answer that mixes public and internal addresses.
+    // resolves to loopback (unless it is an explicit localhost name), LAN, link-local or a metadata
+    // endpoint is refused at fetch time, and so is a rebinding answer that mixes public and internal addresses.
     return true
 }
 
 /**
- * Resolves names for the word-audio fetch and refuses any answer that is not entirely global
- * unicast, so a DNS name (which [isAllowedWordAudioUrl] can only check textually) cannot reach
- * loopback, a LAN host, link-local metadata (`169.254.169.254`), a unique-local IPv6 range or an
- * IPv4-mapped internal address — including the classic rebinding answer that is public on the
- * lookup the policy would have done and internal by the time the connection is made: the fence
- * runs on the same lookup OkHttp connects with, and a mixed answer is refused as a whole.
+ * Resolves names for the word-audio fetch and refuses any answer that is not in the allowed space
+ * (global unicast, or loopback for explicit localhost names), so a DNS name cannot reach LAN hosts,
+ * link-local metadata (`169.254.169.254`), or rebinding answers.
  */
 internal fun globalOnlyDns(upstream: Dns = Dns.SYSTEM): Dns = GlobalOnlyDns(upstream)
 
@@ -118,9 +141,9 @@ internal fun isGlobalAddress(address: InetAddress): Boolean {
     }
 }
 
-private val BLOCKED_HOST_NAMES = emptySet<String>()
-
 private val BLOCKED_HOST_SUFFIXES = listOf(".local", ".internal", ".home.arpa")
+
+private data class IpVerdict(val allowed: Boolean, val loopback: Boolean)
 
 /**
  * Interprets [host] as an IPv4 address in any of the spellings a URL parser may accept — dotted
@@ -131,15 +154,15 @@ private val BLOCKED_HOST_SUFFIXES = listOf(".local", ".internal", ".home.arpa")
  * OkHttp does not expand the non-dotted-quad spellings, so they are refused outright rather than
  * guessed at: no audio CDN uses them and their meaning depends on whichever stack resolves them.
  */
-private fun parseIpv4Literal(host: String): Boolean? {
+private fun parseIpv4Literal(host: String): IpVerdict? {
     val labels = host.removeSuffix(".").split('.')
     if (labels.size > 4) return null
     val octets = ArrayList<Long>(4)
     for (label in labels) {
         octets += parseIpv4Number(label) ?: return null
     }
-    if (labels.size != 4) return false
-    if (octets.any { it !in 0..255 }) return false
+    if (labels.size != 4) return IpVerdict(allowed = false, loopback = false)
+    if (octets.any { it !in 0..255 }) return IpVerdict(allowed = false, loopback = false)
     val packed = (octets[0].toInt() shl 24) or (octets[1].toInt() shl 16) or
         (octets[2].toInt() shl 8) or octets[3].toInt()
     return isAllowedAudioIpv4(packed)
@@ -176,20 +199,20 @@ private fun parseEmbeddedIpv4(host: String): Int? {
     return packed
 }
 
-private fun isAllowedAudioIpv4(packed: Int): Boolean {
+private fun isAllowedAudioIpv4(packed: Int): IpVerdict {
     val a = (packed ushr 24) and 0xff
     val b = (packed ushr 16) and 0xff
     return when {
-        a == 0 -> false // 0.0.0.0/8 unspecified / "this network"
-        a == 10 -> false // RFC 1918
-        a == 127 -> true // loopback is permitted for local audio servers (e.g. AnkiConnect Android)
-        a == 169 && b == 254 -> false // link-local (169.254.169.254 metadata)
-        a == 172 && b in 16..31 -> false // RFC 1918
-        a == 192 && b == 168 -> false // RFC 1918
-        a == 100 && b in 64..127 -> false // CGNAT 100.64/10
-        a == 198 && (b == 18 || b == 19) -> false // benchmarking 198.18/15
-        a >= 224 -> false // multicast, reserved, broadcast
-        else -> true
+        a == 0 -> IpVerdict(allowed = false, loopback = false) // 0.0.0.0/8 unspecified / "this network"
+        a == 10 -> IpVerdict(allowed = false, loopback = false) // RFC 1918
+        a == 127 -> IpVerdict(allowed = true, loopback = true) // loopback is permitted for local audio servers (e.g. AnkiConnect Android)
+        a == 169 && b == 254 -> IpVerdict(allowed = false, loopback = false) // link-local (169.254.169.254 metadata)
+        a == 172 && b in 16..31 -> IpVerdict(allowed = false, loopback = false) // RFC 1918
+        a == 192 && b == 168 -> IpVerdict(allowed = false, loopback = false) // RFC 1918
+        a == 100 && b in 64..127 -> IpVerdict(allowed = false, loopback = false) // CGNAT 100.64/10
+        a == 198 && (b == 18 || b == 19) -> IpVerdict(allowed = false, loopback = false) // benchmarking 198.18/15
+        a >= 224 -> IpVerdict(allowed = false, loopback = false) // multicast, reserved, broadcast
+        else -> IpVerdict(allowed = true, loopback = false)
     }
 }
 
@@ -246,20 +269,20 @@ private fun parseIpv6Groups(part: String): List<Int>? {
     return groups
 }
 
-private fun isAllowedAudioIpv6(groups: IntArray): Boolean {
+private fun isAllowedAudioIpv6(groups: IntArray): IpVerdict {
     val first = groups[0]
     return when {
-        groups.all { it == 0 } -> false // ::
-        groups.take(6).all { it == 0 } && groups[6] == 0 && groups[7] == 1 -> true // ::1 loopback
-        (first and 0xfe00) == 0xfc00 -> false // fc00::/7 unique-local
-        (first and 0xffc0) == 0xfe80 -> false // fe80::/10 link-local
-        (first and 0xffc0) == 0xfec0 -> false // fec0::/10 site-local (deprecated)
-        (first and 0xff00) == 0xff00 -> false // ff00::/8 multicast
-        first == 0x0064 && groups[1] == 0xff9b -> false // 64:ff9b::/96 NAT64
+        groups.all { it == 0 } -> IpVerdict(allowed = false, loopback = false) // ::
+        groups.take(6).all { it == 0 } && groups[6] == 0 && groups[7] == 1 -> IpVerdict(allowed = true, loopback = true) // ::1 loopback
+        (first and 0xfe00) == 0xfc00 -> IpVerdict(allowed = false, loopback = false) // fc00::/7 unique-local
+        (first and 0xffc0) == 0xfe80 -> IpVerdict(allowed = false, loopback = false) // fe80::/10 link-local
+        (first and 0xffc0) == 0xfec0 -> IpVerdict(allowed = false, loopback = false) // fec0::/10 site-local (deprecated)
+        (first and 0xff00) == 0xff00 -> IpVerdict(allowed = false, loopback = false) // ff00::/8 multicast
+        first == 0x0064 && groups[1] == 0xff9b -> IpVerdict(allowed = false, loopback = false) // 64:ff9b::/96 NAT64
         // ::ffff:a.b.c.d (IPv4-mapped) and ::a.b.c.d (IPv4-compatible) keep an IPv4 address low.
         groups.take(5).all { it == 0 } && (groups[5] == 0xffff || groups[5] == 0) ->
             isAllowedAudioIpv4((groups[6] shl 16) or groups[7])
-        else -> true
+        else -> IpVerdict(allowed = true, loopback = false)
     }
 }
 
