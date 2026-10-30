@@ -127,13 +127,7 @@ class AppUpdateDownloadJob(private val context: Context, workerParams: WorkerPar
         return try {
             // KUN -->
             withIOContext { downloadApk(title, url, digest) }
-            Result.success(
-                workDataOf(
-                    PROGRESS to 100,
-                    EXTRA_DOWNLOAD_URL to url,
-                    EXTRA_DOWNLOAD_DIGEST to digest,
-                ),
-            )
+            Result.success(workDataOf(PROGRESS to 100, EXTRA_DOWNLOAD_URL to url))
             // KUN <--
         } catch (e: CancellationException) {
             throw e
@@ -226,17 +220,6 @@ class AppUpdateDownloadJob(private val context: Context, workerParams: WorkerPar
                 return@coroutineScope
             }
             // KMK <--
-
-            // KUN -->
-            val expectedSha256 = Hash.extractSha256(digest)
-            if (expectedSha256 != null) {
-                val actualSha256 = Hash.sha256(apkFile)
-                if (!actualSha256.equals(expectedSha256, ignoreCase = true)) {
-                    apkFile.delete()
-                    throw java.io.IOException("Downloaded update checksum mismatch: expected $expectedSha256, got $actualSha256")
-                }
-            }
-            // KUN <--
 
             notifier.cancel()
             // KMK -->
@@ -355,6 +338,9 @@ class AppUpdateDownloadJob(private val context: Context, workerParams: WorkerPar
         // KUN <--
 
         // KMK -->
+        // KUN -->
+        @Volatile
+        // KUN <--
         private var instance: WeakReference<AppUpdateDownloadJob>? = null
         // KMK <--
 

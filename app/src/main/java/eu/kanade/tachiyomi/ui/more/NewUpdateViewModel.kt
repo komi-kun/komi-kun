@@ -94,12 +94,12 @@ class NewUpdateViewModel(
             val actualSha256 = Hash.sha256(apkFile)
             if (actualSha256.equals(expectedSha256, ignoreCase = true)) {
                 val archiveInfo = getApkPackageInfo(apkFile)
-                if (archiveInfo != null && isMatchingUpdate(archiveInfo, versionName)) {
+                if (archiveInfo != null && archiveInfo.packageName == context.packageName) {
                     state.update { it.copy(downloadProgress = 100, stage = Stage.Downloaded) }
                     return
                 }
             }
-            if (!AppUpdateDownloadJob.isRunning()) {
+            if (!AppUpdateDownloadJob.isRunning() && downloadJob?.isActive != true) {
                 apkFile.delete()
             }
             return
@@ -141,15 +141,14 @@ class NewUpdateViewModel(
 
     internal fun verifyDownloadedApk(file: File): Boolean {
         if (!file.isFile || file.length() == 0L) return false
+        val archiveInfo = getApkPackageInfo(file) ?: return false
+        if (archiveInfo.packageName != context.packageName) return false
         val expectedSha256 = Hash.extractSha256(digest)
         if (expectedSha256 != null) {
             val actualSha256 = Hash.sha256(file)
-            if (!actualSha256.equals(expectedSha256, ignoreCase = true)) {
-                return false
-            }
+            return actualSha256.equals(expectedSha256, ignoreCase = true)
         }
-        val archiveInfo = getApkPackageInfo(file)
-        return archiveInfo != null && isMatchingUpdate(archiveInfo, versionName)
+        return isMatchingUpdate(archiveInfo, versionName)
     }
     // KUN <--
 
@@ -168,8 +167,10 @@ class NewUpdateViewModel(
             } catch (e: Exception) {
                 logcat(LogPriority.ERROR, e)
                 // KUN -->
-                if (apkFile.isFile && !verifyDownloadedApk(apkFile)) {
-                    apkFile.delete()
+                withIOContext {
+                    if (apkFile.isFile && !verifyDownloadedApk(apkFile)) {
+                        apkFile.delete()
+                    }
                 }
                 // KUN <--
                 state.update { it.copy(stage = Stage.Failed) }
@@ -204,19 +205,13 @@ class NewUpdateViewModel(
         // Komikku's resumable downloader (retry + `Range` request) with checksum verification
         network.downloadFileWithResume(downloadLink, apkFile, progressListener, expectedDigest = digest)
 
-        val expectedSha256 = Hash.extractSha256(digest)
-        if (expectedSha256 != null) {
-            val actualSha256 = Hash.sha256(apkFile)
-            if (!actualSha256.equals(expectedSha256, ignoreCase = true)) {
-                apkFile.delete()
-                throw IOException("Downloaded APK failed checksum verification: expected $expectedSha256, got $actualSha256")
-            }
-        }
-
         val archiveInfo = getApkPackageInfo(apkFile)
-        if (archiveInfo == null || !isMatchingUpdate(archiveInfo, versionName)) {
+        val expectedSha256 = Hash.extractSha256(digest)
+        val isValid = archiveInfo != null && archiveInfo.packageName == context.packageName &&
+            (expectedSha256 != null || isMatchingUpdate(archiveInfo, versionName))
+        if (!isValid) {
             apkFile.delete()
-            throw IOException("Downloaded file is not a valid APK matching version $versionName")
+            throw IOException("Downloaded file is not a valid APK for ${context.packageName}")
         }
         // KUN <--
     }

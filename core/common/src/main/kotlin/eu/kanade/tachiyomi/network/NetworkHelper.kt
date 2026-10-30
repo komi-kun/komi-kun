@@ -198,9 +198,8 @@ open /* SY <-- */ class NetworkHelper(
                             }
                         }
 
-                        if (response.isSuccessful || isPartial) {
-                            return
-                        }
+                        // Full content (200) or completed range resumption (206) write succeeded
+                        return
                         // KUN <--
                     } else {
                         attempt++

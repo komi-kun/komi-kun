@@ -262,5 +262,29 @@ class NewUpdateViewModelTest {
         )
         viewModelWithMismatchingDigest.verifyDownloadedApk(apkFile) shouldBe false
     }
+
+    @Test
+    fun `when digest matches verifyDownloadedApk accepts valid package even if version heuristic differs`() {
+        apkFile.writeText("sample apk with unusual version")
+        val validHash = eu.kanade.tachiyomi.util.lang.Hash.sha256("sample apk with unusual version")
+
+        val packageInfo = PackageInfo().apply {
+            packageName = "app.komikun.beta"
+            versionName = "1.14.1-custom-build"
+        }
+        @Suppress("DEPRECATION")
+        every { packageManager.getPackageArchiveInfo(apkFile.absolutePath, 0) } returns packageInfo
+
+        val viewModel = NewUpdateViewModel(
+            versionName = "v1.14.1",
+            changelogInfo = "Changelog",
+            downloadLink = "https://example.com/update.apk",
+            digest = "sha256:$validHash",
+            context = context,
+            preferences = preferences,
+            network = network,
+        )
+        viewModel.verifyDownloadedApk(apkFile) shouldBe true
+    }
 }
 // KUN <--

@@ -104,12 +104,6 @@ class ReleaseServiceImpl(
     }
     // KUN <--
 
-    private fun getDownloadLink(release: GithubRelease, isFoss: Boolean): String? {
-        // KUN -->
-        return getMatchingAsset(release, isFoss)?.downloadLink
-        // KUN <--
-    }
-
     companion object {
         private const val FOSS = "foss"
         private val BUILD_TYPES = listOf(FOSS, "arm64-v8a", "armeabi-v7a", "x86_64", "x86")
