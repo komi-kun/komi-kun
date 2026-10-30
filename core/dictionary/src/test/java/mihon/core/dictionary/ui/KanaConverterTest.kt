@@ -108,6 +108,16 @@ class KanaConverterTest {
     }
 
     @Test
+    fun `toKanaIME puts the caret after the converted prefix, not the whole string`() {
+        // Editing in the middle of romaji: the tail converts too, but it is after the caret.
+        KanaConverter.toKanaIME("kaka", 2) shouldBe ("かか" to 1)
+        KanaConverter.toKanaIME("kakitte", 2) shouldBe ("かきって" to 1)
+        KanaConverter.toKanaIME("ka食べる", 2) shouldBe ("か食べる" to 1)
+        // A caret already after kana is not moved by the romaji that follows it.
+        KanaConverter.toKanaIME("かkitte", 1) shouldBe ("かきって" to 1)
+    }
+
+    @Test
     fun `toKanaIME handles empty and edge cursor positions`() {
         KanaConverter.toKanaIME("", 0) shouldBe ("" to 0)
         KanaConverter.toKanaIME("ka", 0) shouldBe ("か" to 0)
@@ -163,6 +173,11 @@ class KanaConverterTest {
             Arguments.of("toukyou", "とうきょう"),
             Arguments.of("kitte", "きって"),
             Arguments.of("ou", "おう"),
+            // `nn` before nya/nyu/nyo is ん + the syllable, not ん + ya/yu/yo.
+            Arguments.of("konnyaku", "こんにゃく"),
+            Arguments.of("shinnyuu", "しんにゅう"),
+            Arguments.of("konnya", "こんにゃ"),
+            Arguments.of("onnyu", "おんにゅ"),
         )
 
         @JvmStatic
@@ -178,6 +193,9 @@ class KanaConverterTest {
             Arguments.of("TOUKYOU", "トウキョウ"),
             Arguments.of("KITTE", "キッテ"),
             Arguments.of("OU", "オウ"),
+            Arguments.of("KONNYAKU", "コンニャク"),
+            Arguments.of("SHINNYUU", "シンニュウ"),
+            Arguments.of("ONNYU", "オンニュ"),
         )
 
         @JvmStatic
@@ -196,6 +214,10 @@ class KanaConverterTest {
             Arguments.of("Kara", "から"),
             Arguments.of("kAra", "から"),
             Arguments.of("KaN", "かン"),
+            // The sokuon is cased over the whole sokuon+syllable token, like wanakana.
+            Arguments.of("KKa", "っか"),
+            Arguments.of("KATTe", "カって"),
+            Arguments.of("TTe", "って"),
         )
 
         @JvmStatic
