@@ -193,7 +193,7 @@ object AudioCache {
             .followRedirects(false)
             .followSslRedirects(false)
             .addInterceptor(SafeAudioRedirectInterceptor())
-            .dns(globalOnlyDns())
+            .dns(globalOnlyDns(client.dns))
             .build()
         noRedirectClient = client to derived
         return derived

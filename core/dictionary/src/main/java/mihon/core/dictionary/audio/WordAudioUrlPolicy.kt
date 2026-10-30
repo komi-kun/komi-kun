@@ -49,7 +49,7 @@ internal fun isAllowedWordAudioUrl(url: String): Boolean {
     if (ipv4 != null) return ipv4
 
     val ipv6 = parseIpv6Literal(host)
-    if (ipv6 != null) return isGlobalIpv6(ipv6)
+    if (ipv6 != null) return isAllowedAudioIpv6(ipv6)
 
     // A DNS name can never contain ':', so anything left that does is an IPv6 literal this parser
     // did not understand — refuse it instead of letting it through as a name.
@@ -77,8 +77,19 @@ private class GlobalOnlyDns(private val upstream: Dns) : Dns {
     override fun lookup(hostname: String): List<InetAddress> {
         val addresses = upstream.lookup(hostname)
         if (addresses.isEmpty()) throw UnknownHostException("$hostname: no addresses")
-        if (addresses.any { !isGlobalAddress(it) }) {
-            throw UnknownHostException("$hostname: refused, resolves outside the global unicast space")
+        val cleanHost = hostname.removeSurrounding("[", "]").removeSuffix(".").lowercase()
+        val isExplicitLoopbackHost = cleanHost == "localhost" || cleanHost.endsWith(".localhost") ||
+            cleanHost == "127.0.0.1" || cleanHost == "::1"
+
+        if (addresses.any { addr ->
+                if (addr.isLoopbackAddress) {
+                    !isExplicitLoopbackHost
+                } else {
+                    !isGlobalAddress(addr)
+                }
+            }
+        ) {
+            throw UnknownHostException("$hostname: refused, resolves outside the allowed audio space")
         }
         return addresses
     }
@@ -107,14 +118,15 @@ internal fun isGlobalAddress(address: InetAddress): Boolean {
     }
 }
 
-private val BLOCKED_HOST_NAMES = setOf("localhost")
+private val BLOCKED_HOST_NAMES = emptySet<String>()
 
-private val BLOCKED_HOST_SUFFIXES = listOf(".localhost", ".local", ".internal", ".home.arpa")
+private val BLOCKED_HOST_SUFFIXES = listOf(".local", ".internal", ".home.arpa")
 
 /**
  * Interprets [host] as an IPv4 address in any of the spellings a URL parser may accept — dotted
  * quad, short form (`127.1`), single integer (`2130706433`) or hex (`0x7f.0.0.1`) — and reports
- * whether it is global unicast. Returns null when [host] is not numeric at all (i.e. a DNS name).
+ * whether it is an allowed word audio address (global unicast or loopback for local audio servers).
+ * Returns null when [host] is not numeric at all (i.e. a DNS name).
  *
  * OkHttp does not expand the non-dotted-quad spellings, so they are refused outright rather than
  * guessed at: no audio CDN uses them and their meaning depends on whichever stack resolves them.
@@ -130,7 +142,7 @@ private fun parseIpv4Literal(host: String): Boolean? {
     if (octets.any { it !in 0..255 }) return false
     val packed = (octets[0].toInt() shl 24) or (octets[1].toInt() shl 16) or
         (octets[2].toInt() shl 8) or octets[3].toInt()
-    return isGlobalIpv4(packed)
+    return isAllowedAudioIpv4(packed)
 }
 
 /** One IPv4 label: decimal, `0x`-hex or leading-zero octal, per the WHATWG URL spec. */
@@ -162,6 +174,23 @@ private fun parseEmbeddedIpv4(host: String): Int? {
         packed = (packed shl 8) or value.toInt()
     }
     return packed
+}
+
+private fun isAllowedAudioIpv4(packed: Int): Boolean {
+    val a = (packed ushr 24) and 0xff
+    val b = (packed ushr 16) and 0xff
+    return when {
+        a == 0 -> false // 0.0.0.0/8 unspecified / "this network"
+        a == 10 -> false // RFC 1918
+        a == 127 -> true // loopback is permitted for local audio servers (e.g. AnkiConnect Android)
+        a == 169 && b == 254 -> false // link-local (169.254.169.254 metadata)
+        a == 172 && b in 16..31 -> false // RFC 1918
+        a == 192 && b == 168 -> false // RFC 1918
+        a == 100 && b in 64..127 -> false // CGNAT 100.64/10
+        a == 198 && (b == 18 || b == 19) -> false // benchmarking 198.18/15
+        a >= 224 -> false // multicast, reserved, broadcast
+        else -> true
+    }
 }
 
 private fun isGlobalIpv4(packed: Int): Boolean {
@@ -215,6 +244,23 @@ private fun parseIpv6Groups(part: String): List<Int>? {
         groups.add(value)
     }
     return groups
+}
+
+private fun isAllowedAudioIpv6(groups: IntArray): Boolean {
+    val first = groups[0]
+    return when {
+        groups.all { it == 0 } -> false // ::
+        groups.take(6).all { it == 0 } && groups[6] == 0 && groups[7] == 1 -> true // ::1 loopback
+        (first and 0xfe00) == 0xfc00 -> false // fc00::/7 unique-local
+        (first and 0xffc0) == 0xfe80 -> false // fe80::/10 link-local
+        (first and 0xffc0) == 0xfec0 -> false // fec0::/10 site-local (deprecated)
+        (first and 0xff00) == 0xff00 -> false // ff00::/8 multicast
+        first == 0x0064 && groups[1] == 0xff9b -> false // 64:ff9b::/96 NAT64
+        // ::ffff:a.b.c.d (IPv4-mapped) and ::a.b.c.d (IPv4-compatible) keep an IPv4 address low.
+        groups.take(5).all { it == 0 } && (groups[5] == 0xffff || groups[5] == 0) ->
+            isAllowedAudioIpv4((groups[6] shl 16) or groups[7])
+        else -> true
+    }
 }
 
 private fun isGlobalIpv6(groups: IntArray): Boolean {

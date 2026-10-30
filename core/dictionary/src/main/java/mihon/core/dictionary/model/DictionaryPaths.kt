@@ -84,9 +84,18 @@ fun getDictionaryPaths(context: Context, profile: DictionaryProfile): Dictionary
     val allNames = allDictionaryNames(context)
     if (allNames.isEmpty()) return DictionaryPaths()
 
-    val ordered = profile.dictionaryOrder.filter { it in allNames } + allNames.filter { it !in profile.dictionaryOrder }
+    val ordered = resolveDictionaryOrder(allNames, profile.dictionaryOrder, context)
     val enabled = profile.enabledDictionaries
-    val finalNames = if (enabled.isEmpty()) ordered else ordered.filter { it in enabled }
+    val finalNames = if (enabled.isEmpty()) {
+        ordered
+    } else {
+        val resolvedEnabled = enabled.mapNotNull { matchDictionaryName(it, allNames, context) }.toSet()
+        if (resolvedEnabled.isEmpty()) {
+            ordered.filter { it in enabled }
+        } else {
+            ordered.filter { it in resolvedEnabled }
+        }
+    }
 
     fun pathsForType(type: String): List<String> = finalNames
         .map { File(File(root, type), it) }
@@ -107,3 +116,83 @@ fun getDictionaryPaths(context: Context, profile: DictionaryProfile): Dictionary
 }
 
 val TYPE_SUBDIRS = listOf("term", "frequency", "pitch", "kanji")
+
+/**
+ * Normalizes a dictionary title for loose matching (strips bracketed dates, punctuation, extra spaces).
+ */
+fun normalizeDictionaryTitle(title: String): String {
+    return title
+        .replace(Regex("""\s*\[[^\]]*\d{4}[^\]]*\]|\s*\([^)]*\d{4}[^)]*\)"""), "")
+        .trim()
+        .lowercase()
+}
+
+/**
+ * Reads the dictionary title from index.json for [dirName], or null if unavailable.
+ */
+fun readDictionaryIndexTitle(context: Context, dirName: String): String? {
+    val root = dictionariesDir(context)
+    for (type in TYPE_SUBDIRS) {
+        val indexFile = File(File(root, type), "$dirName/index.json")
+        if (indexFile.exists()) {
+            return runCatching {
+                val text = indexFile.readText()
+                val match = Regex(""""title"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"""").find(text)
+                match?.groupValues?.get(1)?.takeIf { it.isNotBlank() }
+            }.getOrNull()
+        }
+    }
+    return null
+}
+
+/**
+ * Resolves a dictionary name (which may be a raw Yomitan title, an alias, or a dirName)
+ * to an installed [dirName] from [allNames].
+ */
+fun matchDictionaryName(name: String, allNames: List<String>, context: Context): String? {
+    if (name in allNames) return name
+
+    // 1. Exact match on index.json title
+    for (candidate in allNames) {
+        val title = readDictionaryIndexTitle(context, candidate)
+        if (title != null && title.equals(name, ignoreCase = true)) {
+            return candidate
+        }
+    }
+
+    // 2. Normalized match (ignoring date stamps like [2024-10-25] or (2024-10-25))
+    val normName = normalizeDictionaryTitle(name)
+    if (normName.isNotBlank()) {
+        for (candidate in allNames) {
+            val title = readDictionaryIndexTitle(context, candidate)
+            if (title != null && normalizeDictionaryTitle(title) == normName) {
+                return candidate
+            }
+            if (normalizeDictionaryTitle(candidate) == normName) {
+                return candidate
+            }
+        }
+    }
+
+    return null
+}
+
+/**
+ * Reorders [allNames] according to [profileOrder], resolving any titles or aliases to installed dirNames.
+ */
+fun resolveDictionaryOrder(
+    allNames: List<String>,
+    profileOrder: List<String>,
+    context: Context,
+): List<String> {
+    if (profileOrder.isEmpty()) return allNames
+    val matchedDirNames = mutableListOf<String>()
+    val seen = mutableSetOf<String>()
+    for (orderItem in profileOrder) {
+        val matched = matchDictionaryName(orderItem, allNames, context)
+        if (matched != null && seen.add(matched)) {
+            matchedDirNames.add(matched)
+        }
+    }
+    return matchedDirNames + allNames.filter { it !in seen }
+}

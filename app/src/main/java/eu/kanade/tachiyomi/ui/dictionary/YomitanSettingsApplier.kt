@@ -6,8 +6,12 @@
 // updates in place instead of duplicating.
 package eu.kanade.tachiyomi.ui.dictionary
 
+import android.content.Context
 import mihon.core.dictionary.anki.AnkiPreferences
 import mihon.core.dictionary.model.DictionaryProfile
+import mihon.core.dictionary.model.allDictionaryNames
+import mihon.core.dictionary.model.matchDictionaryName
+import mihon.core.dictionary.model.resolveDictionaryOrder
 import mihon.core.dictionary.yomitan.YomitanSettingsImport
 import java.util.UUID
 
@@ -24,10 +28,21 @@ object YomitanSettingsApplier {
         settings: YomitanSettingsImport,
         dictionaryPreferences: DictionaryPreferences,
         ankiPreferences: AnkiPreferences,
+        context: Context? = null,
     ): Applied {
-        settings.aliases.forEach { (name, alias) -> dictionaryPreferences.setDisplayName(name, alias) }
+        val allNames = context?.let { allDictionaryNames(it) }.orEmpty()
+        settings.aliases.forEach { (name, alias) ->
+            dictionaryPreferences.setDisplayName(name, alias)
+            if (context != null && allNames.isNotEmpty()) {
+                matchDictionaryName(name, allNames, context)?.let { matchedDirName ->
+                    if (matchedDirName != name) {
+                        dictionaryPreferences.setDisplayName(matchedDirName, alias)
+                    }
+                }
+            }
+        }
 
-        val profileResult = applyProfiles(settings, dictionaryPreferences)
+        val profileResult = applyProfiles(settings, dictionaryPreferences, context)
         applyPopup(settings, dictionaryPreferences)
         applyAnki(settings, ankiPreferences)
         applyAudio(settings, dictionaryPreferences)
@@ -37,26 +52,52 @@ object YomitanSettingsApplier {
     private fun applyProfiles(
         settings: YomitanSettingsImport,
         dictionaryPreferences: DictionaryPreferences,
+        context: Context? = null,
     ): Applied {
         val store = dictionaryPreferences.profileStore
         val existing = store.getProfiles()
         val byName = existing.associateBy { it.name }
+        val allNames = context?.let { allDictionaryNames(it) }.orEmpty()
 
         var created = 0
         var updated = 0
         val imported = settings.profiles.map { source ->
             val current = byName[source.name]
             if (current == null) created++ else updated++
+
+            val resolvedOrder = if (allNames.isNotEmpty() && context != null) {
+                resolveDictionaryOrder(allNames, source.dictionaryOrder, context)
+            } else {
+                source.dictionaryOrder
+            }
+            val resolvedEnabled = if (allNames.isNotEmpty() && context != null && source.enabledDictionaries.isNotEmpty()) {
+                val mapped = source.enabledDictionaries.mapNotNull { matchDictionaryName(it, allNames, context) }.toSet()
+                if (mapped.isNotEmpty()) mapped else source.enabledDictionaries
+            } else {
+                source.enabledDictionaries
+            }
+            val resolvedDisplayModes = if (allNames.isNotEmpty() && context != null && source.dictionaryDisplayModes.isNotEmpty()) {
+                val modes = LinkedHashMap(source.dictionaryDisplayModes)
+                source.dictionaryDisplayModes.forEach { (dictName, mode) ->
+                    matchDictionaryName(dictName, allNames, context)?.let { matched ->
+                        modes[matched] = mode
+                    }
+                }
+                modes
+            } else {
+                source.dictionaryDisplayModes
+            }
+
             DictionaryProfile(
                 id = current?.id ?: UUID.randomUUID().toString(),
                 name = source.name,
-                dictionaryOrder = source.dictionaryOrder,
-                enabledDictionaries = source.enabledDictionaries,
+                dictionaryOrder = resolvedOrder,
+                enabledDictionaries = resolvedEnabled,
                 // Yomitan has no equivalent of this komi-kun-only mode, so an in-place update keeps
                 // the user's choice; a genuinely new profile gets the default.
                 dictionaryCollapseMode = current?.dictionaryCollapseMode
                     ?: DictionaryProfile.DICTIONARY_COLLAPSE_EXPAND_ALL,
-                dictionaryDisplayModes = source.dictionaryDisplayModes,
+                dictionaryDisplayModes = resolvedDisplayModes,
                 languageCode = source.languageCode,
                 scanResolution = source.scanResolution,
                 searchResolution = source.searchResolution,

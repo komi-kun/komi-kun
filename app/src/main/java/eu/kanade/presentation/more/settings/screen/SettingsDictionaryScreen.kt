@@ -187,6 +187,7 @@ object SettingsDictionaryScreen : SearchableSettings {
                                         pending,
                                         prefs,
                                         AnkiPreferences(AndroidPreferenceStore(context)),
+                                        context,
                                     )
                                 }
                                 pendingSettings = null

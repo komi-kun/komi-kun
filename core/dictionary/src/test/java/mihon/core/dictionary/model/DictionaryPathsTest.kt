@@ -42,6 +42,41 @@ class DictionaryPathsTest {
         names shouldNotContain "Real$DICTIONARY_BACKUP_SUFFIX"
     }
 
+    @Test
+    fun `normalizeDictionaryTitle strips date tags and lowercases`() {
+        normalizeDictionaryTitle("Jitendex [2024-10-25]") shouldBe "jitendex"
+        normalizeDictionaryTitle("Jitendex (2024-10-25)") shouldBe "jitendex"
+        normalizeDictionaryTitle("JMdict (English)") shouldBe "jmdict (english)"
+        normalizeDictionaryTitle("三省堂国語辞典 第七版") shouldBe "三省堂国語辞典 第七版"
+    }
+
+    @Test
+    fun `resolveDictionaryOrder matches on-disk dictionaries by title or dirName`() {
+        val context = contextWithDictionariesDir()
+        val termDir = File(dictionariesDir(context), "term").apply { mkdirs() }
+        // Create 3 dictionaries on disk:
+        // 1. dirName "jmdict" with index.json title "JMdict (English)"
+        // 2. dirName "jitendex_2024" with index.json title "Jitendex [2024-10-25]"
+        // 3. dirName "kanjidic" with index.json title "KANJIDIC"
+        File(termDir, "jmdict").mkdirs()
+        File(termDir, "jmdict/index.json").writeText("""{"title":"JMdict (English)"}""")
+
+        File(termDir, "jitendex_2024").mkdirs()
+        File(termDir, "jitendex_2024/index.json").writeText("""{"title":"Jitendex [2024-10-25]"}""")
+
+        File(termDir, "kanjidic").mkdirs()
+        File(termDir, "kanjidic/index.json").writeText("""{"title":"KANJIDIC"}""")
+
+        val allNames = allDictionaryNames(context)
+        allNames shouldBe listOf("jitendex_2024", "jmdict", "kanjidic")
+
+        // Yomitan settings had order: "KANJIDIC", "JMdict (English)", "Jitendex"
+        val yomitanOrder = listOf("KANJIDIC", "JMdict (English)", "Jitendex")
+        val resolved = resolveDictionaryOrder(allNames, yomitanOrder, context)
+
+        resolved shouldBe listOf("kanjidic", "jmdict", "jitendex_2024")
+    }
+
     private fun contextWithDictionariesDir(): Context {
         val externalRoot = File(System.getProperty("java.io.tmpdir"), "dict-paths-${System.nanoTime()}")
         return mockk<Context>(relaxed = true).also { context ->

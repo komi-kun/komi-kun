@@ -67,6 +67,57 @@ class YomitanSettingsApplierTest {
         applied.updatedProfiles shouldBe 0
     }
 
+    @Test
+    fun `a settings import applies per-profile dictionary orders`() {
+        val prefs = DictionaryPreferences(InMemoryPreferenceStore())
+        val settings = YomitanSettingsImport(
+            formatVersion = 0,
+            optionsVersion = YomitanSettingsImport.KNOWN_OPTIONS_VERSION,
+            activeProfileName = "ProfileA",
+            profiles = listOf(
+                YomitanImportProfile(
+                    name = "ProfileA",
+                    dictionaryOrder = listOf("Dict1", "Dict2", "Dict3"),
+                    enabledDictionaries = setOf("Dict1", "Dict2"),
+                    dictionaryDisplayModes = emptyMap(),
+                    languageCode = "ja",
+                    searchResolution = "",
+                    scanResolution = "",
+                    isActive = true,
+                ),
+                YomitanImportProfile(
+                    name = "ProfileB",
+                    dictionaryOrder = listOf("Dict3", "Dict1", "Dict2"),
+                    enabledDictionaries = setOf("Dict3"),
+                    dictionaryDisplayModes = emptyMap(),
+                    languageCode = "ja",
+                    searchResolution = "",
+                    scanResolution = "",
+                    isActive = false,
+                ),
+            ),
+            popup = YomitanImportPopup(),
+            anki = YomitanImportAnki(),
+            aliases = emptyMap(),
+            reports = emptyList(),
+            warnings = emptyList(),
+        )
+
+        val applied = YomitanSettingsApplier.apply(settings, prefs, AnkiPreferences(InMemoryPreferenceStore()))
+        applied.createdProfiles shouldBe 2
+
+        val profiles = prefs.profileStore.getProfiles()
+        profiles.size shouldBe 2
+
+        val pA = profiles.first { it.name == "ProfileA" }
+        pA.dictionaryOrder shouldBe listOf("Dict1", "Dict2", "Dict3")
+        pA.enabledDictionaries shouldBe setOf("Dict1", "Dict2")
+
+        val pB = profiles.first { it.name == "ProfileB" }
+        pB.dictionaryOrder shouldBe listOf("Dict3", "Dict1", "Dict2")
+        pB.enabledDictionaries shouldBe setOf("Dict3")
+    }
+
     private fun yomitanSettings(profileName: String): YomitanSettingsImport = YomitanSettingsImport(
         formatVersion = 0,
         optionsVersion = YomitanSettingsImport.KNOWN_OPTIONS_VERSION,

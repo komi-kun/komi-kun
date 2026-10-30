@@ -75,6 +75,8 @@ import mihon.core.dictionary.model.TYPE_SUBDIRS
 import mihon.core.dictionary.model.allDictionaryNames
 import mihon.core.dictionary.model.dictionariesDir
 import mihon.core.dictionary.model.dictionaryTypeDir
+import mihon.core.dictionary.model.matchDictionaryName
+import mihon.core.dictionary.model.resolveDictionaryOrder
 import mihon.core.dictionary.repository.DictionaryRepository
 import mihon.core.dictionary.ui.invalidateDictionaryTitle
 import mihon.icons.materialsymbols.MaterialSymbols
@@ -781,13 +783,16 @@ class DictionaryManagementViewModel(
         val profiles = prefs.profileStore.getProfiles()
         val activeProfile = prefs.profileStore.getActiveProfile()
         val allNames = allDictionaryNames(context)
-        val orderedNames = (
-            activeProfile.dictionaryOrder.filter { it in allNames } +
-                allNames.filter { it !in activeProfile.dictionaryOrder }
-            ).distinct()
+        val orderedNames = resolveDictionaryOrder(allNames, activeProfile.dictionaryOrder, context)
 
         val rootDir = dictionariesDir(context)
         val isAllEnabled = activeProfile.enabledDictionaries.isEmpty()
+        val resolvedEnabled = if (isAllEnabled) {
+            emptySet()
+        } else {
+            activeProfile.enabledDictionaries.mapNotNull { matchDictionaryName(it, allNames, context) }.toSet()
+                .ifEmpty { activeProfile.enabledDictionaries }
+        }
 
         val items = orderedNames.map { name ->
             var originalTitle = name
@@ -810,7 +815,7 @@ class DictionaryManagementViewModel(
                 }
             }
             val alias = prefs.getDisplayName(name)
-            val enabled = if (isAllEnabled) true else name in activeProfile.enabledDictionaries
+            val enabled = if (isAllEnabled) true else name in resolvedEnabled
             DictionaryItem(
                 name = name,
                 title = originalTitle,

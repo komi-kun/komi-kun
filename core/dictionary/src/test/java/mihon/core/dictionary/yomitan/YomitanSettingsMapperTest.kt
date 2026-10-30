@@ -257,6 +257,34 @@ class YomitanSettingsMapperTest {
     }
 
     @Test
+    fun `respects dictionary priority for per-profile dictionary ordering`() {
+        val raw = """
+            {"version":0,"options":{"version":77,"profileCurrent":0,
+             "profiles":[
+               {"name":"P1","options":{"dictionaries":[
+                 {"name":"LowPriorityDict","enabled":true,"priority":10},
+                 {"name":"HighPriorityDict","enabled":true,"priority":100},
+                 {"name":"MediumPriorityDict","enabled":true,"priority":50}
+               ]}},
+               {"name":"P2","options":{"dictionaries":[
+                 {"name":"LowPriorityDict","enabled":true,"priority":200},
+                 {"name":"HighPriorityDict","enabled":true,"priority":10}
+               ]}}
+             ]}}
+        """.trimIndent()
+        val settings = imported(raw)
+        settings.profiles[0].dictionaryOrder shouldBe listOf(
+            "HighPriorityDict",
+            "MediumPriorityDict",
+            "LowPriorityDict",
+        )
+        settings.profiles[1].dictionaryOrder shouldBe listOf(
+            "LowPriorityDict",
+            "HighPriorityDict",
+        )
+    }
+
+    @Test
     fun `malformed and non-Yomitan files are rejected without crashing`() {
         (YomitanSettingsMapper.map("not json") is YomitanImportResult.Invalid) shouldBe true
         (YomitanSettingsMapper.map("""{"formatName":"dexie"}""") is YomitanImportResult.Invalid) shouldBe true
