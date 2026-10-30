@@ -2,10 +2,11 @@
 // KUN -->
 // Live screen-space anchor of the OCR block whose dictionary popup is open.
 //
-// `ReaderOcrHostImpl` writes the anchor every frame from the current [OcrViewport] (so the popup
-// follows page turns / zoom / scroll - plan 04 §4.5), and the GPL `DictionaryPopup` reads it to
-// position itself. It is app-graph scoped (`context.appGraph`) so the writer and the popup share a
-// single Compose snapshot state without changing the Apache seam interfaces.
+// The reader's OCR session (`ReaderOcrSessionImpl`) writes the anchor every frame from the current
+// [OcrViewport] (so the popup follows page turns / zoom / scroll - plan 04 §4.5), and the GPL
+// `DictionaryPopup` reads it to position itself. It is app-graph scoped (`context.appGraph`) so the
+// writer and the popup share a single Compose snapshot state without changing the Apache seam
+// interfaces.
 // KUN <--
 package eu.kanade.tachiyomi.ui.reader.ocr.impl
 

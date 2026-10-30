@@ -1,0 +1,485 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// KUN -->
+// GPL implementation of the Apache `eu.kanade.tachiyomi.ui.reader.ocr.ReaderOcrSession` seam
+// (contract §1.2/§2.3). It lives in the distinct `.impl` package so `verifyGplFree` can separate the
+// Apache seam files from the GPL implementation. The reader only ever sees the Apache interface.
+//
+// Everything that belongs to *one reader* lives here: the viewport the overlay was composed with, the
+// block currently looked up, the popup anchor write and the grace window in front of an off-screen
+// dismissal. The session is created per reader activity and closed by it, so that state cannot
+// outlive the reader even if a lifecycle call is missed; the app-scoped pieces it uses (block cache,
+// page work queue, dictionary popup, popup anchor channel) are injected and stay app-wide.
+//
+// `onPageLongPress` maps the overlay tap to a page-normalized point through the recorded
+// [OcrViewport], hit-tests the page's OCR blocks (`OcrHitTester`) and hands a
+// [DictionaryLookupRequest] to the GPL `ReaderDictionaryHost`. `Overlay` delegates the drawing to
+// the GPL `OcrOverlay` (W4), which composes no pointer input of its own.
+// KUN <--
+package eu.kanade.tachiyomi.ui.reader.ocr.impl
+
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
+import android.graphics.RectF
+import android.os.SystemClock
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.IntSize
+import eu.kanade.presentation.reader.OcrOverlay
+import eu.kanade.presentation.reader.OcrOverlayPage
+import eu.kanade.tachiyomi.ui.dictionary.DictionaryPopupSizing
+import eu.kanade.tachiyomi.ui.dictionary.DictionaryPreferences
+import eu.kanade.tachiyomi.ui.reader.RedoOcrResult
+import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
+import eu.kanade.tachiyomi.ui.reader.ocr.ImagePoint
+import eu.kanade.tachiyomi.ui.reader.ocr.OcrViewport
+import eu.kanade.tachiyomi.ui.reader.ocr.ReaderOcrSession
+import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
+import eu.kanade.tachiyomi.ui.reader.viewer.popup.PopupSide
+import eu.kanade.tachiyomi.ui.reader.viewer.popup.popupSide
+import mihon.core.dictionary.anki.AnkiPreferences
+import mihon.core.dictionary.anki.AnkiScreenshotProvider
+import mihon.core.dictionary.anki.AnkiScreenshotSettings
+import mihon.core.ocr.OcrHitTester
+import mihon.core.ocr.OcrNormalizedBounds
+import mihon.core.ocr.model.OcrTextBlock
+import mihon.core.ocr.model.uniformCharOffset
+import mihon.core.ocr.shouldScanWholeWord
+import mihon.dictionary.host.DictionaryLookupRequest
+import mihon.dictionary.host.ReaderDictionaryHost
+import tachiyomi.core.common.preference.AndroidPreferenceStore
+
+/**
+ * Everything one reader's OCR overlay owns.
+ *
+ * Handed from the session closed for a configuration change to the session the recreated reader
+ * creates (see [ReaderOcrSessionImpl.close]), which is the one case where the same reader outlives
+ * its activity. Nothing else can reach it: a reader that goes away takes its state with it.
+ */
+internal class ReaderOcrSessionState {
+    /** The viewport the overlay was last composed with; used to map a press to a page point. */
+    @Volatile
+    var viewport: OcrViewport? = null
+
+    /** The overlay's last measured size, so a lookup knows how much room the popup will take. */
+    @Volatile
+    var overlaySize = IntSize.Zero
+
+    /** The block highlighted by the last successful hit, for the overlay. */
+    val activeBlock = mutableStateOf<Pair<OcrPageKey, OcrTextBlock>?>(null)
+
+    // KUN -->
+    /**
+     * Uptime until which an off-screen block rect must **not** dismiss the popup. A just-opened
+     * popup schedules its own "keep the block visible" move (and the popup composes) over a few
+     * frames; a rect sampled mid-move can momentarily read as off-screen, and dismissing on that
+     * frame was what closed the popup right after it opened. After the grace, the real guard (the
+     * block left the overlay / scrolled away) applies as before.
+     */
+    var popupGraceUntil = 0L
+    // KUN <--
+}
+
+/**
+ * GPL implementation of [ReaderOcrSession]: one instance per reader activity, created by
+ * [ReaderOcrHostImpl.newSession] and closed by `ReaderActivity.onDestroy`.
+ *
+ * @param state the per-reader state this session owns (a fresh one, or the one a recreated reader
+ *   adopted from the session closed for the configuration change).
+ * @param keepForRecreatedReader stores [state] for the session the recreated reader creates.
+ */
+internal class ReaderOcrSessionImpl(
+    internal val state: ReaderOcrSessionState,
+    private val blockLoader: ReaderOcrBlockLoader,
+    private val readerPreferences: ReaderPreferences,
+    private val dictionaryPreferences: DictionaryPreferences,
+    private val dictionaryHost: ReaderDictionaryHost,
+    private val popupAnchor: ReaderOcrPopupAnchor,
+    private val context: Context,
+    private val keepForRecreatedReader: (ReaderOcrSessionState) -> Unit,
+) : ReaderOcrSession {
+
+    /** Set by [close]; a second close is a no-op (a session is closed exactly once). */
+    private var closed = false
+
+    // KUN -->
+    /** Anki mining settings: which screenshot mode/preset the open lookup's card image uses. */
+    private val ankiPreferences: AnkiPreferences by lazy {
+        AnkiPreferences(AndroidPreferenceStore(context))
+    }
+    // KUN <--
+
+    @Composable
+    override fun Overlay(viewport: OcrViewport?, modifier: Modifier) {
+        // Recording the viewport is a side effect, not composition: keep it out of the compose
+        // phase so recomposition stays pure (the hit-test only reads it after a long-press).
+        SideEffect { state.viewport = viewport }
+        // KUN -->
+        // ...and drop it again when the overlay leaves composition (the feature or the reader's
+        // overlay toggle was switched off). Closing the session is not enough: that only happens
+        // when the reader really goes away. A stale viewport outlived the overlay it described, and a
+        // later hit test could still be answered from a viewer this reader no longer draws.
+        //
+        // Leaving composition also removes the only loop that undoes a lookup's "keep the block
+        // visible" move (the per-frame `updatePopupAnchor` below), so an open lookup is dismissed and
+        // the page fit restored here. Otherwise turning the overlay off with a popup open — reachable
+        // through the two-finger toggle, which `OutsideTapDismissDetector` ignores — left the popup at
+        // its last rect over a zoomed page with `activeBlock` still set, until the overlay came back.
+        // Skipped across a configuration change, where the open popup must survive.
+        val latestViewport = rememberUpdatedState(viewport)
+        val hostActivity = LocalContext.current.findActivity()
+        DisposableEffect(Unit) {
+            onDispose {
+                if (hostActivity?.isChangingConfigurations != true) {
+                    if (dictionaryHost.isOpen()) dictionaryHost.dismiss()
+                    latestViewport.value?.restoreFit()
+                    state.activeBlock.value = null
+                    popupAnchor.clear()
+                }
+                // Only forget *this* composition's viewport: after a configuration change the new
+                // composition may already have recorded its own, and clearing that one would leave
+                // the new reader without a viewport to hit-test through.
+                if (state.viewport === latestViewport.value) {
+                    state.viewport = null
+                }
+            }
+        }
+        // KUN <--
+        val loaded by blockLoader.blocks.collectAsState()
+        val active by state.activeBlock
+        val outlineVisible = readerPreferences.ocrOutlineVisible.get()
+        val showText = readerPreferences.ocrTextOverlayVisible.get()
+        val activeBlockHighlight = readerPreferences.ocrActiveBlockHighlight.get()
+        val boxScalePercent = readerPreferences.ocrBoxScale.get()
+        val textScalePercent = readerPreferences.ocrTextScale.get()
+
+        // The compose overlay's size, captured from layout. Used to dismiss the popup once its block
+        // has been scrolled fully off-screen - a page can still be partially visible in a continuous
+        // viewer while the block is not.
+        val measuredOverlaySize = remember { mutableStateOf(IntSize.Zero) }
+
+        // `OcrViewport.visiblePages()` is viewer-owned state, not a Compose snapshot state, so the
+        // page the viewer is showing (including the very first page after mount) can appear without
+        // recomposing this composable. Poll it once per frame into snapshot state, so the overlay
+        // updates as soon as the viewer reports its pages - no manual off/on toggle. `produceState`
+        // uses structural equality, so a stable page set does not recompose. The same loop primes
+        // the block cache: the visible pages **and their neighbours**, so the incoming page's
+        // blocks are already resolved while it is still sliding in rather than only once settled.
+        val visiblePages by produceState(initialValue = emptyList<ReaderPage>(), viewport) {
+            if (viewport == null) return@produceState
+            while (true) {
+                val pages = viewport.visiblePages()
+                value = pages
+                blockLoader.ensureLoaded(pages.withNeighbours())
+                updatePopupAnchor(viewport, pages, measuredOverlaySize.value)
+                // KUN --> A popup closed from outside the OCR host (outside tap, system back) must
+                // still undo the "keep the block visible" move. Our own off-screen dismissal above
+                // has already cleared the active block, so this only fires for external closes.
+                if (state.activeBlock.value != null && !dictionaryHost.isOpen()) {
+                    viewport.restoreFit()
+                    state.activeBlock.value = null
+                    popupAnchor.clear()
+                }
+                // KUN <--
+                withFrameNanos { }
+            }
+        }
+
+        val currentPage = visiblePages.firstOrNull()
+        // Drawn every visible page, not just the current one, so a page turn shows the incoming
+        // page's boxes/text as it slides in.
+        val overlayPages = visiblePages.map { page ->
+            OcrOverlayPage(page, loaded[page.ocrKey()].orEmpty())
+        }
+        OcrOverlay(
+            viewport = viewport,
+            pages = overlayPages,
+            activeBlock = active?.takeIf { activeBlockHighlight && it.first == currentPage?.ocrKey() }?.second,
+            outlineVisible = outlineVisible,
+            showText = showText,
+            boxScalePercent = boxScalePercent,
+            textScalePercent = textScalePercent,
+            modifier = modifier.onGloballyPositioned {
+                measuredOverlaySize.value = it.size
+                state.overlaySize = it.size
+            },
+        )
+    }
+
+    // KUN -->
+    /**
+     * The `{screenshot}` source for the block a lookup was opened on, from the live Anki screenshot
+     * mode and crop preset, or null when that mode takes no screenshot.
+     *
+     * The mode/preset are read from the flat preferences ([AnkiScreenshotSettings]) rather than the
+     * persisted profile: the settings screen persists the profile *before* it writes the new value,
+     * so the profile is one edit stale.
+     */
+    private fun screenshotProviderFor(page: ReaderPage, block: OcrTextBlock): AnkiScreenshotProvider? {
+        val mode = AnkiScreenshotSettings.mode(ankiPreferences)
+        val aspect = AnkiCropPresetAspect.fromKey(AnkiScreenshotSettings.presetKey(ankiPreferences))
+        return ReaderOcrScreenshot.provider(page, block, mode, aspect)
+    }
+    // KUN <--
+
+    /**
+     * The visible pages plus their immediate chapter neighbours, so the block cache is primed for
+     * the page a turn is about to reveal. [ReaderOcrBlockLoader.ensureLoaded] deduplicates by page
+     * key and in-flight job, so preloading never repeats work.
+     */
+    private fun List<ReaderPage>.withNeighbours(): List<ReaderPage> {
+        if (isEmpty()) return this
+        val result = LinkedHashSet(this)
+        for (page in this) {
+            val chapterPages = page.chapter.pages ?: continue
+            chapterPages.getOrNull(page.index - 1)?.let(result::add)
+            chapterPages.getOrNull(page.index + 1)?.let(result::add)
+        }
+        return result.toList()
+    }
+
+    // KUN -->
+    // Long-press and single-tap share the exact same hit-test + lookup path; only the gesture that
+    // reaches it differs (plan 04 §2.2/§4.5).
+    override fun onPageLongPress(page: ReaderPage, extraPage: ReaderPage?, overlayPoint: Offset): Boolean =
+        lookupAt(overlayPoint)
+
+    override fun onPageSingleTap(page: ReaderPage, extraPage: ReaderPage?, overlayPoint: Offset): Boolean =
+        lookupAt(overlayPoint)
+
+    override fun hitsBlock(overlayPoint: Offset): Boolean = findBlockAt(overlayPoint) != null
+
+    override fun redoOcr(page: ReaderPage, chapter: Boolean, onComplete: ((RedoOcrResult) -> Unit)?) {
+        blockLoader.redoOcr(page, chapter, onComplete)
+    }
+
+    override fun reset() = release()
+
+    override fun close(recreating: Boolean) {
+        if (closed) return
+        closed = true
+        if (recreating) {
+            // The same reader comes back in a new activity: hand it this state (so the open lookup
+            // keeps its block and the per-frame re-anchoring) and leave the shared anchor, the open
+            // popup and the running page work alone — they belong to the reader, not the activity.
+            keepForRecreatedReader(state)
+            return
+        }
+        release()
+    }
+
+    /**
+     * Releases everything this reader holds: the popup is closed, and the anchor — including the
+     * captured `ReaderPage` behind the open lookup's screenshot provider — the recorded viewport and
+     * the active block are dropped. Stops the page work too: it reads the chapter archive, which the
+     * reader recycles as it tears down (an in-flight read after that is a native crash, not an
+     * exception).
+     */
+    private fun release() {
+        blockLoader.detach()
+        dictionaryHost.dismiss()
+        state.viewport = null
+        state.activeBlock.value = null
+        state.overlaySize = IntSize.Zero
+        popupAnchor.clear()
+    }
+    // KUN <--
+
+    private fun lookupAt(overlayPoint: Offset): Boolean {
+        val currentViewport = state.viewport ?: return false
+        val hit = currentViewport.screenToImageNormalized(overlayPoint.x, overlayPoint.y) ?: return false
+
+        val key = hit.page.ocrKey()
+        val block = findBlock(hit) ?: return false
+        val screen = currentViewport.imageNormalizedToScreen(hit.page, block.toRectF()) ?: return false
+
+        val offset = uniformCharOffset(
+            block = block,
+            localX = overlayPoint.x - screen.left,
+            localY = overlayPoint.y - screen.top,
+            screenW = screen.width(),
+            screenH = screen.height(),
+        )
+
+        val profile = dictionaryPreferences.profileStore.getActiveProfile()
+        val language = block.language.ifBlank { profile.languageCode.ifBlank { DEFAULT_LANGUAGE } }
+        val wholeWord = shouldScanWholeWord(profile.scanResolution, language)
+        val query = block.extractLookupString(offset, wholeWord)
+        if (query.isBlank()) return false
+
+        state.activeBlock.value = key to block
+        popupAnchor.rect.value = screen
+        // KUN --> The card's `{screenshot}` comes from this page and this block; the popup only ever
+        // sees the seam DTO, so the provider is handed over through the shared anchor state.
+        popupAnchor.screenshot.value = screenshotProviderFor(hit.page, block)
+        // KUN <--
+        // KUN --> A new lookup must survive its own placement: ignore off-screen anchor samples
+        // while the popup settles (see popupGraceUntil). Refreshed per lookup.
+        state.popupGraceUntil = SystemClock.uptimeMillis() + POPUP_GRACE_MS
+        // KUN <--
+        dictionaryHost.showLookup(
+            DictionaryLookupRequest(
+                query = query,
+                sentence = block.fullText,
+                sentenceOffset = offset,
+                anchorRect = screen,
+                vertical = block.vertical,
+                language = language,
+            ),
+        )
+        // KUN --> Keep the looked-up block visible above the popup: paged backends zoom and pan,
+        // continuous ones scroll the minimum. A comfortable block is left untouched.
+        //
+        // Only the "popup below the block" case needs the page moved (and only a block that already
+        // reaches the lower band does). A block low on the screen leaves no room below, so the popup
+        // goes **above** it instead - and the block is already where it needs to be, so no zoom or
+        // scroll happens. That is exactly the bottom-edge case that used to zoom to a degenerate
+        // target and dismiss itself.
+        val fraction = popupLowerFraction()
+        val overlayHeight = state.overlaySize.height.toFloat()
+        if (overlayHeight > 0f &&
+            popupSide(
+                screen.top,
+                screen.bottom,
+                overlayHeight,
+                overlayHeight * fraction,
+            ) == PopupSide.Below
+        ) {
+            if (currentViewport.fitBlockAbove(screen, fraction)) {
+                state.popupGraceUntil = SystemClock.uptimeMillis() + POPUP_GRACE_MS
+            }
+        }
+        // KUN <--
+        return true
+    }
+
+    // KUN -->
+    /**
+     * The fraction of the viewport height the dictionary popup will cover, from the same sizing
+     * (screen-relative baseline scaled by the size preference) `DictionaryPopup` uses.
+     */
+    private fun popupLowerFraction(): Float {
+        val overlayHeightPx = state.overlaySize.height
+        if (overlayHeightPx <= 0) return 0f
+        val popupHeightPx = dictionaryPopupHeightPx()
+        if (popupHeightPx <= 0f) return 0f
+        // Relative to the overlay the fit itself measures in, so the band the block is moved to
+        // matches the region the popup actually occupies.
+        return (popupHeightPx / overlayHeightPx).coerceIn(0f, 1f)
+    }
+
+    /** The dictionary popup's height in px, from the same sizing `DictionaryPopup` uses. */
+    private fun dictionaryPopupHeightPx(): Float {
+        val config = context.resources.configuration
+        val size = DictionaryPopupSizing.resolve(
+            screenWidthDp = config.screenWidthDp,
+            screenHeightDp = config.screenHeightDp,
+            percent = dictionaryPreferences.popupSizePercent().get(),
+            overrideWidthDp = dictionaryPreferences.popupWidth().get(),
+            overrideHeightDp = dictionaryPreferences.popupHeight().get(),
+        )
+        return size.heightDp * context.resources.displayMetrics.density
+    }
+    // KUN <--
+
+    // KUN -->
+    /** The OCR block under [overlayPoint], or null when the viewport has none there. */
+    private fun findBlockAt(overlayPoint: Offset): OcrTextBlock? {
+        val currentViewport = state.viewport ?: return null
+        val hit = currentViewport.screenToImageNormalized(overlayPoint.x, overlayPoint.y) ?: return null
+        return findBlock(hit)
+    }
+
+    private fun findBlock(hit: ImagePoint): OcrTextBlock? {
+        val pageBlocks = blockLoader.blocksFor(hit.page)
+        if (pageBlocks.isEmpty()) return null
+        return OcrHitTester.findBlock(pageBlocks, hit.image.x, hit.image.y) { it.toBounds() }
+    }
+    // KUN <--
+
+    /**
+     * Re-maps the active lookup's block to the current viewport every frame so the popup follows
+     * page turns, zoom and scroll instead of staying at the position it opened at.
+     *
+     * When the block's page is no longer on screen - or the block itself has been scrolled fully
+     * off the overlay - the lookup is dismissed (the popup must never be left stuck over a different
+     * page or pinned to an edge for an off-screen block).
+     */
+    private fun updatePopupAnchor(viewport: OcrViewport, pages: List<ReaderPage>, overlaySize: IntSize) {
+        val active = state.activeBlock.value ?: return
+        val page = pages.firstOrNull { it.ocrKey() == active.first }
+        val rect = page?.let { viewport.imageNormalizedToScreen(it, active.second.toRectF()) }
+        if (rect != null && rect.isOnScreen(overlaySize)) {
+            popupAnchor.rect.value = rect
+        } else if (rect == null || SystemClock.uptimeMillis() >= state.popupGraceUntil) {
+            dictionaryHost.dismiss()
+            // KUN --> Undo the "keep the block visible" fit; the adapter keeps the user's own
+            // position when they moved the view manually.
+            viewport.restoreFit()
+            // KUN <--
+            state.activeBlock.value = null
+            popupAnchor.clear()
+        }
+        // KUN --> The `else` (no branch taken) is the settle grace: a momentarily off-screen rect is
+        // ignored so the popup we just placed cannot dismiss itself mid-move (see popupGraceUntil).
+        // KUN <--
+    }
+
+    /** True while any part of [rect] is inside the overlay. A not-yet-measured overlay keeps it. */
+    private fun RectF.isOnScreen(overlaySize: IntSize): Boolean {
+        if (overlaySize.width <= 0 || overlaySize.height <= 0) return true
+        return right > 0f && bottom > 0f &&
+            left < overlaySize.width && top < overlaySize.height
+    }
+
+    private fun OcrTextBlock.toRectF(): RectF = RectF(xmin, ymin, xmax, ymax)
+
+    private fun OcrTextBlock.toBounds(): OcrNormalizedBounds = OcrNormalizedBounds(
+        left = xmin,
+        top = ymin,
+        right = xmax,
+        bottom = ymax,
+    )
+
+    private companion object {
+        private const val DEFAULT_LANGUAGE = "ja"
+
+        // KUN --> Long enough to cover the paged fit animation (220 ms) plus a few frames of the
+        // popup settling, short enough that a genuinely scrolled-away block still dismisses promptly.
+        private const val POPUP_GRACE_MS = 600L
+        // KUN <--
+    }
+}
+
+// KUN -->
+/**
+ * The [Activity] behind this context, or null when there is none.
+ *
+ * `LocalContext.current` is usually the Activity, but not always — Compose hands down a
+ * `ContextThemeWrapper`, a host may pass its own wrapped context, and the overlay only needs to
+ * *ask* the activity one question (`isChangingConfigurations`). A plain `as? Activity` then answers
+ * "no activity" for a context that is merely wrapped, and the caller's rotation guard reads
+ * `null != true` as "this is a real destroy": a rotation with an open lookup would dismiss the popup
+ * it exists to keep, invisibly. Unwrapping `ContextWrapper.baseContext` finds the Activity instead.
+ */
+internal fun Context.findActivity(): Activity? {
+    var current: Context = this
+    while (current is ContextWrapper) {
+        if (current is Activity) return current
+        current = current.baseContext
+    }
+    return null
+}
+// KUN <--

@@ -57,13 +57,13 @@ class ReaderOcrOverlayWiringTest {
         // Exactly one overlay call site: a second one — the shape this replaced was the same call as
         // the Box's last sibling — would paint over the chrome again, and no ordering assert below
         // could see which of the two is which.
-        occurrences(source, Regex.fromLiteral("readerOcrHost.Overlay(")) shouldBe 1
+        occurrences(source, Regex.fromLiteral("ocrSession?.Overlay(")) shouldBe 1
 
         // The root Box is the one painting the reader background: `Box(` alone would also match any
         // Box composed before it, which would make the containment assert below pass vacuously.
         val rootBox = indexOfCall(source, ".background(backgroundColor)")
         val contentOverlay = indexOfCall(source, "ReaderContentOverlay(")
-        val overlay = indexOfCall(source, "readerOcrHost.Overlay(")
+        val overlay = indexOfCall(source, "ocrSession?.Overlay(")
         val navigationOverlay = indexOfCall(source, "ReaderNavigationOverlay(state = navigationOverlayState)")
         val appBars = indexOfCall(source, "AppBars(state = state)")
 
@@ -115,9 +115,9 @@ class ReaderOcrOverlayWiringTest {
         val source = readerActivity()
 
         val hitTests = listOf(
-            "readerOcrHost.hitsBlock(",
-            "readerOcrHost.onPageLongPress(",
-            "readerOcrHost.onPageSingleTap(",
+            "ocrSession?.hitsBlock(",
+            "ocrSession?.onPageLongPress(",
+            "ocrSession?.onPageSingleTap(",
         )
         // Each entry point exists exactly once, so "the guard before this call" is unambiguous.
         hitTests.forEach { occurrences(source, Regex.fromLiteral(it)) shouldBe 1 }
@@ -165,8 +165,8 @@ class ReaderOcrOverlayWiringTest {
 
     /**
      * The viewport the hit test maps taps through is recorded by `Overlay`, so it must be dropped
-     * when the overlay leaves composition — `detach()` only runs when the reader goes away, and is
-     * skipped across a configuration change.
+     * when the overlay leaves composition — closing the session only happens when the reader goes
+     * away, and a recreation is not that.
      *
      * The same disposal is where an open lookup has to be closed: turning the overlay off removes
      * the per-frame loop (`updatePopupAnchor`) that dismisses a popup and undoes its "keep the block
@@ -180,9 +180,9 @@ class ReaderOcrOverlayWiringTest {
      * satisfied by the disposal block.
      */
     @Test
-    fun `the host drops the recorded viewport and closes the open lookup when the overlay leaves composition`() {
+    fun `the session drops the recorded viewport and closes the open lookup when the overlay leaves composition`() {
         val source = File(
-            "src/main/java/eu/kanade/tachiyomi/ui/reader/ocr/impl/ReaderOcrHostImpl.kt",
+            "src/main/java/eu/kanade/tachiyomi/ui/reader/ocr/impl/ReaderOcrSessionImpl.kt",
         ).readText().withoutComments()
 
         val overlay = functionBody(source, "override fun Overlay(")
@@ -190,13 +190,14 @@ class ReaderOcrOverlayWiringTest {
         // The clear is identity-conditional: a rotation disposes the old composition after the new
         // one recorded its viewport, and an unconditional clear would blank that one.
         overlay shouldContainSource (
-            """if\s*\(\s*this@ReaderOcrHostImpl\s*\.\s*viewport\s*===\s*latestViewport\s*\.\s*value\s*\)"""
+            """if\s*\(\s*state\s*\.\s*viewport\s*===\s*latestViewport\s*\.\s*value\s*\)"""
             )
-        // The recorded viewport is written in exactly one place inside `Overlay`, and it is that
-        // `= null`: no other assignment (in particular none that writes `viewport` back) competes
-        // with the disposal.
-        occurrences(overlay, Regex("""this@ReaderOcrHostImpl\s*\.\s*viewport\s*=(?!=)""")) shouldBe 1
-        occurrences(overlay, Regex("""this@ReaderOcrHostImpl\s*\.\s*viewport\s*=\s*null""")) shouldBe 1
+        // Inside `Overlay` the viewport is written in exactly two places: the composition record
+        // (a `SideEffect`, never the compose phase) and that `= null`. No third assignment - in
+        // particular none that writes a viewport back - competes with the disposal.
+        occurrences(overlay, Regex("""state\s*\.\s*viewport\s*=(?!=)""")) shouldBe 2
+        occurrences(overlay, Regex("""state\s*\.\s*viewport\s*=\s*null""")) shouldBe 1
+        occurrences(overlay, Regex("""SideEffect\s*\{\s*state\s*\.\s*viewport\s*=\s*viewport\s*\}""")) shouldBe 1
 
         // An open lookup is dismissed and its fit undone on the same exit...
         overlay shouldContainSource """dictionaryHost\s*\.\s*isOpen\(\s*\)"""
@@ -210,6 +211,51 @@ class ReaderOcrOverlayWiringTest {
         // a rotation dismiss the very popup it protects.
         overlay shouldContainSource """hostActivity\s*=\s*LocalContext\s*\.\s*current\s*\.\s*findActivity\(\)"""
         overlay shouldNotContainSource """LocalContext\s*\.\s*current\s+as\?\s+Activity"""
+    }
+
+    /**
+     * The OCR session is per reader, so the activity that creates it must be the one that closes it:
+     * created once in `onCreate`, closed in `onDestroy` on **every** destroy — a configuration change
+     * included, where `close(recreating = true)` hands the open lookup to the session the recreated
+     * reader creates — and never on the chapter-switch path, which only resets the chapter's state.
+     *
+     * This is the shape that replaced an app-graph singleton holding the current viewport, active
+     * block and popup anchor and cleared by remembering to call `detach()`: a session nobody closes
+     * leaks the reader's state, a second one is never closed at all, and a close behind
+     * `if (!isChangingConfigurations)` is the rotation path quietly dropping the popup it exists to
+     * keep. Sliced to the lifecycle bodies, so a create or close moved to another method fails.
+     */
+    @Test
+    fun `the reader activity creates one OCR session and closes it on every destroy`() {
+        val source = readerActivity()
+
+        val onCreate = functionBody(source, "override fun onCreate(")
+        val onDestroy = functionBody(source, "override fun onDestroy(")
+        val onNewIntent = functionBody(source, "override fun onNewIntent(")
+
+        // One session per reader, created by the activity itself, before the Compose tree that
+        // composes the overlay is installed (a null session there would silently draw no overlay).
+        occurrences(source, Regex("""readerOcrHost\s*\.\s*newSession\(\)""")) shouldBe 1
+        onCreate shouldContainSource """ocrSession\s*=\s*readerOcrHost\s*\.\s*newSession\(\)"""
+        assertTrue(
+            indexOfCall(onCreate, "readerOcrHost.newSession()") <
+                indexOfCall(onCreate, "setComposeContent"),
+            "the OCR session must exist before the Compose tree that composes its overlay",
+        )
+
+        // Closed on *every* destroy: the rotation case is an argument, not a guard that skips it.
+        onDestroy shouldContainSource (
+            """ocrSession\s*\?\s*\.\s*close\(\s*recreating\s*=\s*isChangingConfigurations\s*\)"""
+            )
+        onDestroy shouldNotContainSource """if\s*\(\s*!\s*isChangingConfigurations\s*\)"""
+
+        // The chapter switch inside a live reader resets the chapter's state and nothing else.
+        onNewIntent shouldContainSource """ocrSession\s*\?\s*\.\s*reset\(\s*\)"""
+        onNewIntent shouldNotContainSource """\.\s*close\("""
+
+        // The app-scoped host only hands out sessions: no other call site may reach it, and none may
+        // hold onto a session beyond the field the activity closes.
+        occurrences(source, Regex("""readerOcrHost\s*\.""")) shouldBe 1
     }
 
     private companion object {

@@ -214,18 +214,21 @@ class OcrPolicySourceWiringTest {
     }
 
     @Test
-    fun `the reader detaches the OCR host on exit but not across a configuration change`() {
+    fun `the reader closes its OCR session on every exit, handing it to a recreated reader`() {
         val readerActivity = app("ui/reader/ReaderActivity.kt")
         val onDestroy = functionBody(readerActivity, "override fun onDestroy()")
 
-        // The OCR/dictionary hosts are app-graph singletons: the popup anchor (and the page its
-        // screenshot provider captured) must be released when the reader exits for good...
-        onDestroy shouldContainSource """readerOcrHost\.detach\(\)"""
-        // ...but not while the activity is recreated for a rotation, where the open popup survives.
-        onDestroy shouldContainSource """!isChangingConfigurations"""
+        // The session owns the popup anchor (and the page its screenshot provider captured), so it
+        // must be released when the reader exits — on *every* destroy, with the rotation case passed
+        // as a reason rather than used to skip the release, or a rotation would drop the open popup
+        // it exists to keep...
+        onDestroy shouldContainSource
+            """ocrSession\s*\?\s*\.\s*close\(\s*recreating\s*=\s*isChangingConfigurations\s*\)"""
+        // ...which is what the old `if (!isChangingConfigurations) …detach()` shape could not express.
+        onDestroy shouldNotContainSource """if\s*\(\s*!\s*isChangingConfigurations\s*\)"""
 
         // Not asserted: that the callback ordering (after `super.onDestroy()`) is safe, or that the
-        // host's `detach()` really clears the anchor - `ReaderOcrPopupAnchorTest` covers that part.
+        // session's `close` really clears the anchor — `ReaderOcrPopupAnchorTest` covers that part.
     }
 
     @Test
