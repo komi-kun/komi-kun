@@ -2,6 +2,7 @@
 package mihon.core.dictionary.ui
 
 import android.os.Build
+import android.util.Log
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import kotlinx.coroutines.CoroutineDispatcher
@@ -37,6 +38,15 @@ class DictionaryReadyBridge(
                                 return
                             }
                             stateProvider()?.onContentReady?.invoke()
+                            // KUN --> One line per ready post, logged after the callback restored the
+                            // surface: the entry count that was drawn and the alpha it now has.
+                            Log.i(
+                                "DictionaryRender",
+                                "webview_ready entry_count=${state.payloadBridge.rawEntryJsons.size} " +
+                                    "payload_len=${state.payloadBridge.rawPayloadJson.length} " +
+                                    "alpha=${webView.alpha}",
+                            )
+                            // KUN <--
                         }
                     },
                 )
@@ -45,6 +55,22 @@ class DictionaryReadyBridge(
             }
         }
     }
+
+    // KUN -->
+    /**
+     * The renderer's caught render exception, handed to Kotlin instead of dying in a JS console no
+     * device can show. Runs on the JavaBridge thread; the callback is posted to the main thread
+     * because it updates Compose state and the WebView's alpha.
+     */
+    @JavascriptInterface
+    fun reportRenderError(message: String?) {
+        val text = message?.take(2_000).orEmpty()
+        Log.e("DictionaryRender", "js_render_error=$text")
+        val webView = webViewProvider() ?: return
+        val state = stateProvider() ?: return
+        webView.post { stateProvider()?.onRenderError?.invoke(text) }
+    }
+    // KUN <--
 }
 
 /**

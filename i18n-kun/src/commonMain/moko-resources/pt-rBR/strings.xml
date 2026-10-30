@@ -60,6 +60,8 @@
     <string name="pref_dict_revision_label">rev %1$s</string>
     <string name="dictionary_no_dictionaries">Nenhum dicionário disponível. Importe ou ative um em Configurações → Dicionários.</string>
     <string name="dictionary_no_results">Nenhum resultado para “%1$s”</string>
+    <string name="dictionary_idle_hint">Digite uma palavra e toque em pesquisar.</string>
+    <string name="dictionary_render_error">Não foi possível exibir esta entrada. O texto pode estar incompleto.</string>
     <string name="dictionary_selection_hint">Toque e segure o texto para selecioná-lo</string>
     <string name="dictionary_selection_hint_dismiss">Dispensar</string>
     <string name="pref_dict_delete">Excluir dicionário</string>
@@ -84,6 +86,8 @@
     <string name="pref_dict_popup_swipe_threshold">Distância de deslizamento para fechar</string>
     <string name="pref_dict_custom_css">CSS personalizado</string>
     <string name="pref_dict_custom_css_summary">Injetar CSS personalizado no renderizador do dicionário</string>
+    <string name="pref_dict_custom_css_reset">Redefinir CSS personalizado</string>
+    <string name="pref_dict_custom_css_reset_summary">Limpar o CSS personalizado para que as entradas usem os estilos padrão</string>
     <string name="pref_dict_theme_pure_black">Preto puro</string>
     <string name="pref_dict_layout">Layout</string>
     <string name="pref_dict_typography">Tipografia</string>

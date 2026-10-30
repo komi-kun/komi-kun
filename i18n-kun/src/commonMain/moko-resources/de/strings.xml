@@ -60,6 +60,8 @@
     <string name="pref_dict_revision_label">rev %1$s</string>
     <string name="dictionary_no_dictionaries">Keine Wörterbücher verfügbar. Importiere oder aktiviere eines unter Einstellungen \u2192 Wörterbücher.</string>
     <string name="dictionary_no_results">Keine Ergebnisse für \u201c%1$s\u201d</string>
+    <string name="dictionary_idle_hint">Gib ein Wort ein und tippe auf Suchen.</string>
+    <string name="dictionary_render_error">Dieser Eintrag konnte nicht dargestellt werden. Der Text ist möglicherweise unvollständig.</string>
     <string name="dictionary_selection_hint">Text lange gedrückt halten, um ihn auszuwählen</string>
     <string name="dictionary_selection_hint_dismiss">Schließen</string>
     <string name="pref_dict_delete">Wörterbuch löschen</string>
@@ -84,6 +86,8 @@
     <string name="pref_dict_popup_swipe_threshold">Wisch-Distanz zum Schließen</string>
     <string name="pref_dict_custom_css">Benutzerdefiniertes CSS</string>
     <string name="pref_dict_custom_css_summary">Benutzerdefiniertes CSS in den Wörterbuch-Renderer einbinden</string>
+    <string name="pref_dict_custom_css_reset">Benutzerdefiniertes CSS zurücksetzen</string>
+    <string name="pref_dict_custom_css_reset_summary">Benutzerdefiniertes CSS löschen, damit Einträge mit den Standardstilen dargestellt werden</string>
     <string name="pref_dict_theme_pure_black">Reines Schwarz</string>
     <string name="pref_dict_layout">Layout</string>
     <string name="pref_dict_typography">Typografie</string>
