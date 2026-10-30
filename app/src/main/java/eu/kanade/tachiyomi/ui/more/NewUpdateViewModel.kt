@@ -20,6 +20,7 @@ import eu.kanade.tachiyomi.data.updater.AppUpdateDownloadJob
 import eu.kanade.tachiyomi.extension.util.ExtensionInstaller
 import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.network.ProgressListener
+import eu.kanade.tachiyomi.util.lang.Hash
 import eu.kanade.tachiyomi.util.storage.getUriCompat
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -32,6 +33,7 @@ import logcat.LogPriority
 import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.core.common.util.system.logcat
 import java.io.File
+import java.io.IOException
 
 @AssistedInject
 class NewUpdateViewModel(
@@ -40,6 +42,9 @@ class NewUpdateViewModel(
     // KUN <--
     @Assisted changelogInfo: String,
     @Assisted private val downloadLink: String,
+    // KUN -->
+    @Assisted private val digest: String? = null,
+    // KUN <--
     private val context: Context,
     private val preferences: BasePreferences,
     private val network: NetworkHelper,
@@ -54,6 +59,7 @@ class NewUpdateViewModel(
             versionName: String,
             changelogInfo: String,
             downloadLink: String,
+            digest: String? = null,
         ): NewUpdateViewModel
         // KUN <--
     }
@@ -81,14 +87,36 @@ class NewUpdateViewModel(
     // [AppUpdateDownloadJob]. When that already landed, the screen must offer Install instead of a
     // redundant download; an outdated APK from a previous update must be cleaned up, but in-progress
     // or unparsed downloads must not be clobbered while AppUpdateDownloadJob is running.
-    internal fun checkCachedApk() {
+    internal fun checkCachedApk() = synchronized(this) {
         if (!apkFile.isFile || apkFile.length() == 0L) return
+        val expectedSha256 = Hash.extractSha256(digest)
+        if (expectedSha256 != null) {
+            val actualSha256 = try {
+                Hash.sha256(apkFile)
+            } catch (_: Exception) {
+                return
+            }
+            if (actualSha256.equals(expectedSha256, ignoreCase = true)) {
+                val archiveInfo = getApkPackageInfo(apkFile)
+                if (archiveInfo != null && archiveInfo.packageName == context.packageName) {
+                    state.update { it.copy(downloadProgress = 100, stage = Stage.Downloaded) }
+                    return
+                }
+            }
+            if (!AppUpdateDownloadJob.isRunning() && downloadJob?.isActive != true) {
+                apkFile.delete()
+            }
+            return
+        }
+
         val archiveInfo = getApkPackageInfo(apkFile) ?: return
         if (isMatchingUpdate(archiveInfo, versionName)) {
             state.update { it.copy(downloadProgress = 100, stage = Stage.Downloaded) }
         } else {
             // Stale update APK from an older release; delete it
-            apkFile.delete()
+            if (!AppUpdateDownloadJob.isRunning() && downloadJob?.isActive != true) {
+                apkFile.delete()
+            }
         }
     }
 
@@ -116,6 +144,22 @@ class NewUpdateViewModel(
             apkVersion.substringAfterLast('-') == cleanTarget ||
             apkVersion.endsWith("-$cleanTarget")
     }
+
+    internal fun verifyDownloadedApk(file: File): Boolean {
+        if (!file.isFile || file.length() == 0L) return false
+        val archiveInfo = getApkPackageInfo(file) ?: return false
+        if (archiveInfo.packageName != context.packageName) return false
+        val expectedSha256 = Hash.extractSha256(digest)
+        if (expectedSha256 != null) {
+            val actualSha256 = try {
+                Hash.sha256(file)
+            } catch (_: Exception) {
+                return false
+            }
+            return actualSha256.equals(expectedSha256, ignoreCase = true)
+        }
+        return isMatchingUpdate(archiveInfo, versionName)
+    }
     // KUN <--
 
     private var downloadJob: Job? = null
@@ -132,6 +176,13 @@ class NewUpdateViewModel(
                 throw e
             } catch (e: Exception) {
                 logcat(LogPriority.ERROR, e)
+                // KUN -->
+                withIOContext {
+                    if (apkFile.isFile && !verifyDownloadedApk(apkFile)) {
+                        apkFile.delete()
+                    }
+                }
+                // KUN <--
                 state.update { it.copy(stage = Stage.Failed) }
             }
         }
@@ -152,7 +203,7 @@ class NewUpdateViewModel(
 
                 val progress = (100 * (bytesRead.toFloat() / contentLength)).toInt()
                 val currentTime = System.currentTimeMillis()
-                if (progress > savedProgress && currentTime - 200 > lastTick) {
+                if (progress != savedProgress && currentTime - 200 > lastTick) {
                     savedProgress = progress
                     lastTick = currentTime
                     state.update { it.copy(downloadProgress = progress) }
@@ -161,9 +212,17 @@ class NewUpdateViewModel(
         }
 
         // KUN -->
-        // Komikku's resumable downloader (retry + `Range` request) instead of Mihon's
-        // newCachelessCallWithProgress + saveTo pair; [AppUpdateDownloadJob] downloads through it too.
-        network.downloadFileWithResume(downloadLink, apkFile, progressListener)
+        // Komikku's resumable downloader (retry + `Range` request) with checksum verification
+        network.downloadFileWithResume(downloadLink, apkFile, progressListener, expectedDigest = digest)
+
+        val archiveInfo = getApkPackageInfo(apkFile)
+        val expectedSha256 = Hash.extractSha256(digest)
+        val isValid = archiveInfo != null && archiveInfo.packageName == context.packageName &&
+            (expectedSha256 != null || isMatchingUpdate(archiveInfo, versionName))
+        if (!isValid) {
+            apkFile.delete()
+            throw IOException("Downloaded file is not a valid APK for ${context.packageName}")
+        }
         // KUN <--
     }
 

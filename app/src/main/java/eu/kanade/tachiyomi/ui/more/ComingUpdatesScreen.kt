@@ -15,6 +15,9 @@ class ComingUpdatesScreen(
     private val changelogInfo: String,
     private val releaseLink: String,
     private val downloadLink: String,
+    // KUN -->
+    private val digest: String? = null,
+    // KUN <--
 ) : Screen() {
 
     @Composable
@@ -35,6 +38,9 @@ class ComingUpdatesScreen(
                     context = context,
                     url = downloadLink,
                     title = versionName,
+                    // KUN -->
+                    digest = digest,
+                    // KUN <--
                 )
                 navigator.pop()
             },

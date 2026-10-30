@@ -25,6 +25,7 @@ import eu.kanade.tachiyomi.BuildConfig
 import eu.kanade.tachiyomi.data.notification.Notifications
 import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.network.ProgressListener
+import eu.kanade.tachiyomi.util.lang.Hash
 import eu.kanade.tachiyomi.util.storage.getUriCompat
 import eu.kanade.tachiyomi.util.system.connectivityManager
 import eu.kanade.tachiyomi.util.system.isConnectedToWifi
@@ -110,6 +111,9 @@ class AppUpdateDownloadJob(private val context: Context, workerParams: WorkerPar
 
         val url = inputData.getString(EXTRA_DOWNLOAD_URL)
         val title = inputData.getString(EXTRA_DOWNLOAD_TITLE) ?: context.stringResource(MR.strings.app_name)
+        // KUN -->
+        val digest = inputData.getString(EXTRA_DOWNLOAD_DIGEST)
+        // KUN <--
 
         if (url.isNullOrEmpty()) {
             return Result.failure()
@@ -121,8 +125,10 @@ class AppUpdateDownloadJob(private val context: Context, workerParams: WorkerPar
         // KMK <--
 
         return try {
-            withIOContext { downloadApk(title, url) }
+            // KUN -->
+            withIOContext { downloadApk(title, url, digest) }
             Result.success(workDataOf(PROGRESS to 100, EXTRA_DOWNLOAD_URL to url))
+            // KUN <--
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
@@ -158,7 +164,9 @@ class AppUpdateDownloadJob(private val context: Context, workerParams: WorkerPar
      *
      * @param url url location of file
      */
-    private suspend fun downloadApk(title: String, url: String) = coroutineScope {
+    // KUN -->
+    private suspend fun downloadApk(title: String, url: String, digest: String? = null) = coroutineScope {
+        // KUN <--
         // Show notification download starting.
         with(notifier) {
             onDownloadStarted(title)
@@ -204,7 +212,9 @@ class AppUpdateDownloadJob(private val context: Context, workerParams: WorkerPar
             val apkFile = updateApk(context)
 
             // KMK -->
-            network.downloadFileWithResume(url, apkFile, progressListener)
+            // KUN -->
+            network.downloadFileWithResume(url, apkFile, progressListener, expectedDigest = digest)
+            // KUN <--
             if (isStopped) {
                 cancel()
                 return@coroutineScope
@@ -221,6 +231,13 @@ class AppUpdateDownloadJob(private val context: Context, workerParams: WorkerPar
             }
         } catch (e: Exception) {
             xLogE("App update stopped:", e)
+            // KUN -->
+            val apkFile = updateApk(context)
+            val expectedSha256 = Hash.extractSha256(digest)
+            if (apkFile.isFile && expectedSha256 != null && !Hash.sha256(apkFile).equals(expectedSha256, ignoreCase = true)) {
+                apkFile.delete()
+            }
+            // KUN <--
             val shouldCancel = e is CancellationException ||
                 isStopped ||
                 (e is StreamResetException && e.errorCode == ErrorCode.CANCEL)
@@ -228,10 +245,14 @@ class AppUpdateDownloadJob(private val context: Context, workerParams: WorkerPar
                 notifier.cancel()
             } else {
                 notifier.onDownloadError(
-                    url,
+                    url = url,
                     // KMK -->
-                    e.message,
+                    error = e.message,
                     // KMK <--
+                    // KUN -->
+                    title = title,
+                    digest = digest,
+                    // KUN <--
                 )
             }
         }
@@ -310,8 +331,16 @@ class AppUpdateDownloadJob(private val context: Context, workerParams: WorkerPar
         // KMK -->
         const val EXTRA_DOWNLOAD_TITLE = "DOWNLOAD_TITLE"
         // KMK <--
+        // KUN -->
+        const val EXTRA_DOWNLOAD_DIGEST = "DOWNLOAD_DIGEST"
+
+        fun isRunning(): Boolean = instance?.get() != null
+        // KUN <--
 
         // KMK -->
+        // KUN -->
+        @Volatile
+        // KUN <--
         private var instance: WeakReference<AppUpdateDownloadJob>? = null
         // KMK <--
 
@@ -321,6 +350,9 @@ class AppUpdateDownloadJob(private val context: Context, workerParams: WorkerPar
             context: Context,
             url: String,
             title: String? = null,
+            // KUN -->
+            digest: String? = null,
+            // KUN <--
             // KMK -->
             scheduled: Boolean = false,
             // KMK <--
@@ -331,6 +363,9 @@ class AppUpdateDownloadJob(private val context: Context, workerParams: WorkerPar
             val data = Data.Builder()
             data.putString(EXTRA_DOWNLOAD_URL, url)
             data.putString(EXTRA_DOWNLOAD_TITLE, title)
+            // KUN -->
+            data.putString(EXTRA_DOWNLOAD_DIGEST, digest)
+            // KUN <--
             val request = OneTimeWorkRequestBuilder<AppUpdateDownloadJob>()
                 .addTag(TAG)
                 .apply {

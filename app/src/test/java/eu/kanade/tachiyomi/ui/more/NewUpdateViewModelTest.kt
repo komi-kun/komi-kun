@@ -173,5 +173,118 @@ class NewUpdateViewModelTest {
         }
         viewModel.isMatchingUpdate(wrongPkgInfo, "v1.14.1") shouldBe false
     }
+
+    @Test
+    fun `when cached apk matches target version and matching digest stage is Downloaded`() {
+        apkFile.writeText("valid apk content")
+        val expectedSha256 = eu.kanade.tachiyomi.util.lang.Hash.sha256("valid apk content")
+
+        val matchingPackageInfo = PackageInfo().apply {
+            packageName = "app.komikun.beta"
+            versionName = "1.14.1-10695"
+        }
+        @Suppress("DEPRECATION")
+        every { packageManager.getPackageArchiveInfo(apkFile.absolutePath, 0) } returns matchingPackageInfo
+
+        val viewModel = NewUpdateViewModel(
+            versionName = "r10695",
+            changelogInfo = "Changelog",
+            downloadLink = "https://example.com/update.apk",
+            digest = "sha256:$expectedSha256",
+            context = context,
+            preferences = preferences,
+            network = network,
+        )
+        viewModel.checkCachedApk()
+
+        viewModel.state.value.stage shouldBe NewUpdateViewModel.Stage.Downloaded
+        viewModel.state.value.downloadProgress shouldBe 100
+        apkFile.exists() shouldBe true
+    }
+
+    @Test
+    fun `when cached apk matches target version but digest mismatches it is deleted and stage is Available`() {
+        apkFile.writeText("corrupted apk content")
+
+        val matchingPackageInfo = PackageInfo().apply {
+            packageName = "app.komikun.beta"
+            versionName = "1.14.1-10695"
+        }
+        @Suppress("DEPRECATION")
+        every { packageManager.getPackageArchiveInfo(apkFile.absolutePath, 0) } returns matchingPackageInfo
+
+        val viewModel = NewUpdateViewModel(
+            versionName = "r10695",
+            changelogInfo = "Changelog",
+            downloadLink = "https://example.com/update.apk",
+            digest = "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+            context = context,
+            preferences = preferences,
+            network = network,
+        )
+        viewModel.checkCachedApk()
+
+        viewModel.state.value.stage shouldBe NewUpdateViewModel.Stage.Available
+        apkFile.exists() shouldBe false
+    }
+
+    @Test
+    fun `verifyDownloadedApk validates both checksum and package info`() {
+        apkFile.writeText("sample apk")
+        val validHash = eu.kanade.tachiyomi.util.lang.Hash.sha256("sample apk")
+
+        val matchingPackageInfo = PackageInfo().apply {
+            packageName = "app.komikun.beta"
+            versionName = "1.14.1-10695"
+        }
+        @Suppress("DEPRECATION")
+        every { packageManager.getPackageArchiveInfo(apkFile.absolutePath, 0) } returns matchingPackageInfo
+
+        val viewModelWithMatchingDigest = NewUpdateViewModel(
+            versionName = "r10695",
+            changelogInfo = "Changelog",
+            downloadLink = "https://example.com/update.apk",
+            digest = "sha256:$validHash",
+            context = context,
+            preferences = preferences,
+            network = network,
+        )
+        viewModelWithMatchingDigest.verifyDownloadedApk(apkFile) shouldBe true
+
+        val viewModelWithMismatchingDigest = NewUpdateViewModel(
+            versionName = "r10695",
+            changelogInfo = "Changelog",
+            downloadLink = "https://example.com/update.apk",
+            digest = "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            context = context,
+            preferences = preferences,
+            network = network,
+        )
+        viewModelWithMismatchingDigest.verifyDownloadedApk(apkFile) shouldBe false
+    }
+
+    @Test
+    fun `when digest matches verifyDownloadedApk accepts valid package even if version heuristic differs`() {
+        apkFile.writeText("sample apk with unusual version")
+        val validHash = eu.kanade.tachiyomi.util.lang.Hash.sha256("sample apk with unusual version")
+
+        val packageInfo = PackageInfo().apply {
+            packageName = "app.komikun.beta"
+            versionName = "1.14.1-custom-build"
+        }
+        @Suppress("DEPRECATION")
+        every { packageManager.getPackageArchiveInfo(apkFile.absolutePath, 0) } returns packageInfo
+
+        val viewModel = NewUpdateViewModel(
+            versionName = "v1.14.1",
+            changelogInfo = "Changelog",
+            downloadLink = "https://example.com/update.apk",
+            digest = "sha256:$validHash",
+            context = context,
+            preferences = preferences,
+            network = network,
+        )
+        viewModel.verifyDownloadedApk(apkFile) shouldBe true
+    }
 }
 // KUN <--

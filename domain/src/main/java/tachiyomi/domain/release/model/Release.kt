@@ -12,4 +12,7 @@ data class Release(
     val preRelease: Boolean = false,
     val draft: Boolean = false,
     // KMK <--
+    // KUN -->
+    val digest: String? = null,
+    // KUN <--
 )

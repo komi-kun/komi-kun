@@ -34,7 +34,8 @@ class ReleaseServiceImpl(
             }
         }
 
-        val downloadLink = getDownloadLink(release = release, isFoss = arguments.isFoss) ?: return null
+        // KUN -->
+        val asset = getMatchingAsset(release = release, isFoss = arguments.isFoss) ?: return null
 
         return Release(
             version = release.version,
@@ -42,8 +43,10 @@ class ReleaseServiceImpl(
                 "[${mention.value}](https://github.com/${mention.value.substring(1)})"
             },
             releaseLink = release.releaseLink,
-            downloadLink = downloadLink,
+            downloadLink = asset.downloadLink,
+            digest = asset.digest,
         )
+        // KUN <--
     }
 
     // KMK -->
@@ -54,7 +57,8 @@ class ReleaseServiceImpl(
                 .awaitSuccess()
                 .parseAs<List<GithubRelease>>()
                 .mapNotNull { release ->
-                    val downloadLink = getDownloadLink(release = release, isFoss = arguments.isFoss) ?: return@mapNotNull null
+                    // KUN -->
+                    val asset = getMatchingAsset(release = release, isFoss = arguments.isFoss) ?: return@mapNotNull null
 
                     Release(
                         version = release.version,
@@ -73,20 +77,23 @@ class ReleaseServiceImpl(
                             },
                         // KMK <--
                         releaseLink = release.releaseLink,
-                        downloadLink = downloadLink,
+                        downloadLink = asset.downloadLink,
                         // KMK -->
                         preRelease = release.preRelease,
                         draft = release.draft,
                         // KMK <--
+                        digest = asset.digest,
                     )
+                    // KUN <--
                 }
         }
     }
     // KMK <--
 
-    private fun getDownloadLink(release: GithubRelease, isFoss: Boolean): String? {
-        val map = release.assets.associate { asset ->
-            BUILD_TYPES.find { "-$it" in asset.name } to asset.downloadLink
+    // KUN -->
+    private fun getMatchingAsset(release: GithubRelease, isFoss: Boolean): GitHubAsset? {
+        val map = release.assets.associateBy { asset ->
+            BUILD_TYPES.find { "-$it" in asset.name }
         }
 
         return if (!isFoss) {
@@ -95,6 +102,7 @@ class ReleaseServiceImpl(
             map[FOSS]
         }
     }
+    // KUN <--
 
     companion object {
         private const val FOSS = "foss"

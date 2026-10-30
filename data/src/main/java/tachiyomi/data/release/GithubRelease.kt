@@ -32,4 +32,7 @@ data class GitHubAsset(
     val name: String,
     @SerialName("browser_download_url")
     val downloadLink: String,
+    // KUN -->
+    val digest: String? = null,
+    // KUN <--
 )

@@ -16,6 +16,9 @@ class NewUpdateScreen(
     private val changelogInfo: String,
     private val releaseLink: String,
     private val downloadLink: String,
+    // KUN -->
+    private val digest: String? = null,
+    // KUN <--
 ) : Screen() {
 
     @Composable
@@ -23,7 +26,12 @@ class NewUpdateScreen(
         val navigator = LocalNavigator.currentOrThrow
         val context = LocalContext.current
         val viewModel = assistedMetroViewModel<NewUpdateViewModel, NewUpdateViewModel.Factory> {
-            create(versionName = versionName, changelogInfo = changelogInfo, downloadLink = downloadLink)
+            create(
+                versionName = versionName,
+                changelogInfo = changelogInfo,
+                downloadLink = downloadLink,
+                digest = digest,
+            )
         }
         val state by viewModel.state.collectAsState()
 

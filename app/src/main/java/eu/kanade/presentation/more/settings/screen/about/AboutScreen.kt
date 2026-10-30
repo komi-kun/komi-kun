@@ -142,6 +142,9 @@ class AboutScreen : Screen() {
                                                     changelogInfo = result.release.info,
                                                     releaseLink = result.release.releaseLink,
                                                     downloadLink = result.release.downloadLink,
+                                                    // KUN -->
+                                                    digest = result.release.digest,
+                                                    // KUN <--
                                                 )
                                                 navigator.push(updateScreen)
                                             },
@@ -219,6 +222,9 @@ class AboutScreen : Screen() {
                                                     changelogInfo = result.release.info,
                                                     releaseLink = result.release.releaseLink,
                                                     downloadLink = result.release.downloadLink,
+                                                    // KUN -->
+                                                    digest = result.release.digest,
+                                                    // KUN <--
                                                 )
                                                 navigator.push(updateScreen)
                                             },
