@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package eu.kanade.tachiyomi.ui.dictionary
 
-import android.os.SystemClock
-import android.util.Log
-import androidx.compose.foundation.layout.Box
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,7 +10,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
@@ -36,15 +33,9 @@ import cafe.adriel.voyager.navigator.tab.TabOptions
 import eu.kanade.core.preference.asState
 import eu.kanade.presentation.util.Tab
 import eu.kanade.tachiyomi.ui.home.DictionaryTabNavigationPolicy
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import mihon.app.di.appGraph
-import mihon.core.dictionary.model.getDictionaryPaths
 import mihon.core.dictionary.ui.KanaConverter
 import mihon.core.dictionary.ui.KanaInputConversion
-import mihon.core.dictionary.ui.buildKanjiEntryJsonStrings
-import mihon.core.dictionary.ui.orderLookupResultsForDisplay
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.Close
 import mihon.icons.materialsymbols.rounded.Search
@@ -106,18 +97,28 @@ data object DictionaryTab : Tab {
             }
         }
         // KUN <--
-        val repository = remember(context) { context.appGraph.dictionaryRepository }
         val prefs = remember(context) { context.appGraph.dictionaryPreferences }
-        val scope = rememberCoroutineScope()
         val focusManager = LocalFocusManager.current
 
         var textFieldValue by remember { mutableStateOf(TextFieldValue("")) }
-        var frame by remember { mutableStateOf<LookupFrame?>(null) }
-        var loading by remember { mutableStateOf(false) }
         val profile = remember { prefs.profileStore.getActiveProfile() }
         val autoKanaConversion by prefs.autoKanaConversion().collectAsState()
         val isJapanese = profile.languageCode == "ja" || profile.languageCode.isEmpty()
         val autoKana = isJapanese && autoKanaConversion
+
+        // KUN -->
+        val lookupState = rememberDictionaryLookupState(profile, logTag = "tab")
+
+        BackHandler(enabled = lookupState.canGoBack) {
+            lookupState.back()
+        }
+
+        LaunchedEffect(lookupState.current?.query) {
+            val activeQuery = lookupState.current?.query
+            if (activeQuery != null && activeQuery != textFieldValue.text) {
+                textFieldValue = TextFieldValue(activeQuery, TextRange(activeQuery.length))
+            }
+        }
 
         fun search(query: String) {
             if (query.isBlank()) return
@@ -130,103 +131,9 @@ data object DictionaryTab : Tab {
             if (effective != textFieldValue.text) {
                 textFieldValue = TextFieldValue(effective, TextRange(effective.length))
             }
-            // KUN -->
-            // Read once, outside the lookup, so the diagnostics line can report what the lookup
-            // was actually allowed to search (it is cached and cheap; the composable already calls
-            // it on every pass).
-            val paths = getDictionaryPaths(context, profile)
-            val startedAt = SystemClock.elapsedRealtime()
-            // KUN <--
-            loading = true
-            scope.launch {
-                // KUN -->
-                // `loading` is all that stands between the user and a permanently blank pane: the
-                // WebView is cleared (alpha 0) while it is set and only a finished lookup turns it
-                // back on, so a cancellation (leaving the tab) or a throw used to strand the flag
-                // at `true` — no entries, no spinner, no message. The `finally` is the guarantee;
-                // the assignment after `frame = result` only ends the spinner before the off-path
-                // media reload.
-                // KUN <--
-                try {
-                    val result = withContext(Dispatchers.Default) {
-                        // KUN --> Kanji lookup path
-                        if (effective.length == 1 && isKanji(effective.first()) && paths.kanjiPaths.isNotEmpty()) {
-                            val kanjiChar = effective.first().toString()
-                            val kanjiResult = repository.queryKanji(kanjiChar)
-                            if (kanjiResult != null && kanjiResult.entries.isNotEmpty()) {
-                                val entryJsons = buildKanjiEntryJsonStrings(kanjiResult)
-                                val mediaDataUris = withContext(Dispatchers.IO) {
-                                    repository.loadMediaAsync(emptyList(), kanjiResult)
-                                }
-                                return@withContext LookupFrame(
-                                    query = effective,
-                                    results = emptyList(),
-                                    styles = emptyList(),
-                                    mediaDataUris = mediaDataUris,
-                                    entryJsons = entryJsons,
-                                )
-                            }
-                        }
-                        // KUN <--
-                        val lookup = repository.lookup(effective, paths, profile.languageCode)
-                        val ordered = orderLookupResultsForDisplay(
-                            lookup.results,
-                            profile,
-                            context,
-                            displayNameProvider = { prefs.getDisplayName(it) },
-                        )
-                        // KUN --> Fallback to kanji if single kanji character yielded no term results
-                        if (ordered.isEmpty() && effective.length == 1 && isKanji(effective.first()) && paths.kanjiPaths.isNotEmpty()) {
-                            val kanjiResult = repository.queryKanji(effective.first().toString())
-                            if (kanjiResult != null && kanjiResult.entries.isNotEmpty()) {
-                                val entryJsons = buildKanjiEntryJsonStrings(kanjiResult)
-                                val mediaDataUris = withContext(Dispatchers.IO) {
-                                    repository.loadMediaAsync(emptyList(), kanjiResult)
-                                }
-                                return@withContext LookupFrame(
-                                    query = effective,
-                                    results = emptyList(),
-                                    styles = emptyList(),
-                                    mediaDataUris = mediaDataUris,
-                                    entryJsons = entryJsons,
-                                )
-                            }
-                        }
-                        val breakdown = findCompoundBreakdown(effective, ordered, paths, repository, profile.languageCode)
-                        val finalResults = if (breakdown.isNotEmpty()) ordered + breakdown else ordered
-                        val mediaDataUris = if (finalResults.isNotEmpty()) {
-                            withContext(Dispatchers.IO) { repository.loadMediaAsync(finalResults) }
-                        } else {
-                            emptyMap()
-                        }
-                        // KUN <--
-                        LookupFrame(effective, finalResults, lookup.styles, mediaDataUris)
-                    }
-                    frame = result
-                    loading = false
-                    // KUN --> One line per lookup: what came back, what the lookup was allowed to
-                    // search, and how long it took. The blank-pane report had no such evidence.
-                    Log.i(
-                        "DictionaryLookup",
-                        "tab_lookup query=$effective results=${result.results.size} " +
-                            "entry_jsons=${result.entryJsons?.size ?: 0} " +
-                            "term_paths=${paths.termPaths.size} kanji_paths=${paths.kanjiPaths.size} " +
-                            "elapsed_ms=${SystemClock.elapsedRealtime() - startedAt}",
-                    )
-                    // KUN <--
-                    // KUN --> Asynchronous media reload/update off critical path
-                    if (result.results.isNotEmpty()) {
-                        val media = withContext(Dispatchers.IO) { repository.loadMediaAsync(result.results) }
-                        if (media.isNotEmpty() && media != result.mediaDataUris) {
-                            frame = frame?.let { if (it === result) it.copy(mediaDataUris = media) else it }
-                        }
-                    }
-                    // KUN <--
-                } finally {
-                    loading = false
-                }
-            }
+            lookupState.lookup(effective, resetPath = true)
         }
+        // KUN <--
 
         Column(
             modifier = Modifier
@@ -285,7 +192,9 @@ data object DictionaryTab : Tab {
                             IconButton(
                                 onClick = {
                                     textFieldValue = TextFieldValue("")
-                                    frame = null
+                                    // KUN -->
+                                    lookupState.clear()
+                                    // KUN <--
                                 },
                             ) {
                                 Icon(
@@ -300,61 +209,15 @@ data object DictionaryTab : Tab {
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 keyboardActions = KeyboardActions(onSearch = { search(textFieldValue.text) }),
             )
-            Box(modifier = Modifier.weight(1f)) {
-                // KUN -->
-                // A first-run tab (no dictionary installed) or a query with no hits used to render a
-                // blank surface because the placeholder was hard-coded to ""; share the popup's
-                // decision instead. Kanji frames carry entry JSONs but no term results, and a tab
-                // nobody has searched yet says how to search rather than nothing at all.
-                val activeFrame = frame
-                val dictionaryPaths = getDictionaryPaths(context, profile)
-                val hasDictionaries = dictionaryPaths.hasAnyDictionaries()
-                val hasDrawableContent = activeFrame.hasRenderableContent()
-                val placeholder = dictionaryPlaceholder(
-                    hasDictionaries = hasDictionaries,
-                    loading = loading,
-                    query = activeFrame?.query,
-                    hasContent = hasDrawableContent,
-                )
-                // Rendered at composition time so the line reports the inputs the decision was
-                // actually made from, not whatever `loading` had become by the time it ran.
-                val placeholderDiagnostics = "state=$placeholder has_dictionaries=$hasDictionaries " +
-                    "loading=$loading has_content=$hasDrawableContent"
-                LaunchedEffect(placeholderDiagnostics) {
-                    // One line per decision, not per frame.
-                    Log.i("DictionaryLookup", "tab_placeholder $placeholderDiagnostics")
-                }
-                // KUN <--
-                DictionaryEntryWebView(
-                    results = frame?.results.orEmpty(),
-                    styles = frame?.styles.orEmpty(),
-                    mediaDataUris = frame?.mediaDataUris.orEmpty(),
-                    // KUN --> A real empty state instead of the hard-coded "".
-                    placeholder = placeholder.text(),
-                    // KUN <--
-                    activeProfile = profile,
-                    // KUN -->
-                    fontSize = prefs.fontSize().get(),
-                    entryJsons = frame?.entryJsons,
-                    customCss = prefs.customCss().get(),
-                    onRecursiveLookup = { q, _, _, _, _, _ ->
-                        textFieldValue = TextFieldValue(q, TextRange(q.length))
-                        search(q)
-                    },
-                    // On the dictionary search screen, volume keys must adjust media volume (for word audio),
-                    // not scroll the entry list.
-                    volumeKeyNavigationAllowed = { false },
-                    // KUN <--
-                    isLoading = loading,
-                    modifier = Modifier.fillMaxSize(),
-                )
-                // KUN --> A lookup in flight has no entries yet; the pane is cleared meanwhile, so
-                // show progress instead of the blank it would otherwise be.
-                if (loading) {
-                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-                }
-                // KUN <--
-            }
+            // KUN -->
+            DictionaryLookupPane(
+                state = lookupState,
+                profile = profile,
+                modifier = Modifier.weight(1f),
+                onRecursiveLookupInitiated = { focusManager.clearFocus() },
+                volumeKeyNavigationAllowed = { false },
+            )
+            // KUN <--
         }
     }
 }
