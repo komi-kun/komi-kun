@@ -23,6 +23,10 @@
 #   allowlisted        a forward declaration missing in every ABI, allow-listed   -> PASS + warning
 #   annotated-inline   `@JvmName(…)` on the declaration line                      -> FAIL loudly
 #   annotated-above    `@JvmName(…)` on its own line                              -> FAIL loudly
+#   annotated-modifiers  several annotations above a one-line, modified declaration -> PASS
+#                      (the split-`external` check must not fire on it)
+#   external-split     `external` on its own line, `fun …` on the next            -> FAIL loudly,
+#                      instead of reporting "OK: 1" while that native is unchecked
 #   variant-both       correct Debug tree + newer Release tree                    -> PASS (reads Debug)
 #   variant-release-only  only a Release tree present                            -> FAIL loudly instead
 #                      of validating a build the Gradle task does not produce
@@ -223,6 +227,15 @@ run_case allowlisted "$FIXTURE_DIR/cases/allowlisted" 0 \
 # (e) An `external fun` the parser cannot read must fail loudly, never drop out of the gate.
 run_case annotated-inline "$FIXTURE_DIR/cases/annotated-inline" 2 "were not parsed"
 run_case annotated-above "$FIXTURE_DIR/cases/annotated-above" 2 "JVM-name annotation"
+
+# The normal annotated shape still parses: this is the control for the split-`external` check below,
+# which must fire on a split modifier list and on nothing else.
+run_case annotated-modifiers "$FIXTURE_DIR/cases/annotated-modifiers" 0 "verify-jni-symbols: OK: 1"
+
+# A split modifier list (`external`, then `fun …` on the next line) leaves no `external fun` token:
+# the raw-vs-parsed count cannot see it, so without its own check the gate says "OK: 1" and exits 0
+# while `nativeSplit` is checked by nothing.
+run_case external-split "$FIXTURE_DIR/cases/external-split" 2 "split a declaration across lines"
 
 # The Debug artifact the Gradle task depends on is what gets read…
 run_case variant-both "$FIXTURE_DIR/cases/variant-both" 0 "verify-jni-symbols: OK"

@@ -22,20 +22,26 @@
 #   2. reads the *exported dynamic* symbols of each module's `.so` for **every** ABI the module
 #      declares in its `abiFilters` (NDK `llvm-nm --defined-only --dynamic`, GNU `nm -D` as fallback)
 #      and requires every declared symbol in **each** ABI. Per-ABI, not a union: a union would let one
-#      ABI's export hide another ABI's drift. A short ABI is named individually in the failure;
+#      ABI's export hide another ABI's drift. A short ABI is named individually in the failure. The
+#      ABI *set* is the union of every `abiFilters += listOf(…)` in the module file — a second list
+#      can only widen what is checked, never narrow it — and an `abiFilters` this cannot read is an
+#      error, not a guess;
 #   3. fails, naming the Kotlin declaration site, when a declared `external fun` has no exported
 #      counterpart in an ABI; exports with no Kotlin declaration are reported as warnings;
 #   4. fails when it finds an `external fun` it did *not* parse (a raw token count per file, compared
 #      with the parsed declarations): a declaration the parser cannot read must never drop silently
 #      out of the gate, and an annotation that renames the JVM entry point (`@JvmName`) is changed by
-#      the JVM, not by us — so `@JvmName` is **rejected**, not honoured.
+#      the JVM, not by us — so `@JvmName` is **rejected**, not honoured. A split modifier list (a line
+#      that is just `external`, with `fun …` on the next line) is likewise rejected, not read: there
+#      is no `external fun` token for the raw count to see, so it would otherwise disappear entirely.
 #
 # What it does NOT cover (and cannot, by name lookup alone):
 #   * **Signature drift.** The `__<signature>` suffix exists only for *overloaded* natives; the JVM
 #     binds a non-overloaded native method by name alone, so changing `Int` -> `Long`, reordering two
 #     parameters of the same type, or changing the C++ implementation behind an unchanged export keeps
-#     every name intact and passes this gate. That is covered behaviourally (the module unit tests) or
-#     by `-Xcheck:jni` on a device — not here.
+#     every name intact and passes this gate. Nothing on the host covers it: the module unit tests
+#     never load the `.so` (they are Android-ABI binaries a host JVM cannot link), so the only
+#     mitigation is device-side — `-Xcheck:jni`, or a behavioural test running on a device.
 #   * **Arity of the exported implementation** (a C++ function that matches the name but takes other
 #     arguments). Same reason; same mitigation.
 #
@@ -216,11 +222,10 @@ declarations_in() {
   ' "$1"
 }
 
-# external_fun_lines FILE — every line holding an `external fun` token sequence in *code* (line and
-# block comments stripped), as `<line> \t <code text>`. Compared against declarations_in's output:
-# an occurrence the parser did not record is a declaration that would otherwise drop silently out of
-# the gate, so the caller fails on it.
-external_fun_lines() {
+# code_lines FILE — every line of FILE as `<line> \t <code text>`, with `//` and `/* */` comments
+# stripped. Comment text is not code: an `external fun` (or a bare `external`) inside a KDoc/`//`
+# remark must never be mistaken for a declaration.
+code_lines() {
   awk '
     BEGIN { blk = 0 }
     {
@@ -242,9 +247,46 @@ external_fun_lines() {
           else { out = out substr(s, i); i = n + 1 }
         }
       }
-      if (out ~ /(^|[^A-Za-z0-9_])external[[:space:]]+fun([^A-Za-z0-9_]|$)/) printf "%d\t%s\n", NR, out
+      printf "%d\t%s\n", NR, out
     }
   ' "$1"
+}
+
+# code_of LINE_RECORD — the code text of one `code_lines` record (`<line> \t <code>`).
+code_of() {
+  local rest="${1#*$'\t'}"
+  printf '%s' "$rest"
+}
+
+# external_fun_lines FILE — every line holding an `external fun` token sequence in *code*, as
+# `<line> \t <code text>`. Compared against declarations_in's output: an occurrence the parser did
+# not record is a declaration that would otherwise drop silently out of the gate, so the caller fails
+# on it.
+external_fun_lines() {
+  local record
+  while IFS= read -r record; do
+    [[ "$(code_of "$record")" =~ (^|[^A-Za-z0-9_])external[[:space:]]+fun([^A-Za-z0-9_]|$) ]] &&
+      printf '%s\n' "$record"
+  done < <(code_lines "$1")
+  return 0
+}
+
+# split_external_lines FILE — lines whose *code* puts `external` and `fun` on different lines (a line
+# that is just `external`, or ends with it). `declarations_in()` reads one line at a time, so that
+# declaration is invisible to it — and `external_fun_lines()` needs both tokens on one line, so the
+# raw-vs-parsed count cannot see it either. The declaration would therefore vanish from the gate
+# entirely, which is exactly what the coverage checks exist to prevent: the caller fails on it.
+split_external_lines() {
+  local record code
+  while IFS= read -r record; do
+    code="$(code_of "$record")"
+    # A declaration the parser does read is not a split one.
+    [[ "$code" =~ (^|[^A-Za-z0-9_.])external[[:space:]]+fun([^A-Za-z0-9_]|$) ]] && continue
+    # `external` as a keyword: not part of a qualified name (`a.external`), not inside an identifier,
+    # and not a quoted string literal (`"external"` in a log message is prose, not a declaration).
+    [[ "$code" =~ (^|[^A-Za-z0-9_."])external([^A-Za-z0-9_"]|$) ]] && printf '%s\n' "$record"
+  done < <(code_lines "$1")
+  return 0
 }
 
 # declaration_text FILE LINE — the declaration, with continuation lines, up to the closing paren.
@@ -454,15 +496,35 @@ declare -A MODULE_GRADLE=(
   [ocr]="core/ocr/build.gradle.kts"
 )
 
+# abis_of MODULE — every ABI the module declares, as the *union* of all its `abiFilters += listOf(…)`
+# lists. Joining the file and keeping one match would let a second list (a per-variant or per-flavour
+# `abiFilters +=`) silently narrow "every declared ABI"; a union can only widen the checked set, so a
+# missing ABI is never hidden by a later list. A shape this cannot read (`abiFilters +=` with anything
+# but `listOf(…)`) is an error, not a guess — for the same reason: the ABIs it mentioned would go
+# unchecked.
 abis_of() {
-  local module="$1" gradle="${MODULE_GRADLE[$1]}"
+  local module="$1" gradle="${MODULE_GRADLE[$1]}" joined filters readable lists abis
   if [[ -n "${VERIFY_JNI_ABIS:-}" ]]; then
     printf '%s\n' $VERIFY_JNI_ABIS
     return 0
   fi
-  tr '\n' ' ' <"$gradle" |
-    sed -n -E 's/.*abiFilters[[:space:]]*\+=[[:space:]]*listOf\(([^)]*)\).*/\1/p' |
-    grep -oE '"[^"]+"' | tr -d '"'
+  # `//` comments are not declarations: the prose around the list often quotes the shape itself.
+  joined="$(sed -E 's://.*::' "$gradle" | tr '\n' ' ')"
+  filters="$(printf '%s' "$joined" | grep -o 'abiFilters' | wc -l)"
+  lists="$(printf '%s' "$joined" | grep -oE 'abiFilters[[:space:]]*\+=[[:space:]]*listOf\([^)]*\)' || true)"
+  readable="$(printf '%s' "$lists" | grep -c 'abiFilters' || true)"
+  if [[ "$filters" -ne "$readable" ]]; then
+    err "cannot read every 'abiFilters' in $gradle: found $filters reference(s) but only $readable as"
+    err "  'abiFilters += listOf(\"…\")'. A list this cannot parse would silently narrow 'every declared"
+    err "  ABI', so it is an error rather than a fallback (VERIFY_JNI_ABIS overrides the list)."
+    return 1
+  fi
+  abis="$(printf '%s\n' "$lists" | grep -oE '"[^"]+"' | tr -d '"' | awk '!seen[$0]++')"
+  if [[ -z "$abis" ]]; then
+    err "cannot read the ABI list from $gradle (abiFilters += listOf(...))"
+    return 1
+  fi
+  printf '%s\n' "$abis"
 }
 
 # locate_lib MODULE ABI — the *Debug* library path for one ABI, or empty.
@@ -516,6 +578,7 @@ declare -A METHOD_LINE=()
 
 UNPARSED=()
 RENAMED=()
+SPLIT_EXTERNAL=()
 
 for module in "${MODULES[@]}"; do
   SOURCES=(${MODULE_SOURCES[$module]})
@@ -553,17 +616,38 @@ for module in "${MODULES[@]}"; do
       [[ "$parsed_lines" == *" $line "* ]] && continue
       UNPARSED+=("$file:$line"$'\t'"$text")
     done < <(external_fun_lines "$file")
+    # A split modifier list (`external` on one line, `fun …` on the next) produces no `external fun`
+    # token, so the count above cannot see it — it is caught here instead, and refused rather than
+    # guessed at.
+    while IFS=$'\t' read -r line text; do
+      [[ -z "$line" ]] && continue
+      SPLIT_EXTERNAL+=("$file:$line"$'\t'"$text")
+    done < <(split_external_lines "$file")
   done < <(find "${SOURCES[@]}" -name '*.kt' -not -path '*/build/*' | sort)
 done
+
+if [[ "${#SPLIT_EXTERNAL[@]}" -gt 0 ]]; then
+  err "${#SPLIT_EXTERNAL[@]} 'external' line(s) split a declaration across lines, so it would silently"
+  err "escape the gate (there is no 'external fun' token for the coverage count to see):"
+  for entry in "${SPLIT_EXTERNAL[@]}"; do
+    err "  ${entry%%$'\t'*}: $(code_of "$entry" | sed -E 's/^[[:space:]]+//')"
+  done
+  err "Write the whole declaration on one line — modifiers, then 'external fun <name>(' … ')' — which"
+  err "is the shape declarations_in() reads. This gate refuses a declaration it cannot read; it never"
+  err "drops one."
+  exit 2
+fi
 
 if [[ "${#RENAMED[@]}" -gt 0 ]]; then
   err "${#RENAMED[@]} external fun(s) carry a JVM-name annotation, which this gate cannot derive:"
   for entry in "${RENAMED[@]}"; do
     err "  ${entry%%$'\t'*}: ${entry#*$'\t'}"
   done
-  err "An '@JvmName' renames the JVM entry point, so the derived symbol would be wrong. Honour it by"
-  err "hand (add the symbol to the allow-list with a reason) or drop the annotation; this gate rejects"
-  err "the declaration rather than guess."
+  err "An '@JvmName' renames the JVM entry point, so the derived symbol would be wrong. Remove the"
+  err "annotation: it cannot apply to a member function anyway, and the allow-list cannot clear this"
+  err "check — it is consulted only after this exit, and its entries are symbols this script never"
+  err "derives. If a renamed entry point is genuinely required, teach declarations_in() to read the"
+  err "annotation's value and derive the symbol from it (and add a fixture for that shape)."
   exit 2
 fi
 
@@ -611,7 +695,8 @@ ALLOWLISTED=0
 WARNINGS=()
 
 for module in "${MODULES[@]}"; do
-  abis=($(abis_of "$module"))
+  abi_list="$(abis_of "$module")" || exit 2
+  abis=($abi_list)
   if [[ "${#abis[@]}" -eq 0 ]]; then
     err "cannot read the ABI list from ${MODULE_GRADLE[$module]} (abiFilters += listOf(...))"
     exit 2
@@ -711,5 +796,6 @@ fi
 
 note "scope: symbol names per ABI (plus the __<signature> suffix for overloaded natives) — a changed"
 note "       parameter list or return type is NOT checked here; JNI binds a non-overloaded native by"
-note "       name alone, so cover signature drift with the module tests or '-Xcheck:jni' on a device."
+note "       name alone, so cover signature drift on a device ('-Xcheck:jni' or a behavioural test),"
+note "       never with the host unit tests: they do not load these Android-ABI libraries."
 note "OK: $CHECKED declared external fun(s) match an exported symbol in every ABI (${ALLOWLISTED} allow-listed, ${#WARNINGS[@]} warning(s))"
