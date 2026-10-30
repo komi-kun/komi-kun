@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import mihon.app.di.appGraph
 import mihon.core.dictionary.anki.AnkiMiningController
@@ -38,6 +39,8 @@ import mihon.core.dictionary.ui.buildConfigPayload
 import mihon.core.dictionary.ui.buildResultEntryJsonStrings
 import mihon.core.dictionary.ui.prepareDictionaryWebViewShell
 import tachiyomi.core.common.preference.AndroidPreferenceStore
+import tachiyomi.i18n.kun.KUNMR
+import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsState
 
 /**
@@ -181,8 +184,52 @@ fun DictionaryEntryWebView(
 
     var configPayloadPair by remember { mutableStateOf<Pair<String, DictionaryRenderSignature>?>(null) }
     var entryJsonsPair by remember { mutableStateOf<Pair<List<String>, DictionaryRenderSignature>?>(null) }
+    // KUN -->
+    /**
+     * Whether the surface currently admits to being painted. `false` from the moment a flush
+     * invalidates the content until the renderer's `contentReady` post arrives; the surface is
+     * `alpha = 0` for that window.
+     */
+    var contentReady by remember { mutableStateOf(true) }
+
+    /**
+     * A renderer failure worth telling the user about: the JS renderer's own caught exception text,
+     * or [RENDER_STALL_MARKER] when the ready post never came at all.
+     *
+     * The notice is written *into the page* (`showRenderNotice`) rather than drawn by Compose: a
+     * Compose `Text` under an `AndroidView` is painted before the interop `WebView` child, so the
+     * WebView covers it — verified on device, the text was there and invisible. Writing it into the
+     * document also keeps whatever partial content the renderer did draw on screen.
+     */
+    var renderFailure by remember { mutableStateOf<String?>(null) }
+    val webViewHolder = remember { mutableStateOf<WebView?>(null) }
+    val renderErrorMessage = stringResource(KUNMR.strings.dictionary_render_error)
     val currentConfigPayload = configPayloadPair
     val currentEntryJsons = entryJsonsPair
+    // A flush is only dispatched once both payloads for the current signature exist; before that
+    // the transparent surface is the expected "nothing sent yet" state, not a failure.
+    val flushDispatched = currentConfigPayload?.second == renderSignature &&
+        currentEntryJsons?.second == renderSignature
+    LaunchedEffect(contentReady, isLoading, renderSignature, flushDispatched) {
+        // Backstop for a renderer that never reports back. `renderer.js` posts `contentReady` from
+        // a `finally` now, but a document whose scripts failed to load at all cannot post anything,
+        // and that used to be indistinguishable from "still rendering": a permanently transparent
+        // surface with no message. Restore it and say what happened. `flushDispatched` (not "has
+        // entries") is the trigger, so the idle placeholder text is covered too.
+        if (contentReady || isLoading || !flushDispatched) return@LaunchedEffect
+        delay(RENDER_READY_BACKSTOP_MS)
+        if (!contentReady && !isLoading) {
+            val webView = webViewHolder.value
+            webView?.alpha = 1f
+            renderFailure = RENDER_STALL_MARKER
+            if (webView != null) showRenderNotice(webView, renderErrorMessage)
+            Log.w(
+                "DictionaryRender",
+                "ready_backstop timeout_ms=$RENDER_READY_BACKSTOP_MS results=${results.size} " +
+                    "entry_jsons=${entryJsons?.size ?: 0} alpha=${webView?.alpha}",
+            )
+        }
+    }
     LaunchedEffect(renderSignature) {
         val buildStart = SystemClock.elapsedRealtime()
         val built = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
@@ -241,15 +288,35 @@ fun DictionaryEntryWebView(
                 if (webView.tag !is DictionaryWebViewState) {
                     prepareDictionaryWebViewShell(ctx, webView, bootstrapHtml, backgroundColor.toArgb())
                 }
+                webViewHolder.value = webView
                 (webView.tag as? DictionaryWebViewState)?.let { state ->
                     state.onContentInvalidated = {
                         onContentReadyChange?.invoke(false)
+                        contentReady = false
+                        // KUN --> A notice belongs to the render that failed: every new render starts
+                        // without it. (Clearing it on `onContentReady` instead removed it immediately,
+                        // because the failing render still posts ready from its `finally`.)
+                        if (renderFailure != null) {
+                            renderFailure = null
+                            removeRenderNotice(webView)
+                        }
+                        // KUN <--
                         if (hideOnContentInvalidated) webView.alpha = 0f
                     }
                     state.onContentReady = {
                         onContentReadyChange?.invoke(true)
+                        contentReady = true
                         webView.alpha = 1f
                     }
+                    // KUN --> A JS render throw is now reported, not just printed to a console
+                    // nobody can read on a device.
+                    state.onRenderError = { message ->
+                        Log.e("DictionaryRender", "js_render_error=$message")
+                        renderFailure = message
+                        webView.alpha = 1f
+                        showRenderNotice(webView, renderErrorMessage)
+                    }
+                    // KUN <--
                     if (state.pageReady) state.flush(webView)
                 }
 
@@ -347,12 +414,29 @@ fun DictionaryEntryWebView(
                 state.fontSize = fontSize
                 state.onContentInvalidated = {
                     onContentReadyChange?.invoke(false)
+                    contentReady = false
+                    // KUN --> A notice belongs to the render that failed: see the factory's copy.
+                    if (renderFailure != null) {
+                        renderFailure = null
+                        removeRenderNotice(webView)
+                    }
+                    // KUN <--
                     if (hideOnContentInvalidated) webView.alpha = 0f
                 }
                 state.onContentReady = {
                     onContentReadyChange?.invoke(true)
+                    contentReady = true
                     webView.alpha = 1f
                 }
+                // KUN -->
+                state.onRenderError = { message ->
+                    Log.e("DictionaryRender", "js_render_error=$message")
+                    renderFailure = message
+                    webView.alpha = 1f
+                    showRenderNotice(webView, renderErrorMessage)
+                }
+                webViewHolder.value = webView
+                // KUN <--
 
                 webView.setBackgroundColor(backgroundColor.toArgb())
 
@@ -403,6 +487,10 @@ fun DictionaryEntryWebView(
                 state?.clear(webView)
                 state?.onContentInvalidated = null
                 state?.onContentReady = null
+                // KUN -->
+                state?.onRenderError = null
+                webViewHolder.value = null
+                // KUN <--
                 state?.lastPayload = null
                 state?.lastResults = null
                 state?.lastExistingExpressions = null
@@ -441,5 +529,49 @@ fun DictionaryEntryWebView(
                 // KUN <--
             },
         )
+        // KUN -->
+        // A render failure is written into the page by `showRenderNotice` (see its KDoc for why it
+        // is not a Compose overlay), so nothing is drawn here.
+        // KUN <--
     }
 }
+
+// KUN -->
+/** How long the surface waits for `contentReady` before restoring itself and saying so. */
+private const val RENDER_READY_BACKSTOP_MS = 1_000L
+
+/** `renderFailure` value for a renderer that never reported ready (as opposed to one that threw). */
+private const val RENDER_STALL_MARKER = "render_stalled"
+
+private const val RENDER_NOTICE_ID = "komikun-render-error"
+
+/**
+ * Show [message] inside the entry document, below whatever did render.
+ *
+ * A Compose `Text` cannot do this job: `AndroidView` interop `View`s are children of the Compose
+ * host and are drawn *after* the Compose canvas, so a `Text` under the `WebView` is invisible (this
+ * was verified on device — the text was composed, laid out, and covered). Injecting into the
+ * document also leaves genuinely partial content visible, which a scrim or an alpha swap would not.
+ */
+private fun showRenderNotice(webView: WebView, message: String) {
+    val text = org.json.JSONObject.quote(message)
+    webView.evaluateJavascript(
+        "(function(){" +
+            "var e=document.getElementById('$RENDER_NOTICE_ID');" +
+            "if(!e){e=document.createElement('div');e.id='$RENDER_NOTICE_ID';" +
+            "e.setAttribute('style','padding:24px;font-size:14px;line-height:1.5;opacity:.85;');" +
+            "(document.getElementById('entries')||document.body).appendChild(e);}" +
+            "e.textContent=$text;" +
+            "})();",
+        null,
+    )
+}
+
+/** Drop a previously injected [showRenderNotice] notice (idempotent). */
+private fun removeRenderNotice(webView: WebView) {
+    webView.evaluateJavascript(
+        "var e=document.getElementById('$RENDER_NOTICE_ID');if(e)e.remove();",
+        null,
+    )
+}
+// KUN <--

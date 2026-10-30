@@ -1298,6 +1298,20 @@
     });
   }
 
+  // Hand a caught render exception to the native side, which logs it to logcat and shows a
+  // visible fallback. Without this a throw only reached the WebView's JS console, which no device
+  // build surfaces.
+  function reportRenderError(error) {
+    try {
+      const text = error && (error.stack || error.message) ? String(error.stack || error.message) : String(error);
+      if (window.DictionaryReadyBridge && window.DictionaryReadyBridge.reportRenderError) {
+        window.DictionaryReadyBridge.reportRenderError(text.slice(0, 2000));
+      }
+    } catch (e) {
+      // Nothing more can be reported if the bridge itself is unavailable.
+    }
+  }
+
   function prewarmFonts() {
     if (!document.fonts) return;
     const loads = [];
@@ -3412,7 +3426,7 @@
       }
 
       const elapsed = Math.round(performance.now() - started);
-      postContentReady();
+      debugLog('render.done', {elapsed: elapsed});
       
       // Ensure recursive lookup tap listener is installed if enabled
       if (_lookupEnabled) {
@@ -3421,6 +3435,12 @@
     } catch (e) {
       console.error('[DictionaryRenderJS] CRITICAL RENDER ERROR:', e);
       if (e.stack) console.error(e.stack);
+      reportRenderError(e);
+    } finally {
+      // Always tell the native side the flush is over. This used to live at the end of the `try`,
+      // so a throw before it left the surface at `alpha = 0` forever — a blank pane with no
+      // message that was indistinguishable from "still rendering".
+      postContentReady();
     }
   }
 
@@ -3476,6 +3496,10 @@
         render(payload);
       } catch (e) {
         console.error('[DictionaryRenderJS] replacePopupResults error:', e.message);
+        reportRenderError(e);
+        // `render` posts `contentReady` from its own `finally`; a failure before it is reached
+        // (payload parse, bridge pull) would otherwise leave the surface transparent.
+        postContentReady();
       }
     },
 

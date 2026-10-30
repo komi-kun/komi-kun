@@ -57,6 +57,8 @@
     <string name="pref_dict_active_profile">활성 프로필: %1$s</string>
     <string name="dictionary_no_dictionaries">사용할 수 있는 사전이 없습니다. 설정 → 사전에서 사전을 가져오거나 활성화하세요.</string>
     <string name="dictionary_no_results">“%1$s”에 대한 검색 결과가 없습니다</string>
+    <string name="dictionary_idle_hint">단어를 입력하고 검색을 눌러 조회하세요.</string>
+    <string name="dictionary_render_error">이 항목을 표시할 수 없습니다. 텍스트가 불완전할 수 있습니다.</string>
     <string name="dictionary_selection_hint">텍스트를 길게 눌러 선택하세요</string>
     <string name="dictionary_selection_hint_dismiss">닫기</string>
     <string name="pref_dict_delete">사전 삭제</string>

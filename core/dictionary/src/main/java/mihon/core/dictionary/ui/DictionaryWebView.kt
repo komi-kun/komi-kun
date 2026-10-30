@@ -160,6 +160,10 @@ class DictionaryWebViewState(
     var onBack: (() -> Unit)? = null
     var onContentInvalidated: (() -> Unit)? = null
     var onContentReady: (() -> Unit)? = null
+    // KUN -->
+    /** The renderer's caught render exception (bridge: `DictionaryReadyBridge.reportRenderError`). */
+    var onRenderError: ((String) -> Unit)? = null
+    // KUN <--
     var lastPayload: String? = null
     var lastResults: List<LookupResult>? = null
     var lastExistingExpressions: Set<String>? = null
@@ -313,7 +317,14 @@ class DictionaryWebViewState(
             "}"
         webView.evaluateJavascript(js, null)
 
-        Log.i("DictionaryRender", "webview_dispatch_ms=${SystemClock.elapsedRealtime() - renderStart}")
+        // KUN --> One line per flush (flush only runs when the render signature changes): how much
+        // went out and whether the surface was still transparent when it did.
+        Log.i(
+            "DictionaryRender",
+            "webview_flush entry_count=${entries.size} payload_len=${p.length} " +
+                "alpha=${webView.alpha} dispatch_ms=${SystemClock.elapsedRealtime() - renderStart}",
+        )
+        // KUN <--
     }
 
     private fun updateAnkiStatus(webView: WebView, expressions: Set<String>) {
