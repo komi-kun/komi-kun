@@ -1298,6 +1298,23 @@
     });
   }
 
+  // The ready signal for work that is *not* a render: `prewarmFonts` and `updateMediaDataUris`
+  // change the frame without having drawn a dispatched entry, so they must not answer "this render
+  // painted". They used to call `postContentReady`, which let them mask a renderer that returned
+  // early (PayloadBridge missing, empty payload) — the surface stayed transparent and the native
+  // watchdog read the stray post as a successful render.
+  function postAuxiliaryReady() {
+    requestAnimationFrame(() => {
+      try {
+        if (window.DictionaryReadyBridge && window.DictionaryReadyBridge.auxiliaryReady) {
+          window.DictionaryReadyBridge.auxiliaryReady();
+        }
+      } catch (e) {
+        console.warn('[DictionaryRenderJS] auxiliaryReady bridge failed:', e);
+      }
+    });
+  }
+
   // Hand a caught render exception to the native side, which logs it to logcat and shows a
   // visible fallback. Without this a throw only reached the WebView's JS console, which no device
   // build surfaces.
@@ -1332,7 +1349,7 @@
       return;
     }
     if (!loads.length) return;
-    Promise.all(loads).then(postContentReady, postContentReady);
+    Promise.all(loads).then(postAuxiliaryReady, postAuxiliaryReady);
   }
 
   const POS_TAGS = new Set(['n', 'vs', 'vi', 'vt', 'adj-i', 'adj-na', 'adv', 'v1', 'v5k', 'v5s', 'v5m', 'v5n', 'v5r', 'v5t', 'exp', 'int']);
@@ -3584,7 +3601,7 @@
         document.querySelectorAll('.gloss-image-link[data-image-load-state="unloaded"]').forEach(link => {
           applyMediaToImageLink(link, map);
         });
-        postContentReady();
+        postAuxiliaryReady();
       } catch (e) {
         console.error('[DictionaryRenderJS] updateMediaDataUris error:', e);
       }

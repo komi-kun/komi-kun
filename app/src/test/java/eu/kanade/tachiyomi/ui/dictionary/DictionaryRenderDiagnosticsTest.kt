@@ -498,11 +498,11 @@ class DictionaryRenderDiagnosticsTest {
                 "#entries .kanji-gloss-content{display:block!important"
 
         for (reason in RENDER_GUARD_DEFINITION_REASONS) {
-            renderGuardScript(reason).contains(definitionRule).shouldBe(true)
+            renderGuardScript(setOf(reason)).contains(definitionRule).shouldBe(true)
         }
 
         for (reason in listOf("container_hidden", "body_hidden", "entry_hidden", "entry_zero_height")) {
-            val script = renderGuardScript(reason)
+            val script = renderGuardScript(setOf(reason))
             // No `display` rule for the definitions, and their nodes are not even queried...
             script.contains("gloss-content").shouldBe(false)
             script.contains(definitionRule).shouldBe(false)
@@ -512,6 +512,141 @@ class DictionaryRenderDiagnosticsTest {
             script.contains("querySelectorAll('#entries,#entries .entry')").shouldBe(true)
             script.contains("setProperty('visibility','visible','important')").shouldBe(true)
         }
+    }
+
+    /**
+     * The defect this pins: the decision returned the *first* problem only, so custom CSS that hides
+     * both `#entries` and `.gloss-content` reported `container_hidden`, injected a container-only
+     * guard, and left the glosses hidden — the headwords came back with nothing under them. Both
+     * levels have to be reported by one measurement, and the one guard built from them has to repair
+     * both.
+     */
+    @Test
+    fun `two hidden levels are both reported by one measurement`() {
+        val bothHidden = visible().copy(
+            containerDisplay = "none",
+            visibleDefinitions = 0,
+        )
+
+        renderVisibilityProblems(3, bothHidden).map { it.reason } shouldBe
+            listOf("container_hidden", "definitions_hidden")
+        // The outermost is still the first, so single-problem callers are unchanged.
+        renderVisibilityProblem(3, bothHidden) shouldBe
+            RenderVisibilityProblem("container_hidden", shouldGuard = true)
+
+        // One guard built from both reasons carries the container half *and* the definitions half,
+        // in one query: a second, quoted argument to `querySelectorAll` is ignored by the browser.
+        val script = renderGuardScript(setOf("container_hidden", "definitions_hidden"))
+        script.contains(
+            "querySelectorAll('#entries,#entries .entry,#entries .dictionary-group," +
+                "#entries .gloss-content,#entries .definition-list,#entries .kanji-gloss-content')",
+        ) shouldBe true
+        script.contains("#entries{height:auto!important") shouldBe true
+        script.contains(
+            "#entries .kanji-gloss-content{display:block!important;height:auto!important;",
+        ) shouldBe true
+    }
+
+    /** A container hidden under a hidden body is still two problems, and both are repaired. */
+    @Test
+    fun `a hidden body and a hidden container are reported together`() {
+        val hidden = visible().copy(bodyDisplay = "none", containerVisibility = "hidden")
+
+        renderVisibilityProblems(3, hidden).map { it.reason } shouldBe
+            listOf("body_hidden", "container_hidden")
+        // Neither touches the definitions, so the guard stays container-only.
+        val script = renderGuardScript(setOf("body_hidden", "container_hidden"))
+        script.contains("gloss-content") shouldBe false
+    }
+
+    /**
+     * Before layout, every rect is 0: the geometry checks would report hidden content that is merely
+     * unmeasured. Only the style-derived problems are trusted then, and their repair does not touch
+     * the definitions (whose invisibility cannot be told from "not laid out yet").
+     */
+    @Test
+    fun `an unlaid-out page reports the style problems and no geometry ones`() {
+        val unlaid = visible().copy(
+            layoutHeight = 0,
+            documentHeight = 0,
+            containerHeight = 0,
+            entryHeight = 0,
+            visibleDefinitions = 0,
+            bodyDisplay = "none",
+        )
+
+        renderVisibilityProblems(3, unlaid).map { it.reason } shouldBe
+            listOf("body_hidden", "layout_unmeasurable")
+        renderVisibilityProblems(3, unlaid).count { it.shouldGuard } shouldBe 1
+    }
+
+    /**
+     * A ready post that arrived *before* the dispatch was armed cannot be that dispatch's paint.
+     * The timestamp version credited it whenever the two landed in the same millisecond, which is how
+     * one prewarm/media ready settled the watch on a renderer that had returned early.
+     */
+    @Test
+    fun `a ready counted before the dispatch does not prove it painted`() {
+        val armed = RenderDispatch(seq = 1, generation = 0, readyPostCount = 4)
+
+        // The same count (a ready that was already there): not painted.
+        dispatchPainted(armed, generation = 0, readyPostCount = 4) shouldBe false
+        // One counted since: painted.
+        dispatchPainted(armed, generation = 0, readyPostCount = 5) shouldBe true
+        // A ready from the previous WebView's generation is not this dispatch's paint either.
+        dispatchPainted(armed, generation = 1, readyPostCount = 9) shouldBe false
+    }
+
+    /**
+     * The per-dispatch window is the *render* window (10 s), not the 3 s document-load window: a big
+     * entry that takes five seconds to paint must not be declared stalled, and the flat 3 s did
+     * exactly that (and the false failure could only be cleared by Retry).
+     */
+    @Test
+    fun `a slow but real render is inside the dispatched window`() {
+        RENDER_DISPATCH_TIMEOUT_MS shouldBe 10_000L
+
+        for (elapsed in listOf(3_500L, 5_000L, 9_000L, 9_999L)) {
+            renderWatchDecision(
+                pageReady = true,
+                renderDispatched = true,
+                renderReachedReady = false,
+                loading = false,
+                elapsedMs = elapsed,
+                windowMs = RENDER_DISPATCH_TIMEOUT_MS,
+                maxWaitMs = RENDER_WATCH_MAX_WAIT_MS,
+            ) shouldBe RenderWatchDecision(RenderWatchStep.WAIT)
+        }
+        // A render that really never finished is reported at the extended deadline, not before.
+        renderWatchDecision(
+            pageReady = true,
+            renderDispatched = true,
+            renderReachedReady = false,
+            loading = false,
+            elapsedMs = RENDER_DISPATCH_TIMEOUT_MS,
+            windowMs = RENDER_DISPATCH_TIMEOUT_MS,
+            maxWaitMs = RENDER_WATCH_MAX_WAIT_MS,
+        ) shouldBe RenderWatchDecision(RenderWatchStep.FAILED, SURFACE_REASON_RENDER_STALLED)
+        // And the document-load window is untouched: "never loaded" still fails at its own 3 s
+        // deadline, long before the render window (`RENDER_DISPATCH_TIMEOUT_MS` in the surface).
+        renderWatchDecision(
+            pageReady = false,
+            renderDispatched = false,
+            renderReachedReady = false,
+            loading = false,
+            elapsedMs = 3_100,
+            windowMs = 3_000,
+            maxWaitMs = RENDER_WATCH_MAX_WAIT_MS,
+        ) shouldBe RenderWatchDecision(RenderWatchStep.FAILED, SURFACE_REASON_NOT_READY)
+        renderWatchDecision(
+            pageReady = false,
+            renderDispatched = false,
+            renderReachedReady = false,
+            loading = false,
+            elapsedMs = 3_100,
+            windowMs = RENDER_DISPATCH_TIMEOUT_MS,
+            maxWaitMs = RENDER_WATCH_MAX_WAIT_MS,
+        ) shouldBe RenderWatchDecision(RenderWatchStep.WAIT)
     }
 
     /**

@@ -219,20 +219,25 @@ fun DictionaryEntryWebView(
     var pageReadySeen by remember { mutableStateOf(false) }
     var renderDispatched by remember { mutableStateOf(false) }
     var renderReachedReady by remember { mutableStateOf(false) }
+
+    // Every `contentReady` post this surface has seen, and it must stay **monotonic**: it is the
+    // counter a dispatch is judged against, so resetting it (on a WebView recreation, say) after a
+    // dispatch was armed would make that dispatch look unpainted forever. A stale generation's posts
+    // are dropped by the bridge before they get here, which is the only filtering needed.
     var readyPostCount by remember { mutableIntStateOf(0) }
 
-    // The last render payload handed to the document, and the moment of the last render that reached
-    // the screen. Timestamps rather than a counter snapshot: the ready post of a dispatch can land in
-    // the same frame the watch below is armed in, and a snapshot taken afterwards would count it as
-    // "not painted" and fail a render that already succeeded.
+    // The last render payload handed to the document, and how many ready posts had been counted when
+    // it was armed. A dispatch is painted only when a *later* ready post arrives (see
+    // `dispatchPainted`): a counter snapshot rather than a timestamp, because a ready can land in the
+    // same frame the watch is armed in and because the renderer posts ready from paths that are not
+    // renders — those go through `auxiliaryReady` and are not counted here at all.
     var lastDispatch by remember { mutableStateOf<RenderDispatch?>(null) }
-    var lastReadyAtMs by remember { mutableStateOf(0L) }
 
-    // Non-null when the surface has given up on this WebView (`SURFACE_REASON_NOT_READY`,
-    // `SURFACE_REASON_RENDER_STALLED` or, with `rendererExhausted`, a dead renderer). It is drawn by
-    // Compose *instead of* the `AndroidView`: a Compose `Text` composed under the interop `WebView`
-    // is painted first and covered by it, so a message can only be trusted if no WebView is composed
-    // at all. Retry recreates the WebView and re-dispatches the payload exactly once.
+    // Non-null when the surface has given up on the current dispatch (`webview_not_ready`,
+    // `render_stalled` or, with `rendererExhausted`, a dead renderer). It is drawn by Compose over a
+    // WebView that stays composed but invisible (`alpha = 0f`, input disabled) — not *instead of*
+    // it, which destroyed a working view on a false positive and made the failure permanent: a late
+    // render still clears this and hands the pane back (`onRenderReady`).
     var surfaceFailure by remember { mutableStateOf<String?>(null) }
 
     val webViewHolder = remember { mutableStateOf<WebView?>(null) }
@@ -284,10 +289,22 @@ fun DictionaryEntryWebView(
     fun onRenderReady(webView: WebView) {
         onContentReadyChange?.invoke(true)
         renderReachedReady = true
+        // Count first: the per-render watch below decides "this dispatch painted" from this counter,
+        // so a dispatch armed *after* this post must not be credited with it.
         readyPostCount++
-        // Timestamp first: the per-render watch below decides "this dispatch painted" from it.
-        lastReadyAtMs = SystemClock.elapsedRealtime()
         webView.alpha = 1f
+        // A render that finally lands hands the pane back: the surface kept this WebView composed
+        // (transparent and inert) exactly so a slow render could self-heal instead of needing Retry.
+        if (surfaceFailure != null) {
+            Log.i(
+                "DictionaryRender",
+                "webview_recovered reason=$surfaceFailure ready_posts=$readyPostCount " +
+                    "results=${results.size} entry_jsons=${entryJsons?.size ?: 0}",
+            )
+            surfaceFailure = null
+            webView.isEnabled = true
+            webView.isClickable = true
+        }
         // A notice belongs to the render that failed. The renderer posts `contentReady` from its
         // `finally`, so the ready post of a render that threw still carries that render's
         // generation and keeps its notice; any later ready ends clean instead of leaving a
@@ -298,6 +315,23 @@ fun DictionaryEntryWebView(
             removeRenderNotice(webView)
         }
         verifyRenderedVisibility(webView)
+    }
+
+    /**
+     * Give up on what the current dispatch has drawn *without* destroying the WebView: it stays
+     * composed, alive and scriptable but invisible and inert, and [onRenderReady] takes it back.
+     * Removing the `AndroidView` instead (the previous behaviour) destroyed the working view on a
+     * slow-but-real render and left only Retry as a way out.
+     */
+    fun showFailureSurface(reason: String) {
+        surfaceFailure = reason
+        webViewHolder.value?.let { webView ->
+            webView.alpha = 0f
+            // The message is drawn by Compose *behind* the (fully transparent) interop view, so the
+            // WebView must not eat the Retry tap.
+            webView.isEnabled = false
+            webView.isClickable = false
+        }
     }
 
     /**
@@ -345,8 +379,6 @@ fun DictionaryEntryWebView(
         pageReadySeen = false
         renderDispatched = false
         renderReachedReady = false
-        readyPostCount = 0
-        lastReadyAtMs = 0L
         surfaceFailure = null
         val start = SystemClock.elapsedRealtime()
         var extended = false
@@ -361,13 +393,17 @@ fun DictionaryEntryWebView(
             ) {
                 renderDispatched = true
             }
+            // A surface that has already dispatched a payload is judged on the *render* window, not
+            // the load window: painting a big entry takes longer than loading the shell, and the one
+            // window for both is what failed renders that were merely slow.
+            val windowMs = if (renderDispatched) RENDER_DISPATCH_TIMEOUT_MS else RENDER_NOT_READY_TIMEOUT_MS
             val decision = renderWatchDecision(
                 pageReady = pageReadySeen,
                 renderDispatched = renderDispatched,
                 renderReachedReady = renderReachedReady,
                 loading = loadingNow,
                 elapsedMs = elapsed,
-                windowMs = RENDER_NOT_READY_TIMEOUT_MS,
+                windowMs = windowMs,
                 maxWaitMs = RENDER_WATCH_MAX_WAIT_MS,
             )
             when (decision.step) {
@@ -389,11 +425,11 @@ fun DictionaryEntryWebView(
                         "DictionaryRender",
                         "webview_not_ready elapsed_ms=$elapsed page_ready=$pageReadySeen " +
                             "content_ready=$renderReachedReady ready_posts=$readyPostCount " +
-                            "reason=${decision.reason} loading=$loadingNow " +
+                            "reason=${decision.reason} loading=$loadingNow window_ms=$windowMs " +
                             "results=${results.size} entry_jsons=${entryJsons?.size ?: 0} " +
                             "generation=${webViewGeneration.intValue}",
                     )
-                    surfaceFailure = decision.reason
+                    showFailureSurface(decision.reason ?: SURFACE_REASON_NOT_READY)
                     return@LaunchedEffect
                 }
             }
@@ -421,10 +457,15 @@ fun DictionaryEntryWebView(
                 // is about the render: the load half is the creation-time watch's job.
                 pageReady = true,
                 renderDispatched = true,
-                renderReachedReady = lastReadyAtMs >= dispatch.atMs,
+                // Counted ready posts, not a timestamp: only a post counted *after* this dispatch was
+                // armed proves it painted, and a font prewarm or media patch cannot post one.
+                renderReachedReady = dispatchPainted(dispatch, webViewGeneration.intValue, readyPostCount),
                 loading = loadingNow,
                 elapsedMs = elapsed,
-                windowMs = RENDER_NOT_READY_TIMEOUT_MS,
+                // A dispatched render gets a longer window than a document load: a big entry with
+                // many glosses and images is slow but real, and failing it at the load window was
+                // the false positive that made a working pane report itself broken.
+                windowMs = RENDER_DISPATCH_TIMEOUT_MS,
                 maxWaitMs = RENDER_WATCH_MAX_WAIT_MS,
             )
             when (decision.step) {
@@ -435,7 +476,8 @@ fun DictionaryEntryWebView(
                         "DictionaryRender",
                         "render_stalled_waiting elapsed_ms=$elapsed loading=$loadingNow " +
                             "max_wait_ms=$RENDER_WATCH_MAX_WAIT_MS " +
-                            "dispatch_at_ms=${dispatch.atMs} last_ready_ms=$lastReadyAtMs " +
+                            "ready_posts_at_dispatch=${dispatch.readyPostCount} " +
+                            "ready_posts=$readyPostCount window_ms=$RENDER_DISPATCH_TIMEOUT_MS " +
                             "generation=${dispatch.generation}",
                     )
                 }
@@ -446,10 +488,10 @@ fun DictionaryEntryWebView(
                         "render_stalled elapsed_ms=$elapsed page_ready=$pageReadySeen " +
                             "reason=${decision.reason} loading=$loadingNow " +
                             "results=${results.size} entry_jsons=${entryJsons?.size ?: 0} " +
-                            "dispatch_at_ms=${dispatch.atMs} last_ready_ms=$lastReadyAtMs " +
+                            "ready_posts_at_dispatch=${dispatch.readyPostCount} " +
                             "ready_posts=$readyPostCount generation=${dispatch.generation}",
                     )
-                    surfaceFailure = decision.reason
+                    showFailureSurface(decision.reason ?: SURFACE_REASON_RENDER_STALLED)
                     return@LaunchedEffect
                 }
             }
@@ -518,18 +560,11 @@ fun DictionaryEntryWebView(
 
     Box(modifier = modifier.background(backgroundColor)) {
         // KUN -->
-        if (surfaceFailure != null || rendererExhausted.value) {
-            // The WebView can never show this entry: its document never loaded, its render never
-            // reached the screen, or every recreation ended with the renderer gone again. Another
-            // `WebView` would be blank in exactly the same way, so say it in Compose — which is only
-            // visible because no interop `WebView` child is composed over it — and offer a retry
-            // that builds a fresh WebView and re-dispatches the payload.
-            RenderFailureSurface(
-                message = renderErrorMessage,
-                onRetry = { retrySurface() },
-            )
-            return@Box
-        }
+        // A failure is stated, not enforced by destroying the view: the `AndroidView` stays composed
+        // (a late render must be able to heal it, and Retry must not need a new WebView) and is made
+        // transparent and inert by `showFailureSurface`, so this Compose message — painted *under*
+        // the interop view, which a WebView at `alpha = 0f` no longer covers — is what the user sees.
+        val failureReason = surfaceFailure ?: if (rendererExhausted.value) RENDER_REASON_EXHAUSTED else null
         // A lost renderer cannot be revived: recreating the `AndroidView` under a new key builds a
         // new WebView, and the remembered payload pair is re-dispatched by its first `flush`.
         key(webViewGeneration.intValue) {
@@ -569,12 +604,14 @@ fun DictionaryEntryWebView(
                         // KUN --> Restores the surface, then checks that what it restored is visible.
                         state.onContentReady = { onRenderReady(webView) }
                         // KUN --> Every dispatch re-arms the per-render readiness watch (see the
-                        // `LaunchedEffect(webViewGeneration.intValue, lastDispatch)` above).
+                        // `LaunchedEffect(webViewGeneration.intValue, lastDispatch)` above). The ready
+                        // count snapshot is what makes it *this* dispatch's paint: posts that arrived
+                        // before it are already counted here.
                         state.onRenderDispatched = {
                             lastDispatch = RenderDispatch(
                                 seq = (lastDispatch?.seq ?: 0) + 1,
                                 generation = webViewGeneration.intValue,
-                                atMs = SystemClock.elapsedRealtime(),
+                                readyPostCount = readyPostCount,
                             )
                         }
                         // KUN --> A JS render throw is now reported, not just printed to a console
@@ -650,11 +687,32 @@ fun DictionaryEntryWebView(
                             false
                         }
                     }
+                    // KUN --> A WebView created (or retried) while the surface is still in its failure
+                    // state stays invisible and inert, or it would cover the Compose message and eat
+                    // its Retry tap. `showFailureSurface`/`onRenderReady` own this afterwards.
+                    if (failureReason != null) {
+                        webView.alpha = 0f
+                        webView.isEnabled = false
+                        webView.isClickable = false
+                    }
+                    // KUN <--
 
                     webView
                 },
                 update = { webView: WebView ->
                     val state = webView.tag as? DictionaryWebViewState ?: return@AndroidView
+                    // KUN --> Same rule on every pass: while the failure message is on screen this
+                    // view must neither cover it nor eat the Retry tap, and when the message goes away
+                    // (a late render, a Retry) it must take input again.
+                    if (failureReason != null) {
+                        webView.alpha = 0f
+                        webView.isEnabled = false
+                        webView.isClickable = false
+                    } else {
+                        webView.isEnabled = true
+                        webView.isClickable = true
+                    }
+                    // KUN <--
                     if (state.bootstrapHtml != bootstrapHtml) state.reloadShell(webView, bootstrapHtml)
                     state.onRecursiveLookup = onRecursiveLookup
                     state.onTabSelect = onTabSelect
@@ -707,7 +765,7 @@ fun DictionaryEntryWebView(
                         lastDispatch = RenderDispatch(
                             seq = (lastDispatch?.seq ?: 0) + 1,
                             generation = webViewGeneration.intValue,
-                            atMs = SystemClock.elapsedRealtime(),
+                            readyPostCount = readyPostCount,
                         )
                     }
                     // KUN -->
@@ -825,26 +883,29 @@ fun DictionaryEntryWebView(
         }
         // KUN <--
         // KUN -->
-        // A render failure is written into the page by `showRenderNotice` (see its KDoc for why it
-        // is not a Compose overlay), so nothing is drawn here.
+        // The Compose half of the failure surface, drawn *after* the interop view: the WebView is
+        // kept at `alpha = 0f` (and inert) while this is up, so the message and its Retry button are
+        // what the user sees and can touch. Composing it instead of the `AndroidView` — the previous
+        // shape — is what made a false positive permanent: it destroyed a WebView that was still
+        // working and could not take itself back.
+        if (failureReason != null) {
+            RenderFailureSurface(
+                message = renderErrorMessage,
+                onRetry = { retrySurface() },
+            )
+        }
         // KUN <--
     }
 }
 
 // KUN -->
 /**
- * One render payload handed to a WebView document, as the per-render readiness watch sees it: which
- * generation's WebView took it and when. `seq` makes two dispatches in the same millisecond distinct
- * state, so the watch is re-armed for each.
- */
-private data class RenderDispatch(val seq: Int, val generation: Int, val atMs: Long)
-
-/**
  * How long a freshly created WebView has to prove it can paint: its shell's `onPageFinished` (the
  * document loaded) and, if a payload was dispatched to it, one render reaching `contentReady`.
  *
- * The same window re-arms for every later dispatch: it is three times the 1 s flush-scoped stall
- * notice this replaced, and long enough for a slow-but-real render to finish.
+ * This is the *load* window. A dispatched render is judged against [RENDER_DISPATCH_TIMEOUT_MS]
+ * instead: painting a big entry is slower than loading the shell, and one window for both failed
+ * renders that were merely slow.
  */
 private const val RENDER_NOT_READY_TIMEOUT_MS = 3_000L
 
@@ -854,12 +915,13 @@ private const val RENDER_READY_POLL_MS = 100L
 private const val RENDER_NOTICE_ID = "komikun-render-error"
 
 /**
- * Compose failure surface for a WebView that cannot show the entry at all.
+ * Compose failure surface for a WebView that is not showing the entry.
  *
- * It is composed *instead of* the `AndroidView`, because `AndroidView` interop `View`s are children
- * of the Compose host and are drawn *after* the Compose canvas: a `Text` composed under the
- * `WebView` is invisible (verified on device — composed, laid out, covered). A broken WebView must
- * therefore never be composed at all, which is also why the message cannot be an overlay.
+ * `AndroidView` interop `View`s are children of the Compose host and are drawn *after* the Compose
+ * canvas, so a `Text` composed under a *painted* `WebView` is invisible (verified on device —
+ * composed, laid out, covered). This message is therefore only ever shown with that WebView at
+ * `alpha = 0f` and its input disabled (`showFailureSurface`), which is also what keeps the WebView
+ * alive: a render that lands late clears the message and takes the pane back.
  */
 @Composable
 private fun RenderFailureSurface(message: String, onRetry: () -> Unit) {
