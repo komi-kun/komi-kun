@@ -343,6 +343,11 @@ object SettingsDictionaryScreen : SearchableSettings {
         val context = LocalContext.current
         val prefs = remember(context) { context.appGraph.dictionaryPreferences }
         // KUN -->
+        // The reset row below is only offered while a custom stylesheet exists, so it follows the
+        // stored value rather than a value read once at composition.
+        val customCss by prefs.customCss().collectAsState()
+        // KUN <--
+        // KUN -->
         // Secondary popup chrome follows the master switch, but does not repeat it: the screen itself
         // is hidden while the feature is off (`SettingsDictionaryPopupScreen.isEnabled`), and the
         // switch stays on the two ungated screens (Dictionary / OCR), so re-enable can never be
@@ -439,6 +444,18 @@ object SettingsDictionaryScreen : SearchableSettings {
                         title = stringResource(KUNMR.strings.pref_dict_custom_css),
                         subtitle = stringResource(KUNMR.strings.pref_dict_custom_css_summary),
                     ),
+                    // KUN -->
+                    // One tap to rule the custom CSS out: it is injected verbatim as a global
+                    // `<style>` (bypassing the sanitiser), so a rule like `#entries{display:none}`
+                    // hides every entry while the lookup itself succeeds. Shown only while there is
+                    // something to reset, next to the row that describes it.
+                    Preference.PreferenceItem.TextPreference(
+                        title = stringResource(KUNMR.strings.pref_dict_custom_css_reset),
+                        subtitle = stringResource(KUNMR.strings.pref_dict_custom_css_reset_summary),
+                        visible = customCss.isNotEmpty(),
+                        onClick = { prefs.customCss().set("") },
+                    ),
+                    // KUN <--
                 ),
             ),
         )

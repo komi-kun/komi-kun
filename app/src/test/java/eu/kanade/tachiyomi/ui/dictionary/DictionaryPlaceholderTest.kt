@@ -55,7 +55,7 @@ class DictionaryPlaceholderTest {
     }
 
     @Test
-    fun `no lookup yet is blank rather than a stale no-results message`() {
+    fun `no lookup yet invites a search instead of leaving the pane blank`() {
         val state = dictionaryPlaceholder(
             hasDictionaries = true,
             loading = false,
@@ -63,7 +63,24 @@ class DictionaryPlaceholderTest {
             hasContent = false,
         )
 
-        state shouldBe DictionaryPlaceholder.None
+        state shouldBe DictionaryPlaceholder.Idle
+        state.resource shouldBe KUNMR.strings.dictionary_idle_hint
+        state.args shouldBe emptyList<Any>()
+    }
+
+    @Test
+    fun `a whitespace-only query is idle, not a blank surface`() {
+        // The popup forwards its request query verbatim; a blank one used to leave `current == null`
+        // and render nothing at all.
+        val state = dictionaryPlaceholder(
+            hasDictionaries = true,
+            loading = false,
+            query = "   ",
+            hasContent = false,
+        )
+
+        state shouldBe DictionaryPlaceholder.Idle
+        state.resource shouldBe KUNMR.strings.dictionary_idle_hint
     }
 
     @Test
@@ -76,6 +93,42 @@ class DictionaryPlaceholderTest {
         )
 
         state shouldBe DictionaryPlaceholder.None
+    }
+
+    @Test
+    fun `kanji entry json strings count as drawable content`() {
+        // A kanji-only frame has no term results: testing `results` alone reported "No results" for
+        // a frame the renderer was drawing.
+        val kanjiFrame = LookupFrame(
+            query = "猫",
+            results = emptyList(),
+            styles = emptyList(),
+            mediaDataUris = emptyMap(),
+            entryJsons = listOf("""{"kanji":{"character":"猫"}}"""),
+        )
+        val termFrame = LookupFrame(
+            query = "よむ",
+            results = emptyList(),
+            styles = emptyList(),
+            mediaDataUris = emptyMap(),
+        )
+
+        kanjiFrame.hasRenderableContent() shouldBe true
+        dictionaryPlaceholder(
+            hasDictionaries = true,
+            loading = false,
+            query = kanjiFrame.query,
+            hasContent = kanjiFrame.hasRenderableContent(),
+        ) shouldBe DictionaryPlaceholder.None
+
+        termFrame.hasRenderableContent() shouldBe false
+        (null as LookupFrame?).hasRenderableContent() shouldBe false
+        dictionaryPlaceholder(
+            hasDictionaries = true,
+            loading = false,
+            query = termFrame.query,
+            hasContent = termFrame.hasRenderableContent(),
+        ) shouldBe DictionaryPlaceholder.NoResults("よむ")
     }
 
     @Test

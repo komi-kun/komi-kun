@@ -60,6 +60,9 @@
     <string name="pref_dict_revision_label">rev %1$s</string>
     <string name="dictionary_no_dictionaries">No dictionaries available. Import or enable one in Settings \u2192 Dictionaries.</string>
     <string name="dictionary_no_results">No results for \u201c%1$s\u201d</string>
+    <string name="dictionary_idle_hint">Type a word and press search to look it up.</string>
+    <string name="dictionary_render_error">Could not render this entry. The text may be incomplete.</string>
+    <string name="dictionary_retry">Retry</string>
     <string name="dictionary_selection_hint">Long-press text to select it</string>
     <string name="dictionary_selection_hint_dismiss">Dismiss</string>
     <string name="pref_dict_delete">Delete dictionary</string>
@@ -84,6 +87,8 @@
     <string name="pref_dict_popup_swipe_threshold">Swipe-to-dismiss distance</string>
     <string name="pref_dict_custom_css">Custom CSS</string>
     <string name="pref_dict_custom_css_summary">Inject custom CSS into the dictionary renderer</string>
+    <string name="pref_dict_custom_css_reset">Reset custom CSS</string>
+    <string name="pref_dict_custom_css_reset_summary">Clear the custom CSS so entries render with the default styles</string>
     <string name="pref_dict_theme_pure_black">Pure black</string>
     <string name="pref_dict_layout">Layout</string>
     <string name="pref_dict_typography">Typography</string>

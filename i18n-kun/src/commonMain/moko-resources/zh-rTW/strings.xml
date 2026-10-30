@@ -57,6 +57,9 @@
     <string name="pref_dict_active_profile">目前設定檔：%1$s</string>
     <string name="dictionary_no_dictionaries">沒有可用的辭典。請至 設定 → 辭典 匯入或啟用。</string>
     <string name="dictionary_no_results">找不到 “%1$s” 的結果</string>
+    <string name="dictionary_idle_hint">輸入詞語並點選搜尋即可查詢。</string>
+    <string name="dictionary_render_error">無法顯示此條目。文字可能不完整。</string>
+    <string name="dictionary_retry">重試</string>
     <string name="dictionary_selection_hint">長按文字進行選取</string>
     <string name="dictionary_selection_hint_dismiss">關閉</string>
     <string name="pref_dict_delete">刪除辭典</string>
@@ -81,6 +84,8 @@
     <string name="pref_dict_popup_swipe_threshold">滑動關閉距離</string>
     <string name="pref_dict_custom_css">自訂 CSS</string>
     <string name="pref_dict_custom_css_summary">向辭典渲染器插入自訂 CSS</string>
+    <string name="pref_dict_custom_css_reset">重設自訂 CSS</string>
+    <string name="pref_dict_custom_css_reset_summary">清除自訂 CSS，讓條目以預設樣式顯示</string>
     <string name="pref_dict_theme_pure_black">純黑</string>
     <string name="pref_dict_layout">版面配置</string>
     <string name="pref_dict_typography">排版</string>

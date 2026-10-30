@@ -2,6 +2,7 @@
 package mihon.core.dictionary.ui
 
 import android.os.Build
+import android.util.Log
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import kotlinx.coroutines.CoroutineDispatcher
@@ -37,6 +38,15 @@ class DictionaryReadyBridge(
                                 return
                             }
                             stateProvider()?.onContentReady?.invoke()
+                            // KUN --> One line per ready post, logged after the callback restored the
+                            // surface: the entry count that was drawn and the alpha it now has.
+                            Log.i(
+                                "DictionaryRender",
+                                "webview_ready entry_count=${state.payloadBridge.rawEntryJsons.size} " +
+                                    "payload_len=${state.payloadBridge.rawPayloadJson.length} " +
+                                    "alpha=${webView.alpha}",
+                            )
+                            // KUN <--
                         }
                     },
                 )
@@ -45,6 +55,46 @@ class DictionaryReadyBridge(
             }
         }
     }
+
+    // KUN -->
+    /**
+     * A ready signal from a renderer path that is not a render: `updateMediaDataUris` and
+     * `prewarmFonts` finish work that can change the frame without having drawn a dispatched entry,
+     * so they must not be allowed to answer "this dispatch painted". The app layer counts only
+     * [contentReady] posts as paint evidence (see `RenderDispatch`), which is what keeps a renderer
+     * that returned early — `PayloadBridge` missing, empty payload, no `#entries` — from being read
+     * as a successful render just because a media/font update posted ready afterwards.
+     *
+     * Logged, because it is the line that explains a "ready but not painted" report.
+     */
+    @JavascriptInterface
+    fun auxiliaryReady() {
+        val webView = webViewProvider() ?: return
+        val state = stateProvider() ?: return
+        val generation = state.contentReadyGeneration
+        webView.post {
+            Log.i(
+                "DictionaryRender",
+                "webview_ready_auxiliary generation=$generation " +
+                    "entry_count=${state.payloadBridge.rawEntryJsons.size} alpha=${webView.alpha}",
+            )
+        }
+    }
+
+    /**
+     * The renderer's caught render exception, handed to Kotlin instead of dying in a JS console no
+     * device can show. Runs on the JavaBridge thread; the callback is posted to the main thread
+     * because it updates Compose state and the WebView's alpha.
+     */
+    @JavascriptInterface
+    fun reportRenderError(message: String?) {
+        val text = message?.take(2_000).orEmpty()
+        Log.e("DictionaryRender", "js_render_error=$text")
+        val webView = webViewProvider() ?: return
+        val state = stateProvider() ?: return
+        webView.post { stateProvider()?.onRenderError?.invoke(text) }
+    }
+    // KUN <--
 }
 
 /**

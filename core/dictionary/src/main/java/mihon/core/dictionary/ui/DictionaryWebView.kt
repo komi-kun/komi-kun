@@ -9,6 +9,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.SystemClock
 import android.util.Log
+import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -87,6 +88,20 @@ fun prepareDictionaryWebViewShell(
                 s.flush(view)
             }
 
+            // KUN -->
+            // Renderer death, on every API level this app supports (26+): `WebViewClient` is the only
+            // place a gone renderer process is reported, with or without a
+            // `WebViewRenderProcessClient` (which only adds the unresponsive/responsive pair).
+            // Returning `true` keeps the process alive; the WebView is unusable from here on and the
+            // app layer recreates it (it owns the disposal path).
+            override fun onRenderProcessGone(view: WebView?, detail: RenderProcessGoneDetail?): Boolean {
+                val s = view?.tag as? DictionaryWebViewState ?: return false
+                s.pageReady = false
+                s.onRenderProcessGone?.invoke(detail?.didCrash() == true)
+                return true
+            }
+            // KUN <--
+
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                 val url = request?.url ?: return true
                 val s = view?.tag as? DictionaryWebViewState
@@ -160,6 +175,33 @@ class DictionaryWebViewState(
     var onBack: (() -> Unit)? = null
     var onContentInvalidated: (() -> Unit)? = null
     var onContentReady: (() -> Unit)? = null
+    // KUN -->
+    /** The renderer's caught render exception (bridge: `DictionaryReadyBridge.reportRenderError`). */
+    var onRenderError: ((String) -> Unit)? = null
+
+    /**
+     * The renderer process is gone; the argument is `true` when the system reports a crash (rather
+     * than a kill, e.g. low memory). Fired from `WebViewClient.onRenderProcessGone`, the only report
+     * of a dead renderer — the API 29+ `WebViewRenderProcessClient` is the app layer's separate
+     * unresponsive/responsive listener.
+     */
+    var onRenderProcessGone: ((Boolean) -> Unit)? = null
+
+    /**
+     * Set by the app layer once the renderer died: the document can never be scripted again, so
+     * `clear()` (a `evaluateJavascript`) is skipped and the WebView is only destroyed.
+     */
+    var rendererDead: Boolean = false
+
+    /**
+     * A render payload was just handed to the document (`flush` dispatched it). The shell's
+     * `onContentInvalidated` alone cannot say this: it also runs for `clear` and for a shell reload,
+     * neither of which owes a `contentReady`. The app layer keys its per-render readiness watch on
+     * this, so a render that never reaches `contentReady` is reported instead of leaving the surface
+     * at `alpha = 0` (the renderer skips `postContentReady` on its own early returns).
+     */
+    var onRenderDispatched: (() -> Unit)? = null
+    // KUN <--
     var lastPayload: String? = null
     var lastResults: List<LookupResult>? = null
     var lastExistingExpressions: Set<String>? = null
@@ -249,6 +291,9 @@ class DictionaryWebViewState(
     ) {
         val p = configPayload ?: pendingPayload ?: return
         val entries = entryJsons ?: pendingEntryJsons ?: return
+        // KUN --> A dead renderer cannot be scripted; the app layer recreates the WebView instead.
+        if (rendererDead) return
+        // KUN <--
         val renderResults = results ?: pendingResults
         val renderExistingExpressions = existingExpressions ?: pendingExistingExpressions
         val renderMediaDataUris = mediaDataUris ?: pendingMediaDataUris
@@ -312,8 +357,18 @@ class DictionaryWebViewState(
             }.orEmpty() +
             "}"
         webView.evaluateJavascript(js, null)
+        // KUN --> The app layer's evidence that *this* render went out (see `onRenderDispatched`).
+        onRenderDispatched?.invoke()
+        // KUN <--
 
-        Log.i("DictionaryRender", "webview_dispatch_ms=${SystemClock.elapsedRealtime() - renderStart}")
+        // KUN --> One line per flush (flush only runs when the render signature changes): how much
+        // went out and whether the surface was still transparent when it did.
+        Log.i(
+            "DictionaryRender",
+            "webview_flush entry_count=${entries.size} payload_len=${p.length} " +
+                "alpha=${webView.alpha} dispatch_ms=${SystemClock.elapsedRealtime() - renderStart}",
+        )
+        // KUN <--
     }
 
     private fun updateAnkiStatus(webView: WebView, expressions: Set<String>) {

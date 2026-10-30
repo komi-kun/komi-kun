@@ -2,6 +2,7 @@
 package eu.kanade.tachiyomi.ui.dictionary
 
 import android.graphics.RectF
+import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.background
@@ -112,81 +113,106 @@ fun DictionaryPopup(
     var loading by remember { mutableStateOf(false) }
 
     suspend fun performLookup(query: String, resetPath: Boolean, lookupType: String? = null) {
-        loading = true
-        val frame = withContext(Dispatchers.Default) {
-            val paths = getDictionaryPaths(context, profile)
-            // KUN --> Kanji lookup path
-            if (lookupType == "kanji" || (query.length == 1 && isKanji(query.first()) && paths.kanjiPaths.isNotEmpty() && lookupType != "term")) {
-                val kanjiChar = query.first().toString()
-                val kanjiResult = repository.queryKanji(kanjiChar)
-                if (kanjiResult != null && kanjiResult.entries.isNotEmpty()) {
-                    val entryJsons = buildKanjiEntryJsonStrings(kanjiResult)
-                    val mediaDataUris = withContext(Dispatchers.IO) {
-                        repository.loadMediaAsync(emptyList(), kanjiResult)
-                    }
-                    return@withContext LookupFrame(
-                        query = query,
-                        results = emptyList(),
-                        styles = emptyList(),
-                        mediaDataUris = mediaDataUris,
-                        entryJsons = entryJsons,
-                    )
-                }
-            }
-            // KUN <--
-            val lookup = repository.lookup(query, paths, profile.languageCode)
-            val ordered = orderLookupResultsForDisplay(
-                lookup.results,
-                profile,
-                context,
-                displayNameProvider = { prefs.getDisplayName(it) },
-            )
-            // KUN --> Fallback to kanji if single kanji character yielded no term results
-            if (ordered.isEmpty() && query.length == 1 && isKanji(query.first()) && paths.kanjiPaths.isNotEmpty()) {
-                val kanjiResult = repository.queryKanji(query.first().toString())
-                if (kanjiResult != null && kanjiResult.entries.isNotEmpty()) {
-                    val entryJsons = buildKanjiEntryJsonStrings(kanjiResult)
-                    val mediaDataUris = withContext(Dispatchers.IO) {
-                        repository.loadMediaAsync(emptyList(), kanjiResult)
-                    }
-                    return@withContext LookupFrame(
-                        query = query,
-                        results = emptyList(),
-                        styles = emptyList(),
-                        mediaDataUris = mediaDataUris,
-                        entryJsons = entryJsons,
-                    )
-                }
-            }
-            // KUN --> Compound word breakdown for multi-word / compound expressions
-            val breakdown = findCompoundBreakdown(query, ordered, paths, repository, profile.languageCode)
-            val finalResults = if (breakdown.isNotEmpty()) ordered + breakdown else ordered
-            val mediaDataUris = if (finalResults.isNotEmpty()) {
-                withContext(Dispatchers.IO) { repository.loadMediaAsync(finalResults) }
-            } else {
-                emptyMap()
-            }
-            // KUN <--
-            LookupFrame(query, finalResults, lookup.styles, mediaDataUris)
-        }
-        if (resetPath) {
-            path = path.start(frame)
-        } else {
-            // Truncate anything after the active tab, then append the new term (path semantics).
-            path = path.push(frame)
-        }
+        // KUN -->
+        // Same guarantee as the dictionary tab: clearing/starting a lookup must not be able to
+        // leave `loading` stuck at `true`, which renders as a blank popup with no spinner and no
+        // message (the entry surface stays invisible while loading).
+        val startedAt = android.os.SystemClock.elapsedRealtime()
+        var pathsForLog: DictionaryPaths? = null
         // KUN <--
-        loading = false
-        // Media loads off the critical path (02 §3.5).
-        if (frame.results.isNotEmpty()) {
-            scope.launch {
-                val media = withContext(Dispatchers.IO) { repository.loadMediaAsync(frame.results) }
-                if (media.isNotEmpty()) {
-                    path = path.copy(
-                        entries = path.entries.map { if (it === frame) it.copy(mediaDataUris = media) else it },
-                    )
+        loading = true
+        try {
+            val frame = withContext(Dispatchers.Default) {
+                val paths = getDictionaryPaths(context, profile)
+                // KUN --> Report the paths this lookup ran with (see the popup_lookup line below).
+                pathsForLog = paths
+                // KUN <--
+                // KUN --> Kanji lookup path
+                if (lookupType == "kanji" || (query.length == 1 && isKanji(query.first()) && paths.kanjiPaths.isNotEmpty() && lookupType != "term")) {
+                    val kanjiChar = query.first().toString()
+                    val kanjiResult = repository.queryKanji(kanjiChar)
+                    if (kanjiResult != null && kanjiResult.entries.isNotEmpty()) {
+                        val entryJsons = buildKanjiEntryJsonStrings(kanjiResult)
+                        val mediaDataUris = withContext(Dispatchers.IO) {
+                            repository.loadMediaAsync(emptyList(), kanjiResult)
+                        }
+                        return@withContext LookupFrame(
+                            query = query,
+                            results = emptyList(),
+                            styles = emptyList(),
+                            mediaDataUris = mediaDataUris,
+                            entryJsons = entryJsons,
+                        )
+                    }
+                }
+                // KUN <--
+                val lookup = repository.lookup(query, paths, profile.languageCode)
+                val ordered = orderLookupResultsForDisplay(
+                    lookup.results,
+                    profile,
+                    context,
+                    displayNameProvider = { prefs.getDisplayName(it) },
+                )
+                // KUN --> Fallback to kanji if single kanji character yielded no term results
+                if (ordered.isEmpty() && query.length == 1 && isKanji(query.first()) && paths.kanjiPaths.isNotEmpty()) {
+                    val kanjiResult = repository.queryKanji(query.first().toString())
+                    if (kanjiResult != null && kanjiResult.entries.isNotEmpty()) {
+                        val entryJsons = buildKanjiEntryJsonStrings(kanjiResult)
+                        val mediaDataUris = withContext(Dispatchers.IO) {
+                            repository.loadMediaAsync(emptyList(), kanjiResult)
+                        }
+                        return@withContext LookupFrame(
+                            query = query,
+                            results = emptyList(),
+                            styles = emptyList(),
+                            mediaDataUris = mediaDataUris,
+                            entryJsons = entryJsons,
+                        )
+                    }
+                }
+                // KUN --> Compound word breakdown for multi-word / compound expressions
+                val breakdown = findCompoundBreakdown(query, ordered, paths, repository, profile.languageCode)
+                val finalResults = if (breakdown.isNotEmpty()) ordered + breakdown else ordered
+                val mediaDataUris = if (finalResults.isNotEmpty()) {
+                    withContext(Dispatchers.IO) { repository.loadMediaAsync(finalResults) }
+                } else {
+                    emptyMap()
+                }
+                // KUN <--
+                LookupFrame(query, finalResults, lookup.styles, mediaDataUris)
+            }
+            if (resetPath) {
+                path = path.start(frame)
+            } else {
+                // Truncate anything after the active tab, then append the new term (path semantics).
+                path = path.push(frame)
+            }
+            // KUN <--
+            loading = false
+            // KUN --> One line per lookup (see the tab's identical line): what came back, what the
+            // lookup was allowed to search, and how long it took.
+            Log.i(
+                "DictionaryLookup",
+                "popup_lookup query=$query results=${frame.results.size} " +
+                    "entry_jsons=${frame.entryJsons?.size ?: 0} " +
+                    "term_paths=${pathsForLog?.termPaths?.size ?: 0} " +
+                    "kanji_paths=${pathsForLog?.kanjiPaths?.size ?: 0} " +
+                    "elapsed_ms=${android.os.SystemClock.elapsedRealtime() - startedAt}",
+            )
+            // KUN <--
+            // Media loads off the critical path (02 §3.5).
+            if (frame.results.isNotEmpty()) {
+                scope.launch {
+                    val media = withContext(Dispatchers.IO) { repository.loadMediaAsync(frame.results) }
+                    if (media.isNotEmpty()) {
+                        path = path.copy(
+                            entries = path.entries.map { if (it === frame) it.copy(mediaDataUris = media) else it },
+                        )
+                    }
                 }
             }
+        } finally {
+            loading = false
         }
     }
 
@@ -232,15 +258,28 @@ fun DictionaryPopup(
     val popupHeight = popupSize.heightDp.dp
     // KUN <--
 
-    // A visible empty state instead of a blank/black box: distinguish "no dictionaries installed"
-    // from "this word is in no installed dictionary" (BUG 2a). The decision itself is shared with
-    // the dictionary tab (`dictionaryPlaceholder`), so both surfaces state the same three things.
+    // A visible empty state instead of a blank/black box: distinguish "nothing searched yet" (a
+    // blank query used to leave `current == null`, which rendered as an empty strip) from "no
+    // dictionaries installed" and from "this word is in no installed dictionary" (BUG 2a). The
+    // decision itself is shared with the dictionary tab (`dictionaryPlaceholder`), so both surfaces
+    // state the same things. `hasContent` includes the kanji entry JSONs: testing term results
+    // alone reported a kanji-only frame as "No results" while it was drawing entries.
+    val hasDictionaries = getDictionaryPaths(context, profile).hasAnyDictionaries()
+    val currentNodeHasContent = current.hasRenderableContent()
     val placeholder = dictionaryPlaceholder(
-        hasDictionaries = getDictionaryPaths(context, profile).hasAnyDictionaries(),
+        hasDictionaries = hasDictionaries,
         loading = loading,
         query = current?.query,
-        hasContent = current != null && current.results.isNotEmpty(),
-    ).text()
+        hasContent = currentNodeHasContent,
+    )
+    // Rendered at composition time so the line reports the inputs the decision was actually made
+    // from, not whatever `loading` had become by the time it ran.
+    val placeholderDiagnostics = "state=$placeholder has_dictionaries=$hasDictionaries " +
+        "loading=$loading has_content=$currentNodeHasContent"
+    LaunchedEffect(placeholderDiagnostics) {
+        // One line per decision, not per frame.
+        Log.i("DictionaryLookup", "popup_placeholder $placeholderDiagnostics")
+    }
 
     val bg = MaterialTheme.colorScheme.surface
     val screenWidthPx = with(density) { configuration.screenWidthDp.dp.toPx() }
@@ -386,7 +425,7 @@ fun DictionaryPopup(
                         results = current?.results.orEmpty(),
                         styles = current?.styles.orEmpty(),
                         mediaDataUris = current?.mediaDataUris.orEmpty(),
-                        placeholder = placeholder,
+                        placeholder = placeholder.text(),
                         activeProfile = profile,
                         fontSize = prefs.fontSize().get(),
                         existingExpressions = current?.existingExpressions.orEmpty(),

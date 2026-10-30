@@ -4,6 +4,9 @@ package mihon.core.dictionary.ui
 
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.Arguments
+import org.junit.jupiter.params.provider.MethodSource
 
 class KanaConverterTest {
 
@@ -105,6 +108,16 @@ class KanaConverterTest {
     }
 
     @Test
+    fun `toKanaIME puts the caret after the converted prefix, not the whole string`() {
+        // Editing in the middle of romaji: the tail converts too, but it is after the caret.
+        KanaConverter.toKanaIME("kaka", 2) shouldBe ("かか" to 1)
+        KanaConverter.toKanaIME("kakitte", 2) shouldBe ("かきって" to 1)
+        KanaConverter.toKanaIME("ka食べる", 2) shouldBe ("か食べる" to 1)
+        // A caret already after kana is not moved by the romaji that follows it.
+        KanaConverter.toKanaIME("かkitte", 1) shouldBe ("かきって" to 1)
+    }
+
+    @Test
     fun `toKanaIME handles empty and edge cursor positions`() {
         KanaConverter.toKanaIME("", 0) shouldBe ("" to 0)
         KanaConverter.toKanaIME("ka", 0) shouldBe ("か" to 0)
@@ -117,5 +130,122 @@ class KanaConverterTest {
         KanaConverter.convertAlphabeticToKana("kanji 漢字") shouldBe "かんじ 漢字"
         KanaConverter.convertAlphabeticToKana("ka-do") shouldBe "かーど"
     }
+
+    // KUN -->
+    // wanakana case rule: katakana per *syllable* when every character of its romaji source is
+    // uppercase. Expectations below are wanakana 5.3.1 `toKana` output (verified against the
+    // published bundle), except where this port intentionally keeps Yomitan's `nn` handling.
+    @ParameterizedTest(name = "{0} -> {1}")
+    @MethodSource("lowercaseRomaji")
+    fun `lowercase romaji converts to hiragana`(romaji: String, kana: String) {
+        KanaConverter.toKana(romaji) shouldBe kana
+    }
+
+    @ParameterizedTest(name = "{0} -> {1}")
+    @MethodSource("uppercaseRomaji")
+    fun `uppercase romaji converts to katakana`(romaji: String, kana: String) {
+        KanaConverter.toKana(romaji) shouldBe kana
+    }
+
+    @ParameterizedTest(name = "{0} -> {1}")
+    @MethodSource("mixedCaseRomaji")
+    fun `mixed case romaji is decided per syllable`(romaji: String, kana: String) {
+        KanaConverter.toKana(romaji) shouldBe kana
+    }
+
+    @ParameterizedTest(name = "{0} -> {1}")
+    @MethodSource("specialRomaji")
+    fun `n nn sokuon and long vowels convert in both cases`(romaji: String, kana: String) {
+        KanaConverter.toKana(romaji) shouldBe kana
+    }
+
+    companion object {
+        @JvmStatic
+        fun lowercaseRomaji() = listOf(
+            Arguments.of("ka", "か"),
+            Arguments.of("shi", "し"),
+            Arguments.of("tsu", "つ"),
+            Arguments.of("chi", "ち"),
+            Arguments.of("fu", "ふ"),
+            Arguments.of("ji", "じ"),
+            Arguments.of("sushi", "すし"),
+            Arguments.of("nihon", "にほん"),
+            Arguments.of("toukyou", "とうきょう"),
+            Arguments.of("kitte", "きって"),
+            Arguments.of("ou", "おう"),
+            // `nn` before nya/nyu/nyo is ん + the syllable, not ん + ya/yu/yo.
+            Arguments.of("konnyaku", "こんにゃく"),
+            Arguments.of("shinnyuu", "しんにゅう"),
+            Arguments.of("konnya", "こんにゃ"),
+            Arguments.of("onnyu", "おんにゅ"),
+        )
+
+        @JvmStatic
+        fun uppercaseRomaji() = listOf(
+            Arguments.of("KA", "カ"),
+            Arguments.of("SHI", "シ"),
+            Arguments.of("TSU", "ツ"),
+            Arguments.of("CHI", "チ"),
+            Arguments.of("FU", "フ"),
+            Arguments.of("JI", "ジ"),
+            Arguments.of("SUSHI", "スシ"),
+            Arguments.of("NIHON", "ニホン"),
+            Arguments.of("TOUKYOU", "トウキョウ"),
+            Arguments.of("KITTE", "キッテ"),
+            Arguments.of("OU", "オウ"),
+            Arguments.of("KONNYAKU", "コンニャク"),
+            Arguments.of("SHINNYUU", "シンニュウ"),
+            Arguments.of("ONNYU", "オンニュ"),
+        )
+
+        @JvmStatic
+        fun mixedCaseRomaji() = listOf(
+            // Case change on a syllable boundary: each syllable keeps its own case.
+            Arguments.of("KAra", "カら"),
+            Arguments.of("kaRA", "かラ"),
+            Arguments.of("Aka", "アか"),
+            Arguments.of("aKA", "あカ"),
+            Arguments.of("KAnA", "カな"),
+            Arguments.of("kataKANA", "かたカナ"),
+            Arguments.of("KAta", "カた"),
+            // Case change inside a syllable: not all-uppercase, so the syllable is hiragana.
+            Arguments.of("Ka", "か"),
+            Arguments.of("kA", "か"),
+            Arguments.of("Kara", "から"),
+            Arguments.of("kAra", "から"),
+            Arguments.of("KaN", "かン"),
+            // The sokuon is cased over the whole sokuon+syllable token, like wanakana.
+            Arguments.of("KKa", "っか"),
+            Arguments.of("KATTe", "カって"),
+            Arguments.of("TTe", "って"),
+        )
+
+        @JvmStatic
+        fun specialRomaji() = listOf(
+            Arguments.of("n", "ん"),
+            Arguments.of("N", "ン"),
+            Arguments.of("nn", "ん"),
+            Arguments.of("NN", "ン"),
+            Arguments.of("kan", "かん"),
+            Arguments.of("KAN", "カン"),
+            Arguments.of("konnnichiwa", "こんにちわ"),
+            Arguments.of("kon'nichiwa", "こんにちわ"),
+            Arguments.of("kka", "っか"),
+            Arguments.of("KKA", "ッカ"),
+            Arguments.of("katte", "かって"),
+            Arguments.of("KATTE", "カッテ"),
+            Arguments.of("tte", "って"),
+            Arguments.of("TTE", "ッテ"),
+            Arguments.of("ka-", "かー"),
+            Arguments.of("KA-", "カー"),
+            Arguments.of("ko-hi-", "こーひー"),
+            Arguments.of("KO-HI-", "コーヒー"),
+            Arguments.of("gakko-", "がっこー"),
+            Arguments.of("GAKKO-", "ガッコー"),
+            Arguments.of("ka-do", "かーど"),
+            Arguments.of("KA-DO", "カード"),
+        )
+    }
+    // KUN <--
 }
 // KUN <--

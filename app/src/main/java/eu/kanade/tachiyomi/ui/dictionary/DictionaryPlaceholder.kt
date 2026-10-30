@@ -13,11 +13,16 @@ import tachiyomi.presentation.core.i18n.stringResource
  *
  * The renderer prints this verbatim (`renderer.js`: `empty.textContent = payload.placeholder`), so
  * a blank surface is only correct while there is nothing to report. [None] — the sole state with
- * no text — is unreachable once a lookup has finished without content, which is what keeps a
- * first-run tab (or a query with no hits) from going blank.
+ * no text — is therefore reachable only when a lookup is in flight (the WebView is cleared and a
+ * progress indicator covers it) or when the frame already draws entries; every other state says
+ * something. [Idle] is what keeps a tab the user has not searched yet — the pane that used to be
+ * blank with the text still sitting in the search field — from saying nothing at all.
  */
 internal sealed interface DictionaryPlaceholder {
-    /** No lookup yet, or one in flight (the WebView draws its own spinner meanwhile). */
+    /** Nothing has been looked up yet (or the query is blank): invite the user to search. */
+    data object Idle : DictionaryPlaceholder
+
+    /** A lookup is in flight (the caller draws a progress indicator) or the frame draws content. */
     data object None : DictionaryPlaceholder
 
     /** No dictionary is installed (or none is enabled), so no lookup can ever hit. */
@@ -29,11 +34,12 @@ internal sealed interface DictionaryPlaceholder {
 
 /**
  * The single empty-surface decision, shared by the reader popup and the dictionary tab (BUG 2a):
- * "no dictionaries installed" and "this word is in no installed dictionary" are different states
- * and neither may resolve to a blank surface.
+ * "nothing searched yet", "no dictionaries installed" and "this word is in no installed
+ * dictionary" are different states and none of them may resolve to a blank surface.
  *
- * [hasContent] is whether the active frame actually draws something — for the tab that includes
- * the kanji entry JSONs a kanji lookup produces with an empty term-result list.
+ * [hasContent] is whether the active frame actually draws something — which includes the kanji
+ * entry JSONs a kanji lookup produces with an empty term-result list (see
+ * [hasRenderableContent]).
  */
 internal fun dictionaryPlaceholder(
     hasDictionaries: Boolean,
@@ -42,9 +48,19 @@ internal fun dictionaryPlaceholder(
     hasContent: Boolean,
 ): DictionaryPlaceholder = when {
     !hasDictionaries -> DictionaryPlaceholder.NoDictionaries
-    !loading && query != null && !hasContent -> DictionaryPlaceholder.NoResults(query)
+    loading -> DictionaryPlaceholder.None
+    query.isNullOrBlank() -> DictionaryPlaceholder.Idle
+    !hasContent -> DictionaryPlaceholder.NoResults(query)
     else -> DictionaryPlaceholder.None
 }
+
+/**
+ * Whether [this] frame draws anything: term results, or the entry JSONs a kanji lookup produces
+ * with an empty term-result list. Both surfaces must use this — testing `results` alone reported a
+ * kanji-only frame as "No results" while the renderer was drawing it.
+ */
+internal fun LookupFrame?.hasRenderableContent(): Boolean =
+    this != null && (results.isNotEmpty() || !entryJsons.isNullOrEmpty())
 
 /** Whether a lookup could hit anything: any of the four dictionary types has a directory. */
 internal fun DictionaryPaths.hasAnyDictionaries(): Boolean =
@@ -54,6 +70,7 @@ internal fun DictionaryPaths.hasAnyDictionaries(): Boolean =
 internal val DictionaryPlaceholder.resource: StringResource?
     get() = when (this) {
         DictionaryPlaceholder.None -> null
+        DictionaryPlaceholder.Idle -> KUNMR.strings.dictionary_idle_hint
         DictionaryPlaceholder.NoDictionaries -> KUNMR.strings.dictionary_no_dictionaries
         is DictionaryPlaceholder.NoResults -> KUNMR.strings.dictionary_no_results
     }

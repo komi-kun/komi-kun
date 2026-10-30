@@ -343,20 +343,70 @@ object KanaConverter {
     )
 
     /**
-     * Converts romaji text to kana (hiragana for lowercase, katakana for uppercase).
-     * Ported from Yomitan's convertToKana() in japanese-wanakana.js
+     * Converts romaji text to kana: lowercase romaji becomes hiragana, uppercase romaji becomes
+     * katakana — decided **per syllable**, not per string. A syllable is rendered in katakana only
+     * when every character of its romaji source is an uppercase ASCII letter, which is wanakana's
+     * rule (`enforceKatakana = [...input.slice(start, end)].every(isCharUpperCase)`, wanakana
+     * 5.3.1 `toKana.js`):
+     *
+     * - `KA` → カ, `ka` → か, `KITTE` → キッテ, `KAra` → カら, `kaRA` → かラ
+     * - a case change *inside* one syllable stays hiragana: `Ka`/`kA` → か, `Kara` → から
+     * - a sokuon and the syllable after it form one token and share one case decision, like the
+     *   slice wanakana cases: `KKA` → ッカ, `KKa` → っか, `KATTE` → カッテ, `KATTe` → カって
+     *
+     * Ported from Yomitan's convertToKana() in japanese-wanakana.js. Its `replaceAll` sweep only
+     * caught syllables spelled in one uniform case, so mixed syllables leaked their romaji
+     * (`Ka` → `Kあ`); syllables are now matched longest-first and cased individually. Katakana is
+     * still derived from the hiragana table ([hiraganaToKatakana]) rather than a second table.
      */
     fun toKana(text: String): String {
-        var result = text
-        for ((romaji, hiragana) in ROMAJI_TO_HIRAGANA) {
-            result = result.replace(romaji, hiragana, ignoreCase = false)
-            val upperRomaji = romaji.uppercase()
-            if (upperRomaji != romaji) {
-                val katakana = hiraganaToKatakana(hiragana)
-                result = result.replace(upperRomaji, katakana, ignoreCase = false)
+        if (text.isEmpty()) return text
+        val result = StringBuilder(text.length)
+        var index = 0
+        // End of the sokuon+syllable token and its case, already decided when the sokuon was
+        // emitted: wanakana renders the whole token in one case, so `kKA` is っか, not っカ.
+        var sokuonTokenEnd = -1
+        var sokuonKatakana = false
+        while (index < text.length) {
+            val length = longestRomajiMatchAt(text, index)
+            if (length == 0) {
+                result.append(text[index])
+                index += 1
+                continue
+            }
+            val key = text.substring(index, index + length).lowercase()
+            val hiragana = ROMAJI_TO_HIRAGANA_MAP.getValue(key)
+            if (isSokuonPlaceholder(hiragana)) {
+                // Doubled consonant: emit the sokuon and let the loop re-match from the second
+                // letter, which is what makes `tt` → っt (an unfinished sokuon) and `tte` → って.
+                // The case is taken over the sokuon *and* the syllable that follows it, which is
+                // wanakana's token slice (`KKa` → っか, `KKA` → ッカ), and that decision also
+                // applies to the syllable itself.
+                val syllableLength = longestRomajiMatchAt(text, index + 1)
+                sokuonTokenEnd = index + 1 + syllableLength
+                // A dangling doubled consonant (`tt` → っt) has no syllable to share a case with,
+                // so it keeps the case of its own two letters, as before.
+                val caseLength = if (syllableLength == 0) length else 1 + syllableLength
+                sokuonKatakana = isUppercaseRomaji(text, index, caseLength)
+                result.append(if (sokuonKatakana) SOKUON_KATAKANA else SOKUON_HIRAGANA)
+                index += 1
+            } else {
+                // `nn` directly before a nya/nyi/nyu/nye/nyo syllable must not swallow the second
+                // `n`: wanakana closes ん on the first `n` alone and starts the syllable at the
+                // second, so `konnyaku` is こんにゃく rather than こんやく (and `koNNya` keeps its
+                // ン, because only that one `n` decides the case).
+                val splitNn = key == "nn" && isNyaRowAfter(text, index)
+                val syllableLength = if (splitNn) 1 else length
+                val katakana = if (index + length == sokuonTokenEnd) {
+                    sokuonKatakana
+                } else {
+                    isUppercaseRomaji(text, index, syllableLength)
+                }
+                result.append(if (katakana) hiraganaToKatakana(hiragana) else hiragana)
+                index += syllableLength
             }
         }
-        return fillSokuonGaps(result)
+        return fillSokuonGaps(result.toString())
     }
 
     /**
@@ -371,30 +421,42 @@ object KanaConverter {
         val clamped = clampCursor(cursorPos, prevLength)
 
         val lowered = text.lowercase()
-        val kanaString = when {
+        val converted = when {
             // Single 'n' before cursor
             clamped > 0 &&
                 lowered[clamped - 1] == 'n' &&
                 lowered.slice(0 until clamped - 1).replace("nn", "").lastOrNull() != 'n' -> {
                 val n = text.substring(clamped - 1, clamped)
-                val beforeN = text.substring(0, clamped - 1)
-                val afterN = text.substring(clamped)
-                toKana(beforeN) + n + toKana(afterN)
+                val convertedBefore = toKana(text.substring(0, clamped - 1))
+                KanaWithCaret(
+                    text = convertedBefore + n + toKana(text.substring(clamped)),
+                    caret = convertedBefore.length + n.length,
+                )
             }
             // 'ny' before cursor
             clamped > 1 &&
                 lowered.substring(clamped - 2, clamped) == "ny" -> {
                 val ny = text.substring(clamped - 2, clamped)
-                val beforeNy = text.substring(0, clamped - 2)
-                val afterNy = text.substring(clamped)
-                toKana(beforeNy) + ny + toKana(afterNy)
+                val convertedBefore = toKana(text.substring(0, clamped - 2))
+                KanaWithCaret(
+                    text = convertedBefore + ny + toKana(text.substring(clamped)),
+                    caret = convertedBefore.length + ny.length,
+                )
             }
-            else -> toKana(text)
+            else -> KanaWithCaret(
+                text = toKana(text),
+                // Only the text before the cursor moves it, so the caret is measured on the
+                // converted prefix: a conversion *after* the cursor must not shift it (wanakana
+                // does the same — `convertInput` sets `head.length + convertedText.length`).
+                caret = toKana(text.substring(0, clamped)).length,
+            )
         }
 
-        val selectionOffset = kanaString.length - prevLength
-        return kanaString to clampCursor(clamped + selectionOffset, kanaString.length)
+        val kanaString = converted.text
+        return kanaString to clampCursor(converted.caret, kanaString.length)
     }
+
+    private data class KanaWithCaret(val text: String, val caret: Int)
 
     /**
      * Only converts alphabetic (romaji) segments to hiragana, leaving existing
@@ -434,6 +496,55 @@ object KanaConverter {
     }
 
     // ── helpers ────────────────────────────────────────────────────────────
+
+    // Longest romaji key in the table (4: `hwyu`, `xtsu`, `ltsu`), bounding the match loop.
+    private val MAX_ROMAJI_LENGTH = ROMAJI_TO_HIRAGANA.maxOf { it.first.length }
+
+    private val ROMAJI_TO_HIRAGANA_MAP = ROMAJI_TO_HIRAGANA.toMap()
+
+    private const val SOKUON_HIRAGANA = 'っ'
+    private const val SOKUON_KATAKANA = 'ッ'
+
+    /**
+     * Length of the longest table key matching [text] at [start], case-insensitively; 0 when no
+     * key starts there. Longest-first is what makes `xtsu` win over `tsu`, and `nn` over `n`.
+     */
+    private fun longestRomajiMatchAt(text: String, start: Int): Int {
+        var length = min(MAX_ROMAJI_LENGTH, text.length - start)
+        while (length > 0) {
+            if (ROMAJI_TO_HIRAGANA_MAP.containsKey(text.substring(start, start + length).lowercase())) {
+                return length
+            }
+            length -= 1
+        }
+        return 0
+    }
+
+    /**
+     * wanakana's per-syllable case test: katakana iff every character of the matched romaji slice
+     * is an uppercase ASCII letter (`N'` therefore stays hiragana, like wanakana's `ん`).
+     */
+    private fun isUppercaseRomaji(text: String, start: Int, length: Int): Boolean {
+        for (offset in start until start + length) {
+            if (text[offset] !in 'A'..'Z') return false
+        }
+        return true
+    }
+
+    /** Table values for doubled consonants (`kk` → `っk`) leave the consonant for the next match. */
+    private fun isSokuonPlaceholder(value: String): Boolean {
+        return value.length == 2 && value[0] == SOKUON_HIRAGANA && value[1] in 'a'..'z'
+    }
+
+    private val NYA_ROW = setOf("nya", "nyi", "nyu", "nye", "nyo")
+
+    /**
+     * Whether the `nn` matched at [start] is directly followed by a nya/nyi/nyu/nye/nyo syllable,
+     * i.e. the second `n` starts that syllable rather than closing ん.
+     */
+    private fun isNyaRowAfter(text: String, start: Int): Boolean {
+        return start + 4 <= text.length && text.substring(start + 1, start + 4).lowercase() in NYA_ROW
+    }
 
     // Hiragana: U+3041 (ぁ) .. U+3096 (ゖ)
     // Katakana: U+30A1 (ァ) .. U+30F6 (ヶ)
