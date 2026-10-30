@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package mihon.core.dictionary.ui
 
-import android.os.Build
 import android.util.Log
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
@@ -11,9 +10,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
+// KUN -->
 /**
- * JavaScript bridge that signals content readiness via `postVisualStateCallback`, so
- * `onContentReady` fires only after the frame is actually painted (02 §3.3).
+ * JavaScript bridge that signals content readiness to Kotlin.
+ *
+ * Runs on the main thread via [WebView.post]. Avoids [WebView.postVisualStateCallback]
+ * because views with `alpha == 0f` skip `onDraw()` in Android hardware-accelerated rendering,
+ * which would deadlock `VisualStateCallback.onComplete` and leave the surface invisible.
  */
 class DictionaryReadyBridge(
     private val webViewProvider: () -> WebView?,
@@ -24,37 +27,19 @@ class DictionaryReadyBridge(
         val webView = webViewProvider() ?: return
         val state = stateProvider() ?: return
         val generation = state.contentReadyGeneration
-        val requestId = ++state.nextContentReadyRequestId
         // @JavascriptInterface methods run on the JavaBridge thread; post back to the main thread.
         webView.post {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                webView.postVisualStateCallback(
-                    requestId,
-                    object : WebView.VisualStateCallback() {
-                        override fun onComplete(requestId: Long) {
-                            if (state.contentReadyGeneration != generation ||
-                                state.nextContentReadyRequestId != requestId
-                            ) {
-                                return
-                            }
-                            stateProvider()?.onContentReady?.invoke()
-                            // KUN --> One line per ready post, logged after the callback restored the
-                            // surface: the entry count that was drawn and the alpha it now has.
-                            Log.i(
-                                "DictionaryRender",
-                                "webview_ready entry_count=${state.payloadBridge.rawEntryJsons.size} " +
-                                    "payload_len=${state.payloadBridge.rawPayloadJson.length} " +
-                                    "alpha=${webView.alpha}",
-                            )
-                            // KUN <--
-                        }
-                    },
-                )
-            } else {
-                stateProvider()?.onContentReady?.invoke()
-            }
+            if (state.contentReadyGeneration != generation) return@post
+            stateProvider()?.onContentReady?.invoke()
+            Log.i(
+                "DictionaryRender",
+                "webview_ready entry_count=${state.payloadBridge.rawEntryJsons.size} " +
+                    "payload_len=${state.payloadBridge.rawPayloadJson.length} " +
+                    "alpha=${webView.alpha}",
+            )
         }
     }
+// KUN <--
 
     // KUN -->
     /**
