@@ -38,6 +38,12 @@ internal const val RENDER_REASON_KILLED = "renderer_killed"
 /** Surface reason for a renderer that died once too often to be recreated again. */
 internal const val RENDER_REASON_EXHAUSTED = "renderer_exhausted"
 
+/**
+ * `render_hidden` reason for a kanji entry whose `.kanji-gloss-content` nodes are all invisible: the
+ * glosses are the whole content of that shape, and there is no group to have been collapsed.
+ */
+internal const val RENDER_REASON_KANJI_DEFINITIONS_HIDDEN = "kanji_definitions_hidden"
+
 /** How many times one surface recreates its WebView before it draws a native failure instead. */
 internal const val MAX_RENDERER_RECOVERIES = 2
 
@@ -81,6 +87,12 @@ internal data class RenderMeasurement(
     val definitionCount: Int,
     /** Definition containers inside the first entry with a visible, non-zero text rectangle. */
     val visibleDefinitions: Int,
+    /**
+     * `.kanji-gloss-content` nodes inside the first entry. A kanji entry
+     * (`article.entry.kanji-entry`) carries these and **no** `.dictionary-group`, so [expandedGroups]
+     * says nothing about it: there is no group that could have been collapsed on purpose.
+     */
+    val kanjiGlossCount: Int = 0,
 )
 
 /**
@@ -138,11 +150,18 @@ internal fun renderVisibilityProblem(
     if (m.entryHeight < 1 && m.entryScrollHeight < 1) {
         return RenderVisibilityProblem("entry_zero_height", shouldGuard = true)
     }
-    // Definitions hidden inside an entry that is itself visible. Only judged when the page has
-    // glosses at all and the renderer left at least one group expanded — a collapsed group (and an
-    // entry with no glossaries) hides its definitions on purpose.
-    if (m.definitionCount > 0 && m.expandedGroups > 0 && m.visibleDefinitions <= 0) {
-        return RenderVisibilityProblem("definitions_hidden", shouldGuard = true)
+    // Definitions hidden inside an entry that is itself visible. A term entry hides them on purpose
+    // when the user collapsed its group (`base.css`), so that shape is only judged when the renderer
+    // left at least one group expanded. A kanji entry has no `.dictionary-group` at all — its glosses
+    // are `.kanji-gloss-content` under the entry — so nothing there could have been collapsed and a
+    // hidden gloss is always a failure.
+    if (m.definitionCount > 0 && m.visibleDefinitions <= 0) {
+        if (m.kanjiGlossCount > 0) {
+            return RenderVisibilityProblem(RENDER_REASON_KANJI_DEFINITIONS_HIDDEN, shouldGuard = true)
+        }
+        if (m.expandedGroups > 0) {
+            return RenderVisibilityProblem("definitions_hidden", shouldGuard = true)
+        }
     }
     return null
 }
@@ -178,6 +197,72 @@ internal fun renderNotReadyReason(
     }
 }
 
+/**
+ * The longest the readiness watch stays armed when its first window expired before a decision was
+ * possible (a lookup still in flight, a payload still being built). Past this it decides on the
+ * evidence it has, so a broken surface cannot hide behind "not decided yet" forever.
+ */
+internal const val RENDER_WATCH_MAX_WAIT_MS = 15_000L
+
+/** What one poll of the readiness watch does. */
+internal enum class RenderWatchStep {
+    /** The window has not expired: poll again. */
+    WAIT,
+
+    /**
+     * The window expired but nothing can be decided yet: stay armed (up to
+     * [RENDER_WATCH_MAX_WAIT_MS]). This is the case the watch used to disarm on, which is how a
+     * silent blank survived: at the 3 s deadline a first lookup is still in flight (`loading`) and a
+     * payload build slower than the window has not dispatched anything, and both read as "no
+     * decision", not as "fine".
+     */
+    EXTEND,
+
+    /** Stop watching with nothing to report: the surface painted, is idle, or states its own blank. */
+    SETTLED,
+
+    /** Stop watching and draw the failure surface with [RenderWatchDecision.reason]. */
+    FAILED,
+}
+
+internal data class RenderWatchDecision(val step: RenderWatchStep, val reason: String? = null)
+
+/**
+ * The one decision behind the readiness watch, per poll.
+ *
+ * [renderNotReadyReason] answers "is this instance broken *now*"; this answers "should the watch act
+ * on that, or wait for a decision to become possible". Returning on `reason == null` was the bug: an
+ * undecidable surface (a lookup in flight, a payload not dispatched yet) ended the watch for good, so
+ * a stall that began afterwards was never reported by anything.
+ */
+internal fun renderWatchDecision(
+    pageReady: Boolean,
+    renderDispatched: Boolean,
+    renderReachedReady: Boolean,
+    loading: Boolean,
+    elapsedMs: Long,
+    windowMs: Long,
+    maxWaitMs: Long,
+): RenderWatchDecision {
+    if (elapsedMs < windowMs) return RenderWatchDecision(RenderWatchStep.WAIT)
+    val reason = renderNotReadyReason(pageReady, renderDispatched, renderReachedReady, elapsedMs, windowMs)
+    if (reason == null) {
+        // Nothing was dispatched and nothing painted: the payload may still be building (a build
+        // slower than the window) — or this surface is simply idle and was never asked to render.
+        // Only the cap tells those apart, so keep the watch armed until it does.
+        return if (!renderDispatched && !renderReachedReady && elapsedMs < maxWaitMs) {
+            RenderWatchDecision(RenderWatchStep.EXTEND)
+        } else {
+            RenderWatchDecision(RenderWatchStep.SETTLED)
+        }
+    }
+    // A lookup in flight is a stated blank: the caller draws its own loading state, and the shell may
+    // still be loading. Extending the window is what stops the failure from being either missed (the
+    // old `return` when `loadingNow`) or shouted while the user is being told to wait.
+    if (loading && elapsedMs < maxWaitMs) return RenderWatchDecision(RenderWatchStep.EXTEND)
+    return RenderWatchDecision(RenderWatchStep.FAILED, reason)
+}
+
 /** Whether a computed `display`/`visibility`/`opacity` triple takes an element out of sight. */
 internal fun isHidden(display: String, visibility: String, opacity: Float): Boolean =
     display.equals("none", ignoreCase = true) ||
@@ -211,6 +296,7 @@ internal const val RENDER_MEASURE_SCRIPT: String =
         "var g0=groups.length?groups[0]:null;" +
         "var defs=first?first.querySelectorAll(" +
         "'.dictionary-group .gloss-content,.kanji-gloss-content'):[];" +
+        "var kanjiGlosses=first?first.querySelectorAll('.kanji-gloss-content'):[];" +
         "var visibleDefs=0;" +
         "for(var i=0;i<defs.length;i++){var d=defs[i];if(off(cs(d))){continue;}" +
         "if(h(d)>=1&&w(d)>=1){visibleDefs++;}}" +
@@ -241,34 +327,71 @@ internal const val RENDER_MEASURE_SCRIPT: String =
         "group_opacity:(gc?parseFloat(gc.opacity):1)," +
         "expanded_groups:expanded," +
         "definition_count:defs.length," +
-        "visible_definitions:visibleDefs" +
+        "visible_definitions:visibleDefs," +
+        "kanji_gloss_count:kanjiGlosses.length" +
         "});" +
         "}catch(e){return 'err:'+e.message;}" +
         "})()"
 
-/** Every node the guard forces visible and the guard's removal restores. */
-private const val RENDER_GUARD_NODES: String =
-    "'#entries,#entries .entry,#entries .dictionary-group,#entries .gloss-content," +
-        "#entries .definition-list,#entries .kanji-gloss-content'"
+/** Every node the guard's container half forces visible, and that its removal restores. */
+private const val RENDER_GUARD_CONTAINER_NODES: String =
+    "'#entries,#entries .entry'"
+
+/** The nodes only a definitions repair touches. */
+private const val RENDER_GUARD_DEFINITION_NODES: String =
+    "'#entries .dictionary-group,#entries .gloss-content,#entries .definition-list," +
+        "#entries .kanji-gloss-content'"
+
+/** Container CSS of the guard: heights/clipping only, so it never rewrites an element's `display`. */
+private const val RENDER_GUARD_CONTAINER_CSS: String =
+    "'#entries{height:auto!important;max-height:none!important;overflow:visible!important;}'" +
+        "+'#entries .entry{height:auto!important;overflow:visible!important;}'"
+
+/** Definition CSS of the guard: the only rule that sets `display`, and only for the shapes that need it. */
+private const val RENDER_GUARD_DEFINITION_CSS: String =
+    "'#entries .dictionary-group,#entries .gloss-content,#entries .definition-list," +
+        "#entries .kanji-gloss-content{display:block!important;height:auto!important;" +
+        "max-height:none!important;overflow:visible!important;}'"
 
 /**
- * The repair for a measured-hidden render: force the document, the entries container, every entry and
- * the definitions inside them visible. Applied as inline `!important`, which outranks a stylesheet
- * `!important` — including the custom CSS that caused this — while leaving the rest of the custom CSS
- * alone. Idempotent, and undoable by [RENDER_GUARD_REMOVE_SCRIPT].
+ * The reasons whose repair has to touch the definition containers at all.
+ *
+ * Every other reason (a hidden body, container or entry) is repaired with visibility/opacity and the
+ * container's clipping only: forcing `display:block` on `.gloss-content` for those flips compact-mode
+ * glosses (`display:inline`, `base.css`) to block until the next invalidation, i.e. it rewrites the
+ * user's layout to repair something unrelated.
  */
-internal const val RENDER_GUARD_SCRIPT: String =
-    "(function(){" +
+internal val RENDER_GUARD_DEFINITION_REASONS: Set<String> = setOf(
+    "group_hidden",
+    "definitions_hidden",
+    RENDER_REASON_KANJI_DEFINITIONS_HIDDEN,
+)
+
+/**
+ * The repair for a measured-hidden render, for [reason]: force the document, the entries container
+ * and every entry visible, and — only when the definitions themselves were the problem — their
+ * containers too. Applied as inline `!important`, which outranks a stylesheet `!important`
+ * (including the custom CSS that caused this) while leaving the rest of the custom CSS alone.
+ * Idempotent, and undoable by [RENDER_GUARD_REMOVE_SCRIPT].
+ */
+internal fun renderGuardScript(reason: String): String {
+    val withDefinitions = reason in RENDER_GUARD_DEFINITION_REASONS
+    val nodes = if (withDefinitions) {
+        RENDER_GUARD_CONTAINER_NODES + "," + RENDER_GUARD_DEFINITION_NODES
+    } else {
+        RENDER_GUARD_CONTAINER_NODES
+    }
+    val css = if (withDefinitions) {
+        RENDER_GUARD_CONTAINER_CSS + "+" + RENDER_GUARD_DEFINITION_CSS
+    } else {
+        RENDER_GUARD_CONTAINER_CSS
+    }
+    return "(function(){" +
         "var s=document.getElementById('komikun-visibility-guard');" +
         "if(!s){s=document.createElement('style');s.id='komikun-visibility-guard';" +
         "(document.head||document.documentElement).appendChild(s);}" +
-        "s.textContent=" +
-        "'#entries{height:auto!important;max-height:none!important;overflow:visible!important;}'" +
-        "+'#entries .entry{height:auto!important;overflow:visible!important;}'" +
-        "+'#entries .dictionary-group,#entries .gloss-content,#entries .definition-list," +
-        "#entries .kanji-gloss-content{display:block!important;height:auto!important;" +
-        "max-height:none!important;overflow:visible!important;}';" +
-        "var q=document.querySelectorAll(" + RENDER_GUARD_NODES + ");" +
+        "s.textContent=" + css + ";" +
+        "var q=document.querySelectorAll(" + nodes + ");" +
         "var nodes=[document.documentElement,document.body];" +
         "for(var i=0;i<q.length;i++){nodes.push(q[i]);}" +
         "for(var j=0;j<nodes.length;j++){var n=nodes[j];if(!n||!n.style){continue;}" +
@@ -276,12 +399,14 @@ internal const val RENDER_GUARD_SCRIPT: String =
         "n.style.setProperty('visibility','visible','important');" +
         "n.style.setProperty('opacity','1','important');}" +
         "})()"
+}
 
-/** Undo [RENDER_GUARD_SCRIPT], so a later render is judged on the document's own styles again. */
+/** Undo [renderGuardScript], so a later render is judged on the document's own styles again. */
 internal const val RENDER_GUARD_REMOVE_SCRIPT: String =
     "(function(){" +
         "var s=document.getElementById('komikun-visibility-guard');if(s){s.remove();}" +
-        "var q=document.querySelectorAll(" + RENDER_GUARD_NODES + ");" +
+        "var q=document.querySelectorAll(" + RENDER_GUARD_CONTAINER_NODES + "," +
+        RENDER_GUARD_DEFINITION_NODES + ");" +
         "var nodes=[document.documentElement,document.body];" +
         "for(var i=0;i<q.length;i++){nodes.push(q[i]);}" +
         "for(var j=0;j<nodes.length;j++){var n=nodes[j];if(!n||!n.style){continue;}" +
@@ -330,6 +455,7 @@ internal fun parseRenderMeasurement(raw: String?): RenderMeasurement? {
         expandedGroups = obj.optInt("expanded_groups", 0),
         definitionCount = obj.optInt("definition_count", 0),
         visibleDefinitions = obj.optInt("visible_definitions", 0),
+        kanjiGlossCount = obj.optInt("kanji_gloss_count", 0),
     )
 }
 
@@ -345,22 +471,25 @@ private fun opacityOf(obj: JSONObject, key: String): Float =
  * a problem on every "No results for …" frame and override the placeholder's own styling.
  *
  * One line per render: `contentReadyGeneration` changes with every flush, so a renderer that posts
- * ready more than once for the same render does not repeat the line (and the guard, which is
- * idempotent, is not injected again).
+ * ready more than once for the same render is measured again but does not repeat the line, and — the
+ * guard being a `display`/`visibility` override the user's own styles would keep — it is not injected
+ * again either. `removeVisibilityGuard` runs on the next invalidation, so a later generation is
+ * judged (and repaired) from scratch.
  */
 internal fun verifyRenderedVisibility(webView: WebView) {
     val state = webView.tag as? DictionaryWebViewState ?: return
     if (state.rendererDead) return
     val expectedEntries = state.payloadBridge.rawEntryJsons.size
     if (expectedEntries <= 0) return
-    val shouldLog = claimVisibilityJudgement(webView, state.contentReadyGeneration)
+    val generation = state.contentReadyGeneration
+    val shouldLog = claimVisibilityJudgement(webView, generation)
     webView.evaluateJavascript(RENDER_MEASURE_SCRIPT) { raw ->
         val measurement = parseRenderMeasurement(raw)
         val problem = renderVisibilityProblem(expectedEntries, measurement)
         val measured = "entries=$expectedEntries dom_entries=${measurement?.entryCount ?: -1} " +
             "container_h=${measurement?.containerHeight ?: -1} entry_h=${measurement?.entryHeight ?: -1} " +
             "group_h=${measurement?.groupHeight ?: -1} defs=${measurement?.visibleDefinitions ?: -1}" +
-            "/${measurement?.definitionCount ?: -1}"
+            "/${measurement?.definitionCount ?: -1} kanji_defs=${measurement?.kanjiGlossCount ?: -1}"
         if (problem == null) {
             if (shouldLog) Log.i("DictionaryRender", "render_visible $measured")
             return@evaluateJavascript
@@ -371,11 +500,13 @@ internal fun verifyRenderedVisibility(webView: WebView) {
                 "render_hidden reason=${problem.reason} guard=${problem.shouldGuard} $measured",
             )
         }
-        if (problem.shouldGuard) webView.evaluateJavascript(RENDER_GUARD_SCRIPT, null)
+        if (problem.shouldGuard && claimGuardInjection(webView, generation)) {
+            webView.evaluateJavascript(renderGuardScript(problem.reason), null)
+        }
     }
 }
 
-/** Last `contentReadyGeneration` judged per WebView, so one render logs (and guards) once. */
+/** Last `contentReadyGeneration` judged per WebView, so one render logs once. */
 private val visibilityJudgements = java.util.WeakHashMap<WebView, Long>()
 
 private fun claimVisibilityJudgement(webView: WebView, generation: Long): Boolean =
@@ -389,11 +520,31 @@ private fun claimVisibilityJudgement(webView: WebView, generation: Long): Boolea
     }
 
 /**
- * Drop [RENDER_GUARD_SCRIPT]'s overrides. Called when a render is invalidated, so every render is
+ * The `contentReadyGeneration` each WebView's guard was injected for, so a renderer that posts ready
+ * more than once for one render injects it once (the KDoc above says so, and a second injection is a
+ * script call per duplicate ready for nothing). [removeVisibilityGuard] forgets it, which is also how
+ * a generation whose first measurement was too early to repair ([RenderVisibilityProblem.shouldGuard]
+ * is false then) still gets its guard from a later ready of that same generation.
+ */
+private val guardInjections = java.util.WeakHashMap<WebView, Long>()
+
+private fun claimGuardInjection(webView: WebView, generation: Long): Boolean =
+    synchronized(guardInjections) {
+        if (guardInjections[webView] == generation) {
+            false
+        } else {
+            guardInjections[webView] = generation
+            true
+        }
+    }
+
+/**
+ * Drop [renderGuardScript]'s overrides. Called when a render is invalidated, so every render is
  * judged on the document's own styles and a fixed (or reset) custom CSS takes effect again.
  */
 internal fun removeVisibilityGuard(webView: WebView) {
     if ((webView.tag as? DictionaryWebViewState)?.rendererDead == true) return
+    synchronized(guardInjections) { guardInjections.remove(webView) }
     webView.evaluateJavascript(RENDER_GUARD_REMOVE_SCRIPT, null)
 }
 

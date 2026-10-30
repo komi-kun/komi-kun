@@ -192,6 +192,15 @@ class DictionaryWebViewState(
      * `clear()` (a `evaluateJavascript`) is skipped and the WebView is only destroyed.
      */
     var rendererDead: Boolean = false
+
+    /**
+     * A render payload was just handed to the document (`flush` dispatched it). The shell's
+     * `onContentInvalidated` alone cannot say this: it also runs for `clear` and for a shell reload,
+     * neither of which owes a `contentReady`. The app layer keys its per-render readiness watch on
+     * this, so a render that never reaches `contentReady` is reported instead of leaving the surface
+     * at `alpha = 0` (the renderer skips `postContentReady` on its own early returns).
+     */
+    var onRenderDispatched: (() -> Unit)? = null
     // KUN <--
     var lastPayload: String? = null
     var lastResults: List<LookupResult>? = null
@@ -348,6 +357,9 @@ class DictionaryWebViewState(
             }.orEmpty() +
             "}"
         webView.evaluateJavascript(js, null)
+        // KUN --> The app layer's evidence that *this* render went out (see `onRenderDispatched`).
+        onRenderDispatched?.invoke()
+        // KUN <--
 
         // KUN --> One line per flush (flush only runs when the render signature changes): how much
         // went out and whether the surface was still transparent when it did.

@@ -221,6 +221,13 @@ fun DictionaryEntryWebView(
     var renderReachedReady by remember { mutableStateOf(false) }
     var readyPostCount by remember { mutableIntStateOf(0) }
 
+    // The last render payload handed to the document, and the moment of the last render that reached
+    // the screen. Timestamps rather than a counter snapshot: the ready post of a dispatch can land in
+    // the same frame the watch below is armed in, and a snapshot taken afterwards would count it as
+    // "not painted" and fail a render that already succeeded.
+    var lastDispatch by remember { mutableStateOf<RenderDispatch?>(null) }
+    var lastReadyAtMs by remember { mutableStateOf(0L) }
+
     // Non-null when the surface has given up on this WebView (`SURFACE_REASON_NOT_READY`,
     // `SURFACE_REASON_RENDER_STALLED` or, with `rendererExhausted`, a dead renderer). It is drawn by
     // Compose *instead of* the `AndroidView`: a Compose `Text` composed under the interop `WebView`
@@ -278,6 +285,8 @@ fun DictionaryEntryWebView(
         onContentReadyChange?.invoke(true)
         renderReachedReady = true
         readyPostCount++
+        // Timestamp first: the per-render watch below decides "this dispatch painted" from it.
+        lastReadyAtMs = SystemClock.elapsedRealtime()
         webView.alpha = 1f
         // A notice belongs to the render that failed. The renderer posts `contentReady` from its
         // `finally`, so the ready post of a render that threw still carries that render's
@@ -326,13 +335,21 @@ fun DictionaryEntryWebView(
     // The shell's `onPageFinished` is not reported to Compose (it lives in `:core:dictionary`), so
     // this polls the WebView instance's own `pageReady` for the length of the timeout and stops as
     // soon as it is proven that this surface can paint.
+    //
+    // The watch no longer disarms on "cannot decide yet": at the 3 s deadline a first lookup is
+    // still in flight (`loadingNow`) and a payload build slower than the window has dispatched
+    // nothing, and both used to end the loop for good — so the stall that began afterwards had
+    // nothing left watching it. `renderWatchDecision` keeps it armed up to
+    // `RENDER_WATCH_MAX_WAIT_MS` and then decides on the evidence it has.
     LaunchedEffect(webViewGeneration.intValue) {
         pageReadySeen = false
         renderDispatched = false
         renderReachedReady = false
         readyPostCount = 0
+        lastReadyAtMs = 0L
         surfaceFailure = null
         val start = SystemClock.elapsedRealtime()
+        var extended = false
         while (true) {
             val elapsed = SystemClock.elapsedRealtime() - start
             val state = webViewHolder.value?.tag as? DictionaryWebViewState
@@ -344,27 +361,97 @@ fun DictionaryEntryWebView(
             ) {
                 renderDispatched = true
             }
-            if (elapsed >= RENDER_NOT_READY_TIMEOUT_MS) {
-                val reason = renderNotReadyReason(
-                    pageReady = pageReadySeen,
-                    renderDispatched = renderDispatched,
-                    renderReachedReady = renderReachedReady,
-                    elapsedMs = elapsed,
-                    timeoutMs = RENDER_NOT_READY_TIMEOUT_MS,
-                )
-                // A lookup in flight is a stated blank (the caller draws its own loading state),
-                // not a broken WebView.
-                if (reason == null || loadingNow) return@LaunchedEffect
-                Log.w(
-                    "DictionaryRender",
-                    "webview_not_ready elapsed_ms=$elapsed page_ready=$pageReadySeen " +
-                        "content_ready=$renderReachedReady ready_posts=$readyPostCount " +
-                        "reason=$reason results=${results.size} " +
-                        "entry_jsons=${entryJsons?.size ?: 0} " +
-                        "generation=${webViewGeneration.intValue}",
-                )
-                surfaceFailure = reason
-                return@LaunchedEffect
+            val decision = renderWatchDecision(
+                pageReady = pageReadySeen,
+                renderDispatched = renderDispatched,
+                renderReachedReady = renderReachedReady,
+                loading = loadingNow,
+                elapsedMs = elapsed,
+                windowMs = RENDER_NOT_READY_TIMEOUT_MS,
+                maxWaitMs = RENDER_WATCH_MAX_WAIT_MS,
+            )
+            when (decision.step) {
+                RenderWatchStep.WAIT -> Unit
+                RenderWatchStep.EXTEND -> if (!extended) {
+                    extended = true
+                    Log.i(
+                        "DictionaryRender",
+                        "webview_not_ready_extended elapsed_ms=$elapsed " +
+                            "page_ready=$pageReadySeen render_dispatched=$renderDispatched " +
+                            "loading=$loadingNow " +
+                            "max_wait_ms=$RENDER_WATCH_MAX_WAIT_MS " +
+                            "generation=${webViewGeneration.intValue}",
+                    )
+                }
+                RenderWatchStep.SETTLED -> return@LaunchedEffect
+                RenderWatchStep.FAILED -> {
+                    Log.w(
+                        "DictionaryRender",
+                        "webview_not_ready elapsed_ms=$elapsed page_ready=$pageReadySeen " +
+                            "content_ready=$renderReachedReady ready_posts=$readyPostCount " +
+                            "reason=${decision.reason} loading=$loadingNow " +
+                            "results=${results.size} entry_jsons=${entryJsons?.size ?: 0} " +
+                            "generation=${webViewGeneration.intValue}",
+                    )
+                    surfaceFailure = decision.reason
+                    return@LaunchedEffect
+                }
+            }
+            delay(RENDER_READY_POLL_MS)
+        }
+    }
+    // Every *dispatch* gets its own watch, not only the first 3 s of the WebView's life. A render
+    // handed to a working shell can still never reach the screen: the renderer returns before
+    // `render` (and before its `finally`) when `PayloadBridge` is missing or the payload JSON is
+    // empty, and `onContentInvalidated` has already set `alpha = 0f` — so the pane stays transparent
+    // with no message for every render after the first, which the removed 1 s flush-scoped backstop
+    // used to catch. Keyed on the dispatch (and on the generation, so a recreated WebView's stale
+    // dispatch cannot be re-judged against the new one).
+    LaunchedEffect(webViewGeneration.intValue, lastDispatch) {
+        val dispatch = lastDispatch ?: return@LaunchedEffect
+        if (dispatch.generation != webViewGeneration.intValue) return@LaunchedEffect
+        val start = SystemClock.elapsedRealtime()
+        var extended = false
+        while (true) {
+            if (surfaceFailure != null) return@LaunchedEffect
+            if (webViewGeneration.intValue != dispatch.generation) return@LaunchedEffect
+            val elapsed = SystemClock.elapsedRealtime() - start
+            val decision = renderWatchDecision(
+                // A dispatch only happens into a document that has finished loading, and this watch
+                // is about the render: the load half is the creation-time watch's job.
+                pageReady = true,
+                renderDispatched = true,
+                renderReachedReady = lastReadyAtMs >= dispatch.atMs,
+                loading = loadingNow,
+                elapsedMs = elapsed,
+                windowMs = RENDER_NOT_READY_TIMEOUT_MS,
+                maxWaitMs = RENDER_WATCH_MAX_WAIT_MS,
+            )
+            when (decision.step) {
+                RenderWatchStep.WAIT -> Unit
+                RenderWatchStep.EXTEND -> if (!extended) {
+                    extended = true
+                    Log.i(
+                        "DictionaryRender",
+                        "render_stalled_waiting elapsed_ms=$elapsed loading=$loadingNow " +
+                            "max_wait_ms=$RENDER_WATCH_MAX_WAIT_MS " +
+                            "dispatch_at_ms=${dispatch.atMs} last_ready_ms=$lastReadyAtMs " +
+                            "generation=${dispatch.generation}",
+                    )
+                }
+                RenderWatchStep.SETTLED -> return@LaunchedEffect
+                RenderWatchStep.FAILED -> {
+                    Log.w(
+                        "DictionaryRender",
+                        "render_stalled elapsed_ms=$elapsed page_ready=$pageReadySeen " +
+                            "reason=${decision.reason} loading=$loadingNow " +
+                            "results=${results.size} entry_jsons=${entryJsons?.size ?: 0} " +
+                            "dispatch_at_ms=${dispatch.atMs} last_ready_ms=$lastReadyAtMs " +
+                            "ready_posts=$readyPostCount generation=${dispatch.generation}",
+                    )
+                    surfaceFailure = decision.reason
+                    return@LaunchedEffect
+                }
             }
             delay(RENDER_READY_POLL_MS)
         }
@@ -481,6 +568,15 @@ fun DictionaryEntryWebView(
                         }
                         // KUN --> Restores the surface, then checks that what it restored is visible.
                         state.onContentReady = { onRenderReady(webView) }
+                        // KUN --> Every dispatch re-arms the per-render readiness watch (see the
+                        // `LaunchedEffect(webViewGeneration.intValue, lastDispatch)` above).
+                        state.onRenderDispatched = {
+                            lastDispatch = RenderDispatch(
+                                seq = (lastDispatch?.seq ?: 0) + 1,
+                                generation = webViewGeneration.intValue,
+                                atMs = SystemClock.elapsedRealtime(),
+                            )
+                        }
                         // KUN --> A JS render throw is now reported, not just printed to a console
                         // nobody can read on a device.
                         state.onRenderError = { message ->
@@ -606,6 +702,14 @@ fun DictionaryEntryWebView(
                     }
                     // KUN --> See the factory's copy: restore, then verify the render is visible.
                     state.onContentReady = { onRenderReady(webView) }
+                    // KUN --> See the factory's copy: each dispatch gets its own readiness watch.
+                    state.onRenderDispatched = {
+                        lastDispatch = RenderDispatch(
+                            seq = (lastDispatch?.seq ?: 0) + 1,
+                            generation = webViewGeneration.intValue,
+                            atMs = SystemClock.elapsedRealtime(),
+                        )
+                    }
                     // KUN -->
                     state.onRenderError = { message ->
                         Log.e("DictionaryRender", "js_render_error=$message")
@@ -676,6 +780,7 @@ fun DictionaryEntryWebView(
                     state?.onContentReady = null
                     // KUN -->
                     state?.onRenderError = null
+                    state?.onRenderDispatched = null
                     webViewHolder.value = null
                     // KUN <--
                     state?.lastPayload = null
@@ -728,8 +833,18 @@ fun DictionaryEntryWebView(
 
 // KUN -->
 /**
+ * One render payload handed to a WebView document, as the per-render readiness watch sees it: which
+ * generation's WebView took it and when. `seq` makes two dispatches in the same millisecond distinct
+ * state, so the watch is re-armed for each.
+ */
+private data class RenderDispatch(val seq: Int, val generation: Int, val atMs: Long)
+
+/**
  * How long a freshly created WebView has to prove it can paint: its shell's `onPageFinished` (the
  * document loaded) and, if a payload was dispatched to it, one render reaching `contentReady`.
+ *
+ * The same window re-arms for every later dispatch: it is three times the 1 s flush-scoped stall
+ * notice this replaced, and long enough for a slow-but-real render to finish.
  */
 private const val RENDER_NOT_READY_TIMEOUT_MS = 3_000L
 

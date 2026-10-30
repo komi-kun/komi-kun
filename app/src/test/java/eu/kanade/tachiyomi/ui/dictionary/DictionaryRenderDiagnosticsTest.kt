@@ -166,6 +166,38 @@ class DictionaryRenderDiagnosticsTest {
     }
 
     /**
+     * The kanji shape: `article.entry.kanji-entry` carries `.kanji-gloss-content` and no
+     * `.dictionary-group` at all, so `expandedGroups` is always 0 and the term-shape rule could never
+     * fire — a page whose kanji glosses are `display:none` measured as fine while the guard both
+     * measured and repaired that selector. There is no group there to have been collapsed on
+     * purpose, so a hidden gloss is a failure on its own.
+     */
+    @Test
+    fun `a kanji entry with no visible gloss is reported and repaired`() {
+        val kanjiHidden = visible().copy(
+            groupCount = 0,
+            groupHeight = -1,
+            groupDisplay = "",
+            groupVisibility = "",
+            groupOpacity = 1f,
+            expandedGroups = 0,
+            definitionCount = 2,
+            visibleDefinitions = 0,
+            kanjiGlossCount = 2,
+        )
+
+        renderVisibilityProblem(1, kanjiHidden) shouldBe
+            RenderVisibilityProblem(RENDER_REASON_KANJI_DEFINITIONS_HIDDEN, shouldGuard = true)
+        // The same entry with its glosses on screen is fine.
+        renderVisibilityProblem(1, kanjiHidden.copy(visibleDefinitions = 2)) shouldBe null
+        // And a kanji entry with no gloss at all is not judged (nothing to show, as for terms).
+        renderVisibilityProblem(
+            1,
+            kanjiHidden.copy(definitionCount = 0, kanjiGlossCount = 0),
+        ) shouldBe null
+    }
+
+    /**
      * Two ways definitions are legitimately invisible: the user collapsed the group (`base.css`
      * hides `.definition-list` for `[data-collapsed="true"]`) and a result that carries no
      * glossaries at all. Guarding either would expand what the user collapsed.
@@ -258,6 +290,112 @@ class DictionaryRenderDiagnosticsTest {
         renderNotReadyReason(true, false, false, elapsedMs = 10_000, timeoutMs = 3_000) shouldBe null
     }
 
+    /**
+     * The watchdog used to disarm at its deadline whenever it could not decide — `loadingNow` was
+     * true at 3 s for any first lookup slower than that, so the loop ended for good and a shell that
+     * never loaded afterwards was reported by nothing.
+     */
+    @Test
+    fun `a lookup in flight extends the watch instead of disarming it, then fails at the cap`() {
+        // At the deadline, still loading, and the document never loaded.
+        renderWatchDecision(
+            pageReady = false,
+            renderDispatched = false,
+            renderReachedReady = false,
+            loading = true,
+            elapsedMs = 3_000,
+            windowMs = 3_000,
+            maxWaitMs = 15_000,
+        ) shouldBe RenderWatchDecision(RenderWatchStep.EXTEND)
+        // Still loading at the cap: decide on the evidence (the document never loaded).
+        renderWatchDecision(
+            pageReady = false,
+            renderDispatched = false,
+            renderReachedReady = false,
+            loading = true,
+            elapsedMs = 15_000,
+            windowMs = 3_000,
+            maxWaitMs = 15_000,
+        ) shouldBe RenderWatchDecision(RenderWatchStep.FAILED, SURFACE_REASON_NOT_READY)
+        // The lookup ended and the document still never loaded: fail now, without waiting for the cap.
+        renderWatchDecision(
+            pageReady = false,
+            renderDispatched = false,
+            renderReachedReady = false,
+            loading = false,
+            elapsedMs = 5_200,
+            windowMs = 3_000,
+            maxWaitMs = 15_000,
+        ) shouldBe RenderWatchDecision(RenderWatchStep.FAILED, SURFACE_REASON_NOT_READY)
+        // A render that was dispatched and never painted is a stall, loading or not, at the cap.
+        renderWatchDecision(
+            pageReady = true,
+            renderDispatched = true,
+            renderReachedReady = false,
+            loading = true,
+            elapsedMs = 4_000,
+            windowMs = 3_000,
+            maxWaitMs = 15_000,
+        ) shouldBe RenderWatchDecision(RenderWatchStep.EXTEND)
+        renderWatchDecision(
+            pageReady = true,
+            renderDispatched = true,
+            renderReachedReady = false,
+            loading = false,
+            elapsedMs = 4_000,
+            windowMs = 3_000,
+            maxWaitMs = 15_000,
+        ) shouldBe RenderWatchDecision(RenderWatchStep.FAILED, SURFACE_REASON_RENDER_STALLED)
+    }
+
+    /**
+     * The other undecidable branch: at the deadline nothing had been dispatched yet because the
+     * payload build was slower than the window. That used to read as "no reason" and end the watch;
+     * it must stay armed instead, so the render that is dispatched afterwards is covered, and settle
+     * quietly at the cap if no payload ever comes (an idle surface, not a broken one).
+     */
+    @Test
+    fun `a payload that has not been dispatched yet extends the watch, then settles`() {
+        renderWatchDecision(
+            pageReady = true,
+            renderDispatched = false,
+            renderReachedReady = false,
+            loading = false,
+            elapsedMs = 3_100,
+            windowMs = 3_000,
+            maxWaitMs = 15_000,
+        ) shouldBe RenderWatchDecision(RenderWatchStep.EXTEND)
+        renderWatchDecision(
+            pageReady = true,
+            renderDispatched = false,
+            renderReachedReady = false,
+            loading = false,
+            elapsedMs = 15_000,
+            windowMs = 3_000,
+            maxWaitMs = 15_000,
+        ) shouldBe RenderWatchDecision(RenderWatchStep.SETTLED)
+        // A dispatch that is then painted ends the watch immediately, whenever it arrives.
+        renderWatchDecision(
+            pageReady = true,
+            renderDispatched = true,
+            renderReachedReady = true,
+            loading = false,
+            elapsedMs = 8_000,
+            windowMs = 3_000,
+            maxWaitMs = 15_000,
+        ) shouldBe RenderWatchDecision(RenderWatchStep.SETTLED)
+        // Inside the first window nothing is decided at all.
+        renderWatchDecision(
+            pageReady = false,
+            renderDispatched = false,
+            renderReachedReady = false,
+            loading = true,
+            elapsedMs = 2_000,
+            windowMs = 3_000,
+            maxWaitMs = 15_000,
+        ) shouldBe RenderWatchDecision(RenderWatchStep.WAIT)
+    }
+
     @Test
     fun `a measurement parses from the quoted json string a webview returns`() {
         val raw = "\"{\\\"entry_count\\\":2,\\\"container_h\\\":640,\\\"container_sh\\\":700," +
@@ -310,6 +448,70 @@ class DictionaryRenderDiagnosticsTest {
         parseRenderMeasurement("null") shouldBe null
         parseRenderMeasurement("\"err:document is gone\"") shouldBe null
         parseRenderMeasurement("42") shouldBe null
+    }
+
+    /** The kanji-entry field the kanji-shape decision needs, from the same quoted-JSON shape. */
+    @Test
+    fun `a kanji gloss count parses from the measurement`() {
+        parseRenderMeasurement(
+            "\"{\\\"entry_count\\\":1,\\\"definition_count\\\":3,\\\"visible_definitions\\\":0," +
+                "\\\"kanji_gloss_count\\\":3}\"",
+        ) shouldBe RenderMeasurement(
+            entryCount = 1,
+            containerHeight = -1,
+            containerScrollHeight = -1,
+            containerDisplay = "",
+            containerVisibility = "",
+            containerOpacity = 1f,
+            bodyDisplay = "",
+            bodyVisibility = "",
+            entryHeight = -1,
+            entryScrollHeight = -1,
+            entryDisplay = "",
+            entryVisibility = "",
+            entryOpacity = 1f,
+            layoutHeight = -1,
+            documentHeight = -1,
+            groupCount = 0,
+            groupHeight = -1,
+            groupDisplay = "",
+            groupVisibility = "",
+            groupOpacity = 1f,
+            expandedGroups = 0,
+            definitionCount = 3,
+            visibleDefinitions = 0,
+            kanjiGlossCount = 3,
+        )
+    }
+
+    /**
+     * The guard rewrote the definition layout for every reason: `container_hidden` flipped
+     * compact-mode glosses (`display:inline`) to `block` while repairing something that was never
+     * about them, and left them that way until the next invalidation. Only a definitions repair may
+     * touch `display` on the definitions; every other reason keeps to visibility/opacity and the
+     * container's clipping.
+     */
+    @Test
+    fun `only a definitions repair forces the definition layout`() {
+        val definitionRule =
+            "#entries .dictionary-group,#entries .gloss-content,#entries .definition-list," +
+                "#entries .kanji-gloss-content{display:block!important"
+
+        for (reason in RENDER_GUARD_DEFINITION_REASONS) {
+            renderGuardScript(reason).contains(definitionRule).shouldBe(true)
+        }
+
+        for (reason in listOf("container_hidden", "body_hidden", "entry_hidden", "entry_zero_height")) {
+            val script = renderGuardScript(reason)
+            // No `display` rule for the definitions, and their nodes are not even queried...
+            script.contains("gloss-content").shouldBe(false)
+            script.contains(definitionRule).shouldBe(false)
+            // ...while the container half is still applied, so the repair itself still happens.
+            script.contains("#entries{height:auto!important").shouldBe(true)
+            script.contains("#entries .entry{height:auto!important").shouldBe(true)
+            script.contains("querySelectorAll('#entries,#entries .entry')").shouldBe(true)
+            script.contains("setProperty('visibility','visible','important')").shouldBe(true)
+        }
     }
 
     /**
