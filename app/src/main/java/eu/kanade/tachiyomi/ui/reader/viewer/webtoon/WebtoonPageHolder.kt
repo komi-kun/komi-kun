@@ -14,6 +14,7 @@ import eu.kanade.presentation.util.formattedMessage
 import eu.kanade.tachiyomi.databinding.ReaderErrorBinding
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
+import eu.kanade.tachiyomi.ui.reader.ocr.OcrDisplayTransform
 import eu.kanade.tachiyomi.ui.reader.viewer.ReaderPageImageView
 import eu.kanade.tachiyomi.ui.reader.viewer.ReaderProgressIndicator
 import eu.kanade.tachiyomi.ui.webview.WebViewActivity
@@ -81,6 +82,22 @@ class WebtoonPageHolder(
      * Job for loading the page.
      */
     private var loadJob: Job? = null
+
+    // KUN -->
+    /**
+     * How the displayed sheet differs from the raw page image (webtoon "split and merge" only), for
+     * the OCR overlay mapping. Crop borders are applied at decode time and are a documented v1
+     * limitation (the trim rect is not exposed here).
+     */
+    @Volatile
+    private var ocrTransform: OcrDisplayTransform = OcrDisplayTransform.None
+
+    fun ocrPage(): ReaderPage? = page
+
+    fun ocrFrame(): ReaderPageImageView = frame
+
+    fun ocrDisplayTransform(): OcrDisplayTransform = ocrTransform
+    // KUN <--
 
     init {
         refreshLayoutParams()
@@ -187,6 +204,9 @@ class WebtoonPageHolder(
      * Called when the page is ready.
      */
     private suspend fun setImage() {
+        // KUN -->
+        ocrTransform = OcrDisplayTransform.None
+        // KUN <--
         progressIndicator.setProgress(0)
 
         val streamFn = page?.stream ?: return
@@ -232,6 +252,9 @@ class WebtoonPageHolder(
             val isDoublePage = ImageUtil.isWideImage(imageSource)
             if (isDoublePage) {
                 val upperSide = if (viewer.simpleLongStrip.page.dualPageInvert) ImageUtil.Side.LEFT else ImageUtil.Side.RIGHT
+                // KUN -->
+                ocrTransform = OcrDisplayTransform.SplitAndMerge(upperIsRight = upperSide == ImageUtil.Side.RIGHT)
+                // KUN <--
                 return ImageUtil.splitAndMerge(imageSource, upperSide)
             }
         }

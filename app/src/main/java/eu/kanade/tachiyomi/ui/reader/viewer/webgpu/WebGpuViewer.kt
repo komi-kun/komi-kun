@@ -9,7 +9,9 @@ import android.view.KeyEvent
 import android.view.MotionEvent
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInWindow
 import ca.mpreg.imagedecoder.ImageDecoder
 import ca.mpreg.webgpuviewer.closeTo
 import ca.mpreg.webgpuviewer.renderer.GainmapInput
@@ -40,6 +42,7 @@ import eu.kanade.tachiyomi.ui.reader.model.DownloadStream
 import eu.kanade.tachiyomi.ui.reader.model.ReaderChapter
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import eu.kanade.tachiyomi.ui.reader.model.ViewerChapters
+import eu.kanade.tachiyomi.ui.reader.ocr.OcrViewport
 import eu.kanade.tachiyomi.ui.reader.setting.GeneralSettings
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences.TransitionAnimation
@@ -48,6 +51,7 @@ import eu.kanade.tachiyomi.ui.reader.viewer.PagedSettings
 import eu.kanade.tachiyomi.ui.reader.viewer.ReaderPageImageView.ZoomStartPosition
 import eu.kanade.tachiyomi.ui.reader.viewer.Viewer
 import eu.kanade.tachiyomi.ui.reader.viewer.ViewerNavigation.NavigationRegion
+import eu.kanade.tachiyomi.ui.reader.viewer.VolumeKeyPagingPolicy
 import eu.kanade.tachiyomi.ui.reader.viewer.collectChanges
 import eu.kanade.tachiyomi.ui.reader.viewer.position
 import eu.kanade.tachiyomi.util.system.createReaderThemeContext
@@ -187,6 +191,51 @@ open class WebGpuViewer(
     protected fun viewerPageFor(imagePage: ImagePage): ViewerPage? = synchronized(lock) {
         pageCache.values.firstOrNull { it.imagePage === imagePage }
     }
+
+    // KUN -->
+    /**
+     * The reader pages an on-screen [imagePage] draws, resolving a dual-page [ImagePage.ImageSpread]
+     * to both of its sides. Used by the OCR overlay adapter (contract §2.6).
+     */
+    internal fun ocrReaderPagesFor(imagePage: ImagePage?): List<ReaderPage> = synchronized(lock) {
+        when (imagePage) {
+            is ImagePage.ImageSpread -> listOfNotNull(
+                imagePage.left?.let { viewerPageFor(it) as? ViewerReaderPage }?.page,
+                imagePage.right?.let { viewerPageFor(it) as? ViewerReaderPage }?.page,
+            )
+
+            null -> emptyList()
+
+            else -> listOfNotNull((viewerPageFor(imagePage) as? ViewerReaderPage)?.page)
+        }
+    }
+
+    private val ocrViewportRef by lazy { WebGpuOcrViewport(this) }
+
+    override fun ocrViewport(): OcrViewport? = ocrViewportRef
+
+    /**
+     * Window position of the box the viewer is drawn in, published by [publishViewerViewport].
+     * The `webgpuviewer` surface is not a View the reader could ask for its location (upstream
+     * 00335b2a70 replaced `WebGpuViewer.pager`, the ImageView the surface used to live in), so the
+     * OCR overlay gets the origin it converts its surface coordinates from here instead.
+     */
+    @Volatile
+    var viewerWindowX: Float = 0f
+        private set
+
+    @Volatile
+    var viewerWindowY: Float = 0f
+        private set
+
+    /**
+     * Converts a point in the viewer surface's own pixels to the reader overlay's window space.
+     * The maths is the pager's `toOverlayPoint(pager, x, y)`, with the surface origin replacing the
+     * ImageView's `getLocationInWindow`.
+     */
+    fun toOverlayPoint(x: Float, y: Float): PointF =
+        activity.toOverlayPoint(viewerWindowX, viewerWindowY, x, y)
+    // KUN <--
 
     /** Check if a page is in the cache by identity. O(1) via key lookup. */
     private fun pageInCache(page: ViewerPage): Boolean = pageCache[pageKey(page)] === page
@@ -694,6 +743,14 @@ open class WebGpuViewer(
      */
     protected fun Modifier.publishViewerViewport(): Modifier = onSizeChanged { size ->
         settingsViewModel.setViewerWideViewport(isWideViewport(size.width, size.height))
+    }.onGloballyPositioned { coordinates ->
+        // KUN -->
+        // The surface is drawn in this box, and the OCR overlay reports its own coordinates in
+        // window space, so the box's window position is the origin its taps and boxes convert from.
+        val position = coordinates.positionInWindow()
+        viewerWindowX = position.x
+        viewerWindowY = position.y
+        // KUN <--
     }
     // KUN <--
 
@@ -838,7 +895,21 @@ open class WebGpuViewer(
                 return@fetch buildSpreadPage(page)
             }
 
-            onTap = { offset ->
+            onTap = tap@{ offset ->
+                // KUN -->
+                // Single tap on an OCR block: look it up and consume the tap; a miss (or the overlay
+                // off) falls through to the normal navigation below.
+                (currentPage as? ViewerReaderPage)?.let { readerPage ->
+                    if (activity.onPageSingleTap(
+                            readerPage.page,
+                            null,
+                            this@WebGpuViewer.toOverlayPoint(offset.x * width, offset.y * height),
+                        )
+                    ) {
+                        return@tap
+                    }
+                }
+                // KUN <--
                 // KUN --> the tap zones come from the settings view model (upstream 00335b2a70)
                 val region = activity.settingsViewModel.navigation.value?.getAction(PointF(offset.x, offset.y))
                 when (region ?: NavigationRegion.MENU) {
@@ -851,9 +922,16 @@ open class WebGpuViewer(
                 }
             }
 
-            onLongTap = { _ ->
+            onLongTap = { offset ->
                 if (activity.viewModel.state.value.menuVisible || general.longTapEnabled) {
-                    (currentPage as? ViewerReaderPage)?.let { activity.onPageLongTap(it.page) }
+                    (currentPage as? ViewerReaderPage)?.let {
+                        // KUN -->
+                        // Retain the normalized long-press offset the viewer delivers (plan 04 §2.2):
+                        // the OCR overlay needs it to hit-test and anchor the dictionary popup.
+                        val point = this@WebGpuViewer.toOverlayPoint(offset.x * width, offset.y * height)
+                        activity.onPageLongTap(it.page, point = point)
+                        // KUN <--
+                    }
                 }
             }
         }
@@ -2009,17 +2087,33 @@ open class WebGpuViewer(
         val ctrlPressed = event.metaState.and(KeyEvent.META_CTRL_ON) > 0
         when (event.keyCode) {
             KeyEvent.KEYCODE_VOLUME_DOWN -> {
-                if (!general.volumeKeysEnabled || activity.viewModel.state.value.menuVisible) {
+                // KUN -->
+                if (!VolumeKeyPagingPolicy.shouldConsumeForPaging(
+                        volumeKeysEnabled = general.volumeKeysEnabled,
+                        menuVisible = activity.viewModel.state.value.menuVisible,
+                        ocrOverlayEnabled = general.ocrOverlayEnabled,
+                    )
+                ) {
                     return false
-                } else if (isUp) {
+                }
+                // KUN <--
+                if (isUp) {
                     if (!general.volumeKeysInverted) moveDown() else moveUp()
                 }
             }
 
             KeyEvent.KEYCODE_VOLUME_UP -> {
-                if (!general.volumeKeysEnabled || activity.viewModel.state.value.menuVisible) {
+                // KUN -->
+                if (!VolumeKeyPagingPolicy.shouldConsumeForPaging(
+                        volumeKeysEnabled = general.volumeKeysEnabled,
+                        menuVisible = activity.viewModel.state.value.menuVisible,
+                        ocrOverlayEnabled = general.ocrOverlayEnabled,
+                    )
+                ) {
                     return false
-                } else if (isUp) {
+                }
+                // KUN <--
+                if (isUp) {
                     if (!general.volumeKeysInverted) moveUp() else moveDown()
                 }
             }

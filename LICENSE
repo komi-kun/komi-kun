@@ -1,3 +1,19 @@
+komi-kun — license of the distribution
+======================================
+
+The repository as a whole, and the binaries built from it (the "combined work"), are
+distributed under the GNU General Public License, version 3 or later (GPL-3.0-or-later).
+The full text is in LICENSES/GPL-3.0-or-later.txt, and NOTICE records the provenance of
+the GPL components and of the upstream (Apache-2.0) projects.
+
+The Apache License 2.0 text below is kept because every file inherited from Mihon,
+TachiyomiSY and Komikku remains Apache-2.0 in its own right (Apache-2.0 code may be
+combined into a GPL-3.0 work), and because the GPL-free seam files are Apache-2.0 so they
+can be contributed back upstream. It does not narrow the GPL-3.0-or-later terms of the
+combined distribution.
+
+------------------------------------------------------------------------------
+
                                  Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/

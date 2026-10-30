@@ -281,8 +281,8 @@ Do not add these unless you deliberately re-purpose those workflows.
 |----------|--------|-------|
 | `build_pull_request.yml` (PR build check) | **Keep** | Safe: uses `pull_request` (not `pull_request_target`). Fork PRs build unsigned with no secrets; same-repo PRs use the secrets when present. |
 | `build_push.yml` (CI) | **Keep** | Runs on `master` pushes. Runs `spotlessCheck`, `assembleNightly`, unit tests, and the SQLDelight migration gate. |
-| `build_nightly.yml` (Nightly Builder) | **Keep — the release path** | Manual, `master`-only. Auto-tags `r<count>` and publishes a **non-draft prerelease** with 5 APKs. Requires the 4 signing secrets. This is how releases are cut here. |
-| `build_release.yml` (Release Builder) | **Keep** (dormant) | `v*` tag → non-draft prerelease, 5 APKs, AGP signing. Only fires on `v*` tags; this fork ships nightlies, not stable releases, so it is normally unused. Needs a Crashlytics-capable config for `-Pdist=github` (or telemetry off). |
+| `build_nightly.yml` (Nightly Builder) | **Keep — the release path** | Manual, `master`-only. Auto-tags `r<count>` and publishes a **non-draft prerelease** with 4 APKs. Requires the 4 signing secrets. This is how releases are cut here. |
+| `build_release.yml` (Release Builder) | **Keep** (dormant) | `v*` tag → non-draft prerelease, 4 APKs, AGP signing. Only fires on `v*` tags; this fork ships nightlies, not stable releases, so it is normally unused. Needs a Crashlytics-capable config for `-Pdist=github` (or telemetry off). |
 | `build_benchmark.yml` (Benchmark Builder) | **Keep** (optional) | Manual benchmark build; needs only the 4 signing secrets. Niche. |
 | `pr_label.yml` (Label PRs) | **Keep** (low value) | Labels Weblate-authored PRs `translations`. Harmless, safe. |
 | `opencode_review.yml` (OpenCode PR Review) | **Keep** | Reviews non-draft same-repo PRs on open/ready-for-review and on `/oc review` comments. Installs a pinned OpenCode v2 CLI (version + npm sha512) and runs `opencode run` directly, so no bot issue comment is created. Needs `OPENCODE_API_KEY`. Pushes do not re-trigger it. |
@@ -336,8 +336,8 @@ first. Then walk through these in order.
    (The `build-app` job only runs when `github.ref == 'refs/heads/master'`.)
 2. Expected: creates tag `r<commit-count>`, builds `assembleNightly -Pdist=ci`,
    signs with `r0adkll`, publishes a **non-draft prerelease**.
-3. Expected assets (5): **`Komikun-r<count>.apk`**, `Komikun-arm64-v8a-r<count>.apk`,
-   `Komikun-armeabi-v7a-r<count>.apk`, `Komikun-x86-r<count>.apk`,
+3. Expected assets (4): **`Komikun-r<count>.apk`**, `Komikun-arm64-v8a-r<count>.apk`,
+   `Komikun-armeabi-v7a-r<count>.apk`,
    `Komikun-x86_64-r<count>.apk`.
 4. Visit **Releases** to confirm it, then delete it (and the auto-tag) if it was
    just a smoke test.
@@ -352,10 +352,9 @@ first. Then walk through these in order.
    (Tags must start with `v`.)
 2. Expected: `prepare-build` (changelog compare) → `assembleRelease -Pdist=github`
    with AGP signing → non-draft prerelease.
-3. Expected assets (5): **`Komikun-v1.14.1-ci-test.apk`**,
+3. Expected assets (4): **`Komikun-v1.14.1-ci-test.apk`**,
    `Komikun-arm64-v8a-v1.14.1-ci-test.apk`,
    `Komikun-armeabi-v7a-v1.14.1-ci-test.apk`,
-   `Komikun-x86-v1.14.1-ci-test.apk`,
    `Komikun-x86_64-v1.14.1-ci-test.apk`.
 4. Delete the tag/release after verifying.
 

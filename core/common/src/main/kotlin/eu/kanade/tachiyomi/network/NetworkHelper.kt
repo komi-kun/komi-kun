@@ -17,6 +17,9 @@ import okhttp3.OkHttpClient
 import okhttp3.Response
 import okhttp3.logging.HttpLoggingInterceptor
 import okio.IOException
+import tachiyomi.core.common.mokuro.MokuroOcrInterceptor
+import tachiyomi.core.common.preference.AndroidPreferenceStore
+import tachiyomi.core.common.preference.DictionaryOcrPreferences
 import tachiyomi.core.common.util.system.logcat
 import java.io.File
 import java.io.RandomAccessFile
@@ -31,6 +34,13 @@ open /* SY <-- */ class NetworkHelper(
     @AppCoroutineScope private val scope: CoroutineScope,
     private val context: Context,
     private val preferences: NetworkPreferences,
+    // KUN -->
+    // The immersion opt-in the `.mokuro` cache is gated on. Defaulted so the extension-facing
+    // `HttpSource` subclass (three arguments) keeps compiling; the app graph injects the AppScope
+    // singleton, and both read the same stored key.
+    private val dictionaryOcrPreferences: DictionaryOcrPreferences =
+        DictionaryOcrPreferences(AndroidPreferenceStore(context)),
+    // KUN <--
 ) {
 
     /* SY --> */ open /* SY <-- */val cookieJar = AndroidCookieJar()
@@ -60,6 +70,14 @@ open /* SY <-- */ class NetworkHelper(
             )
             .addInterceptor(UncaughtExceptionInterceptor())
             .addInterceptor(UserAgentInterceptor(::defaultUserAgentProvider))
+            // KUN -->
+            // Cache any `.mokuro` OCR sidecar fetched through this client so the reader can use a
+            // source-provided sidecar without downloading it again (03 §4). Generic + Apache: it
+            // only recognises the extension and stores a copy (see MokuroOcrInterceptor).
+            // Gated on the immersion switch *inside* the interceptor (read per request), not here:
+            // the client outlives a switch flip, so a construction-time check would need a restart.
+            .addInterceptor(MokuroOcrInterceptor(context, dictionaryOcrPreferences::isEnabled))
+        // KUN <--
 
         // KMK -->
         if (EHLogLevel.isExtraLogging()) {

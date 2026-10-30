@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.app.Application
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
+import android.content.ComponentCallbacks2
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -16,7 +17,10 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.preference.PreferenceManager
 import androidx.work.Configuration
+import androidx.work.ListenableWorker
 import androidx.work.WorkManager
+import androidx.work.WorkerFactory
+import androidx.work.WorkerParameters
 import coil3.ImageLoader
 import coil3.SingletonImageLoader
 import coil3.disk.DiskCache
@@ -59,6 +63,9 @@ import eu.kanade.tachiyomi.data.coil.PagePreviewFetcher
 import eu.kanade.tachiyomi.data.coil.PagePreviewKeyer
 import eu.kanade.tachiyomi.data.connections.discord.DiscordRPCService
 import eu.kanade.tachiyomi.data.notification.Notifications
+import eu.kanade.tachiyomi.data.ocr.OcrChapterResolver
+import eu.kanade.tachiyomi.data.ocr.OcrQueueWorkProbe
+import eu.kanade.tachiyomi.data.ocr.OcrWorker
 import eu.kanade.tachiyomi.data.sync.SyncDataJob
 import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.network.NetworkHelper
@@ -98,9 +105,12 @@ import mihon.core.migration.MigrationContext
 import mihon.core.migration.Migrator
 import mihon.core.migration.migrations.CustomInfoJsonToDbMigration
 import mihon.core.migration.nextMigrationTarget
+import mihon.core.ocr.cache.OcrJob
+import mihon.dictionary.host.DictionarySessionOwner
 import mihon.telemetry.TelemetryConfig
 import org.conscrypt.Conscrypt
 import tachiyomi.core.common.i18n.stringResource
+import tachiyomi.core.common.preference.DictionaryOcrPreferences
 import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.core.common.util.system.logcat
@@ -118,11 +128,46 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 import kotlin.concurrent.thread
 
-class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factory, GraphProvider<AppGraph> {
+class App :
+    Application(),
+    DefaultLifecycleObserver,
+    SingletonImageLoader.Factory,
+    GraphProvider<AppGraph>,
+    // KUN -->
+    Configuration.Provider {
+    // KUN <--
 
     override val graph: AppGraph by lazy {
         createGraphFactory<AppGraph.Factory>().create(context = this, isDebugBuild = isDebugBuildType)
     }
+
+    // KUN -->
+    /**
+     * The WorkManager configuration, i.e. where this app installs its [KomikunWorkerFactory].
+     *
+     * WorkManager no longer initialises itself with a default configuration: the
+     * `androidx.work.WorkManagerInitializer` startup entry is removed in `AndroidManifest.xml`, and
+     * `WorkManager.getInstance` asks this app for its configuration on first use instead. Without
+     * that removal the default initialiser runs (as a `ContentProvider`, i.e. *before* `onCreate`),
+     * WorkManager is already initialised here, and the factory below is never installed —
+     * which is fatal, because [OcrWorker] takes six constructor parameters and WorkManager's
+     * reflection fallback only knows `(Context, WorkerParameters)`.
+     *
+     * The factory holds `Lazy<…>` values, so building this configuration (possibly from a headless
+     * WorkManager process) constructs no OCR engine or service.
+     */
+    override val workManagerConfiguration: Configuration
+        get() = Configuration.Builder()
+            .setWorkerFactory(
+                KomikunWorkerFactory(
+                    ocrJob,
+                    ocrChapterResolver,
+                    dictionaryOcrPreferences,
+                    ocrQueueWorkProbe,
+                ),
+            )
+            .build()
+    // KUN <--
 
     @Inject private lateinit var preferenceStore: PreferenceStore
 
@@ -160,6 +205,18 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
     @Inject private lateinit var kmkMetroInteropModule: KMKMetroInteropModule
 
     @Inject private lateinit var migrations: Set<Migration>
+
+    // KUN -->
+    // Lazy so the OCR engine/services (and OcrManager) are only built when an OCR worker actually
+    // runs, not on every process start (WorkManager also starts headless processes).
+    @Inject private lateinit var ocrJob: Lazy<OcrJob>
+
+    @Inject private lateinit var ocrChapterResolver: Lazy<OcrChapterResolver>
+
+    @Inject private lateinit var dictionaryOcrPreferences: Lazy<DictionaryOcrPreferences>
+
+    @Inject private lateinit var ocrQueueWorkProbe: Lazy<OcrQueueWorkProbe>
+    // KUN <--
 
     @Inject @AppCoroutineScope
     private lateinit var scope: CoroutineScope
@@ -282,9 +339,22 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
         // Updates widget update
         widgetManager.init(scope)
 
-        if (!WorkManager.isInitialized()) {
-            WorkManager.initialize(this, Configuration.Builder().build())
-        }
+        // KUN -->
+        // The dictionary repository owns the native session; the opt-in preference owns its release.
+        // Turning the switch off closes an open session immediately (serialised inside the
+        // repository); a background/foreground cycle deliberately does not — see `onTrimMemory`.
+        DictionarySessionOwner(
+            enabled = dictionaryOcrPreferences.value.enabled.changes(),
+            closeSession = { graph.dictionaryRepository.close() },
+        ).start(scope)
+        // KUN <--
+
+        // KUN -->
+        // WorkManager is not initialised here: `workManagerConfiguration` above is consulted lazily
+        // by `WorkManager.getInstance` (the default startup initialiser is removed in the manifest),
+        // which is the only way to install `KomikunWorkerFactory` — by `onCreate` the default
+        // initialiser had already won the race from a `ContentProvider`. See `workManagerConfiguration`.
+        // KUN <--
         initializeMigrator()
 
         // KUN -->
@@ -448,6 +518,23 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
         // <-- AM (DISCORD)
     }
 
+    // KUN -->
+    /**
+     * A background/foreground cycle does **not** drop the dictionary session: the parsed tree is
+     * still valid, and rebuilding it costs seconds on every resume, so `onStop` no longer closes it.
+     * The session is released when it is actually dead weight — the user opting out
+     * ([DictionarySessionOwner], immediate and serialised) or the system asking for the memory back
+     * ([ComponentCallbacks2.TRIM_MEMORY_COMPLETE]).
+     */
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        if (level == ComponentCallbacks2.TRIM_MEMORY_COMPLETE) {
+            // Off the main thread: `close()` waits for an in-flight lookup to release its monitor.
+            scope.launch { graph.dictionaryRepository.close() }
+        }
+    }
+    // KUN <--
+
     override fun getPackageName(): String {
         try {
             // Override the value passed as X-Requested-With in WebView requests
@@ -566,3 +653,40 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
 }
 
 private const val ACTION_DISABLE_INCOGNITO_MODE = "tachi.action.DISABLE_INCOGNITO_MODE"
+
+// KUN -->
+/**
+ * Builds the app's WorkManager workers that need Metro-provided dependencies (contract §3.1).
+ *
+ * `:core:ocr`'s `OcrJob` is a plain coroutine runner (the module may not depend on WorkManager), so
+ * the app wraps it in [OcrWorker] and supplies the Metro-built services here. Returning `null` for
+ * every other worker delegates to WorkManager's default reflection factory, so existing workers are
+ * untouched.
+ */
+private class KomikunWorkerFactory(
+    private val ocrJob: Lazy<OcrJob>,
+    private val ocrChapterResolver: Lazy<OcrChapterResolver>,
+    // KUN -->
+    // The combined dictionary/OCR opt-in gates a persisted queue run (see `OcrWorker.doWork`), and
+    // the persisted queue itself decides whether there is anything to run at all.
+    private val dictionaryOcrPreferences: Lazy<DictionaryOcrPreferences>,
+    private val ocrQueueWorkProbe: Lazy<OcrQueueWorkProbe>,
+    // KUN <--
+) : WorkerFactory() {
+    override fun createWorker(
+        appContext: Context,
+        workerClassName: String,
+        workerParameters: WorkerParameters,
+    ): ListenableWorker? = when (workerClassName) {
+        OcrWorker::class.java.name -> OcrWorker(
+            appContext,
+            workerParameters,
+            ocrJob.value,
+            ocrChapterResolver.value,
+            dictionaryOcrPreferences.value,
+            ocrQueueWorkProbe.value,
+        )
+        else -> null
+    }
+}
+// KUN <--

@@ -1,0 +1,758 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// KUN -->
+// Tests for the reader OCR block-loader watchdog (F2) and cancellation propagation (F1).
+//
+// The loader resolves a page through the source policy inside `withTimeoutOrNull`; if that call
+// outlives the watchdog it must be treated exactly like "not resolvable yet" (retry later, never
+// cache an empty result), and a `CancellationException` must be rethrown rather than logged and
+// retried. Both are observable purely through the loader's public `blocks` state plus how many
+// times the (mocked) `GetManga.await` is entered — no `Context` is needed: every collaborator is
+// mocked and the load never gets past `GetManga.await`.
+// KUN <--
+package eu.kanade.tachiyomi.ui.reader.ocr.impl
+
+import eu.kanade.tachiyomi.data.download.DownloadProvider
+import eu.kanade.tachiyomi.ui.dictionary.DictionaryPreferences
+import eu.kanade.tachiyomi.ui.reader.RedoOcrResult
+import eu.kanade.tachiyomi.ui.reader.model.ReaderChapter
+import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
+import io.kotest.matchers.shouldBe
+import io.mockk.coEvery
+import io.mockk.every
+import io.mockk.mockk
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.runBlocking
+import mihon.core.ocr.OcrEngine
+import mihon.core.ocr.cache.OcrCacheKey
+import mihon.core.ocr.cache.OcrManager
+import mihon.core.ocr.cache.OcrQueueItem
+import mihon.core.ocr.model.OcrTextBlock
+import mihon.core.ocr.paddle.PaddleOcrEngine
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.fail
+import tachiyomi.core.common.ocr.ReaderOcrSource
+import tachiyomi.core.common.preference.DictionaryOcrPreferences
+import tachiyomi.core.common.preference.InMemoryPreferenceStore
+import tachiyomi.domain.chapter.model.Chapter
+import tachiyomi.domain.manga.interactor.GetManga
+import tachiyomi.domain.manga.model.Manga
+import tachiyomi.domain.source.service.SourceManager
+import java.io.ByteArrayInputStream
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
+
+class ReaderOcrBlockLoaderTest {
+
+    private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    private val getManga = mockk<GetManga>()
+    private val awaitCalls = AtomicInteger(0)
+
+    /**
+     * Every loader this test built, so [tearDown] can stop the page-work scope each one owns. Each
+     * loader allocates its own `SupervisorJob` on `Dispatchers.IO` (`newWorkScope`), separate from
+     * the injected [scope], so cancelling [scope] alone leaks a live job tree per test.
+     */
+    private val loaders = mutableListOf<ReaderOcrBlockLoader>()
+
+    private val chapterModel = Chapter.create().copy(id = 42L, mangaId = 7L, name = "chapter", url = "url")
+    private val page = ReaderPage(index = 3, url = "page").apply {
+        this.chapter = ReaderChapter(chapterModel)
+    }
+
+    private val block = OcrTextBlock(
+        xmin = 0.1f,
+        ymin = 0.2f,
+        xmax = 0.3f,
+        ymax = 0.4f,
+        lines = listOf("こんにちは"),
+        vertical = true,
+        language = "ja",
+    )
+
+    private fun loader(
+        loadTimeoutMs: Long,
+        enabled: Boolean = true,
+        ocrManager: OcrManager = mockk(relaxed = true) {
+            every { queueState } returns MutableStateFlow(emptyList<OcrQueueItem>())
+        },
+        dictionaryOcr: DictionaryOcrPreferences = DictionaryOcrPreferences(InMemoryPreferenceStore()).apply {
+            choose(enabled)
+        },
+        // KUN -->
+        engine: OcrEngine = mockk(relaxed = true),
+        // KUN <--
+    ): ReaderOcrBlockLoader = ReaderOcrBlockLoader(
+        ocrManager = ocrManager,
+        engine = engine,
+        getManga = getManga,
+        downloadProvider = mockk<DownloadProvider>(relaxed = true),
+        sourceManager = mockk<SourceManager>(relaxed = true),
+        dictionaryPreferences = mockk<DictionaryPreferences>(relaxed = true),
+        scope = scope,
+        // KUN -->
+        dictionaryOcrPreferences = dictionaryOcr,
+        // KUN <--
+        loadTimeoutMs = loadTimeoutMs,
+    ).also { loaders += it }
+
+    @AfterEach
+    fun tearDown() {
+        // `detach()` is what cancels a loader's own page-work scope; without it every loader built
+        // here keeps a `SupervisorJob` (and whatever it launched) alive past its test.
+        loaders.forEach { it.detach() }
+        loaders.clear()
+        scope.cancel()
+    }
+
+    @Test
+    fun `a hung load is watchdogged into the retry path instead of being cached`(): Unit = runBlocking {
+        coEvery { getManga.await(any()) } coAnswers {
+            awaitCalls.incrementAndGet()
+            awaitCancellation() // a suspension that never completes: the watchdog must fire
+        }
+        val loader = loader(loadTimeoutMs = WATCHDOG_MS)
+
+        loader.ensureLoaded(listOf(page))
+        delay(WATCHDOG_MS + 400) // the 100 ms watchdog has fired; attempt 1 timed out
+        awaitCalls.get() shouldBe 1
+        // A timed-out load is treated like "not resolvable yet": nothing is cached (not even empty).
+        loader.blocks.value.keys shouldBe emptySet<OcrPageKey>()
+
+        delay(RETRY_BACKOFF_MS + 300) // past the retry backoff: the page must be retried, not stuck
+        loader.ensureLoaded(listOf(page))
+        delay(WATCHDOG_MS + 400)
+        awaitCalls.get() shouldBe 2
+        loader.blocks.value.keys shouldBe emptySet<OcrPageKey>()
+    }
+
+    @Test
+    fun `a disabled opt-in never enters the load path`(): Unit = runBlocking {
+        coEvery { getManga.await(any()) } coAnswers {
+            awaitCalls.incrementAndGet()
+            null
+        }
+        // The master switch is off: neither a page drive nor a forced re-run may touch the source
+        // policy (mokuro sidecar, persisted cache or engine).
+        val loader = loader(loadTimeoutMs = WATCHDOG_MS, enabled = false)
+
+        loader.ensureLoaded(listOf(page))
+        loader.redoOcr(page)
+        delay(WATCHDOG_MS + 200)
+
+        awaitCalls.get() shouldBe 0
+        loader.blocks.value.keys shouldBe emptySet<OcrPageKey>()
+    }
+
+    @Test
+    fun `a cancelled load propagates instead of being logged and retried`(): Unit = runBlocking {
+        coEvery { getManga.await(any()) } coAnswers {
+            awaitCalls.incrementAndGet()
+            throw CancellationException("reader scope cancelled")
+        }
+        val loader = loader(loadTimeoutMs = WATCHDOG_MS)
+
+        loader.ensureLoaded(listOf(page))
+        delay(WATCHDOG_MS + 200)
+        // The CancellationException was rethrown (not swallowed): the page's single-flight slot is
+        // still held, so a second drive is a no-op instead of scheduling a retry.
+        loader.ensureLoaded(listOf(page))
+        delay(RETRY_BACKOFF_MS + WATCHDOG_MS + 400)
+
+        awaitCalls.get() shouldBe 1
+        loader.blocks.value.keys shouldBe emptySet<OcrPageKey>()
+    }
+
+    /**
+     * The switch can be turned off **while a page's load is already suspended**. The manager then
+     * answers with no blocks at all — an opt-out is inert, not "this page has no text" — and caching
+     * that empty list as a resolved entry would hide the page from a later re-enable in the same
+     * reader session (an implementation that stores it never calls `recognizeAndCache` again and
+     * leaves `blocks` empty here).
+     */
+    @Test
+    fun `an opt-out during a load does not cache the page as resolved-empty`(): Unit = runBlocking {
+        val preferences = DictionaryOcrPreferences(InMemoryPreferenceStore()).apply { choose(true) }
+        val ocrManager = mockk<OcrManager>(relaxed = true) {
+            every { queueState } returns MutableStateFlow(emptyList<OcrQueueItem>())
+            every { sourceFor(any()) } returns ReaderOcrSource.PADDLE
+            every { cacheKey(any(), any(), any()) } returns OcrCacheKey(sourceId = 1L, mangaId = 7L, chapterId = 42L)
+        }
+        val recognitions = AtomicInteger(0)
+        coEvery { ocrManager.cachedBlocks(any(), any(), any()) } returns null
+        // Mirrors `OcrManager.recognizeAndCache`: with the opt-in off it is inert and returns no
+        // blocks at all; enabled, it returns the page's blocks.
+        coEvery { ocrManager.recognizeAndCache(any(), any(), any(), any(), any()) } coAnswers {
+            recognitions.incrementAndGet()
+            if (preferences.isEnabled()) listOf(block) else emptyList()
+        }
+        coEvery { getManga.await(any()) } coAnswers {
+            // The user turns the feature off while the *first* page load is already in flight.
+            if (awaitCalls.incrementAndGet() == 1) preferences.choose(false)
+            Manga.create().copy(id = 7L, source = 1L)
+        }
+        page.stream = { ByteArrayInputStream(ByteArray(8)) }
+        val loader = loader(LOAD_TIMEOUT_MS, ocrManager = ocrManager, dictionaryOcr = preferences)
+
+        loader.ensureLoaded(listOf(page))
+        awaitSettled { recognitions.get() == 1 }
+        recognitions.get() shouldBe 1
+        // Nothing is cached for a page whose load was cut short by the opt-out.
+        loader.blocks.value shouldBe emptyMap<OcrPageKey, List<OcrTextBlock>>()
+
+        // Re-enabled in the same reader session: the page must be resolved, not treated as cached.
+        preferences.choose(true)
+        loader.ensureLoaded(listOf(page))
+        awaitSettled { recognitions.get() == 2 }
+
+        recognitions.get() shouldBe 2
+        loader.blocks.value shouldBe mapOf(page.ocrKey() to listOf(block))
+    }
+
+    /**
+     * An engine that is not up (models not downloaded yet, a native init failure, a device whose ABI
+     * has no artifact) produces no lines, so the manager answers with an **empty** block list — from
+     * the loader's side indistinguishable from "this page has no text". Caching that empty list as a
+     * resolved page is the defect: `ensureLoaded` skips pages already in `_blocks`, so the page stays
+     * blank until the reader is reopened, even after the models land mid-session.
+     */
+    @Test
+    fun `an engine that never came up leaves the page unresolved instead of caching it empty`(): Unit = runBlocking {
+        // The concrete engine carries `isInitialized()`; the loader keys its "unavailable" branch on
+        // exactly that type.
+        val engine = mockk<PaddleOcrEngine>(relaxed = true)
+        var initialized = false
+        every { engine.isInitialized() } answers { initialized }
+        val ocrManager = mockk<OcrManager>(relaxed = true) {
+            every { queueState } returns MutableStateFlow(emptyList<OcrQueueItem>())
+            every { sourceFor(any()) } returns ReaderOcrSource.PADDLE
+            every { cacheKey(any(), any(), any()) } returns OcrCacheKey(sourceId = 1L, mangaId = 7L, chapterId = 42L)
+        }
+        val recognitions = AtomicInteger(0)
+        coEvery { ocrManager.cachedBlocks(any(), any(), any()) } returns null
+        // Mirrors `OcrManager.recognizeAndCache`: with no engine up there are no lines and no blocks;
+        // once it is up the page has text.
+        coEvery { ocrManager.recognizeAndCache(any(), any(), any(), any(), any()) } coAnswers {
+            recognitions.incrementAndGet()
+            if (initialized) listOf(block) else emptyList()
+        }
+        coEvery { getManga.await(any()) } returns Manga.create().copy(id = 7L, source = 1L)
+        page.stream = { ByteArrayInputStream(ByteArray(8)) }
+        val loader = loader(LOAD_TIMEOUT_MS, ocrManager = ocrManager, engine = engine)
+
+        loader.ensureLoaded(listOf(page))
+        awaitSettled { recognitions.get() == 1 }
+        recognitions.get() shouldBe 1
+        // The attempt left the engine uninitialised: the page is *not* resolved (and not "empty").
+        loader.blocks.value shouldBe emptyMap<OcrPageKey, List<OcrTextBlock>>()
+
+        // The models finish downloading during the same reader session. Past the bounded retry
+        // window the page must be OCRed again and resolve; an implementation that cached the empty
+        // result never re-runs it (`recognitions` stays 1) and `blocks` keeps the empty entry.
+        initialized = true
+        delay(RETRY_BACKOFF_MS + 300)
+        loader.ensureLoaded(listOf(page))
+        awaitSettled { loader.blocks.value.isNotEmpty() }
+
+        recognitions.get() shouldBe 2
+        loader.blocks.value shouldBe mapOf(page.ocrKey() to listOf(block))
+    }
+
+    /**
+     * The reader's page work must not outlive the reader: `detach()` (called when the reader
+     * activity goes away) has to cancel a load that is still running, because that load reads the
+     * chapter's page bytes out of the archive the reader unmaps on the way out — an in-flight read
+     * of a freed mapping is a native `SIGSEGV`, not an exception. Launched on the app-lifetime
+     * scope, nothing cancels it and the flag below never flips.
+     */
+    @Test
+    fun `detach cancels the page load that is in flight`(): Unit = runBlocking {
+        val cancelled = CountDownLatch(1)
+        coEvery { getManga.await(any()) } coAnswers {
+            awaitCalls.incrementAndGet()
+            try {
+                awaitCancellation()
+            } finally {
+                cancelled.countDown()
+            }
+        }
+        val loader = loader(loadTimeoutMs = LOAD_TIMEOUT_MS)
+
+        loader.ensureLoaded(listOf(page))
+        awaitSettled { awaitCalls.get() == 1 }
+
+        loader.detach()
+
+        cancelled.await(2, TimeUnit.SECONDS) shouldBe true
+    }
+
+    /**
+     * `detach()` must not brick the loader: it is an app-graph singleton and the next reader session
+     * reuses it. An implementation that cancels the injected app scope, or that cancels the work but
+     * leaves the page's single-flight slot held, silently stops OCR for every later reader.
+     */
+    @Test
+    fun `a page load started after detach still runs`(): Unit = runBlocking {
+        val firstCancelled = CountDownLatch(1)
+        coEvery { getManga.await(any()) } coAnswers {
+            if (awaitCalls.incrementAndGet() == 1) {
+                try {
+                    awaitCancellation()
+                } finally {
+                    firstCancelled.countDown()
+                }
+            } else {
+                // Unresolvable: enough to prove the second drive reached the load path at all.
+                null
+            }
+        }
+        val loader = loader(loadTimeoutMs = LOAD_TIMEOUT_MS)
+
+        loader.ensureLoaded(listOf(page))
+        awaitSettled { awaitCalls.get() == 1 }
+        loader.detach()
+        awaitSettled { firstCancelled.count == 0L }
+
+        loader.ensureLoaded(listOf(page))
+        awaitSettled { awaitCalls.get() == 2 }
+
+        awaitCalls.get() shouldBe 2
+    }
+
+    /**
+     * A forced re-run supersedes the page's ordinary load: the old load must be cancelled rather
+     * than left running beside it (two reads of the same page, and the loser can overwrite the
+     * winner's blocks). This is the "a new load cancels the previous load" invariant.
+     *
+     * It must also hold **for the whole redo**, not just at its start: the reader re-drives
+     * `ensureLoaded` every frame with the visible pages and their neighbours, so a redo that
+     * released the page's single-flight slot while it worked was read and inferred a second time by
+     * a normal load a frame later. The redo is parked in `forceRecognizeAndCache` below while
+     * `ensureLoaded` is re-driven, which the released-slot implementation answers with a second
+     * `GetManga` call (and a `recognizeAndCache`).
+     */
+    @Test
+    fun `a forced redo cancels the load already in flight for the page`(): Unit = runBlocking {
+        val initialLoadCancelled = CountDownLatch(1)
+        val redoStarted = CountDownLatch(1)
+        val releaseRedo = CountDownLatch(1)
+        val forced = AtomicInteger(0)
+        val ordinaryRuns = AtomicInteger(0)
+        val forcedBlock = block.copy(lines = listOf("強制再実行"))
+        val ocrManager = mockk<OcrManager>(relaxed = true) {
+            every { queueState } returns MutableStateFlow(emptyList<OcrQueueItem>())
+            every { sourceFor(any()) } returns ReaderOcrSource.PADDLE
+            every { cacheKey(any(), any(), any()) } returns OcrCacheKey(sourceId = 1L, mangaId = 7L, chapterId = 42L)
+        }
+        coEvery { getManga.await(any()) } coAnswers {
+            if (awaitCalls.incrementAndGet() == 1) {
+                try {
+                    awaitCancellation()
+                } finally {
+                    initialLoadCancelled.countDown()
+                }
+            } else {
+                Manga.create().copy(id = 7L, source = 1L)
+            }
+        }
+        coEvery { ocrManager.cachedBlocks(any(), any(), any()) } returns null
+        coEvery { ocrManager.recognizeAndCache(any(), any(), any(), any(), any()) } coAnswers {
+            ordinaryRuns.incrementAndGet()
+            listOf(block)
+        }
+        coEvery { ocrManager.forceRecognizeAndCache(any(), any(), any(), any(), any()) } coAnswers {
+            forced.incrementAndGet()
+            redoStarted.countDown()
+            releaseRedo.await(5, TimeUnit.SECONDS)
+            listOf(forcedBlock)
+        }
+        page.stream = { ByteArrayInputStream(ByteArray(8)) }
+        val loader = loader(LOAD_TIMEOUT_MS, ocrManager = ocrManager)
+
+        loader.ensureLoaded(listOf(page))
+        awaitSettled { awaitCalls.get() == 1 }
+
+        loader.redoOcr(page)
+        redoStarted.await(2, TimeUnit.SECONDS) shouldBe true
+        initialLoadCancelled.await(2, TimeUnit.SECONDS) shouldBe true
+
+        // The per-frame driver, re-driven while the redo is still working. A wrongly-started load is
+        // caught the moment it reaches `GetManga`; a fixed `repeat(3) { delay(50) }` only gave it
+        // 150 ms to get there, and a loaded machine can exceed that — the test then passed with the
+        // defect present.
+        awaitNoViolation(
+            drive = { loader.ensureLoaded(listOf(page)) },
+            violation = { ordinaryRuns.get() != 0 },
+        )
+        awaitCalls.get() shouldBe 2 // the ordinary load's (cancelled) one, plus the redo's own
+        forced.get() shouldBe 1
+
+        releaseRedo.countDown()
+        awaitSettled { loader.blocks.value.isNotEmpty() }
+        // The redo's result stands: no ordinary load ran to overwrite it.
+        loader.blocks.value shouldBe mapOf(page.ocrKey() to listOf(forcedBlock))
+        forced.get() shouldBe 1
+        ordinaryRuns.get() shouldBe 0
+    }
+
+    /**
+     * A page load must not release a claim that a **newer** drive registered for the same page.
+     * `invalidate()` — reached from the OCR queue observer whenever a cached chapter advances —
+     * drops every claim while a load of that page can still be in flight. With an unconditional
+     * `inFlight.remove(key)` its late release deletes the claim the re-drive just took, so the page
+     * is read and OCRed twice (and the loser can overwrite `_blocks[key]`).
+     *
+     * The first load is parked in `GetManga.await`; `invalidate()` drops its claim, the re-drive
+     * claims the page and parks there too, and only then is the first load released — so its release
+     * runs strictly after the second claim. Its own outcome is "not resolvable yet", which also arms
+     * the retry backoff; that is waited out below, so the third drive can only be stopped by the
+     * claim itself.
+     */
+    @Test
+    fun `a finishing load does not clear the claim a newer drive registered`(): Unit = runBlocking {
+        val firstEntered = CountDownLatch(1)
+        val releaseFirst = CountDownLatch(1)
+        val secondEntered = CountDownLatch(1)
+        coEvery { getManga.await(any()) } coAnswers {
+            when (awaitCalls.incrementAndGet()) {
+                1 -> {
+                    firstEntered.countDown()
+                    releaseFirst.await(5, TimeUnit.SECONDS)
+                    null
+                }
+                2 -> {
+                    secondEntered.countDown()
+                    awaitCancellation()
+                }
+                else -> null
+            }
+        }
+        val loader = loader(loadTimeoutMs = LOAD_TIMEOUT_MS)
+
+        // The first load starts and parks in the source lookup.
+        loader.ensureLoaded(listOf(page))
+        firstEntered.await(2, TimeUnit.SECONDS) shouldBe true
+
+        // The queue observer clears the cache (and the claims); the page is re-driven and claimed.
+        loader.invalidate()
+        loader.ensureLoaded(listOf(page))
+        secondEntered.await(2, TimeUnit.SECONDS) shouldBe true
+
+        // The first load finishes only now, i.e. strictly after the re-drive claimed the page.
+        releaseFirst.countDown()
+        delay(RETRY_BACKOFF_MS + 300)
+
+        // The re-drive is still suspended in `GetManga`, so every further drive must be a no-op.
+        // Driven over a window rather than once, so a duplicate started on a loaded machine is still
+        // caught.
+        val deadline = System.currentTimeMillis() + NEGATIVE_WINDOW_MS
+        while (true) {
+            loader.ensureLoaded(listOf(page))
+            awaitCalls.get() shouldBe 2
+            if (System.currentTimeMillis() >= deadline) break
+            delay(10)
+        }
+    }
+
+    /**
+     * A forced re-run in which **every** page fails — models not downloaded, engine load failure, no
+     * page bytes — must be reported as [RedoOcrResult.FAILED]. The reader turns a success into
+     * "OCR updated for page N", so an unconditional success told the user the OCR had been updated by
+     * a run that changed nothing at all.
+     */
+    @Test
+    fun `a redo where every page fails reports failure instead of success`(): Unit = runBlocking {
+        val ocrManager = mockk<OcrManager>(relaxed = true) {
+            every { queueState } returns MutableStateFlow(emptyList<OcrQueueItem>())
+            every { sourceFor(any()) } returns ReaderOcrSource.PADDLE
+            every { cacheKey(any(), any(), any()) } returns OcrCacheKey(sourceId = 1L, mangaId = 7L, chapterId = 42L)
+        }
+        coEvery { getManga.await(any()) } returns Manga.create().copy(id = 7L, source = 1L)
+        // The engine is down (models not downloaded): the forced re-run throws for every page.
+        coEvery { ocrManager.forceRecognizeAndCache(any(), any(), any(), any(), any()) } coAnswers {
+            throw IllegalStateException("OCR models are not downloaded")
+        }
+        page.stream = { ByteArrayInputStream(ByteArray(8)) }
+        val loader = loader(LOAD_TIMEOUT_MS, ocrManager = ocrManager)
+
+        val results = CopyOnWriteArrayList<RedoOcrResult>()
+        loader.redoOcr(page) { results += it }
+        awaitSettled { results.isNotEmpty() }
+
+        results.toList() shouldBe listOf(RedoOcrResult.FAILED)
+        loader.blocks.value shouldBe emptyMap<OcrPageKey, List<OcrTextBlock>>()
+    }
+
+    /**
+     * A **partial** success still counts as a success: one page of the chapter failed and one had no
+     * readable bytes, but a page was re-OCR'd, so the reader must report "OCR updated" (and the
+     * re-OCRed page's blocks are cached). The mirror of the test above: an implementation that
+     * reports failure as soon as *any* page failed fails here.
+     */
+    @Test
+    fun `a chapter redo reports success when at least one page was re-OCRed`(): Unit = runBlocking {
+        val chapter = ReaderChapter(chapterModel)
+        val failing = ReaderPage(index = 0, url = "page0").apply { this.chapter = chapter }
+        val unreadable = ReaderPage(index = 1, url = "page1").apply { this.chapter = chapter }
+        val succeeding = ReaderPage(index = 2, url = "page2").apply { this.chapter = chapter }
+        chapter.state = ReaderChapter.State.Loaded(listOf(failing, unreadable, succeeding))
+
+        val ocrManager = mockk<OcrManager>(relaxed = true) {
+            every { queueState } returns MutableStateFlow(emptyList<OcrQueueItem>())
+            every { sourceFor(any()) } returns ReaderOcrSource.PADDLE
+            every { cacheKey(any(), any(), any()) } returns OcrCacheKey(sourceId = 1L, mangaId = 7L, chapterId = 42L)
+        }
+        coEvery { getManga.await(any()) } returns Manga.create().copy(id = 7L, source = 1L)
+        // Page 0 fails inside the engine (it has bytes), page 1 has no bytes at all, page 2 succeeds.
+        failing.stream = { ByteArrayInputStream(ByteArray(8)) }
+        unreadable.stream = null
+        succeeding.stream = { ByteArrayInputStream(ByteArray(8)) }
+        coEvery { ocrManager.forceRecognizeAndCache(any(), any(), any(), any(), any()) } coAnswers {
+            if (args[1] == 0) throw IllegalStateException("page 0 failed") else listOf(block)
+        }
+        val loader = loader(LOAD_TIMEOUT_MS, ocrManager = ocrManager)
+
+        val results = CopyOnWriteArrayList<RedoOcrResult>()
+        loader.redoOcr(failing, chapter = true) { results += it }
+        awaitSettled { results.isNotEmpty() }
+
+        results.toList() shouldBe listOf(RedoOcrResult.UPDATED)
+        // Exactly the page that was re-OCRed got its blocks; the failed and unreadable ones did not.
+        loader.blocks.value shouldBe mapOf(succeeding.ocrKey() to listOf(block))
+    }
+
+    /**
+     * The two early returns used to skip the completion callback entirely, so the reader kept
+     * "Re-running OCR…" as the last thing it told the user and never settled the state. Both now
+     * report [RedoOcrResult.NOTHING_TO_REDO].
+     */
+    @Test
+    fun `a redo with nothing to run reports that instead of leaving the reader waiting`(): Unit = runBlocking {
+        // (a) the chapter has no loaded pages at all.
+        val emptyChapter = ReaderChapter(chapterModel)
+        val noPages = ReaderPage(index = 0, url = "page").apply { this.chapter = emptyChapter }
+        // (b) the manga row is gone, so no page can be resolved into a cache key.
+        coEvery { getManga.await(any()) } returns null
+        val loader = loader(LOAD_TIMEOUT_MS)
+
+        val results = CopyOnWriteArrayList<RedoOcrResult>()
+        loader.redoOcr(noPages, chapter = true) { results += it }
+        awaitSettled { results.size == 1 }
+        loader.redoOcr(page) { results += it }
+        awaitSettled { results.size == 2 }
+
+        results.toList() shouldBe listOf(RedoOcrResult.NOTHING_TO_REDO, RedoOcrResult.NOTHING_TO_REDO)
+    }
+
+    /**
+     * The opt-out twin of the early returns above: with the feature off, `redoOcr` returns before
+     * its work is launched, so `onComplete` used to never fire and the reader kept whatever it had
+     * already told the user as the last word. The gate is a "nothing ran" outcome like any other.
+     */
+    @Test
+    fun `a redo while the feature is off reports that nothing ran`(): Unit = runBlocking {
+        val loader = loader(LOAD_TIMEOUT_MS, enabled = false)
+
+        val results = CopyOnWriteArrayList<RedoOcrResult>()
+        loader.redoOcr(page) { results += it }
+
+        // Reported synchronously, before any work is launched ...
+        results.toList() shouldBe listOf(RedoOcrResult.NOTHING_TO_REDO)
+        // ... and nothing ran: no manga lookup, hence no page bytes and no engine.
+        awaitCalls.get() shouldBe 0
+    }
+
+    /**
+     * Reading chapter A and then opening chapter B must leave **one** on-demand OCR session: A's
+     * page jobs still read A's archive (which the reader recycles on the chapter switch) and race B's
+     * session over the engine and the cache. Only `detach()` ended a session, and the reader switches
+     * chapter inside the same activity, so A's load used to run to completion beside B's.
+     *
+     * The first chapter's load is parked in `GetManga.await`; driving the second chapter's page must
+     * cancel it. The cancelled load is what the latch reports — an implementation that starts B
+     * beside A still calls `GetManga` twice, so only the cancellation proves the switch.
+     */
+    @Test
+    fun `opening another chapter cancels the previous chapter's on-demand load`(): Unit = runBlocking {
+        val chapterB = chapterModel.copy(id = 43L, name = "chapter-b", url = "url-b")
+        val pageB = ReaderPage(index = 0, url = "page-b").apply {
+            this.chapter = ReaderChapter(chapterB)
+        }
+        val firstCancelled = CountDownLatch(1)
+        coEvery { getManga.await(any()) } coAnswers {
+            if (awaitCalls.incrementAndGet() == 1) {
+                try {
+                    awaitCancellation()
+                } finally {
+                    firstCancelled.countDown()
+                }
+            } else {
+                null // chapter B is "not resolvable yet": enough to prove its load started
+            }
+        }
+        val loader = loader(loadTimeoutMs = LOAD_TIMEOUT_MS)
+
+        loader.ensureLoaded(listOf(page))
+        awaitSettled { awaitCalls.get() == 1 }
+
+        loader.ensureLoaded(listOf(pageB))
+
+        firstCancelled.await(2, TimeUnit.SECONDS) shouldBe true
+        awaitSettled { awaitCalls.get() == 2 }
+    }
+
+    /**
+     * The download-triggered queue is **not** on-demand work and must survive an on-demand chapter
+     * switch. Its only link to an open reader is `observeOcrQueue`, which collects the queue on the
+     * injected app-lifetime scope; cancelling that scope instead of the page-work scope would leave
+     * the queue running but the reader frozen (blocks the worker persists stop appearing).
+     *
+     * Chapter B's page is resolved and cached, the session switches to it, and then the queue
+     * advances for B — the observer must still be collecting, so it must invalidate the cache.
+     */
+    @Test
+    fun `a chapter switch leaves the download-triggered queue observer running`(): Unit = runBlocking {
+        // The queue is already OCRing chapter B (the download-triggered path) when the reader opens.
+        val queue = MutableStateFlow(
+            listOf(OcrQueueItem(mangaId = 7L, chapterId = 43L, progress = 0f, currentPage = 0, totalPages = 3)),
+        )
+        val subscribed = CountDownLatch(1)
+        val ocrManager = mockk<OcrManager>(relaxed = true) {
+            every { queueState } answers {
+                subscribed.countDown()
+                queue
+            }
+            every { sourceFor(any()) } returns ReaderOcrSource.PADDLE
+            every { cacheKey(any(), any(), any()) } returns OcrCacheKey(sourceId = 1L, mangaId = 7L, chapterId = 42L)
+        }
+        coEvery { ocrManager.cachedBlocks(any(), any(), any()) } returns null
+        coEvery { ocrManager.recognizeAndCache(any(), any(), any(), any(), any()) } returns listOf(block)
+        coEvery { getManga.await(any()) } returns Manga.create().copy(id = 7L, source = 1L)
+        page.stream = { ByteArrayInputStream(ByteArray(8)) }
+        val chapterB = chapterModel.copy(id = 43L, name = "chapter-b", url = "url-b")
+        val pageB = ReaderPage(index = 0, url = "page-b").apply {
+            this.chapter = ReaderChapter(chapterB)
+        }
+        pageB.stream = { ByteArrayInputStream(ByteArray(8)) }
+        val loader = loader(LOAD_TIMEOUT_MS, ocrManager = ocrManager)
+
+        // The observer is collecting (on the injected app-lifetime scope) before anything switches.
+        subscribed.await(2, TimeUnit.SECONDS) shouldBe true
+        delay(SETTLE_MS)
+
+        loader.ensureLoaded(listOf(page))
+        awaitSettled { loader.blocks.value.containsKey(page.ocrKey()) }
+
+        loader.ensureLoaded(listOf(pageB))
+        awaitSettled { loader.blocks.value.containsKey(pageB.ocrKey()) }
+
+        // The download-triggered queue advances for chapter B. A live observer invalidates the
+        // in-memory cache so the freshly persisted blocks are re-read by the open reader; a dead one
+        // never does, and the reader keeps showing the pre-switch result.
+        queue.value = listOf(OcrQueueItem(mangaId = 7L, chapterId = 43L, progress = 0.3f, currentPage = 1, totalPages = 3))
+        delay(SETTLE_MS)
+        queue.value = listOf(OcrQueueItem(mangaId = 7L, chapterId = 43L, progress = 0.6f, currentPage = 2, totalPages = 3))
+
+        awaitSettled { loader.blocks.value.isEmpty() }
+        loader.blocks.value shouldBe emptyMap<OcrPageKey, List<OcrTextBlock>>()
+    }
+
+    /**
+     * The last-wins rule must not fire on the session's **own** chapter: the reader re-drives
+     * `ensureLoaded` every frame with the visible pages and their neighbours, and a page turn inside
+     * the chapter drives new pages. An implementation that ends the session whenever it is driven
+     * cancels the load it just started, and OCR of the open chapter never completes.
+     */
+    @Test
+    fun `re-driving the same chapter does not cancel its own session`(): Unit = runBlocking {
+        val neighbour = ReaderPage(index = 4, url = "page-next").apply {
+            this.chapter = page.chapter
+        }
+        val firstCancelled = CountDownLatch(1)
+        coEvery { getManga.await(any()) } coAnswers {
+            awaitCalls.incrementAndGet()
+            try {
+                awaitCancellation()
+            } finally {
+                firstCancelled.countDown()
+            }
+        }
+        val loader = loader(loadTimeoutMs = LOAD_TIMEOUT_MS)
+
+        loader.ensureLoaded(listOf(page))
+        awaitSettled { awaitCalls.get() == 1 }
+
+        // A turn inside the same chapter, re-driven over a window (the per-frame driver).
+        awaitNoViolation(
+            drive = { loader.ensureLoaded(listOf(neighbour, page)) },
+            violation = { firstCancelled.count == 0L },
+            violationMessage = "a page turn inside the chapter cancelled the session it belongs to",
+        )
+        // Both pages are still owned by the same, still-live session.
+        awaitSettled { awaitCalls.get() == 2 }
+
+        loader.detach()
+        firstCancelled.await(2, TimeUnit.SECONDS) shouldBe true
+    }
+
+    /**
+     * The negative twin of [awaitSettled]: re-runs [drive] for [windowMs] and fails the moment
+     * [violation] holds, so a wrongly-started load is caught whenever it reaches its first suspension
+     * point instead of only when it happens to win a fixed sleep. [windowMs] is a bound on how long
+     * the absence is demonstrated, not a delay that must be out-raced.
+     */
+    private suspend fun awaitNoViolation(
+        windowMs: Long = NEGATIVE_WINDOW_MS,
+        drive: () -> Unit,
+        violation: () -> Boolean,
+        violationMessage: String = "a page load reached GetManga while the redo was still in flight",
+    ) {
+        val deadline = System.currentTimeMillis() + windowMs
+        while (true) {
+            drive()
+            if (violation()) fail(violationMessage)
+            if (System.currentTimeMillis() >= deadline) return
+            delay(10)
+        }
+    }
+
+    /**
+     * Waits (in real time; the loader launches its work on `Dispatchers.IO`) until [condition] holds,
+     * then lets the bookkeeping that follows it — which does not suspend — run before assertions.
+     */
+    private suspend fun awaitSettled(timeoutMs: Long = 5_000, condition: () -> Boolean) {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (!condition() && System.currentTimeMillis() < deadline) delay(10)
+        condition() shouldBe true
+        delay(SETTLE_MS)
+    }
+
+    private companion object {
+        /** Margin for the loader's post-resolution state write (it has no suspension point left). */
+        private const val SETTLE_MS = 250L
+
+        /** Generous watchdog for the opt-out test: it must not time out (a hang is not the defect). */
+        private const val LOAD_TIMEOUT_MS = 5_000L
+        /** Keeps the real-time test short while staying well inside the production default. */
+        private const val WATCHDOG_MS = 100L
+
+        /** Mirrors `ReaderOcrBlockLoader.RETRY_INTERVAL_NANOS` (1 s) plus a margin. */
+        private const val RETRY_BACKOFF_MS = 1_000L
+
+        /**
+         * How long a negative expectation is demonstrated for. Long enough that a wrongly-started
+         * load on `Dispatchers.IO` reaches `GetManga` on a loaded machine, short enough to keep the
+         * suite fast.
+         */
+        private const val NEGATIVE_WINDOW_MS = 1_000L
+    }
+}

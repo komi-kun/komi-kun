@@ -2,10 +2,15 @@
 package eu.kanade.tachiyomi.data.backup.models
 
 import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.protobuf.ProtoNumber
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import java.io.File
+import java.lang.reflect.Modifier
+import java.util.jar.JarFile
 
 /**
  * Guards the fork-reserved protobuf block (`10000-10999`, see AGENTS.md "Backup protobuf field
@@ -17,13 +22,55 @@ class BackupProtoNumberTest {
 
     @Test
     fun `komi-kun backup fields keep their reserved proto numbers`() {
-        val numbers = protoNumbers(BackupManga.serializer().descriptor)
+        val numbers = protoNumbers(BackupManga.serializer().descriptor).toMap()
 
         assertEquals(10000, numbers["customInfoIncluded"])
         assertEquals(10001, numbers["mergedMangaReferencesIncluded"])
     }
 
-    private fun protoNumbers(descriptor: SerialDescriptor): Map<String, Int> =
+    @Test
+    fun `every backup field number is unique and is the fork block or a documented upstream number`() {
+        val descriptors = backupSerializers()
+
+        assertTrue(
+            descriptors.size >= 10,
+            "expected every Backup* model in ${BackupManga::class.java.packageName}, found " +
+                descriptors.map { it.serialName },
+        )
+
+        val upstreamNumbersInUse = mutableSetOf<Int>()
+
+        for (descriptor in descriptors) {
+            val numbers = protoNumbers(descriptor)
+
+            val reused = numbers.groupBy { it.second }.filterValues { it.size > 1 }
+            assertEquals(
+                emptyMap<Int, List<Pair<String, Int>>>(),
+                reused,
+                "${descriptor.serialName} reuses a proto number",
+            )
+
+            val nonFork = numbers.filter { (_, number) -> number !in FORK_BLOCK }
+            val unknown = nonFork.filter { (_, number) -> number !in UPSTREAM_NUMBERS }
+            assertEquals(
+                emptyList<Pair<String, Int>>(),
+                unknown,
+                "${descriptor.serialName} has a field number outside the fork block $FORK_BLOCK " +
+                    "that is not an upstream allocation $UPSTREAM_NUMBERS",
+            )
+            upstreamNumbersInUse += nonFork.map { it.second }
+        }
+
+        // Both directions: a new low number fails above, and dropping or renumbering an upstream
+        // field (which would break decoding of shipped backups) fails here.
+        assertEquals(
+            UPSTREAM_NUMBERS,
+            upstreamNumbersInUse,
+            "the models no longer use exactly the upstream proto numbers AGENTS.md documents",
+        )
+    }
+
+    private fun protoNumbers(descriptor: SerialDescriptor): List<Pair<String, Int>> =
         (0 until descriptor.elementsCount)
             .mapNotNull { index ->
                 val number = descriptor.getElementAnnotations(index)
@@ -32,6 +79,80 @@ class BackupProtoNumberTest {
                     ?.number
                 number?.let { descriptor.getElementName(index) to it }
             }
-            .toMap()
+
+    /**
+     * Every `Backup*` model in this package, discovered from the compiled classes next to
+     * [BackupManga] so a newly added model is covered without editing this test.
+     */
+    private fun backupSerializers(): List<SerialDescriptor> {
+        val packagePath = BackupManga::class.java.packageName.replace('.', '/')
+        val location = File(BackupManga::class.java.protectionDomain.codeSource.location.toURI())
+        val classNames = compiledClassNames(location, packagePath)
+            .filter { it.startsWith("Backup") && it.endsWith(".class") && '$' !in it }
+
+        return classNames.sorted().mapNotNull { name ->
+            val type = Class.forName(
+                BackupManga::class.java.packageName + "." + name.removeSuffix(".class"),
+                false,
+                BackupManga::class.java.classLoader,
+            )
+            // The serialization plugin puts `serializer()` on the model's companion object, which is
+            // what `BackupManga.serializer()` resolves to. A plain Kotlin class (file facade, value
+            // holder) has no companion and is skipped.
+            val companion = type.declaredFields
+                .firstOrNull { it.name == "Companion" && Modifier.isStatic(it.modifiers) }
+                ?.also { it.isAccessible = true }
+                ?.get(null)
+                ?: return@mapNotNull null
+            val serializer = companion.javaClass.methods
+                .firstOrNull { it.name == "serializer" && it.parameterCount == 0 }
+                ?.invoke(companion)
+                ?: return@mapNotNull null
+            when (serializer) {
+                is SerialDescriptor -> serializer
+                is KSerializer<*> -> serializer.descriptor
+                else -> null
+            }
+        }
+    }
+
+    /** Simple file names of the compiled classes of [packagePath], from a class directory or a jar. */
+    private fun compiledClassNames(location: File, packagePath: String): List<String> {
+        if (location.isDirectory) {
+            val packageDir = File(location, packagePath)
+            assertTrue(packageDir.isDirectory, "cannot locate the compiled backup models at $packageDir")
+            return packageDir.listFiles().orEmpty().map { it.name }
+        }
+        return JarFile(location).use { jar ->
+            jar.entries().asSequence()
+                .map { it.name }
+                .filter { it.startsWith("$packagePath/") && !it.removePrefix("$packagePath/").contains('/') }
+                .map { it.removePrefix("$packagePath/") }
+                .toList()
+        }
+    }
+
+    private companion object {
+        /** komi-kun's reserved block (AGENTS.md "Backup protobuf field numbers"). */
+        val FORK_BLOCK = 10000..10999
+
+        /**
+         * Upstream numbers no current model uses: `15` is the 1.x manga `flags` field and `102` the
+         * legacy history model, both kept as commented-out `// retired:` lines in `BackupManga`.
+         */
+        val RETIRED_UPSTREAM_NUMBERS: Set<Int> = setOf(15, 102)
+
+        /**
+         * Every upstream number the current models use (AGENTS.md "Upstream ownership"): Mihon
+         * `1-18` and `100-113`, TachiyomiSY `600-603`, Komikku `610`, the J2K-via-SY `800-805` block
+         * (`803` is skipped — an earlier build used a duplicate, and no model uses it) and Komikku
+         * `900`, minus [RETIRED_UPSTREAM_NUMBERS]. Open upstream claims (`604`, `611`, `650`, `806`,
+         * `807`, `901`) are deliberately absent: no model uses them, so a field carrying one is a
+         * mistake, not an allocation.
+         */
+        val UPSTREAM_NUMBERS: Set<Int> =
+            ((1..18).toSet() + (100..113) + (600..603) + setOf(610, 800, 801, 802, 804, 805, 900)) -
+                RETIRED_UPSTREAM_NUMBERS
+    }
 }
 // KUN <--

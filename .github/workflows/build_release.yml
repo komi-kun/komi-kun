@@ -193,7 +193,6 @@ jobs:
           mv app/build/outputs/apk/release/app-universal-release.apk Komikun-${{ needs.prepare-build.outputs.VERSION_TAG }}.apk
           mv app/build/outputs/apk/release/app-arm64-v8a-release.apk Komikun-arm64-v8a-${{ needs.prepare-build.outputs.VERSION_TAG }}.apk
           mv app/build/outputs/apk/release/app-armeabi-v7a-release.apk Komikun-armeabi-v7a-${{ needs.prepare-build.outputs.VERSION_TAG }}.apk
-          mv app/build/outputs/apk/release/app-x86-release.apk Komikun-x86-${{ needs.prepare-build.outputs.VERSION_TAG }}.apk
           mv app/build/outputs/apk/release/app-x86_64-release.apk Komikun-x86_64-${{ needs.prepare-build.outputs.VERSION_TAG }}.apk
 
       - name: Create release
@@ -224,7 +223,6 @@ jobs:
             Komikun-${{ needs.prepare-build.outputs.VERSION_TAG }}.apk
             Komikun-arm64-v8a-${{ needs.prepare-build.outputs.VERSION_TAG }}.apk
             Komikun-armeabi-v7a-${{ needs.prepare-build.outputs.VERSION_TAG }}.apk
-            Komikun-x86-${{ needs.prepare-build.outputs.VERSION_TAG }}.apk
             Komikun-x86_64-${{ needs.prepare-build.outputs.VERSION_TAG }}.apk
           # Bleeding-edge fork: publish (non-draft, so users actually see it and the
           # updater can offer it) as a prerelease. GitHub forbids marking a prerelease

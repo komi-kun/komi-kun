@@ -25,6 +25,7 @@ import eu.kanade.tachiyomi.ui.reader.ReaderActivity
 import eu.kanade.tachiyomi.ui.reader.model.ChapterTransition
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import eu.kanade.tachiyomi.ui.reader.model.ViewerChapters
+import eu.kanade.tachiyomi.ui.reader.ocr.OcrViewport
 import eu.kanade.tachiyomi.ui.reader.setting.GeneralSettings
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.ui.reader.viewer.LocalPageColorFilter
@@ -32,6 +33,7 @@ import eu.kanade.tachiyomi.ui.reader.viewer.LongStripSettings
 import eu.kanade.tachiyomi.ui.reader.viewer.ReaderPageImageView
 import eu.kanade.tachiyomi.ui.reader.viewer.Viewer
 import eu.kanade.tachiyomi.ui.reader.viewer.ViewerNavigation.NavigationRegion
+import eu.kanade.tachiyomi.ui.reader.viewer.VolumeKeyPagingPolicy
 import eu.kanade.tachiyomi.ui.reader.viewer.collectChanges
 import eu.kanade.tachiyomi.util.system.toast
 import kotlinx.coroutines.MainScope
@@ -188,7 +190,24 @@ class WebtoonViewer(
                 }
             },
         )
-        recycler.tapListener = { event ->
+        recycler.tapListener = tap@{ event ->
+            // KUN -->
+            // A single tap that lands on an OCR block looks the word up and consumes the tap (only
+            // while the overlay is on); a miss falls through to the normal navigation below.
+            val ocrChild = recycler.findChildViewUnder(event.x, event.y)
+            val ocrItem = ocrChild?.let {
+                adapter.items.getOrNull(recycler.getChildAdapterPosition(it))
+            }
+            if (ocrItem is ReaderPage &&
+                activity.onPageSingleTap(
+                    ocrItem,
+                    null,
+                    activity.toOverlayPoint(recycler, event.x, event.y),
+                )
+            ) {
+                return@tap
+            }
+            // KUN <--
             val viewPosition = IntArray(2)
             recycler.getLocationOnScreen(viewPosition)
             val viewPositionRelativeToWindow = IntArray(2)
@@ -212,7 +231,12 @@ class WebtoonViewer(
                     val position = recycler.getChildAdapterPosition(child)
                     val item = adapter.items.getOrNull(position)
                     if (item is ReaderPage) {
-                        activity.onPageLongTap(item)
+                        // KUN -->
+                        activity.onPageLongTap(
+                            item,
+                            point = activity.toOverlayPoint(recycler, event.x, event.y),
+                        )
+                        // KUN <--
                         return@f true
                     }
                 }
@@ -353,6 +377,29 @@ class WebtoonViewer(
         }
         AndroidView(factory = { frame }, modifier = modifier)
     }
+
+    // KUN -->
+    private val ocrViewportRef by lazy { WebtoonOcrViewport(this) }
+
+    override fun ocrViewport(): OcrViewport? = ocrViewportRef
+
+    /** Page holders currently laid out in the recycler viewport, for the OCR overlay. */
+    fun ocrVisibleHolders(): List<WebtoonPageHolder> {
+        val first = layoutManager.findFirstVisibleItemPosition()
+        val last = layoutManager.findLastVisibleItemPosition()
+        if (first == -1 || last == -1) return emptyList()
+        return (first..last).mapNotNull { ocrHolderAt(it) }
+    }
+
+    fun ocrHolderFor(page: ReaderPage): WebtoonPageHolder? {
+        val position = adapter.items.indexOf(page)
+        if (position == -1) return null
+        return ocrHolderAt(position)
+    }
+
+    fun ocrHolderAt(position: Int): WebtoonPageHolder? =
+        recycler.findViewHolderForAdapterPosition(position) as? WebtoonPageHolder
+    // KUN <--
 
     /**
      * Destroys this viewer. Called when leaving the reader or swapping viewers.
@@ -590,16 +637,32 @@ class WebtoonViewer(
 
         when (event.keyCode) {
             KeyEvent.KEYCODE_VOLUME_DOWN -> {
-                if (!general.volumeKeysEnabled || activity.viewModel.state.value.menuVisible) {
+                // KUN -->
+                if (!VolumeKeyPagingPolicy.shouldConsumeForPaging(
+                        volumeKeysEnabled = general.volumeKeysEnabled,
+                        menuVisible = activity.viewModel.state.value.menuVisible,
+                        ocrOverlayEnabled = general.ocrOverlayEnabled,
+                    )
+                ) {
                     return false
-                } else if (isUp) {
+                }
+                // KUN <--
+                if (isUp) {
                     if (!general.volumeKeysInverted) scrollDown() else scrollUp()
                 }
             }
             KeyEvent.KEYCODE_VOLUME_UP -> {
-                if (!general.volumeKeysEnabled || activity.viewModel.state.value.menuVisible) {
+                // KUN -->
+                if (!VolumeKeyPagingPolicy.shouldConsumeForPaging(
+                        volumeKeysEnabled = general.volumeKeysEnabled,
+                        menuVisible = activity.viewModel.state.value.menuVisible,
+                        ocrOverlayEnabled = general.ocrOverlayEnabled,
+                    )
+                ) {
                     return false
-                } else if (isUp) {
+                }
+                // KUN <--
+                if (isUp) {
                     if (!general.volumeKeysInverted) scrollUp() else scrollDown()
                 }
             }

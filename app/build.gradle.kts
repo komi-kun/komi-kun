@@ -3,6 +3,7 @@ import mihon.buildlogic.getBuildTime
 import mihon.buildlogic.getCommitCount
 import mihon.buildlogic.getGitSha
 import mihon.buildlogic.tasks.ReplaceShortcutsPlaceholderTask
+import org.gradle.api.tasks.Exec
 import java.io.FileInputStream
 import java.util.Properties
 import kotlin.io.encoding.Base64
@@ -42,6 +43,16 @@ android {
         buildConfigField("String", "BUILD_TIME", "\"${getBuildTime(useLastCommitTime = false)}\"")
         buildConfigField("boolean", "TELEMETRY_INCLUDED", "${Config.includeTelemetry}")
         buildConfigField("boolean", "UPDATER_ENABLED", "${Config.enableUpdater}")
+
+        // KUN -->
+        // `splits.abi.include` (below) only decides which split APKs exist: the universal APK still
+        // packages every ABI a dependency ships, so the third-party AARs alone put a 32-bit `x86`
+        // native set back into it. Filtering here is what makes the universal APK carry exactly the
+        // three supported ABIs, the same set the dictionary engine and Paddle OCR build for.
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+        }
+        // KUN <--
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -156,7 +167,12 @@ android {
             isEnable = true
             isUniversalApk = true
             reset()
-            include("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+            // KUN -->
+            // One ABI set for all native artifacts (contract §1.5): the vendored dictionary
+            // engine and Paddle OCR both build for `arm64-v8a`/`armeabi-v7a`/`x86_64`.
+            // 32-bit `x86` (i686) is obsolete and dropped.
+            include("armeabi-v7a", "arm64-v8a", "x86_64")
+            // KUN <--
         }
     }
 
@@ -205,6 +221,45 @@ android {
     }
 }
 
+// KUN -->
+// Native debug symbols for the dictionary/OCR libraries are **variant-conditional**: a debuggable
+// build keeps them (they are how a native crash in `libhoshidicts_jni`/Paddle is symbolicated while
+// debugging), while the non-debuggable build types (release, releaseTest, foss, nightly, benchmark)
+// ship them stripped.
+//
+// Measured on `libhoshidicts_jni.so`: 14.2 MB unstripped vs 1.73 MB stripped; `libomp` 1.23 MB vs
+// 0.97 MB — about 12.5 MB per ABI that used to reach every release user for no runtime benefit.
+// The upstream entries in `packaging.jniLibs.keepDebugSymbols` above are left exactly as upstream
+// has them; only these four are added, and only for a debuggable build type.
+//
+// The thing this costs is **not** only a debugging convenience: the build that reports crashes is the
+// nightly, and it is not debuggable. With `-Pdist=ci` it enables telemetry (Crashlytics), unless the
+// `GOOGLE_SERVICES_JSON` secret is missing, which turns it off — and telemetry is exactly what the
+// stripped symbols would have helped. Nothing sets `ndk.debugSymbolLevel` either, and only the
+// Java/Kotlin mapping upload is configured (`Config.uploadCrashlyticsMapping`, GITHUB distribution
+// only), so there is no separate native symbol file to fall back on: a native crash in these
+// libraries reaches Crashlytics unsymbolicated.
+//
+// Giving the telemetry builds `ndk.debugSymbolLevel = "FULL"` (plus a native symbol upload) would fix
+// that and is worth a follow-up of its own; it is not done here, because it is a build/CI change with
+// its own artifact-size and release-pipeline consequences, not a symbol-keeping tweak.
+val kunDebuggableBuildTypes = android.buildTypes.filter { it.isDebuggable }.map { it.name }.toSet()
+
+androidComponents {
+    onVariants { variant ->
+        if (variant.buildType !in kunDebuggableBuildTypes) return@onVariants
+        variant.packaging.jniLibs.keepDebugSymbols.addAll(
+            listOf(
+                "libhoshidicts_jni",
+                "libpaddle_ocr",
+                "libonnxruntime",
+                "libomp",
+            ).map { "**/$it.so" },
+        )
+    }
+}
+// KUN <--
+
 kotlin {
     compilerOptions {
         freeCompilerArgs.addAll(
@@ -244,6 +299,9 @@ dependencies {
     // SY -->
     implementation(projects.i18nSy)
     // SY <--
+    // KUN -->
+    implementation(projects.i18nKun)
+    // KUN <--
     implementation(projects.icons.customMaterialSymbols)
     implementation(projects.icons.materialSymbols)
     implementation(projects.icons.simpleIcons)
@@ -254,6 +312,10 @@ dependencies {
     // SY <--
     implementation(projects.core.archive)
     implementation(projects.core.common)
+    // KUN -->
+    implementation(projects.core.dictionary)
+    implementation(projects.core.ocr)
+    // KUN <--
     implementation(projects.coreMetadata)
     implementation(projects.sourceApi)
     implementation(projects.sourceLocal)
@@ -390,6 +452,10 @@ dependencies {
     testImplementation(libs.bundles.test)
     testImplementation(libs.sqldelight.sqlite.driver)
     testRuntimeOnly(libs.junit.platform.launcher)
+    // KUN -->
+    // Real org.json for JVM unit tests (Android's is stubbed and throws "not mocked").
+    testImplementation(libs.org.json)
+    // KUN <--
 
     // For detecting memory leaks; see https://square.github.io/leakcanary/
     // debugImplementation(libs.leakcanary.android)
@@ -502,3 +568,17 @@ androidComponents {
         resSource.addGeneratedSourceDirectory(replaceShortcutsPlaceholderTask) { it.outputDir }
     }
 }
+
+// KUN -->
+// GPL-free boundary check (contract §1.3/§1.9). Defined in :app so `./gradlew verifyGplFree`
+// resolves to this task, which wraps scripts/verify-gpl-free.sh so CI and local runs share one
+// code path. The script's self-test runs after it: a guard that only passes on the current tree
+// has not been shown to catch a planted violation of any of the shapes it must catch.
+val verifyGplFree by tasks.registering(Exec::class) {
+    group = "verification"
+    description = "Fails if a GPL-free file (§1.3) references a GPL package (§1.9)."
+    val guard = layout.settingsDirectory.file("scripts/verify-gpl-free.sh").asFile.absolutePath
+    val selfTest = layout.settingsDirectory.file("scripts/test-verify-gpl-free.sh").asFile.absolutePath
+    commandLine("bash", "-c", "bash \"$guard\" && bash \"$selfTest\"")
+}
+// KUN <--

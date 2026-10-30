@@ -27,6 +27,13 @@ data class GeneralSettings(
     val navigationOverlayOnStart: Boolean,
     // KUN -->
     /**
+     * Whether the reader OCR overlay is on. While it is, the viewers leave the volume keys to the
+     * system (media volume) instead of paging; see [VolumeKeyPagingPolicy].
+     */
+    val ocrOverlayEnabled: Boolean,
+    // KUN <--
+    // KUN -->
+    /**
      * SY: the webtoon viewers' own page-transition toggle. Upstream has a single value for both
      * viewers, which this fork feeds into [usePageTransitions] from the pager toggle; a viewer must
      * read the field that belongs to it.

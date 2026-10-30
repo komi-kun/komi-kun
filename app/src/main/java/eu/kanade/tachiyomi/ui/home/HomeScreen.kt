@@ -37,6 +37,7 @@ import eu.kanade.core.preference.asState
 import eu.kanade.presentation.util.Screen
 import eu.kanade.presentation.util.isTabletUi
 import eu.kanade.tachiyomi.ui.browse.BrowseTab
+import eu.kanade.tachiyomi.ui.dictionary.DictionaryTab
 import eu.kanade.tachiyomi.ui.download.DownloadQueueScreen
 import eu.kanade.tachiyomi.ui.history.HistoryTab
 import eu.kanade.tachiyomi.ui.library.LibraryTab
@@ -74,6 +75,9 @@ object HomeScreen : Screen() {
         UpdatesTab,
         HistoryTab,
         BrowseTab,
+        // KUN -->
+        DictionaryTab,
+        // KUN <--
         MoreTab,
     )
 
@@ -88,6 +92,17 @@ object HomeScreen : Screen() {
             context.appGraph.uiPreferences.bottomBarLabels.asState(scope)
         }
         // SY <--
+
+        // KUN -->
+        // The dictionary/OCR master switch, observed so the navigation reacts to the settings toggle
+        // (and to the setup answer) without waiting for a restart. `asState` starts a collector, so
+        // it must be remembered: re-creating it on every recomposition would leak one collector per
+        // pass into the composition scope.
+        val dictionaryOcrPreferences = remember(context) { context.appGraph.dictionaryOcrPreferences }
+        val dictionaryOcrEnabled by remember(dictionaryOcrPreferences) {
+            dictionaryOcrPreferences.enabled.asState(scope)
+        }
+        // KUN <--
 
         TabNavigator(
             tab = LibraryTab,
@@ -126,6 +141,11 @@ object HomeScreen : Screen() {
                             // SY -->
                             .fastFilter { it.isEnabled() }
                             // SY <--
+                            // KUN -->
+                            // Same rule as `DictionaryTab.isEnabled()`, applied here too so the tab's
+                            // presence in the navigation never depends on a single call site.
+                            .fastFilter { DictionaryTabNavigationPolicy.isVisible(it, dictionaryOcrEnabled) }
+                            // KUN <--
                             .fastForEach {
                                 NavigationItem(
                                     tab = it,
@@ -157,6 +177,21 @@ object HomeScreen : Screen() {
 
             val goToLibraryTab = { tabNavigator.current = LibraryTab }
 
+            // KUN -->
+            // Turning the feature off while the (now filtered-out) Dictionary tab is selected would
+            // leave the user on a tab that is no longer in the navigation; the policy decides the
+            // fallback for both the bottom bar and the rail.
+            LaunchedEffect(dictionaryOcrEnabled) {
+                val mustFallBack = DictionaryTabNavigationPolicy.mustFallBackToLibrary(
+                    currentIsDictionary = tabNavigator.current is DictionaryTab,
+                    enabled = dictionaryOcrEnabled,
+                )
+                if (mustFallBack) {
+                    tabNavigator.current = LibraryTab
+                }
+            }
+            // KUN <--
+
             BackHandler(enabled = tabNavigator.current != LibraryTab, onBack = goToLibraryTab)
 
             // SY -->
@@ -184,6 +219,18 @@ object HomeScreen : Screen() {
                                 }
                                 BrowseTab
                             }
+                            // KUN -->
+                            // A direct `Tab.Dictionary` request must not open a tab that the
+                            // navigation filter hides while the feature is off. No in-repo producer
+                            // exists today (no dictionary shortcut, no intent action); `openTab` is
+                            // public, so the policy owns the fallback and it is unit-tested.
+                            Tab.Dictionary -> when (
+                                DictionaryTabNavigationPolicy.directEventTarget(dictionaryOcrEnabled)
+                            ) {
+                                DictionaryTabTarget.DICTIONARY -> DictionaryTab
+                                DictionaryTabTarget.LIBRARY -> LibraryTab
+                            }
+                            // KUN <--
                             is Tab.More -> MoreTab
                         }
 
@@ -321,6 +368,9 @@ object HomeScreen : Screen() {
         data object Updates : Tab
         data object History : Tab
         data class Browse(val toExtensions: Boolean = false) : Tab
+        // KUN -->
+        data object Dictionary : Tab
+        // KUN <--
         data class More(
             val toDownloads: Boolean,
             // KMK -->

@@ -11,6 +11,8 @@ import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.tachiyomi.data.download.model.Download
 import eu.kanade.tachiyomi.data.library.LibraryUpdateNotifier
 import eu.kanade.tachiyomi.data.notification.NotificationHandler
+import eu.kanade.tachiyomi.data.ocr.OcrRuntimePolicy
+import eu.kanade.tachiyomi.data.ocr.OcrWorker
 import eu.kanade.tachiyomi.network.HttpException
 import eu.kanade.tachiyomi.source.UnmeteredSource
 import eu.kanade.tachiyomi.source.model.Page
@@ -56,10 +58,13 @@ import logcat.LogPriority
 import mihon.core.archive.CbzCrypto
 import mihon.core.archive.ZipWriter
 import mihon.core.metro.AppCoroutineScope
+import mihon.core.ocr.OcrPreferences
+import mihon.core.ocr.cache.OcrManager
 import mihon.data.cache.ChapterCache
 import nl.adaptivity.xmlutil.serialization.XML
 import okhttp3.Response
 import tachiyomi.core.common.i18n.stringResource
+import tachiyomi.core.common.preference.DictionaryOcrPreferences
 import tachiyomi.core.common.util.system.ImageUtil
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.core.metadata.comicinfo.COMIC_INFO_FILE
@@ -99,6 +104,12 @@ class Downloader(
     // SY -->
     private val sourcePreferences: SourcePreferences,
     // SY <--
+    // KUN -->
+    private val ocrManager: OcrManager,
+    private val ocrPreferences: OcrPreferences,
+    /** The combined dictionary/OCR opt-in: nothing OCR-related may be queued while it is off. */
+    private val dictionaryOcrPreferences: DictionaryOcrPreferences,
+    // KUN <--
 ) {
     /**
      * Queue where active downloads are kept.
@@ -438,6 +449,14 @@ class Downloader(
 
         val mangaDir = provider.getMangaDir(/* SY --> */ download.manga.ogTitle /* SY <-- */, download.source).getOrElse { e ->
             download.status = Download.State.ERROR
+            // KUN -->
+            // A failed download must not leave its OCR task at WAITING_DOWNLOAD: nothing would ever
+            // promote it, so record it as a retryable ERROR instead (queue metadata only, ungated —
+            // exactly like the promotion on the success path below). The task stays flagged as
+            // waiting for its chapter, so a later successful download of the same chapter promotes
+            // it through the same `markChapterReadyForOcr` call every other download makes.
+            ocrManager.markChapterDownloadFailed(download.chapter.id)
+            // KUN <--
             notifier.onError(e.message, download.chapter.name, download.manga.title, download.manga.id)
             return
         }
@@ -445,6 +464,9 @@ class Downloader(
         val availSpace = DiskUtil.getAvailableStorageSpace(mangaDir)
         if (availSpace != -1L && availSpace < MIN_DISK_SPACE) {
             download.status = Download.State.ERROR
+            // KUN -->
+            ocrManager.markChapterDownloadFailed(download.chapter.id)
+            // KUN <--
             notifier.onError(
                 context.stringResource(MR.strings.download_insufficient_space),
                 download.chapter.name,
@@ -521,6 +543,9 @@ class Downloader(
 
             if (!isDownloadSuccessful(download, tmpDir)) {
                 download.status = Download.State.ERROR
+                // KUN -->
+                ocrManager.markChapterDownloadFailed(download.chapter.id)
+                // KUN <--
                 return
             }
 
@@ -541,12 +566,45 @@ class Downloader(
 
             DiskUtil.createNoMediaFile(tmpDir, context)
 
+            // KUN -->
+            // OCR hooks (03 §5.4). Two different rules:
+            //  * the queue **metadata** is always maintained (`markChapterReadyForOcr` is called
+            //    unconditionally, even while the combined dictionary/OCR opt-in is off), so a
+            //    chapter queued before the switch was turned off is promoted rather than stranded
+            //    at WAITING_DOWNLOAD. It is not a policy decision, so there is no `enabled` argument
+            //    that could gate it; `OcrManager.markChapterReadyForOcr` is itself ungated.
+            //  * the **actions** (auto-queue, worker start) follow `OcrRuntimePolicy`, which is off
+            //    whenever the switch is off — promotion alone never starts OCR work.
+            val ocrEnabled = dictionaryOcrPreferences.isEnabled()
+            val promotedForOcr = ocrManager.markChapterReadyForOcr(download.chapter.id)
+            val ocrActions = OcrRuntimePolicy.downloadActions(
+                enabled = ocrEnabled,
+                promoted = promotedForOcr,
+                autoOnDownload = ocrPreferences.autoOnDownload.get(),
+            )
+            when {
+                ocrActions.queue -> {
+                    logcat { "Downloader: queued OCR after download for chapter=${download.chapter.id}" }
+                    ocrManager.queueChapters(download.manga.id, listOf(download.chapter.id), waitForDownload = false)
+                }
+                promotedForOcr -> {
+                    logcat { "Downloader: promoted queued OCR for chapter=${download.chapter.id}" }
+                }
+            }
+            if (ocrActions.startWorker) {
+                OcrWorker.start(context)
+            }
+            // KUN <--
+
             download.status = Download.State.DOWNLOADED
         } catch (error: Throwable) {
             if (error is CancellationException) throw error
             // If the page list threw, it will resume here
             logcat(LogPriority.ERROR, error)
             download.status = Download.State.ERROR
+            // KUN -->
+            ocrManager.markChapterDownloadFailed(download.chapter.id)
+            // KUN <--
             notifier.onError(error.message, download.chapter.name, download.manga.title, download.manga.id)
         }
     }

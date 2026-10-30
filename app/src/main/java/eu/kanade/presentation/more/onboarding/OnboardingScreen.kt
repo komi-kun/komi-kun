@@ -19,6 +19,7 @@ import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.RocketLaunch
 import soup.compose.material.motion.animation.materialSharedAxisX
 import soup.compose.material.motion.animation.rememberSlideDistance
+import tachiyomi.core.common.preference.DictionaryOcrPreferences
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.material.padding
 import tachiyomi.presentation.core.i18n.stringResource
@@ -28,6 +29,11 @@ import tachiyomi.presentation.core.screens.InfoScreen
 fun OnboardingScreen(
     onComplete: () -> Unit,
     onRestoreBackup: () -> Unit,
+    // KUN -->
+    // Fresh installs answer the combined dictionary/OCR opt-in as a step of this flow (the same
+    // content an upgraded install gets once as a standalone screen).
+    dictionaryOcrPreferences: DictionaryOcrPreferences,
+    // KUN <--
 ) {
     val slideDistance = rememberSlideDistance()
 
@@ -37,6 +43,9 @@ fun OnboardingScreen(
             ThemeStep(),
             StorageStep(),
             PermissionStep(),
+            // KUN -->
+            DictionaryOcrStep(dictionaryOcrPreferences),
+            // KUN <--
             GuidesStep(onRestoreBackup = onRestoreBackup),
         )
     }

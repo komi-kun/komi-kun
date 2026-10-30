@@ -121,6 +121,7 @@ class ReaderSettingsViewModel(
         preferences.alwaysShowChapterTransition,
         preferences.showNavigationOverlayOnStart,
         // KUN -->
+        preferences.ocrOverlayEnabled,
         preferences.pageTransitionsWebtoon,
         preferences.autoscrollInterval,
         preferences.smoothAutoScroll,
@@ -143,6 +144,7 @@ class ReaderSettingsViewModel(
             alwaysShowChapterTransition = alwaysShowChapterTransition.get(),
             navigationOverlayOnStart = showNavigationOverlayOnStart.get(),
             // KUN -->
+            ocrOverlayEnabled = ocrOverlayEnabled.get(),
             usePageTransitionsWebtoon = pageTransitionsWebtoon.get(),
             autoscrollInterval = autoscrollInterval.get(),
             smoothAutoScroll = smoothAutoScroll.get(),

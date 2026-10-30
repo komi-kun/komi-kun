@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import logcat.LogPriority
+import mihon.core.ocr.cache.OcrManager
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.storage.extension
 import tachiyomi.core.common.util.system.ImageUtil
@@ -54,6 +55,10 @@ class DownloadManager(
     private val downloadPreferences: DownloadPreferences,
     private val downloader: Downloader,
     private val pendingDeleter: DownloadPendingDeleter,
+    // KUN -->
+    /** OCR result cache: the chapter deletion paths below are the only thing that prunes it. */
+    private val ocrManager: OcrManager,
+    // KUN <--
 ) {
 
     val isRunning: Boolean
@@ -310,6 +315,17 @@ class DownloadManager(
             val (mangaDir, chapterDirs) = provider.findChapterDirs(filteredChapters, manga, source)
             chapterDirs.forEach { it.delete() }
             cache.removeChapters(filteredChapters, manga)
+            // KUN -->
+            // The pages these results were recognised from are gone, so drop their OCR cache entries
+            // too (~1–2 MB per chapter in `filesDir/ocr_cache`, and nothing else pruned them: only
+            // the manual "Clear cache" action ever did, so a deleted chapter kept its results for
+            // the life of the install). Keyed exactly like `OcrChapterResolver` keys them, and in
+            // **one** batch call: the per-chapter method writes the persisted queue once per chapter
+            // — a synchronous `commit()` plus a full queue re-read for every one of them.
+            ocrManager.deleteOcrForChapters(
+                filteredChapters.map { chapter -> ocrManager.cacheKey(manga.source, chapter.mangaId, chapter.id) },
+            )
+            // KUN <--
 
             // Delete manga directory if empty
             if (mangaDir?.listFiles()?.isEmpty() == true) {
@@ -332,6 +348,12 @@ class DownloadManager(
             }
             provider.findMangaDir(/* SY --> */ manga.ogTitle /* SY <-- */, source)?.delete()
             cache.removeManga(manga)
+            // KUN -->
+            // Same for the manga-wide OCR cache: this is the path a library removal, a migration
+            // ("delete downloads" of the old entry) and a plain delete all go through, and it is the
+            // only caller of `OcrManager.deleteOcrForManga`.
+            ocrManager.deleteOcrForManga(manga.source, manga.id)
+            // KUN <--
 
             // KMK -->
             if (source.isLocal()) return@withContext
