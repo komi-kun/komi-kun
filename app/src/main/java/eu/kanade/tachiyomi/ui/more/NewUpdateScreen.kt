@@ -23,7 +23,7 @@ class NewUpdateScreen(
         val navigator = LocalNavigator.currentOrThrow
         val context = LocalContext.current
         val viewModel = assistedMetroViewModel<NewUpdateViewModel, NewUpdateViewModel.Factory> {
-            create(changelogInfo = changelogInfo, downloadLink = downloadLink)
+            create(versionName = versionName, changelogInfo = changelogInfo, downloadLink = downloadLink)
         }
         val state by viewModel.state.collectAsState()
 

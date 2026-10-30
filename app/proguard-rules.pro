@@ -333,5 +333,14 @@
 -keep class * extends exh.source.DelegatedHttpSource {
     public <init>(eu.kanade.tachiyomi.source.online.HttpSource, android.content.Context);
 }
+
+# Keep classes and methods with @JavascriptInterface called reflectively by WebView JavaScript
+-keepattributes JavascriptInterface
+-keepclassmembers class * {
+    @android.webkit.JavascriptInterface <methods>;
+}
+-keep class * {
+    @android.webkit.JavascriptInterface <methods>;
+}
 # KUN <--
 

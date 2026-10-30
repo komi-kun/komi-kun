@@ -168,7 +168,7 @@ class DictionaryWebViewState(
 
     @Volatile var contentReadyGeneration: Long = 0
 
-    @Volatile var nextContentReadyRequestId: Long = 0
+    @Volatile var lastLoggedReadyGeneration: Long = -1L
     var onAnkiLookup: ((Int, Int?, String?, String?, Boolean) -> Unit)? = null
     var onRecursiveLookup: ((String, String?, Int?, Float?, Float?, String?) -> Unit)? = null
     var onTabSelect: ((Int) -> Unit)? = null
@@ -274,7 +274,6 @@ class DictionaryWebViewState(
         lastMediaDataUris = null
         lastRenderSignature = null
         contentReadyGeneration++
-        nextContentReadyRequestId++
         clearPendingPayload()
         onContentInvalidated?.invoke()
         webView.loadDataWithBaseURL("https://komikun.local/popup/", html, "text/html", "UTF-8", null)
@@ -336,7 +335,6 @@ class DictionaryWebViewState(
         lastMediaDataUris = renderMediaDataUris
         lastRenderSignature = signature
         contentReadyGeneration++
-        nextContentReadyRequestId++
         clearPendingPayload()
 
         val renderStart = SystemClock.elapsedRealtime()
