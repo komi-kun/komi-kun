@@ -45,6 +45,7 @@ import tachiyomi.core.common.util.system.logcat
 import java.io.ByteArrayInputStream
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.zip.ZipFile
 
 /**
@@ -404,6 +405,16 @@ class OcrManager(
 
         val pageCount = provider.pageCount
         if (pageCount <= 0) {
+            // KUN -->
+            // A chapter with no readable page is failed, and this is the only place that knows it:
+            // the provider swallows the reason when it opens/enumerates the archive, and `ERROR` is
+            // not runnable, so nothing retries and no surface shows it. Log the stage that cannot be
+            // distinguished here (open/enumerate failure, or an archive without image entries).
+            logcat(LogPriority.WARN) {
+                "OcrManager: chapter $chapterId has no readable pages " +
+                    "(the chapter file could not be opened/enumerated, or it holds no images); failing it"
+            }
+            // KUN <--
             updateTask(chapterId) { it.copy(status = OcrQueueStatus.ERROR) }
             return OcrTaskResult.ERROR
         }
@@ -497,6 +508,15 @@ class OcrManager(
             updateTask(chapterId) { it.copy(status = OcrQueueStatus.COMPLETED, currentPage = pageCount) }
             OcrTaskResult.SUCCESS
         } else {
+            // KUN -->
+            // The one log line a chapter that ends up failed produces: the counts say whether pages
+            // could not be read at all or the engine could not recognise them. Nothing retries an
+            // `ERROR` task on its own, so this is the only record of why the chapter stopped.
+            logcat(LogPriority.WARN) {
+                "OcrManager: chapter $chapterId failed after the run " +
+                    "($cachedPages/$pageCount pages cached, $failedPages page(s) unreadable or unrecognised)"
+            }
+            // KUN <--
             updateTask(chapterId) { it.copy(status = OcrQueueStatus.ERROR) }
             OcrTaskResult.ERROR
         }
@@ -585,18 +605,35 @@ class OcrManager(
             // `isRunning` never went false — so `OcrWorker`'s `ocrJob.isRunning.first { !it }` never
             // returned and its foreground notification stayed up. Same pattern as
             // `ReaderOcrBlockLoader.ensureLoaded`.
+            // The resolved input owns a native resource (an mmap-backed archive reader), and
+            // [processChapter]'s `finally` is the only thing that releases it. A job whose body never
+            // runs therefore leaks it — and that is reachable, not theoretical: [inputFor] suspends
+            // (database reads, the archive open), so the run's scope can be cancelled after it
+            // returned the input but before this launch, and `launch` then answers an already-cancelled
+            // child whose body — and whose `finally` — never executes. Ownership is handed over
+            // explicitly instead: the body claims it right before [processChapter] (which then owns
+            // the close), and anything else releases it through the completion handler once.
+            val consumed = AtomicBoolean(false)
             val job = launch(Dispatchers.IO, start = CoroutineStart.LAZY) {
                 val self = coroutineContext[Job]
                 try {
+                    // Claimed: from here on `processChapter`'s `finally` closes the provider.
+                    consumed.set(true)
                     when (processChapter(input, stopRequested)) {
                         // KUN -->
                         // Only a run that persisted **every** page of the chapter may drop its task:
                         // `SUCCESS` is reached exactly when `countCachedPages` covers the provider's
-                        // page count. An interrupted run (`STOPPED`, `CANCELLED`, or a cancelled job)
-                        // must leave the chapter resumable — the next run skips the pages that are
-                        // already cached and recognises the rest — so a `CANCELLED` task is re-armed
-                        // instead of removed, and a task that vanished from the store in the meantime
-                        // simply has nothing left to re-arm.
+                        // page count, and the next run then skips the pages that are already cached
+                        // and recognises the rest.
+                        //
+                        // `CANCELLED` is re-armed **defensively**, not because it is what saves an
+                        // interrupted chapter: its only producer answers it when the store entry is
+                        // already gone, so `updateTask` finds nothing and writes nothing here. The
+                        // "never drop an interrupted run" guarantee is carried by the paths that
+                        // actually occur — `STOPPED` (stop request, opt-out, unavailable engine) is
+                        // persisted as `PENDING`, the cancellation handler below does the same, and a
+                        // task killed mid-run stays `PROCESSING` in the store, which [isRunnable]
+                        // picks up again.
                         OcrTaskResult.SUCCESS -> store.remove(next.chapterId)
                         OcrTaskResult.CANCELLED -> updateTask(next.chapterId) {
                             it.copy(status = OcrQueueStatus.PENDING)
@@ -628,6 +665,12 @@ class OcrManager(
             }
             runningJobs[next.chapterId] = job
             // KUN --> Registered: it may run (and release its own registration) from here on.
+            // The body never claimed the input (cancelled parent, cancelled before dispatch), so
+            // nothing else will release what resolving it opened. Fires inline when the job is
+            // already complete, which is exactly the cancelled-before-start case.
+            job.invokeOnCompletion {
+                if (!consumed.get()) runCatching { input.provider.close() }
+            }
             job.start()
             // KUN <--
         }

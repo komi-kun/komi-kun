@@ -203,16 +203,28 @@ class OcrChapterResolver(
             source = source,
         ) ?: return null
 
-        return ChapterOcrInput(
-            key = ocrManager.cacheKey(
-                sourceId = manga.source,
-                mangaId = chapter.mangaId,
-                chapterId = chapter.id,
-            ),
-            language = resolveLanguage(chapter.mangaId, manga.source),
-            source = ocrManager.sourceFor(chapter.mangaId),
-            provider = UniFileChapterImageProvider(context, chapterDir),
-        )
+        // KUN -->
+        // The provider opens its archive eagerly, and nothing outside `OcrManager.processChapter`
+        // closes an input. Everything after the provider exists is therefore guarded: if building the
+        // input throws (language resolution, the cache key), the archive it already mapped is
+        // released here instead of being leaked to the caller that never receives an input.
+        val provider = UniFileChapterImageProvider(context, chapterDir)
+        return try {
+            ChapterOcrInput(
+                key = ocrManager.cacheKey(
+                    sourceId = manga.source,
+                    mangaId = chapter.mangaId,
+                    chapterId = chapter.id,
+                ),
+                language = resolveLanguage(chapter.mangaId, manga.source),
+                source = ocrManager.sourceFor(chapter.mangaId),
+                provider = provider,
+            )
+        } catch (e: Throwable) {
+            runCatching { provider.close() }
+            throw e
+        }
+        // KUN <--
     }
 
     private fun resolveLanguage(mangaId: Long, sourceId: Long): OcrLanguage {
@@ -255,6 +267,11 @@ class UniFileChapterImageProvider(
         emptyList()
     }
 
+    // KUN -->
+    /** Names the chapter file in the logs; a storage-access-framework location has no plain path. */
+    private val describedFile: String = "${chapterFile.name ?: "chapter"} (${chapterFile.uri})"
+    // KUN <--
+
     /**
      * The archive, or null when [chapterFile] is a directory or cannot be opened as an archive. A
      * [pageCount] of 0 then leaves the chapter failed instead of silently "completing" it with no
@@ -263,7 +280,16 @@ class UniFileChapterImageProvider(
     private val archive: ArchiveReader? = if (chapterFile.isDirectory) {
         null
     } else {
-        runCatching { chapterFile.archiveReader(context) }.getOrNull()
+        // KUN -->
+        // Logged rather than only answered with null: without this line a chapter that cannot be
+        // opened (a wrong `CbzCrypto` passphrase, a provider that cannot hand out a random-access
+        // descriptor, a corrupted header) reaches `OcrManager` as `pageCount == 0` and becomes an
+        // `ERROR` task with no cause recorded anywhere.
+        runCatching { chapterFile.archiveReader(context) }.getOrElse { e ->
+            logcat(LogPriority.WARN, e) { "UniFileChapterImageProvider: cannot open $describedFile as an archive" }
+            null
+        }
+        // KUN <--
     }
 
     /**
@@ -272,6 +298,9 @@ class UniFileChapterImageProvider(
      * here and in the reader.
      */
     private val archiveEntries: List<String> = archive?.let { reader ->
+        // KUN -->
+        // Same reason as the open above: an entry list that cannot be read (a corrupted or
+        // truncated entry aborting the enumeration) must not look like "this chapter has no images".
         runCatching {
             reader.useEntries { entries ->
                 entries
@@ -280,7 +309,11 @@ class UniFileChapterImageProvider(
                     .sortedWith { a, b -> a.compareToCaseInsensitiveNaturalOrder(b) }
                     .toList()
             }
-        }.getOrDefault(emptyList())
+        }.getOrElse { e ->
+            logcat(LogPriority.WARN, e) { "UniFileChapterImageProvider: cannot list the entries of $describedFile" }
+            emptyList()
+        }
+        // KUN <--
     }.orEmpty()
 
     override val pageCount: Int
