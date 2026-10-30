@@ -581,4 +581,20 @@ val verifyGplFree by tasks.registering(Exec::class) {
     val selfTest = layout.settingsDirectory.file("scripts/test-verify-gpl-free.sh").asFile.absolutePath
     commandLine("bash", "-c", "bash \"$guard\" && bash \"$selfTest\"")
 }
+
+// JNI symbol check. Neither native bridge uses `RegisterNatives`, so every `external fun` must have
+// an exported `Java_…` counterpart in each built ABI; without this gate a C++ rename or a drifted
+// Kotlin declaration compiles, passes CI and fails only on a device. Defined in :app (like
+// `verifyGplFree`) so `./gradlew verifyJniSymbols` resolves from the root, and it depends on the two
+// tasks that produce the libraries it reads — the CMake external build for `libhoshidicts_jni.so`
+// and `fetchPaddleNativeLibs` for `libpaddle_ocr.so` — so the gate never reads a stale or absent
+// artifact (the script fails, rather than skips, when a library is missing).
+val verifyJniSymbols by tasks.registering(Exec::class) {
+    group = "verification"
+    description = "Fails if a declared `external fun` has no exported JNI symbol in a built ABI."
+    dependsOn(":core:dictionary:externalNativeBuildDebug")
+    dependsOn(":core:ocr:fetchPaddleNativeLibs")
+    val script = layout.settingsDirectory.file("scripts/verify-jni-symbols.sh").asFile.absolutePath
+    commandLine("bash", script)
+}
 // KUN <--
