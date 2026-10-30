@@ -22,6 +22,7 @@ import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.network.ProgressListener
 import eu.kanade.tachiyomi.util.storage.getUriCompat
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -60,21 +61,36 @@ class NewUpdateViewModel(
     private val apkFile: File
         get() = AppUpdateDownloadJob.updateApk(context)
 
+    val state: StateFlow<NewUpdateViewModel.State>
+        field = MutableStateFlow<NewUpdateViewModel.State>(
+            State(
+                changelogInfo = changelogInfo,
+            ),
+        )
+
+    init {
+        // KUN -->
+        viewModelScope.launch(Dispatchers.IO) {
+            checkCachedApk()
+        }
+        // KUN <--
+    }
+
     // KUN -->
     // The notification path and the scheduled auto-update still fetch the APK through
     // [AppUpdateDownloadJob]. When that already landed, the screen must offer Install instead of a
-    // redundant download; an empty file or an outdated APK from a previous update must be cleaned up.
-    private val apkAlreadyDownloaded: Boolean
-        get() {
-            if (!apkFile.isFile || apkFile.length() == 0L) return false
-            val archiveInfo = getApkPackageInfo(apkFile)
-            if (archiveInfo != null && isMatchingUpdate(archiveInfo, versionName)) {
-                return true
-            }
-            // Stale or corrupted update APK from an older release; delete it
+    // redundant download; an outdated APK from a previous update must be cleaned up, but in-progress
+    // or unparsed downloads must not be clobbered while AppUpdateDownloadJob is running.
+    internal fun checkCachedApk() {
+        if (!apkFile.isFile || apkFile.length() == 0L) return
+        val archiveInfo = getApkPackageInfo(apkFile) ?: return
+        if (isMatchingUpdate(archiveInfo, versionName)) {
+            state.update { it.copy(downloadProgress = 100, stage = Stage.Downloaded) }
+        } else {
+            // Stale update APK from an older release; delete it
             apkFile.delete()
-            return false
         }
+    }
 
     private fun getApkPackageInfo(file: File): PackageInfo? {
         return try {
@@ -92,26 +108,15 @@ class NewUpdateViewModel(
         }
     }
 
-    private fun isMatchingUpdate(info: PackageInfo, targetVersion: String): Boolean {
+    internal fun isMatchingUpdate(info: PackageInfo, targetVersion: String): Boolean {
         if (info.packageName != context.packageName) return false
         val apkVersion = info.versionName ?: return false
         val cleanTarget = targetVersion.removePrefix("r").removePrefix("v")
         return apkVersion == cleanTarget ||
-            apkVersion.endsWith("-$cleanTarget") ||
-            apkVersion.contains(cleanTarget)
+            apkVersion.substringAfterLast('-') == cleanTarget ||
+            apkVersion.endsWith("-$cleanTarget")
     }
     // KUN <--
-
-    val state: StateFlow<NewUpdateViewModel.State>
-        field = MutableStateFlow<NewUpdateViewModel.State>(
-            State(
-                changelogInfo = changelogInfo,
-                // KUN -->
-                downloadProgress = if (apkAlreadyDownloaded) 100 else 0,
-                stage = if (apkAlreadyDownloaded) Stage.Downloaded else Stage.Available,
-                // KUN <--
-            ),
-        )
 
     private var downloadJob: Job? = null
 

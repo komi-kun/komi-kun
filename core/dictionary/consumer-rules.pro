@@ -12,16 +12,14 @@
 -keepclassmembers class mihon.core.dictionary.engine.** { <init>(...); *; }
 -keepclassmembers class mihon.core.dictionary.model.** { <init>(...); *; }
 
-# Keep dictionary WebView JavaScript bridges and UI interop classes (called reflectively by WebView / JavaScript).
+# Keep dictionary WebView JavaScript bridges (called reflectively by WebView / JavaScript).
 -keepattributes JavascriptInterface
 -keepclassmembers class * {
     @android.webkit.JavascriptInterface <methods>;
 }
--keep class * {
+-keepclassmembers class mihon.core.dictionary.ui.DictionaryReadyBridge, mihon.core.dictionary.ui.PayloadBridge, mihon.core.dictionary.ui.AnkiJsBridge, mihon.core.dictionary.ui.WordAudioBridge {
     @android.webkit.JavascriptInterface <methods>;
 }
--keep class mihon.core.dictionary.ui.** { *; }
--keepclassmembers class mihon.core.dictionary.ui.** { *; }
 
 -keepattributes Signature
 -keepattributes *Annotation*
