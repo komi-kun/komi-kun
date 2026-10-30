@@ -62,6 +62,7 @@
     <string name="dictionary_no_results">No results for \u201c%1$s\u201d</string>
     <string name="dictionary_idle_hint">Type a word and press search to look it up.</string>
     <string name="dictionary_render_error">Could not render this entry. The text may be incomplete.</string>
+    <string name="dictionary_retry">Retry</string>
     <string name="dictionary_selection_hint">Long-press text to select it</string>
     <string name="dictionary_selection_hint_dismiss">Dismiss</string>
     <string name="pref_dict_delete">Delete dictionary</string>

@@ -11,7 +11,10 @@ import org.junit.jupiter.api.Test
 
 class DictionaryRenderDiagnosticsTest {
 
-    /** A render that measured fine: three entries, visible, with real height. */
+    /**
+     * A render that measured fine: three entries, visible, with real height, a laid-out document
+     * (`layout_h`/`layout_sh` set) and one expanded dictionary group whose gloss is on screen.
+     */
     private fun visible(entries: Int = 3) = RenderMeasurement(
         entryCount = entries,
         containerHeight = 812,
@@ -26,6 +29,16 @@ class DictionaryRenderDiagnosticsTest {
         entryDisplay = "block",
         entryVisibility = "visible",
         entryOpacity = 1f,
+        layoutHeight = 900,
+        documentHeight = 812,
+        groupCount = 1,
+        groupHeight = 180,
+        groupDisplay = "block",
+        groupVisibility = "visible",
+        groupOpacity = 1f,
+        expandedGroups = 1,
+        definitionCount = 2,
+        visibleDefinitions = 2,
     )
 
     @Test
@@ -132,6 +145,119 @@ class DictionaryRenderDiagnosticsTest {
             RenderVisibilityProblem("measurement_missing", shouldGuard = false)
     }
 
+    /**
+     * The reported symptom: every entry is an `article.entry` whose definitions live in its
+     * `.dictionary-group` children, so measuring only `#entries` and `.entry` passed a page where
+     * `.dictionary-group{display:none}` showed headwords with nothing under them.
+     */
+    @Test
+    fun `a hidden dictionary group is reported and repaired`() {
+        renderVisibilityProblem(3, visible().copy(groupDisplay = "none")) shouldBe
+            RenderVisibilityProblem("group_hidden", shouldGuard = true)
+        renderVisibilityProblem(3, visible().copy(groupOpacity = 0f)) shouldBe
+            RenderVisibilityProblem("group_hidden", shouldGuard = true)
+    }
+
+    /** A visible group whose glosses are gone (`.gloss-content{display:none}`) is just as blank. */
+    @Test
+    fun `an entry with no visible definition rectangle is reported and repaired`() {
+        renderVisibilityProblem(3, visible().copy(visibleDefinitions = 0)) shouldBe
+            RenderVisibilityProblem("definitions_hidden", shouldGuard = true)
+    }
+
+    /**
+     * Two ways definitions are legitimately invisible: the user collapsed the group (`base.css`
+     * hides `.definition-list` for `[data-collapsed="true"]`) and a result that carries no
+     * glossaries at all. Guarding either would expand what the user collapsed.
+     */
+    @Test
+    fun `collapsed groups and glossless entries are not judged`() {
+        renderVisibilityProblem(
+            3,
+            visible().copy(expandedGroups = 0, visibleDefinitions = 0),
+        ) shouldBe null
+        renderVisibilityProblem(
+            3,
+            visible().copy(definitionCount = 0, visibleDefinitions = 0),
+        ) shouldBe null
+    }
+
+    /**
+     * Before the first layout pass every `getBoundingClientRect()` is 0, so a perfectly fine page
+     * measured as zero-height and was pinned with `!important` — overriding the user's CSS for no
+     * reason. Unmeasurable means report, never repair.
+     */
+    @Test
+    fun `an unlaid-out page is reported but not repaired`() {
+        renderVisibilityProblem(
+            3,
+            visible().copy(
+                layoutHeight = 0,
+                documentHeight = 0,
+                containerHeight = 0,
+                containerScrollHeight = 0,
+                entryHeight = 0,
+                entryScrollHeight = 0,
+                groupHeight = 0,
+                visibleDefinitions = 0,
+            ),
+        ) shouldBe RenderVisibilityProblem("layout_unmeasurable", shouldGuard = false)
+    }
+
+    /** Style is computable before layout, so a hidden body is still repaired on an unlaid-out page. */
+    @Test
+    fun `a hidden body is repaired even before the page is laid out`() {
+        renderVisibilityProblem(
+            3,
+            visible().copy(layoutHeight = 0, documentHeight = 0, bodyDisplay = "none"),
+        ) shouldBe RenderVisibilityProblem("body_hidden", shouldGuard = true)
+    }
+
+    /**
+     * The headline defect: `contentReady` starts `true` and is force-set true on renderer death, so
+     * the old backstop returned before it ever waited — a shell whose `onPageFinished` never ran (a
+     * document that failed to load) was the one blank pane nothing ever reported.
+     */
+    @Test
+    fun `a webview whose document never loaded is not ready`() {
+        renderNotReadyReason(
+            pageReady = false,
+            renderDispatched = false,
+            renderReachedReady = false,
+            elapsedMs = 3_000,
+            timeoutMs = 3_000,
+        ) shouldBe SURFACE_REASON_NOT_READY
+        renderNotReadyReason(
+            pageReady = false,
+            renderDispatched = true,
+            renderReachedReady = false,
+            elapsedMs = 9_000,
+            timeoutMs = 3_000,
+        ) shouldBe SURFACE_REASON_NOT_READY
+    }
+
+    /** A document that loaded but whose render never reached the screen is a stall, not a load failure. */
+    @Test
+    fun `a dispatched render that never reached the screen is stalled`() {
+        renderNotReadyReason(
+            pageReady = true,
+            renderDispatched = true,
+            renderReachedReady = false,
+            elapsedMs = 3_500,
+            timeoutMs = 3_000,
+        ) shouldBe SURFACE_REASON_RENDER_STALLED
+    }
+
+    @Test
+    fun `a surface is not failed before its timeout, once it painted, or while idle`() {
+        // Before the deadline nothing is decided, however little has happened.
+        renderNotReadyReason(false, false, false, elapsedMs = 2_999, timeoutMs = 3_000) shouldBe null
+        // Painted: a slow-but-successful render ends clean.
+        renderNotReadyReason(true, true, true, elapsedMs = 10_000, timeoutMs = 3_000) shouldBe null
+        // Loaded and nothing asked of it yet (no payload dispatched): an idle surface.
+        renderNotReadyReason(true, false, false, elapsedMs = 10_000, timeoutMs = 3_000) shouldBe null
+    }
+
     @Test
     fun `a measurement parses from the quoted json string a webview returns`() {
         val raw = "\"{\\\"entry_count\\\":2,\\\"container_h\\\":640,\\\"container_sh\\\":700," +
@@ -155,6 +281,16 @@ class DictionaryRenderDiagnosticsTest {
             entryDisplay = "flex",
             entryVisibility = "visible",
             entryOpacity = 1f,
+            layoutHeight = -1,
+            documentHeight = -1,
+            groupCount = 0,
+            groupHeight = -1,
+            groupDisplay = "",
+            groupVisibility = "",
+            groupOpacity = 1f,
+            expandedGroups = 0,
+            definitionCount = 0,
+            visibleDefinitions = 0,
         )
     }
 

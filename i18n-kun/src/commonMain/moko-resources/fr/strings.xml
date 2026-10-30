@@ -62,6 +62,7 @@
     <string name="dictionary_no_results">Aucun résultat pour “%1$s”</string>
     <string name="dictionary_idle_hint">Saisissez un mot puis appuyez sur rechercher.</string>
     <string name="dictionary_render_error">Impossible d'afficher cette entrée. Le texte peut être incomplet.</string>
+    <string name="dictionary_retry">Réessayer</string>
     <string name="dictionary_selection_hint">Appuyez longuement sur le texte pour le sélectionner</string>
     <string name="dictionary_selection_hint_dismiss">Ignorer</string>
     <string name="pref_dict_delete">Supprimer le dictionnaire</string>

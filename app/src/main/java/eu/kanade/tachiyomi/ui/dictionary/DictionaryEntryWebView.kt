@@ -11,11 +11,14 @@ import android.webkit.WebViewRenderProcess
 import android.webkit.WebViewRenderProcessClient
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -24,7 +27,9 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
@@ -193,23 +198,36 @@ fun DictionaryEntryWebView(
     var configPayloadPair by remember { mutableStateOf<Pair<String, DictionaryRenderSignature>?>(null) }
     var entryJsonsPair by remember { mutableStateOf<Pair<List<String>, DictionaryRenderSignature>?>(null) }
     // KUN -->
-    /**
-     * Whether the surface currently admits to being painted. `false` from the moment a flush
-     * invalidates the content until the renderer's `contentReady` post arrives; the surface is
-     * `alpha = 0` for that window.
-     */
-    var contentReady by remember { mutableStateOf(true) }
-
-    /**
-     * A renderer failure worth telling the user about: the JS renderer's own caught exception text,
-     * or [RENDER_STALL_MARKER] when the ready post never came at all.
-     *
-     * The notice is written *into the page* (`showRenderNotice`) rather than drawn by Compose: a
-     * Compose `Text` under an `AndroidView` is painted before the interop `WebView` child, so the
-     * WebView covers it — verified on device, the text was there and invisible. Writing it into the
-     * document also keeps whatever partial content the renderer did draw on screen.
-     */
+    // A render failed but drew something: the JS renderer's own caught exception text.
+    //
+    // The notice is written *into the page* (`showRenderNotice`) rather than drawn by Compose: a
+    // Compose `Text` under an `AndroidView` is painted before the interop `WebView` child, so the
+    // WebView covers it — verified on device, the text was there and invisible. Writing it into the
+    // document also keeps whatever partial content the renderer did draw on screen. A render that
+    // never reaches the screen at all is not this path: it is the Compose failure surface below.
     var renderFailure by remember { mutableStateOf<String?>(null) }
+
+    // The `contentReadyGeneration` the notice belongs to. The renderer posts `contentReady` from its
+    // `finally`, so the ready post that follows a caught render error is that error's own and must
+    // keep its notice; any later ready belongs to a render that succeeded and clears it.
+    var renderFailureGeneration by remember { mutableStateOf(-1L) }
+
+    // How far the *current WebView instance* has got, for the creation-time failure surface below.
+    // `pageReady` is the shell document's `onPageFinished`; without it nothing in the document can be
+    // scripted at all. `renderDispatched` means a payload was handed to this instance and
+    // `renderReachedReady` that one of those renders actually reached the screen.
+    var pageReadySeen by remember { mutableStateOf(false) }
+    var renderDispatched by remember { mutableStateOf(false) }
+    var renderReachedReady by remember { mutableStateOf(false) }
+    var readyPostCount by remember { mutableIntStateOf(0) }
+
+    // Non-null when the surface has given up on this WebView (`SURFACE_REASON_NOT_READY`,
+    // `SURFACE_REASON_RENDER_STALLED` or, with `rendererExhausted`, a dead renderer). It is drawn by
+    // Compose *instead of* the `AndroidView`: a Compose `Text` composed under the interop `WebView`
+    // is painted first and covered by it, so a message can only be trusted if no WebView is composed
+    // at all. Retry recreates the WebView and re-dispatches the payload exactly once.
+    var surfaceFailure by remember { mutableStateOf<String?>(null) }
+
     val webViewHolder = remember { mutableStateOf<WebView?>(null) }
     // KUN -->
     /**
@@ -244,9 +262,6 @@ fun DictionaryEntryWebView(
                 "generation=${webViewGeneration.intValue} results=${results.size} " +
                 "entry_jsons=${entryJsons?.size ?: 0}",
         )
-        // The surface is about to be replaced: keep the "renderer never reported ready" backstop
-        // from reporting a stall for a death that is already being repaired.
-        contentReady = true
         if (rendererRecoveries.intValue >= MAX_RENDERER_RECOVERIES) {
             rendererExhausted.value = true
             return
@@ -261,9 +276,39 @@ fun DictionaryEntryWebView(
      */
     fun onRenderReady(webView: WebView) {
         onContentReadyChange?.invoke(true)
-        contentReady = true
+        renderReachedReady = true
+        readyPostCount++
         webView.alpha = 1f
+        // A notice belongs to the render that failed. The renderer posts `contentReady` from its
+        // `finally`, so the ready post of a render that threw still carries that render's
+        // generation and keeps its notice; any later ready ends clean instead of leaving a
+        // "could not render this entry" above entries that did render.
+        val generation = (webView.tag as? DictionaryWebViewState)?.contentReadyGeneration ?: -1L
+        if (renderFailure != null && generation != renderFailureGeneration) {
+            renderFailure = null
+            removeRenderNotice(webView)
+        }
         verifyRenderedVisibility(webView)
+    }
+
+    /**
+     * Recover from the failure surface: drop the flags that produced it, recreate the WebView through
+     * [webViewGeneration] and let its first `flush` re-dispatch the remembered payload — once, from
+     * `onPageFinished`, exactly like the first creation.
+     */
+    fun retrySurface() {
+        Log.i(
+            "DictionaryRender",
+            "webview_retry reason=${surfaceFailure ?: RENDER_REASON_EXHAUSTED} " +
+                "results=${results.size} entry_jsons=${entryJsons?.size ?: 0} " +
+                "recoveries=${rendererRecoveries.intValue}",
+        )
+        rendererExhausted.value = false
+        rendererRecoveries.intValue = 0
+        renderFailure = null
+        renderFailureGeneration = -1L
+        surfaceFailure = null
+        webViewGeneration.intValue++
     }
     // KUN <--
     val renderErrorMessage = stringResource(KUNMR.strings.dictionary_render_error)
@@ -272,26 +317,56 @@ fun DictionaryEntryWebView(
     val currentEntryJsons = entryJsonsPair
     // A flush is only dispatched once both payloads for the current signature exist; before that
     // the transparent surface is the expected "nothing sent yet" state, not a failure.
-    val flushDispatched = currentConfigPayload?.second == renderSignature &&
-        currentEntryJsons?.second == renderSignature
-    LaunchedEffect(contentReady, isLoading, renderSignature, flushDispatched) {
-        // Backstop for a renderer that never reports back. `renderer.js` posts `contentReady` from
-        // a `finally` now, but a document whose scripts failed to load at all cannot post anything,
-        // and that used to be indistinguishable from "still rendering": a permanently transparent
-        // surface with no message. Restore it and say what happened. `flushDispatched` (not "has
-        // entries") is the trigger, so the idle placeholder text is covered too.
-        if (contentReady || isLoading || !flushDispatched) return@LaunchedEffect
-        delay(RENDER_READY_BACKSTOP_MS)
-        if (!contentReady && !isLoading) {
-            val webView = webViewHolder.value
-            webView?.alpha = 1f
-            renderFailure = RENDER_STALL_MARKER
-            if (webView != null) showRenderNotice(webView, renderErrorMessage)
-            Log.w(
-                "DictionaryRender",
-                "ready_backstop timeout_ms=$RENDER_READY_BACKSTOP_MS results=${results.size} " +
-                    "entry_jsons=${entryJsons?.size ?: 0} alpha=${webView?.alpha}",
-            )
+    val loadingNow by rememberUpdatedState(isLoading)
+    // Armed from WebView *creation*, not from a flush. The old backstop started at the flush and
+    // skipped while `flushDispatched` was false — which is exactly the case of a shell whose
+    // `onPageFinished` never runs (a document that failed to load), so the worst blank pane, a
+    // permanently transparent surface with no message, was the one case nothing reported.
+    //
+    // The shell's `onPageFinished` is not reported to Compose (it lives in `:core:dictionary`), so
+    // this polls the WebView instance's own `pageReady` for the length of the timeout and stops as
+    // soon as it is proven that this surface can paint.
+    LaunchedEffect(webViewGeneration.intValue) {
+        pageReadySeen = false
+        renderDispatched = false
+        renderReachedReady = false
+        readyPostCount = 0
+        surfaceFailure = null
+        val start = SystemClock.elapsedRealtime()
+        while (true) {
+            val elapsed = SystemClock.elapsedRealtime() - start
+            val state = webViewHolder.value?.tag as? DictionaryWebViewState
+            if (state?.pageReady == true) pageReadySeen = true
+            // `flush` is the only thing that records a signature, so this is "a payload went to
+            // this WebView" and not merely "the shell reloaded".
+            if (state != null &&
+                (state.pendingRenderSignature != null || state.lastRenderSignature != null)
+            ) {
+                renderDispatched = true
+            }
+            if (elapsed >= RENDER_NOT_READY_TIMEOUT_MS) {
+                val reason = renderNotReadyReason(
+                    pageReady = pageReadySeen,
+                    renderDispatched = renderDispatched,
+                    renderReachedReady = renderReachedReady,
+                    elapsedMs = elapsed,
+                    timeoutMs = RENDER_NOT_READY_TIMEOUT_MS,
+                )
+                // A lookup in flight is a stated blank (the caller draws its own loading state),
+                // not a broken WebView.
+                if (reason == null || loadingNow) return@LaunchedEffect
+                Log.w(
+                    "DictionaryRender",
+                    "webview_not_ready elapsed_ms=$elapsed page_ready=$pageReadySeen " +
+                        "content_ready=$renderReachedReady ready_posts=$readyPostCount " +
+                        "reason=$reason results=${results.size} " +
+                        "entry_jsons=${entryJsons?.size ?: 0} " +
+                        "generation=${webViewGeneration.intValue}",
+                )
+                surfaceFailure = reason
+                return@LaunchedEffect
+            }
+            delay(RENDER_READY_POLL_MS)
         }
     }
     LaunchedEffect(renderSignature) {
@@ -356,17 +431,15 @@ fun DictionaryEntryWebView(
 
     Box(modifier = modifier.background(backgroundColor)) {
         // KUN -->
-        if (rendererExhausted.value) {
-            // Every recreation ended with the renderer gone again: another `WebView` would be blank
-            // in exactly the same way, so say it natively. This is one of the few places a Compose
-            // `Text` can be seen — there is no interop `WebView` child left to paint over it.
-            Text(
-                text = renderErrorMessage,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(24.dp),
+        if (surfaceFailure != null || rendererExhausted.value) {
+            // The WebView can never show this entry: its document never loaded, its render never
+            // reached the screen, or every recreation ended with the renderer gone again. Another
+            // `WebView` would be blank in exactly the same way, so say it in Compose — which is only
+            // visible because no interop `WebView` child is composed over it — and offer a retry
+            // that builds a fresh WebView and re-dispatches the payload.
+            RenderFailureSurface(
+                message = renderErrorMessage,
+                onRetry = { retrySurface() },
             )
             return@Box
         }
@@ -392,12 +465,12 @@ fun DictionaryEntryWebView(
                     (webView.tag as? DictionaryWebViewState)?.let { state ->
                         state.onContentInvalidated = {
                             onContentReadyChange?.invoke(false)
-                            contentReady = false
                             // KUN --> A notice belongs to the render that failed: every new render starts
                             // without it. (Clearing it on `onContentReady` instead removed it immediately,
                             // because the failing render still posts ready from its `finally`.)
                             if (renderFailure != null) {
                                 renderFailure = null
+                                renderFailureGeneration = -1L
                                 removeRenderNotice(webView)
                             }
                             // Each render is judged on the document's own styles again; the visibility
@@ -413,6 +486,7 @@ fun DictionaryEntryWebView(
                         state.onRenderError = { message ->
                             Log.e("DictionaryRender", "js_render_error=$message")
                             renderFailure = message
+                            renderFailureGeneration = state.contentReadyGeneration
                             webView.alpha = 1f
                             showRenderNotice(webView, renderErrorMessage)
                         }
@@ -520,10 +594,10 @@ fun DictionaryEntryWebView(
                     state.fontSize = fontSize
                     state.onContentInvalidated = {
                         onContentReadyChange?.invoke(false)
-                        contentReady = false
                         // KUN --> A notice belongs to the render that failed: see the factory's copy.
                         if (renderFailure != null) {
                             renderFailure = null
+                            renderFailureGeneration = -1L
                             removeRenderNotice(webView)
                         }
                         removeVisibilityGuard(webView)
@@ -536,6 +610,7 @@ fun DictionaryEntryWebView(
                     state.onRenderError = { message ->
                         Log.e("DictionaryRender", "js_render_error=$message")
                         renderFailure = message
+                        renderFailureGeneration = state.contentReadyGeneration
                         webView.alpha = 1f
                         showRenderNotice(webView, renderErrorMessage)
                     }
@@ -652,13 +727,44 @@ fun DictionaryEntryWebView(
 }
 
 // KUN -->
-/** How long the surface waits for `contentReady` before restoring itself and saying so. */
-private const val RENDER_READY_BACKSTOP_MS = 1_000L
+/**
+ * How long a freshly created WebView has to prove it can paint: its shell's `onPageFinished` (the
+ * document loaded) and, if a payload was dispatched to it, one render reaching `contentReady`.
+ */
+private const val RENDER_NOT_READY_TIMEOUT_MS = 3_000L
 
-/** `renderFailure` value for a renderer that never reported ready (as opposed to one that threw). */
-private const val RENDER_STALL_MARKER = "render_stalled"
+/** Granularity of the readiness poll; the shell's `onPageFinished` is not reported to Compose. */
+private const val RENDER_READY_POLL_MS = 100L
 
 private const val RENDER_NOTICE_ID = "komikun-render-error"
+
+/**
+ * Compose failure surface for a WebView that cannot show the entry at all.
+ *
+ * It is composed *instead of* the `AndroidView`, because `AndroidView` interop `View`s are children
+ * of the Compose host and are drawn *after* the Compose canvas: a `Text` composed under the
+ * `WebView` is invisible (verified on device — composed, laid out, covered). A broken WebView must
+ * therefore never be composed at all, which is also why the message cannot be an overlay.
+ */
+@Composable
+private fun RenderFailureSurface(message: String, onRetry: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        TextButton(onClick = onRetry) {
+            Text(text = stringResource(KUNMR.strings.dictionary_retry))
+        }
+    }
+}
 
 /**
  * Show [message] inside the entry document, below whatever did render.

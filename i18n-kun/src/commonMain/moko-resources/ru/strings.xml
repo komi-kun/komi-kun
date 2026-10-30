@@ -62,6 +62,7 @@
     <string name="dictionary_no_results">Нет результатов для \u201c%1$s\u201d</string>
     <string name="dictionary_idle_hint">Введите слово и нажмите «Поиск».</string>
     <string name="dictionary_render_error">Не удалось отобразить эту статью. Текст может быть неполным.</string>
+    <string name="dictionary_retry">Повторить</string>
     <string name="dictionary_selection_hint">Зажмите текст, чтобы выделить его</string>
     <string name="dictionary_selection_hint_dismiss">Закрыть</string>
     <string name="pref_dict_delete">Удалить словарь</string>

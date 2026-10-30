@@ -59,6 +59,7 @@
     <string name="dictionary_no_results">找不到 “%1$s” 的結果</string>
     <string name="dictionary_idle_hint">輸入詞語並點選搜尋即可查詢。</string>
     <string name="dictionary_render_error">無法顯示此條目。文字可能不完整。</string>
+    <string name="dictionary_retry">重試</string>
     <string name="dictionary_selection_hint">長按文字進行選取</string>
     <string name="dictionary_selection_hint_dismiss">關閉</string>
     <string name="pref_dict_delete">刪除辭典</string>

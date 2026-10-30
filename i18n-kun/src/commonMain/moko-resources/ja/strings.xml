@@ -62,6 +62,7 @@
     <string name="dictionary_no_results">“%1$s” の検索結果はありません</string>
     <string name="dictionary_idle_hint">単語を入力して検索してください。</string>
     <string name="dictionary_render_error">この項目を表示できませんでした。テキストが不完全な可能性があります。</string>
+    <string name="dictionary_retry">再試行</string>
     <string name="dictionary_selection_hint">テキストを長押しして選択</string>
     <string name="dictionary_selection_hint_dismiss">閉じる</string>
     <string name="pref_dict_delete">辞書を削除</string>
