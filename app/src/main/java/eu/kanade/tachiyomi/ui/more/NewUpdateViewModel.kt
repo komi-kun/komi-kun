@@ -87,11 +87,15 @@ class NewUpdateViewModel(
     // [AppUpdateDownloadJob]. When that already landed, the screen must offer Install instead of a
     // redundant download; an outdated APK from a previous update must be cleaned up, but in-progress
     // or unparsed downloads must not be clobbered while AppUpdateDownloadJob is running.
-    internal fun checkCachedApk() {
+    internal fun checkCachedApk() = synchronized(this) {
         if (!apkFile.isFile || apkFile.length() == 0L) return
         val expectedSha256 = Hash.extractSha256(digest)
         if (expectedSha256 != null) {
-            val actualSha256 = Hash.sha256(apkFile)
+            val actualSha256 = try {
+                Hash.sha256(apkFile)
+            } catch (_: Exception) {
+                return
+            }
             if (actualSha256.equals(expectedSha256, ignoreCase = true)) {
                 val archiveInfo = getApkPackageInfo(apkFile)
                 if (archiveInfo != null && archiveInfo.packageName == context.packageName) {
@@ -110,7 +114,9 @@ class NewUpdateViewModel(
             state.update { it.copy(downloadProgress = 100, stage = Stage.Downloaded) }
         } else {
             // Stale update APK from an older release; delete it
-            apkFile.delete()
+            if (!AppUpdateDownloadJob.isRunning() && downloadJob?.isActive != true) {
+                apkFile.delete()
+            }
         }
     }
 
@@ -145,7 +151,11 @@ class NewUpdateViewModel(
         if (archiveInfo.packageName != context.packageName) return false
         val expectedSha256 = Hash.extractSha256(digest)
         if (expectedSha256 != null) {
-            val actualSha256 = Hash.sha256(file)
+            val actualSha256 = try {
+                Hash.sha256(file)
+            } catch (_: Exception) {
+                return false
+            }
             return actualSha256.equals(expectedSha256, ignoreCase = true)
         }
         return isMatchingUpdate(archiveInfo, versionName)
