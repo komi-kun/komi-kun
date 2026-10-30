@@ -233,6 +233,89 @@ class AudioCacheTest {
     }
 
     @Test
+    fun `safe redirect interceptor refuses https to http downgrade`() {
+        val interceptor = AudioCache.SafeAudioRedirectInterceptor()
+        val client = OkHttpClient.Builder()
+            .addInterceptor(interceptor)
+            .addInterceptor { chain ->
+                val req = chain.request()
+                when (req.url.host) {
+                    "secure.example" -> Response.Builder()
+                        .request(req)
+                        .protocol(Protocol.HTTP_1_1)
+                        .code(302)
+                        .message("Found")
+                        .header("Location", "http://insecure.example/audio.mp3")
+                        .body("".toResponseBody(null))
+                        .build()
+                    else -> Response.Builder()
+                        .request(req)
+                        .protocol(Protocol.HTTP_1_1)
+                        .code(200)
+                        .message("OK")
+                        .body("insecure_content".toResponseBody(null))
+                        .build()
+                }
+            }
+            .build()
+
+        val resp = client.newCall(Request.Builder().url("https://secure.example/audio.mp3").build()).execute()
+        resp.code shouldBe 302
+        resp.header("Location") shouldBe "http://insecure.example/audio.mp3"
+    }
+
+    @Test
+    fun `safe redirect interceptor strips sensitive headers when redirecting across hosts`() {
+        val interceptor = AudioCache.SafeAudioRedirectInterceptor()
+        var redirectedAuthHeader: String? = "initial"
+        var redirectedCookieHeader: String? = "initial"
+        val client = OkHttpClient.Builder()
+            .addInterceptor(interceptor)
+            .addInterceptor { chain ->
+                val req = chain.request()
+                when (req.url.host) {
+                    "origin.example" -> Response.Builder()
+                        .request(req)
+                        .protocol(Protocol.HTTP_1_1)
+                        .code(302)
+                        .message("Found")
+                        .header("Location", "https://cdn.example/audio.mp3")
+                        .body("".toResponseBody(null))
+                        .build()
+                    "cdn.example" -> {
+                        redirectedAuthHeader = req.header("Authorization")
+                        redirectedCookieHeader = req.header("Cookie")
+                        Response.Builder()
+                            .request(req)
+                            .protocol(Protocol.HTTP_1_1)
+                            .code(200)
+                            .message("OK")
+                            .body("content".toResponseBody(null))
+                            .build()
+                    }
+                    else -> Response.Builder()
+                        .request(req)
+                        .protocol(Protocol.HTTP_1_1)
+                        .code(404)
+                        .message("Not Found")
+                        .body("".toResponseBody(null))
+                        .build()
+                }
+            }
+            .build()
+
+        val request = Request.Builder()
+            .url("https://origin.example/audio.mp3")
+            .header("Authorization", "Bearer token123")
+            .header("Cookie", "session=abc")
+            .build()
+        val resp = client.newCall(request).execute()
+        resp.isSuccessful shouldBe true
+        redirectedAuthHeader shouldBe null
+        redirectedCookieHeader shouldBe null
+    }
+
+    @Test
     fun `readAudioBodyCapped returns the body up to the cap`() {
         val bytes = ByteArray(2048) { it.toByte() }
 

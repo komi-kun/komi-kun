@@ -151,13 +151,26 @@ object AudioCache {
             var redirects = 0
             while (response.isRedirect && redirects < maxRedirects) {
                 val location = response.header("Location") ?: break
-                val nextUrl = response.request.url.resolve(location)?.toString() ?: break
+                val nextHttpUrl = response.request.url.resolve(location) ?: break
+                val nextUrl = nextHttpUrl.toString()
+
+                // Reject HTTPS -> HTTP downgrade
+                if (request.url.isHttps && !nextHttpUrl.isHttps) {
+                    break
+                }
+
                 if (!isAllowedWordAudioUrl(nextUrl)) {
                     break
                 }
                 response.close()
                 redirects++
-                request = request.newBuilder().url(nextUrl).build()
+
+                val requestBuilder = request.newBuilder().url(nextHttpUrl)
+                if (request.url.host != nextHttpUrl.host) {
+                    requestBuilder.removeHeader("Authorization")
+                    requestBuilder.removeHeader("Cookie")
+                }
+                request = requestBuilder.build()
                 response = chain.proceed(request)
             }
             return response
