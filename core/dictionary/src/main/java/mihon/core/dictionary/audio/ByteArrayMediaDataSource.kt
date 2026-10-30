@@ -15,7 +15,8 @@ class ByteArrayMediaDataSource(
 ) : MediaDataSource() {
 
     override fun readAt(position: Long, buffer: ByteArray, offset: Int, size: Int): Int {
-        if (position >= data.size) {
+        if (size == 0) return 0
+        if (position >= data.size || position < 0) {
             return -1
         }
         val remaining = (data.size - position).toInt()

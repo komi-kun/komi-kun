@@ -6,6 +6,10 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import okhttp3.OkHttpClient
+import okhttp3.Protocol
+import okhttp3.Request
+import okhttp3.Response
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
@@ -154,6 +158,78 @@ class AudioCacheTest {
         val audioClient = AudioCache.audioHttpClient(OkHttpClient())
 
         shouldThrow<UnknownHostException> { audioClient.dns.lookup("localhost") }
+    }
+
+    @Test
+    fun `safe redirect interceptor follows redirect to allowed public url`() {
+        val interceptor = AudioCache.SafeAudioRedirectInterceptor()
+        val client = OkHttpClient.Builder()
+            .addInterceptor(interceptor)
+            .addInterceptor { chain ->
+                val req = chain.request()
+                when (req.url.host) {
+                    "assets.languagepod101.com" -> Response.Builder()
+                        .request(req)
+                        .protocol(Protocol.HTTP_1_1)
+                        .code(301)
+                        .message("Moved Permanently")
+                        .header("Location", "https://cdn.innovativelanguage.com/audio.mp3")
+                        .body("".toResponseBody(null))
+                        .build()
+                    "cdn.innovativelanguage.com" -> Response.Builder()
+                        .request(req)
+                        .protocol(Protocol.HTTP_1_1)
+                        .code(200)
+                        .message("OK")
+                        .body("audio_bytes".toResponseBody(null))
+                        .build()
+                    else -> Response.Builder()
+                        .request(req)
+                        .protocol(Protocol.HTTP_1_1)
+                        .code(404)
+                        .message("Not Found")
+                        .body("".toResponseBody(null))
+                        .build()
+                }
+            }
+            .build()
+
+        val resp = client.newCall(Request.Builder().url("https://assets.languagepod101.com/dict.php").build()).execute()
+        resp.isSuccessful shouldBe true
+        resp.code shouldBe 200
+        resp.body.string() shouldBe "audio_bytes"
+    }
+
+    @Test
+    fun `safe redirect interceptor blocks redirect to loopback or private url`() {
+        val interceptor = AudioCache.SafeAudioRedirectInterceptor()
+        val client = OkHttpClient.Builder()
+            .addInterceptor(interceptor)
+            .addInterceptor { chain ->
+                val req = chain.request()
+                when (req.url.host) {
+                    "evil.example" -> Response.Builder()
+                        .request(req)
+                        .protocol(Protocol.HTTP_1_1)
+                        .code(302)
+                        .message("Found")
+                        .header("Location", "http://127.0.0.1/audio.mp3")
+                        .body("".toResponseBody(null))
+                        .build()
+                    else -> Response.Builder()
+                        .request(req)
+                        .protocol(Protocol.HTTP_1_1)
+                        .code(200)
+                        .message("OK")
+                        .body("internal".toResponseBody(null))
+                        .build()
+                }
+            }
+            .build()
+
+        val resp = client.newCall(Request.Builder().url("https://evil.example/audio.mp3").build()).execute()
+        resp.code shouldBe 302
+        resp.header("Location") shouldBe "http://127.0.0.1/audio.mp3"
     }
 
     @Test

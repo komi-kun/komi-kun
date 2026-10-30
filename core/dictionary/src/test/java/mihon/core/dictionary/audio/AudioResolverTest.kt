@@ -149,6 +149,23 @@ class AudioResolverTest {
     }
 
     @Test
+    fun `jisho normalizes protocol-relative cloudfront urls to https`() = runBlocking {
+        val html = """
+            <div class="concept_light">
+              <audio id="audio_日本:にほん"><source src="//d1vjc5dkcd3yh2.cloudfront.net/audio/dc01e322abc0a7121e20dd1215e374fc.mp3" type="audio/mpeg"></audio>
+            </div>
+        """.trimIndent()
+        val http = FakeHttp(responses = mapOf("https://jisho.org/search/%E6%97%A5%E6%9C%AC" to ok(html)))
+        val result = AudioResolver(http).candidatesFor(
+            AudioSourceConfig(AudioSourceTypes.JISHO),
+            term = "日本",
+            reading = "にほん",
+            languageIso = "ja",
+        )
+        result.single().url shouldBe "https://d1vjc5dkcd3yh2.cloudfront.net/audio/dc01e322abc0a7121e20dd1215e374fc.mp3"
+    }
+
+    @Test
     fun `jisho returns nothing when the element is missing`() = runBlocking {
         val http = FakeHttp(responses = mapOf("https://jisho.org/search/a" to ok("<html></html>")))
         AudioResolver(http).candidatesFor(AudioSourceConfig(AudioSourceTypes.JISHO), "a", "a", "ja") shouldBe emptyList()
