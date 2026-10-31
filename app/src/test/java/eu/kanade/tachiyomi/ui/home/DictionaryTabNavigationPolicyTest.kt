@@ -81,12 +81,12 @@ class DictionaryTabNavigationPolicyTest {
     @Test
     fun `source guard - DictionaryTab and HomeScreen call the policy`() {
         val tab = File("src/main/java/eu/kanade/tachiyomi/ui/dictionary/DictionaryTab.kt").readText()
-        tab shouldContainSource """DictionaryTabNavigationPolicy\.isTabVisible\("""
+        tab shouldContainSource """DictionaryTabNavigationPolicy\.isTabVisible\(\s*enabled\s*,\s*showInNav\s*\)"""
 
         val home = File("src/main/java/eu/kanade/tachiyomi/ui/home/HomeScreen.kt").readText()
         // Argument order is not asserted (the parameter names make a swap a compile error anyway).
-        home shouldContainSource """DictionaryTabNavigationPolicy\.isVisible\("""
-        home shouldContainSource """DictionaryTabNavigationPolicy\.directEventTarget\("""
+        home shouldContainSource """DictionaryTabNavigationPolicy\.isVisible\(\s*it\s*,\s*dictionaryOcrEnabled\s*,\s*showNavDictionary\s*\)"""
+        home shouldContainSource """DictionaryTabNavigationPolicy\.directEventTarget\(\s*dictionaryOcrEnabled\s*,\s*showNavDictionary\s*\)"""
         home shouldContainSource """DictionaryTabNavigationPolicy\.mustFallBackToLibrary\("""
     }
 }

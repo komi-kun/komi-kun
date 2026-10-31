@@ -33,14 +33,14 @@ object DictionaryTabNavigationPolicy {
      * `DictionaryTab.isEnabled()` and the `HomeScreen` tab filter both read this, so the tab cannot
      * be visible in one layout and missing from the other.
      */
-    fun isTabVisible(enabled: Boolean, showInNavBar: Boolean = false): Boolean = enabled && showInNavBar
+    fun isTabVisible(enabled: Boolean, showInNavBar: Boolean): Boolean = enabled && showInNavBar
 
     /**
      * Whether [tab] survives [enabled] and [showInNavBar] in the tab list: the Dictionary tab follows
      * the opt-in and navbar preference, every other tab keeps its own `Tab.isEnabled()` decision
      * (applied by the caller).
      */
-    fun isVisible(tab: Tab, enabled: Boolean, showInNavBar: Boolean = false): Boolean =
+    fun isVisible(tab: Tab, enabled: Boolean, showInNavBar: Boolean): Boolean =
         tab !== DictionaryTab || isTabVisible(enabled, showInNavBar)
 
     /**
@@ -48,7 +48,7 @@ object DictionaryTabNavigationPolicy {
      * the tab is visible in the nav bar, otherwise open the library. (While off there is no visible
      * Dictionary tab to land on in the bottom bar.)
      */
-    fun directEventTarget(enabled: Boolean, showInNavBar: Boolean = false): DictionaryTabTarget =
+    fun directEventTarget(enabled: Boolean, showInNavBar: Boolean): DictionaryTabTarget =
         if (enabled && showInNavBar) {
             DictionaryTabTarget.DICTIONARY
         } else {
@@ -62,6 +62,6 @@ object DictionaryTabNavigationPolicy {
     fun mustFallBackToLibrary(
         currentIsDictionary: Boolean,
         enabled: Boolean,
-        showInNavBar: Boolean = false,
+        showInNavBar: Boolean,
     ): Boolean = currentIsDictionary && (!enabled || !showInNavBar)
 }

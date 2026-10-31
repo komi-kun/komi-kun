@@ -68,8 +68,8 @@ fun MoreScreen(
     showNavHistory: Boolean,
     // SY <--
     // KUN -->
-    showDictionary: Boolean = false,
-    onClickDictionary: () -> Unit = {},
+    showDictionary: Boolean,
+    onClickDictionary: () -> Unit,
     // KUN <--
     onClickDownloadQueue: () -> Unit,
     onClickCategories: () -> Unit,
