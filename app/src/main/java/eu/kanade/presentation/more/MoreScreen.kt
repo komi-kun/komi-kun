@@ -39,6 +39,7 @@ import mihon.icons.materialsymbols.rounded.Download
 import mihon.icons.materialsymbols.rounded.History
 import mihon.icons.materialsymbols.rounded.Info
 import mihon.icons.materialsymbols.rounded.QueryStats
+import mihon.icons.materialsymbols.rounded.Search
 import mihon.icons.materialsymbols.rounded.Settings
 import mihon.icons.materialsymbols.rounded.Storage
 import mihon.icons.materialsymbols.rounded.Verified
@@ -46,6 +47,7 @@ import mihon.icons.materialsymbols.roundedfilled.Favorite
 import tachiyomi.core.common.Constants
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
+import tachiyomi.i18n.kun.KUNMR
 import tachiyomi.i18n.sy.SYMR
 import tachiyomi.presentation.core.components.ScrollbarLazyColumn
 import tachiyomi.presentation.core.components.material.Scaffold
@@ -65,6 +67,10 @@ fun MoreScreen(
     showNavUpdates: Boolean,
     showNavHistory: Boolean,
     // SY <--
+    // KUN -->
+    showDictionary: Boolean,
+    onClickDictionary: () -> Unit,
+    // KUN <--
     onClickDownloadQueue: () -> Unit,
     onClickCategories: () -> Unit,
     onClickStats: () -> Unit,
@@ -139,6 +145,17 @@ fun MoreScreen(
                 }
             }
             // SY <--
+            // KUN -->
+            if (showDictionary) {
+                item {
+                    TextPreferenceWidget(
+                        title = stringResource(KUNMR.strings.label_dictionary),
+                        icon = MaterialSymbols.Rounded.Search,
+                        onPreferenceClick = onClickDictionary,
+                    )
+                }
+            }
+            // KUN <--
 
             item {
                 val downloadQueueState = downloadQueueStateProvider()

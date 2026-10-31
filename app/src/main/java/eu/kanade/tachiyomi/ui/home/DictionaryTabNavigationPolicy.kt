@@ -28,33 +28,40 @@ enum class DictionaryTabTarget {
 object DictionaryTabNavigationPolicy {
 
     /**
-     * Whether the Dictionary tab is part of the navigation at all while the opt-in is [enabled].
+     * Whether the Dictionary tab is part of the navigation at all while the opt-in is [enabled]
+     * and [showInNavBar] is enabled.
      * `DictionaryTab.isEnabled()` and the `HomeScreen` tab filter both read this, so the tab cannot
      * be visible in one layout and missing from the other.
      */
-    fun isTabVisible(enabled: Boolean): Boolean = enabled
+    fun isTabVisible(enabled: Boolean, showInNavBar: Boolean): Boolean = enabled && showInNavBar
 
     /**
-     * Whether [tab] survives [enabled] in the tab list: the Dictionary tab follows the opt-in, every
-     * other tab keeps its own `Tab.isEnabled()` decision (applied by the caller).
+     * Whether [tab] survives [enabled] and [showInNavBar] in the tab list: the Dictionary tab follows
+     * the opt-in and navbar preference, every other tab keeps its own `Tab.isEnabled()` decision
+     * (applied by the caller).
      */
-    fun isVisible(tab: Tab, enabled: Boolean): Boolean = tab !== DictionaryTab || isTabVisible(enabled)
+    fun isVisible(tab: Tab, enabled: Boolean, showInNavBar: Boolean): Boolean =
+        tab !== DictionaryTab || isTabVisible(enabled, showInNavBar)
 
     /**
-     * A direct `HomeScreen.Tab.Dictionary` request: honour it only while the feature is on,
-     * otherwise open the library. (While off there is no visible Dictionary tab to land on.)
+     * A direct `HomeScreen.Tab.Dictionary` request: honour it only while the feature is on and
+     * the tab is visible in the nav bar, otherwise open the library. (While off there is no visible
+     * Dictionary tab to land on in the bottom bar.)
      */
-    fun directEventTarget(enabled: Boolean): DictionaryTabTarget =
-        if (enabled) {
+    fun directEventTarget(enabled: Boolean, showInNavBar: Boolean): DictionaryTabTarget =
+        if (enabled && showInNavBar) {
             DictionaryTabTarget.DICTIONARY
         } else {
             DictionaryTabTarget.LIBRARY
         }
 
     /**
-     * Whether the currently selected tab must fall back to the library because the feature was just
-     * switched off under it. Off does not disturb any other tab.
+     * Whether the currently selected tab must fall back to the library because the feature was switched
+     * off or removed from the navigation bar. Off does not disturb any other tab.
      */
-    fun mustFallBackToLibrary(currentIsDictionary: Boolean, enabled: Boolean): Boolean =
-        currentIsDictionary && !enabled
+    fun mustFallBackToLibrary(
+        currentIsDictionary: Boolean,
+        enabled: Boolean,
+        showInNavBar: Boolean,
+    ): Boolean = currentIsDictionary && (!enabled || !showInNavBar)
 }

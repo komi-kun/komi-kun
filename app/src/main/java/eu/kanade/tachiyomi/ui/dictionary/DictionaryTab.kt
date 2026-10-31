@@ -4,9 +4,11 @@ package eu.kanade.tachiyomi.ui.dictionary
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -30,6 +32,7 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
+import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.tab.TabOptions
 import eu.kanade.core.preference.asState
 import eu.kanade.presentation.util.Tab
@@ -38,6 +41,7 @@ import mihon.app.di.appGraph
 import mihon.core.dictionary.ui.KanaConverter
 import mihon.core.dictionary.ui.KanaInputConversion
 import mihon.icons.materialsymbols.MaterialSymbols
+import mihon.icons.materialsymbols.automirroredrounded.ArrowBack
 import mihon.icons.materialsymbols.rounded.Close
 import mihon.icons.materialsymbols.rounded.Search
 import tachiyomi.i18n.MR
@@ -56,10 +60,10 @@ import tachiyomi.presentation.core.util.collectAsState
 data object DictionaryTab : Tab {
 
     /**
-     * Part of the navigation only while the user has opted into dictionaries/OCR
-     * (`DictionaryOcrPreferences`). HomeScreen's single `fastFilter { it.isEnabled() }` applies this
-     * to both the bottom bar and the navigation rail, so the tab disappears from either layout at
-     * the same moment, and comes back the moment the settings switch is turned on.
+     * Part of the bottom bar and navigation rail only while dictionaries/OCR are enabled
+     * (`DictionaryOcrPreferences`) and the user has opted to display the Dictionary tab in the
+     * navigation bar (`UiPreferences.showNavDictionary`). By default, the Dictionary is accessed
+     * via the More screen instead.
      *
      * The rule itself lives in `DictionaryTabNavigationPolicy.isTabVisible`, which HomeScreen's
      * filter and its direct-tab fallback share (and which is unit-tested); this is the pref read.
@@ -71,7 +75,12 @@ data object DictionaryTab : Tab {
         val enabled = remember {
             context.appGraph.dictionaryOcrPreferences.enabled.asState(scope)
         }.value
-        return DictionaryTabNavigationPolicy.isTabVisible(enabled)
+        // KUN -->
+        val showInNav = remember {
+            context.appGraph.uiPreferences.showNavDictionary.asState(scope)
+        }.value
+        return DictionaryTabNavigationPolicy.isTabVisible(enabled, showInNav)
+        // KUN <--
     }
 
     override val options: TabOptions
@@ -100,6 +109,9 @@ data object DictionaryTab : Tab {
         // KUN <--
         val prefs = remember(context) { context.appGraph.dictionaryPreferences }
         val focusManager = LocalFocusManager.current
+        // KUN -->
+        val navigator = LocalNavigator.current
+        // KUN <--
 
         var textFieldValue by remember { mutableStateOf(TextFieldValue("")) }
         val profile = remember { prefs.profileStore.getActiveProfile() }
@@ -180,6 +192,27 @@ data object DictionaryTab : Tab {
                     .padding(vertical = 8.dp),
                 singleLine = true,
                 // KUN -->
+                leadingIcon = {
+                    if (navigator?.canPop == true || lookupState.canGoBack) {
+                        IconButton(
+                            onClick = {
+                                focusManager.clearFocus()
+                                if (lookupState.canGoBack) {
+                                    lookupState.back()
+                                } else {
+                                    navigator?.pop()
+                                }
+                            },
+                        ) {
+                            Icon(
+                                MaterialSymbols.AutoMirroredRounded.ArrowBack,
+                                contentDescription = stringResource(MR.strings.action_bar_up_description),
+                            )
+                        }
+                    } else {
+                        Spacer(modifier = Modifier.size(48.dp))
+                    }
+                },
                 // A submit affordance that does not depend on the IME's Search key. The old field
                 // swapped its only button for a clear (X) the moment anything was typed, so typed
                 // text with a blank pane below it was a query that had never been submitted and

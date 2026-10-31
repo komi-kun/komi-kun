@@ -323,5 +323,7 @@
     <string name="pref_dictionary_ocr_enabled">辞書とOCR</string>
     <string name="pref_dictionary_ocr_enabled_summary">単語検索、辞書タブ、マンガのOCR。オフにするとすべて非表示になります。</string>
     <string name="pref_dictionary_ocr_disabled_hint">辞書とOCRはオフのため、以下の設定は非表示です。上のスイッチをオンにすると辞書とOCRを管理できます。</string>
+    <string name="pref_show_dictionary_button">ナビゲーションバーに辞書を表示</string>
+    <string name="pref_show_dictionary_button_summary">「その他」の代わりにナビゲーションバーに辞書タブを表示します</string>
     <string name="pref_ocr_box_scale_summary">OCRボックスの大きさ（検出した文字領域に対する割合、100%でぴったり合わせます）。</string>
 </resources>

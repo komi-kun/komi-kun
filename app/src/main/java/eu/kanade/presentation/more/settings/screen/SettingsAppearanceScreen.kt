@@ -34,6 +34,7 @@ import kotlinx.datetime.toLocalDateTime
 import mihon.app.di.appGraph
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
+import tachiyomi.i18n.kun.KUNMR
 import tachiyomi.i18n.sy.SYMR
 import tachiyomi.presentation.core.i18n.pluralStringResource
 import tachiyomi.presentation.core.i18n.stringResource
@@ -350,6 +351,11 @@ object SettingsAppearanceScreen : SearchableSettings {
 
     @Composable
     fun getNavbarGroup(uiPreferences: UiPreferences): Preference.PreferenceGroup {
+        // KUN -->
+        val context = LocalContext.current
+        val dictionaryOcrPreferences = remember(context) { context.appGraph.dictionaryOcrPreferences }
+        val featureEnabled by dictionaryOcrPreferences.enabled.collectAsState()
+        // KUN <--
         return Preference.PreferenceGroup(
             stringResource(SYMR.strings.pref_category_navbar),
             preferenceItems = listOf(
@@ -361,6 +367,13 @@ object SettingsAppearanceScreen : SearchableSettings {
                     preference = uiPreferences.showNavHistory,
                     title = stringResource(SYMR.strings.pref_hide_history_button),
                 ),
+                // KUN -->
+                Preference.PreferenceItem.SwitchPreference(
+                    preference = uiPreferences.showNavDictionary,
+                    title = stringResource(KUNMR.strings.pref_show_dictionary_button),
+                    visible = featureEnabled,
+                ),
+                // KUN <--
                 Preference.PreferenceItem.SwitchPreference(
                     preference = uiPreferences.bottomBarLabels,
                     title = stringResource(SYMR.strings.pref_show_bottom_bar_labels),

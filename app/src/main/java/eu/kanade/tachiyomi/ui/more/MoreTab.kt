@@ -31,6 +31,7 @@ import eu.kanade.tachiyomi.data.connections.discord.DiscordRPCService
 import eu.kanade.tachiyomi.data.connections.discord.DiscordScreen
 import eu.kanade.tachiyomi.data.download.DownloadManager
 import eu.kanade.tachiyomi.ui.category.CategoryScreen
+import eu.kanade.tachiyomi.ui.dictionary.DictionaryTab
 import eu.kanade.tachiyomi.ui.download.DownloadQueueScreen
 import eu.kanade.tachiyomi.ui.history.HistoryTab
 import eu.kanade.tachiyomi.ui.libraryUpdateError.LibraryUpdateErrorScreen
@@ -44,6 +45,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import tachiyomi.core.common.preference.DictionaryOcrPreferences
 import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
@@ -89,6 +91,10 @@ data object MoreTab : Tab {
             showNavUpdates = viewModel.showNavUpdates,
             showNavHistory = viewModel.showNavHistory,
             // SY <--
+            // KUN -->
+            showDictionary = viewModel.showDictionary,
+            onClickDictionary = { navigator.push(DictionaryTab) },
+            // KUN <--
             onClickDownloadQueue = { navigator.push(DownloadQueueScreen) },
             onClickCategories = { navigator.push(CategoryScreen()) },
             onClickStats = { navigator.push(StatsScreen()) },
@@ -124,6 +130,9 @@ class MoreViewModel(
     // SY -->
     uiPreferences: UiPreferences,
     // SY <--
+    // KUN -->
+    dictionaryOcrPreferences: DictionaryOcrPreferences,
+    // KUN <--
 ) : ViewModel() {
 
     var downloadedOnly by preferences.downloadedOnly.asState(viewModelScope)
@@ -133,6 +142,12 @@ class MoreViewModel(
     val showNavUpdates by uiPreferences.showNavUpdates.asState(viewModelScope)
     val showNavHistory by uiPreferences.showNavHistory.asState(viewModelScope)
     // SY <--
+    // KUN -->
+    val showNavDictionary by uiPreferences.showNavDictionary.asState(viewModelScope)
+    val dictionaryOcrEnabled by dictionaryOcrPreferences.enabled.asState(viewModelScope)
+    val showDictionary: Boolean
+        get() = dictionaryOcrEnabled && !showNavDictionary
+    // KUN <--
 
     private var _downloadQueueState: MutableStateFlow<DownloadQueueState> = MutableStateFlow(DownloadQueueState.Stopped)
     val downloadQueueState: StateFlow<DownloadQueueState> = _downloadQueueState.asStateFlow()

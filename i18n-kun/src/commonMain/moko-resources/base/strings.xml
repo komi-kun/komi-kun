@@ -323,5 +323,7 @@
     <string name="pref_dictionary_ocr_enabled">Dictionaries &amp; OCR</string>
     <string name="pref_dictionary_ocr_enabled_summary">Word lookup, the Dictionary tab and manga OCR. Turn off to hide all of them.</string>
     <string name="pref_dictionary_ocr_disabled_hint">Dictionaries and OCR are off, so the settings below are hidden. Turn the switch above on to manage dictionaries and OCR.</string>
+    <string name="pref_show_dictionary_button">Show dictionary in the navigation bar</string>
+    <string name="pref_show_dictionary_button_summary">Show the dictionary tab in the navigation bar instead of More</string>
     <string name="pref_ocr_box_scale_summary">Size of the passive OCR boxes as a percentage of the detected text area (100% fits it tightly).</string>
 </resources>

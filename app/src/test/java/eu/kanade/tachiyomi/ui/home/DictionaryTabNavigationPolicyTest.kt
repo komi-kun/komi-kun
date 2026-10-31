@@ -24,40 +24,48 @@ import java.io.File
 class DictionaryTabNavigationPolicyTest {
 
     @Test
-    fun `a direct dictionary request falls back to the library while the feature is off`() {
+    fun `a direct dictionary request falls back to the library while the feature is off or nav bar is disabled`() {
         // `HomeScreen.openTab(HomeScreen.Tab.Dictionary)` must not select a tab the navigation filter
         // hides.
-        DictionaryTabNavigationPolicy.directEventTarget(enabled = false) shouldBe DictionaryTabTarget.LIBRARY
-        DictionaryTabNavigationPolicy.directEventTarget(enabled = true) shouldBe DictionaryTabTarget.DICTIONARY
+        DictionaryTabNavigationPolicy.directEventTarget(enabled = false, showInNavBar = false) shouldBe DictionaryTabTarget.LIBRARY
+        DictionaryTabNavigationPolicy.directEventTarget(enabled = false, showInNavBar = true) shouldBe DictionaryTabTarget.LIBRARY
+        DictionaryTabNavigationPolicy.directEventTarget(enabled = true, showInNavBar = false) shouldBe DictionaryTabTarget.LIBRARY
+        DictionaryTabNavigationPolicy.directEventTarget(enabled = true, showInNavBar = true) shouldBe DictionaryTabTarget.DICTIONARY
     }
 
     @Test
-    fun `the selected dictionary tab moves to the library when the switch is turned off`() {
-        DictionaryTabNavigationPolicy.mustFallBackToLibrary(currentIsDictionary = true, enabled = false) shouldBe true
-        // Nothing moves while the feature is on...
-        DictionaryTabNavigationPolicy.mustFallBackToLibrary(currentIsDictionary = true, enabled = true) shouldBe false
+    fun `the selected dictionary tab moves to the library when disabled or removed from nav`() {
+        DictionaryTabNavigationPolicy.mustFallBackToLibrary(currentIsDictionary = true, enabled = false, showInNavBar = true) shouldBe true
+        DictionaryTabNavigationPolicy.mustFallBackToLibrary(currentIsDictionary = true, enabled = true, showInNavBar = false) shouldBe true
+        // Nothing moves while the feature is on and nav bar is enabled...
+        DictionaryTabNavigationPolicy.mustFallBackToLibrary(currentIsDictionary = true, enabled = true, showInNavBar = true) shouldBe false
         // ...and no other tab is disturbed by the switch.
-        DictionaryTabNavigationPolicy.mustFallBackToLibrary(currentIsDictionary = false, enabled = false) shouldBe false
-        DictionaryTabNavigationPolicy.mustFallBackToLibrary(currentIsDictionary = false, enabled = true) shouldBe false
+        DictionaryTabNavigationPolicy.mustFallBackToLibrary(currentIsDictionary = false, enabled = false, showInNavBar = false) shouldBe false
+        DictionaryTabNavigationPolicy.mustFallBackToLibrary(currentIsDictionary = false, enabled = true, showInNavBar = false) shouldBe false
+        DictionaryTabNavigationPolicy.mustFallBackToLibrary(currentIsDictionary = false, enabled = true, showInNavBar = true) shouldBe false
     }
 
     @Test
-    fun `the dictionary tab is only part of the navigation while the feature is on`() {
-        // A constant `true`/`false` here would either show the tab to every opted-out user or hide it
-        // from every opted-in one.
-        DictionaryTabNavigationPolicy.isTabVisible(enabled = false) shouldBe false
-        DictionaryTabNavigationPolicy.isTabVisible(enabled = true) shouldBe true
+    fun `the dictionary tab is only part of the navigation while the feature and nav bar are on`() {
+        DictionaryTabNavigationPolicy.isTabVisible(enabled = false, showInNavBar = false) shouldBe false
+        DictionaryTabNavigationPolicy.isTabVisible(enabled = false, showInNavBar = true) shouldBe false
+        DictionaryTabNavigationPolicy.isTabVisible(enabled = true, showInNavBar = false) shouldBe false
+        DictionaryTabNavigationPolicy.isTabVisible(enabled = true, showInNavBar = true) shouldBe true
     }
 
     @Test
-    fun `only the dictionary tab follows the opt-in`() {
+    fun `only the dictionary tab follows the opt-in and nav bar preference`() {
         val tabs = listOf(LibraryTab, UpdatesTab, DictionaryTab, MoreTab)
 
-        // While off, exactly the dictionary tab drops out of the navigation...
-        tabs.filter { DictionaryTabNavigationPolicy.isVisible(it, enabled = false) } shouldBe
+        // While off or not in nav bar, exactly the dictionary tab drops out of the navigation...
+        tabs.filter { DictionaryTabNavigationPolicy.isVisible(it, enabled = false, showInNavBar = false) } shouldBe
             listOf(LibraryTab, UpdatesTab, MoreTab)
-        // ...and while on, nothing does.
-        tabs.filter { DictionaryTabNavigationPolicy.isVisible(it, enabled = true) } shouldBe tabs
+        tabs.filter { DictionaryTabNavigationPolicy.isVisible(it, enabled = false, showInNavBar = true) } shouldBe
+            listOf(LibraryTab, UpdatesTab, MoreTab)
+        tabs.filter { DictionaryTabNavigationPolicy.isVisible(it, enabled = true, showInNavBar = false) } shouldBe
+            listOf(LibraryTab, UpdatesTab, MoreTab)
+        // ...and while both on, nothing does.
+        tabs.filter { DictionaryTabNavigationPolicy.isVisible(it, enabled = true, showInNavBar = true) } shouldBe tabs
     }
 
     // ---------------------------------------------------------------- call-site guard (source text)
@@ -73,12 +81,12 @@ class DictionaryTabNavigationPolicyTest {
     @Test
     fun `source guard - DictionaryTab and HomeScreen call the policy`() {
         val tab = File("src/main/java/eu/kanade/tachiyomi/ui/dictionary/DictionaryTab.kt").readText()
-        tab shouldContainSource """DictionaryTabNavigationPolicy\.isTabVisible\(\s*enabled\s*\)"""
+        tab shouldContainSource """DictionaryTabNavigationPolicy\.isTabVisible\(\s*enabled\s*,\s*showInNav\s*\)"""
 
         val home = File("src/main/java/eu/kanade/tachiyomi/ui/home/HomeScreen.kt").readText()
         // Argument order is not asserted (the parameter names make a swap a compile error anyway).
-        home shouldContainSource """DictionaryTabNavigationPolicy\.isVisible\("""
-        home shouldContainSource """DictionaryTabNavigationPolicy\.directEventTarget\("""
+        home shouldContainSource """DictionaryTabNavigationPolicy\.isVisible\(\s*it\s*,\s*dictionaryOcrEnabled\s*,\s*showNavDictionary\s*\)"""
+        home shouldContainSource """DictionaryTabNavigationPolicy\.directEventTarget\(\s*dictionaryOcrEnabled\s*,\s*showNavDictionary\s*\)"""
         home shouldContainSource """DictionaryTabNavigationPolicy\.mustFallBackToLibrary\("""
     }
 }

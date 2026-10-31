@@ -292,4 +292,6 @@
     <string name="ocr_redoing_chapter">正在重新运行章节的 OCR…</string>
     <string name="ocr_redo_page_complete">第 %1$d 页的 OCR 已更新</string>
     <string name="ocr_redo_chapter_complete">章节的 OCR 已更新</string>
+    <string name="pref_show_dictionary_button">在导航栏显示词典</string>
+    <string name="pref_show_dictionary_button_summary">在导航栏而不是“更多”中显示词典标签页</string>
 </resources>
