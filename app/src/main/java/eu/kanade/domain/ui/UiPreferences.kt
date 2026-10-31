@@ -97,6 +97,10 @@ class UiPreferences(
 
     val showNavHistory = preferenceStore.getBoolean("pref_show_history_button", true)
 
+    // KUN -->
+    val showNavDictionary = preferenceStore.getBoolean("pref_show_dictionary_button", false)
+    // KUN <--
+
     // SY <--
 
     companion object {

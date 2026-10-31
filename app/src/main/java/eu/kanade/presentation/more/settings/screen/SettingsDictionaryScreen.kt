@@ -46,6 +46,7 @@ import mihon.core.dictionary.yomitan.YomitanSettingsMapper
 import tachiyomi.core.common.preference.AndroidPreferenceStore
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.kun.KUNMR
+import tachiyomi.i18n.sy.SYMR
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsState
 
@@ -92,6 +93,9 @@ object SettingsDictionaryScreen : SearchableSettings {
         val context = LocalContext.current
         val navigator = LocalNavigator.currentOrThrow
         val prefs = remember(context) { context.appGraph.dictionaryPreferences }
+        // KUN -->
+        val uiPreferences = remember(context) { context.appGraph.uiPreferences }
+        // KUN <--
         // KUN -->
         // Deferred, not resolved in composition: `dictionaryRepository` constructs the GPL engine,
         // whose initialiser `dlopen`s `libhoshidicts_jni`. This screen — and Settings search, which
@@ -210,6 +214,19 @@ object SettingsDictionaryScreen : SearchableSettings {
         // The combined dictionaries/OCR switch always comes first; every group below (profiles,
         // import, manage, audio) is gated on it, so this screen is not a backdoor into the feature.
         return masterPreferences() + listOf(
+            // KUN -->
+            Preference.PreferenceGroup(
+                title = stringResource(SYMR.strings.pref_category_navbar),
+                visible = featureEnabled,
+                preferenceItems = listOf(
+                    Preference.PreferenceItem.SwitchPreference(
+                        preference = uiPreferences.showNavDictionary,
+                        title = stringResource(KUNMR.strings.pref_show_dictionary_button),
+                        subtitle = stringResource(KUNMR.strings.pref_show_dictionary_button_summary),
+                    ),
+                ),
+            ),
+            // KUN <--
             Preference.PreferenceGroup(
                 title = stringResource(KUNMR.strings.pref_dictionary_profiles),
                 // KUN -->

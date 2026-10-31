@@ -311,4 +311,6 @@
     <string name="ocr_redo_chapter_complete">OCR mis à jour pour le chapitre</string>
     <string name="dictionary_ocr_setup_accept">Activer</string>
     <string name="dictionary_ocr_setup_decline">Laisser désactivé</string>
+    <string name="pref_show_dictionary_button">Afficher le dictionnaire dans la navigation</string>
+    <string name="pref_show_dictionary_button_summary">Afficher l\'onglet du dictionnaire dans la barre de navigation au lieu de Plus</string>
 </resources>

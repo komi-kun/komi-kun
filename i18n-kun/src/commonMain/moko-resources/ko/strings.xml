@@ -269,4 +269,6 @@
     <string name="ocr_redoing_chapter">챕터 OCR 다시 실행 중…</string>
     <string name="ocr_redo_page_complete">%1$d페이지 OCR 업데이트됨</string>
     <string name="ocr_redo_chapter_complete">챕터 OCR 업데이트됨</string>
+    <string name="pref_show_dictionary_button">네비게이션 바에 사전 표시</string>
+    <string name="pref_show_dictionary_button_summary">더보기 대신 네비게이션 바에 사전 탭 표시</string>
 </resources>

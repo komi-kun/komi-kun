@@ -102,6 +102,9 @@ object HomeScreen : Screen() {
         val dictionaryOcrEnabled by remember(dictionaryOcrPreferences) {
             dictionaryOcrPreferences.enabled.asState(scope)
         }
+        val showNavDictionary by remember(context) {
+            context.appGraph.uiPreferences.showNavDictionary.asState(scope)
+        }
         // KUN <--
 
         TabNavigator(
@@ -144,7 +147,7 @@ object HomeScreen : Screen() {
                             // KUN -->
                             // Same rule as `DictionaryTab.isEnabled()`, applied here too so the tab's
                             // presence in the navigation never depends on a single call site.
-                            .fastFilter { DictionaryTabNavigationPolicy.isVisible(it, dictionaryOcrEnabled) }
+                            .fastFilter { DictionaryTabNavigationPolicy.isVisible(it, dictionaryOcrEnabled, showNavDictionary) }
                             // KUN <--
                             .fastForEach {
                                 NavigationItem(
@@ -178,13 +181,14 @@ object HomeScreen : Screen() {
             val goToLibraryTab = { tabNavigator.current = LibraryTab }
 
             // KUN -->
-            // Turning the feature off while the (now filtered-out) Dictionary tab is selected would
-            // leave the user on a tab that is no longer in the navigation; the policy decides the
+            // Turning the feature off (or hiding the nav bar button) while the Dictionary tab is selected
+            // would leave the user on a tab that is no longer in the navigation; the policy decides the
             // fallback for both the bottom bar and the rail.
-            LaunchedEffect(dictionaryOcrEnabled) {
+            LaunchedEffect(dictionaryOcrEnabled, showNavDictionary) {
                 val mustFallBack = DictionaryTabNavigationPolicy.mustFallBackToLibrary(
                     currentIsDictionary = tabNavigator.current is DictionaryTab,
                     enabled = dictionaryOcrEnabled,
+                    showInNavBar = showNavDictionary,
                 )
                 if (mustFallBack) {
                     tabNavigator.current = LibraryTab
@@ -225,7 +229,7 @@ object HomeScreen : Screen() {
                             // exists today (no dictionary shortcut, no intent action); `openTab` is
                             // public, so the policy owns the fallback and it is unit-tested.
                             Tab.Dictionary -> when (
-                                DictionaryTabNavigationPolicy.directEventTarget(dictionaryOcrEnabled)
+                                DictionaryTabNavigationPolicy.directEventTarget(dictionaryOcrEnabled, showNavDictionary)
                             ) {
                                 DictionaryTabTarget.DICTIONARY -> DictionaryTab
                                 DictionaryTabTarget.LIBRARY -> LibraryTab
