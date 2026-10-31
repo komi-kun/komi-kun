@@ -82,6 +82,13 @@ jobs:
       # checkout (submodules: recursive, above) is what makes the §1.3 files present.
       - name: Verify GPL-free boundary
         run: ./gradlew verifyGplFree
+
+      # JNI symbol gate: every `external fun` must have an exported `Java_…` counterpart in *every*
+      # declared ABI. The task depends on `:core:dictionary:externalNativeBuildDebug` and
+      # `:core:ocr:fetchPaddleNativeLibs` (so it builds/fetches what it reads; the NDK and CMake are
+      # provisioned above) and runs the script's self-test after the real-tree run.
+      - name: Verify JNI symbols
+        run: ./gradlew verifyJniSymbols
       # KUN <--
 
       - name: Check code format

@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Declared-but-not-yet-exported JNI natives, checked by scripts/verify-jni-symbols.sh.
+#
+# One entry per line: `<symbol>` followed by the reason. Every entry is printed as a warning on every
+# run, so a forward declaration is visible instead of invisible; an entry whose symbol *is* exported
+# now is reported as stale. Only record a symbol here when the Kotlin declaration is deliberately
+# ahead of the native artifact (the stub catches UnsatisfiedLinkError itself), never to silence a
+# rename or a signature drift.
+
+# `nativeGetOrtError` is a documented forward-compatible stub: the pinned `ocr-models-v5` shim does
+# not export it yet, and `PaddleOcrEngine.nativeOrtError` catches the UnsatisfiedLinkError, so the
+# JNI getter activates on the next shim rebuild without a Kotlin change (see the KDoc on the
+# declaration, `PaddleOcrEngine.kt`).
+Java_mihon_core_ocr_paddle_PaddleOcrEngine_nativeGetOrtError	declared ahead of the shim: ocr-models-v5 does not export it yet (see the KDoc on the declaration)

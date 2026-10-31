@@ -1,0 +1,2 @@
+# Fixture allow-list for `scripts/test-verify-jni-symbols.sh`.
+Java_fixture_ocr_Natives_nativeMissing	declared ahead of the fixture shim on purpose

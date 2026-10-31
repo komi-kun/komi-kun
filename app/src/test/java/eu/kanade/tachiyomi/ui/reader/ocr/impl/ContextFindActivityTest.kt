@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // KUN -->
-// The rotation guard in `ReaderOcrHostImpl.Overlay` asks the host activity exactly one question,
+// The rotation guard in `ReaderOcrSessionImpl.Overlay` asks the host activity exactly one question,
 // `isChangingConfigurations`, to tell "the reader is being re-created for a rotation" (the open
 // lookup must survive) from "the reader is going away" (the lookup is dismissed). It used to get the
 // activity with `LocalContext.current as? Activity`, so any *wrapped* context answered "no activity"

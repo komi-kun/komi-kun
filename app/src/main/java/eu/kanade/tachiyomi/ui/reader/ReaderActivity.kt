@@ -115,6 +115,7 @@ import eu.kanade.tachiyomi.ui.reader.model.ReaderChapter
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import eu.kanade.tachiyomi.ui.reader.model.ViewerChapters
 import eu.kanade.tachiyomi.ui.reader.ocr.ReaderOcrHost
+import eu.kanade.tachiyomi.ui.reader.ocr.ReaderOcrSession
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderBottomButton
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderOrientation
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
@@ -202,6 +203,14 @@ class ReaderActivity : BaseActivity() {
     // Apache-2.0 reader OCR/dictionary seams. The GPL implementations and their DI bindings live in
     // `eu.kanade.tachiyomi.ui.reader.ocr.impl` / `mihon.dictionary.impl`; this file never sees them.
     @Inject private lateinit var readerOcrHost: ReaderOcrHost
+
+    /**
+     * This reader's OCR overlay session — created in [onCreate], closed in [onDestroy], and the only
+     * owner of the overlay's per-reader state (viewport, active block, popup anchor). The host is
+     * app-scoped and hands out one session per reader; a session never outlives its reader, so
+     * neither can the state it holds.
+     */
+    private var ocrSession: ReaderOcrSession? = null
 
     @Inject private lateinit var readerDictionaryHost: ReaderDictionaryHost
 
@@ -307,7 +316,7 @@ class ReaderActivity : BaseActivity() {
                     masterEnabled = dictionaryOcrPreferences.isEnabled(),
                     overlayEnabled = readerPreferences.ocrOverlayEnabled.get(),
                     menuVisible = viewModel.state.value.menuVisible,
-                ) && readerOcrHost.hitsBlock(Offset(x, y))
+                ) && ocrSession?.hitsBlock(Offset(x, y)) == true
                 // KUN <--
                 if (!targetsBlock) readerDictionaryHost.dismiss()
             }
@@ -368,8 +377,10 @@ class ReaderActivity : BaseActivity() {
         // Adopt the intent: `seedColorStatic()` reads the manga from it, and it is what a recreation
         // starts from.
         setIntent(intent)
-        // Whatever the dictionary popup was anchored to belongs to the chapter being left.
-        readerOcrHost.detach()
+        // Whatever the dictionary popup was anchored to belongs to the chapter being left. The OCR
+        // session stays — it belongs to this reader, which continues — so it only releases the
+        // chapter's state.
+        ocrSession?.reset()
 
         viewModel.openChapter(target)
     }
@@ -401,6 +412,13 @@ class ReaderActivity : BaseActivity() {
         super.onCreate(savedInstanceState)
 
         // KUN -->
+        // This reader's OCR overlay session. Created here — after the graph is built and before the
+        // Compose tree that composes the overlay — and closed in `onDestroy`; the session (not the
+        // app-scoped host) owns the overlay's viewport, active block and popup anchor, so a reader's
+        // state cannot outlive it. A recreation asks the host for the session the closed one handed
+        // over, which is what keeps an open lookup across a rotation.
+        ocrSession = readerOcrHost.newSession()
+
         // Upstream 00335b2a70 draws the reader through Compose: one Compose root holds the viewer,
         // the chrome and the dialogs, replacing the XML binding the activity used to inflate.
         setComposeContent {
@@ -663,7 +681,7 @@ class ReaderActivity : BaseActivity() {
                 //
                 // It is drawn above `ReaderNavigationOverlay` and below `AppBars` for that page-layer
                 // reason, and it sits below the loading screen's early return: while a new viewer
-                // loads the overlay is not composed at all, and `ReaderOcrHostImpl.Overlay` clears
+                // loads the overlay is not composed at all, and `ReaderOcrSessionImpl.Overlay` clears
                 // the viewport it recorded when it leaves composition, so a swapped viewer can
                 // never be hit-tested against the one before it.
                 val paintOcrOverlay = ReaderOcrOverlayPolicy.visible(
@@ -672,7 +690,7 @@ class ReaderActivity : BaseActivity() {
                     menuVisible = state.menuVisible,
                 )
                 if (dictionaryOcrEnabled && ocrOverlayEnabled) {
-                    readerOcrHost.Overlay(
+                    ocrSession?.Overlay(
                         viewport = viewer?.ocrViewport(),
                         modifier = Modifier
                             .fillMaxSize()
@@ -904,7 +922,7 @@ class ReaderActivity : BaseActivity() {
                                     onClick = {
                                         onDismissRequest()
                                         toast(stringResource(KUNMR.strings.ocr_redoing_page, page.index + 1))
-                                        readerOcrHost.redoOcr(page, chapter = false) { result ->
+                                        ocrSession?.redoOcr(page, chapter = false) { result ->
                                             runOnUiThread { toast(result.toastString(page.index, chapter = false)) }
                                         }
                                     },
@@ -916,7 +934,7 @@ class ReaderActivity : BaseActivity() {
                                     onClick = {
                                         onDismissRequest()
                                         toast(stringResource(KUNMR.strings.ocr_redoing_chapter))
-                                        readerOcrHost.redoOcr(page, chapter = true) { result ->
+                                        ocrSession?.redoOcr(page, chapter = true) { result ->
                                             runOnUiThread { toast(result.toastString(page.index, chapter = true)) }
                                         }
                                     },
@@ -950,11 +968,13 @@ class ReaderActivity : BaseActivity() {
         menuToggleToast?.cancel()
         readingModeToast?.cancel()
         // KUN -->
-        // The OCR/dictionary hosts are app-graph singletons: release what they captured for *this*
-        // reader (the popup anchor and the page screenshot provider behind it, the viewport, the
-        // active block) so the last page is not retained after the reader exits. Skipped while the
-        // activity is recreated for a configuration change, where the open popup must survive.
-        if (!isChangingConfigurations) readerOcrHost.detach()
+        // Close this reader's OCR session — on every destroy, including a configuration change, where
+        // the session hands the open lookup to the session the recreated reader creates. The session
+        // owns the viewport, the active block and the popup anchor (including the page screenshot
+        // provider behind an open lookup), so closing it is what keeps the last page from being
+        // retained after the reader exits.
+        ocrSession?.close(recreating = isChangingConfigurations)
+        ocrSession = null
         // KUN <--
     }
 
@@ -1846,7 +1866,7 @@ class ReaderActivity : BaseActivity() {
                 overlayEnabled = readerPreferences.ocrOverlayEnabled.get(),
                 menuVisible = viewModel.state.value.menuVisible,
             ) &&
-            readerOcrHost.onPageLongPress(page, extraPage, Offset(point.x, point.y))
+            ocrSession?.onPageLongPress(page, extraPage, Offset(point.x, point.y)) == true
         ) {
             return
         }
@@ -1883,7 +1903,7 @@ class ReaderActivity : BaseActivity() {
             return false
         }
         // KUN <--
-        return readerOcrHost.onPageSingleTap(page, extraPage, Offset(point.x, point.y))
+        return ocrSession?.onPageSingleTap(page, extraPage, Offset(point.x, point.y)) == true
     }
     // KUN <--
 

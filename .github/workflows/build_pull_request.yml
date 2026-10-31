@@ -96,6 +96,13 @@ jobs:
       - name: Verify GPL-free boundary
         run: ./gradlew verifyGplFree
 
+      # JNI symbol gate: every `external fun` must have an exported `Java_…` counterpart in *every*
+      # declared ABI. The task depends on `:core:dictionary:externalNativeBuildDebug` and
+      # `:core:ocr:fetchPaddleNativeLibs` (so it builds/fetches what it reads; the NDK and CMake are
+      # provisioned above) and runs the script's self-test after the real-tree run.
+      - name: Verify JNI symbols
+        run: ./gradlew verifyJniSymbols
+
       # Device-free self-test of the Track B OCR device-check tooling (`scripts/track-b-ocr-device-
       # check.py selftest`): its log parser, restore rules and release-manifest assessment. No adb and
       # no device — the device commands themselves stay manual (docs/design/implementation/
