@@ -185,6 +185,14 @@ jobs:
       - name: Check code format
         run: ./gradlew spotlessCheck
 
+      # KUN -->
+      # JNI symbol gate: every `external fun` must have an exported `Java_…` counterpart in *every*
+      # declared ABI, so a C++ rename cannot ship in a nightly. It reads the Debug native artifact,
+      # so it is independent of the `assembleNightly` variant below.
+      - name: Verify JNI symbols
+        run: ./gradlew verifyJniSymbols
+      # KUN <--
+
       - name: Build app
         run: ./gradlew assembleNightly -Pdist=ci ${{ steps.opt_secrets.outputs.telemetry_flag }}
 
