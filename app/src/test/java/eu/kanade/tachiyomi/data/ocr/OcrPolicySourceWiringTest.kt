@@ -223,8 +223,9 @@ class OcrPolicySourceWiringTest {
         // as a reason rather than used to skip the release, or a rotation would drop the open popup
         // it exists to keep...
         onDestroy shouldContainSource
-            """ocrSession\s*\?\s*\.\s*close\(\s*recreating\s*=\s*isChangingConfigurations\s*\)"""
+            """ocrSession\s*\?\s*\.\s*close\(\s*recreating\s*=\s*isChangingConfigurations\s*&&\s*!\s*isFinishing\s*\)"""
         // ...which is what the old `if (!isChangingConfigurations) …detach()` shape could not express.
+        // A finishing activity is not a recreation, so its close never parks a handover.
         onDestroy shouldNotContainSource """if\s*\(\s*!\s*isChangingConfigurations\s*\)"""
 
         // Not asserted: that the callback ordering (after `super.onDestroy()`) is safe, or that the

@@ -973,7 +973,10 @@ class ReaderActivity : BaseActivity() {
         // owns the viewport, the active block and the popup anchor (including the page screenshot
         // provider behind an open lookup), so closing it is what keeps the last page from being
         // retained after the reader exits.
-        ocrSession?.close(recreating = isChangingConfigurations)
+        // A finishing activity is not a recreation, even when a configuration change lands before
+        // destroy: no successor reader would consume the handover, and the next reader's `newSession`
+        // would drop it — after inheriting this dead reader's viewport, block and popup anchor.
+        ocrSession?.close(recreating = isChangingConfigurations && !isFinishing)
         ocrSession = null
         // KUN <--
     }

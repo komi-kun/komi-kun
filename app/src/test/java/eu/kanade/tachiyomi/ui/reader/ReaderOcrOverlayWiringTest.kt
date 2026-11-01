@@ -243,9 +243,10 @@ class ReaderOcrOverlayWiringTest {
             "the OCR session must exist before the Compose tree that composes its overlay",
         )
 
-        // Closed on *every* destroy: the rotation case is an argument, not a guard that skips it.
+        // Closed on *every* destroy: the rotation case is an argument, not a guard that skips it —
+        // and a finishing activity is not a recreation, so it can never park a handover.
         onDestroy shouldContainSource (
-            """ocrSession\s*\?\s*\.\s*close\(\s*recreating\s*=\s*isChangingConfigurations\s*\)"""
+            """ocrSession\s*\?\s*\.\s*close\(\s*recreating\s*=\s*isChangingConfigurations\s*&&\s*!\s*isFinishing\s*\)"""
             )
         onDestroy shouldNotContainSource """if\s*\(\s*!\s*isChangingConfigurations\s*\)"""
 

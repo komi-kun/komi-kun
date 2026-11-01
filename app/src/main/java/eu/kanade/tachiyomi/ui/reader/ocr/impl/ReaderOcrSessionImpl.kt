@@ -265,7 +265,10 @@ internal class ReaderOcrSessionImpl(
         blockLoader.redoOcr(page, chapter, onComplete)
     }
 
-    override fun reset() = release()
+    override fun reset() {
+        if (closed) return
+        release()
+    }
 
     override fun close(recreating: Boolean) {
         if (closed) return
