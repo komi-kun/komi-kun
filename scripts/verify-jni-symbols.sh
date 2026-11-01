@@ -119,6 +119,25 @@ REPO_NM="$(optionally nm)"
     exit 2
   }
 
+# `locate_lib` picks the newest candidate with GNU `find -printf '%T@ %p'`. BSD/macOS `find` has no
+# `-printf` predicate, and its error would be swallowed by that call's `2>/dev/null`, turning a
+# toolchain mismatch into the misleading "no Debug library" failure. Checked once, here: a `find` that
+# cannot answer the question is an environment error (exit 2), exactly like a missing library — a gate
+# that refuses honestly is better than one that guesses. A `stat`-sort fallback is deliberately *not*
+# used: it cannot be exercised on a Linux runner, and an untested branch in a build gate is worse than
+# a refusal.
+FIND_BIN="$(command -v find 2>/dev/null || true)"
+if [[ -z "$FIND_BIN" ]]; then
+  err "no 'find' on PATH: locating the Debug libraries needs GNU find ('find -printf')"
+  exit 2
+fi
+if ! "$FIND_BIN" "$ROOT_DIR" -maxdepth 0 -printf '' >/dev/null 2>&1; then
+  err "this gate needs GNU find, but '$FIND_BIN' has no '-printf': the Debug library search would fail"
+  err "  with a misleading 'no Debug library' message. On macOS install 'gnu-find' (brew install"
+  err "  findutils) and put 'gfind' first on PATH as 'find', or run this gate on Linux."
+  exit 2
+fi
+
 # exported_symbols LIB — every defined dynamic symbol of LIB. Tries the NDK reader first, then GNU
 # nm, and fails when neither can read the library (a gate that reads nothing must not pass).
 exported_symbols() {
@@ -501,7 +520,10 @@ declare -A MODULE_GRADLE=(
 # `abiFilters +=`) silently narrow "every declared ABI"; a union can only widen the checked set, so a
 # missing ABI is never hidden by a later list. A shape this cannot read (`abiFilters +=` with anything
 # but `listOf(…)`) is an error, not a guess — for the same reason: the ABIs it mentioned would go
-# unchecked.
+# unchecked. A module that declares no `abiFilters` at all is that same error: "no ABIs" is not "every
+# declared ABI". The count probe below therefore tolerates a non-match (`|| true`, as `lists` and
+# `readable` do), so the missing list is diagnosed rather than the failing assignment being the end of
+# the probe.
 abis_of() {
   local module="$1" gradle="${MODULE_GRADLE[$1]}" joined filters readable lists abis
   if [[ -n "${VERIFY_JNI_ABIS:-}" ]]; then
@@ -510,7 +532,7 @@ abis_of() {
   fi
   # `//` comments are not declarations: the prose around the list often quotes the shape itself.
   joined="$(sed -E 's://.*::' "$gradle" | tr '\n' ' ')"
-  filters="$(printf '%s' "$joined" | grep -o 'abiFilters' | wc -l)"
+  filters="$(printf '%s' "$joined" | grep -o 'abiFilters' | wc -l || true)"
   lists="$(printf '%s' "$joined" | grep -oE 'abiFilters[[:space:]]*\+=[[:space:]]*listOf\([^)]*\)' || true)"
   readable="$(printf '%s' "$lists" | grep -c 'abiFilters' || true)"
   if [[ "$filters" -ne "$readable" ]]; then

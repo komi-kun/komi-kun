@@ -30,6 +30,9 @@
 #   variant-both       correct Debug tree + newer Release tree                    -> PASS (reads Debug)
 #   variant-release-only  only a Release tree present                            -> FAIL loudly instead
 #                      of validating a build the Gradle task does not produce
+#   abis-undeclared    the module's build file declares no `abiFilters` at all   -> FAIL, with the
+#                      "cannot read the ABI list" diagnostic (an empty list is an
+#                      error, never "nothing to check")
 #
 # Run directly (`bash scripts/test-verify-jni-symbols.sh`) or via `./gradlew verifyJniSymbols`, which
 # runs the gate on the real tree and then this self-test.
@@ -129,6 +132,16 @@ run_case() {
     fail=$((fail + 1))
     return
   }
+
+  # A case may replace the targeted module's build file — the only thing `abis_of()` reads — so it can
+  # plant a shape the shared skeleton does not have (e.g. a module that declares no abiFilters).
+  if [[ -f "$case_dir/build.gradle.kts" ]]; then
+    cp "$case_dir/build.gradle.kts" "$work/core/$module/build.gradle.kts" || {
+      echo "test-verify-jni-symbols: FAIL — $name: cannot install $case_dir/build.gradle.kts" >&2
+      fail=$((fail + 1))
+      return
+    }
+  fi
 
   # Both module source roots must exist (the gate refuses a missing root), the case's own sources
   # only go under the module it targets.
@@ -243,6 +256,12 @@ run_case variant-both "$FIXTURE_DIR/cases/variant-both" 0 "verify-jni-symbols: O
 # …and a tree with only another variant fails instead of validating it.
 run_case variant-release-only "$FIXTURE_DIR/cases/variant-release-only" 2 \
   "only a non-Debug build is present"
+
+# A module that declares no `abiFilters` at all: the gate has no "every declared ABI" to check, so it
+# must reach its diagnostic and exit 2 instead of carrying on with an empty ABI list. The count probe's
+# `grep -o` finds nothing here, and a non-match must never be the probe's outcome under
+# `set -euo pipefail` — an absent list is an error, not "nothing to check".
+run_case abis-undeclared "$FIXTURE_DIR/cases/abis-undeclared" 2 "cannot read the ABI list from"
 
 if [[ "$fail" -ne 0 ]]; then
   echo "test-verify-jni-symbols: FAILED — $fail of $((pass + fail)) case(s) did not behave as required." >&2
