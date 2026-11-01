@@ -3,7 +3,7 @@
 // The Anki screenshot crop-preset vocabulary the settings picker offers, pinned against what the
 // reader can actually resolve (`CropPresets`) and against the preference's default.
 //
-// The failure this catches: the picker offering a key the reader cannot map (`ReaderOcrHostImpl`
+// The failure this catches: the picker offering a key the reader cannot map (`ReaderOcrSessionImpl`
 // resolves it through `CropPresets.aspectByKey`), which would silently crop "the block" instead of
 // the chosen ratio, or a default that is not in the picker at all (no row selected).
 // KUN <--

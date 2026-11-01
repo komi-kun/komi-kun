@@ -324,6 +324,10 @@ interface ReaderDictionaryHost {
     fun warm(context: Context, languageCode: String)
     fun showLookup(request: DictionaryLookupRequest)
     fun dismiss()
+    /** Visible popup bounds in window-local coords (`activity.composeOverlayRoot`), null when none. */
+    fun popupBounds(): RectF?
+    /** Whether a popup is shown; lets the OCR session notice a close it did not initiate. */
+    fun isOpen(): Boolean
 }
 data class DictionaryLookupRequest(
     val query: String, val sentence: String, val sentenceOffset: Int,
@@ -563,8 +567,9 @@ Where an implementer reads a plan that contradicts this file, follow the contrac
    `ReaderOcrSource` → **`:core:common`** (§1.3); `OcrLookupRequest` → `DictionaryLookupRequest` (§2.3);
    `Mokuro*` → `:core:ocr` (§6.10).
 4. **04** — `OcrViewport` → `:app` seam pkg (§1.2); **`blocksFor(page)`/`OcrOverlay(blocks)` dropped** —
-   the seam exposes only `Overlay(viewport, modifier)` + `onPageLongPress(...): Boolean` and `OcrOverlay.kt`
-   is GPL (§1.3/§2.3); "add jitpack.io"/new ref name → no-op, reuse `version.ref = "webgpuviewer"` (§2.6).
+   the seam is `ReaderOcrHost.newSession()` → `ReaderOcrSession`, which composes `Overlay(viewport, modifier)`
+   and owns the hit-tests (`onPageLongPress`/`onPageSingleTap`/`hitsBlock`), `redoOcr`, `reset` and `close`;
+   `OcrOverlay.kt` is GPL (§1.3/§2.3); "add jitpack.io"/new ref name → no-op, reuse `version.ref = "webgpuviewer"` (§2.6).
 5. **05** — corpus → `:core:dictionary` tests (§3.5); Anki `SettingsAnkiScreen` path + manifest additions
    → W5 (§3.1).
 
