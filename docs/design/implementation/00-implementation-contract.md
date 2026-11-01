@@ -55,11 +55,12 @@ that is what makes it upstream-contributable even though `:app` links GPL module
 | Interface | File / package | License | Owner |
 |---|---|---|---|
 | `OcrViewport`, `ImagePoint`, `OcrDisplayTransform` | `app/…/ui/reader/ocr/OcrViewport.kt` (`eu.kanade.tachiyomi.ui.reader.ocr`) | Apache-2.0 | W4 |
-| `ReaderOcrHost` | `app/…/ui/reader/ocr/ReaderOcrHost.kt` (same pkg) | Apache-2.0 | W4 |
+| `ReaderOcrHost`, `ReaderOcrSession` | `app/…/ui/reader/ocr/ReaderOcrHost.kt` (same pkg) | Apache-2.0 | W4 |
 | `ReaderDictionaryHost`, `DictionaryLookupRequest` | `app/…/mihon/dictionary/host/ReaderDictionaryHost.kt` (`mihon.dictionary.host`) | Apache-2.0 | W2 |
 
 **GPL implementations sit in *different* packages** so the GPL-free check can separate seam from impl (B1):
-`ReaderOcrHostImpl` → `eu.kanade.tachiyomi.ui.reader.ocr.impl` (W3); `ReaderDictionaryHostImpl` →
+`ReaderOcrHostImpl` and the `ReaderOcrSessionImpl` it hands out →
+`eu.kanade.tachiyomi.ui.reader.ocr.impl` (W3); `ReaderDictionaryHostImpl` →
 `mihon.dictionary.impl` (W2); viewport adapters `SsivOcrViewport`/`WebtoonOcrViewport`/`WebGpuOcrViewport`
 (W4) live under their viewer sub-packages. All are `// KUN`, GPL, bound with
 `@ContributesBinding(AppScope::class)` **only** — never by editing `AppBindings.kt` (§3.6).
@@ -91,7 +92,7 @@ make. Viewer files
 (`viewer/**`, `PagerViewer`, `WebtoonViewer`, `WebGpuViewer`, `*PageHolder`, `ReaderPageImageView`) and
 `app/…/presentation/reader/OcrOverlay.kt` are **GPL** because they construct the adapters/render blocks
 (04 §1.4–1.7); they are *not* in the GPL-free set. `OcrTextBlock` is GPL and never appears in a GPL-free
-file (§2.3); `OcrOverlay` (GPL) is composed only by `ReaderOcrHostImpl` (GPL).
+file (§2.3); `OcrOverlay` (GPL) is composed only by `ReaderOcrSessionImpl.Overlay` (GPL).
 
 **Contributability caveat:** these files import `KMR`/`SYMR` strings (§2, N4), which exist only in Komikku;
 the "upstream-contributable" claim is therefore **Komikku**, not Mihon. Boundary enforcement: §1.9.
@@ -292,9 +293,29 @@ sealed interface OcrDisplayTransform {
 
 /** GPL-free: exposes no OcrTextBlock. Hit-test + lookup-text happen inside the impl. */
 interface ReaderOcrHost {
+    /**
+     * One session per reader activity, created in `onCreate`. The caller owns it: it must
+     * `close(recreating = isChangingConfigurations)` it in `onDestroy` — a recreation hands the open
+     * lookup to the session the recreated activity creates.
+     */
+    fun newSession(): ReaderOcrSession
+}
+
+/** GPL-free: the handle on one reader's OCR overlay. No OcrTextBlock crosses it. */
+interface ReaderOcrSession {
     @Composable fun Overlay(viewport: OcrViewport?, modifier: Modifier)
     /** true iff the point hit an OCR block and a lookup was started; else false (→ page dialog). */
     fun onPageLongPress(page: ReaderPage, extraPage: ReaderPage?, overlayPoint: Offset): Boolean
+    /** Same hit-test + lookup path, for a single tap. */
+    fun onPageSingleTap(page: ReaderPage, extraPage: ReaderPage?, overlayPoint: Offset): Boolean
+    /** Side-effect-free: does the point currently land on an OCR block? */
+    fun hitsBlock(overlayPoint: Offset): Boolean
+    /** Force re-runs OCR for a page / the whole chapter, overwriting the .mokuro sidecar. */
+    fun redoOcr(page: ReaderPage, chapter: Boolean = false, onComplete: ((RedoOcrResult) -> Unit)? = null)
+    /** Releases what belongs to the chapter going away; the session stays alive (`onNewIntent`). */
+    fun reset()
+    /** Closes this reader's session, exactly once; [recreating] hands state to the next session. */
+    fun close(recreating: Boolean = false)
 }
 
 // mihon.dictionary.host — Apache-2.0
@@ -311,7 +332,8 @@ data class DictionaryLookupRequest(
 ```
 
 `DictionaryLookupRequest` is the **single OCR→dictionary DTO** (was `OcrLookupRequest` in 03 §6 / 04 §4.1).
-`ReaderOcrHostImpl` maps `onPageLongPress` → hit-test → `DictionaryLookupRequest` → `ReaderDictionaryHost`.
+`ReaderOcrSessionImpl` maps `onPageLongPress`/`onPageSingleTap` → hit-test → `DictionaryLookupRequest` →
+`ReaderDictionaryHost`; the `ReaderOcrHost` itself holds nothing that belongs to a reader.
 
 The only shared value type outside these files is the Apache enum `tachiyomi.core.common.ocr.ReaderOcrSource`
 (`:core:common`, §1.3), importable by GPL-free `:app` files and GPL `:core:ocr` services; `OcrTextBlock` is
@@ -415,9 +437,9 @@ No two owners touch the same file in the same wave. `A:Wn` = action in wave *n*.
 | `i18n-kmk/.../base/strings.xml` | all new `KMR` keys (**sole editor**, key lists from W3/W4/W5) | W2 |
 | `…/ui/home/HomeScreen.kt`, `…/ui/more/MoreTab.kt`, `…/ui/manga/MangaScreen*.kt`, `…/ui/manga/MangaScreenModel.kt` | Tab/profiles | W2 |
 | `…/presentation/more/settings/screen/SettingsOcrScreen.kt` | create **early, in the W2 wave** (W3 owns; registered by W2 in W3) | W3 |
-| `…/ui/reader/ocr/{OcrViewport,ReaderOcrHost}.kt` (seams) | create | W4 |
+| `…/ui/reader/ocr/{OcrViewport,ReaderOcrHost}.kt` (seams; `ReaderOcrHost.newSession()` → `ReaderOcrSession`, which owns `Overlay`/hit-testing/`redoOcr`/`close`) | create | W4 |
 | `…/ui/reader/ocr/OcrHostBindings.kt` (app `@BindingContainer`) | **W1 stub → W3 fills** | W3 |
-| `…/ui/reader/ocr/impl/ReaderOcrHostImpl.kt` (GPL) | create | W3 |
+| `…/ui/reader/ocr/impl/{ReaderOcrHostImpl,ReaderOcrSessionImpl}.kt` (GPL) | create | W3 |
 | `…/ui/reader/viewer/{pager/SsivOcrViewport,webtoon/WebtoonOcrViewport,webgpu/WebGpuOcrViewport}.kt`, `…/presentation/reader/OcrOverlay.kt` (**GPL**) | create | W4 |
 | `…/ui/reader/viewer/{Viewer,reader/ReaderActivity,reader/ReaderViewModel,reader/setting/ReaderPreferences,reader/setting/ReaderBottomButton,presentation/reader/appbars/ReaderAppBars}.kt` | `// KUN` hunks | W4 |
 | `…/ui/reader/viewer/{PagerViewer,WebtoonViewer,WebGpuViewer,WebGpuViewerContinuous,ReaderPageImageView,PagerPageHolder,WebtoonPageHolder}.kt` | `// KUN` (GPL: adapters) | W4 |

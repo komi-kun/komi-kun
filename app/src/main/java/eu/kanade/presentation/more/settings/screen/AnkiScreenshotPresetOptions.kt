@@ -4,7 +4,7 @@
 //
 // The settings picker writes one of these storage values and `AnkiScreenshotSettings.presetKey`
 // hands it to the reader, which maps it to an aspect through `CropPresets.aspectByKey` (see
-// `ReaderOcrHostImpl.screenshotProviderFor`). Keeping the vocabulary here — rather than inline in the
+// `ReaderOcrSessionImpl.screenshotProviderFor`). Keeping the vocabulary here — rather than inline in the
 // settings screen — is what lets a test pin it against `CropPresets`: a key the reader does not know
 // would silently degrade to "no forced aspect" instead of the chosen crop.
 // KUN <--

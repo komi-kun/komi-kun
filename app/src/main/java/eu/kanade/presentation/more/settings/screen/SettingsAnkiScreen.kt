@@ -524,7 +524,7 @@ object SettingsAnkiScreen : SearchableSettings {
         // KUN -->
         // The preset the "Crop to panel" mode expands the block to. Built from the shared
         // `CropPresets` vocabulary so a key the reader cannot map (see
-        // `ReaderOcrHostImpl.screenshotProviderFor`) is never offered.
+        // `ReaderOcrSessionImpl.screenshotProviderFor`) is never offered.
         val presetEntries = AnkiScreenshotPresetOptions.keys.associateWith { key ->
             AnkiScreenshotPresetOptions.presetLabel(key)
                 ?: stringResource(KUNMR.strings.pref_anki_crop_preset_full)
