@@ -338,6 +338,7 @@
     <string name="orphaned_downloads_summary">%1$d gefunden · %2$s</string>
     <string name="orphaned_downloads_empty">Keine verwaisten Downloads gefunden</string>
     <string name="orphaned_downloads_clear_selection">Auswahl aufheben</string>
+    <string name="orphaned_downloads_refresh">Erneut suchen</string>
     <string name="orphaned_downloads_kind_manga">Kein passender Manga</string>
     <string name="orphaned_downloads_kind_source">Quelle nicht installiert</string>
     <string name="orphaned_downloads_confirm_title">Verwaiste Dateien löschen?</string>

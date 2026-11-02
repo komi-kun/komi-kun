@@ -361,9 +361,10 @@ class DownloadManager(
             // The local source directory is the user's own storage, never ours to prune.
             if (source.isLocal()) return@withContext
 
-            val reachable = OrphanedDownloads.reachableFileNames(remainingChapters) { chapter ->
-                provider.getValidChapterDirNames(chapter.name, chapter.scanlator, chapter.url)
-            }
+            val reachable = OrphanedDownloads.reachableFileNames(
+                remainingChapters,
+                provider::getValidChapterDirNames,
+            )
 
             val (mangaDir, dirs) = provider.findChapterDirs(removedChapters, manga, source)
             // The removed rows are gone, so their category state is deliberately not consulted
@@ -372,7 +373,7 @@ class DownloadManager(
             // filters it out first. Every name `getValidChapterDirNames` returns is checked, so an
             // `X.cbz` file and an `X` folder are both kept when a surviving chapter still resolves to
             // them, and an entry whose name cannot be read is kept as well (`isOrphaned` fails closed).
-            val orphanedDirs = dirs.filter { dir -> OrphanedDownloads.isOrphaned(dir.name, reachable) }
+            val orphanedDirs = OrphanedDownloads.orphaned(dirs, { it.name }, reachable)
             if (orphanedDirs.isEmpty()) return@withContext
 
             downloader.dequeue(removedChapters)

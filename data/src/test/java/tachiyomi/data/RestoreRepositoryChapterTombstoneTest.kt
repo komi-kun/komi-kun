@@ -5,6 +5,7 @@ import app.cash.sqldelight.async.coroutines.await
 import app.cash.sqldelight.db.SqlDriver
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import eu.kanade.tachiyomi.source.model.UpdateStrategy
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import io.mockk.coVerify
@@ -75,11 +76,11 @@ class RestoreRepositoryChapterTombstoneTest {
 
                 chapterRepository.getChapterByMangaId(1).map { it.url } shouldContainExactly listOf("/c1")
                 // Cleanup runs once, after the transaction committed, and is handed exactly the
-                // chapter that disappeared — not the survivor.
+                // chapter that disappeared — not the survivor — for the manga that lost it.
                 coVerify(exactly = 1) {
                     orphanedDownloadCleaner.cleanupAfterChapterRemoval(
                         match { it.map(Chapter::id) == listOf(removedId) },
-                        any(),
+                        match { it.id == 1L },
                     )
                 }
             } finally {
@@ -96,13 +97,14 @@ class RestoreRepositoryChapterTombstoneTest {
                 val database = DatabaseBindings.providesDatabase(driver)
                 val mangaRepository = MangaRepositoryImpl(database)
                 val chapterRepository = ChapterRepositoryImpl(database)
+                val orphanedDownloadCleaner = mockk<OrphanedDownloadCleaner>(relaxed = true)
                 val repository = RestoreRepositoryImpl(
                     database = database,
                     mangaRepository = mangaRepository,
                     chapterRepository = chapterRepository,
                     trackRepository = TrackRepositoryImpl(database),
                     mangaMetadataRepository = mockk(relaxed = true),
-                    orphanedDownloadCleaner = mockk(relaxed = true),
+                    orphanedDownloadCleaner = orphanedDownloadCleaner,
                 )
 
                 driver.insertManga()
@@ -111,6 +113,7 @@ class RestoreRepositoryChapterTombstoneTest {
                 chapterRepository.addAll(
                     listOf(chapter("/c1", lastModifiedAt = 500L), chapter("/c2", lastModifiedAt = 500L)),
                 )
+                val removedIds = chapterRepository.getChapterByMangaId(1).map { it.id }
 
                 repository.restoreManga(
                     entries = listOf(
@@ -131,6 +134,85 @@ class RestoreRepositoryChapterTombstoneTest {
                 )
 
                 chapterRepository.getChapterByMangaId(1).map { it.url } shouldContainExactly emptyList()
+                // Both gone chapters are handed over — an empty list here would leave both files.
+                coVerify(exactly = 1) {
+                    orphanedDownloadCleaner.cleanupAfterChapterRemoval(
+                        match { it.map(Chapter::id).toSet() == removedIds.toSet() },
+                        match { it.id == 1L },
+                    )
+                }
+            } finally {
+                driver.close()
+            }
+        }
+    }
+
+    @Test
+    fun `a restore that rolls back does not hand the removed chapters to the file cleanup`() {
+        runBlocking {
+            val driver = newDriver()
+            try {
+                val database = DatabaseBindings.providesDatabase(driver)
+                val mangaRepository = MangaRepositoryImpl(database)
+                val chapterRepository = ChapterRepositoryImpl(database)
+                val orphanedDownloadCleaner = mockk<OrphanedDownloadCleaner>(relaxed = true)
+                val repository = RestoreRepositoryImpl(
+                    database = database,
+                    mangaRepository = mangaRepository,
+                    chapterRepository = chapterRepository,
+                    trackRepository = TrackRepositoryImpl(database),
+                    mangaMetadataRepository = mockk(relaxed = true),
+                    orphanedDownloadCleaner = orphanedDownloadCleaner,
+                )
+
+                driver.insertManga()
+                driver.insertManga(id = 2)
+                chapterRepository.addAll(
+                    listOf(
+                        chapter("/c1", lastModifiedAt = 500L),
+                        chapter("/c2", lastModifiedAt = 500L),
+                        chapter("/c3", mangaId = 2, lastModifiedAt = 500L),
+                    ),
+                )
+
+                // The first entry drops a chapter — which is collected for the file cleanup — and the
+                // second throws inside the transaction, so the whole batch rolls back. The cleanup
+                // must not run: its rows are still there, and their files are still reachable.
+                shouldThrow<IllegalStateException> {
+                    repository.restoreManga(
+                        entries = listOf(
+                            RestoredManga(
+                                manga = manga(),
+                                chapters = listOf(chapter("/c1")),
+                                categoryIds = null,
+                                history = emptyList(),
+                                tracks = emptyList(),
+                                excludedScanlators = emptyList(),
+                            ),
+                            RestoredManga(
+                                manga = manga(id = 2, url = "/manga/2"),
+                                chapters = listOf(chapter("/c3", mangaId = 2)),
+                                categoryIds = null,
+                                history = emptyList(),
+                                tracks = emptyList(),
+                                excludedScanlators = emptyList(),
+                            ),
+                        ),
+                        isSync = true,
+                        restoreCategories = false,
+                        removeMissingChaptersBefore = 1_000L,
+                        update = { restored ->
+                            if (restored.id == 2L) throw IllegalStateException("update failed")
+                            restored.toMangaUpdate()
+                        },
+                    )
+                }
+
+                coVerify(exactly = 0) { orphanedDownloadCleaner.cleanupAfterChapterRemoval(any(), any()) }
+                // The rollback really happened: the chapter the first entry dropped is still there.
+                chapterRepository.getChapterByMangaId(1)
+                    .map { it.url }
+                    .toSet() shouldBe setOf("/c1", "/c2")
             } finally {
                 driver.close()
             }
@@ -462,13 +544,14 @@ class RestoreRepositoryChapterTombstoneTest {
 
     private fun chapter(
         url: String,
+        mangaId: Long = 1L,
         read: Boolean = false,
         bookmark: Boolean = false,
         lastPageRead: Int = 0,
         lastModifiedAt: Long = 0L,
         version: Long = 1L,
     ) = Chapter.create().copy(
-        mangaId = 1L,
+        mangaId = mangaId,
         url = url,
         name = url,
         read = read,
@@ -479,8 +562,8 @@ class RestoreRepositoryChapterTombstoneTest {
         lastModifiedAt = lastModifiedAt,
     )
 
-    private fun manga() = Manga(
-        id = 1L,
+    private fun manga(id: Long = 1L, url: String = "/manga/1") = Manga(
+        id = id,
         source = 1L,
         favorite = true,
         lastUpdate = null,
@@ -490,7 +573,7 @@ class RestoreRepositoryChapterTombstoneTest {
         viewerFlags = 0L,
         chapterFlags = 0L,
         coverLastModified = null,
-        url = "/manga/1",
+        url = url,
         ogTitle = "Title",
         ogArtist = null,
         ogAuthor = null,
@@ -513,7 +596,7 @@ class RestoreRepositoryChapterTombstoneTest {
         }
     }
 
-    private suspend fun SqlDriver.insertManga() {
+    private suspend fun SqlDriver.insertManga(id: Long = 1L) {
         execute(
             null,
             """
@@ -524,7 +607,7 @@ class RestoreRepositoryChapterTombstoneTest {
                 state_cover_last_modified, last_modified_at, version, is_syncing,
                 user_favorite_at, favorite_modified_at
             ) VALUES (
-                1, 1, '/manga/1', 'Title', 0, 0,
+                $id, 1, '/manga/$id', 'Title', 0, 0,
                 '{}', '', 0, 0,
                 0, 1, 'https://example.com/cover.jpg',
                 123, 0, 1, 0,

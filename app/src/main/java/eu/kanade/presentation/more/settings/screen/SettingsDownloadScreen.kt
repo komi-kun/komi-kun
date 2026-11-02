@@ -222,7 +222,7 @@ object SettingsDownloadScreen : SearchableSettings {
             title = stringResource(KUNMR.strings.pref_category_orphaned_downloads),
             preferenceItems = listOf(
                 Preference.PreferenceItem.SwitchPreference(
-                    preference = downloadPreferences.removeOrphanedDownloads(),
+                    preference = downloadPreferences.removeOrphanedDownloads,
                     title = stringResource(KUNMR.strings.pref_remove_orphaned_downloads),
                     subtitle = stringResource(KUNMR.strings.pref_remove_orphaned_downloads_summary),
                 ),

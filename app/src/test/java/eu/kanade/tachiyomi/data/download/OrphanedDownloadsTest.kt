@@ -16,7 +16,11 @@ class OrphanedDownloadsTest {
      * Stands in for `DownloadProvider.getValidChapterDirNames`, which always yields both the folder
      * form and the archived `.cbz` form of a chapter name.
      */
-    private fun namesOf(chapter: Chapter): List<String> = listOf(chapter.name, "${chapter.name}.cbz")
+    private fun namesOf(name: String, scanlator: String?, url: String): List<String> =
+        listOf(name, "$name.cbz")
+
+    private fun chapterNames(chapter: Chapter): List<String> =
+        namesOf(chapter.name, chapter.scanlator, chapter.url)
 
     private fun chapter(id: Long, name: String) = Chapter.create().copy(id = id, name = name, url = "/chapter/$id")
 
@@ -28,7 +32,7 @@ class OrphanedDownloadsTest {
         val reachable = OrphanedDownloads.reachableFileNames(listOf(survivor), ::namesOf)
 
         reachable shouldContainExactlyInAnyOrder listOf("Vol.01 Ch.001", "Vol.01 Ch.001.cbz")
-        namesOf(removed).filterNot { it in reachable } shouldBe emptyList()
+        chapterNames(removed).filterNot { it in reachable } shouldBe emptyList()
     }
 
     @Test
@@ -40,7 +44,7 @@ class OrphanedDownloadsTest {
 
         reachable shouldNotContain "Vol.01 Ch.001"
         reachable shouldNotContain "Vol.01 Ch.001.cbz"
-        namesOf(removed).filterNot { it in reachable } shouldContainExactlyInAnyOrder
+        chapterNames(removed).filterNot { it in reachable } shouldContainExactlyInAnyOrder
             listOf("Vol.01 Ch.001", "Vol.01 Ch.001.cbz")
     }
 
@@ -51,7 +55,7 @@ class OrphanedDownloadsTest {
 
         val reachable = OrphanedDownloads.reachableFileNames(listOf(survivor), ::namesOf)
 
-        namesOf(removed).filterNot { it in reachable } shouldContainExactlyInAnyOrder
+        chapterNames(removed).filterNot { it in reachable } shouldContainExactlyInAnyOrder
             listOf("Vol.01 Ch.001.5", "Vol.01 Ch.001.5.cbz")
     }
 
@@ -63,9 +67,9 @@ class OrphanedDownloadsTest {
         val reachable = OrphanedDownloads.reachableFileNames(emptyList(), ::namesOf)
 
         reachable shouldBe emptySet<String>()
-        namesOf(removed).filterNot { it in reachable } shouldContainExactlyInAnyOrder
+        chapterNames(removed).filterNot { it in reachable } shouldContainExactlyInAnyOrder
             listOf("Vol.01 Ch.001", "Vol.01 Ch.001.cbz")
-        namesOf(other).filterNot { it in reachable } shouldContainExactlyInAnyOrder
+        chapterNames(other).filterNot { it in reachable } shouldContainExactlyInAnyOrder
             listOf("Vol.01 Ch.002", "Vol.01 Ch.002.cbz")
     }
 
@@ -109,6 +113,39 @@ class OrphanedDownloadsTest {
         OrphanedDownloads.isOrphaned("Chapter 2.cbz", reachable) shouldBe true
         OrphanedDownloads.isOrphaned("Chapter 1.cbz", reachable) shouldBe false
         OrphanedDownloads.isOrphaned("Chapter 2.cbz", emptySet()) shouldBe true
+    }
+
+    @Test
+    fun `the chapter fields reach the name builder as name, scanlator and url`() {
+        // `DownloadProvider.getValidChapterDirNames(name, scanlator, url)`: a swapped scanlator and
+        // url would still compile (both are Strings) and would build names nothing on disk matches,
+        // which is exactly the shape that deletes a live file.
+        val chapter = Chapter.create().copy(
+            id = 1,
+            name = "Vol.01",
+            scanlator = "Group",
+            url = "/chapter/1",
+        )
+        val calls = mutableListOf<Triple<String, String?, String>>()
+
+        OrphanedDownloads.reachableFileNames(listOf(chapter)) { name, scanlator, url ->
+            calls += Triple(name, scanlator, url)
+            emptyList()
+        }
+
+        calls shouldBe listOf(Triple("Vol.01", "Group", "/chapter/1"))
+    }
+
+    @Test
+    fun `only the entries no surviving chapter names are handed over for deletion`() {
+        // The single deletion decision, exercised on mixed input: the reachable entry survives, the
+        // unreachable one is returned, and an unreadable (`null`) name is kept — the last is what an
+        // inverted filter would delete instead.
+        val reachable = OrphanedDownloads.reachableFileNames(listOf(chapter(id = 1, name = "Chapter 1")), ::namesOf)
+        val entries = listOf("Chapter 1.cbz", "Chapter 2.cbz", null)
+
+        OrphanedDownloads.orphaned(entries, { it }, reachable) shouldBe listOf("Chapter 2.cbz")
+        OrphanedDownloads.orphaned(entries, { it }, emptySet()) shouldBe listOf("Chapter 1.cbz", "Chapter 2.cbz")
     }
 
     @Test

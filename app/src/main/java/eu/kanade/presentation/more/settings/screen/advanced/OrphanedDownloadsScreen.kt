@@ -121,26 +121,41 @@ class OrphanedDownloadsScreen : Screen() {
                     navigateUp = navigator::pop,
                     actions = {
                         val ready = state as? OrphanedDownloadsViewModel.State.Ready
-                        if (ready != null && ready.selectableIds.isNotEmpty()) {
-                            val allSelected = ready.allSelected
-                            AppBarActions(
-                                actions = listOf(
-                                    AppBar.Action(
-                                        title = if (allSelected) {
-                                            stringResource(KUNMR.strings.orphaned_downloads_clear_selection)
-                                        } else {
-                                            stringResource(MR.strings.action_select_all)
-                                        },
-                                        icon = if (allSelected) {
-                                            MaterialSymbols.Rounded.Deselect
-                                        } else {
-                                            MaterialSymbols.Rounded.SelectAll
-                                        },
-                                        onClick = viewModel::toggleSelectAll,
-                                    ),
-                                ),
-                            )
-                        }
+                        AppBarActions(
+                            actions = buildList {
+                                if (ready != null && ready.selectableIds.isNotEmpty()) {
+                                    val allSelected = ready.allSelected
+                                    add(
+                                        AppBar.Action(
+                                            title = if (allSelected) {
+                                                stringResource(KUNMR.strings.orphaned_downloads_clear_selection)
+                                            } else {
+                                                stringResource(MR.strings.action_select_all)
+                                            },
+                                            icon = if (allSelected) {
+                                                MaterialSymbols.Rounded.Deselect
+                                            } else {
+                                                MaterialSymbols.Rounded.SelectAll
+                                            },
+                                            onClick = viewModel::toggleSelectAll,
+                                        ),
+                                    )
+                                }
+                                // A ready list can go stale (a library update adds chapters, a
+                                // deletion elsewhere changes the tree), so it is rescanned without
+                                // leaving the screen. Tracked like the entry's own scan, so a pop
+                                // still cancels it.
+                                if (ready != null) {
+                                    add(
+                                        AppBar.Action(
+                                            title = stringResource(KUNMR.strings.orphaned_downloads_refresh),
+                                            icon = MaterialSymbols.Rounded.Refresh,
+                                            onClick = { work.job = viewModel.rescan() },
+                                        ),
+                                    )
+                                }
+                            },
+                        )
                     },
                     scrollBehavior = scrollBehavior,
                 )

@@ -35,7 +35,7 @@ class OrphanedDownloadCleanerImpl(
         // the worst case is that the orphaned files stay on disk a while longer. A cancelled sync or
         // restore is not a failure though: it must stop deleting and propagate.
         runCatching {
-            if (!OrphanedDownloads.shouldRun(downloadPreferences.removeOrphanedDownloads().get(), removedChapters)) {
+            if (!OrphanedDownloads.shouldRun(downloadPreferences.removeOrphanedDownloads.get(), removedChapters)) {
                 return@runCatching
             }
             // An unavailable extension cannot produce the chapter dir names, so we cannot tell an
@@ -50,12 +50,13 @@ class OrphanedDownloadCleanerImpl(
             if (removableChapters.isEmpty()) return@runCatching
             // Read the survivors here, after the caller's transaction committed, so the removed rows
             // are really gone and a replacement chapter is really in. The folder is
-            // `<source dir name>/<manga dir name>`, and neither name is unique: several installed
-            // sources can render the same source dir name (a stored stub can share its name with an
-            // installed source), and two manga entries of one source can share a manga dir name. Every
-            // manga resolving to this folder therefore keeps its files. Folder identity ignores case,
-            // exactly like `OrphanedDownloadScanner`: on a case-insensitive volume two names differing
-            // only in case are one folder, and the other one's chapters are just as live.
+            // `<source dir name>/<manga dir name>`, and neither name is unique: two installed
+            // extensions can render the same source dir name (their display names can be identical,
+            // or identical after `buildValidFilename` truncates them), and two manga entries of one
+            // source can share a manga dir name. Every manga resolving to this folder therefore
+            // keeps its files. Folder identity ignores case, exactly like `OrphanedDownloadScanner`:
+            // on a case-insensitive volume two names differing only in case are one folder, and the
+            // other one's chapters are just as live.
             val sourceDirName = downloadProvider.getSourceDirName(source)
             val mangaDirName = downloadProvider.getMangaDirName(manga.ogTitle)
             val survivorIds = sourceManager.getAll()
@@ -64,8 +65,14 @@ class OrphanedDownloadCleanerImpl(
                 .filter { downloadProvider.getMangaDirName(it.ogTitle).equals(mangaDirName, ignoreCase = true) }
                 .map { it.id }
                 .distinct()
-            // One bulk read for every manga of the folder, not one query per manga.
-            val remainingChapters = chapterRepository.getChaptersByMangaIds(survivorIds)
+            // One bulk read for every manga of the folder, not one query per manga. With no survivor
+            // there is nothing to keep the files for, and an empty id list must not reach SQL — the
+            // generated query cannot bind `IN ()`.
+            val remainingChapters = if (survivorIds.isEmpty()) {
+                emptyList()
+            } else {
+                chapterRepository.getChaptersByMangaIds(survivorIds)
+            }
             downloadManager.deleteOrphanedChapters(removableChapters, remainingChapters, manga, source)
         }.onFailure { e ->
             if (e is CancellationException) throw e

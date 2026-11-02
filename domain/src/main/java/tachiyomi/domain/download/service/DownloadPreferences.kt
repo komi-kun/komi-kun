@@ -54,8 +54,16 @@ class DownloadPreferences(
     // KMK <--
 
     // KUN -->
-    /** Delete the files of chapters that vanished from a source, unless a surviving chapter still uses the name. */
-    fun removeOrphanedDownloads(): Preference<Boolean> =
+    /**
+     * Delete the files of chapters that vanished from a source, unless a surviving chapter still uses
+     * the name.
+     *
+     * A `val`, not a function: a switch is displayed through `PreferenceItem`, which reads it with
+     * `item.preference.collectAsState()` — and that helper's `remember(this) { changes() }` keys the
+     * flow subscription on this very `Preference` instance (identity, not equality). A fresh
+     * instance per call would restart the subscription on every recomposition.
+     */
+    val removeOrphanedDownloads: Preference<Boolean> =
         preferenceStore.getBoolean("pref_remove_orphaned_downloads", true)
     // KUN <--
 

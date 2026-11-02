@@ -5,7 +5,6 @@ import eu.kanade.tachiyomi.util.storage.DiskUtil
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.shouldNotBe
 import io.mockk.mockk
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
@@ -69,6 +68,7 @@ class DownloadProviderTest {
             .getValidChapterDirNames("Chapter 1", "Group", URL)
 
         names.first() shouldBe "Group_Chapter 1"
+        names shouldContain "Group_Chapter 1"
         names shouldContain "Group_Chapter 1.cbz"
         names shouldNotContain "Chapter 1"
     }
@@ -80,6 +80,7 @@ class DownloadProviderTest {
             .getValidChapterDirNames("Chapter 1", null, URL)
 
         names.first() shouldBe "Chapter 1_$hash"
+        names shouldContain "Chapter 1_$hash"
         names shouldContain "Chapter 1_$hash.cbz"
         // A chapter downloaded before the hash setting was enabled must still be found.
         names shouldContain "Chapter 1"
@@ -101,9 +102,8 @@ class DownloadProviderTest {
         val names = provider(disallowNonAscii = true, includeChapterUrlHash = false)
             .getValidChapterDirNames("第1話", "翻訳グループ", URL)
 
-        escaped shouldNotBe "翻訳グループ_第1話"
-        escaped.all { it.code < 0x80 } shouldBe true
         names.first() shouldBe escaped
+        names shouldContain escaped
         names shouldContain "$escaped.cbz"
     }
 

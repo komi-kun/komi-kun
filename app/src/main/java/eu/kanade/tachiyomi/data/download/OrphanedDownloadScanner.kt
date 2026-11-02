@@ -7,6 +7,7 @@ import dev.zacsweers.metro.SingleIn
 import eu.kanade.tachiyomi.source.Source
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import logcat.LogPriority
@@ -54,13 +55,11 @@ class OrphanedDownloadScanner(
      * @param id the stable identity of the entry, which is its [relativePath]; UI selection uses it.
      * @param relativePath its path relative to the downloads root, with `/` separators.
      * @param sizeBytes the total size of the files under it.
-     * @param fileCount how many files are under it (1 for a single file).
      */
     data class OrphanedDownload(
         val id: String,
         val relativePath: String,
         val sizeBytes: Long,
-        val fileCount: Int,
         val kind: Kind,
         val file: UniFile,
     )
@@ -70,13 +69,16 @@ class OrphanedDownloadScanner(
     /**
      * Walks the downloads tree and returns everything no chapter can reach.
      *
-     * A missing or empty downloads directory simply yields an empty list. [onProgress] is called with
-     * the number of manga folders (or unmatched source folders) handled so far, so the caller can show
-     * a determinate bar; `total` is 0 when there is nothing to walk.
+     * An empty downloads directory yields an empty list, but a downloads directory that cannot be
+     * read at all — a revoked storage access grant, a removed SD card — throws instead: reporting it
+     * as "nothing orphaned" would hide every file behind it.
+     *
+     * [onProgress] is called with the number of manga folders (or unmatched source folders) handled
+     * so far, so the caller can show a determinate bar; `total` is 0 when there is nothing to walk.
      */
     suspend fun scan(onProgress: (scanned: Int, total: Int) -> Unit = { _, _ -> }): List<OrphanedDownload> =
         withContext(Dispatchers.IO) {
-            val root = storageManager.getDownloadsDirectory() ?: return@withContext emptyList()
+            val root = downloadsRoot()
 
             // Every installed source the download tree could belong to, keyed by its folder name. More
             // than one source can produce the same name, and their chapters may share the folder.
@@ -90,7 +92,9 @@ class OrphanedDownloadScanner(
                     }
                 }
 
-            val sourceFolders = root.listFiles().orEmpty()
+            // A root that cannot be listed is the same failure as a missing root: `orEmpty()` here
+            // would report a full download tree as empty.
+            val sourceFolders = (root.listFiles() ?: throw downloadsUnavailable())
                 .filter { it.isDirectory && it.name != null }
                 .map { dir ->
                     val name = dir.name!!
@@ -101,8 +105,12 @@ class OrphanedDownloadScanner(
                     SourceFolder(dir, name, mangaDirs)
                 }
 
-            val total = sourceFolders.sumOf { it.mangaDirs.size } +
-                sourceFolders.count { it.name !in sourcesByDirName }
+            // Every walked entry counts exactly once, so `scanned` can actually reach `total`: an
+            // unmatched source folder is one step (its manga folders are never walked), and each
+            // manga folder of a matched source is one step — including one whose name cannot be read.
+            val total = sourceFolders.sumOf { folder ->
+                if (folder.name !in sourcesByDirName) 1 else folder.mangaDirs.size
+            }
             var scanned = 0
             onProgress(scanned, total)
 
@@ -121,21 +129,27 @@ class OrphanedDownloadScanner(
                 val mangasByDirName = mangasByDirName(sourcesByDirName.getValue(folder.name))
                 for (mangaDir in folder.mangaDirs) {
                     ensureActive()
-                    val mangaDirName = mangaDir.name ?: continue
-                    val relativePath = "${folder.name}/$mangaDirName"
-                    val mangas = mangasByDirName[mangaDirName]
-                    if (mangas.isNullOrEmpty()) {
-                        orphans += mangaDir.toOrphan(relativePath, Kind.MANGA)
-                    } else {
-                        val reachable = reachableFileNames(mangas)
-                        mangaDir.listFiles().orEmpty().forEach { entry ->
-                            val entryName = entry.name ?: return@forEach
-                            if (entryName.endsWith(Downloader.TMP_DIR_SUFFIX) ||
-                                !OrphanedDownloads.isOrphaned(entryName, reachable)
-                            ) {
-                                return@forEach
+                    val mangaDirName = mangaDir.name
+                    if (mangaDirName != null) {
+                        val relativePath = "${folder.name}/$mangaDirName"
+                        val mangas = mangasByDirName[mangaDirName]
+                        if (mangas.isNullOrEmpty()) {
+                            orphans += mangaDir.toOrphan(relativePath, Kind.MANGA)
+                        } else {
+                            val reachable = reachableFileNames(mangas)
+                            // An entry with a temporary name is a download in progress, never a
+                            // candidate. One whose name cannot be read is left out of the pairs and
+                            // therefore kept, like the pure filter does.
+                            val entries = mangaDir.listFiles().orEmpty()
+                                .mapNotNull { entry ->
+                                    entry.name
+                                        ?.takeUnless { it.endsWith(Downloader.TMP_DIR_SUFFIX) }
+                                        ?.let { entry to it }
+                                }
+                            val orphanedEntries = OrphanedDownloads.orphaned(entries, { it.second }, reachable)
+                            orphanedEntries.forEach { (entry, name) ->
+                                orphans += entry.toOrphan("$relativePath/$name", Kind.CHAPTER)
                             }
-                            orphans += entry.toOrphan("$relativePath/$entryName", Kind.CHAPTER)
                         }
                     }
                     scanned++
@@ -157,9 +171,11 @@ class OrphanedDownloadScanner(
      * whose files are gone.
      *
      * @return how many entries could be deleted.
+     * @throws IllegalStateException when the downloads directory is unavailable, since nothing can be
+     * deleted then and reporting `0` would look like the caller's selection was empty.
      */
     suspend fun delete(items: List<OrphanedDownload>): Int = withContext(Dispatchers.IO) {
-        val root = storageManager.getDownloadsDirectory() ?: return@withContext 0
+        val root = downloadsRoot()
         val rootUri = root.uri.toString()
 
         var deleted = 0
@@ -228,33 +244,44 @@ class OrphanedDownloadScanner(
 
     private suspend fun reachableFileNames(mangas: List<Manga>): Set<String> {
         val chapters = mangas.flatMap { manga -> chapterRepository.getChapterByMangaId(manga.id) }
-        return OrphanedDownloads.reachableFileNames(chapters) { chapter ->
-            provider.getValidChapterDirNames(chapter.name, chapter.scanlator, chapter.url)
-        }
+        return OrphanedDownloads.reachableFileNames(chapters, provider::getValidChapterDirNames)
     }
 
-    private fun UniFile.toOrphan(relativePath: String, kind: Kind): OrphanedDownload {
-        val (sizeBytes, fileCount) = measure()
+    /**
+     * The downloads root, or a failure when it cannot be read.
+     *
+     * The ViewModel maps this to its scan/delete error state; silently reporting "nothing here"
+     * would present a revoked grant or a removed SD card as a clean download tree.
+     */
+    private fun downloadsRoot(): UniFile {
+        return storageManager.getDownloadsDirectory() ?: throw downloadsUnavailable()
+    }
+
+    private fun downloadsUnavailable() = IllegalStateException("Downloads directory unavailable")
+
+    private suspend fun UniFile.toOrphan(relativePath: String, kind: Kind): OrphanedDownload {
         return OrphanedDownload(
             id = relativePath,
             relativePath = relativePath,
-            sizeBytes = sizeBytes,
-            fileCount = fileCount,
+            sizeBytes = measure(),
             kind = kind,
             file = this,
         )
     }
 
-    /** The total size and file count of this entry, walking a directory's subtree. */
-    private fun UniFile.measure(): Pair<Long, Int> {
-        if (!isDirectory) return length() to 1
+    /**
+     * The total size of this entry, walking a directory's subtree.
+     *
+     * Cancellable at every directory: a large subtree is walked file by file, and leaving the screen
+     * must stop it instead of freezing the progress bar until the walk finishes.
+     */
+    private suspend fun UniFile.measure(): Long {
+        currentCoroutineContext().ensureActive()
+        if (!isDirectory) return length()
         var sizeBytes = 0L
-        var fileCount = 0
         listFiles().orEmpty().forEach { child ->
-            val (childBytes, childFiles) = child.measure()
-            sizeBytes += childBytes
-            fileCount += childFiles
+            sizeBytes += child.measure()
         }
-        return sizeBytes to fileCount
+        return sizeBytes
     }
 }
