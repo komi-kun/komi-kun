@@ -331,7 +331,7 @@
     <string name="pref_remove_orphaned_downloads">Verwaiste Downloads löschen</string>
     <string name="pref_remove_orphaned_downloads_summary">Wenn eine Synchronisierung Kapitel entfernt, werden die heruntergeladenen Dateien gelöscht, die kein verbleibendes Kapitel mehr verwendet. Ein Kapitel, das im selben Durchlauf ersetzt wird, behält seine Dateien.</string>
     <string name="pref_orphaned_downloads_scan">Nach verwaisten Downloads suchen</string>
-    <string name="pref_orphaned_downloads_scan_summary">Findet heruntergeladene Dateien, die kein Kapitel mehr benennen kann, und löscht sie. Anders als die Bereinigung unter „Erweitert“ werden gelesene oder mit Lesezeichen versehene Kapitel nie angetastet.</string>
+    <string name="pref_orphaned_downloads_scan_summary">Findet und löscht heruntergeladene Dateien, die kein Kapitel mehr benennen kann. Die automatische Bereinigung löscht nur Dateien verschwundener Kapitel und behält mit Lesezeichen versehene, solange das Löschen von Kapiteln mit Lesezeichen aus ist.</string>
     <string name="orphaned_downloads_title">Verwaiste Downloads</string>
     <string name="orphaned_downloads_scanning">Heruntergeladene Dateien werden durchsucht…</string>
     <string name="orphaned_downloads_progress">Suche… %1$d/%2$d</string>
@@ -342,7 +342,6 @@
     <string name="orphaned_downloads_kind_source">Quelle nicht installiert</string>
     <string name="orphaned_downloads_confirm_title">Verwaiste Dateien löschen?</string>
     <string name="orphaned_downloads_confirm_message">%1$d ausgewählte Einträge löschen und %2$s freigeben? Das kann nicht rückgängig gemacht werden.</string>
-    <string name="orphaned_downloads_deleted">%1$d verwaiste Einträge gelöscht</string>
     <string name="orphaned_downloads_scan_failed">Die Downloads konnten nicht gelesen werden. Prüfe den Speicherzugriff und versuche es erneut.</string>
     <string name="orphaned_downloads_delete_failed">Die ausgewählten Dateien konnten nicht gelöscht werden. Prüfe den Speicherzugriff und versuche es erneut.</string>
 </resources>

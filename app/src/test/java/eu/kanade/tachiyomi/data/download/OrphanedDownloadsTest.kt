@@ -120,4 +120,18 @@ class OrphanedDownloadsTest {
         OrphanedDownloads.shouldRun(enabled = true, removedChapters = emptyList()) shouldBe false
         OrphanedDownloads.shouldRun(enabled = false, removedChapters = emptyList()) shouldBe false
     }
+
+    @Test
+    fun `a bookmarked removed chapter keeps its files while bookmark retention is off`() {
+        val bookmarked = chapter(id = 1, name = "Vol.01 Ch.001").copy(bookmark = true)
+        val plain = chapter(id = 2, name = "Vol.01 Ch.002")
+
+        // Retention off: the bookmarked chapter is not handed over for deletion, so its file stays.
+        OrphanedDownloads.removableChapters(listOf(bookmarked, plain), removeBookmarkedChapters = false)
+            .map { it.id } shouldBe listOf(2L)
+
+        // Retention on: the bookmark no longer protects the file.
+        OrphanedDownloads.removableChapters(listOf(bookmarked, plain), removeBookmarkedChapters = true)
+            .map { it.id } shouldBe listOf(1L, 2L)
+    }
 }

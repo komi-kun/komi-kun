@@ -41,4 +41,16 @@ object OrphanedDownloads {
     fun shouldRun(enabled: Boolean, removedChapters: List<Chapter>): Boolean {
         return enabled && removedChapters.isNotEmpty()
     }
+
+    /**
+     * The removed chapters whose files may be deleted.
+     *
+     * A removed chapter that is still bookmarked keeps its file while bookmarked chapters are
+     * protected, exactly as `DownloadManager.getChaptersToDelete` decides for the removal flows.
+     * Category exclusion is deliberately not applied here: the chapters are already gone, so their
+     * categories no longer say anything about what the user wants to keep.
+     */
+    fun removableChapters(removedChapters: List<Chapter>, removeBookmarkedChapters: Boolean): List<Chapter> {
+        return if (removeBookmarkedChapters) removedChapters else removedChapters.filterNot { it.bookmark }
+    }
 }

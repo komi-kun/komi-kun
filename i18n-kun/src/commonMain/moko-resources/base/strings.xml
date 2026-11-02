@@ -331,7 +331,7 @@
     <string name="pref_remove_orphaned_downloads">Delete orphaned downloads</string>
     <string name="pref_remove_orphaned_downloads_summary">When a sync removes chapters, delete the downloaded files that no remaining chapter uses. A chapter replaced in the same update keeps its files.</string>
     <string name="pref_orphaned_downloads_scan">Scan for orphaned downloads</string>
-    <string name="pref_orphaned_downloads_scan_summary">Find downloaded files that no chapter can name any more and delete them. Unlike the cleanup in Advanced, read or bookmarked chapters are never touched.</string>
+    <string name="pref_orphaned_downloads_scan_summary">Find and delete downloaded files that no chapter can name any more. The automatic cleanup only deletes files of chapters that disappeared, and keeps bookmarked ones while removing bookmarked chapters is off.</string>
     <string name="orphaned_downloads_title">Orphaned downloads</string>
     <string name="orphaned_downloads_scanning">Scanning downloaded files…</string>
     <string name="orphaned_downloads_progress">Scanning… %1$d/%2$d</string>
@@ -342,7 +342,6 @@
     <string name="orphaned_downloads_kind_source">Source not installed</string>
     <string name="orphaned_downloads_confirm_title">Delete orphaned files?</string>
     <string name="orphaned_downloads_confirm_message">Delete %1$d selected entries and free %2$s? This cannot be undone.</string>
-    <string name="orphaned_downloads_deleted">Deleted %1$d orphaned entries</string>
     <string name="orphaned_downloads_scan_failed">The downloads could not be read. Check storage access and try again.</string>
     <string name="orphaned_downloads_delete_failed">The selected files could not be deleted. Check storage access and try again.</string>
 </resources>

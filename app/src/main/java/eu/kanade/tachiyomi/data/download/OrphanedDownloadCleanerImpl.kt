@@ -41,17 +41,32 @@ class OrphanedDownloadCleanerImpl(
             // An unavailable extension cannot produce the chapter dir names, so we cannot tell an
             // orphan from a file a surviving chapter still uses. Do nothing rather than guess.
             val source = sourceManager.get(manga.source) ?: return@runCatching
+            // A removed chapter whose file must be kept (a bookmarked one while bookmark retention is
+            // off) is never handed over for deletion: `getChaptersToDelete` keeps it for the same reason.
+            val removableChapters = OrphanedDownloads.removableChapters(
+                removedChapters,
+                removeBookmarkedChapters = downloadPreferences.removeBookmarkedChapters.get(),
+            )
+            if (removableChapters.isEmpty()) return@runCatching
             // Read the survivors here, after the caller's transaction committed, so the removed rows
-            // are really gone and a replacement chapter is really in. The download folder is
-            // `<manga dir name>`, which is not unique per manga: two entries of the same source with
-            // the same title share it, so every manga resolving to this folder has to keep its files.
-            // Folder identity ignores case: on a case-insensitive volume two titles differing only in
-            // case share one folder, and the other one's chapters are just as live.
-            val folder = downloadProvider.getMangaDirName(manga.ogTitle)
-            val remainingChapters = mangaRepository.getMangaBySourceId(manga.source)
-                .filter { downloadProvider.getMangaDirName(it.ogTitle).equals(folder, ignoreCase = true) }
-                .flatMap { chapterRepository.getChapterByMangaId(it.id) }
-            downloadManager.deleteOrphanedChapters(removedChapters, remainingChapters, manga, source)
+            // are really gone and a replacement chapter is really in. The folder is
+            // `<source dir name>/<manga dir name>`, and neither name is unique: several installed
+            // sources can render the same source dir name (a stored stub can share its name with an
+            // installed source), and two manga entries of one source can share a manga dir name. Every
+            // manga resolving to this folder therefore keeps its files. Folder identity ignores case,
+            // exactly like `OrphanedDownloadScanner`: on a case-insensitive volume two names differing
+            // only in case are one folder, and the other one's chapters are just as live.
+            val sourceDirName = downloadProvider.getSourceDirName(source)
+            val mangaDirName = downloadProvider.getMangaDirName(manga.ogTitle)
+            val survivorIds = sourceManager.getAll()
+                .filter { downloadProvider.getSourceDirName(it).equals(sourceDirName, ignoreCase = true) }
+                .flatMap { mangaRepository.getMangaBySourceId(it.id) }
+                .filter { downloadProvider.getMangaDirName(it.ogTitle).equals(mangaDirName, ignoreCase = true) }
+                .map { it.id }
+                .distinct()
+            // One bulk read for every manga of the folder, not one query per manga.
+            val remainingChapters = chapterRepository.getChaptersByMangaIds(survivorIds)
+            downloadManager.deleteOrphanedChapters(removableChapters, remainingChapters, manga, source)
         }.onFailure { e ->
             if (e is CancellationException) throw e
             xLogE("Failed to clean up orphaned downloads of manga ${manga.id}", e)

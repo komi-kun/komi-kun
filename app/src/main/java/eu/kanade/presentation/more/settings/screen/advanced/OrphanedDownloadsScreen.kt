@@ -23,7 +23,6 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -69,7 +68,15 @@ import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.screens.EmptyScreen
 import tachiyomi.presentation.core.screens.EmptyScreenAction
 import tachiyomi.presentation.core.util.selectedBackground
-import tachiyomi.core.common.i18n.stringResource as contextStringResource
+import tachiyomi.core.common.i18n.pluralStringResource as contextPluralStringResource
+
+/**
+ * Mutable holder for the job a screen entry owns, so assigning a declined delete cannot drop the
+ * job already tracked (see [OrphanedDownloadsScreen.Content]).
+ */
+private class JobHolder {
+    var job: Job? = null
+}
 
 /**
  * Lists the downloaded files no chapter can reach any more and lets the user delete the selected ones.
@@ -85,7 +92,9 @@ class OrphanedDownloadsScreen : Screen() {
 
         LaunchedEffect(viewModel) {
             viewModel.deleted.collect { count ->
-                context.toast(context.contextStringResource(KUNMR.strings.orphaned_downloads_deleted, count))
+                context.toast(
+                    context.contextPluralStringResource(KUNMR.plurals.orphaned_downloads_deleted, count, count),
+                )
             }
         }
 
@@ -95,10 +104,14 @@ class OrphanedDownloadsScreen : Screen() {
         // and cancels exactly those on dispose. Cancelling "whatever job is current" instead would
         // kill the next entry's scan, because Voyager composes the new entry before disposing this
         // one, which left a fast pop and reopen spinning forever.
-        val work = remember(viewModel) { mutableStateOf<Job?>(null) }
+        //
+        // A plain holder, not a `MutableState`: assigning the result of `deleteSelected` over it would
+        // overwrite the tracked job with `null` when that call declines (nothing selected, or no ready
+        // list), and `onDispose` could then no longer cancel the scan still running.
+        val work = remember(viewModel) { JobHolder() }
         DisposableEffect(viewModel) {
-            work.value = viewModel.rescan()
-            onDispose { work.value?.cancel() }
+            work.job = viewModel.rescan()
+            onDispose { work.job?.cancel() }
         }
 
         Scaffold(
@@ -145,7 +158,7 @@ class OrphanedDownloadsScreen : Screen() {
                         DeleteConfirmationDialog(
                             itemCount = s.selection.size,
                             totalSize = s.items.filter { it.id in s.selection }.sumOf { it.sizeBytes },
-                            onConfirm = { work.value = viewModel.deleteSelected() },
+                            onConfirm = { viewModel.deleteSelected()?.let { work.job = it } },
                             onDismiss = viewModel::hideConfirmation,
                         )
                     }
@@ -167,7 +180,7 @@ class OrphanedDownloadsScreen : Screen() {
                                 EmptyScreenAction(
                                     stringRes = MR.strings.action_retry,
                                     icon = MaterialSymbols.Rounded.Refresh,
-                                    onClick = { work.value = viewModel.rescan() },
+                                    onClick = { work.job = viewModel.rescan() },
                                 ),
                             ),
                         )
@@ -411,8 +424,10 @@ class OrphanedDownloadsViewModel(
         val selected = ready.items.filter { it.id in ready.selection }
         if (selected.isEmpty()) return null
 
-        _state.value = State.Scanning()
+        // Cancel first, then replace the state: a late progress callback from the outgoing scan must
+        // not overwrite the new state (same order as [rescan]).
         workJob?.cancel()
+        _state.value = State.Scanning()
         return viewModelScope.launch {
             val deletedCount = runCatching { scanner.delete(selected) }
                 .onFailure { e ->
@@ -450,9 +465,13 @@ class OrphanedDownloadsViewModel(
             val showConfirmation: Boolean = false,
             val error: Error? = null,
         ) : State {
-            /** The entries "select all" may pick: only single chapter files and folders. */
-            val selectableIds: Set<String>
-                get() = items.filter { it.kind == Kind.CHAPTER }.mapTo(mutableSetOf()) { it.id }
+            /**
+             * The entries "select all" may pick: only single chapter files and folders.
+             *
+             * A body `val`, computed once per instance: the app bar reads it on every progress tick of
+             * the scan, and a getter would rebuild the set each time.
+             */
+            val selectableIds: Set<String> = items.filter { it.kind == Kind.CHAPTER }.mapTo(mutableSetOf()) { it.id }
 
             val allSelected: Boolean
                 get() = selectableIds.isNotEmpty() && selection.containsAll(selectableIds)

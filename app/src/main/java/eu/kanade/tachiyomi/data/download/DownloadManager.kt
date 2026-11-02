@@ -338,12 +338,14 @@ class DownloadManager(
     /**
      * Deletes the downloaded files of chapters that no longer exist in the database.
      *
-     * A file is only deleted when no surviving chapter of [manga] can still resolve to the same
-     * name: a replacement chapter with an identical name, scanlator and url hash keeps its file.
-     * The comparison is therefore against [provider]'s valid chapter dir names of
-     * [remainingChapters], never against the removed chapter's id.
+     * A file is only deleted when no surviving chapter of [manga]'s download folder can still
+     * resolve to the same name: a replacement chapter with an identical name, scanlator and url
+     * hash keeps its file. The comparison is therefore against [provider]'s valid chapter dir names
+     * of [remainingChapters], never against the removed chapter's id.
      *
-     * @param removedChapters the chapters whose rows are already gone.
+     * @param removedChapters the chapters whose rows are already gone, already filtered to the ones
+     * whose files may be deleted (the caller keeps a bookmarked chapter while bookmark retention is
+     * off).
      * @param remainingChapters the surviving chapters that share the manga's download folder, read
      * after the rows were removed.
      * @param manga the manga of the chapters.
@@ -364,25 +366,17 @@ class DownloadManager(
             }
 
             val (mangaDir, dirs) = provider.findChapterDirs(removedChapters, manga, source)
-            // The removed rows are gone, so their bookmark/category state is deliberately not
-            // consulted (unlike `getChaptersToDelete`): nothing survives that could keep the file.
-            // Every name `getValidChapterDirNames` returns is checked, so an `X.cbz` file and an
-            // `X` folder are both kept when a surviving chapter still resolves to them, and an entry
-            // whose name cannot be read is kept as well (`isOrphaned` fails closed).
+            // The removed rows are gone, so their category state is deliberately not consulted
+            // (unlike `getChaptersToDelete`). A removed chapter whose file has to be kept — a
+            // bookmarked one while bookmark retention is off — never reaches this method: the cleaner
+            // filters it out first. Every name `getValidChapterDirNames` returns is checked, so an
+            // `X.cbz` file and an `X` folder are both kept when a surviving chapter still resolves to
+            // them, and an entry whose name cannot be read is kept as well (`isOrphaned` fails closed).
             val orphanedDirs = dirs.filter { dir -> OrphanedDownloads.isOrphaned(dir.name, reachable) }
             if (orphanedDirs.isEmpty()) return@withContext
 
             downloader.dequeue(removedChapters)
             orphanedDirs.forEach { it.delete() }
-            // A full rescan: a targeted `removeChapters` would also evict the surviving chapter's
-            // identically named entry.
-            cache.invalidateCache()
-
-            // Their pages are gone with the rows, so drop their OCR cache entries too — one batch
-            // call, exactly like `deleteChapters`.
-            ocrManager.deleteOcrForChapters(
-                removedChapters.map { chapter -> ocrManager.cacheKey(manga.source, chapter.mangaId, chapter.id) },
-            )
 
             // Delete the manga directory only if it became empty — and the source directory if that
             // is now empty too. Deliberately *not* `deleteManga`: that would also wipe the manga's
@@ -395,6 +389,17 @@ class DownloadManager(
                     sourceDir.delete()
                 }
             }
+
+            // A full rescan, and only now: every directory this pass removed is gone, so the rescan
+            // cannot index one that is about to disappear. A targeted `removeChapters` would also
+            // evict the surviving chapter's identically named entry.
+            cache.invalidateCache()
+
+            // Their pages are gone with the rows, so drop their OCR cache entries too — one batch
+            // call, exactly like `deleteChapters`.
+            ocrManager.deleteOcrForChapters(
+                removedChapters.map { chapter -> ocrManager.cacheKey(manga.source, chapter.mangaId, chapter.id) },
+            )
         }
     }
     // KUN <--
