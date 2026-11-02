@@ -5,6 +5,16 @@ package mihon.core.dictionary.audio
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import okhttp3.Dns
 import okhttp3.OkHttpClient
 import okhttp3.Protocol
@@ -17,6 +27,7 @@ import org.junit.jupiter.api.io.TempDir
 import java.io.File
 import java.net.InetAddress
 import java.net.UnknownHostException
+import java.util.concurrent.atomic.AtomicInteger
 
 class AudioCacheTest {
 
@@ -26,6 +37,8 @@ class AudioCacheTest {
     @BeforeEach
     fun setUp() {
         AudioCache.clear()
+        // A test that aborts mid-download must not leak its gate (or its join hook) into the next.
+        AudioCache.resetInFlightForTest()
         AudioCache.setMaxMemoryBytes(AudioCache.DEFAULT_MAX_MEMORY_BYTES)
     }
 
@@ -337,6 +350,217 @@ class AudioCacheTest {
 
         val huge = ByteArray((MAX_WORD_AUDIO_BYTES + 1).toInt()) { 1 }
         AudioCache.readAudioBodyCapped(huge.inputStream()) shouldBe null
+    }
+
+    // --- in-flight dedupe (a play tap must not re-GET a clip that is already downloading) ------
+
+    @Test
+    fun `two concurrent downloads of one url issue a single request`() {
+        runBlocking {
+            val url = "https://example.com/audio.mp3"
+            val bytes = ByteArray(512) { 7 }
+            val requests = AtomicInteger()
+            val leaderEntered = CompletableDeferred<Unit>()
+            val releaseLeader = CompletableDeferred<Unit>()
+            lateinit var client: OkHttpClient
+            client = OkHttpClient.Builder()
+                .addInterceptor { chain ->
+                    requests.incrementAndGet()
+                    leaderEntered.complete(Unit)
+                    // Hold the response open until the concurrent caller has been started, so that
+                    // it provably runs while this download is still in flight.
+                    runBlocking { withTimeout(5_000) { releaseLeader.await() } }
+                    Response.Builder()
+                        .request(chain.request())
+                        .protocol(Protocol.HTTP_1_1)
+                        .code(200)
+                        .message("OK")
+                        .body(bytes.toResponseBody(null))
+                        .build()
+                }
+                .build()
+
+            val joined = CompletableDeferred<Unit>()
+            AudioCache.onJoinedInFlight = { joined.complete(Unit) }
+
+            val leader = async(Dispatchers.IO) { AudioCache.getOrDownload(url, client) }
+            withTimeout(5_000) { leaderEntered.await() }
+            val follower = async(Dispatchers.IO) { AudioCache.getOrDownload(url, client) }
+            // The join latch proves the follower entered the dedupe path while the leader's request
+            // was still open — no sleep, and without dedupe it never fires and the count below is 2.
+            withTimeout(5_000) { joined.await() }
+            releaseLeader.complete(Unit)
+
+            leader.await() shouldBe bytes
+            follower.await() shouldBe bytes
+            requests.get() shouldBe 1
+        }
+    }
+
+    @Test
+    fun `a prefetch and a play tap of the same url share one request`() {
+        runBlocking {
+            val url = "https://example.com/prefetched.mp3"
+            val bytes = ByteArray(256) { 3 }
+            val requests = AtomicInteger()
+            val entered = CompletableDeferred<Unit>()
+            val release = CompletableDeferred<Unit>()
+            val joined = CompletableDeferred<Unit>()
+            AudioCache.onJoinedInFlight = { joined.complete(Unit) }
+            val prefetchScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+            lateinit var client: OkHttpClient
+            client = OkHttpClient.Builder()
+                .addInterceptor { chain ->
+                    requests.incrementAndGet()
+                    entered.complete(Unit)
+                    // Held open until the tap has provably joined, so the tap cannot simply run
+                    // after this request finished and hit the completed cache instead.
+                    runBlocking { withTimeout(5_000) { release.await() } }
+                    Response.Builder()
+                        .request(chain.request())
+                        .protocol(Protocol.HTTP_1_1)
+                        .code(200)
+                        .message("OK")
+                        .body(bytes.toResponseBody(null))
+                        .build()
+                }
+                .build()
+
+            // `prefetch` funnels through `getOrDownload`, so a tap landing during its GET must join
+            // that download instead of starting another.
+            AudioCache.prefetch(url, client, prefetchScope)
+            withTimeout(5_000) { entered.await() }
+
+            val tap = async(Dispatchers.IO) { AudioCache.getOrDownload(url, client) }
+            withTimeout(5_000) { joined.await() }
+            release.complete(Unit)
+
+            tap.await() shouldBe bytes
+            requests.get() shouldBe 1
+            AudioCache.get(url) shouldBe bytes
+            prefetchScope.cancel()
+        }
+    }
+
+    @Test
+    fun `concurrent downloads of different urls each issue their own request`() {
+        runBlocking {
+            val first = "https://example.com/one.mp3"
+            val second = "https://example.com/two.mp3"
+            val firstBytes = ByteArray(64) { 1 }
+            val secondBytes = ByteArray(64) { 2 }
+            val requests = AtomicInteger()
+            val inFlight = AtomicInteger()
+            val bothInFlight = CompletableDeferred<Unit>()
+            val release = CompletableDeferred<Unit>()
+            val client = OkHttpClient.Builder()
+                .addInterceptor { chain ->
+                    requests.incrementAndGet()
+                    if (inFlight.incrementAndGet() == 2) bothInFlight.complete(Unit)
+                    // Barrier: neither response is released until *both* requests are in flight, so
+                    // a single global gate (which would serialise or merge them) cannot get here.
+                    runBlocking { withTimeout(5_000) { release.await() } }
+                    val body = if (chain.request().url.toString() == first) firstBytes else secondBytes
+                    Response.Builder()
+                        .request(chain.request())
+                        .protocol(Protocol.HTTP_1_1)
+                        .code(200)
+                        .message("OK")
+                        .body(body.toResponseBody(null))
+                        .build()
+                }
+                .build()
+
+            val one = async(Dispatchers.IO) { AudioCache.getOrDownload(first, client) }
+            val two = async(Dispatchers.IO) { AudioCache.getOrDownload(second, client) }
+            withTimeout(5_000) { bothInFlight.await() }
+            release.complete(Unit)
+
+            one.await() shouldBe firstBytes
+            two.await() shouldBe secondBytes
+            requests.get() shouldBe 2
+        }
+    }
+
+    @Test
+    fun `a failed download removes the in-flight gate so the next attempt retries`() {
+        runBlocking {
+            val url = "https://example.com/fails-once.mp3"
+            val bytes = ByteArray(128) { 9 }
+            val attempts = AtomicInteger()
+            lateinit var client: OkHttpClient
+            client = OkHttpClient.Builder()
+                .addInterceptor { chain ->
+                    val attempt = attempts.incrementAndGet()
+                    val code = if (attempt == 1) 404 else 200
+                    Response.Builder()
+                        .request(chain.request())
+                        .protocol(Protocol.HTTP_1_1)
+                        .code(code)
+                        .message(if (code == 200) "OK" else "Not Found")
+                        .body(if (code == 200) bytes.toResponseBody(null) else "".toResponseBody(null))
+                        .build()
+                }
+                .build()
+
+            AudioCache.getOrDownload(url, client) shouldBe null
+            // The gate must not outlive the failed request: it would otherwise hand every later
+            // caller the same "no bytes" answer without ever retrying. The download coroutine
+            // removes it just *after* completing the gate, so wait for that instead of assuming it
+            // already happened — the retry below is the real assertion.
+            awaitNoInFlightDownloads()
+
+            AudioCache.getOrDownload(url, client) shouldBe bytes
+            attempts.get() shouldBe 2
+            awaitNoInFlightDownloads()
+        }
+    }
+
+    /** Bounded poll for the gate removal that the download coroutine performs after completion. */
+    private suspend fun awaitNoInFlightDownloads() {
+        withTimeout(5_000) {
+            while (AudioCache.inFlightDownloadCount() != 0) delay(10)
+        }
+    }
+
+    @Test
+    fun `a cancelled waiter does not release the in-flight gate`() {
+        runBlocking {
+            val url = "https://example.com/cancelled-waiter.mp3"
+            val bytes = ByteArray(64) { 5 }
+            val requests = AtomicInteger()
+            val entered = CompletableDeferred<Unit>()
+            val release = CompletableDeferred<Unit>()
+            lateinit var client: OkHttpClient
+            client = OkHttpClient.Builder()
+                .addInterceptor { chain ->
+                    requests.incrementAndGet()
+                    entered.complete(Unit)
+                    runBlocking { withTimeout(5_000) { release.await() } }
+                    Response.Builder()
+                        .request(chain.request())
+                        .protocol(Protocol.HTTP_1_1)
+                        .code(200)
+                        .message("OK")
+                        .body(bytes.toResponseBody(null))
+                        .build()
+                }
+                .build()
+
+            // The previous playback job is cancelled on every tap; that caller must not take the
+            // gate down with it while the fetch is still running.
+            val waiter = async(Dispatchers.IO) { AudioCache.getOrDownload(url, client) }
+            withTimeout(5_000) { entered.await() }
+            waiter.cancelAndJoin()
+            AudioCache.inFlightDownloadCount() shouldBe 1
+
+            val second = async(Dispatchers.IO) { AudioCache.getOrDownload(url, client) }
+            release.complete(Unit)
+
+            withTimeout(5_000) { second.await() } shouldBe bytes
+            requests.get() shouldBe 1
+            awaitNoInFlightDownloads()
+        }
     }
 }
 // KUN <--

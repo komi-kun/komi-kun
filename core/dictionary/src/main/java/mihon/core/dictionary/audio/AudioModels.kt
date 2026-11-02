@@ -116,4 +116,36 @@ data class AudioResolution(
     val sources: List<AudioSourceConfig>,
     val candidates: List<AudioCandidate>,
 )
+
+/**
+ * One step of [AudioResolver.stream]: a [resolution] snapshot of everything resolved so far, whether
+ * this is the last one ([done]), and which effective sources have already returned (yielded or not).
+ * Every emission carries the same effective source list; the final, `done` emission is identical to
+ * what the one-shot `resolve()` returns.
+ */
+data class AudioResolutionUpdate(
+    val resolution: AudioResolution,
+    val done: Boolean,
+    /** Indices into [AudioResolution.sources] whose `candidatesFor` has returned. */
+    val resolvedSourceIndices: Set<Int> = emptySet(),
+) {
+    /**
+     * True as soon as the **highest-priority** source that will ever have a sample is known.
+     *
+     * That is: there is a candidate with a source identity, and every source ahead of the best one
+     * has already resolved. Waiting for those is what makes the first sample the user's configured
+     * first choice rather than whichever source answered fastest; sources *below* the best one are
+     * not waited for, because they can never outrank it. On the final (`done`) snapshot this is
+     * therefore `candidates.isNotEmpty()`.
+     */
+    val playbackReady: Boolean
+        get() {
+            val best = resolution.candidates
+                .map { it.sourceIndex }
+                .filter { it >= 0 }
+                .minOrNull()
+                ?: return false
+            return (0 until best).all { it in resolvedSourceIndices }
+        }
+}
 // KUN <--

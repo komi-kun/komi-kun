@@ -2148,30 +2148,141 @@
     return (expression || '') + ':' + (reading || '');
   }
 
-  function requestAudioCandidates(expression, reading, handler) {
+  // Bounded: the cache outlives every lookup otherwise, and each entry holds the whole payload.
+  const AUDIO_CANDIDATES_CACHE_LIMIT = 24;
+
+  function cacheAudioState(key, state) {
+    // Re-insert so Map iteration order stays LRU.
+    _audioCandidatesCache.delete(key);
+    _audioCandidatesCache.set(key, state);
+    while (_audioCandidatesCache.size > AUDIO_CANDIDATES_CACHE_LIMIT) {
+      // Evict the oldest entry whatever its state. A *partial* entry (an interrupted lookup whose
+      // final `done` never arrives) must not pin itself forever, and evicting one is harmless: the
+      // streaming handler lives in `_pendingAudioRequests`, not in this cache, so the worst case is
+      // a re-resolve on the next tap.
+      const oldest = _audioCandidatesCache.keys().next();
+      if (oldest.done) break;
+      _audioCandidatesCache.delete(oldest.value);
+    }
+  }
+
+  // Stores one (possibly partial) native snapshot for [key]. Native snapshots are cumulative and
+  // already in configured source order, so the payload's list *replaces* the cached one: appending
+  // arrivals would order candidates (and the "default" badge / playDefault list) fastest-first.
+  // Duplicate URLs keep their first occurrence, as the resolver does.
+  function mergeAudioSnapshot(key, payload, done) {
+    const {sources, candidates} = audioPayload(payload);
+    const seen = new Set();
+    const ordered = [];
+    candidates.forEach((candidate) => {
+      if (!candidate || !candidate.url || seen.has(candidate.url)) return;
+      seen.add(candidate.url);
+      ordered.push(candidate);
+    });
+    const previous = _audioCandidatesCache.get(key);
+    const state = {
+      sources: sources.length > 0 ? sources : (previous ? audioPayload(previous).sources : []),
+      candidates: ordered,
+      done: done === true,
+      playbackReady: payload && payload.playbackReady === true,
+    };
+    // A finished lookup that has samples is playable by definition (this also covers a payload from
+    // a bridge that predates the flag), so a later tap on the finalised entry never re-resolves.
+    if (state.done && state.candidates.length > 0) state.playbackReady = true;
+    cacheAudioState(key, state);
+    return state;
+  }
+
+  function audioUrls(payload) {
+    return audioPayload(payload).candidates.map(c => c.url).filter(Boolean);
+  }
+
+  /**
+   * Drops every in-flight audio request and its handlers. Called when the rendered results are
+   * replaced for a *new* lookup: a previous word's stream must not play or open a menu on a button
+   * that no longer exists. Native playback that is already running is untouched (stopping it is a
+   * separate, explicit action), so a re-render of the same word does not cut its audio.
+   */
+  function resetAudioRequests() {
+    _audioCallbacks.clear();
+    _pendingAudioRequests.clear();
+    closeAudioMenu();
+  }
+
+  /** The audio cache keys of the entries a render is about to display (same key as the buttons). */
+  function audioKeysOfResults(results) {
+    const keys = new Set();
+    (Array.isArray(results) ? results : []).forEach((result) => {
+      if (!result || result.kanji) return;
+      const expression = (result.term && result.term.expression) || result.matched || '';
+      const reading = result.term && result.term.reading ? result.term.reading : '';
+      keys.add(audioKey(expression, reading));
+    });
+    return keys;
+  }
+
+  /**
+   * Drops audio requests for words the render no longer displays (a new lookup, or a shorter result
+   * set). Any render closes the picker, so there is no menu to update here; what must not survive is
+   * a pending resolve for a word whose button is gone. Words still on screen keep their request, so
+   * a re-render of the same word does not lose a resolve that is already streaming in.
+   */
+  function pruneAudioRequests(keepKeys) {
+    for (const [callbackId, entry] of Array.from(_audioCallbacks.entries())) {
+      if (entry && entry.key && keepKeys.has(entry.key)) continue;
+      _audioCallbacks.delete(callbackId);
+    }
+    for (const key of Array.from(_pendingAudioRequests.keys())) {
+      if (!keepKeys.has(key)) _pendingAudioRequests.delete(key);
+    }
+  }
+
+  /**
+   * Asks the native bridge for the word's audio candidates.
+   *
+   * [onUpdate] is called with every snapshot — `(payload, done)` — so a caller can start playback
+   * from the first hit instead of waiting for every source. It is called once with `done = true`
+   * when the request (or a completed cache entry) is exhausted. Resolution is never started at
+   * render time: this is the *only* entry point, and only a play tap / picker open reaches it.
+   *
+   * [owner]/[kind] make the registration idempotent *per action*: the same action on the same button
+   * (a second play tap, a second long-press on the same entry) replaces its previous waiter instead of
+   * stacking one more — which would start playback / rebuild the picker once per press for every
+   * snapshot. Different actions stay independent: long-pressing while a play tap is waiting must not
+   * drop the play waiter, or that press would never play and never report a failure.
+   */
+  function requestAudioCandidates(expression, reading, onUpdate, owner, kind) {
     const key = audioKey(expression, reading);
-    if (_audioCandidatesCache.has(key)) {
-      if (typeof handler === 'function') {
-        handler(_audioCandidatesCache.get(key));
-      }
+    const cached = _audioCandidatesCache.get(key);
+    if (cached && cached.done) {
+      if (typeof onUpdate === 'function') onUpdate(cached, true);
       return;
     }
+
+    const waiter = typeof onUpdate === 'function'
+      ? { owner: owner || null, kind: kind || null, fn: onUpdate }
+      : null;
 
     if (_pendingAudioRequests.has(key)) {
-      if (typeof handler === 'function') {
-        _pendingAudioRequests.get(key).push(handler);
+      const waiters = _pendingAudioRequests.get(key);
+      if (waiter) {
+        // Only an identical (owner, kind) pair is replaced; another action on the same button keeps
+        // its own waiter.
+        const isSameAction = (w) => w.owner === waiter.owner && w.kind === waiter.kind;
+        const kept = waiter.owner ? waiters.filter((w) => !isSameAction(w)) : waiters;
+        kept.push(waiter);
+        _pendingAudioRequests.set(key, kept);
       }
       return;
     }
 
-    const handlers = [];
-    if (typeof handler === 'function') handlers.push(handler);
-    _pendingAudioRequests.set(key, handlers);
+    const waiters = waiter ? [waiter] : [];
+    _pendingAudioRequests.set(key, waiters);
 
     const bridge = _audioNative();
     if (!bridge) {
       _pendingAudioRequests.delete(key);
-      if (typeof handler === 'function') handler({ sources: [], candidates: [] });
+      if (typeof onUpdate === 'function') onUpdate({ sources: [], candidates: [] }, true);
       return;
     }
 
@@ -2213,12 +2324,14 @@
 
   let _audioMenuNode = null;
   let _audioMenuDismiss = null;
+  let _audioMenuButton = null;
 
   function closeAudioMenu() {
     if (_audioMenuNode) {
       _audioMenuNode.remove();
       _audioMenuNode = null;
     }
+    _audioMenuButton = null;
     if (_audioMenuDismiss) {
       document.removeEventListener('pointerdown', _audioMenuDismiss, true);
       window.removeEventListener('scroll', _audioMenuDismiss, true);
@@ -2227,9 +2340,25 @@
     }
   }
 
-  function showAudioMenu(button, payload) {
+  /**
+   * Applies a streaming snapshot to an *already open* picker for the same button. A menu the user
+   * dismissed is never re-opened by a later snapshot, and a menu for another entry is left alone.
+   */
+  function updateAudioMenu(button, payload, loading) {
+    if (!_audioMenuNode || !_audioMenuNode.isConnected || _audioMenuButton !== button) return;
+    showAudioMenu(button, payload, loading);
+  }
+
+  /**
+   * Builds (or rebuilds) the picker for [button].
+   *
+   * [loading] true renders the "Loading audio…" row used while the sources are still resolving; the
+   * terminal snapshot renders a single non-interactive "No audio found" row when it has no samples,
+   * so a long-press always has a visible outcome. A source only gets a group when it actually
+   * produced a sample.
+   */
+  function showAudioMenu(button, payload, loading) {
     const {sources, candidates} = audioPayload(payload);
-    if (sources.length === 0 && candidates.length === 0) return;
 
     closeAudioMenu();
 
@@ -2245,10 +2374,14 @@
     menu.className = 'word-audio-menu';
     menu.setAttribute('role', 'menu');
 
-    // Sources that share a display label get an order suffix (Yomitan appends indices too).
+    // A group is only rendered for a source that produced a sample, so the order suffixes are
+    // counted over the rendered groups: a skipped empty source must not leave a lone "… 1".
+    const renderedSources = sources
+      .map((source) => ({source, entries: bySource.get(source.index) || []}))
+      .filter((item) => item.entries.length > 0);
     const labelCounts = {};
-    sources.forEach(s => {
-      const label = s.label || s.type || 'Source';
+    renderedSources.forEach(({source}) => {
+      const label = source.label || source.type || 'Source';
       labelCounts[label] = (labelCounts[label] || 0) + 1;
     });
     const labelSeen = {};
@@ -2264,7 +2397,7 @@
       return group;
     };
 
-    const appendItem = (group, url, label, isDefault, disabled) => {
+    const appendItem = (parent, url, label, isDefault, disabled) => {
       const item = document.createElement('button');
       item.className = 'word-audio-menu-item';
       if (isDefault) item.classList.add('word-audio-menu-item-default');
@@ -2288,14 +2421,11 @@
           playAudioCandidate(url, button);
         });
       }
-      group.appendChild(item);
+      parent.appendChild(item);
     };
 
     const renderGroup = (group, entries) => {
-      if (entries.length === 0) {
-        appendItem(group, null, 'No audio found', false, true);
-        return;
-      }
+      if (!entries || entries.length === 0) return;
       entries.forEach((entry, index) => {
         const candidate = entry.candidate;
         const name = (candidate.name && String(candidate.name).trim()) ? String(candidate.name).trim() : '';
@@ -2306,19 +2436,26 @@
     };
 
     if (sources.length > 0) {
-      sources.forEach((source) => {
+      renderedSources.forEach(({source, entries}) => {
         let label = source.label || source.type || 'Source';
         if (labelCounts[label] > 1) {
           labelSeen[label] = (labelSeen[label] || 0) + 1;
           label = label + ' ' + labelSeen[label];
         }
-        renderGroup(makeGroup(label), bySource.get(source.index) || []);
+        renderGroup(makeGroup(label), entries);
       });
       // Defensive: candidates with no source identity (e.g. an older bridge payload).
       const orphans = bySource.get(-1) || [];
       if (orphans.length > 0) renderGroup(makeGroup('Audio'), orphans);
-    } else {
+    } else if (candidates.length > 0) {
       renderGroup(makeGroup('Audio'), candidates.map((candidate, position) => ({candidate, isDefault: position === 0})));
+    }
+
+    if (loading) {
+      appendItem(menu, null, 'Loading audio…', false, true);
+    } else if (candidates.length === 0) {
+      // Terminal and empty: one non-interactive row rather than a menu that never appears.
+      appendItem(menu, null, 'No audio found', false, true);
     }
 
     document.body.appendChild(menu);
@@ -2359,6 +2496,7 @@
     });
 
     _audioMenuNode = menu;
+    _audioMenuButton = button;
     _audioMenuDismiss = (ev) => {
       if (_audioMenuNode && ev && ev.target && _audioMenuNode.contains(ev.target)) return;
       closeAudioMenu();
@@ -2376,8 +2514,9 @@
     audioBtn.dataset.expression = expression;
     audioBtn.dataset.reading = reading;
 
-    // Proactively pre-resolve and prefetch in background so audio is ready immediately
-    requestAudioCandidates(expression, reading, null);
+    // No resolution here: rendering an entry must not hit the network (every drawn entry used to
+    // prefetch every source and leave the picker waiting for the slowest one). Audio resolves on a
+    // play tap (below) or when the long-press picker opens.
 
     let longPressTimer = null;
     let longPressFired = false;
@@ -2390,31 +2529,51 @@
       }
     };
 
+    const playFallbackAndFlashError = () => {
+      if (typeof WordAudioBridge !== 'undefined' && WordAudioBridge.playFallback) {
+        WordAudioBridge.playFallback();
+      }
+      audioBtn.classList.add('error');
+      setTimeout(() => audioBtn.classList.remove('error'), 1000);
+    };
+
     const playDefault = () => {
       const key = audioKey(expression, reading);
-      if (_audioCandidatesCache.has(key)) {
-        const {candidates} = audioPayload(_audioCandidatesCache.get(key));
-        const urls = candidates.map(c => c.url).filter(Boolean);
-        if (urls.length > 0) {
-          playAudioCandidateList(urls, audioBtn);
+      const cached = _audioCandidatesCache.get(key);
+      // A cached entry that is finalised — or already priority-decided — plays its ordered list
+      // without resolving again; a finalised entry with no samples reports that there is none.
+      if (cached && (cached.done || cached.playbackReady)) {
+        const cachedUrls = audioUrls(cached);
+        if (cachedUrls.length > 0) {
+          playAudioCandidateList(cachedUrls, audioBtn);
+          return;
+        }
+        if (cached.done) {
+          playFallbackAndFlashError();
           return;
         }
       }
       audioBtn.classList.add('loading');
-      requestAudioCandidates(expression, reading, (payload) => {
-        audioBtn.classList.remove('loading');
-        const {candidates} = audioPayload(payload);
-        const urls = candidates.map(c => c.url).filter(Boolean);
-        if (urls.length > 0) {
-          playAudioCandidateList(urls, audioBtn);
-        } else {
-          if (typeof WordAudioBridge !== 'undefined' && WordAudioBridge.playFallback) {
-            WordAudioBridge.playFallback();
+      // Configured source priority, not "whichever source answered first": playback starts only on a
+      // snapshot whose playbackReady flag says the highest-priority source with a sample is already
+      // known, and then plays the payload's candidates in payload (source) order. Sources below that
+      // one are not waited for; they can never outrank it.
+      let started = false;
+      requestAudioCandidates(expression, reading, (payload, done) => {
+        if (!started && payload && payload.playbackReady === true) {
+          const urls = audioUrls(payload);
+          if (urls.length > 0) {
+            started = true;
+            audioBtn.classList.remove('loading');
+            playAudioCandidateList(urls, audioBtn);
+            return;
           }
-          audioBtn.classList.add('error');
-          setTimeout(() => audioBtn.classList.remove('error'), 1000);
         }
-      });
+        if (done) {
+          audioBtn.classList.remove('loading');
+          if (!started) playFallbackAndFlashError();
+        }
+      }, audioBtn, 'play');
     };
 
     const openMenu = (ev) => {
@@ -2423,15 +2582,23 @@
         ev.stopPropagation();
       }
       const key = audioKey(expression, reading);
-      if (_audioCandidatesCache.has(key)) {
-        showAudioMenu(audioBtn, _audioCandidatesCache.get(key));
-        return;
+      const cached = _audioCandidatesCache.get(key);
+      if (cached) {
+        showAudioMenu(audioBtn, cached, !cached.done);
+        if (cached.done) return;
+      } else {
+        // First press with nothing cached: lazy resolution has not even started, so open the picker
+        // *now* in its loading state — the request below answers later, and a snapshot can only
+        // update a menu that already exists.
+        showAudioMenu(audioBtn, { sources: [], candidates: [] }, true);
       }
       audioBtn.classList.add('loading');
-      requestAudioCandidates(expression, reading, (payload) => {
-        audioBtn.classList.remove('loading');
-        showAudioMenu(audioBtn, payload);
-      });
+      requestAudioCandidates(expression, reading, (payload, done) => {
+        // Updates (never re-opens) the picker on each snapshot so samples appear as their source
+        // lands; a menu the user dismissed stays dismissed.
+        updateAudioMenu(audioBtn, payload, !done);
+        if (done) audioBtn.classList.remove('loading');
+      }, audioBtn, 'menu');
     };
 
     audioBtn.playAudio = playDefault;
@@ -3350,6 +3517,11 @@
       const mediaMap = payload.mediaDataUris || {};
       const results = Array.isArray(payload.results) ? payload.results : [];
 
+      // A new lookup replaces the entries (and their audio buttons): drop resolves whose word is no
+      // longer displayed so an old stream cannot play or open a menu on a detached button. Words
+      // still on screen keep their pending request, and playback already running is not stopped.
+      pruneAudioRequests(audioKeysOfResults(results));
+
       // Determine whether to show the tab bar:
       // - tabs mode: need at least 2 tabs
       // - stack mode: need active tab to NOT be the first one (activeIndex > 0 means there's a back target)
@@ -3464,6 +3636,10 @@
   function clear() {
     _autoplayGuard = false;
     closeAudioMenu();
+    // The rendered entries (and their audio buttons) are gone, so nothing may answer their
+    // still-streaming requests; the candidate cache is bounded but this is the wholesale reset.
+    _audioCandidatesCache.clear();
+    resetAudioRequests();
     clearRecursiveSelection();
     resetDictionaryMediaObserver();
     const container = document.getElementById('entries');
@@ -3607,25 +3783,26 @@
       }
     },
 
-    onAudioResults: (id, payload) => {
+    onAudioResults: (id, payload, done) => {
+      // The map only ever holds `{ key }` (`requestAudioCandidates` is the only writer).
       const entry = _audioCallbacks.get(id);
-      if (!entry) return;
-      _audioCallbacks.delete(id);
-      if (typeof entry === 'function') {
-        entry(payload);
-      } else if (entry && entry.key) {
-        const key = entry.key;
-        _audioCandidatesCache.set(key, payload);
-        const waiters = _pendingAudioRequests.get(key) || [];
+      if (!entry || !entry.key) return;
+      // Absent third argument means a single-shot (pre-streaming) delivery.
+      const isDone = done === undefined ? true : done === true;
+      const key = entry.key;
+      const state = mergeAudioSnapshot(key, payload, isDone);
+      const waiters = _pendingAudioRequests.get(key) || [];
+      if (isDone) {
+        _audioCallbacks.delete(id);
         _pendingAudioRequests.delete(key);
-        waiters.forEach((cb) => {
-          try {
-            cb(payload);
-          } catch (e) {
-            console.error('[DictionaryRenderJS] audio callback error:', e);
-          }
-        });
       }
+      waiters.forEach((waiter) => {
+        try {
+          waiter.fn(state, isDone);
+        } catch (e) {
+          console.error('[DictionaryRenderJS] audio callback error:', e);
+        }
+      });
     },
   };
 

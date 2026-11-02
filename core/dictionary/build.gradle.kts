@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // KUN -->
 // :core:dictionary — the vendored `hoshidicts` engine (submodule + JNI) and the Kotlin
-// dictionary facade (GPL-3.0-or-later). Build file is frozen for all waves (contract §3.2).
+// dictionary facade (GPL-3.0-or-later). The production configuration is frozen for all waves
+// (contract §3.2); test-only dependencies may be added.
 // The native toolchain (NDK/CMake) is pinned in AndroidConfig.
 // KUN <--
 import mihon.buildlogic.AndroidConfig
@@ -58,6 +59,11 @@ dependencies {
 
     testImplementation(libs.bundles.test)
     testImplementation(kotlinx.serialization.json)
+    // KUN --> Real org.json for JVM unit tests: android.jar's `org.json` is a stub that throws
+    // "not mocked", which made the `WordAudioBridge` payload untestable. Mirrors :app's dependency;
+    // test-only, so the shipped artifact is unchanged.
+    testImplementation(libs.org.json)
+    // KUN <--
     testRuntimeOnly(libs.junit.platform.launcher)
 }
 

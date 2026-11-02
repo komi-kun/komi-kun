@@ -40,6 +40,9 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import eu.kanade.tachiyomi.ui.reader.viewer.popup.popupTopFor
@@ -177,47 +180,81 @@ fun DictionaryPopup(
                     val bounds = coords.boundsInRoot()
                     popupAnchor.popupBounds.value =
                         RectF(bounds.left, bounds.top, bounds.right, bounds.bottom)
-                }
-                // KUN <--
-                // Consume taps on the popup chrome without dismissing; only outside taps dismiss.
-                .pointerInput(swipeToDismiss) {
-                    if (swipeToDismiss) {
-                        detectVerticalDragGestures(
-                            onDragEnd = {
-                                if (dragOffsetY.value > thresholdPx) {
-                                    onDismiss()
-                                } else {
-                                    scope.launch { dragOffsetY.animateTo(0f) }
-                                }
-                            },
-                            onDragCancel = { scope.launch { dragOffsetY.animateTo(0f) } },
-                            onVerticalDrag = { change, dragAmount ->
-                                if (dragAmount > 0 || dragOffsetY.value > 0f) {
-                                    val newOffset = (dragOffsetY.value + dragAmount).coerceAtLeast(0f)
-                                    scope.launch { dragOffsetY.snapTo(newOffset) }
-                                    change.consume()
-                                }
-                            },
-                        )
-                    } else {
-                        detectTapGestures { }
-                    }
                 },
+            // KUN <--
+            // KUN --> Deliberately no pointerInput here (neither a vertical-drag detector nor a tap
+            // consumer). This Surface is an *ancestor* of the definition WebView, and any
+            // detector that consumes a drag makes Compose's AndroidView interop send that
+            // WebView an ACTION_CANCEL: the touch stream ends at the first touch-slop and the
+            // native scroll stops abruptly after a few pixels. Swipe-to-dismiss lives on the
+            // dedicated handle below instead. Outside-tap dismissal does not need a consumer
+            // here — the reader runs a passive, non-consuming detector fed by the bounds
+            // published just above.
+            // KUN <--
             color = bg,
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                // KUN --> Visual drag handle indicator for swipe-to-dismiss
+                // KUN --> Swipe-to-dismiss drag handle. This is the ONLY drag consumer in the
+                // popup, and it sits above the WebView rather than around it, so the definition
+                // body keeps its own un-intercepted scroll. The pill gets a real touch target
+                // (a full-width row) so the gesture is not a 4dp sliver.
+                //
+                // It also swallows plain taps: with no pointer node anywhere in the popup chrome
+                // the touch falls through to the reader viewer underneath. The no-op tap detector
+                // makes this row a hit target; it does not fight the drag detector, because
+                // `detectTapGestures` only consumes the down/up (never the moves) while
+                // `detectVerticalDragGestures` starts from `awaitFirstDown(requireUnconsumed =
+                // false)` and only aborts on a consumed *move* — so a drag still reaches slop.
                 if (swipeToDismiss) {
+                    // The only dismiss wording the fork already ships ("Dismiss"): reused instead
+                    // of adding a new user-visible string for a drag handle.
+                    val dismissHandleDescription =
+                        stringResource(KUNMR.strings.dictionary_selection_hint_dismiss)
                     Box(
                         modifier = Modifier
-                            .padding(top = 6.dp, bottom = 2.dp)
-                            .size(width = 36.dp, height = 4.dp)
-                            .align(Alignment.CenterHorizontally)
-                            .background(
-                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                                RoundedCornerShape(2.dp),
-                            ),
-                    )
+                            .fillMaxWidth()
+                            .height(DragHandleHeight)
+                            .pointerInput(Unit) { detectTapGestures { } }
+                            .pointerInput(swipeToDismiss) {
+                                detectVerticalDragGestures(
+                                    onDragEnd = {
+                                        if (shouldDismissForSwipe(dragOffsetY.value, thresholdPx)) {
+                                            onDismiss()
+                                        } else {
+                                            scope.launch { dragOffsetY.animateTo(0f) }
+                                        }
+                                    },
+                                    onDragCancel = { scope.launch { dragOffsetY.animateTo(0f) } },
+                                    onVerticalDrag = { change, dragAmount ->
+                                        val newOffset = accumulateDragOffset(dragOffsetY.value, dragAmount)
+                                        if (newOffset != dragOffsetY.value) {
+                                            scope.launch { dragOffsetY.snapTo(newOffset) }
+                                        }
+                                        change.consume()
+                                    },
+                                )
+                            }
+                            .semantics {
+                                contentDescription = dismissHandleDescription
+                                // Without an action this node is announced but inoperable; the
+                                // handle's job (dismiss the popup) is what a screen reader should
+                                // be able to trigger, so expose it as the click.
+                                onClick(label = dismissHandleDescription) {
+                                    onDismiss()
+                                    true
+                                }
+                            },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(width = 36.dp, height = 4.dp)
+                                .background(
+                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                    RoundedCornerShape(2.dp),
+                                ),
+                        )
+                    }
                 }
                 // KUN <--
                 // KUN -->
@@ -231,6 +268,11 @@ fun DictionaryPopup(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            // The tap consumer goes *before* the padding so the whole row, padding
+                            // bands included, takes the hit path: a tap on the hint must not fall
+                            // through to the reader viewer under the popup. The close button is a
+                            // descendant pointer node and is dispatched first, so it keeps working.
+                            .pointerInput(Unit) { detectTapGestures { } }
                             .padding(start = 10.dp, end = 2.dp, top = 2.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -280,6 +322,25 @@ private fun clampToScreen(anchor: Float, sizePx: Float, screenPx: Float): Int {
     val max = (screenPx - sizePx).roundToInt().coerceAtLeast(0)
     return anchor.roundToInt().coerceIn(0, max)
 }
+
+// KUN -->
+/** Touch target of the swipe-to-dismiss handle (the 4dp pill is centred inside it). */
+internal val DragHandleHeight = 20.dp
+
+/**
+ * Accumulated downward drag offset for the swipe-to-dismiss handle.
+ *
+ * Downward movement adds (the popup follows the finger); an upward drag only moves the popup back
+ * towards its anchor and never past it, so a popup at rest ignores an upward swipe instead of being
+ * pushed off the top. Pure, so the gesture arithmetic is testable without a Compose runtime.
+ */
+internal fun accumulateDragOffset(currentPx: Float, dragAmountPx: Float): Float =
+    if (dragAmountPx > 0f || currentPx > 0f) (currentPx + dragAmountPx).coerceAtLeast(0f) else currentPx
+
+/** Dismisses only once the popup has been dragged further down than the configured threshold. */
+internal fun shouldDismissForSwipe(accumulatedOffsetPx: Float, thresholdPx: Float): Boolean =
+    accumulatedOffsetPx > thresholdPx
+// KUN <--
 
 /** Position (px) + lookup payload for the popup (contract §2.3 seam DTO adapter). */
 data class PopupRequest(

@@ -2,11 +2,13 @@
 // KUN -->
 // Native `WordAudioBridge` for the dictionary WebView. The renderer (`renderer.js`,
 // `createAudioButton`) already knows this contract: it calls
-// `WordAudioBridge.fetchAudio(expression, reading, callbackId)` and expects the candidates back on
-// `window.DictionaryRenderer.onAudioResults(callbackId, [{url,…}])`, then calls
-// `WordAudioBridge.playAudio(url)`. This class replaces Yomitan's browser-side `DisplayAudio`:
-// it resolves the configured sources (via [AudioResolver]) and plays the chosen URL through
-// [WordAudioPlayer].
+// `WordAudioBridge.fetchAudio(expression, reading, callbackId)` — only on a play tap or when the
+// long-press picker opens, never at render time — and receives the candidates on
+// `window.DictionaryRenderer.onAudioResults(callbackId, {sources, candidates}, done)`, once per
+// source that finishes plus a final `done = true` snapshot, then calls
+// `WordAudioBridge.playCandidates(urlsJson)` / `playAudio(url)`. This class replaces Yomitan's
+// browser-side `DisplayAudio`: it resolves the configured sources (via [AudioResolver]) and plays
+// the chosen URL through [WordAudioPlayer].
 //
 // Rendering/UX is untouched — the play button, autoplay and error states are already in the
 // existing renderer; this only supplies the missing native half.
@@ -14,19 +16,26 @@ package mihon.core.dictionary.audio
 
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import org.json.JSONArray
 import org.json.JSONObject
 
 class WordAudioBridge(
     private val webViewProvider: () -> WebView?,
+    // KUN --> Same shape as `AnkiJsBridge`: the JVM has no main looper, so tests pass their own
+    // dispatcher and a mocked player. Production always uses the defaults.
+    private val dispatcher: CoroutineDispatcher = Dispatchers.Main,
+    private val player: WordAudioPlayer = WordAudioPlayer(),
+    // KUN <--
 ) {
     /** Supplies the live audio configuration (from prefs). `null` disables resolution. */
     var configProvider: (() -> AudioPreferences)? = null
@@ -37,8 +46,7 @@ class WordAudioBridge(
     /** Injectable for tests; defaults to the OkHttp-backed implementation. */
     var http: AudioHttp = OkHttpAudioHttp()
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-    private val player = WordAudioPlayer()
+    private val scope = CoroutineScope(SupervisorJob() + dispatcher)
     private var cachedResolver: Pair<AudioHttp, AudioResolver>? = null
 
     init {
@@ -77,32 +85,42 @@ class WordAudioBridge(
 
     @JavascriptInterface
     fun fetchAudio(expression: String, reading: String, callbackId: String) {
+        // KUN --> Teardown only: a gone WebView cannot receive the payload, and the renderer page it
+        // would fall back to is gone with it, so there is nothing to answer.
         val webView = webViewProvider() ?: return
-        val config = configProvider?.invoke() ?: return
+        // KUN <--
+        val config = configProvider?.invoke()
+        if (config == null) {
+            // No audio configuration at all (`null` disables resolution). Answer with an empty,
+            // final resolution: the renderer's "Loading audio…" row only clears on `done`, so
+            // returning silently here would leave it up forever.
+            deliver(webView, callbackId, AudioResolution(emptyList(), emptyList()), done = true, playbackReady = false)
+            return
+        }
         updateAllowedLoopbackPorts(config)
         if (!config.enabled) {
-            deliver(webView, callbackId, AudioResolution(emptyList(), emptyList()))
+            deliver(webView, callbackId, AudioResolution(emptyList(), emptyList()), done = true, playbackReady = false)
             return
         }
         val language = (languageIsoProvider?.invoke() ?: "ja").ifBlank { "ja" }
+        // KUN --> Nothing is resolved at render time any more: the renderer asks for audio only on a
+        // play tap or when the long-press picker opens. Each snapshot is delivered as its source
+        // finishes and carries `playbackReady` (the highest-priority source with a sample is known),
+        // so playback starts in configured priority order rather than on the fastest answer; the
+        // remaining candidates are prefetched by the player once playback starts, not here.
+        player.attachContext(webView.context)
         scope.launch {
-            val resolution = withContext(Dispatchers.IO) {
-                getResolver().resolve(
-                    sources = config.sources,
-                    term = expression,
-                    reading = reading,
-                    languageIso = language,
-                    enableDefaultSources = config.enableDefaultAudioSources,
-                )
+            getResolver().stream(
+                sources = config.sources,
+                term = expression,
+                reading = reading,
+                languageIso = language,
+                enableDefaultSources = config.enableDefaultAudioSources,
+            ).flowOn(Dispatchers.IO).collect { update ->
+                deliver(webView, callbackId, update.resolution, update.done, update.playbackReady)
             }
-            val ctx = webView.context
-            player.attachContext(ctx)
-            val candidateUrls = resolution.candidates.map { it.url }.filter { it.isNotBlank() }
-            if (candidateUrls.isNotEmpty()) {
-                player.prefetch(candidateUrls)
-            }
-            deliver(webView, callbackId, resolution)
         }
+        // KUN <--
     }
 
     @JavascriptInterface
@@ -174,7 +192,13 @@ class WordAudioBridge(
         player.destroy()
     }
 
-    private fun deliver(webView: WebView, callbackId: String, resolution: AudioResolution) {
+    private fun deliver(
+        webView: WebView,
+        callbackId: String,
+        resolution: AudioResolution,
+        done: Boolean,
+        playbackReady: Boolean,
+    ) {
         val sources = JSONArray().apply {
             resolution.sources.forEachIndexed { index, source ->
                 put(
@@ -203,10 +227,17 @@ class WordAudioBridge(
         val payload = JSONObject().apply {
             put("sources", sources)
             put("candidates", candidates)
+            // KUN --> Playback may only start once the highest-priority source with a sample is
+            // known; the renderer gates on this flag instead of on "the first candidate arrived".
+            put("playbackReady", playbackReady)
+            // KUN <--
         }
         val idJson = JSONObject.quote(callbackId)
+        // KUN --> `done` is the third argument: false while sources are still resolving, true on the
+        // final snapshot. A renderer that predates it treats a missing third argument as "done".
         val js = "window.DictionaryRenderer && window.DictionaryRenderer.onAudioResults(" +
-            "$idJson, ${payload.toString().escapeLineSeparators()});"
+            "$idJson, ${payload.toString().escapeLineSeparators()}, ${if (done) "true" else "false"});"
+        // KUN <--
         webView.post { webView.evaluateJavascript(js, null) }
     }
 }

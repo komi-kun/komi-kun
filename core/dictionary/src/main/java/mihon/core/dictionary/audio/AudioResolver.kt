@@ -17,9 +17,15 @@
 //  * `text-to-speech*`   — Synthetic TTS URLs for native speech playback.
 package mihon.core.dictionary.audio
 
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.last
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -27,7 +33,6 @@ import kotlinx.serialization.json.contentOrNull
 import java.net.URLEncoder
 import java.util.Collections
 import java.util.LinkedHashMap
-
 class AudioResolver(
     private val http: AudioHttp,
 ) {
@@ -64,6 +69,9 @@ class AudioResolver(
      * Like [resolveAll] but also returns the ordered effective source list (configured sources,
      * then appended defaults), so the audio picker can list every source — including the ones that
      * produced no candidate — in the user's configured order.
+     *
+     * Implemented on top of [stream] so there is exactly one resolution path: the `done` emission is
+     * the complete result.
      */
     suspend fun resolve(
         sources: List<AudioSourceConfig>,
@@ -71,23 +79,118 @@ class AudioResolver(
         reading: String,
         languageIso: String,
         enableDefaultSources: Boolean,
-    ): AudioResolution {
-        val cacheKey = "$languageIso\n$term\n$reading\n${sources.hashCode()}\n$enableDefaultSources"
-        resolutionCache[cacheKey]?.let { return it }
+    ): AudioResolution = stream(sources, term, reading, languageIso, enableDefaultSources)
+        .filter { it.done }
+        .last()
+        .resolution
 
-        val effective = effectiveSources(sources, languageIso, enableDefaultSources)
-
-        val seen = HashSet<String>()
-        val out = ArrayList<AudioCandidate>()
-
-        val candidateLists = coroutineScope {
-            effective.map { source ->
-                async { candidatesFor(source, term, reading, languageIso) }
-            }.awaitAll()
+    /**
+     * Streaming form of [resolve].
+     *
+     * Emits one [AudioResolutionUpdate] each time a source finishes — the snapshot carries the full
+     * effective source list plus the candidates resolved so far, already in the order [resolve]
+     * returns them — and a final update with [AudioResolutionUpdate.done] set. The renderer can
+     * therefore start playback from the first hit instead of waiting for the slowest source.
+     *
+     * A cached lookup emits a single `done` update, and the final emission is byte-for-byte the
+     * [resolve] result (same ordering, same first-occurrence URL dedupe): every snapshot is rebuilt
+     * from the filled per-source slots in source order, so the arrival order of the sources cannot
+     * influence the result.
+     *
+     * Building a snapshot and emitting it are one atomic step ([mutex]): if the source slots were
+     * updated under a plain lock and the send happened after releasing it, two sources finishing
+     * together could emit out of order — a partial snapshot *after* the `done` one — and `resolve()`
+     * would return an incomplete result.
+     */
+    fun stream(
+        sources: List<AudioSourceConfig>,
+        term: String,
+        reading: String,
+        languageIso: String,
+        enableDefaultSources: Boolean,
+    ): Flow<AudioResolutionUpdate> = channelFlow {
+        val cacheKey = cacheKey(sources, term, reading, languageIso, enableDefaultSources)
+        resolutionCache[cacheKey]?.let {
+            send(
+                AudioResolutionUpdate(
+                    resolution = it,
+                    done = true,
+                    resolvedSourceIndices = it.sources.indices.toSet(),
+                ),
+            )
+            return@channelFlow
         }
 
-        candidateLists.forEachIndexed { index, candidates ->
-            val source = effective[index]
+        val effective = effectiveSources(sources, languageIso, enableDefaultSources)
+        if (effective.isEmpty()) {
+            send(
+                AudioResolutionUpdate(
+                    resolution = AudioResolution(sources = effective, candidates = emptyList()),
+                    done = true,
+                    resolvedSourceIndices = emptySet(),
+                ),
+            )
+            return@channelFlow
+        }
+
+        val perSource = arrayOfNulls<List<AudioCandidate>>(effective.size)
+        val resolved = LinkedHashSet<Int>()
+        val mutex = Mutex()
+        var finished = 0
+
+        coroutineScope {
+            effective.forEachIndexed { index, source ->
+                launch {
+                    val candidates = candidatesFor(source, term, reading, languageIso)
+                    // Snapshot and emission are serialised, so emission order is snapshot order and
+                    // the `done` snapshot is always the last thing sent.
+                    mutex.withLock {
+                        // `candidatesFor` maps *every* failure to an empty list, cancellation
+                        // included. A cancelled stream must publish nothing at all: publishing here
+                        // would emit a bogus "this source is empty" snapshot and, worse, a `done`
+                        // one that caches an incomplete resolution.
+                        ensureActive()
+                        perSource[index] = candidates
+                        // Resolved whether or not it yielded: priority only asks whether the higher
+                        // sources have *answered*.
+                        resolved += index
+                        finished++
+                        val done = finished == effective.size
+                        val resolution = buildResolution(effective, perSource)
+                        if (done) resolutionCache[cacheKey] = resolution
+                        send(
+                            AudioResolutionUpdate(
+                                resolution = resolution,
+                                done = done,
+                                resolvedSourceIndices = resolved.toSet(),
+                            ),
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private fun cacheKey(
+        sources: List<AudioSourceConfig>,
+        term: String,
+        reading: String,
+        languageIso: String,
+        enableDefaultSources: Boolean,
+    ): String = "$languageIso\n$term\n$reading\n${sources.hashCode()}\n$enableDefaultSources"
+
+    /**
+     * One resolution built from whatever per-source slots are filled: sources in configured order,
+     * first-occurrence URL dedupe — identical to the historical all-at-once assembly.
+     */
+    private fun buildResolution(
+        effective: List<AudioSourceConfig>,
+        perSource: Array<List<AudioCandidate>?>,
+    ): AudioResolution {
+        val seen = HashSet<String>()
+        val out = ArrayList<AudioCandidate>()
+        effective.forEachIndexed { index, source ->
+            val candidates = perSource[index] ?: return@forEachIndexed
             val label = AudioSourceTypes.displayName(source.type)
             for (candidate in candidates) {
                 if (candidate.url.isBlank()) continue
@@ -96,9 +199,7 @@ class AudioResolver(
                 }
             }
         }
-        val resolution = AudioResolution(sources = effective, candidates = out)
-        resolutionCache[cacheKey] = resolution
-        return resolution
+        return AudioResolution(sources = effective, candidates = out)
     }
 
     /**
