@@ -99,6 +99,156 @@ class AudioLazyResolutionGuardTest {
     }
 
     @Test
+    fun `a streaming snapshot reconciles the open picker instead of rebuilding it`() {
+        val menu = functionBlock(rendererJs, "function showAudioMenu(")
+        // The open menu for the same button is *reused*; only a menu that is gone (or belongs to
+        // another entry) is closed. Rebuilding it on every snapshot detached the node under a finger
+        // that was between `pointerdown` and `click` — the tap was silently lost — reset
+        // keyboard/TalkBack focus and made the menu flicker and reposition once per source.
+        menu shouldContain
+            "const reuse = !!(_audioMenuNode && _audioMenuNode.isConnected && _audioMenuButton === button);"
+        menu shouldContain "if (!reuse) closeAudioMenu();"
+        menu shouldContain "const menu = reuse ? _audioMenuNode : document.createElement('div');"
+        // The node is only mounted, classed and listener-bound for a fresh menu.
+        Regex("if\\s*\\(\\s*!reuse\\s*\\)\\s*\\{\\s*document\\.body\\.appendChild\\(menu\\);")
+            .containsMatchIn(menu) shouldBe true
+        Regex("\\bdocument\\.body\\.appendChild\\(menu\\);").findAll(menu).count() shouldBe 1
+        // A source that resolves after a later one is *inserted* at its sorted position — selected
+        // from the groups already shown (or ahead of the status row), not simply appended.
+        menu shouldContain "const before = shown[position] || statusRow();"
+        menu shouldContain "menu.insertBefore(record.group, before)"
+        // Terminal/loading rows are reconciled, not rebuilt.
+        menu shouldContain "state.loadingItem.remove()"
+        menu shouldContain "state.emptyItem = appendItem(menu, null, 'No audio found', false, true).item;"
+        // The "default" badge follows the new ordering: it is *taken off* the item that carried it
+        // and put on the new first candidate, instead of staying on the first arrival.
+        menu shouldContain "setDefaultBadge(item, url === firstUrl)"
+        val badge = functionBlock(rendererJs, "const setDefaultBadge = (item, isDefault) => {")
+        badge shouldContain "item.classList.toggle('word-audio-menu-item-default', isDefault);"
+        badge shouldContain "if (!isDefault && badge) {"
+        badge shouldContain "badge.remove();"
+        // Geometry is only re-applied when the measured size changed and no pointer is down.
+        menu shouldContain "if (state.pointerDown) return;"
+        menu shouldContain "if (size !== state.size) {"
+        // The streaming path never closes the menu it is updating.
+        functionBlock(rendererJs, "function updateAudioMenu(") shouldNotContain "closeAudioMenu"
+    }
+
+    @Test
+    fun `a snapshot that lands while a pointer is down defers every row change`() {
+        val menu = functionBlock(rendererJs, "function showAudioMenu(")
+        // Producer: the flag is set from the document pointerdown capture listener...
+        menu shouldContain "if (ev && ev.type === 'pointerdown') trackPointer(ev);"
+        // ...and every snapshot that arrives while it is set is parked instead of mutating the row
+        // list (an inserted/appended/moved row would take the tap that is still in flight).
+        menu shouldContain "if (reuse && _audioMenuState.pointerDown) {"
+        menu shouldContain "_audioMenuState.deferred = { payload, loading };"
+        val deferral = menu.indexOf("_audioMenuState.deferred = { payload, loading };")
+        // Nothing is created or moved before the deferral returns.
+        (menu.indexOf("state.groups.set(") > deferral) shouldBe true
+        (menu.indexOf("state.items.set(") > deferral) shouldBe true
+        // The parked snapshot is replayed once from the release handler, then the deferred reflow.
+        menu shouldContain "const deferred = state.deferred;"
+        menu shouldContain "state.deferred = null;"
+        menu shouldContain "showAudioMenu(button, deferred.payload, deferred.loading);"
+        (
+            menu.indexOf("showAudioMenu(button, deferred.payload, deferred.loading);") >
+                menu.indexOf("state.deferred = null;")
+            ) shouldBe true
+        menu shouldContain "document.addEventListener('pointerup', _audioMenuPointerUp, true);"
+        menu shouldContain "document.addEventListener('pointercancel', _audioMenuPointerUp, true);"
+        // A menu that was closed (or replaced) in between is not this state, so a stale snapshot
+        // cannot be replayed onto it.
+        menu shouldContain "if (deferred && _audioMenuNode === menu && _audioMenuState === state) {"
+        // Teardown removes the release listeners with the menu.
+        val close = functionBlock(rendererJs, "function closeAudioMenu()")
+        close shouldContain "document.removeEventListener('pointerup', _audioMenuPointerUp, true);"
+        close shouldContain "document.removeEventListener('pointercancel', _audioMenuPointerUp, true);"
+    }
+
+    @Test
+    fun `the pointer gesture is owned by one pointer and recovers a lost release`() {
+        val menu = functionBlock(rendererJs, "function showAudioMenu(")
+        // A gesture is tracked once: state.pointerId names it, and a second finger's pointerdown
+        // must not overwrite it (otherwise its release would replay the parked snapshot under the
+        // finger that is still pressing a row).
+        val track = functionBlock(rendererJs, "const trackPointer = (ev) => {")
+        track shouldContain "if (state.pointerDown) return;"
+        track shouldContain "state.pointerId = (ev && typeof ev.pointerId === 'number') ? ev.pointerId : null;"
+        (
+            track.indexOf("if (state.pointerDown) return;") <
+                track.indexOf("state.pointerId =")
+            ) shouldBe true
+        // Only the matching pointer's release ends it.
+        val release = functionBlock(rendererJs, "const releasePointer = (ev) => {")
+        release shouldContain "if (!state.pointerDown) return;"
+        release shouldContain "ev.pointerId !== state.pointerId"
+        release shouldContain "state.pointerDown = false;"
+        release shouldContain "state.pointerId = null;"
+        // The release listeners pass the event through, so the id check above is reachable.
+        menu shouldContain "_audioMenuPointerUp = (ev) => releasePointer(ev);"
+        // A lost release (page hidden, window blurred, pointer left the window) clears the flag and
+        // replays the parked snapshot instead of freezing the picker forever.
+        menu shouldContain "document.addEventListener('visibilitychange', _audioMenuPointerLost, true);"
+        // A capture-phase `blur` listener would also fire for element blurs inside the popup and end
+        // the gesture on the press that started it, so the window listener must stay in the default
+        // (target/bubble) phase.
+        menu shouldContain "window.addEventListener('blur', _audioMenuPointerLost);"
+        menu shouldNotContain "window.addEventListener('blur', _audioMenuPointerLost, true);"
+        menu shouldContain "document.addEventListener('pointerout', _audioMenuPointerLost, true);"
+        val lost = functionBlock(rendererJs, "_audioMenuPointerLost = (ev) => {")
+        lost shouldContain "if (ev.type === 'visibilitychange' && document.visibilityState !== 'hidden') return;"
+        lost shouldContain "if (ev.type === 'pointerout' && ev.relatedTarget) return;"
+        lost shouldContain "releasePointer(ev);"
+        // ...and teardown removes them with the menu.
+        val close = functionBlock(rendererJs, "function closeAudioMenu()")
+        close shouldContain "document.removeEventListener('visibilitychange', _audioMenuPointerLost, true);"
+        close shouldContain "window.removeEventListener('blur', _audioMenuPointerLost);"
+        close shouldNotContain "window.removeEventListener('blur', _audioMenuPointerLost, true);"
+        close shouldContain "document.removeEventListener('pointerout', _audioMenuPointerLost, true);"
+    }
+
+    @Test
+    fun `dropping an audio request cancels the native stream`() {
+        // A prune drops the handler *and* tells the bridge: otherwise it keeps resolving every
+        // configured source for a word nobody displays and posts snapshots for an ignored id.
+        val prune = functionBlock(rendererJs, "function pruneAudioRequests(")
+        prune shouldContain "_audioCallbacks.delete(callbackId)"
+        prune shouldContain "cancelAudioRequest(callbackId)"
+        // `clear()` is the wholesale reset and cancels every callback it drops itself (the dropped
+        // keys and the cancel share the same source, so neither can silently disappear).
+        val clear = functionBlock(rendererJs, "function clear()")
+        clear shouldContain "Array.from(_audioCallbacks.keys()).forEach(cancelAudioRequest)"
+        clear shouldContain "_audioCallbacks.clear()"
+        (clear.indexOf("forEach(cancelAudioRequest)") < clear.indexOf("_audioCallbacks.clear()")) shouldBe true
+        // Guarded: the renderer also runs where the bridge (or this method) does not exist.
+        val cancel = functionBlock(rendererJs, "function cancelAudioRequest(")
+        cancel shouldContain "typeof bridge.cancelAudio === 'function'"
+        cancel shouldContain "_audioNative()"
+    }
+
+    @Test
+    fun `the bridge can abandon a stream and forgets the finished job`() {
+        Regex("@JavascriptInterface\\s+fun cancelAudio\\(callbackId: String\\)")
+            .containsMatchIn(bridgeSource) shouldBe true
+        val cancel = functionBlock(bridgeSource, "fun cancelAudio(")
+        // Unknown / already finished ids are a no-op instead of an exception or a re-delivery.
+        cancel shouldContain "fetchJobs.remove(callbackId) ?: return"
+        cancel shouldContain "job.cancel()"
+        cancel shouldNotContain "deliver("
+        // One job per callback id, registered *before* it starts (a lazy launch, so a cancel that
+        // arrives immediately after `fetchAudio` finds it) and dropped when it completes.
+        val fetch = functionBlock(bridgeSource, "fun fetchAudio(")
+        fetch shouldContain "scope.launch(start = CoroutineStart.LAZY)"
+        bridgeSource shouldContain "import kotlinx.coroutines.CoroutineStart"
+        fetch shouldContain "fetchJobs[callbackId] = job"
+        fetch shouldContain "job.invokeOnCompletion { fetchJobs.remove(callbackId, job) }"
+        val register = fetch.indexOf("fetchJobs[callbackId] = job")
+        val start = fetch.indexOf("job.start()")
+        (register >= 0 && start > register) shouldBe true
+    }
+
+    @Test
     fun `a partial cache entry is evicted like any other`() {
         val cache = functionBlock(rendererJs, "function cacheAudioState(")
         // An interrupted lookup leaves a partial entry whose final `done` never arrives, so evicting

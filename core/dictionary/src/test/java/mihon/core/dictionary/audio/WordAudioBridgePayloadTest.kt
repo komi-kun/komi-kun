@@ -22,8 +22,10 @@ import io.mockk.mockk
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -148,6 +150,12 @@ class WordAudioBridgePayloadTest {
             final.payload.candidates().size shouldBe 2
             // Nothing follows the final snapshot.
             delivered.tryReceive().isSuccess shouldBe false
+            // The tracked job is dropped when the stream finishes on its own — the
+            // `invokeOnCompletion` cleanup, which cancellation does not exercise.
+            withTimeout(5_000) {
+                while (audio.activeAudioRequestCount() != 0) delay(10)
+            }
+            audio.activeAudioRequestCount() shouldBe 0
         }
     }
 
@@ -176,6 +184,63 @@ class WordAudioBridgePayloadTest {
             // Disabled means inert: the renderer's loading row is cleared, but nothing is fetched.
             http.requests shouldBe 0
             delivered.tryReceive().isSuccess shouldBe false
+        }
+    }
+
+    @Test
+    fun `cancelAudio abandons a stream that is still resolving a slow source`() {
+        runBlocking {
+            val gated = "http://slow/"
+            val gate = CompletableDeferred<Unit>()
+            val http = object : AudioHttp {
+                override suspend fun get(url: String): AudioHttpResponse {
+                    if (url == gated) gate.await()
+                    return AudioHttpResponse(
+                        ok = true,
+                        status = 200,
+                        bodyText = """{"type":"audioSourceList","audioSources":[{"url":"$url/a.mp3"}]}""",
+                    )
+                }
+
+                override suspend fun postForm(url: String, formFields: Map<String, String>): AudioHttpResponse =
+                    get(url)
+            }
+            val audio = bridge(http) {
+                AudioPreferences(
+                    enabled = true,
+                    sources = listOf(
+                        AudioSourceConfig(AudioSourceTypes.CUSTOM_JSON, gated),
+                        AudioSourceConfig(AudioSourceTypes.CUSTOM_JSON, "http://fast/"),
+                    ),
+                    enableDefaultAudioSources = false,
+                )
+            }
+
+            audio.fetchAudio("猫", "ねこ", "cb4")
+            // Source 1 already answered while source 0 is still pinned open: the stream is mid-flight
+            // and would keep running until the slow source (and its `done`) finished.
+            val partial = nextDelivery()
+            partial.callbackId shouldBe "cb4"
+            partial.done shouldBe false
+            audio.activeAudioRequestCount() shouldBe 1
+
+            // Cancelled *and* removed, synchronously: a second prune of the same id finds nothing.
+            audio.cancelAudio("cb4")
+            audio.activeAudioRequestCount() shouldBe 0
+
+            // The source the abandoned stream was waiting for finishes afterwards. No new snapshot
+            // may be produced: a delivery already handed to `webView.post` can still reach the page,
+            // but the renderer dropped this id, so nothing here is allowed to be the *next* emission.
+            gate.complete(Unit)
+            withTimeoutOrNull(500) { delivered.receive() } shouldBe null
+            audio.activeAudioRequestCount() shouldBe 0
+
+            // No-op for an unknown id, and safe after teardown.
+            audio.cancelAudio("cb4")
+            audio.destroy()
+            audio.cancelAudio("cb4")
+            audio.activeAudioRequestCount() shouldBe 0
+            withTimeoutOrNull(500) { delivered.receive() } shouldBe null
         }
     }
 }

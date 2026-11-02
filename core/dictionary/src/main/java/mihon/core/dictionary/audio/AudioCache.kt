@@ -42,6 +42,10 @@ object AudioCache {
     // fetch that another caller is awaiting; the bytes still land in memory for the next tap.
     private val downloadScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val inFlightDownloads = HashMap<String, CompletableDeferred<ByteArray?>>()
+    // Bumped by `clear()`. A download captures it when it starts and only stores its bytes if the
+    // cache still belongs to that generation, so a response that lands after a clear cannot
+    // repopulate the (new, empty) cache with bytes fetched for the old one.
+    private var generation: Long = 0L
     // KUN <--
 
     @Volatile
@@ -77,22 +81,44 @@ object AudioCache {
     internal var onJoinedInFlight: ((String) -> Unit)? = null
 
     /**
-     * Test seam: drops the in-flight gates and the join hook so a test starts from a known state.
-     *
-     * It does not cancel downloads already started: those run in `downloadScope` and may still
-     * `put()` their bytes into the memory cache after this returns. Only the gate bookkeeping is
-     * reset, which is what the dedupe assertions depend on.
+     * Test seam: called once a download attempt has finished and its gate is gone — including one
+     * whose bytes were dropped because [clear] ran while it was in flight. Lets a test wait for
+     * that attempt instead of sleeping and hoping the `put` already happened (or did not).
+     */
+    internal var onDownloadFinished: ((String) -> Unit)? = null
+
+    /**
+     * Test seam: returns the cache to the state a fresh process starts in. [clear] already drops
+     * every gate and invalidates the downloads behind them, so this only resets the hooks a test
+     * may have installed.
      */
     internal fun resetInFlightForTest() {
-        synchronized(lock) { inFlightDownloads.clear() }
+        clear()
         onJoinedInFlight = null
+        onDownloadFinished = null
     }
 
+    /**
+     * Empties the cache and abandons everything that was fetching into it.
+     *
+     * The in-flight gates must not outlive the clear: a download started against the old cache would
+     * otherwise `put()` its bytes into the freshly emptied one, and a caller joining a gate that was
+     * never completed would hang. So, under the lock, the generation is bumped (a stale download's
+     * `put` is refused by [putIfGeneration]) and the memory map *and* the gate table are emptied;
+     * then, outside the lock, every removed gate is completed with `null`, so a waiter gets a clean
+     * miss instead of bytes from before the clear, and a retry starts a new download. Completing
+     * them outside the lock means resuming a waiter never runs under this cache's lock.
+     */
     fun clear() {
+        var pending: List<CompletableDeferred<ByteArray?>> = emptyList()
         synchronized(lock) {
+            generation++
+            pending = inFlightDownloads.values.toList()
+            inFlightDownloads.clear()
             memoryMap.clear()
             currentMemoryBytes = 0L
         }
+        pending.forEach { it.complete(null) }
     }
 
     /**
@@ -106,18 +132,36 @@ object AudioCache {
 
     /**
      * Stores [data] in the in-memory cache if valid and not the JPod dummy placeholder.
+     *
+     * **Unguarded on purpose, and therefore not public.** This write path bypasses the generation
+     * invariant: [clear] cannot invalidate a direct `put`, so bytes fetched before a clear would
+     * repopulate the freshly emptied cache. The cache's own fetches go through [putIfGeneration];
+     * this stays `internal` so only this module (and its tests) can reach it.
      */
-    fun put(url: String, data: ByteArray) {
-        synchronized(lock) {
-            if (url.isBlank() || url.startsWith("tts:")) return
-            if (data.isEmpty() || data.size == JPOD_DUMMY_AUDIO_BYTES) return
+    internal fun put(url: String, data: ByteArray) {
+        synchronized(lock) { putLocked(url, data) }
+    }
 
-            val old = memoryMap.put(url, data)
-            currentMemoryBytes += data.size
-            if (old != null) {
-                currentMemoryBytes -= old.size
-            }
-            trimToSize(maxMemoryBytes)
+    private fun putLocked(url: String, data: ByteArray) {
+        if (url.isBlank() || url.startsWith("tts:")) return
+        if (data.isEmpty() || data.size == JPOD_DUMMY_AUDIO_BYTES) return
+
+        val old = memoryMap.put(url, data)
+        currentMemoryBytes += data.size
+        if (old != null) {
+            currentMemoryBytes -= old.size
+        }
+        trimToSize(maxMemoryBytes)
+    }
+
+    /**
+     * [put] for a download that started under [startGeneration]: a [clear] in the meantime bumped the
+     * generation, and the bytes then belong to a cache that no longer exists.
+     */
+    private fun putIfGeneration(url: String, data: ByteArray, startGeneration: Long) {
+        synchronized(lock) {
+            if (startGeneration != generation) return
+            putLocked(url, data)
         }
     }
 
@@ -165,6 +209,9 @@ object AudioCache {
                 joinedExisting = true
                 inFlight
             } else {
+                // The generation this download belongs to, captured while the gate is registered so
+                // a `clear()` that lands before the request starts also invalidates it.
+                val startGeneration = generation
                 CompletableDeferred<ByteArray?>().also { gate ->
                     // Registered before the download starts, so a caller that shows up while the
                     // request is in flight always finds it instead of racing it.
@@ -176,11 +223,14 @@ object AudioCache {
                         // fetch is still running. Completed and removed in the download's own
                         // finally, so a failed or empty download removes it too and never poisons the
                         // URL.
-                        val bytes = runCatching { downloadIntoMemory(url, client) }.getOrNull()
+                        val bytes = runCatching {
+                            downloadIntoMemory(url, client, startGeneration)
+                        }.getOrNull()
                         gate.complete(bytes)
                         synchronized(lock) {
                             if (inFlightDownloads[url] === gate) inFlightDownloads.remove(url)
                         }
+                        runCatching { onDownloadFinished?.invoke(url) }
                     }
                 }
             }
@@ -190,7 +240,11 @@ object AudioCache {
     }
 
     /** The one network path: fetch [url] into memory, rejecting dummies, oversize and empty bodies. */
-    private suspend fun downloadIntoMemory(url: String, client: OkHttpClient): ByteArray? =
+    private suspend fun downloadIntoMemory(
+        url: String,
+        client: OkHttpClient,
+        startGeneration: Long,
+    ): ByteArray? =
         withContext(Dispatchers.IO) {
             try {
                 val request = Request.Builder().url(url).build()
@@ -205,7 +259,7 @@ object AudioCache {
                     if (bytes.isEmpty() || bytes.size == JPOD_DUMMY_AUDIO_BYTES) {
                         return@withContext null
                     }
-                    put(url, bytes)
+                    putIfGeneration(url, bytes, startGeneration)
                     bytes
                 }
             } catch (_: Exception) {

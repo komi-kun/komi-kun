@@ -6,9 +6,10 @@
 // long-press picker opens, never at render time — and receives the candidates on
 // `window.DictionaryRenderer.onAudioResults(callbackId, {sources, candidates}, done)`, once per
 // source that finishes plus a final `done = true` snapshot, then calls
-// `WordAudioBridge.playCandidates(urlsJson)` / `playAudio(url)`. This class replaces Yomitan's
-// browser-side `DisplayAudio`: it resolves the configured sources (via [AudioResolver]) and plays
-// the chosen URL through [WordAudioPlayer].
+// `WordAudioBridge.playCandidates(urlsJson)` / `playAudio(url)`. A lookup the renderer drops (a new
+// search replaced the word) is abandoned with `WordAudioBridge.cancelAudio(callbackId)`. This class
+// replaces Yomitan's browser-side `DisplayAudio`: it resolves the configured sources (via
+// [AudioResolver]) and plays the chosen URL through [WordAudioPlayer].
 //
 // Rendering/UX is untouched — the play button, autoplay and error states are already in the
 // existing renderer; this only supplies the missing native half.
@@ -18,6 +19,7 @@ import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -28,6 +30,7 @@ import kotlinx.coroutines.launch
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import org.json.JSONArray
 import org.json.JSONObject
+import java.util.concurrent.ConcurrentHashMap
 
 class WordAudioBridge(
     private val webViewProvider: () -> WebView?,
@@ -48,6 +51,12 @@ class WordAudioBridge(
 
     private val scope = CoroutineScope(SupervisorJob() + dispatcher)
     private var cachedResolver: Pair<AudioHttp, AudioResolver>? = null
+
+    // KUN --> One streaming job per in-flight request, so the renderer can abandon a lookup it no
+    // longer shows instead of waiting for every configured source. Entries are removed when the job
+    // completes, so a finished request never leaves a cancellable entry (or a stale job) behind.
+    private val fetchJobs = ConcurrentHashMap<String, Job>()
+    // KUN <--
 
     init {
         player.onPlaybackError = {
@@ -109,7 +118,7 @@ class WordAudioBridge(
         // so playback starts in configured priority order rather than on the fastest answer; the
         // remaining candidates are prefetched by the player once playback starts, not here.
         player.attachContext(webView.context)
-        scope.launch {
+        val job = scope.launch(start = CoroutineStart.LAZY) {
             getResolver().stream(
                 sources = config.sources,
                 term = expression,
@@ -120,8 +129,29 @@ class WordAudioBridge(
                 deliver(webView, callbackId, update.resolution, update.done, update.playbackReady)
             }
         }
+        // Registered before the first emission (the job is lazy), so a `cancelAudio` that arrives
+        // right after `fetchAudio` always finds it. A finished or cancelled job removes itself.
+        fetchJobs[callbackId] = job
+        job.invokeOnCompletion { fetchJobs.remove(callbackId, job) }
+        job.start()
         // KUN <--
     }
+
+    /**
+     * Abandons the stream started for [callbackId] (the renderer drops a lookup whose word is no
+     * longer shown): no *new* emission is made for it. A delivery that was already handed to
+     * `webView.post` can still reach the page, and is ignored there — the renderer dropped the
+     * callback id. Unknown or already-finished ids are a no-op, so a prune that races a terminal
+     * snapshot — or arrives after [destroy] — is harmless.
+     */
+    @JavascriptInterface
+    fun cancelAudio(callbackId: String) {
+        val job = fetchJobs.remove(callbackId) ?: return
+        job.cancel()
+    }
+
+    /** Number of streaming requests still tracked (diagnostics/test seam). */
+    internal fun activeAudioRequestCount(): Int = fetchJobs.size
 
     @JavascriptInterface
     fun playAudio(url: String) {
