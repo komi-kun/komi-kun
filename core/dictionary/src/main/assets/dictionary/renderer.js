@@ -2245,11 +2245,13 @@
    * when the request (or a completed cache entry) is exhausted. Resolution is never started at
    * render time: this is the *only* entry point, and only a play tap / picker open reaches it.
    *
-   * [owner] (the audio button) makes the registration idempotent: pressing again while the request is
-   * still open *replaces* that button's previous waiter instead of stacking a second one, which would
-   * rebuild the picker / start playback once per press for every snapshot.
+   * [owner]/[kind] make the registration idempotent *per action*: the same action on the same button
+   * (a second play tap, a second long-press on the same entry) replaces its previous waiter instead of
+   * stacking one more — which would start playback / rebuild the picker once per press for every
+   * snapshot. Different actions stay independent: long-pressing while a play tap is waiting must not
+   * drop the play waiter, or that press would never play and never report a failure.
    */
-  function requestAudioCandidates(expression, reading, onUpdate, owner) {
+  function requestAudioCandidates(expression, reading, onUpdate, owner, kind) {
     const key = audioKey(expression, reading);
     const cached = _audioCandidatesCache.get(key);
     if (cached && cached.done) {
@@ -2257,12 +2259,17 @@
       return;
     }
 
-    const waiter = typeof onUpdate === 'function' ? { owner: owner || null, fn: onUpdate } : null;
+    const waiter = typeof onUpdate === 'function'
+      ? { owner: owner || null, kind: kind || null, fn: onUpdate }
+      : null;
 
     if (_pendingAudioRequests.has(key)) {
       const waiters = _pendingAudioRequests.get(key);
       if (waiter) {
-        const kept = waiter.owner ? waiters.filter((w) => w.owner !== waiter.owner) : waiters;
+        // Only an identical (owner, kind) pair is replaced; another action on the same button keeps
+        // its own waiter.
+        const isSameAction = (w) => w.owner === waiter.owner && w.kind === waiter.kind;
+        const kept = waiter.owner ? waiters.filter((w) => !isSameAction(w)) : waiters;
         kept.push(waiter);
         _pendingAudioRequests.set(key, kept);
       }
@@ -2566,7 +2573,7 @@
           audioBtn.classList.remove('loading');
           if (!started) playFallbackAndFlashError();
         }
-      }, audioBtn);
+      }, audioBtn, 'play');
     };
 
     const openMenu = (ev) => {
@@ -2591,7 +2598,7 @@
         // lands; a menu the user dismissed stays dismissed.
         updateAudioMenu(audioBtn, payload, !done);
         if (done) audioBtn.classList.remove('loading');
-      }, audioBtn);
+      }, audioBtn, 'menu');
     };
 
     audioBtn.playAudio = playDefault;

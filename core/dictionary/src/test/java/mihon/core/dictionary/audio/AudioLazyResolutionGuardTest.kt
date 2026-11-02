@@ -125,10 +125,16 @@ class AudioLazyResolutionGuardTest {
         val menu = functionBlock(rendererJs, "function showAudioMenu(")
         menu shouldContain "'No audio found'"
         menu shouldContain "'Loading audio…'"
-        // Both handlers register with the button as owner, so re-pressing replaces that button's
-        // waiter instead of stacking a second one (which would rebuild the picker once per press).
+        // Both handlers register on the same button but with a distinct *kind*, so repeating one
+        // action replaces only its own waiter: a long-press while a play tap waits must not drop the
+        // play waiter (that press would then never play and never report a failure).
         val createButton = functionBlock(rendererJs, "function createAudioButton(")
-        Regex("\\}\\s*,\\s*audioBtn\\s*\\)").findAll(createButton).count() shouldBe 2
+        Regex("\\}\\s*,\\s*audioBtn\\s*,\\s*'play'\\s*\\)").findAll(createButton).count() shouldBe 1
+        Regex("\\}\\s*,\\s*audioBtn\\s*,\\s*'menu'\\s*\\)").findAll(createButton).count() shouldBe 1
+        // Replacement is keyed on the (owner, kind) pair, not on the owner alone.
+        val request = functionBlock(rendererJs, "function requestAudioCandidates(")
+        request shouldContain "w.owner === waiter.owner && w.kind === waiter.kind"
+        Regex("w\\.owner !== waiter\\.owner\\s*\\}\\s*;").containsMatchIn(request) shouldBe false
     }
 
     @Test
