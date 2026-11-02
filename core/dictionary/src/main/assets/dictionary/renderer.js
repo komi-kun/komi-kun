@@ -2355,7 +2355,7 @@
     }
     if (_audioMenuPointerLost) {
       document.removeEventListener('visibilitychange', _audioMenuPointerLost, true);
-      window.removeEventListener('blur', _audioMenuPointerLost, true);
+      window.removeEventListener('blur', _audioMenuPointerLost);
       document.removeEventListener('pointerout', _audioMenuPointerLost, true);
       _audioMenuPointerLost = null;
     }
@@ -2735,7 +2735,10 @@
       document.addEventListener('pointerup', _audioMenuPointerUp, true);
       document.addEventListener('pointercancel', _audioMenuPointerUp, true);
       document.addEventListener('visibilitychange', _audioMenuPointerLost, true);
-      window.addEventListener('blur', _audioMenuPointerLost, true);
+      // Default (target/bubble) phase: a capture-phase `blur` listener would also see element-level
+      // blurs inside the popup (a row taking focus, the native popup taking focus mid-press) and end
+      // the gesture on the press that started it. Only a window-targeted blur counts here.
+      window.addEventListener('blur', _audioMenuPointerLost);
       document.addEventListener('pointerout', _audioMenuPointerLost, true);
       state.size = measuredSize();
     } else {

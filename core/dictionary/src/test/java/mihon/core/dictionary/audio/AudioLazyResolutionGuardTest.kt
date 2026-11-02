@@ -190,7 +190,11 @@ class AudioLazyResolutionGuardTest {
         // A lost release (page hidden, window blurred, pointer left the window) clears the flag and
         // replays the parked snapshot instead of freezing the picker forever.
         menu shouldContain "document.addEventListener('visibilitychange', _audioMenuPointerLost, true);"
-        menu shouldContain "window.addEventListener('blur', _audioMenuPointerLost, true);"
+        // A capture-phase `blur` listener would also fire for element blurs inside the popup and end
+        // the gesture on the press that started it, so the window listener must stay in the default
+        // (target/bubble) phase.
+        menu shouldContain "window.addEventListener('blur', _audioMenuPointerLost);"
+        menu shouldNotContain "window.addEventListener('blur', _audioMenuPointerLost, true);"
         menu shouldContain "document.addEventListener('pointerout', _audioMenuPointerLost, true);"
         val lost = functionBlock(rendererJs, "_audioMenuPointerLost = (ev) => {")
         lost shouldContain "if (ev.type === 'visibilitychange' && document.visibilityState !== 'hidden') return;"
@@ -199,7 +203,8 @@ class AudioLazyResolutionGuardTest {
         // ...and teardown removes them with the menu.
         val close = functionBlock(rendererJs, "function closeAudioMenu()")
         close shouldContain "document.removeEventListener('visibilitychange', _audioMenuPointerLost, true);"
-        close shouldContain "window.removeEventListener('blur', _audioMenuPointerLost, true);"
+        close shouldContain "window.removeEventListener('blur', _audioMenuPointerLost);"
+        close shouldNotContain "window.removeEventListener('blur', _audioMenuPointerLost, true);"
         close shouldContain "document.removeEventListener('pointerout', _audioMenuPointerLost, true);"
     }
 
