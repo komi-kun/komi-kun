@@ -59,10 +59,22 @@ class OrphanedDownloadScanManager(
      * one that replaced it: cancellation is asynchronous, and a progress callback from the outgoing
      * walk would otherwise put [State.Running] back after a [cancel] already returned to
      * [State.Stopped].
+     *
+     * `@Volatile` because the walk reads it on its own dispatcher while [start] and [cancel] write it
+     * on the caller's thread: without a happens-before edge a superseded walk can see a stale value,
+     * believe it is still the current one, and publish over the state that replaced it. The writes
+     * themselves are serialised by the methods that make them, so `++` cannot lose an increment.
      */
+    @Volatile
     private var generation = 0
 
-    /** Starts a scan unless one is already running, and publishes [State.Running] immediately. */
+    /**
+     * Starts a scan unless one is already running, and publishes [State.Running] immediately.
+     *
+     * Synchronised so two starts cannot both pass the running check: the second one would otherwise
+     * overwrite [job] and leave the walk the first started with no reference to be cancelled by.
+     */
+    @Synchronized
     fun start() {
         if (job?.isActive == true) return
         val run = ++generation
@@ -77,7 +89,11 @@ class OrphanedDownloadScanManager(
      * With nothing running the current state is left alone: a stray stop must not discard the list a
      * finished scan produced, and must not turn a fresh [State.Idle] into a stop the user never asked
      * for (which would also keep [start] from starting the first scan).
+     *
+     * Synchronised with [start], so a stop and a start cannot interleave into a walk that is running
+     * with no [job] naming it.
      */
+    @Synchronized
     fun cancel() {
         val wasRunning = job?.isActive == true
         generation++

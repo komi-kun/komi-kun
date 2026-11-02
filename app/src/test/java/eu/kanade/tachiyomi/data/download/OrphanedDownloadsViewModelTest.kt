@@ -2,7 +2,11 @@ package eu.kanade.tachiyomi.data.download
 
 import android.util.Log
 import com.hippo.unifile.UniFile
+import eu.kanade.presentation.more.settings.screen.advanced.OrphanedDownloadGroup
+import eu.kanade.presentation.more.settings.screen.advanced.OrphanedDownloadRow
+import eu.kanade.presentation.more.settings.screen.advanced.OrphanedDownloadSort
 import eu.kanade.presentation.more.settings.screen.advanced.OrphanedDownloadsViewModel
+import eu.kanade.presentation.more.settings.screen.advanced.rows
 import eu.kanade.tachiyomi.data.download.OrphanedDownloadScanManager.State
 import eu.kanade.tachiyomi.data.download.OrphanedDownloadScanner.Kind
 import eu.kanade.tachiyomi.data.download.OrphanedDownloadScanner.OrphanedDownload
@@ -20,7 +24,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -122,6 +128,38 @@ class OrphanedDownloadsViewModelTest {
     }
 
     @Test
+    fun `a second confirm before the busy state is published does not delete twice`() = runTest {
+        // A dispatcher that does not run the state collector inline: this is what makes the confirm
+        // race real, because the busy flag reaches `state` only one dispatch later.
+        val standard = StandardTestDispatcher(testScheduler)
+        Dispatchers.setMain(standard)
+
+        val item = orphan("src/manga/a.cbz")
+        scanState.value = State.Ready(listOf(item))
+        val gate = CompletableDeferred<Int>()
+        coEvery { scanner.delete(any()) } coAnswers { gate.await() }
+
+        val viewModel = OrphanedDownloadsViewModel(manager, scanner)
+        collector = CoroutineScope(standard).launch { viewModel.state.collect {} }
+        advanceUntilIdle()
+        viewModel.toggleSelection(item.id)
+        advanceUntilIdle()
+
+        // Two confirms land in one frame: the second still sees `deleting = false` in `state`, so
+        // without a synchronous claim it runs the same files through the scanner a second time and
+        // asks the manager for a second scan.
+        viewModel.deleteSelected()
+        viewModel.deleteSelected()
+
+        advanceUntilIdle()
+        gate.complete(1)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { scanner.delete(any()) }
+        verify(exactly = 1) { manager.start() }
+    }
+
+    @Test
     fun `a failed delete clears the busy state and does not rescan`() = runTest {
         val item = orphan("src/manga/a.cbz")
         scanState.value = State.Ready(listOf(item))
@@ -162,8 +200,14 @@ class OrphanedDownloadsViewModelTest {
         viewModel.toggleSelectAll()
 
         viewModel.state.value.selection shouldBe setOf(chapter.id)
+        // The state's derived selection flags are what the app bar renders, so they must follow the
+        // pruned selection and the list rather than being computed from anything else.
+        viewModel.state.value.selectableIds shouldBe setOf(chapter.id)
+        viewModel.state.value.allSelected shouldBe true
 
         viewModel.toggleSelectAll()
+
+        viewModel.state.value.allSelected shouldBe false
 
         viewModel.state.value.selection shouldBe emptySet()
     }
@@ -178,18 +222,20 @@ class OrphanedDownloadsViewModelTest {
 
         // The default order is size-descending, so PATH reorders the rows around the selection.
         viewModel.setSort(OrphanedDownloadSort.PATH)
-        viewModel.state.value.rows.map { (it as OrphanedDownloadRow.Item).item.id } shouldBe
-            listOf(small.id, big.id)
+        // The rows are the screen's to build now, so the test builds them the way it does.
+        val rows = rows(viewModel.state.value.items, viewModel.state.value.sort, viewModel.state.value.group)
+        rows.map { (it as OrphanedDownloadRow.Item).item.id } shouldBe listOf(small.id, big.id)
         viewModel.state.value.selection shouldBe setOf(big.id)
-        selectedSizeBytes(viewModel.state.value.items, viewModel.state.value.selection) shouldBe 30L
+        viewModel.state.value.selectedSizeBytes shouldBe 30L
 
         // Grouping rewrites the rows as headers plus entries; the selection is still the same entry.
         viewModel.setGroup(OrphanedDownloadGroup.KIND)
-        viewModel.state.value.rows.first() shouldBe OrphanedDownloadRow.Header(
-            key = "kind:CHAPTER",
-            label = OrphanedDownloadRow.Label.Type(Kind.CHAPTER),
-        )
+        rows(viewModel.state.value.items, viewModel.state.value.sort, viewModel.state.value.group).first() shouldBe
+            OrphanedDownloadRow.Header(
+                key = "kind:CHAPTER",
+                label = OrphanedDownloadRow.Label.Type(Kind.CHAPTER),
+            )
         viewModel.state.value.selection shouldBe setOf(big.id)
-        selectedSizeBytes(viewModel.state.value.items, viewModel.state.value.selection) shouldBe 30L
+        viewModel.state.value.selectedSizeBytes shouldBe 30L
     }
 }

@@ -49,18 +49,10 @@ import eu.kanade.presentation.components.AppBarActions
 import eu.kanade.presentation.components.DropdownMenu
 import eu.kanade.presentation.components.RadioMenuItem
 import eu.kanade.presentation.util.Screen
-import eu.kanade.tachiyomi.data.download.OrphanedDownloadGroup
-import eu.kanade.tachiyomi.data.download.OrphanedDownloadRow
 import eu.kanade.tachiyomi.data.download.OrphanedDownloadScanManager
 import eu.kanade.tachiyomi.data.download.OrphanedDownloadScanner
 import eu.kanade.tachiyomi.data.download.OrphanedDownloadScanner.Kind
 import eu.kanade.tachiyomi.data.download.OrphanedDownloadScanner.OrphanedDownload
-import eu.kanade.tachiyomi.data.download.OrphanedDownloadSort
-import eu.kanade.tachiyomi.data.download.isAllSelected
-import eu.kanade.tachiyomi.data.download.retainSelection
-import eu.kanade.tachiyomi.data.download.rows
-import eu.kanade.tachiyomi.data.download.selectableIds
-import eu.kanade.tachiyomi.data.download.selectedSizeBytes
 import eu.kanade.tachiyomi.util.system.toast
 import exh.log.xLogE
 import kotlinx.coroutines.CancellationException
@@ -124,6 +116,14 @@ class OrphanedDownloadsScreen : Screen() {
         // way to start it again.
         LaunchedEffect(viewModel) {
             viewModel.startScanIfIdle()
+        }
+
+        // The rows are a pure function of the entries and the two ordering choices, so they are
+        // computed here, once per change of those three, instead of inside the ViewModel's state
+        // transform: that one also runs for every checkbox tap, and a selection change neither
+        // reorders nor re-groups anything.
+        val rows = remember(state.items, state.sort, state.group) {
+            rows(state.items, state.sort, state.group)
         }
 
         Scaffold(
@@ -190,8 +190,8 @@ class OrphanedDownloadsScreen : Screen() {
                                         ),
                                     )
                                 }
-                                if (ready != null && selectableIds(state.items).isNotEmpty()) {
-                                    val allSelected = isAllSelected(state.items, state.selection)
+                                if (ready != null && state.selectableIds.isNotEmpty()) {
+                                    val allSelected = state.allSelected
                                     add(
                                         AppBar.Action(
                                             title = if (allSelected) {
@@ -294,7 +294,7 @@ class OrphanedDownloadsScreen : Screen() {
                     if (state.showConfirmation) {
                         DeleteConfirmationDialog(
                             itemCount = state.selection.size,
-                            totalSize = selectedSizeBytes(state.items, state.selection),
+                            totalSize = state.selectedSizeBytes,
                             onConfirm = viewModel::deleteSelected,
                             onDismiss = viewModel::hideConfirmation,
                         )
@@ -338,7 +338,7 @@ class OrphanedDownloadsScreen : Screen() {
                                     )
                                 }
                                 items(
-                                    items = state.rows,
+                                    items = rows,
                                     key = { row ->
                                         when (row) {
                                             is OrphanedDownloadRow.Header -> row.key
@@ -581,6 +581,12 @@ class OrphanedDownloadsViewModel(
     private val _deleted = MutableSharedFlow<Int>(extraBufferCapacity = 1)
     val deleted = _deleted.asSharedFlow()
 
+    // What the selection was last pruned against, by identity: state changes that only touch the
+    // selection cannot have added or removed an entry, so the O(items) prune is skipped for them.
+    private var prunedFrom: List<OrphanedDownload>? = null
+    private var prunedFor: Set<String>? = null
+    private var prunedSelection: Set<String> = emptySet()
+
     val state: StateFlow<ScreenState> = combine(manager.state, uiState) { scan, ui -> screenState(scan, ui) }
         .stateIn(
             scope = viewModelScope,
@@ -664,12 +670,20 @@ class OrphanedDownloadsViewModel(
      * being emptied.
      */
     fun deleteSelected() {
+        // The disabled action is not a guard: `deleting` reaches the UI through the asynchronous
+        // `state` flow, so two confirms in one frame both see it false. Claim it synchronously here;
+        // the call that loses the race returns before reading the selection or starting a walk.
+        if (!beginDelete()) return
+
         val current = state.value
         val selected = current.items.filter { it.id in current.selection }
-        if (selected.isEmpty()) return
+        if (selected.isEmpty()) {
+            // The selection was emptied between opening the dialog and confirming it: there is
+            // nothing to delete, and the flag just claimed must not be left behind.
+            uiState.update { it.copy(deleting = false) }
+            return
+        }
 
-        // The confirmation is closed on confirm, before any work starts.
-        uiState.update { it.copy(showConfirmation = false, deleting = true) }
         viewModelScope.launch {
             try {
                 val deletedCount = runCatching { scanner.delete(selected) }
@@ -693,6 +707,22 @@ class OrphanedDownloadsViewModel(
         }
     }
 
+    /**
+     * Synchronously claims [UiState.deleting] for one delete, closing the confirmation, and returns
+     * false when another call already holds it.
+     *
+     * The claim has to be made here, on the underlying flow, rather than by reading [state]: that one
+     * is a `stateIn` collector, so it still shows `deleting = false` while the first delete is already
+     * running, and two confirms in one frame would both pass a check made against it.
+     */
+    private fun beginDelete(): Boolean {
+        while (true) {
+            val current = uiState.value
+            if (current.deleting) return false
+            if (uiState.compareAndSet(current, current.copy(showConfirmation = false, deleting = true))) return true
+        }
+    }
+
     private fun screenState(
         scan: OrphanedDownloadScanManager.State,
         ui: UiState,
@@ -701,10 +731,7 @@ class OrphanedDownloadsViewModel(
         return ScreenState(
             scan = scan,
             items = items,
-            rows = rows(items, ui.sort, ui.group),
-            // The scan is the only source of ids, so a selection made before a rescan or a deletion
-            // can name entries that are gone; it is pruned here, on every item list change.
-            selection = retainSelection(ui.selection, items),
+            selection = retainedSelection(ui.selection, items),
             sort = ui.sort,
             group = ui.group,
             showConfirmation = ui.showConfirmation,
@@ -713,17 +740,39 @@ class OrphanedDownloadsViewModel(
         )
     }
 
+    /**
+     * [retainSelection] memoised on the identity of both inputs.
+     *
+     * The scan is the only source of ids, so a selection made before a rescan or a deletion can name
+     * entries that are gone and is pruned on every item list change. This transform also runs for
+     * every checkbox tap, though, and a tap keeps both the list and its entries: while both are the
+     * very objects the last prune saw, its result is reused instead of walking the list again.
+     */
+    private fun retainedSelection(selection: Set<String>, items: List<OrphanedDownload>): Set<String> {
+        if (items === prunedFrom && selection === prunedFor) return prunedSelection
+        return retainSelection(selection, items).also { pruned ->
+            prunedFrom = items
+            prunedFor = selection
+            prunedSelection = pruned
+        }
+    }
+
     /** What the screen renders: the manager's scan plus this entry's ordering and selection. */
     @Immutable
     data class ScreenState(
         val scan: OrphanedDownloadScanManager.State,
         val items: List<OrphanedDownload>,
-        val rows: List<OrphanedDownloadRow>,
         val selection: Set<String>,
         val sort: OrphanedDownloadSort,
         val group: OrphanedDownloadGroup,
         val showConfirmation: Boolean,
         val deleteFailed: Boolean,
         val deleting: Boolean,
-    )
+    ) {
+        // Derived once per state rather than by every reader: the app bar asked for all three on each
+        // recomposition, and each call rebuilt a HashSet over the whole list.
+        val selectableIds: Set<String> = selectableIds(items)
+        val allSelected: Boolean = isAllSelected(items, selection)
+        val selectedSizeBytes: Long = selectedSizeBytes(items, selection)
+    }
 }

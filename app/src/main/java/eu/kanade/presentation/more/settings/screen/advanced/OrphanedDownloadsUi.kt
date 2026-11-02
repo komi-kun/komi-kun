@@ -1,4 +1,4 @@
-package eu.kanade.tachiyomi.data.download
+package eu.kanade.presentation.more.settings.screen.advanced
 
 import eu.kanade.tachiyomi.data.download.OrphanedDownloadScanner.Kind
 import eu.kanade.tachiyomi.data.download.OrphanedDownloadScanner.OrphanedDownload
