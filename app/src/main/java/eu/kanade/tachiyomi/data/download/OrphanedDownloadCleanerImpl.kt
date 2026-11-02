@@ -43,11 +43,18 @@ class OrphanedDownloadCleanerImpl(
             val source = sourceManager.get(manga.source) ?: return@runCatching
             // A removed chapter whose file must be kept (a bookmarked one while bookmark retention is
             // off) is never handed over for deletion: `getChaptersToDelete` keeps it for the same reason.
-            val removableChapters = OrphanedDownloads.removableChapters(
-                removedChapters,
-                removeBookmarkedChapters = downloadPreferences.removeBookmarkedChapters.get(),
-            )
+            val removeBookmarkedChapters = downloadPreferences.removeBookmarkedChapters.get()
+            val removableChapters = OrphanedDownloads.removableChapters(removedChapters, removeBookmarkedChapters)
             if (removableChapters.isEmpty()) return@runCatching
+            // The kept ones still name files that must survive, so they join the survivor set below:
+            // two removed chapters can resolve to the same directory (duplicate chapter names; the url
+            // hash is off by default), and the kept chapter's own file is that directory's file. Leaving
+            // it out would let the other removed chapter's deletion take the bookmarked chapter's file.
+            val keptChapters = if (removeBookmarkedChapters) {
+                emptyList()
+            } else {
+                removedChapters.filter { it.bookmark }
+            }
             // Read the survivors here, after the caller's transaction committed, so the removed rows
             // are really gone and a replacement chapter is really in. The folder is
             // `<source dir name>/<manga dir name>`, and neither name is unique: two installed
@@ -69,9 +76,9 @@ class OrphanedDownloadCleanerImpl(
             // there is nothing to keep the files for, and an empty id list must not reach SQL — the
             // generated query cannot bind `IN ()`.
             val remainingChapters = if (survivorIds.isEmpty()) {
-                emptyList()
+                keptChapters
             } else {
-                chapterRepository.getChaptersByMangaIds(survivorIds)
+                chapterRepository.getChaptersByMangaIds(survivorIds) + keptChapters
             }
             downloadManager.deleteOrphanedChapters(removableChapters, remainingChapters, manga, source)
         }.onFailure { e ->

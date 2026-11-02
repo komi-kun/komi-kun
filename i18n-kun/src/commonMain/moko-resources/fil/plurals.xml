@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <plurals name="orphaned_downloads_deleted">
+        <item quantity="one">Nabura ang %1$d naulilang entry</item>
+        <item quantity="other">Nabura ang %1$d na naulilang entry</item>
+    </plurals>
+</resources>

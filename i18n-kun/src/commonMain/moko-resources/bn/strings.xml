@@ -264,4 +264,34 @@
     <string name="ocr_redoing_chapter">অধ্যায়ের জন্য OCR পুনরায় চালানো হচ্ছে…</string>
     <string name="ocr_redo_page_complete">%1$d নম্বর পৃষ্ঠার জন্য OCR আপডেট করা হয়েছে</string>
     <string name="ocr_redo_chapter_complete">অধ্যায়ের জন্য OCR আপডেট করা হয়েছে</string>
+    <!-- Orphaned downloads (automatic cleanup + manual scan) -->
+    <string name="pref_category_orphaned_downloads">এতিম ডাউনলোড</string>
+    <string name="pref_remove_orphaned_downloads">এতিম ডাউনলোড মুছুন</string>
+    <string name="pref_remove_orphaned_downloads_summary">লাইব্রেরি আপডেটে যখন কোনো অধ্যায় আর তালিকাভুক্ত থাকে না, বা ডিভাইস সিঙ্ক সেটি সরিয়ে দেয়, তখন এমন ডাউনলোড করা ফাইল মুছে ফেলুন যা আর কোনো অবশিষ্ট অধ্যায় ব্যবহার করে না। একই আপডেটে একই ফাইল নামে থাকা নতুন অধ্যায় ফাইলটি রাখে।</string>
+    <string name="pref_orphaned_downloads_scan">এতিম ডাউনলোড খুঁজুন</string>
+    <string name="pref_orphaned_downloads_scan_summary">যেসব ডাউনলোড করা ফাইলকে এখন আর কোনো অধ্যায় চিহ্নিত করতে পারে না, সেগুলো খুঁজে মুছে ফেলুন। স্বয়ংক্রিয় পরিষ্কার কেবল হারিয়ে যাওয়া অধ্যায়ের ফাইল মুছে ফেলে, এবং বুকমার্ক করা অধ্যায় মুছে ফেলা বন্ধ থাকলে বুকমার্ক করা ফাইলগুলো রেখে দেয়।</string>
+    <string name="orphaned_downloads_title">এতিম ডাউনলোড</string>
+    <string name="orphaned_downloads_scanning">ডাউনলোড করা ফাইল স্ক্যান করা হচ্ছে…</string>
+    <string name="orphaned_downloads_stopped">স্ক্যান বন্ধ হয়েছে</string>
+    <string name="orphaned_downloads_progress">স্ক্যান করা হচ্ছে… %1$d/%2$d</string>
+    <string name="orphaned_downloads_summary">%1$dটি পাওয়া গেছে · %2$s</string>
+    <string name="orphaned_downloads_empty">কোনো এতিম ডাউনলোড পাওয়া যায়নি</string>
+    <string name="orphaned_downloads_clear_selection">নির্বাচন পরিষ্কার করুন</string>
+    <string name="orphaned_downloads_refresh">আবার স্ক্যান করুন</string>
+    <string name="orphaned_downloads_kind_manga">মিলে যাওয়া কোনো পুস্তক সংগ্রহ নেই</string>
+    <string name="orphaned_downloads_kind_source">উৎস ইনস্টল করা নেই</string>
+    <string name="orphaned_downloads_confirm_title">এতিম ফাইল মুছবেন?</string>
+    <string name="orphaned_downloads_confirm_message">নির্বাচিত %1$dটি এন্ট্রি মুছে %2$s খালি করবেন? এটি আর পূর্বাবস্থায় ফেরানো যাবে না।</string>
+    <string name="orphaned_downloads_sort_size_desc">বড়টি আগে</string>
+    <string name="orphaned_downloads_sort_size_asc">ছোটটি আগে</string>
+    <string name="orphaned_downloads_sort_path">নাম</string>
+    <string name="orphaned_downloads_sort_kind">ধরন</string>
+    <string name="orphaned_downloads_group_source">উৎস অনুযায়ী</string>
+    <string name="orphaned_downloads_group_manga">পুস্তক সংগ্রহ অনুযায়ী</string>
+    <string name="orphaned_downloads_group_kind">ধরন অনুযায়ী</string>
+    <string name="orphaned_downloads_group_none">কোনো গ্রুপিং নেই</string>
+    <string name="orphaned_downloads_stop">স্ক্যান থামান</string>
+    <string name="orphaned_downloads_scan_failed_short">শেষ স্ক্যান ব্যর্থ হয়েছে</string>
+    <string name="orphaned_downloads_scan_failed">ডাউনলোডগুলো পড়া যায়নি। স্টোরেজ অ্যাক্সেস যাচাই করে আবার চেষ্টা করুন।</string>
+    <string name="orphaned_downloads_delete_failed">নির্বাচিত ফাইলগুলো মোছা যায়নি। স্টোরেজ অ্যাক্সেস যাচাই করে আবার চেষ্টা করুন।</string>
 </resources>

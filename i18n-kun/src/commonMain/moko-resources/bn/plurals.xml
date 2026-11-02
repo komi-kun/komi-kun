@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <plurals name="orphaned_downloads_deleted">
+        <item quantity="one">%1$dটি এতিম ডাউনলোড মুছে ফেলা হয়েছে</item>
+        <item quantity="other">%1$dটি এতিম ডাউনলোড মুছে ফেলা হয়েছে</item>
+    </plurals>
+</resources>

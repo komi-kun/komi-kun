@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <plurals name="orphaned_downloads_deleted">
+        <item quantity="one">Smazáno %1$d osiřelé stahování</item>
+        <item quantity="few">Smazána %1$d osiřelá stahování</item>
+        <item quantity="many">Smazáno %1$d osiřelých stahování</item>
+        <item quantity="other">Smazáno %1$d osiřelých stahování</item>
+    </plurals>
+</resources>

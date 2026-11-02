@@ -329,11 +329,12 @@
     <!-- Orphaned downloads (automatic cleanup + manual scan) -->
     <string name="pref_category_orphaned_downloads">Orphaned downloads</string>
     <string name="pref_remove_orphaned_downloads">Delete orphaned downloads</string>
-    <string name="pref_remove_orphaned_downloads_summary">When a sync removes chapters, delete the downloaded files that no remaining chapter uses. A chapter replaced in the same update keeps its files.</string>
+    <string name="pref_remove_orphaned_downloads_summary">When a library update no longer lists a chapter, or a device sync removes it, delete the downloaded files that no remaining chapter uses. A new chapter that resolves to the same file name in the same update keeps the file.</string>
     <string name="pref_orphaned_downloads_scan">Scan for orphaned downloads</string>
     <string name="pref_orphaned_downloads_scan_summary">Find and delete downloaded files that no chapter can name any more. The automatic cleanup only deletes files of chapters that disappeared, and keeps bookmarked ones while removing bookmarked chapters is off.</string>
     <string name="orphaned_downloads_title">Orphaned downloads</string>
     <string name="orphaned_downloads_scanning">Scanning downloaded files…</string>
+    <string name="orphaned_downloads_stopped">Scan stopped</string>
     <string name="orphaned_downloads_progress">Scanning… %1$d/%2$d</string>
     <string name="orphaned_downloads_summary">%1$d found · %2$s</string>
     <string name="orphaned_downloads_empty">No orphaned downloads found</string>
@@ -343,6 +344,16 @@
     <string name="orphaned_downloads_kind_source">Source not installed</string>
     <string name="orphaned_downloads_confirm_title">Delete orphaned files?</string>
     <string name="orphaned_downloads_confirm_message">Delete %1$d selected entries and free %2$s? This cannot be undone.</string>
+    <string name="orphaned_downloads_sort_size_desc">Largest first</string>
+    <string name="orphaned_downloads_sort_size_asc">Smallest first</string>
+    <string name="orphaned_downloads_sort_path">Name</string>
+    <string name="orphaned_downloads_sort_kind">Type</string>
+    <string name="orphaned_downloads_group_source">By source</string>
+    <string name="orphaned_downloads_group_manga">By manga</string>
+    <string name="orphaned_downloads_group_kind">By type</string>
+    <string name="orphaned_downloads_group_none">No grouping</string>
+    <string name="orphaned_downloads_stop">Stop scan</string>
+    <string name="orphaned_downloads_scan_failed_short">Last scan failed</string>
     <string name="orphaned_downloads_scan_failed">The downloads could not be read. Check storage access and try again.</string>
     <string name="orphaned_downloads_delete_failed">The selected files could not be deleted. Check storage access and try again.</string>
 </resources>

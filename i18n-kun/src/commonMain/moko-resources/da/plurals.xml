@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <plurals name="orphaned_downloads_deleted">
+        <item quantity="one">Slettede %1$d forældreløs post</item>
+        <item quantity="other">Slettede %1$d forældreløse poster</item>
+    </plurals>
+</resources>

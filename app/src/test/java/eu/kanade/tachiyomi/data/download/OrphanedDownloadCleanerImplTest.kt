@@ -97,6 +97,54 @@ class OrphanedDownloadCleanerImplTest {
     }
 
     @Test
+    fun `a kept bookmarked chapter still protects the files its name resolves to`() = runBlocking {
+        // Both removed chapters are named the same, and the url hash is off by default, so both
+        // resolve to one directory. The bookmarked one is kept, but its file is that directory's file:
+        // leaving it out of the survivor set would let the unbookmarked duplicate delete it.
+        downloadPreferences.removeBookmarkedChapters.set(false)
+        stubReachable(listOf(manga(id = 1, title = "Title")))
+
+        cleaner().cleanupAfterChapterRemoval(
+            listOf(chapter(id = 1, bookmark = true, name = "Chapter 5"), chapter(id = 2, name = "Chapter 5")),
+            manga(id = 1, title = "Title"),
+        )
+
+        coVerify {
+            downloadManager.deleteOrphanedChapters(
+                // The delete list is unchanged: the kept chapter is still not handed over.
+                match { it.map(Chapter::id) == listOf(2L) },
+                match { it.map(Chapter::id) == listOf(1L) },
+                any(),
+                any(),
+            )
+        }
+    }
+
+    @Test
+    fun `a kept bookmarked chapter survives even with no survivor of the folder`() = runBlocking {
+        // No installed source renders the folder, so there is no survivor query to run — and an empty
+        // id list must not reach SQL — but the kept chapter still names files that must survive.
+        downloadPreferences.removeBookmarkedChapters.set(false)
+        coEvery { sourceManager.get(any()) } returns source
+        coEvery { sourceManager.getAll() } returns emptyList()
+
+        cleaner().cleanupAfterChapterRemoval(
+            listOf(chapter(id = 1, bookmark = true), chapter(id = 2)),
+            manga(id = 1, title = "Title"),
+        )
+
+        coVerify(exactly = 0) { chapterRepository.getChaptersByMangaIds(any()) }
+        coVerify {
+            downloadManager.deleteOrphanedChapters(
+                match { it.map(Chapter::id) == listOf(2L) },
+                match { it.map(Chapter::id) == listOf(1L) },
+                any(),
+                any(),
+            )
+        }
+    }
+
+    @Test
     fun `a chapter of another manga sharing the download folder is a survivor`() = runBlocking {
         // Same source, same title: both write into `<source>/Title`, so the other manga's chapters
         // keep their files. Reading only the removed manga's chapters would delete them.

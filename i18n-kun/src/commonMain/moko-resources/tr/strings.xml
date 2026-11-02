@@ -264,4 +264,34 @@
     <string name="ocr_redoing_chapter">Bölüm için OCR yeniden çalıştırılıyor…</string>
     <string name="ocr_redo_page_complete">%1$d sayfası için OCR güncellendi</string>
     <string name="ocr_redo_chapter_complete">Bölüm için OCR güncellendi</string>
+    <!-- Orphaned downloads (automatic cleanup + manual scan) -->
+    <string name="pref_category_orphaned_downloads">Sahipsiz indirmeler</string>
+    <string name="pref_remove_orphaned_downloads">Sahipsiz indirmeleri sil</string>
+    <string name="pref_remove_orphaned_downloads_summary">Kitaplık güncellemesi bir bölümü artık listelemediğinde veya cihazlar arası eşitleme onu kaldırdığında, artık hiçbir bölümün kullanmadığı indirilmiş dosyaları sil. Aynı güncellemede aynı dosya adına karşılık gelen yeni bir bölüm dosyayı korur.</string>
+    <string name="pref_orphaned_downloads_scan">Sahipsiz indirmeleri tara</string>
+    <string name="pref_orphaned_downloads_scan_summary">Hiçbir bölümün artık adlandıramadığı indirilmiş dosyaları bulup sil. Otomatik temizlik yalnızca kaybolan bölümlerin dosyalarını siler ve yer imli bölümleri silme kapalıyken yer imli olanları korur.</string>
+    <string name="orphaned_downloads_title">Sahipsiz indirmeler</string>
+    <string name="orphaned_downloads_scanning">İndirilmiş dosyalar taranıyor…</string>
+    <string name="orphaned_downloads_stopped">Tarama durduruldu</string>
+    <string name="orphaned_downloads_progress">Taranıyor… %1$d/%2$d</string>
+    <string name="orphaned_downloads_summary">%1$d bulundu · %2$s</string>
+    <string name="orphaned_downloads_empty">Sahipsiz indirme bulunamadı</string>
+    <string name="orphaned_downloads_clear_selection">Seçimi temizle</string>
+    <string name="orphaned_downloads_refresh">Yeniden tara</string>
+    <string name="orphaned_downloads_kind_manga">Eşleşen kitaplık girdisi yok</string>
+    <string name="orphaned_downloads_kind_source">Kaynak yüklü değil</string>
+    <string name="orphaned_downloads_confirm_title">Sahipsiz dosyalar silinsin mi?</string>
+    <string name="orphaned_downloads_confirm_message">Seçili %1$d girdi silinsin ve %2$s boşaltılsın mı? Bu işlem geri alınamaz.</string>
+    <string name="orphaned_downloads_sort_size_desc">En büyük önce</string>
+    <string name="orphaned_downloads_sort_size_asc">En küçük önce</string>
+    <string name="orphaned_downloads_sort_path">Ad</string>
+    <string name="orphaned_downloads_sort_kind">Tür</string>
+    <string name="orphaned_downloads_group_source">Kaynağa göre</string>
+    <string name="orphaned_downloads_group_manga">Kitaplık girdilerine göre</string>
+    <string name="orphaned_downloads_group_kind">Türe göre</string>
+    <string name="orphaned_downloads_group_none">Gruplama yok</string>
+    <string name="orphaned_downloads_stop">Taramayı durdur</string>
+    <string name="orphaned_downloads_scan_failed_short">Son tarama başarısız</string>
+    <string name="orphaned_downloads_scan_failed">İndirmeler okunamadı. Depolama erişimini kontrol edip yeniden deneyin.</string>
+    <string name="orphaned_downloads_delete_failed">Seçili dosyalar silinemedi. Depolama erişimini kontrol edip yeniden deneyin.</string>
 </resources>

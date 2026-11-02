@@ -1,5 +1,6 @@
 package eu.kanade.presentation.more.settings.screen
 
+import android.text.format.Formatter
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.collectAsState
@@ -16,6 +17,7 @@ import eu.kanade.presentation.category.visualName
 import eu.kanade.presentation.more.settings.Preference
 import eu.kanade.presentation.more.settings.screen.advanced.OrphanedDownloadsScreen
 import eu.kanade.presentation.more.settings.widget.TriStateListDialog
+import eu.kanade.tachiyomi.data.download.OrphanedDownloadScanManager
 import mihon.app.di.appGraph
 import tachiyomi.domain.category.model.Category
 import tachiyomi.domain.download.service.DownloadPreferences
@@ -218,6 +220,11 @@ object SettingsDownloadScreen : SearchableSettings {
         downloadPreferences: DownloadPreferences,
     ): Preference.PreferenceGroup {
         val navigator = LocalNavigator.currentOrThrow
+        val context = LocalContext.current
+        // The app-scoped scan, so this row reports a scan started from the screen (and a scan that
+        // keeps running after the screen is popped) instead of a static description.
+        val scanManager = remember { context.appGraph.orphanedDownloadScanManager }
+        val scanState by scanManager.state.collectAsState()
         return Preference.PreferenceGroup(
             title = stringResource(KUNMR.strings.pref_category_orphaned_downloads),
             preferenceItems = listOf(
@@ -228,7 +235,24 @@ object SettingsDownloadScreen : SearchableSettings {
                 ),
                 Preference.PreferenceItem.TextPreference(
                     title = stringResource(KUNMR.strings.pref_orphaned_downloads_scan),
-                    subtitle = stringResource(KUNMR.strings.pref_orphaned_downloads_scan_summary),
+                    subtitle = when (val state = scanState) {
+                        is OrphanedDownloadScanManager.State.Idle ->
+                            stringResource(KUNMR.strings.pref_orphaned_downloads_scan_summary)
+                        is OrphanedDownloadScanManager.State.Stopped ->
+                            stringResource(KUNMR.strings.orphaned_downloads_stopped)
+                        is OrphanedDownloadScanManager.State.Running -> if (state.total > 0) {
+                            stringResource(KUNMR.strings.orphaned_downloads_progress, state.scanned, state.total)
+                        } else {
+                            stringResource(KUNMR.strings.orphaned_downloads_scanning)
+                        }
+                        is OrphanedDownloadScanManager.State.Ready -> stringResource(
+                            KUNMR.strings.orphaned_downloads_summary,
+                            state.items.size,
+                            Formatter.formatFileSize(context, state.items.sumOf { it.sizeBytes }),
+                        )
+                        is OrphanedDownloadScanManager.State.Failed ->
+                            stringResource(KUNMR.strings.orphaned_downloads_scan_failed_short)
+                    },
                     onClick = { navigator.push(OrphanedDownloadsScreen()) },
                 ),
             ),

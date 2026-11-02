@@ -264,4 +264,34 @@
     <string name="ocr_redoing_chapter">إعادة تشغيل OCR للفصل…</string>
     <string name="ocr_redo_page_complete">تم تحديث OCR للصفحة %1$d</string>
     <string name="ocr_redo_chapter_complete">تم تحديث OCR للفصل</string>
+    <!-- Orphaned downloads (automatic cleanup + manual scan) -->
+    <string name="pref_category_orphaned_downloads">التنزيلات اليتيمة</string>
+    <string name="pref_remove_orphaned_downloads">حذف التنزيلات اليتيمة</string>
+    <string name="pref_remove_orphaned_downloads_summary">عندما يتوقف تحديث المكتبة عن سرد فصل، أو تحذفه مزامنة بين الأجهزة، احذف الملفات المنزَّلة التي لم يعد أي فصل متبقٍّ يستخدمها. الفصل الجديد الذي يطابق اسم الملف نفسه في التحديث نفسه يحتفظ بالملف.</string>
+    <string name="pref_orphaned_downloads_scan">البحث عن التنزيلات اليتيمة</string>
+    <string name="pref_orphaned_downloads_scan_summary">ابحث عن الملفات المنزَّلة التي لم يعد أي فصل يستطيع تسميتها واحذفها. التنظيف التلقائي يحذف فقط ملفات الفصول التي اختفت، ويحتفظ بالملفات ذات الإشارات المرجعية ما دام خيار حذف الفصول ذات الإشارات المرجعية معطّلًا.</string>
+    <string name="orphaned_downloads_title">التنزيلات اليتيمة</string>
+    <string name="orphaned_downloads_scanning">جارٍ فحص الملفات المنزَّلة…</string>
+    <string name="orphaned_downloads_stopped">تم إيقاف الفحص</string>
+    <string name="orphaned_downloads_progress">جارٍ الفحص… %1$d/%2$d</string>
+    <string name="orphaned_downloads_summary">تم العثور على %1$d · %2$s</string>
+    <string name="orphaned_downloads_empty">لم يتم العثور على تنزيلات يتيمة</string>
+    <string name="orphaned_downloads_clear_selection">مسح التحديد</string>
+    <string name="orphaned_downloads_refresh">إعادة الفحص</string>
+    <string name="orphaned_downloads_kind_manga">لا توجد مدخلات مكتبة مطابقة</string>
+    <string name="orphaned_downloads_kind_source">المصدر غير مثبَّت</string>
+    <string name="orphaned_downloads_confirm_title">حذف الملفات اليتيمة؟</string>
+    <string name="orphaned_downloads_confirm_message">حذف %1$d من المدخلات المحددة وتحرير %2$s؟ لا يمكن التراجع عن هذا.</string>
+    <string name="orphaned_downloads_sort_size_desc">الأكبر أولًا</string>
+    <string name="orphaned_downloads_sort_size_asc">الأصغر أولًا</string>
+    <string name="orphaned_downloads_sort_path">الاسم</string>
+    <string name="orphaned_downloads_sort_kind">النوع</string>
+    <string name="orphaned_downloads_group_source">حسب المصدر</string>
+    <string name="orphaned_downloads_group_manga">حسب مدخلات المكتبة</string>
+    <string name="orphaned_downloads_group_kind">حسب النوع</string>
+    <string name="orphaned_downloads_group_none">بدون تجميع</string>
+    <string name="orphaned_downloads_stop">إيقاف الفحص</string>
+    <string name="orphaned_downloads_scan_failed_short">فشل الفحص الأخير</string>
+    <string name="orphaned_downloads_scan_failed">تعذّرت قراءة التنزيلات. تحقق من الوصول إلى وحدة التخزين وحاول مرة أخرى.</string>
+    <string name="orphaned_downloads_delete_failed">تعذّر حذف الملفات المحددة. تحقق من الوصول إلى وحدة التخزين وحاول مرة أخرى.</string>
 </resources>

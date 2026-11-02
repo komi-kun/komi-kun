@@ -264,4 +264,34 @@
     <string name="ocr_redoing_chapter">অধ্যায়ৰ বাবে OCR পুনৰ চলাই থকা হৈছে…</string>
     <string name="ocr_redo_page_complete">%1$d পৃষ্ঠাৰ বাবে OCR আপডেট কৰা হ\'ল</string>
     <string name="ocr_redo_chapter_complete">অধ্যায়ৰ বাবে OCR আপডেট কৰা হ\'ল</string>
+    <!-- Orphaned downloads (automatic cleanup + manual scan) -->
+    <string name="pref_category_orphaned_downloads">অনাথ ডাউনলোড</string>
+    <string name="pref_remove_orphaned_downloads">অনাথ ডাউনলোড মচক</string>
+    <string name="pref_remove_orphaned_downloads_summary">যেতিয়া পুথিভঁৰাল আপডেটে কোনো অধ্যায় আৰু তালিকাভুক্ত নকৰে, বা ডিভাইচ চিংক ইয়াক আঁতৰায়, তেতিয়া সেই ডাউনলোড কৰা ফাইলবোৰ মচি পেলাওক যিবোৰ বাকী থকা কোনো অধ্যায়ে ব্যৱহাৰ নকৰে। একেটা আপডেটত একেটা ফাইল নামত মিলি যোৱা নতুন অধ্যায়ে ফাইলটো ৰাখে।</string>
+    <string name="pref_orphaned_downloads_scan">অনাথ ডাউনলোড বিচাৰক</string>
+    <string name="pref_orphaned_downloads_scan_summary">এতিয়া কোনো অধ্যায়ে নাম দিব নোৱৰা ডাউনলোড কৰা ফাইলবোৰ বিচাৰি মচি পেলাওক। স্বয়ংক্ৰিয় পৰিষ্কাৰে কেৱল নোহোৱা হোৱা অধ্যায়ৰ ফাইলবোৰ মচে, আৰু বুকমাৰ্ক কৰা অধ্যায় মচা বন্ধ থকালৈকে বুকমাৰ্ক কৰা ফাইলবোৰ ৰাখে।</string>
+    <string name="orphaned_downloads_title">অনাথ ডাউনলোড</string>
+    <string name="orphaned_downloads_scanning">ডাউনলোড কৰা ফাইল স্কেন কৰি আছে…</string>
+    <string name="orphaned_downloads_stopped">স্কেন বন্ধ কৰা হ\'ল</string>
+    <string name="orphaned_downloads_progress">স্কেন কৰি আছে… %1$d/%2$d</string>
+    <string name="orphaned_downloads_summary">%1$d পোৱা গ\'ল · %2$s</string>
+    <string name="orphaned_downloads_empty">কোনো অনাথ ডাউনলোড পোৱা নগ\'ল</string>
+    <string name="orphaned_downloads_clear_selection">বাছনি পৰিষ্কাৰ কৰক</string>
+    <string name="orphaned_downloads_refresh">পুনৰ স্কেন কৰক</string>
+    <string name="orphaned_downloads_kind_manga">মিল থকা কোনো পুথিভঁৰালৰ প্ৰৱিষ্টি নাই</string>
+    <string name="orphaned_downloads_kind_source">উৎস ইনষ্টল কৰা নাই</string>
+    <string name="orphaned_downloads_confirm_title">অনাথ ফাইলবোৰ মচিবনে?</string>
+    <string name="orphaned_downloads_confirm_message">বাছনি কৰা %1$d টা প্ৰৱিষ্টি মচি %2$s মুকলি কৰিবনে? ইয়াক পূৰ্বাবস্থালৈ ঘূৰাই আনিব নোৱাৰি।</string>
+    <string name="orphaned_downloads_sort_size_desc">ডাঙৰটো আগতে</string>
+    <string name="orphaned_downloads_sort_size_asc">সৰুটো আগতে</string>
+    <string name="orphaned_downloads_sort_path">নাম</string>
+    <string name="orphaned_downloads_sort_kind">প্ৰকাৰ</string>
+    <string name="orphaned_downloads_group_source">উৎস অনুসৰি</string>
+    <string name="orphaned_downloads_group_manga">পুথিভঁৰালৰ প্ৰৱিষ্টি অনুসৰি</string>
+    <string name="orphaned_downloads_group_kind">প্ৰকাৰ অনুসৰি</string>
+    <string name="orphaned_downloads_group_none">কোনো গোট নাই</string>
+    <string name="orphaned_downloads_stop">স্কেন বন্ধ কৰক</string>
+    <string name="orphaned_downloads_scan_failed_short">শেষ স্কেন ব্যৰ্থ হ\'ল</string>
+    <string name="orphaned_downloads_scan_failed">ডাউনলোডবোৰ পঢ়িব পৰা নগ\'ল। সংৰক্ষণৰ প্ৰৱেশ পৰীক্ষা কৰি পুনৰ চেষ্টা কৰক।</string>
+    <string name="orphaned_downloads_delete_failed">বাছনি কৰা ফাইলবোৰ মচিব পৰা নগ\'ল। সংৰক্ষণৰ প্ৰৱেশ পৰীক্ষা কৰি পুনৰ চেষ্টা কৰক।</string>
 </resources>

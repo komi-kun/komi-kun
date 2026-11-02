@@ -264,4 +264,34 @@
     <string name="ocr_redoing_chapter">Ponovno izvođenje OCR-a za poglavlje…</string>
     <string name="ocr_redo_page_complete">OCR ažuriran za stranicu %1$d</string>
     <string name="ocr_redo_chapter_complete">OCR ažuriran za poglavlje</string>
+    <!-- Orphaned downloads (automatic cleanup + manual scan) -->
+    <string name="pref_category_orphaned_downloads">Napuštena preuzimanja</string>
+    <string name="pref_remove_orphaned_downloads">Briši napuštena preuzimanja</string>
+    <string name="pref_remove_orphaned_downloads_summary">Kada ažuriranje biblioteke više ne uključuje poglavlje ili ga sinkronizacija između uređaja ukloni, izbrišite preuzete datoteke koje više ne koristi nijedno preostalo poglavlje. Novo poglavlje koje odgovara istom nazivu datoteke u istom ažuriranju zadržava datoteku.</string>
+    <string name="pref_orphaned_downloads_scan">Traži napuštena preuzimanja</string>
+    <string name="pref_orphaned_downloads_scan_summary">Pronađite i izbrišite preuzete datoteke koje nijedno poglavlje više ne može imenovati. Automatsko čišćenje briše samo datoteke poglavlja koja su nestala i zadržava one sa zabilješkama dok je brisanje zabilježenih poglavlja isključeno.</string>
+    <string name="orphaned_downloads_title">Napuštena preuzimanja</string>
+    <string name="orphaned_downloads_scanning">Pretraživanje preuzetih datoteka…</string>
+    <string name="orphaned_downloads_stopped">Pretraživanje zaustavljeno</string>
+    <string name="orphaned_downloads_progress">Pretraživanje… %1$d/%2$d</string>
+    <string name="orphaned_downloads_summary">Nađeno: %1$d · %2$s</string>
+    <string name="orphaned_downloads_empty">Nema napuštenih preuzimanja</string>
+    <string name="orphaned_downloads_clear_selection">Očisti odabir</string>
+    <string name="orphaned_downloads_refresh">Ponovno pretraži</string>
+    <string name="orphaned_downloads_kind_manga">Nema odgovarajućeg unosa u biblioteci</string>
+    <string name="orphaned_downloads_kind_source">Izvor nije instaliran</string>
+    <string name="orphaned_downloads_confirm_title">Izbrisati napuštene datoteke?</string>
+    <string name="orphaned_downloads_confirm_message">Izbrisati odabrane unose (%1$d) i osloboditi %2$s? To se ne može poništiti.</string>
+    <string name="orphaned_downloads_sort_size_desc">Najveće prvo</string>
+    <string name="orphaned_downloads_sort_size_asc">Najmanje prvo</string>
+    <string name="orphaned_downloads_sort_path">Naziv</string>
+    <string name="orphaned_downloads_sort_kind">Vrsta</string>
+    <string name="orphaned_downloads_group_source">Po izvoru</string>
+    <string name="orphaned_downloads_group_manga">Po unosima u biblioteci</string>
+    <string name="orphaned_downloads_group_kind">Po vrsti</string>
+    <string name="orphaned_downloads_group_none">Bez grupiranja</string>
+    <string name="orphaned_downloads_stop">Zaustavi pretraživanje</string>
+    <string name="orphaned_downloads_scan_failed_short">Zadnje pretraživanje nije uspjelo</string>
+    <string name="orphaned_downloads_scan_failed">Preuzimanja nije bilo moguće pročitati. Provjerite pristup spremištu i pokušajte ponovno.</string>
+    <string name="orphaned_downloads_delete_failed">Odabrane datoteke nije bilo moguće izbrisati. Provjerite pristup spremištu i pokušajte ponovno.</string>
 </resources>

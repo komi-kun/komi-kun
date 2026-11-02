@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <plurals name="orphaned_downloads_deleted">
+        <item quantity="one">%1$d intrare orfană ștearsă</item>
+        <item quantity="few">%1$d intrări orfane șterse</item>
+        <item quantity="other">%1$d de intrări orfane șterse</item>
+    </plurals>
+</resources>

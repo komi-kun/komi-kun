@@ -264,4 +264,34 @@
     <string name="ocr_redoing_chapter">Opakování OCR pro kapitolu…</string>
     <string name="ocr_redo_page_complete">OCR aktualizováno pro stránku %1$d</string>
     <string name="ocr_redo_chapter_complete">OCR aktualizováno pro kapitolu</string>
+    <!-- Orphaned downloads (automatic cleanup + manual scan) -->
+    <string name="pref_category_orphaned_downloads">Osiřelá stahování</string>
+    <string name="pref_remove_orphaned_downloads">Mazat osiřelá stahování</string>
+    <string name="pref_remove_orphaned_downloads_summary">Když aktualizace knihovny přestane obsahovat kapitolu nebo ji synchronizace mezi zařízeními odebere, smažte stažené soubory, které už žádná zbývající kapitola nepoužívá. Nová kapitola odpovídající stejnému názvu souboru ve stejné aktualizaci si soubor ponechá.</string>
+    <string name="pref_orphaned_downloads_scan">Vyhledat osiřelá stahování</string>
+    <string name="pref_orphaned_downloads_scan_summary">Najděte a smažte stažené soubory, které už žádná kapitola nedokáže pojmenovat. Automatické čištění maže jen soubory kapitol, které zmizely, a soubory se záložkami ponechává, dokud je mazání kapitol se záložkami vypnuté.</string>
+    <string name="orphaned_downloads_title">Osiřelá stahování</string>
+    <string name="orphaned_downloads_scanning">Prohledávání stažených souborů…</string>
+    <string name="orphaned_downloads_stopped">Prohledávání zastaveno</string>
+    <string name="orphaned_downloads_progress">Prohledávání… %1$d/%2$d</string>
+    <string name="orphaned_downloads_summary">Nalezeno: %1$d · %2$s</string>
+    <string name="orphaned_downloads_empty">Nenalezena žádná osiřelá stahování</string>
+    <string name="orphaned_downloads_clear_selection">Zrušit výběr</string>
+    <string name="orphaned_downloads_refresh">Prohledat znovu</string>
+    <string name="orphaned_downloads_kind_manga">Žádný odpovídající záznam v knihovně</string>
+    <string name="orphaned_downloads_kind_source">Zdroj není nainstalován</string>
+    <string name="orphaned_downloads_confirm_title">Smazat osiřelé soubory?</string>
+    <string name="orphaned_downloads_confirm_message">Smazat vybrané záznamy (%1$d) a uvolnit %2$s? Tuto akci nelze vrátit zpět.</string>
+    <string name="orphaned_downloads_sort_size_desc">Největší první</string>
+    <string name="orphaned_downloads_sort_size_asc">Nejmenší první</string>
+    <string name="orphaned_downloads_sort_path">Název</string>
+    <string name="orphaned_downloads_sort_kind">Typ</string>
+    <string name="orphaned_downloads_group_source">Podle zdroje</string>
+    <string name="orphaned_downloads_group_manga">Podle záznamů v knihovně</string>
+    <string name="orphaned_downloads_group_kind">Podle typu</string>
+    <string name="orphaned_downloads_group_none">Bez seskupení</string>
+    <string name="orphaned_downloads_stop">Zastavit prohledávání</string>
+    <string name="orphaned_downloads_scan_failed_short">Poslední prohledávání selhalo</string>
+    <string name="orphaned_downloads_scan_failed">Stahování se nepodařilo načíst. Zkontrolujte přístup k úložišti a zkuste to znovu.</string>
+    <string name="orphaned_downloads_delete_failed">Vybrané soubory se nepodařilo smazat. Zkontrolujte přístup k úložišti a zkuste to znovu.</string>
 </resources>

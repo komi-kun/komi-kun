@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <plurals name="orphaned_downloads_deleted">
+        <item quantity="one">%1$d осиротіле завантаження видалено</item>
+        <item quantity="few">%1$d осиротілі завантаження видалено</item>
+        <item quantity="many">%1$d осиротілих завантажень видалено</item>
+        <item quantity="other">%1$d осиротілих завантажень видалено</item>
+    </plurals>
+</resources>

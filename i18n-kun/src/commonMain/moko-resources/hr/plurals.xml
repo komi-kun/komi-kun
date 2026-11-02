@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <plurals name="orphaned_downloads_deleted">
+        <item quantity="one">Izbrisano %1$d napušteno preuzimanje</item>
+        <item quantity="few">Izbrisana %1$d napuštena preuzimanja</item>
+        <item quantity="other">Izbrisano %1$d napuštenih preuzimanja</item>
+    </plurals>
+</resources>

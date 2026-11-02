@@ -30,6 +30,7 @@ import eu.kanade.tachiyomi.data.connections.ConnectionsManager
 import eu.kanade.tachiyomi.data.download.DownloadCache
 import eu.kanade.tachiyomi.data.download.DownloadManager
 import eu.kanade.tachiyomi.data.download.DownloadWorker
+import eu.kanade.tachiyomi.data.download.OrphanedDownloadScanManager
 import eu.kanade.tachiyomi.data.library.LibraryUpdateWorker
 import eu.kanade.tachiyomi.data.library.MetadataUpdateWorker
 import eu.kanade.tachiyomi.data.notification.NotificationReceiver
@@ -198,7 +199,12 @@ interface AppGraph : ViewModelGraph {
     val debugRepository: DebugRepository
     val savedSearchRepository: SavedSearchRepository
     val sourceMigrationRepository: SourceMigrationRepository
+
     // KUN -->
+    // The one orphaned-download scan of the process: the scan screen and the Settings → Downloads row
+    // both read this instance, so a scan survives leaving the screen and its progress is the same
+    // wherever it is shown.
+    val orphanedDownloadScanManager: OrphanedDownloadScanManager
 
     // W2 dictionary feature: exposed so Composable screens (popup/tab/settings) can reach
     // the repository and preferences via `context.appGraph` (plan 02 §5.3; the GPL impls

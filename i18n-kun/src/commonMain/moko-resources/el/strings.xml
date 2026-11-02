@@ -264,4 +264,34 @@
     <string name="ocr_redoing_chapter">Επανεκτέλεση OCR για το κεφάλαιο…</string>
     <string name="ocr_redo_page_complete">Το OCR ενημερώθηκε για τη σελίδα %1$d</string>
     <string name="ocr_redo_chapter_complete">Το OCR ενημερώθηκε για το κεφάλαιο</string>
+    <!-- Orphaned downloads (automatic cleanup + manual scan) -->
+    <string name="pref_category_orphaned_downloads">Ορφανές λήψεις</string>
+    <string name="pref_remove_orphaned_downloads">Διαγραφή ορφανών λήψεων</string>
+    <string name="pref_remove_orphaned_downloads_summary">Όταν μια ενημέρωση της βιβλιοθήκης δεν περιλαμβάνει πλέον ένα κεφάλαιο ή ο συγχρονισμός μεταξύ συσκευών το αφαιρεί, διαγράφονται τα αρχεία λήψης που δεν χρησιμοποιεί πλέον κανένα από τα υπόλοιπα κεφάλαια. Ένα νέο κεφάλαιο που αντιστοιχεί στο ίδιο όνομα αρχείου στην ίδια ενημέρωση διατηρεί το αρχείο.</string>
+    <string name="pref_orphaned_downloads_scan">Σάρωση για ορφανές λήψεις</string>
+    <string name="pref_orphaned_downloads_scan_summary">Βρείτε και διαγράψτε αρχεία λήψης που δεν μπορεί πλέον να ονομάσει κανένα κεφάλαιο. Ο αυτόματος καθαρισμός διαγράφει μόνο τα αρχεία κεφαλαίων που εξαφανίστηκαν και διατηρεί αυτά με σελιδοδείκτη όσο η διαγραφή κεφαλαίων με σελιδοδείκτη είναι απενεργοποιημένη.</string>
+    <string name="orphaned_downloads_title">Ορφανές λήψεις</string>
+    <string name="orphaned_downloads_scanning">Σάρωση αρχείων λήψης…</string>
+    <string name="orphaned_downloads_stopped">Η σάρωση διακόπηκε</string>
+    <string name="orphaned_downloads_progress">Σάρωση… %1$d/%2$d</string>
+    <string name="orphaned_downloads_summary">Βρέθηκαν: %1$d · %2$s</string>
+    <string name="orphaned_downloads_empty">Δεν βρέθηκαν ορφανές λήψεις</string>
+    <string name="orphaned_downloads_clear_selection">Εκκαθάριση επιλογής</string>
+    <string name="orphaned_downloads_refresh">Νέα σάρωση</string>
+    <string name="orphaned_downloads_kind_manga">Δεν βρέθηκε αντίστοιχη καταχώρηση βιβλιοθήκης</string>
+    <string name="orphaned_downloads_kind_source">Η πηγή δεν είναι εγκατεστημένη</string>
+    <string name="orphaned_downloads_confirm_title">Διαγραφή ορφανών αρχείων;</string>
+    <string name="orphaned_downloads_confirm_message">Διαγραφή %1$d επιλεγμένων καταχωρήσεων και ελευθέρωση %2$s; Αυτό δεν μπορεί να αναιρεθεί.</string>
+    <string name="orphaned_downloads_sort_size_desc">Μεγαλύτερα πρώτα</string>
+    <string name="orphaned_downloads_sort_size_asc">Μικρότερα πρώτα</string>
+    <string name="orphaned_downloads_sort_path">Όνομα</string>
+    <string name="orphaned_downloads_sort_kind">Τύπος</string>
+    <string name="orphaned_downloads_group_source">Ανά πηγή</string>
+    <string name="orphaned_downloads_group_manga">Ανά καταχώρηση βιβλιοθήκης</string>
+    <string name="orphaned_downloads_group_kind">Ανά τύπο</string>
+    <string name="orphaned_downloads_group_none">Χωρίς ομαδοποίηση</string>
+    <string name="orphaned_downloads_stop">Διακοπή σάρωσης</string>
+    <string name="orphaned_downloads_scan_failed_short">Η τελευταία σάρωση απέτυχε</string>
+    <string name="orphaned_downloads_scan_failed">Δεν ήταν δυνατή η ανάγνωση των λήψεων. Ελέγξτε την πρόσβαση στον χώρο αποθήκευσης και δοκιμάστε ξανά.</string>
+    <string name="orphaned_downloads_delete_failed">Δεν ήταν δυνατή η διαγραφή των επιλεγμένων αρχείων. Ελέγξτε την πρόσβαση στον χώρο αποθήκευσης και δοκιμάστε ξανά.</string>
 </resources>
