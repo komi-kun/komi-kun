@@ -2156,17 +2156,13 @@
     _audioCandidatesCache.delete(key);
     _audioCandidatesCache.set(key, state);
     while (_audioCandidatesCache.size > AUDIO_CANDIDATES_CACHE_LIMIT) {
-      // Oldest completed entry; a request that is still streaming in is never evicted, so the
-      // cache may briefly exceed the limit rather than dropping a pending result.
-      let victim = null;
-      for (const [candidateKey, entry] of _audioCandidatesCache) {
-        if (entry && entry.done) {
-          victim = candidateKey;
-          break;
-        }
-      }
-      if (!victim) break;
-      _audioCandidatesCache.delete(victim);
+      // Evict the oldest entry whatever its state. A *partial* entry (an interrupted lookup whose
+      // final `done` never arrives) must not pin itself forever, and evicting one is harmless: the
+      // streaming handler lives in `_pendingAudioRequests`, not in this cache, so the worst case is
+      // a re-resolve on the next tap.
+      const oldest = _audioCandidatesCache.keys().next();
+      if (oldest.done) break;
+      _audioCandidatesCache.delete(oldest.value);
     }
   }
 
@@ -2341,13 +2337,16 @@
    * (partial snapshots); it never documents every configured source as an empty group, and a source
    * only gets a group when it actually produced a sample.
    */
+  /**
+   * Builds (or rebuilds) the picker for [button].
+   *
+   * [loading] true renders the "Loading audio…" row used while the sources are still resolving; the
+   * terminal snapshot renders a single non-interactive "No audio found" row when it has no samples,
+   * so a long-press always has a visible outcome. A source only gets a group when it actually
+   * produced a sample.
+   */
   function showAudioMenu(button, payload, loading) {
     const {sources, candidates} = audioPayload(payload);
-    // Nothing to show and nothing coming: do not open a menu at all (no empty section / groups).
-    if (candidates.length === 0 && !loading) {
-      closeAudioMenu();
-      return;
-    }
 
     closeAudioMenu();
 
@@ -2440,7 +2439,12 @@
       renderGroup(makeGroup('Audio'), candidates.map((candidate, position) => ({candidate, isDefault: position === 0})));
     }
 
-    if (loading) appendItem(menu, null, 'Loading audio…', false, true);
+    if (loading) {
+      appendItem(menu, null, 'Loading audio…', false, true);
+    } else if (candidates.length === 0) {
+      // Terminal and empty: one non-interactive row rather than a menu that never appears.
+      appendItem(menu, null, 'No audio found', false, true);
+    }
 
     document.body.appendChild(menu);
 
@@ -2567,11 +2571,18 @@
       }
       const key = audioKey(expression, reading);
       const cached = _audioCandidatesCache.get(key);
-      if (cached) showAudioMenu(audioBtn, cached, !cached.done);
-      if (cached && cached.done) return;
+      if (cached) {
+        showAudioMenu(audioBtn, cached, !cached.done);
+        if (cached.done) return;
+      } else {
+        // First press with nothing cached: lazy resolution has not even started, so open the picker
+        // *now* in its loading state — the request below answers later, and a snapshot can only
+        // update a menu that already exists.
+        showAudioMenu(audioBtn, { sources: [], candidates: [] }, true);
+      }
       audioBtn.classList.add('loading');
       requestAudioCandidates(expression, reading, (payload, done) => {
-        // Update (never re-open) the picker on each snapshot so samples appear as their source
+        // Updates (never re-opens) the picker on each snapshot so samples appear as their source
         // lands; a menu the user dismissed stays dismissed.
         updateAudioMenu(audioBtn, payload, !done);
         if (done) audioBtn.classList.remove('loading');

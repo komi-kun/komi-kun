@@ -136,7 +136,7 @@ class WordAudioPlayer(
         // 2. Not cached in memory: download directly into memory via coroutine (zero storage I/O)
         currentPlayJob = ioScope.launch {
             val client = OkHttpAudioHttp.sharedClient
-            for (url in urls) {
+            for ((index, url) in urls.withIndex()) {
                 if (!isActive) return@launch
                 if (url.startsWith("tts://speak?") || url.startsWith("tts:")) {
                     withContext(Dispatchers.Main) {
@@ -150,7 +150,14 @@ class WordAudioPlayer(
                     val played = withContext(Dispatchers.Main) {
                         if (isActive) playData(bytes, url, volume) else false
                     }
-                    if (played) return@launch
+                    if (played) {
+                        // Warm the fallbacks in configured order now that playback has actually
+                        // started (bounded to 3 by `prefetch`), so a clip that fails mid-way does
+                        // not stall on a cold GET. Never earlier than this point.
+                        val remaining = urls.drop(index + 1)
+                        if (remaining.isNotEmpty()) prefetch(remaining)
+                        return@launch
+                    }
                 }
             }
 

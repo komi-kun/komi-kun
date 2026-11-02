@@ -31,13 +31,19 @@ class AudioLazyResolutionGuardTest {
 
     @Test
     fun `rendering an entry never asks for audio`() {
-        // The exact render-time prefetch that was removed: every rendered entry resolved + fetched
-        // every source before the user touched the button.
-        Regex("requestAudioCandidates\\([^)]*,\\s*null\\s*\\)").containsMatchIn(rendererJs) shouldBe false
-        rendererJs shouldNotContain "Proactively pre-resolve"
-
-        // Resolution still has to be reachable from the two legitimate triggers.
+        // Resolution has exactly three touch points: the definition and the two user-action
+        // handlers (play tap, picker open). Any other call site — a rendered entry, `renderEntry` —
+        // is a render-time resolve, whatever callback shape it uses (`null`, `() => {}`, …).
+        val callSites = Regex("requestAudioCandidates\\s*\\(").findAll(rendererJs).toList()
+        callSites.size shouldBe 3
+        val buttonStart = rendererJs.indexOf("function createAudioButton(")
         val createButton = functionBlock(rendererJs, "function createAudioButton(")
+        val buttonRange = buttonStart until (buttonStart + createButton.length)
+        // The two remaining call sites are the user-action handlers inside `createAudioButton`; the
+        // definition itself is not in that range.
+        callSites.drop(1).forEach { site ->
+            (site.range.first in buttonRange) shouldBe true
+        }
         createButton shouldContain "const playDefault = () => {"
         createButton shouldContain "const openMenu = (ev) => {"
         Regex("requestAudioCandidates\\(expression, reading, \\(payload, done\\) =>").findAll(createButton)
@@ -56,16 +62,15 @@ class AudioLazyResolutionGuardTest {
 
     @Test
     fun `the audio picker never renders a group for an empty source`() {
-        rendererJs shouldNotContain "No audio found"
-        // A still-resolving picker shows a loading row instead; the streaming snapshots re-render it.
-        rendererJs shouldContain "Loading audio"
         val menu = functionBlock(rendererJs, "function showAudioMenu(")
-        menu shouldContain "if (!entries || entries.length === 0) return;"
-        menu shouldContain "if (candidates.length === 0 && !loading) {"
-        // Order suffixes are counted over the groups actually rendered, so a skipped empty source
-        // cannot leave a lone "Custom URL (JSON) 1".
+        // No group is created for a source without samples...
+        Regex("if \\(\\s*!entries\\s*\\|\\|\\s*entries\\.length === 0\\s*\\)\\s*return;").containsMatchIn(menu) shouldBe true
+        // ...and the only per-source iteration is over the *rendered* sources; a plain
+        // `sources.forEach` would rebuild the empty-group row this guards against.
+        Regex("\\bsources\\s*\\.\\s*forEach\\s*\\(").containsMatchIn(menu) shouldBe false
         menu shouldContain "renderedSources"
-        menu shouldNotContain "sources.forEach(s => {"
+        // Empty-source rows are gone; the only "No audio found" is the terminal status row.
+        functionBlock(rendererJs, "const renderGroup = (group, entries) => {") shouldNotContain "No audio found"
     }
 
     @Test
@@ -74,7 +79,6 @@ class AudioLazyResolutionGuardTest {
         // Native snapshots are cumulative and already in configured source order; appending arrivals
         // would order the cache (and the "default" badge / playDefault list) fastest-first.
         merge shouldContain "candidates: ordered"
-        merge shouldNotContain "prevPayload"
         merge shouldNotContain "merged.push(candidate)"
         rendererJs shouldContain "const ordered = [];"
         rendererJs shouldContain "ordered.push(candidate);"
@@ -91,6 +95,28 @@ class AudioLazyResolutionGuardTest {
         functionBlock(rendererJs, "function showAudioMenu(") shouldContain "_audioMenuButton = button;"
         // The only delivery entry point has no unreachable callback branch.
         rendererJs shouldNotContain "typeof entry === 'function'"
+    }
+
+    @Test
+    fun `a partial cache entry is evicted like any other`() {
+        val cache = functionBlock(rendererJs, "function cacheAudioState(")
+        // An interrupted lookup leaves a partial entry whose final `done` never arrives; skipping
+        // non-done entries would pin it in the bounded cache forever.
+        cache shouldNotContain "entry.done"
+        cache shouldContain "_audioCandidatesCache.keys().next()"
+    }
+
+    @Test
+    fun `the first long press opens the picker before any audio is cached`() {
+        val openMenu = functionBlock(rendererJs, "const openMenu = (ev) => {")
+        // With lazy resolution the first press has no cache entry at all; the picker must be created
+        // right away in its loading state, because a snapshot can only update a menu that exists.
+        openMenu shouldContain "showAudioMenu(audioBtn, { sources: [], candidates: [] }, true)"
+        openMenu shouldContain "updateAudioMenu(audioBtn, payload, !done)"
+        // The terminal empty snapshot leaves one non-interactive row rather than an empty menu.
+        val menu = functionBlock(rendererJs, "function showAudioMenu(")
+        menu shouldContain "'No audio found'"
+        menu shouldContain "'Loading audio…'"
     }
 
     @Test

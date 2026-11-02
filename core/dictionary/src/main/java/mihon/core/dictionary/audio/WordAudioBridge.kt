@@ -16,6 +16,7 @@ package mihon.core.dictionary.audio
 
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -30,6 +31,11 @@ import org.json.JSONObject
 
 class WordAudioBridge(
     private val webViewProvider: () -> WebView?,
+    // KUN --> Same shape as `AnkiJsBridge`: the JVM has no main looper, so tests pass their own
+    // dispatcher and a mocked player. Production always uses the defaults.
+    private val dispatcher: CoroutineDispatcher = Dispatchers.Main,
+    private val player: WordAudioPlayer = WordAudioPlayer(),
+    // KUN <--
 ) {
     /** Supplies the live audio configuration (from prefs). `null` disables resolution. */
     var configProvider: (() -> AudioPreferences)? = null
@@ -40,8 +46,7 @@ class WordAudioBridge(
     /** Injectable for tests; defaults to the OkHttp-backed implementation. */
     var http: AudioHttp = OkHttpAudioHttp()
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-    private val player = WordAudioPlayer()
+    private val scope = CoroutineScope(SupervisorJob() + dispatcher)
     private var cachedResolver: Pair<AudioHttp, AudioResolver>? = null
 
     init {

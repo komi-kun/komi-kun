@@ -58,6 +58,11 @@ dependencies {
 
     testImplementation(libs.bundles.test)
     testImplementation(kotlinx.serialization.json)
+    // KUN --> Real org.json for JVM unit tests: android.jar's `org.json` is a stub that throws
+    // "not mocked", which made the `WordAudioBridge` payload untestable. Mirrors :app's dependency;
+    // test-only, so the shipped artifact is unchanged.
+    testImplementation(libs.org.json)
+    // KUN <--
     testRuntimeOnly(libs.junit.platform.launcher)
 }
 

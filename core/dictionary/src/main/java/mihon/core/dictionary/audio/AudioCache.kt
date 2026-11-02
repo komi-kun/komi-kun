@@ -70,6 +70,18 @@ object AudioCache {
         inFlightDownloads.size
     }
 
+    /**
+     * Test seam: called when a caller *joins* an already-running download instead of starting its
+     * own. Lets the dedupe tests wait for the join instead of guessing with a sleep.
+     */
+    internal var onJoinedInFlight: ((String) -> Unit)? = null
+
+    /** Test seam: drops the in-flight gates and the join hook so one test cannot leak into another. */
+    internal fun resetInFlightForTest() {
+        synchronized(lock) { inFlightDownloads.clear() }
+        onJoinedInFlight = null
+    }
+
     fun clear() {
         synchronized(lock) {
             memoryMap.clear()
@@ -140,25 +152,34 @@ object AudioCache {
         val cached = get(url)
         if (cached != null) return cached
 
+        var joinedExisting = false
         val download = synchronized(lock) {
-            inFlightDownloads[url] ?: CompletableDeferred<ByteArray?>().also { gate ->
-                // Registered before the download starts, so a caller that shows up while the
-                // request is in flight always finds it instead of racing it.
-                inFlightDownloads[url] = gate
-                downloadScope.launch {
-                    // The gate lives as long as the *request*, not as long as the caller that
-                    // happened to start it: a cancelled waiter (the previous playback job, which
-                    // every new tap cancels) must not release the URL for a second GET while the
-                    // fetch is still running. Completed and removed in the download's own finally,
-                    // so a failed or empty download removes it too and never poisons the URL.
-                    val bytes = runCatching { downloadIntoMemory(url, client) }.getOrNull()
-                    gate.complete(bytes)
-                    synchronized(lock) {
-                        if (inFlightDownloads[url] === gate) inFlightDownloads.remove(url)
+            val inFlight = inFlightDownloads[url]
+            if (inFlight != null) {
+                joinedExisting = true
+                inFlight
+            } else {
+                CompletableDeferred<ByteArray?>().also { gate ->
+                    // Registered before the download starts, so a caller that shows up while the
+                    // request is in flight always finds it instead of racing it.
+                    inFlightDownloads[url] = gate
+                    downloadScope.launch {
+                        // The gate lives as long as the *request*, not as long as the caller that
+                        // happened to start it: a cancelled waiter (the previous playback job, which
+                        // every new tap cancels) must not release the URL for a second GET while the
+                        // fetch is still running. Completed and removed in the download's own
+                        // finally, so a failed or empty download removes it too and never poisons the
+                        // URL.
+                        val bytes = runCatching { downloadIntoMemory(url, client) }.getOrNull()
+                        gate.complete(bytes)
+                        synchronized(lock) {
+                            if (inFlightDownloads[url] === gate) inFlightDownloads.remove(url)
+                        }
                     }
                 }
             }
         }
+        if (joinedExisting) onJoinedInFlight?.invoke(url)
         return download.await()
     }
 

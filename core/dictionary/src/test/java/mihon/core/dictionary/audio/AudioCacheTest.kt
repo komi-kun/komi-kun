@@ -38,6 +38,8 @@ class AudioCacheTest {
     @BeforeEach
     fun setUp() {
         AudioCache.clear()
+        // A test that aborts mid-download must not leak its gate (or its join hook) into the next.
+        AudioCache.resetInFlightForTest()
         AudioCache.setMaxMemoryBytes(AudioCache.DEFAULT_MAX_MEMORY_BYTES)
     }
 
@@ -410,12 +412,15 @@ class AudioCacheTest {
                 }
                 .build()
 
+            val joined = CompletableDeferred<Unit>()
+            AudioCache.onJoinedInFlight = { joined.complete(Unit) }
+
             val leader = async(Dispatchers.IO) { AudioCache.getOrDownload(url, client) }
             withTimeout(5_000) { leaderEntered.await() }
             val follower = async(Dispatchers.IO) { AudioCache.getOrDownload(url, client) }
-            // Not an assertion: gives the follower time to reach the in-flight map. Without dedupe
-            // it issues its own GET and lands on the second count below.
-            delay(100)
+            // The join latch proves the follower entered the dedupe path while the leader's request
+            // was still open — no sleep, and without dedupe it never fires and the count below is 2.
+            withTimeout(5_000) { joined.await() }
             releaseLeader.complete(Unit)
 
             leader.await() shouldBe bytes
@@ -443,6 +448,38 @@ class AudioCacheTest {
         requests.get() shouldBe 1
         AudioCache.get(url) shouldBe bytes
         prefetchScope.cancel()
+    }
+
+    @Test
+    fun `concurrent downloads of different urls each issue their own request`() {
+        runBlocking {
+            val first = "https://example.com/one.mp3"
+            val second = "https://example.com/two.mp3"
+            val firstBytes = ByteArray(64) { 1 }
+            val secondBytes = ByteArray(64) { 2 }
+            val requests = AtomicInteger()
+            val client = OkHttpClient.Builder()
+                .addInterceptor { chain ->
+                    requests.incrementAndGet()
+                    val body = if (chain.request().url.toString() == first) firstBytes else secondBytes
+                    Response.Builder()
+                        .request(chain.request())
+                        .protocol(Protocol.HTTP_1_1)
+                        .code(200)
+                        .message("OK")
+                        .body(body.toResponseBody(null))
+                        .build()
+                }
+                .build()
+
+            // A single global gate would let one of these return the other's bytes (or skip a GET).
+            val one = async(Dispatchers.IO) { AudioCache.getOrDownload(first, client) }
+            val two = async(Dispatchers.IO) { AudioCache.getOrDownload(second, client) }
+
+            one.await() shouldBe firstBytes
+            two.await() shouldBe secondBytes
+            requests.get() shouldBe 2
+        }
     }
 
     @Test

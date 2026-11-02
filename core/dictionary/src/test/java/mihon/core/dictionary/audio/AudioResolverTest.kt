@@ -951,11 +951,17 @@ class AudioResolverTest {
                 ),
             )
 
-            val first = withTimeout(5_000) { updates.receive() }
+            // Sources 0 and 2 are both ungated, so their snapshots may arrive in either order: take
+            // the first update in which source 0 is reported resolved rather than assuming an order.
+            var first = withTimeout(5_000) { updates.receive() }
+            while (!first.resolvedSourceIndices.contains(0)) {
+                first = withTimeout(5_000) { updates.receive() }
+            }
             // A source that returned nothing is still reported resolved — that is what lets the
             // priority rule skip it instead of waiting for it forever.
-            first.resolvedSourceIndices shouldBe setOf(0)
-            first.resolution.candidates shouldBe emptyList()
+            (0 in first.resolvedSourceIndices) shouldBe true
+            first.done shouldBe false
+            // Source 1 is still open, so even with source 2's sample the choice is undecidable.
             first.playbackReady shouldBe false
 
             secondGate.complete(Unit)
@@ -966,6 +972,24 @@ class AudioResolverTest {
             last.resolvedSourceIndices shouldBe setOf(0, 1, 2)
             last.resolution.candidates.map { it.url } shouldContainExactly listOf("http://fast/a.mp3")
             last.playbackReady shouldBe true
+        }
+    }
+
+    @Test
+    fun `an empty source list still emits one terminal update`() {
+        runBlocking {
+            // The renderer's loading row clears on `done`, so this terminal update must exist even
+            // when there is nothing to resolve at all.
+            val updates = AudioResolver(FakeHttp())
+                .stream(emptyList(), "猫", "ねこ", "ja", enableDefaultSources = false)
+                .toList()
+
+            updates.size shouldBe 1
+            updates.single().done shouldBe true
+            updates.single().resolution.candidates shouldBe emptyList()
+            updates.single().resolution.sources shouldBe emptyList()
+            updates.single().resolvedSourceIndices shouldBe emptySet()
+            updates.single().playbackReady shouldBe false
         }
     }
 }
