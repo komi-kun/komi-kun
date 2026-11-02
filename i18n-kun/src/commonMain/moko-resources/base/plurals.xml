@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <plurals name="orphaned_downloads_deleted">
+        <item quantity="one">Deleted %1$d orphaned entry</item>
+        <item quantity="other">Deleted %1$d orphaned entries</item>
+    </plurals>
+</resources>

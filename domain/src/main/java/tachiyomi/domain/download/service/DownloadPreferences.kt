@@ -53,6 +53,20 @@ class DownloadPreferences(
     val downloadCacheRenewInterval = preferenceStore.getInt("download_cache_renew_interval", 1)
     // KMK <--
 
+    // KUN -->
+    /**
+     * Delete the files of chapters that vanished from a source, unless a surviving chapter still uses
+     * the name.
+     *
+     * A `val`, not a function: a switch is displayed through `PreferenceItem`, which reads it with
+     * `item.preference.collectAsState()` — and that helper's `remember(this) { changes() }` keys the
+     * flow subscription on this very `Preference` instance (identity, not equality). A fresh
+     * instance per call would restart the subscription on every recomposition.
+     */
+    val removeOrphanedDownloads: Preference<Boolean> =
+        preferenceStore.getBoolean("pref_remove_orphaned_downloads", true)
+    // KUN <--
+
     companion object {
         private const val REMOVE_EXCLUDE_CATEGORIES_PREF_KEY = "remove_exclude_categories"
         private const val DOWNLOAD_NEW_CATEGORIES_PREF_KEY = "download_new_categories"

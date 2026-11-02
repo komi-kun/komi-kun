@@ -408,6 +408,7 @@ class RestoreRepositoryMergedReferencesTest {
         chapterRepository = ChapterRepositoryImpl(database),
         trackRepository = TrackRepositoryImpl(database),
         mangaMetadataRepository = mockk(relaxed = true),
+        orphanedDownloadCleaner = mockk(relaxed = true),
     )
 
     private suspend fun entries(database: Database, mergeId: Long): List<MergedEntry> = database.mergedQueries

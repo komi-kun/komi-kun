@@ -24,6 +24,7 @@ import tachiyomi.domain.backup.model.RestoredMergedEntry
 import tachiyomi.domain.backup.repository.RestoreRepository
 import tachiyomi.domain.chapter.model.Chapter
 import tachiyomi.domain.chapter.repository.ChapterRepository
+import tachiyomi.domain.download.service.OrphanedDownloadCleaner
 import tachiyomi.domain.history.model.History
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.manga.model.MangaUpdate
@@ -48,6 +49,9 @@ class RestoreRepositoryImpl(
     // SY -->
     private val mangaMetadataRepository: MangaMetadataRepository,
     // SY <--
+    // KUN -->
+    private val orphanedDownloadCleaner: OrphanedDownloadCleaner,
+    // KUN <--
 ) : RestoreRepository {
 
     override suspend fun getMangaUrlsBySourceId(): Map<Long, Set<String>> {
@@ -75,6 +79,11 @@ class RestoreRepositoryImpl(
         // 1 while applying a sync so the triggers neither bump versions nor stamp last_modified_at
         val syncingFlag = if (isSync) SYNCING else NOT_SYNCING
         // SY <--
+        // KUN -->
+        // Collected inside the transaction and acted on only after it commits: deleting files must
+        // not hold the database open, and a rollback must not leave the rows with their files gone.
+        val orphanedRemovals = mutableListOf<Pair<Manga, List<Chapter>>>()
+        // KUN <--
         database.transaction {
             entries.forEach { entry ->
                 // A cancelled restore stops between entries and rolls the whole batch back
@@ -91,6 +100,7 @@ class RestoreRepositoryImpl(
                             restoreHistory,
                             restoreCustomInfo,
                             removeMissingChaptersBefore,
+                            orphanedRemovals,
                         ),
                     ),
                 )
@@ -101,6 +111,16 @@ class RestoreRepositoryImpl(
                 database.chapterQueries.resetIsSyncing()
             }
         }
+        // KUN -->
+        // The rows are gone and the transaction committed, so their files are now orphaned unless a
+        // surviving chapter of the manga still resolves to the same name. The cleaner reads that list
+        // itself and swallows its own failures, so a restore is never broken by a filesystem error.
+        orphanedRemovals.forEach { (manga, removedChapters) ->
+            // A cancelled sync or restore stops deleting files instead of finishing the batch.
+            currentCoroutineContext().ensureActive()
+            orphanedDownloadCleaner.cleanupAfterChapterRemoval(removedChapters, manga)
+        }
+        // KUN <--
     }
 
     override suspend fun updateManga(manga: Manga, isSync: Boolean) {
@@ -118,6 +138,7 @@ class RestoreRepositoryImpl(
         restoreHistory: Boolean,
         restoreCustomInfo: Boolean,
         removeMissingChaptersBefore: Long?,
+        orphanedRemovals: MutableList<Pair<Manga, List<Chapter>>>,
         // KUN <--
     ): Manga {
         val dbManga = mangaRepository.getMangaByUrlAndSourceId(entry.manga.url, entry.manga.source)
@@ -152,7 +173,7 @@ class RestoreRepositoryImpl(
         // KUN <--
         // SY <--
         // KUN -->
-        restoreChapters(manga, entry.chapters, isSync, syncingFlag, removeMissingChaptersBefore)
+        restoreChapters(manga, entry.chapters, isSync, syncingFlag, removeMissingChaptersBefore, orphanedRemovals)
         restoreTracking(
             manga,
             entry.tracks,
@@ -370,6 +391,8 @@ class RestoreRepositoryImpl(
         syncingFlag: Long /* SY <-- */,
         // KUN -->
         removeMissingChaptersBefore: Long?,
+        /** Tombstoned chapters of each manga, to be cleaned up after the transaction commits. */
+        orphanedRemovals: MutableList<Pair<Manga, List<Chapter>>>,
         // KUN <--
     ) {
         val dbChaptersByUrl = chapterRepository.getChapterByMangaId(manga.id)
@@ -386,21 +409,23 @@ class RestoreRepositoryImpl(
         // the response, but it was never tombstoned and must survive. Its lastModifiedAt is newer
         // than the snapshot, so the next delta can upload it.
         //
-        // Downloaded files are left on disk; BackupRestorer's cache invalidation surfaces them as
-        // invalid downloads, which the user can clear from storage settings.
+        // Their downloaded files are pruned after the transaction commits (see `restoreManga`): only
+        // files that no surviving chapter of the manga still resolves to are deleted, so a
+        // replacement chapter reusing the name keeps its file.
         if (removeMissingChaptersBefore != null) {
             val incomingUrls = restoredChapters.mapTo(mutableSetOf()) { it.url }
-            val removedIds = dbChaptersByUrl.values
+            val removedChapters = dbChaptersByUrl.values
                 .filterNot { it.url in incomingUrls || it.lastModifiedAt >= removeMissingChaptersBefore }
-                .map { it.id }
-            if (removedIds.isNotEmpty()) {
+            if (removedChapters.isNotEmpty()) {
                 // One bind per id: SQLite below 3.32 (API 26-29) limits a statement to 999 variables.
-                removedIds.chunked(500).forEach { chunk ->
+                removedChapters.map { it.id }.chunked(500).forEach { chunk ->
                     chapterRepository.removeChaptersWithIds(chunk)
                 }
                 logcat(LogPriority.DEBUG) {
-                    "Sync dropped ${removedIds.size} tombstoned chapter(s) of manga ${manga.id}"
+                    "Sync dropped ${removedChapters.size} tombstoned chapter(s) of manga ${manga.id}"
                 }
+                // File I/O must not happen inside the transaction; the rows are read back afterwards.
+                orphanedRemovals.add(manga to removedChapters)
             }
         }
         // KUN <--
