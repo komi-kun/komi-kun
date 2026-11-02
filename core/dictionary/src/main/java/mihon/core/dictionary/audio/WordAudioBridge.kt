@@ -89,18 +89,19 @@ class WordAudioBridge(
             // No audio configuration at all (`null` disables resolution). Answer with an empty,
             // final resolution: the renderer's "Loading audio…" row only clears on `done`, so
             // returning silently here would leave it up forever.
-            deliver(webView, callbackId, AudioResolution(emptyList(), emptyList()), done = true)
+            deliver(webView, callbackId, AudioResolution(emptyList(), emptyList()), done = true, playbackReady = false)
             return
         }
         updateAllowedLoopbackPorts(config)
         if (!config.enabled) {
-            deliver(webView, callbackId, AudioResolution(emptyList(), emptyList()), done = true)
+            deliver(webView, callbackId, AudioResolution(emptyList(), emptyList()), done = true, playbackReady = false)
             return
         }
         val language = (languageIsoProvider?.invoke() ?: "ja").ifBlank { "ja" }
         // KUN --> Nothing is resolved at render time any more: the renderer asks for audio only on a
         // play tap or when the long-press picker opens. Each snapshot is delivered as its source
-        // finishes, so playback can start on the first hit instead of after the slowest source; the
+        // finishes and carries `playbackReady` (the highest-priority source with a sample is known),
+        // so playback starts in configured priority order rather than on the fastest answer; the
         // remaining candidates are prefetched by the player once playback starts, not here.
         player.attachContext(webView.context)
         scope.launch {
@@ -111,7 +112,7 @@ class WordAudioBridge(
                 languageIso = language,
                 enableDefaultSources = config.enableDefaultAudioSources,
             ).flowOn(Dispatchers.IO).collect { update ->
-                deliver(webView, callbackId, update.resolution, update.done)
+                deliver(webView, callbackId, update.resolution, update.done, update.playbackReady)
             }
         }
         // KUN <--
@@ -186,7 +187,13 @@ class WordAudioBridge(
         player.destroy()
     }
 
-    private fun deliver(webView: WebView, callbackId: String, resolution: AudioResolution, done: Boolean) {
+    private fun deliver(
+        webView: WebView,
+        callbackId: String,
+        resolution: AudioResolution,
+        done: Boolean,
+        playbackReady: Boolean,
+    ) {
         val sources = JSONArray().apply {
             resolution.sources.forEachIndexed { index, source ->
                 put(
@@ -215,6 +222,10 @@ class WordAudioBridge(
         val payload = JSONObject().apply {
             put("sources", sources)
             put("candidates", candidates)
+            // KUN --> Playback may only start once the highest-priority source with a sample is
+            // known; the renderer gates on this flag instead of on "the first candidate arrived".
+            put("playbackReady", playbackReady)
+            // KUN <--
         }
         val idJson = JSONObject.quote(callbackId)
         // KUN --> `done` is the third argument: false while sources are still resolving, true on the

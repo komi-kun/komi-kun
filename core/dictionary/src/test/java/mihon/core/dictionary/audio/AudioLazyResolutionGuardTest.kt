@@ -115,7 +115,7 @@ class AudioLazyResolutionGuardTest {
         fetchAudio shouldNotContain "player.prefetch("
         // The streaming path is what is collected instead.
         fetchAudio shouldContain ".stream("
-        fetchAudio shouldContain "deliver(webView, callbackId, update.resolution, update.done)"
+        fetchAudio shouldContain "deliver(webView, callbackId, update.resolution, update.done, update.playbackReady)"
         // The explicit interface stays; it is simply no longer called from the render path.
         bridgeSource shouldContain "fun prefetchAudio(urlsJson: String)"
     }
@@ -127,7 +127,28 @@ class AudioLazyResolutionGuardTest {
         // renderer's "Loading audio…" row up forever, because it only clears on `done`.
         fetchAudio shouldContain "val config = configProvider?.invoke()"
         fetchAudio shouldContain "if (config == null) {"
-        fetchAudio shouldContain "deliver(webView, callbackId, AudioResolution(emptyList(), emptyList()), done = true)"
+        fetchAudio shouldContain "done = true, playbackReady = false"
+    }
+
+    @Test
+    fun `playback starts on source priority rather than the first candidate`() {
+        val playDefault = functionBlock(rendererJs, "const playDefault = () => {")
+        // The gate: a snapshot may start playback only when the highest-priority source that will
+        // ever have a sample is known — never merely because it carries candidates.
+        playDefault shouldContain "payload.playbackReady === true"
+        playDefault shouldNotContain "Array.isArray(payload.candidates)"
+        // The cached path is priority-decided too, so a finalised entry plays without re-resolving.
+        playDefault shouldContain "cached.playbackReady"
+        // ...and the cached payload carries the flag.
+        functionBlock(rendererJs, "function mergeAudioSnapshot(") shouldContain "playbackReady:"
+
+        // The picker is display-only: it must show every snapshot, not wait for the flag.
+        functionBlock(rendererJs, "function showAudioMenu(") shouldNotContain "playbackReady"
+        functionBlock(rendererJs, "const openMenu = (ev) => {") shouldNotContain "playbackReady"
+
+        // The bridge sends the flag on every snapshot, including the empty ones.
+        functionBlock(bridgeSource, "private fun deliver(") shouldContain "put(\"playbackReady\", playbackReady)"
+        bridgeSource shouldContain "deliver(webView, callbackId, update.resolution, update.done, update.playbackReady)"
     }
 }
 

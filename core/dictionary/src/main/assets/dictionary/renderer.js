@@ -2188,7 +2188,11 @@
       sources: sources.length > 0 ? sources : (previous ? audioPayload(previous).sources : []),
       candidates: ordered,
       done: done === true,
+      playbackReady: payload && payload.playbackReady === true,
     };
+    // A finished lookup that has samples is playable by definition (this also covers a payload from
+    // a bridge that predates the flag), so a later tap on the finalised entry never re-resolves.
+    if (state.done && state.candidates.length > 0) state.playbackReady = true;
     cacheAudioState(key, state);
     return state;
   }
@@ -2509,34 +2513,49 @@
       }
     };
 
+    const playFallbackAndFlashError = () => {
+      if (typeof WordAudioBridge !== 'undefined' && WordAudioBridge.playFallback) {
+        WordAudioBridge.playFallback();
+      }
+      audioBtn.classList.add('error');
+      setTimeout(() => audioBtn.classList.remove('error'), 1000);
+    };
+
     const playDefault = () => {
       const key = audioKey(expression, reading);
-      const cachedUrls = audioUrls(_audioCandidatesCache.get(key));
-      if (cachedUrls.length > 0) {
-        playAudioCandidateList(cachedUrls, audioBtn);
-        return;
+      const cached = _audioCandidatesCache.get(key);
+      // A cached entry that is finalised — or already priority-decided — plays its ordered list
+      // without resolving again; a finalised entry with no samples reports that there is none.
+      if (cached && (cached.done || cached.playbackReady)) {
+        const cachedUrls = audioUrls(cached);
+        if (cachedUrls.length > 0) {
+          playAudioCandidateList(cachedUrls, audioBtn);
+          return;
+        }
+        if (cached.done) {
+          playFallbackAndFlashError();
+          return;
+        }
       }
       audioBtn.classList.add('loading');
-      // Streamed: play as soon as the first candidate arrives (exactly once) instead of waiting for
-      // every source; the player prefetches the rest once playback starts.
+      // Configured source priority, not "whichever source answered first": playback starts only on a
+      // snapshot whose playbackReady flag says the highest-priority source with a sample is already
+      // known, and then plays the payload's candidates in payload (source) order. Sources below that
+      // one are not waited for; they can never outrank it.
       let started = false;
       requestAudioCandidates(expression, reading, (payload, done) => {
-        const urls = audioUrls(payload);
-        if (!started && urls.length > 0) {
-          started = true;
-          audioBtn.classList.remove('loading');
-          playAudioCandidateList(urls, audioBtn);
-          return;
+        if (!started && payload && payload.playbackReady === true) {
+          const urls = audioUrls(payload);
+          if (urls.length > 0) {
+            started = true;
+            audioBtn.classList.remove('loading');
+            playAudioCandidateList(urls, audioBtn);
+            return;
+          }
         }
         if (done) {
           audioBtn.classList.remove('loading');
-          if (!started) {
-            if (typeof WordAudioBridge !== 'undefined' && WordAudioBridge.playFallback) {
-              WordAudioBridge.playFallback();
-            }
-            audioBtn.classList.add('error');
-            setTimeout(() => audioBtn.classList.remove('error'), 1000);
-          }
+          if (!started) playFallbackAndFlashError();
         }
       });
     };

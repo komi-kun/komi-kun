@@ -33,7 +33,6 @@ import kotlinx.serialization.json.contentOrNull
 import java.net.URLEncoder
 import java.util.Collections
 import java.util.LinkedHashMap
-
 class AudioResolver(
     private val http: AudioHttp,
 ) {
@@ -112,17 +111,30 @@ class AudioResolver(
     ): Flow<AudioResolutionUpdate> = channelFlow {
         val cacheKey = cacheKey(sources, term, reading, languageIso, enableDefaultSources)
         resolutionCache[cacheKey]?.let {
-            send(AudioResolutionUpdate(resolution = it, done = true))
+            send(
+                AudioResolutionUpdate(
+                    resolution = it,
+                    done = true,
+                    resolvedSourceIndices = it.sources.indices.toSet(),
+                ),
+            )
             return@channelFlow
         }
 
         val effective = effectiveSources(sources, languageIso, enableDefaultSources)
         if (effective.isEmpty()) {
-            send(AudioResolutionUpdate(AudioResolution(sources = effective, candidates = emptyList()), done = true))
+            send(
+                AudioResolutionUpdate(
+                    resolution = AudioResolution(sources = effective, candidates = emptyList()),
+                    done = true,
+                    resolvedSourceIndices = emptySet(),
+                ),
+            )
             return@channelFlow
         }
 
         val perSource = arrayOfNulls<List<AudioCandidate>>(effective.size)
+        val resolved = LinkedHashSet<Int>()
         val mutex = Mutex()
         var finished = 0
 
@@ -139,11 +151,20 @@ class AudioResolver(
                         // one that caches an incomplete resolution.
                         ensureActive()
                         perSource[index] = candidates
+                        // Resolved whether or not it yielded: priority only asks whether the higher
+                        // sources have *answered*.
+                        resolved += index
                         finished++
                         val done = finished == effective.size
                         val resolution = buildResolution(effective, perSource)
                         if (done) resolutionCache[cacheKey] = resolution
-                        send(AudioResolutionUpdate(resolution = resolution, done = done))
+                        send(
+                            AudioResolutionUpdate(
+                                resolution = resolution,
+                                done = done,
+                                resolvedSourceIndices = resolved.toSet(),
+                            ),
+                        )
                     }
                 }
             }

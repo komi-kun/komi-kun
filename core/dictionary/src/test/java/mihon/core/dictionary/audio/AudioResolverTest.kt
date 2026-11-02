@@ -5,6 +5,7 @@ package mihon.core.dictionary.audio
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.collect
@@ -790,6 +791,181 @@ class AudioResolverTest {
             // The fast source is fetched once by the cancelled stream and once by `resolve`: had the
             // partial stream cached its snapshot, `resolve` would not have asked again.
             http.requested.count { it == fastUrl } shouldBe 2
+        }
+    }
+
+    // --- configured source priority (playbackReady) --------------------------------------------
+
+    /** Collects [resolver]'s stream into a channel so a test can pick updates one by one. */
+    private fun CoroutineScope.collectUpdates(
+        resolver: AudioResolver,
+        sources: List<AudioSourceConfig>,
+        term: String = "猫",
+        reading: String = "ねこ",
+    ): Channel<AudioResolutionUpdate> {
+        val updates = Channel<AudioResolutionUpdate>(Channel.UNLIMITED)
+        launch(Dispatchers.Default) {
+            resolver.stream(sources, term, reading, "ja", enableDefaultSources = false)
+                .collect { updates.send(it) }
+        }
+        return updates
+    }
+
+    @Test
+    fun `playbackReady stays false while a higher-priority source is still resolving`() {
+        runBlocking {
+            val slowGate = CompletableDeferred<Unit>()
+            val resolver = AudioResolver(streamingHttp(slowGate))
+            // The slow source is configured FIRST, so it outranks the fast one.
+            val updates = collectUpdates(
+                resolver,
+                listOf(
+                    AudioSourceConfig(AudioSourceTypes.CUSTOM_JSON, slowUrl),
+                    AudioSourceConfig(AudioSourceTypes.CUSTOM_JSON, fastUrl),
+                ),
+            )
+
+            val first = withTimeout(5_000) { updates.receive() }
+            first.done shouldBe false
+            first.resolution.candidates.map { it.url } shouldContainExactly listOf("http://fast/a.mp3")
+            first.resolvedSourceIndices shouldBe setOf(1)
+            // The sample belongs to source 1, but source 0 could still outrank it.
+            first.playbackReady shouldBe false
+
+            slowGate.complete(Unit)
+            withTimeout(5_000) { updates.receive() }.playbackReady shouldBe true
+        }
+    }
+
+    @Test
+    fun `playbackReady turns true once the higher-priority source resolves empty`() {
+        runBlocking {
+            val emptyHighGate = CompletableDeferred<Unit>()
+            val emptyHigh = "http://empty-high/"
+            val resolver = AudioResolver(
+                // The highest-priority source is held open and answers 404 (default) when released.
+                FakeHttp(
+                    responses = mapOf(fastUrl to ok(audioSourceList("Fast" to "http://fast/a.mp3"))),
+                    gates = mapOf(emptyHigh to emptyHighGate),
+                ),
+            )
+            val updates = collectUpdates(
+                resolver,
+                listOf(
+                    AudioSourceConfig(AudioSourceTypes.CUSTOM_JSON, emptyHigh),
+                    AudioSourceConfig(AudioSourceTypes.CUSTOM_JSON, fastUrl),
+                ),
+            )
+
+            val first = withTimeout(5_000) { updates.receive() }
+            first.resolution.candidates.map { it.url } shouldContainExactly listOf("http://fast/a.mp3")
+            first.playbackReady shouldBe false
+
+            emptyHighGate.complete(Unit)
+
+            val last = withTimeout(5_000) { updates.receive() }
+            last.done shouldBe true
+            last.playbackReady shouldBe true
+            last.resolvedSourceIndices shouldBe setOf(0, 1)
+            // Source 0 yielded nothing, so the ordered list still starts with source 1's sample.
+            last.resolution.candidates.map { it.url } shouldContainExactly listOf("http://fast/a.mp3")
+            last.resolution.candidates.single().sourceIndex shouldBe 1
+        }
+    }
+
+    @Test
+    fun `playbackReady turns true immediately when the highest-priority source yields`() {
+        runBlocking {
+            val slowGate = CompletableDeferred<Unit>()
+            val resolver = AudioResolver(streamingHttp(slowGate))
+            // This time the source that yields is configured first.
+            val updates = collectUpdates(
+                resolver,
+                listOf(
+                    AudioSourceConfig(AudioSourceTypes.CUSTOM_JSON, fastUrl),
+                    AudioSourceConfig(AudioSourceTypes.CUSTOM_JSON, slowUrl),
+                ),
+            )
+
+            val first = withTimeout(5_000) { updates.receive() }
+            first.done shouldBe false
+            first.resolvedSourceIndices shouldBe setOf(0)
+            // Nothing outranks source 0, so the lower-priority source is not waited for at all.
+            first.playbackReady shouldBe true
+            first.resolution.candidates.single().sourceIndex shouldBe 0
+
+            slowGate.complete(Unit)
+            withTimeout(5_000) { updates.receive() }.done shouldBe true
+        }
+    }
+
+    @Test
+    fun `playbackReady is false with no candidates and true on a done snapshot with one`() {
+        runBlocking {
+            // No candidates at all: never ready, even on the final snapshot.
+            val emptyUpdates = AudioResolver(FakeHttp())
+                .stream(
+                    listOf(AudioSourceConfig(AudioSourceTypes.CUSTOM_JSON, "http://nothing/?term=猫")),
+                    "猫",
+                    "ねこ",
+                    "ja",
+                    enableDefaultSources = false,
+                ).toList()
+            emptyUpdates.single().done shouldBe true
+            emptyUpdates.single().playbackReady shouldBe false
+            emptyUpdates.single().resolvedSourceIndices shouldBe setOf(0)
+
+            // One sample from the only source: the done snapshot is ready.
+            val readyUpdates = AudioResolver(streamingHttp(CompletableDeferred()))
+                .stream(
+                    listOf(AudioSourceConfig(AudioSourceTypes.CUSTOM_JSON, fastUrl)),
+                    "猫",
+                    "ねこ",
+                    "ja",
+                    enableDefaultSources = false,
+                ).toList()
+            readyUpdates.single().done shouldBe true
+            readyUpdates.single().playbackReady shouldBe true
+        }
+    }
+
+    @Test
+    fun `resolvedSourceIndices marks zero-yield sources resolved`() {
+        runBlocking {
+            val emptyFirst = "http://empty-first/?term=猫"
+            val emptySecond = "http://empty-second/?term=猫"
+            val secondGate = CompletableDeferred<Unit>()
+            val resolver = AudioResolver(
+                FakeHttp(
+                    responses = mapOf(fastUrl to ok(audioSourceList("Fast" to "http://fast/a.mp3"))),
+                    gates = mapOf(emptySecond to secondGate),
+                ),
+            )
+            // Sources 0 and 1 both yield nothing (0 answers at once, 1 is held open), 2 has a sample.
+            val updates = collectUpdates(
+                resolver,
+                listOf(
+                    AudioSourceConfig(AudioSourceTypes.CUSTOM_JSON, emptyFirst),
+                    AudioSourceConfig(AudioSourceTypes.CUSTOM_JSON, emptySecond),
+                    AudioSourceConfig(AudioSourceTypes.CUSTOM_JSON, fastUrl),
+                ),
+            )
+
+            val first = withTimeout(5_000) { updates.receive() }
+            // A source that returned nothing is still reported resolved — that is what lets the
+            // priority rule skip it instead of waiting for it forever.
+            first.resolvedSourceIndices shouldBe setOf(0)
+            first.resolution.candidates shouldBe emptyList()
+            first.playbackReady shouldBe false
+
+            secondGate.complete(Unit)
+
+            // Sources 1 and 2 race here, so drain until the stream reports it is finished.
+            var last = withTimeout(5_000) { updates.receive() }
+            while (!last.done) last = withTimeout(5_000) { updates.receive() }
+            last.resolvedSourceIndices shouldBe setOf(0, 1, 2)
+            last.resolution.candidates.map { it.url } shouldContainExactly listOf("http://fast/a.mp3")
+            last.playbackReady shouldBe true
         }
     }
 }
