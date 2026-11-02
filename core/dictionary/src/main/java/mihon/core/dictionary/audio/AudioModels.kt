@@ -116,4 +116,14 @@ data class AudioResolution(
     val sources: List<AudioSourceConfig>,
     val candidates: List<AudioCandidate>,
 )
+
+/**
+ * One step of [AudioResolver.stream]: a [resolution] snapshot of everything resolved so far and
+ * whether this is the last one ([done]). Every emission carries the same effective source list; the
+ * final, `done` emission is identical to what the one-shot `resolve()` returns.
+ */
+data class AudioResolutionUpdate(
+    val resolution: AudioResolution,
+    val done: Boolean,
+)
 // KUN <--

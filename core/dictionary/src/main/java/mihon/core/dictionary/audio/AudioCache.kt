@@ -2,8 +2,10 @@
 // KUN -->
 package mihon.core.dictionary.audio
 
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.Interceptor
@@ -33,6 +35,15 @@ object AudioCache {
     private var currentMemoryBytes: Long = 0L
     private var maxMemoryBytes: Long = DEFAULT_MAX_MEMORY_BYTES
 
+    // KUN -->
+    // In-flight downloads, so a play tap that lands while a prefetch is already fetching the same
+    // URL joins that request instead of issuing a second GET for it. The download itself runs in
+    // this cache-owned scope, so a cancelled caller (a superseded playback) does not cancel the
+    // fetch that another caller is awaiting; the bytes still land in memory for the next tap.
+    private val downloadScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val inFlightDownloads = HashMap<String, CompletableDeferred<ByteArray?>>()
+    // KUN <--
+
     @Volatile
     private var noRedirectClient: Pair<OkHttpClient, OkHttpClient>? = null
 
@@ -49,6 +60,14 @@ object AudioCache {
 
     fun count(): Int = synchronized(lock) {
         memoryMap.size
+    }
+
+    /**
+     * Number of downloads currently in flight (1 per URL being fetched). Diagnostics/test seam: the
+     * gate must outlive a cancelled waiter and disappear once the request itself has finished.
+     */
+    internal fun inFlightDownloadCount(): Int = synchronized(lock) {
+        inFlightDownloads.size
     }
 
     fun clear() {
@@ -106,36 +125,66 @@ object AudioCache {
      * directly into memory. Returns null if download fails or content is the dummy placeholder.
      * Zero storage/disk I/O.
      *
+     * Concurrent callers for the same [url] share one download: whoever finds no download in flight
+     * starts it, everybody else awaits that same request and gets the same bytes. Without this, a
+     * play tap landing next to a prefetch of the same clip issued a second GET, because the check
+     * only looked at the *completed* cache.
+     *
      * The fetch is bounded: redirects are not followed (a `302` to a host the
      * [isAllowedWordAudioUrl] fence never saw would otherwise turn this into an open proxy) and a
      * body larger than [MAX_WORD_AUDIO_BYTES] is dropped while streaming, so a hostile response
      * cannot be inflated into RAM before the cache trim runs.
      */
-    suspend fun getOrDownload(url: String, client: OkHttpClient): ByteArray? = withContext(Dispatchers.IO) {
-        if (url.isBlank() || url.startsWith("tts:")) return@withContext null
+    suspend fun getOrDownload(url: String, client: OkHttpClient): ByteArray? {
+        if (url.isBlank() || url.startsWith("tts:")) return null
         val cached = get(url)
-        if (cached != null) return@withContext cached
+        if (cached != null) return cached
 
-        try {
-            val request = Request.Builder().url(url).build()
-            audioHttpClient(client).newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return@withContext null
-                val body = response.body
-                val declaredLength = body.contentLength()
-                if (declaredLength == JPOD_DUMMY_AUDIO_BYTES.toLong()) return@withContext null
-                if (declaredLength > MAX_WORD_AUDIO_BYTES) return@withContext null
-
-                val bytes = readAudioBodyCapped(body.byteStream()) ?: return@withContext null
-                if (bytes.isEmpty() || bytes.size == JPOD_DUMMY_AUDIO_BYTES) {
-                    return@withContext null
+        val download = synchronized(lock) {
+            inFlightDownloads[url] ?: CompletableDeferred<ByteArray?>().also { gate ->
+                // Registered before the download starts, so a caller that shows up while the
+                // request is in flight always finds it instead of racing it.
+                inFlightDownloads[url] = gate
+                downloadScope.launch {
+                    // The gate lives as long as the *request*, not as long as the caller that
+                    // happened to start it: a cancelled waiter (the previous playback job, which
+                    // every new tap cancels) must not release the URL for a second GET while the
+                    // fetch is still running. Completed and removed in the download's own finally,
+                    // so a failed or empty download removes it too and never poisons the URL.
+                    val bytes = runCatching { downloadIntoMemory(url, client) }.getOrNull()
+                    gate.complete(bytes)
+                    synchronized(lock) {
+                        if (inFlightDownloads[url] === gate) inFlightDownloads.remove(url)
+                    }
                 }
-                put(url, bytes)
-                bytes
             }
-        } catch (_: Exception) {
-            null
         }
+        return download.await()
     }
+
+    /** The one network path: fetch [url] into memory, rejecting dummies, oversize and empty bodies. */
+    private suspend fun downloadIntoMemory(url: String, client: OkHttpClient): ByteArray? =
+        withContext(Dispatchers.IO) {
+            try {
+                val request = Request.Builder().url(url).build()
+                audioHttpClient(client).newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) return@withContext null
+                    val body = response.body
+                    val declaredLength = body.contentLength()
+                    if (declaredLength == JPOD_DUMMY_AUDIO_BYTES.toLong()) return@withContext null
+                    if (declaredLength > MAX_WORD_AUDIO_BYTES) return@withContext null
+
+                    val bytes = readAudioBodyCapped(body.byteStream()) ?: return@withContext null
+                    if (bytes.isEmpty() || bytes.size == JPOD_DUMMY_AUDIO_BYTES) {
+                        return@withContext null
+                    }
+                    put(url, bytes)
+                    bytes
+                }
+            } catch (_: Exception) {
+                null
+            }
+        }
 
     /**
      * Follows HTTP/HTTPS redirects safely up to [maxRedirects] hops, ensuring every redirected URL
@@ -223,6 +272,8 @@ object AudioCache {
     fun prefetch(url: String, client: OkHttpClient, scope: CoroutineScope) {
         if (url.isBlank() || url.startsWith("tts:")) return
         if (get(url) != null) return
+        // Shares the in-flight download in [getOrDownload], so a play tap during the prefetch joins
+        // it rather than fetching the same clip twice.
         scope.launch(Dispatchers.IO) {
             getOrDownload(url, client)
         }
