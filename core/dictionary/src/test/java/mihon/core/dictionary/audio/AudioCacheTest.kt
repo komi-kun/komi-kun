@@ -562,5 +562,98 @@ class AudioCacheTest {
             awaitNoInFlightDownloads()
         }
     }
+
+    // --- clear() while a download is in flight -------------------------------------------------
+
+    /** A client whose single response is held open until [release] completes, then returns [bytes]. */
+    private fun heldClient(
+        bytes: ByteArray,
+        entered: CompletableDeferred<Unit>,
+        release: CompletableDeferred<Unit>,
+        requests: AtomicInteger = AtomicInteger(),
+    ): OkHttpClient = OkHttpClient.Builder()
+        .addInterceptor { chain ->
+            requests.incrementAndGet()
+            entered.complete(Unit)
+            runBlocking { withTimeout(5_000) { release.await() } }
+            Response.Builder()
+                .request(chain.request())
+                .protocol(Protocol.HTTP_1_1)
+                .code(200)
+                .message("OK")
+                .body(bytes.toResponseBody(null))
+                .build()
+        }
+        .build()
+
+    @Test
+    fun `clear releases both waiters of a shared download with a miss`() {
+        runBlocking {
+            val url = "https://example.com/cleared-waiters.mp3"
+            val entered = CompletableDeferred<Unit>()
+            val release = CompletableDeferred<Unit>()
+            val finished = CompletableDeferred<Unit>()
+            // Per-test URL filter: the hook is global, and another test's download may still be
+            // unwinding while this one runs.
+            AudioCache.onDownloadFinished = { if (it == url) finished.complete(Unit) }
+            val client = heldClient(ByteArray(128) { 4 }, entered, release)
+
+            val joined = CompletableDeferred<Unit>()
+            AudioCache.onJoinedInFlight = { joined.complete(Unit) }
+
+            val leader = async(Dispatchers.IO) { AudioCache.getOrDownload(url, client) }
+            withTimeout(5_000) { entered.await() }
+            val follower = async(Dispatchers.IO) { AudioCache.getOrDownload(url, client) }
+            // Both callers provably wait on the same gate while the response is still open.
+            withTimeout(5_000) { joined.await() }
+            AudioCache.inFlightDownloadCount() shouldBe 1
+
+            AudioCache.clear()
+
+            // A clean miss for everyone: neither waiter is left hanging on a gate nobody completes,
+            // and neither receives bytes that were fetched for the cache that was just emptied.
+            withTimeout(5_000) { leader.await() } shouldBe null
+            withTimeout(5_000) { follower.await() } shouldBe null
+            AudioCache.inFlightDownloadCount() shouldBe 0
+
+            // Let this test's own download unwind before it returns, so nothing it still holds runs
+            // into the next test (its gate is already gone — `clear()` took it).
+            release.complete(Unit)
+            withTimeout(5_000) { finished.await() }
+        }
+    }
+
+    @Test
+    fun `a download that began before clear does not repopulate the cache`() {
+        runBlocking {
+            val url = "https://example.com/stale-download.mp3"
+            val bytes = ByteArray(256) { 6 }
+            val entered = CompletableDeferred<Unit>()
+            val release = CompletableDeferred<Unit>()
+            val finished = CompletableDeferred<Unit>()
+            // The hook is global: only this URL's completion may release the latch.
+            AudioCache.onDownloadFinished = { if (it == url) finished.complete(Unit) }
+            val requests = AtomicInteger()
+            val client = heldClient(bytes, entered, release, requests)
+
+            val leader = async(Dispatchers.IO) { AudioCache.getOrDownload(url, client) }
+            withTimeout(5_000) { entered.await() }
+
+            AudioCache.clear()
+            withTimeout(5_000) { leader.await() } shouldBe null
+
+            // The response is released *after* the clear: it must be dropped, not stored.
+            release.complete(Unit)
+            withTimeout(5_000) { finished.await() }
+            AudioCache.count() shouldBe 0
+            AudioCache.sizeBytes() shouldBe 0L
+            AudioCache.get(url) shouldBe null
+
+            // The URL is not poisoned either: a fresh lookup starts a new download and caches it.
+            AudioCache.getOrDownload(url, client) shouldBe bytes
+            requests.get() shouldBe 2
+            AudioCache.get(url) shouldBe bytes
+        }
+    }
 }
 // KUN <--

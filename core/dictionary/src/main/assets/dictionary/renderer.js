@@ -2198,15 +2198,15 @@
   }
 
   /**
-   * Drops every in-flight audio request and its handlers. Called when the rendered results are
-   * replaced for a *new* lookup: a previous word's stream must not play or open a menu on a button
-   * that no longer exists. Native playback that is already running is untouched (stopping it is a
-   * separate, explicit action), so a re-render of the same word does not cut its audio.
+   * Abandons a native stream the renderer no longer wants an answer from. Guarded twice: the
+   * renderer also runs without the bridge (`typeof WordAudioBridge === 'undefined'`) and against a
+   * bridge build that predates `cancelAudio`.
    */
-  function resetAudioRequests() {
-    _audioCallbacks.clear();
-    _pendingAudioRequests.clear();
-    closeAudioMenu();
+  function cancelAudioRequest(callbackId) {
+    const bridge = _audioNative();
+    if (bridge && typeof bridge.cancelAudio === 'function' && callbackId) {
+      bridge.cancelAudio(callbackId);
+    }
   }
 
   /** The audio cache keys of the entries a render is about to display (same key as the buttons). */
@@ -2231,6 +2231,9 @@
     for (const [callbackId, entry] of Array.from(_audioCallbacks.entries())) {
       if (entry && entry.key && keepKeys.has(entry.key)) continue;
       _audioCallbacks.delete(callbackId);
+      // The word is gone from the popup: drop the native stream too, or it keeps resolving every
+      // configured source for it and posts snapshots for an id nobody reads any more.
+      cancelAudioRequest(callbackId);
     }
     for (const key of Array.from(_pendingAudioRequests.keys())) {
       if (!keepKeys.has(key)) _pendingAudioRequests.delete(key);
@@ -2325,6 +2328,10 @@
   let _audioMenuNode = null;
   let _audioMenuDismiss = null;
   let _audioMenuButton = null;
+  // The state of the *open* menu — its source groups, their items and its status rows — so a
+  // streaming snapshot can reconcile that node in place instead of rebuilding it.
+  let _audioMenuState = null;
+  let _audioMenuPointerUp = null;
 
   function closeAudioMenu() {
     if (_audioMenuNode) {
@@ -2332,11 +2339,17 @@
       _audioMenuNode = null;
     }
     _audioMenuButton = null;
+    _audioMenuState = null;
     if (_audioMenuDismiss) {
       document.removeEventListener('pointerdown', _audioMenuDismiss, true);
       window.removeEventListener('scroll', _audioMenuDismiss, true);
       window.removeEventListener('resize', _audioMenuDismiss, true);
       _audioMenuDismiss = null;
+    }
+    if (_audioMenuPointerUp) {
+      document.removeEventListener('pointerup', _audioMenuPointerUp, true);
+      document.removeEventListener('pointercancel', _audioMenuPointerUp, true);
+      _audioMenuPointerUp = null;
     }
   }
 
@@ -2346,21 +2359,47 @@
    */
   function updateAudioMenu(button, payload, loading) {
     if (!_audioMenuNode || !_audioMenuNode.isConnected || _audioMenuButton !== button) return;
+    // Reconciled in place — `showAudioMenu` reuses the open node for this button. Rebuilding it
+    // detached the node under a finger that is between `pointerdown` and `click` (so the tap was
+    // silently lost), reset keyboard/TalkBack focus and made the menu flicker and reposition once
+    // per source that finished.
     showAudioMenu(button, payload, loading);
   }
 
   /**
-   * Builds (or rebuilds) the picker for [button].
+   * Opens the picker for [button], or reconciles the one that is already open for it.
    *
    * [loading] true renders the "Loading audio…" row used while the sources are still resolving; the
    * terminal snapshot renders a single non-interactive "No audio found" row when it has no samples,
    * so a long-press always has a visible outcome. A source only gets a group when it actually
    * produced a sample.
+   *
+   * A snapshot is cumulative and in configured source order, so the update is append-only: groups
+   * and items already shown keep their nodes (and their click handlers, and whatever sits under the
+   * user's finger), a source that resolves after a later one gets its group inserted at its sorted
+   * position, and only the `default` badge moves when the first candidate changes.
+   *
+   * While a pointer is down on the menu, *any* snapshot is parked (`state.deferred`) and replayed by
+   * the `pointerup`/`pointercancel` handler: inserting a row between `pointerdown` and `click` moves
+   * the row under the pointer and swallows the tap, which no amount of node reuse prevents.
    */
   function showAudioMenu(button, payload, loading) {
-    const {sources, candidates} = audioPayload(payload);
+    // Reuse the open menu for this button; anything else (dismissed, or another entry's) is closed
+    // and built from scratch. A user-dismissed menu stays dismissed: its node is gone from the DOM.
+    const reuse = !!(_audioMenuNode && _audioMenuNode.isConnected && _audioMenuButton === button);
 
-    closeAudioMenu();
+    // A finger (or mouse button) is down on the open menu: inserting, appending or moving rows now
+    // would shift the row under the pointer between `pointerdown` and `click` and the tap would land
+    // on the wrong row (or nothing). Keep the snapshot and replay it on release, with the reflow.
+    // Only the latest snapshot is kept — they are cumulative, so it subsumes the ones skipped.
+    if (reuse && _audioMenuState.pointerDown) {
+      _audioMenuState.deferred = { payload, loading };
+      return;
+    }
+
+    if (!reuse) closeAudioMenu();
+
+    const {sources, candidates} = audioPayload(payload);
 
     // Group candidates by the source they came from; insertion order preserves resolution order.
     const bySource = new Map();
@@ -2370,9 +2409,25 @@
       bySource.get(idx).push({candidate, isDefault: position === 0});
     });
 
-    const menu = document.createElement('div');
-    menu.className = 'word-audio-menu';
-    menu.setAttribute('role', 'menu');
+    const menu = reuse ? _audioMenuNode : document.createElement('div');
+    const state = reuse
+      ? _audioMenuState
+      : {
+          groups: new Map(), // source index -> {group, header, label, entries}
+          byElement: new Map(), // group element -> the same record
+          items: new Map(), // candidate url -> its item (for the default badge)
+          loadingItem: null,
+          emptyItem: null,
+          size: null, // last measured size, so a snapshot that did not change it skips reflow
+          pointerDown: false,
+          deferred: null, // a snapshot that arrived while a pointer was down, replayed on release
+        };
+    _audioMenuState = state;
+
+    if (!reuse) {
+      menu.className = 'word-audio-menu';
+      menu.setAttribute('role', 'menu');
+    }
 
     // A group is only rendered for a source that produced a sample, so the order suffixes are
     // counted over the rendered groups: a skipped empty source must not leave a lone "… 1".
@@ -2386,15 +2441,30 @@
     });
     const labelSeen = {};
 
-    const makeGroup = (label) => {
+    const statusRow = () => state.loadingItem || state.emptyItem || null;
+
+    const makeGroup = (label, key) => {
       const group = document.createElement('div');
       group.className = 'word-audio-menu-group';
       const header = document.createElement('div');
       header.className = 'word-audio-menu-header';
       header.textContent = label;
       group.appendChild(header);
-      menu.appendChild(group);
-      return group;
+      const record = { group, header, key, label, entries: new Map() };
+      state.groups.set(key, record);
+      state.byElement.set(group, record);
+      return record;
+    };
+
+    // Inserts a group at its source-order position among the groups already shown, ahead of the
+    // status row. Inserting (rather than appending) is what keeps a source that resolved *after* a
+    // later one in its configured place instead of at the end.
+    const insertGroup = (record, position) => {
+      const shown = Array.from(menu.children)
+        .filter((child) => child.classList && child.classList.contains('word-audio-menu-group'));
+      const before = shown[position] || statusRow();
+      if (before) menu.insertBefore(record.group, before);
+      else menu.appendChild(record.group);
     };
 
     const appendItem = (parent, url, label, isDefault, disabled) => {
@@ -2422,19 +2492,53 @@
         });
       }
       parent.appendChild(item);
+      return { item, text };
     };
 
+    // Appends only the samples this group does not show yet: an item that is already there keeps
+    // its node, its click handler and any tap already on its way.
     const renderGroup = (group, entries) => {
       if (!entries || entries.length === 0) return;
+      const record = state.byElement.get(group);
       entries.forEach((entry, index) => {
         const candidate = entry.candidate;
         const name = (candidate.name && String(candidate.name).trim()) ? String(candidate.name).trim() : '';
         let label = name || 'Play';
         if (entries.length > 1) label = (index + 1) + '. ' + label;
-        appendItem(group, candidate.url, label, entry.isDefault, false);
+        const shown = record && candidate.url ? record.entries.get(candidate.url) : null;
+        if (shown) {
+          if (shown.text.textContent !== label) {
+            shown.text.textContent = label;
+            shown.label = label;
+          }
+          return;
+        }
+        const added = appendItem(group, candidate.url, label, entry.isDefault, false);
+        if (record && candidate.url) {
+          record.entries.set(candidate.url, { item: added.item, text: added.text, label });
+          state.items.set(candidate.url, added.item);
+        }
       });
     };
 
+    // Moves the "default" badge to the first candidate of the *new* ordering: that item is what a
+    // single tap plays, and the order changes as earlier sources resolve.
+    const setDefaultBadge = (item, isDefault) => {
+      if (!item) return;
+      item.classList.toggle('word-audio-menu-item-default', isDefault);
+      const badge = Array.from(item.children)
+        .find((child) => child.classList && child.classList.contains('word-audio-menu-item-badge'));
+      if (isDefault && !badge) {
+        const added = document.createElement('span');
+        added.className = 'word-audio-menu-item-badge';
+        added.textContent = 'default';
+        item.appendChild(added);
+      } else if (!isDefault && badge) {
+        badge.remove();
+      }
+    };
+
+    const desiredGroups = [];
     if (sources.length > 0) {
       renderedSources.forEach(({source, entries}) => {
         let label = source.label || source.type || 'Source';
@@ -2442,23 +2546,60 @@
           labelSeen[label] = (labelSeen[label] || 0) + 1;
           label = label + ' ' + labelSeen[label];
         }
-        renderGroup(makeGroup(label), entries);
+        desiredGroups.push({ key: source.index, label, entries });
       });
       // Defensive: candidates with no source identity (e.g. an older bridge payload).
       const orphans = bySource.get(-1) || [];
-      if (orphans.length > 0) renderGroup(makeGroup('Audio'), orphans);
+      if (orphans.length > 0) desiredGroups.push({ key: -1, label: 'Audio', entries: orphans });
     } else if (candidates.length > 0) {
-      renderGroup(makeGroup('Audio'), candidates.map((candidate, position) => ({candidate, isDefault: position === 0})));
+      desiredGroups.push({
+        key: -1,
+        label: 'Audio',
+        entries: candidates.map((candidate, position) => ({candidate, isDefault: position === 0})),
+      });
     }
 
+    desiredGroups.forEach((desired, position) => {
+      let record = state.groups.get(desired.key);
+      if (!record) {
+        record = makeGroup(desired.label, desired.key);
+        insertGroup(record, position);
+      } else if (record.label !== desired.label) {
+        record.label = desired.label;
+        record.header.textContent = desired.label;
+      }
+      renderGroup(record.group, desired.entries);
+    });
+
+    // Status rows are reconciled in place too, so the spinner row does not blink between snapshots
+    // and disappears exactly when the stream terminates.
     if (loading) {
-      appendItem(menu, null, 'Loading audio…', false, true);
-    } else if (candidates.length === 0) {
-      // Terminal and empty: one non-interactive row rather than a menu that never appears.
-      appendItem(menu, null, 'No audio found', false, true);
+      if (state.emptyItem) {
+        state.emptyItem.remove();
+        state.emptyItem = null;
+      }
+      if (!state.loadingItem) {
+        state.loadingItem = appendItem(menu, null, 'Loading audio…', false, true).item;
+      }
+    } else {
+      if (state.loadingItem) {
+        state.loadingItem.remove();
+        state.loadingItem = null;
+      }
+      if (candidates.length === 0) {
+        // Terminal and empty: one non-interactive row rather than a menu that never appears.
+        if (!state.emptyItem) {
+          state.emptyItem = appendItem(menu, null, 'No audio found', false, true).item;
+        }
+      } else if (state.emptyItem) {
+        state.emptyItem.remove();
+        state.emptyItem = null;
+      }
     }
 
-    document.body.appendChild(menu);
+    const firstCandidate = candidates.find((candidate) => candidate && candidate.url) || null;
+    const firstUrl = firstCandidate ? firstCandidate.url : null;
+    state.items.forEach((item, url) => setDefaultBadge(item, url === firstUrl));
 
     // Size the menu against the *measured* viewport, in pixels. This WebView reports 0 for every
     // viewport-height unit (`vh`, `dvh`, `svh`, `lvh`) and for height media queries, even though
@@ -2467,20 +2608,21 @@
     // stayed in the DOM/accessibility tree but never painted - only a ~10px empty rounded box.
     const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
     const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
-    if (viewportHeight > 0) {
-      // Same intent as the old 60vh, with a floor so a tiny popup still shows usable rows.
-      const cap = Math.max(140, Math.round(viewportHeight * 0.6));
-      menu.style.maxHeight = Math.min(cap, viewportHeight - 8) + 'px';
-    }
-    if (viewportWidth > 0) {
-      // Same intent as the stylesheet's `max-width: 78vw`, without trusting `vw`.
-      menu.style.maxWidth = Math.min(viewportWidth - 8, Math.round(viewportWidth * 0.78)) + 'px';
-    }
+    const applyMenuMaxSize = () => {
+      if (viewportHeight > 0) {
+        // Same intent as the old 60vh, with a floor so a tiny popup still shows usable rows.
+        const cap = Math.max(140, Math.round(viewportHeight * 0.6));
+        menu.style.maxHeight = Math.min(cap, viewportHeight - 8) + 'px';
+      }
+      if (viewportWidth > 0) {
+        // Same intent as the stylesheet's `max-width: 78vw`, without trusting `vw`.
+        menu.style.maxWidth = Math.min(viewportWidth - 8, Math.round(viewportWidth * 0.78)) + 'px';
+      }
+    };
 
     // Position next to the button, right-aligned and clamped to the viewport.
-    const rect = button.getBoundingClientRect();
-    menu.style.visibility = 'hidden';
-    requestAnimationFrame(() => {
+    const applyMenuPosition = () => {
+      const rect = button.getBoundingClientRect();
       const width = menu.offsetWidth;
       const height = menu.offsetHeight;
       let left = rect.right - width;
@@ -2493,17 +2635,73 @@
       menu.style.left = left + 'px';
       menu.style.top = top + 'px';
       menu.style.visibility = '';
-    });
-
-    _audioMenuNode = menu;
-    _audioMenuButton = button;
-    _audioMenuDismiss = (ev) => {
-      if (_audioMenuNode && ev && ev.target && _audioMenuNode.contains(ev.target)) return;
-      closeAudioMenu();
     };
-    document.addEventListener('pointerdown', _audioMenuDismiss, true);
-    window.addEventListener('scroll', _audioMenuDismiss, true);
-    window.addEventListener('resize', _audioMenuDismiss, true);
+
+    // A fresh node is measured from an empty spot, so it stays invisible until it has been placed;
+    // a node that is already on screen just moves.
+    const placeMenu = (hideWhileMeasuring) => {
+      if (!hideWhileMeasuring) {
+        applyMenuPosition();
+        return;
+      }
+      menu.style.visibility = 'hidden';
+      requestAnimationFrame(applyMenuPosition);
+    };
+
+    // What the geometry depends on. A snapshot that added no row and changed no label cannot have
+    // changed it, so the menu is not reflowed or re-placed for nothing.
+    const measuredSize = () => (menu.offsetWidth || 0) + 'x' + (menu.offsetHeight || 0) + 'x' + menu.children.length;
+    const applyMenuGeometry = () => {
+      applyMenuMaxSize();
+      placeMenu(false);
+    };
+    const reflowIfNeeded = () => {
+      // Never while a pointer is down: moving the menu then would slide it out from under the tap.
+      // The size stays recorded as it was, so the deferred change is applied on `pointerup`.
+      if (state.pointerDown) return;
+      const size = measuredSize();
+      if (size !== state.size) {
+        applyMenuGeometry();
+        state.size = measuredSize();
+      }
+    };
+
+    if (!reuse) {
+      document.body.appendChild(menu);
+      applyMenuMaxSize();
+      placeMenu(true);
+
+      _audioMenuNode = menu;
+      _audioMenuButton = button;
+      _audioMenuDismiss = (ev) => {
+        if (ev && ev.type === 'pointerdown') state.pointerDown = true;
+        if (_audioMenuNode && ev && ev.target && _audioMenuNode.contains(ev.target)) return;
+        closeAudioMenu();
+      };
+      _audioMenuPointerUp = () => {
+        state.pointerDown = false;
+        // Replay the snapshot that arrived while the pointer was down (if any), then the deferred
+        // reflow. The slot is cleared first, and the replay is the same pure reconcile of that
+        // payload, so a second release cannot apply it twice; a menu that was closed (or replaced)
+        // in the meantime is not this `state` and is left alone.
+        const deferred = state.deferred;
+        state.deferred = null;
+        if (deferred && _audioMenuNode === menu && _audioMenuState === state) {
+          showAudioMenu(button, deferred.payload, deferred.loading);
+        }
+        // A snapshot that landed while the pointer was down deferred its reflow: apply it now.
+        reflowIfNeeded();
+      };
+      document.addEventListener('pointerdown', _audioMenuDismiss, true);
+      window.addEventListener('scroll', _audioMenuDismiss, true);
+      window.addEventListener('resize', _audioMenuDismiss, true);
+      document.addEventListener('pointerup', _audioMenuPointerUp, true);
+      document.addEventListener('pointercancel', _audioMenuPointerUp, true);
+      state.size = measuredSize();
+    } else {
+      // Re-apply the cap and the position only when the node's size actually changed.
+      reflowIfNeeded();
+    }
   }
 
   function createAudioButton(expression, reading) {
@@ -3637,9 +3835,12 @@
     _autoplayGuard = false;
     closeAudioMenu();
     // The rendered entries (and their audio buttons) are gone, so nothing may answer their
-    // still-streaming requests; the candidate cache is bounded but this is the wholesale reset.
+    // still-streaming requests: the handlers and pending keys go, and the native streams behind
+    // them are cancelled. The candidate cache is bounded, but this is the wholesale reset.
+    Array.from(_audioCallbacks.keys()).forEach(cancelAudioRequest);
+    _audioCallbacks.clear();
+    _pendingAudioRequests.clear();
     _audioCandidatesCache.clear();
-    resetAudioRequests();
     clearRecursiveSelection();
     resetDictionaryMediaObserver();
     const container = document.getElementById('entries');
