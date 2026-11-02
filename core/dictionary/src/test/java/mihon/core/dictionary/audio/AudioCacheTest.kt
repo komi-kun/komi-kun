@@ -13,7 +13,6 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import okhttp3.Dns
@@ -355,37 +354,6 @@ class AudioCacheTest {
 
     // --- in-flight dedupe (a play tap must not re-GET a clip that is already downloading) ------
 
-    /**
-     * A client with one canned response that counts the requests that reach it. [onFirstRequest]
-     * runs at the start of the first request, while it is still open — the only place a concurrent
-     * second caller can be started from deterministically, without a timing fence.
-     */
-    private fun countingClient(
-        bytes: ByteArray,
-        requests: AtomicInteger,
-        onFirstRequest: ((OkHttpClient) -> Unit)? = null,
-    ): OkHttpClient {
-        var fired = false
-        lateinit var client: OkHttpClient
-        client = OkHttpClient.Builder()
-            .addInterceptor { chain ->
-                requests.incrementAndGet()
-                if (!fired) {
-                    fired = true
-                    onFirstRequest?.invoke(client)
-                }
-                Response.Builder()
-                    .request(chain.request())
-                    .protocol(Protocol.HTTP_1_1)
-                    .code(200)
-                    .message("OK")
-                    .body(bytes.toResponseBody(null))
-                    .build()
-            }
-            .build()
-        return client
-    }
-
     @Test
     fun `two concurrent downloads of one url issue a single request`() {
         runBlocking {
@@ -430,24 +398,48 @@ class AudioCacheTest {
     }
 
     @Test
-    fun `a prefetch and a play tap of the same url share one request`() = runBlocking {
-        val url = "https://example.com/prefetched.mp3"
-        val bytes = ByteArray(256) { 3 }
-        val requests = AtomicInteger()
-        val played = CompletableDeferred<ByteArray?>()
-        val prefetchScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-        val client = countingClient(bytes, requests) { built ->
-            // `prefetch` funnels through `getOrDownload`, so a tap landing during the prefetch's own
-            // GET must join that download instead of starting another.
-            prefetchScope.launch { played.complete(AudioCache.getOrDownload(url, built)) }
+    fun `a prefetch and a play tap of the same url share one request`() {
+        runBlocking {
+            val url = "https://example.com/prefetched.mp3"
+            val bytes = ByteArray(256) { 3 }
+            val requests = AtomicInteger()
+            val entered = CompletableDeferred<Unit>()
+            val release = CompletableDeferred<Unit>()
+            val joined = CompletableDeferred<Unit>()
+            AudioCache.onJoinedInFlight = { joined.complete(Unit) }
+            val prefetchScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+            lateinit var client: OkHttpClient
+            client = OkHttpClient.Builder()
+                .addInterceptor { chain ->
+                    requests.incrementAndGet()
+                    entered.complete(Unit)
+                    // Held open until the tap has provably joined, so the tap cannot simply run
+                    // after this request finished and hit the completed cache instead.
+                    runBlocking { withTimeout(5_000) { release.await() } }
+                    Response.Builder()
+                        .request(chain.request())
+                        .protocol(Protocol.HTTP_1_1)
+                        .code(200)
+                        .message("OK")
+                        .body(bytes.toResponseBody(null))
+                        .build()
+                }
+                .build()
+
+            // `prefetch` funnels through `getOrDownload`, so a tap landing during its GET must join
+            // that download instead of starting another.
+            AudioCache.prefetch(url, client, prefetchScope)
+            withTimeout(5_000) { entered.await() }
+
+            val tap = async(Dispatchers.IO) { AudioCache.getOrDownload(url, client) }
+            withTimeout(5_000) { joined.await() }
+            release.complete(Unit)
+
+            tap.await() shouldBe bytes
+            requests.get() shouldBe 1
+            AudioCache.get(url) shouldBe bytes
+            prefetchScope.cancel()
         }
-
-        AudioCache.prefetch(url, client, prefetchScope)
-
-        withTimeout(5_000) { played.await() } shouldBe bytes
-        requests.get() shouldBe 1
-        AudioCache.get(url) shouldBe bytes
-        prefetchScope.cancel()
     }
 
     @Test
@@ -458,9 +450,16 @@ class AudioCacheTest {
             val firstBytes = ByteArray(64) { 1 }
             val secondBytes = ByteArray(64) { 2 }
             val requests = AtomicInteger()
+            val inFlight = AtomicInteger()
+            val bothInFlight = CompletableDeferred<Unit>()
+            val release = CompletableDeferred<Unit>()
             val client = OkHttpClient.Builder()
                 .addInterceptor { chain ->
                     requests.incrementAndGet()
+                    if (inFlight.incrementAndGet() == 2) bothInFlight.complete(Unit)
+                    // Barrier: neither response is released until *both* requests are in flight, so
+                    // a single global gate (which would serialise or merge them) cannot get here.
+                    runBlocking { withTimeout(5_000) { release.await() } }
                     val body = if (chain.request().url.toString() == first) firstBytes else secondBytes
                     Response.Builder()
                         .request(chain.request())
@@ -472,9 +471,10 @@ class AudioCacheTest {
                 }
                 .build()
 
-            // A single global gate would let one of these return the other's bytes (or skip a GET).
             val one = async(Dispatchers.IO) { AudioCache.getOrDownload(first, client) }
             val two = async(Dispatchers.IO) { AudioCache.getOrDownload(second, client) }
+            withTimeout(5_000) { bothInFlight.await() }
+            release.complete(Unit)
 
             one.await() shouldBe firstBytes
             two.await() shouldBe secondBytes

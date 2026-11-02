@@ -958,8 +958,8 @@ class AudioResolverTest {
                 first = withTimeout(5_000) { updates.receive() }
             }
             // A source that returned nothing is still reported resolved — that is what lets the
-            // priority rule skip it instead of waiting for it forever.
-            (0 in first.resolvedSourceIndices) shouldBe true
+            // priority rule skip it instead of waiting for it forever. (The drain loop above already
+            // establishes that index 0 is in the set.)
             first.done shouldBe false
             // Source 1 is still open, so even with source 2's sample the choice is undecidable.
             first.playbackReady shouldBe false

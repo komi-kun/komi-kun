@@ -2244,8 +2244,12 @@
    * from the first hit instead of waiting for every source. It is called once with `done = true`
    * when the request (or a completed cache entry) is exhausted. Resolution is never started at
    * render time: this is the *only* entry point, and only a play tap / picker open reaches it.
+   *
+   * [owner] (the audio button) makes the registration idempotent: pressing again while the request is
+   * still open *replaces* that button's previous waiter instead of stacking a second one, which would
+   * rebuild the picker / start playback once per press for every snapshot.
    */
-  function requestAudioCandidates(expression, reading, onUpdate) {
+  function requestAudioCandidates(expression, reading, onUpdate, owner) {
     const key = audioKey(expression, reading);
     const cached = _audioCandidatesCache.get(key);
     if (cached && cached.done) {
@@ -2253,14 +2257,20 @@
       return;
     }
 
+    const waiter = typeof onUpdate === 'function' ? { owner: owner || null, fn: onUpdate } : null;
+
     if (_pendingAudioRequests.has(key)) {
-      if (typeof onUpdate === 'function') _pendingAudioRequests.get(key).push(onUpdate);
+      const waiters = _pendingAudioRequests.get(key);
+      if (waiter) {
+        const kept = waiter.owner ? waiters.filter((w) => w.owner !== waiter.owner) : waiters;
+        kept.push(waiter);
+        _pendingAudioRequests.set(key, kept);
+      }
       return;
     }
 
-    const handlers = [];
-    if (typeof onUpdate === 'function') handlers.push(onUpdate);
-    _pendingAudioRequests.set(key, handlers);
+    const waiters = waiter ? [waiter] : [];
+    _pendingAudioRequests.set(key, waiters);
 
     const bridge = _audioNative();
     if (!bridge) {
@@ -2332,11 +2342,6 @@
     showAudioMenu(button, payload, loading);
   }
 
-  /**
-   * Builds the picker. [loading] renders a short "loading" row while sources are still resolving
-   * (partial snapshots); it never documents every configured source as an empty group, and a source
-   * only gets a group when it actually produced a sample.
-   */
   /**
    * Builds (or rebuilds) the picker for [button].
    *
@@ -2561,7 +2566,7 @@
           audioBtn.classList.remove('loading');
           if (!started) playFallbackAndFlashError();
         }
-      });
+      }, audioBtn);
     };
 
     const openMenu = (ev) => {
@@ -2586,7 +2591,7 @@
         // lands; a menu the user dismissed stays dismissed.
         updateAudioMenu(audioBtn, payload, !done);
         if (done) audioBtn.classList.remove('loading');
-      });
+      }, audioBtn);
     };
 
     audioBtn.playAudio = playDefault;
@@ -3784,9 +3789,9 @@
         _audioCallbacks.delete(id);
         _pendingAudioRequests.delete(key);
       }
-      waiters.forEach((cb) => {
+      waiters.forEach((waiter) => {
         try {
-          cb(state, isDone);
+          waiter.fn(state, isDone);
         } catch (e) {
           console.error('[DictionaryRenderJS] audio callback error:', e);
         }

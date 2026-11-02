@@ -34,16 +34,15 @@ class AudioLazyResolutionGuardTest {
         // Resolution has exactly three touch points: the definition and the two user-action
         // handlers (play tap, picker open). Any other call site — a rendered entry, `renderEntry` —
         // is a render-time resolve, whatever callback shape it uses (`null`, `() => {}`, …).
-        val callSites = Regex("requestAudioCandidates\\s*\\(").findAll(rendererJs).toList()
+        val callSites = Regex("requestAudioCandidates\\s*\\(").findAll(rendererJs).map { it.range.first }.toList()
         callSites.size shouldBe 3
         val buttonStart = rendererJs.indexOf("function createAudioButton(")
         val createButton = functionBlock(rendererJs, "function createAudioButton(")
         val buttonRange = buttonStart until (buttonStart + createButton.length)
-        // The two remaining call sites are the user-action handlers inside `createAudioButton`; the
-        // definition itself is not in that range.
-        callSites.drop(1).forEach { site ->
-            (site.range.first in buttonRange) shouldBe true
-        }
+        // Exactly two call sites live inside `createAudioButton` (its two user-action handlers) and
+        // one outside it (the definition) — selected by range, not by file order.
+        callSites.count { it in buttonRange } shouldBe 2
+        callSites.count { it !in buttonRange } shouldBe 1
         createButton shouldContain "const playDefault = () => {"
         createButton shouldContain "const openMenu = (ev) => {"
         Regex("requestAudioCandidates\\(expression, reading, \\(payload, done\\) =>").findAll(createButton)
@@ -79,7 +78,9 @@ class AudioLazyResolutionGuardTest {
         // Native snapshots are cumulative and already in configured source order; appending arrivals
         // would order the cache (and the "default" badge / playDefault list) fastest-first.
         merge shouldContain "candidates: ordered"
-        merge shouldNotContain "merged.push(candidate)"
+        // Nothing is appended to the *previous* list: the only build target is the payload's own
+        // list (a regression would append the earlier entry's candidates to it).
+        merge shouldNotContain "previous.candidates"
         rendererJs shouldContain "const ordered = [];"
         rendererJs shouldContain "ordered.push(candidate);"
     }
@@ -100,9 +101,13 @@ class AudioLazyResolutionGuardTest {
     @Test
     fun `a partial cache entry is evicted like any other`() {
         val cache = functionBlock(rendererJs, "function cacheAudioState(")
-        // An interrupted lookup leaves a partial entry whose final `done` never arrives; skipping
-        // non-done entries would pin it in the bounded cache forever.
-        cache shouldNotContain "entry.done"
+        // An interrupted lookup leaves a partial entry whose final `done` never arrives, so evicting
+        // by entry state would pin it in the bounded cache forever. (`oldest.done` is the Map
+        // *iterator's* exhaustion flag, not an entry predicate, so it is allowed.)
+        Regex("\\b(entry|item|victim|candidate)\\s*\\.\\s*done\\b").containsMatchIn(cache) shouldBe false
+        Regex("\\[\\s*[\"']done[\"']\\s*\\]").containsMatchIn(cache) shouldBe false
+        // No scan-for-a-victim loop at all: the oldest key is taken directly.
+        cache shouldNotContain "for (const"
         cache shouldContain "_audioCandidatesCache.keys().next()"
     }
 
@@ -111,12 +116,19 @@ class AudioLazyResolutionGuardTest {
         val openMenu = functionBlock(rendererJs, "const openMenu = (ev) => {")
         // With lazy resolution the first press has no cache entry at all; the picker must be created
         // right away in its loading state, because a snapshot can only update a menu that exists.
-        openMenu shouldContain "showAudioMenu(audioBtn, { sources: [], candidates: [] }, true)"
+        Regex(
+            "showAudioMenu\\(\\s*audioBtn\\s*,\\s*\\{\\s*sources\\s*:\\s*\\[\\s*\\]\\s*," +
+                "\\s*candidates\\s*:\\s*\\[\\s*\\]\\s*\\}\\s*,\\s*true\\s*\\)",
+        ).containsMatchIn(openMenu) shouldBe true
         openMenu shouldContain "updateAudioMenu(audioBtn, payload, !done)"
         // The terminal empty snapshot leaves one non-interactive row rather than an empty menu.
         val menu = functionBlock(rendererJs, "function showAudioMenu(")
         menu shouldContain "'No audio found'"
         menu shouldContain "'Loading audio…'"
+        // Both handlers register with the button as owner, so re-pressing replaces that button's
+        // waiter instead of stacking a second one (which would rebuild the picker once per press).
+        val createButton = functionBlock(rendererJs, "function createAudioButton(")
+        Regex("\\}\\s*,\\s*audioBtn\\s*\\)").findAll(createButton).count() shouldBe 2
     }
 
     @Test

@@ -76,7 +76,13 @@ object AudioCache {
      */
     internal var onJoinedInFlight: ((String) -> Unit)? = null
 
-    /** Test seam: drops the in-flight gates and the join hook so one test cannot leak into another. */
+    /**
+     * Test seam: drops the in-flight gates and the join hook so a test starts from a known state.
+     *
+     * It does not cancel downloads already started: those run in `downloadScope` and may still
+     * `put()` their bytes into the memory cache after this returns. Only the gate bookkeeping is
+     * reset, which is what the dedupe assertions depend on.
+     */
     internal fun resetInFlightForTest() {
         synchronized(lock) { inFlightDownloads.clear() }
         onJoinedInFlight = null
