@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // KUN -->
 // Reader OCR outline/text overlay (contract §1.3/§2.3: GPL, composed only by the GPL
-// `ReaderOcrHostImpl`). Draws outline-only boxes and, when enabled, the recognised text layered
-// over the image text it came from. Adds no pointer input, so it never steals gestures from the
-// viewer (plan 04 §4.3/§4.5).
+// `ReaderOcrSessionImpl.Overlay`). Draws outline-only boxes and, when enabled, the recognised text
+// layered over the image text it came from. Adds no pointer input, so it never steals gestures from
+// the viewer (plan 04 §4.3/§4.5).
 // KUN <--
 package eu.kanade.presentation.reader
 

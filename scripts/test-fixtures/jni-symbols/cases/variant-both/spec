@@ -1,0 +1,8 @@
+module dictionary
+dictionary-libs debug
+export arm64-v8a Java_fixture_dict_DictNatives_nativeThing
+export armeabi-v7a Java_fixture_dict_DictNatives_nativeThing
+export x86_64 Java_fixture_dict_DictNatives_nativeThing
+export-release arm64-v8a fixture_release_only
+export-release armeabi-v7a fixture_release_only
+export-release x86_64 fixture_release_only

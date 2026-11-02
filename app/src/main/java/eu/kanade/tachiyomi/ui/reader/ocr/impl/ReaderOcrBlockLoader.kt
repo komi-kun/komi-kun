@@ -65,7 +65,7 @@ fun ReaderPage.ocrKey(): OcrPageKey = OcrPageKey(chapter.chapter.id, index)
  * Blocks come from the `.mokuro` sidecar and/or the persisted OCR cache ([OcrManager.cachedBlocks]);
  * when neither yields anything the engine runs over the page byte stream and the result is persisted
  * under the worker's cache key. The reader never touches the GPL `OcrTextBlock` model directly —
- * only this GPL-package helper and `ReaderOcrHostImpl` do.
+ * only this GPL-package helper and `ReaderOcrSessionImpl` do.
  */
 class ReaderOcrBlockLoader(
     private val ocrManager: OcrManager,
@@ -161,10 +161,11 @@ class ReaderOcrBlockLoader(
     private fun newWorkScope(): CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     /**
-     * Stops every page/redo job the reader started — called from `ReaderOcrHostImpl.detach`, i.e.
-     * when the reader activity is really going away — and drops what they accumulated: a cancelled
-     * load cannot complete, so its retry/in-flight bookkeeping is meaningless, and the blocks are
-     * re-read from the persisted OCR cache by the next reader session.
+     * Stops every page/redo job the reader started — called from the session that owns the reader
+     * (`ReaderOcrSessionImpl.release`), i.e. when the reader activity is really going away — and
+     * drops what they accumulated: a cancelled load cannot complete, so its retry/in-flight
+     * bookkeeping is meaningless, and the blocks are re-read from the persisted OCR cache by the next
+     * reader session.
      *
      * The loader stays usable ([ensureLoaded] afterwards runs on a fresh scope) because it is an
      * app-graph singleton shared by every reader session.

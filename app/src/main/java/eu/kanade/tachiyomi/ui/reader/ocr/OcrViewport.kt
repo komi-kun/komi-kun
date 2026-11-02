@@ -8,9 +8,9 @@ import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 /**
  * Apache-2.0 reader→OCR seam (contract §1.2/§2.3). GPL-free: this file imports no GPL package.
  *
- * A viewer implements this so the GPL `ReaderOcrHostImpl` can map overlay taps to image-normalized
- * coordinates and know when the visible geometry changed. The GPL implementations (`SsivOcrViewport`,
- * `WebtoonOcrViewport`, `WebGpuOcrViewport`) live under the viewer sub-packages.
+ * A viewer implements this so the GPL `ReaderOcrSessionImpl` can map overlay taps to
+ * image-normalized coordinates and know when the visible geometry changed. The GPL implementations
+ * (`SsivOcrViewport`, `WebtoonOcrViewport`, `WebGpuOcrViewport`) live under the viewer sub-packages.
  */
 interface OcrViewport {
     fun visiblePages(): List<ReaderPage>

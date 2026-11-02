@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // KUN -->
-// The reader-side crop-preset mapping `ReaderOcrHostImpl.screenshotProviderFor` uses: the stored key
+// The reader-side crop-preset mapping `ReaderOcrSessionImpl.screenshotProviderFor` uses: the stored key
 // must become the aspect the user chose, not "no aspect" and not a transposed one.
 //
 // `AnkiScreenshotPresetOptionsTest` only pins the *vocabulary* (the picker and `CropPresets` agree on

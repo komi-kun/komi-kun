@@ -136,6 +136,7 @@ ALLOWED_FQNS=(
   "eu.kanade.tachiyomi.ui.reader.ocr.ImagePoint"
   "eu.kanade.tachiyomi.ui.reader.ocr.OcrDisplayTransform"
   "eu.kanade.tachiyomi.ui.reader.ocr.ReaderOcrHost"
+  "eu.kanade.tachiyomi.ui.reader.ocr.ReaderOcrSession"
 )
 
 if command -v rg >/dev/null 2>&1; then
