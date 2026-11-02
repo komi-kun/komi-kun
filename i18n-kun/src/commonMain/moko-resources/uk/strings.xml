@@ -264,4 +264,34 @@
     <string name="ocr_redoing_chapter">Повторне виконання OCR для розділу…</string>
     <string name="ocr_redo_page_complete">OCR оновлено для сторінки %1$d</string>
     <string name="ocr_redo_chapter_complete">OCR оновлено для розділу</string>
+    <!-- Orphaned downloads (automatic cleanup + manual scan) -->
+    <string name="pref_category_orphaned_downloads">Осиротілі завантаження</string>
+    <string name="pref_remove_orphaned_downloads">Видаляти осиротілі завантаження</string>
+    <string name="pref_remove_orphaned_downloads_summary">Коли оновлення бібліотеки більше не містить розділ або синхронізація між пристроями видаляє його, видаляються завантажені файли, які більше не використовує жоден із решти розділів. Новий розділ, що вказує на те саме ім\'я файлу в тому самому оновленні, зберігає файл.</string>
+    <string name="pref_orphaned_downloads_scan">Пошук осиротілих завантажень</string>
+    <string name="pref_orphaned_downloads_scan_summary">Знайти й видалити завантажені файли, на які більше не посилається жоден розділ. Автоматичне очищення видаляє лише файли зниклих розділів і зберігає файли із закладками, доки вимкнено видалення розділів із закладками.</string>
+    <string name="orphaned_downloads_title">Осиротілі завантаження</string>
+    <string name="orphaned_downloads_scanning">Сканування завантажених файлів…</string>
+    <string name="orphaned_downloads_stopped">Сканування зупинено</string>
+    <string name="orphaned_downloads_progress">Сканування… %1$d/%2$d</string>
+    <string name="orphaned_downloads_summary">Знайдено: %1$d · %2$s</string>
+    <string name="orphaned_downloads_empty">Осиротілих завантажень не знайдено</string>
+    <string name="orphaned_downloads_clear_selection">Зняти виділення</string>
+    <string name="orphaned_downloads_refresh">Сканувати знову</string>
+    <string name="orphaned_downloads_kind_manga">Немає відповідного запису бібліотеки</string>
+    <string name="orphaned_downloads_kind_source">Джерело не встановлено</string>
+    <string name="orphaned_downloads_confirm_title">Видалити осиротілі файли?</string>
+    <string name="orphaned_downloads_confirm_message">Видалити вибрані записи (%1$d) і звільнити %2$s? Цю дію не можна скасувати.</string>
+    <string name="orphaned_downloads_sort_size_desc">Спочатку найбільші</string>
+    <string name="orphaned_downloads_sort_size_asc">Спочатку найменші</string>
+    <string name="orphaned_downloads_sort_path">Назва</string>
+    <string name="orphaned_downloads_sort_kind">Тип</string>
+    <string name="orphaned_downloads_group_source">За джерелом</string>
+    <string name="orphaned_downloads_group_manga">За записами бібліотеки</string>
+    <string name="orphaned_downloads_group_kind">За типом</string>
+    <string name="orphaned_downloads_group_none">Без групування</string>
+    <string name="orphaned_downloads_stop">Зупинити сканування</string>
+    <string name="orphaned_downloads_scan_failed_short">Останнє сканування не вдалося</string>
+    <string name="orphaned_downloads_scan_failed">Не вдалося прочитати завантаження. Перевірте доступ до сховища й спробуйте ще раз.</string>
+    <string name="orphaned_downloads_delete_failed">Не вдалося видалити вибрані файли. Перевірте доступ до сховища й спробуйте ще раз.</string>
 </resources>

@@ -264,4 +264,34 @@
     <string name="ocr_redoing_chapter">अध्याय के लिए OCR पुनः चलाया जा रहा है…</string>
     <string name="ocr_redo_page_complete">पृष्ठ %1$d के लिए OCR अपडेट किया गया</string>
     <string name="ocr_redo_chapter_complete">अध्याय के लिए OCR अपडेट किया गया</string>
+    <!-- Orphaned downloads (automatic cleanup + manual scan) -->
+    <string name="pref_category_orphaned_downloads">अनाथ डाउनलोड</string>
+    <string name="pref_remove_orphaned_downloads">अनाथ डाउनलोड हटाएं</string>
+    <string name="pref_remove_orphaned_downloads_summary">जब लाइब्रेरी अपडेट किसी अध्याय को अब सूचीबद्ध नहीं करता, या डिवाइस सिंक उसे हटा देता है, तो वे डाउनलोड की गई फ़ाइलें हटा दें जिन्हें अब कोई बाकी अध्याय इस्तेमाल नहीं करता। उसी अपडेट में उसी फ़ाइल नाम से मेल खाने वाला नया अध्याय फ़ाइल रखता है।</string>
+    <string name="pref_orphaned_downloads_scan">अनाथ डाउनलोड खोजें</string>
+    <string name="pref_orphaned_downloads_scan_summary">वे डाउनलोड की गई फ़ाइलें खोजें और हटाएं जिन्हें अब कोई अध्याय नाम नहीं दे सकता। स्वचालित सफ़ाई केवल उन अध्यायों की फ़ाइलें हटाती है जो गायब हो गए, और जब तक बुकमार्क किए अध्याय हटाना बंद है, बुकमार्क वाली फ़ाइलें रखती है।</string>
+    <string name="orphaned_downloads_title">अनाथ डाउनलोड</string>
+    <string name="orphaned_downloads_scanning">डाउनलोड की गई फ़ाइलें स्कैन की जा रही हैं…</string>
+    <string name="orphaned_downloads_stopped">स्कैन रोका गया</string>
+    <string name="orphaned_downloads_progress">स्कैन हो रहा है… %1$d/%2$d</string>
+    <string name="orphaned_downloads_summary">%1$d मिले · %2$s</string>
+    <string name="orphaned_downloads_empty">कोई अनाथ डाउनलोड नहीं मिला</string>
+    <string name="orphaned_downloads_clear_selection">चयन साफ़ करें</string>
+    <string name="orphaned_downloads_refresh">फिर से स्कैन करें</string>
+    <string name="orphaned_downloads_kind_manga">कोई मेल खाता आइटम नहीं</string>
+    <string name="orphaned_downloads_kind_source">स्रोत इंस्टॉल नहीं है</string>
+    <string name="orphaned_downloads_confirm_title">अनाथ फ़ाइलें हटाएं?</string>
+    <string name="orphaned_downloads_confirm_message">चयनित %1$d प्रविष्टियाँ हटाएं और %2$s खाली करें? इसे पूर्ववत नहीं किया जा सकता।</string>
+    <string name="orphaned_downloads_sort_size_desc">सबसे बड़े पहले</string>
+    <string name="orphaned_downloads_sort_size_asc">सबसे छोटे पहले</string>
+    <string name="orphaned_downloads_sort_path">नाम</string>
+    <string name="orphaned_downloads_sort_kind">प्रकार</string>
+    <string name="orphaned_downloads_group_source">स्रोत के अनुसार</string>
+    <string name="orphaned_downloads_group_manga">आइटम के अनुसार</string>
+    <string name="orphaned_downloads_group_kind">प्रकार के अनुसार</string>
+    <string name="orphaned_downloads_group_none">कोई समूहन नहीं</string>
+    <string name="orphaned_downloads_stop">स्कैन रोकें</string>
+    <string name="orphaned_downloads_scan_failed_short">पिछला स्कैन विफल रहा</string>
+    <string name="orphaned_downloads_scan_failed">डाउनलोड पढ़े नहीं जा सके। स्टोरेज पहुँच जाँचें और फिर से कोशिश करें।</string>
+    <string name="orphaned_downloads_delete_failed">चयनित फ़ाइलें हटाई नहीं जा सकीं। स्टोरेज पहुँच जाँचें और फिर से कोशिश करें।</string>
 </resources>

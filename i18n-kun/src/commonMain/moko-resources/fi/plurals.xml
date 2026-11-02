@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <plurals name="orphaned_downloads_deleted">
+        <item quantity="one">Poistettiin %1$d orpo kohde</item>
+        <item quantity="other">Poistettiin %1$d orpoa kohdetta</item>
+    </plurals>
+</resources>

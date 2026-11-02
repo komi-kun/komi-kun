@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <plurals name="orphaned_downloads_deleted">
+        <item quantity="one">Raderade %1$d föräldrelös post</item>
+        <item quantity="other">Raderade %1$d föräldrelösa poster</item>
+    </plurals>
+</resources>

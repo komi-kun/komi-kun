@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <plurals name="orphaned_downloads_deleted">
+        <item quantity="one">%1$d осиротевшая загрузка удалена</item>
+        <item quantity="few">%1$d осиротевшие загрузки удалены</item>
+        <item quantity="many">%1$d осиротевших загрузок удалено</item>
+        <item quantity="other">%1$d осиротевших загрузок удалено</item>
+    </plurals>
+</resources>

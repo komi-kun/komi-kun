@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -22,6 +24,9 @@ fun LazyColumnWithAction(
     onClickAction: () -> Unit,
     modifier: Modifier = Modifier,
     actionEnabled: Boolean = true,
+    // KUN -->
+    state: LazyListState = rememberLazyListState(),
+    // KUN <--
     content: LazyListScope.() -> Unit,
 ) {
     Column(
@@ -31,6 +36,9 @@ fun LazyColumnWithAction(
     ) {
         LazyColumn(
             modifier = Modifier.weight(1f),
+            // KUN -->
+            state = state,
+            // KUN <--
             content = content,
         )
 

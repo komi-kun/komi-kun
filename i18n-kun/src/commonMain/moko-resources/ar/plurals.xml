@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <plurals name="orphaned_downloads_deleted">
+        <item quantity="zero">تم حذف %1$d من المدخلات اليتيمة</item>
+        <item quantity="one">تم حذف %1$d مدخل يتيم</item>
+        <item quantity="two">تم حذف %1$d من المدخلين اليتيمين</item>
+        <item quantity="few">تم حذف %1$d مدخلات يتيمة</item>
+        <item quantity="many">تم حذف %1$d مدخلًا يتيمًا</item>
+        <item quantity="other">تم حذف %1$d مدخل يتيم</item>
+    </plurals>
+</resources>

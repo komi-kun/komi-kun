@@ -294,4 +294,34 @@
     <string name="ocr_redo_chapter_complete">OCR обновлено для главы</string>
     <string name="pref_show_dictionary_button">Вкладка «Словарь» на панели навигации</string>
     <string name="pref_show_dictionary_button_summary">Отображать вкладку «Словарь» на панели навигации вместо «Ещё»</string>
+    <!-- Orphaned downloads (automatic cleanup + manual scan) -->
+    <string name="pref_category_orphaned_downloads">Осиротевшие загрузки</string>
+    <string name="pref_remove_orphaned_downloads">Удалять осиротевшие загрузки</string>
+    <string name="pref_remove_orphaned_downloads_summary">Когда обновление библиотеки больше не содержит главу или синхронизация между устройствами удаляет её, удаляются загруженные файлы, которые больше не используются ни одной из оставшихся глав. Новая глава, указывающая на то же имя файла в том же обновлении, сохраняет файл.</string>
+    <string name="pref_orphaned_downloads_scan">Поиск осиротевших загрузок</string>
+    <string name="pref_orphaned_downloads_scan_summary">Найти и удалить загруженные файлы, на которые больше не ссылается ни одна глава. Автоматическая очистка удаляет только файлы исчезнувших глав и сохраняет файлы с закладками, пока удаление глав с закладками отключено.</string>
+    <string name="orphaned_downloads_title">Осиротевшие загрузки</string>
+    <string name="orphaned_downloads_scanning">Сканирование загруженных файлов…</string>
+    <string name="orphaned_downloads_stopped">Сканирование остановлено</string>
+    <string name="orphaned_downloads_progress">Сканирование… %1$d/%2$d</string>
+    <string name="orphaned_downloads_summary">Найдено: %1$d · %2$s</string>
+    <string name="orphaned_downloads_empty">Осиротевших загрузок не найдено</string>
+    <string name="orphaned_downloads_clear_selection">Снять выделение</string>
+    <string name="orphaned_downloads_refresh">Сканировать снова</string>
+    <string name="orphaned_downloads_kind_manga">Нет подходящей серии</string>
+    <string name="orphaned_downloads_kind_source">Источник не установлен</string>
+    <string name="orphaned_downloads_confirm_title">Удалить осиротевшие файлы?</string>
+    <string name="orphaned_downloads_confirm_message">Удалить выбранные записи (%1$d) и освободить %2$s? Это действие нельзя отменить.</string>
+    <string name="orphaned_downloads_sort_size_desc">Сначала крупные</string>
+    <string name="orphaned_downloads_sort_size_asc">Сначала мелкие</string>
+    <string name="orphaned_downloads_sort_path">Имя</string>
+    <string name="orphaned_downloads_sort_kind">Тип</string>
+    <string name="orphaned_downloads_group_source">По источнику</string>
+    <string name="orphaned_downloads_group_manga">По серии</string>
+    <string name="orphaned_downloads_group_kind">По типу</string>
+    <string name="orphaned_downloads_group_none">Без группировки</string>
+    <string name="orphaned_downloads_stop">Остановить сканирование</string>
+    <string name="orphaned_downloads_scan_failed_short">Последнее сканирование не удалось</string>
+    <string name="orphaned_downloads_scan_failed">Не удалось прочитать загрузки. Проверьте доступ к хранилищу и повторите попытку.</string>
+    <string name="orphaned_downloads_delete_failed">Не удалось удалить выбранные файлы. Проверьте доступ к хранилищу и повторите попытку.</string>
 </resources>

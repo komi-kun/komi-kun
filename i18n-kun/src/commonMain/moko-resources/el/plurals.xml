@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <plurals name="orphaned_downloads_deleted">
+        <item quantity="one">Διαγράφηκε %1$d ορφανή λήψη</item>
+        <item quantity="other">Διαγράφηκαν %1$d ορφανές λήψεις</item>
+    </plurals>
+</resources>

@@ -264,4 +264,34 @@
     <string name="ocr_redoing_chapter">Ponowne rozpoznawanie OCR rozdziału…</string>
     <string name="ocr_redo_page_complete">Zaktualizowano OCR dla strony %1$d</string>
     <string name="ocr_redo_chapter_complete">Zaktualizowano OCR dla rozdziału</string>
+    <!-- Orphaned downloads (automatic cleanup + manual scan) -->
+    <string name="pref_category_orphaned_downloads">Osierocone pobrania</string>
+    <string name="pref_remove_orphaned_downloads">Usuwaj osierocone pobrania</string>
+    <string name="pref_remove_orphaned_downloads_summary">Gdy aktualizacja biblioteki przestaje zawierać rozdział lub synchronizacja między urządzeniami go usuwa, usuń pobrane pliki, których nie używa już żaden pozostały rozdział. Nowy rozdział odpowiadający tej samej nazwie pliku w tej samej aktualizacji zachowuje plik.</string>
+    <string name="pref_orphaned_downloads_scan">Skanuj w poszukiwaniu osieroconych pobrań</string>
+    <string name="pref_orphaned_downloads_scan_summary">Znajdź i usuń pobrane pliki, których nie potrafi już nazwać żaden rozdział. Automatyczne czyszczenie usuwa tylko pliki rozdziałów, które zniknęły, i zachowuje pliki z zakładkami, dopóki usuwanie rozdziałów z zakładkami jest wyłączone.</string>
+    <string name="orphaned_downloads_title">Osierocone pobrania</string>
+    <string name="orphaned_downloads_scanning">Skanowanie pobranych plików…</string>
+    <string name="orphaned_downloads_stopped">Skanowanie zatrzymane</string>
+    <string name="orphaned_downloads_progress">Skanowanie… %1$d/%2$d</string>
+    <string name="orphaned_downloads_summary">Znaleziono: %1$d · %2$s</string>
+    <string name="orphaned_downloads_empty">Nie znaleziono osieroconych pobrań</string>
+    <string name="orphaned_downloads_clear_selection">Wyczyść zaznaczenie</string>
+    <string name="orphaned_downloads_refresh">Skanuj ponownie</string>
+    <string name="orphaned_downloads_kind_manga">Brak pasującej mangi</string>
+    <string name="orphaned_downloads_kind_source">Źródło nie jest zainstalowane</string>
+    <string name="orphaned_downloads_confirm_title">Usunąć osierocone pliki?</string>
+    <string name="orphaned_downloads_confirm_message">Usunąć zaznaczone pozycje (%1$d) i zwolnić %2$s? Tej operacji nie można cofnąć.</string>
+    <string name="orphaned_downloads_sort_size_desc">Od największych</string>
+    <string name="orphaned_downloads_sort_size_asc">Od najmniejszych</string>
+    <string name="orphaned_downloads_sort_path">Nazwa</string>
+    <string name="orphaned_downloads_sort_kind">Typ</string>
+    <string name="orphaned_downloads_group_source">Według źródła</string>
+    <string name="orphaned_downloads_group_manga">Według mangi</string>
+    <string name="orphaned_downloads_group_kind">Według typu</string>
+    <string name="orphaned_downloads_group_none">Bez grupowania</string>
+    <string name="orphaned_downloads_stop">Zatrzymaj skanowanie</string>
+    <string name="orphaned_downloads_scan_failed_short">Ostatnie skanowanie nie powiodło się</string>
+    <string name="orphaned_downloads_scan_failed">Nie udało się odczytać pobrań. Sprawdź dostęp do pamięci i spróbuj ponownie.</string>
+    <string name="orphaned_downloads_delete_failed">Nie udało się usunąć zaznaczonych plików. Sprawdź dostęp do pamięci i spróbuj ponownie.</string>
 </resources>

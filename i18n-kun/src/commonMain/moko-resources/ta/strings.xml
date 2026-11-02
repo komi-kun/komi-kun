@@ -264,4 +264,34 @@
     <string name="ocr_redoing_chapter">அத்தியாயத்திற்கான OCR மீண்டும் இயக்கப்படுகிறது…</string>
     <string name="ocr_redo_page_complete">பக்கம் %1$d க்கான OCR புதுப்பிக்கப்பட்டது</string>
     <string name="ocr_redo_chapter_complete">அத்தியாயத்திற்கான OCR புதுப்பிக்கப்பட்டது</string>
+    <!-- Orphaned downloads (automatic cleanup + manual scan) -->
+    <string name="pref_category_orphaned_downloads">அனாதை பதிவிறக்கங்கள்</string>
+    <string name="pref_remove_orphaned_downloads">அனாதை பதிவிறக்கங்களை நீக்கு</string>
+    <string name="pref_remove_orphaned_downloads_summary">நூலகப் புதுப்பிப்பில் ஒரு அத்தியாயம் இனி பட்டியலிடப்படாதபோது, அல்லது சாதன ஒத்திசைவு அதை அகற்றும்போது, மீதமுள்ள எந்த அத்தியாயமும் பயன்படுத்தாத பதிவிறக்கப்பட்ட கோப்புகளை நீக்கும். அதே புதுப்பிப்பில் அதே கோப்புப் பெயருக்கு இணங்கும் புதிய அத்தியாயம் அந்தக் கோப்பை வைத்திருக்கும்.</string>
+    <string name="pref_orphaned_downloads_scan">அனாதை பதிவிறக்கங்களை ஸ்கேன் செய்</string>
+    <string name="pref_orphaned_downloads_scan_summary">இனி எந்த அத்தியாயமும் அடையாளம் காட்ட முடியாத பதிவிறக்கப்பட்ட கோப்புகளைக் கண்டறிந்து நீக்கும். தானியங்கி சுத்தம் மறைந்துபோன அத்தியாயங்களின் கோப்புகளை மட்டுமே நீக்கும், புக்மார்க்கு செய்யப்பட்ட அத்தியாயங்களை நீக்குவது அணைக்கப்பட்டிருக்கும் வரை புக்மார்க்கு உள்ளவற்றை வைத்திருக்கும்.</string>
+    <string name="orphaned_downloads_title">அனாதை பதிவிறக்கங்கள்</string>
+    <string name="orphaned_downloads_scanning">பதிவிறக்கப்பட்ட கோப்புகள் ஸ்கேன் செய்யப்படுகின்றன…</string>
+    <string name="orphaned_downloads_stopped">ஸ்கேன் நிறுத்தப்பட்டது</string>
+    <string name="orphaned_downloads_progress">ஸ்கேன் செய்யப்படுகிறது… %1$d/%2$d</string>
+    <string name="orphaned_downloads_summary">%1$d கிடைத்தன · %2$s</string>
+    <string name="orphaned_downloads_empty">அனாதை பதிவிறக்கங்கள் எதுவும் கிடைக்கவில்லை</string>
+    <string name="orphaned_downloads_clear_selection">தேர்வை அழி</string>
+    <string name="orphaned_downloads_refresh">மீண்டும் ஸ்கேன் செய்</string>
+    <string name="orphaned_downloads_kind_manga">பொருந்தும் நூலக உள்ளீடு இல்லை</string>
+    <string name="orphaned_downloads_kind_source">மூலம் நிறுவப்படவில்லை</string>
+    <string name="orphaned_downloads_confirm_title">அனாதை கோப்புகளை நீக்கவா?</string>
+    <string name="orphaned_downloads_confirm_message">தேர்ந்தெடுத்த %1$d உள்ளீடுகளை நீக்கி %2$s விடுவிக்கவா? இதை செயல்தவிர்க்க முடியாது.</string>
+    <string name="orphaned_downloads_sort_size_desc">பெரியது முதலில்</string>
+    <string name="orphaned_downloads_sort_size_asc">சிறியது முதலில்</string>
+    <string name="orphaned_downloads_sort_path">பெயர்</string>
+    <string name="orphaned_downloads_sort_kind">வகை</string>
+    <string name="orphaned_downloads_group_source">மூலம் வாரியாக</string>
+    <string name="orphaned_downloads_group_manga">நூலக உள்ளீடுகள் வாரியாக</string>
+    <string name="orphaned_downloads_group_kind">வகை வாரியாக</string>
+    <string name="orphaned_downloads_group_none">குழுவாக்கம் இல்லை</string>
+    <string name="orphaned_downloads_stop">ஸ்கேனை நிறுத்து</string>
+    <string name="orphaned_downloads_scan_failed_short">கடைசி ஸ்கேன் தோல்வியடைந்தது</string>
+    <string name="orphaned_downloads_scan_failed">பதிவிறக்கங்களைப் படிக்க முடியவில்லை. சேமிப்பக அணுகலைச் சரிபார்த்து மீண்டும் முயற்சிக்கவும்.</string>
+    <string name="orphaned_downloads_delete_failed">தேர்ந்தெடுத்த கோப்புகளை நீக்க முடியவில்லை. சேமிப்பக அணுகலைச் சரிபார்த்து மீண்டும் முயற்சிக்கவும்.</string>
 </resources>

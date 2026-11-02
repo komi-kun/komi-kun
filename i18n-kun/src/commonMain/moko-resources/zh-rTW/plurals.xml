@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <plurals name="orphaned_downloads_deleted">
+        <item quantity="other">已刪除 %1$d 個孤立項目</item>
+    </plurals>
+</resources>
