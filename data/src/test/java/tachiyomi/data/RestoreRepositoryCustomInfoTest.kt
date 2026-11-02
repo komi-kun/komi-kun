@@ -486,6 +486,7 @@ class RestoreRepositoryCustomInfoTest {
         chapterRepository = ChapterRepositoryImpl(database),
         trackRepository = TrackRepositoryImpl(database),
         mangaMetadataRepository = mockk(relaxed = true),
+        orphanedDownloadCleaner = mockk(relaxed = true),
     )
 
     private fun manga(

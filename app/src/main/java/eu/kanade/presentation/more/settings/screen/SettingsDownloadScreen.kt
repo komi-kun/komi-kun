@@ -10,14 +10,18 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.util.fastMap
+import cafe.adriel.voyager.navigator.LocalNavigator
+import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.presentation.category.visualName
 import eu.kanade.presentation.more.settings.Preference
+import eu.kanade.presentation.more.settings.screen.advanced.OrphanedDownloadsScreen
 import eu.kanade.presentation.more.settings.widget.TriStateListDialog
 import mihon.app.di.appGraph
 import tachiyomi.domain.category.model.Category
 import tachiyomi.domain.download.service.DownloadPreferences
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
+import tachiyomi.i18n.kun.KUNMR
 import tachiyomi.presentation.core.i18n.pluralStringResource
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsState
@@ -69,6 +73,9 @@ object SettingsDownloadScreen : SearchableSettings {
             // KMK -->
             getDownloadCacheRenewInterval(downloadPreferences = downloadPreferences),
             // KMK <--
+            // KUN -->
+            getOrphanedDownloadsGroup(downloadPreferences = downloadPreferences),
+            // KUN <--
         )
     }
 
@@ -204,6 +211,30 @@ object SettingsDownloadScreen : SearchableSettings {
             ),
         )
     }
+
+    // KUN -->
+    @Composable
+    private fun getOrphanedDownloadsGroup(
+        downloadPreferences: DownloadPreferences,
+    ): Preference.PreferenceGroup {
+        val navigator = LocalNavigator.currentOrThrow
+        return Preference.PreferenceGroup(
+            title = stringResource(KUNMR.strings.pref_category_orphaned_downloads),
+            preferenceItems = listOf(
+                Preference.PreferenceItem.SwitchPreference(
+                    preference = downloadPreferences.removeOrphanedDownloads(),
+                    title = stringResource(KUNMR.strings.pref_remove_orphaned_downloads),
+                    subtitle = stringResource(KUNMR.strings.pref_remove_orphaned_downloads_summary),
+                ),
+                Preference.PreferenceItem.TextPreference(
+                    title = stringResource(KUNMR.strings.pref_orphaned_downloads_scan),
+                    subtitle = stringResource(KUNMR.strings.pref_orphaned_downloads_scan_summary),
+                    onClick = { navigator.push(OrphanedDownloadsScreen()) },
+                ),
+            ),
+        )
+    }
+    // KUN <--
 
     // KMK -->
     @Composable

@@ -7,6 +7,7 @@ import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import eu.kanade.tachiyomi.source.model.UpdateStrategy
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
+import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonObject
@@ -17,6 +18,7 @@ import tachiyomi.data.manga.MangaRepositoryImpl
 import tachiyomi.data.track.TrackRepositoryImpl
 import tachiyomi.domain.backup.model.RestoredManga
 import tachiyomi.domain.chapter.model.Chapter
+import tachiyomi.domain.download.service.OrphanedDownloadCleaner
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.manga.model.toMangaUpdate
 import kotlin.time.Instant
@@ -35,12 +37,14 @@ class RestoreRepositoryChapterTombstoneTest {
                 val database = DatabaseBindings.providesDatabase(driver)
                 val mangaRepository = MangaRepositoryImpl(database)
                 val chapterRepository = ChapterRepositoryImpl(database)
+                val orphanedDownloadCleaner = mockk<OrphanedDownloadCleaner>(relaxed = true)
                 val repository = RestoreRepositoryImpl(
                     database = database,
                     mangaRepository = mangaRepository,
                     chapterRepository = chapterRepository,
                     trackRepository = TrackRepositoryImpl(database),
                     mangaMetadataRepository = mockk(relaxed = true),
+                    orphanedDownloadCleaner = orphanedDownloadCleaner,
                 )
 
                 driver.insertManga()
@@ -49,6 +53,7 @@ class RestoreRepositoryChapterTombstoneTest {
                 chapterRepository.addAll(
                     listOf(chapter("/c1", lastModifiedAt = 500L), chapter("/c2", lastModifiedAt = 500L)),
                 )
+                val removedId = chapterRepository.getChapterByMangaId(1).single { it.url == "/c2" }.id
 
                 repository.restoreManga(
                     entries = listOf(
@@ -69,6 +74,14 @@ class RestoreRepositoryChapterTombstoneTest {
                 )
 
                 chapterRepository.getChapterByMangaId(1).map { it.url } shouldContainExactly listOf("/c1")
+                // Cleanup runs once, after the transaction committed, and is handed exactly the
+                // chapter that disappeared — not the survivor.
+                coVerify(exactly = 1) {
+                    orphanedDownloadCleaner.cleanupAfterChapterRemoval(
+                        match { it.map(Chapter::id) == listOf(removedId) },
+                        any(),
+                    )
+                }
             } finally {
                 driver.close()
             }
@@ -89,6 +102,7 @@ class RestoreRepositoryChapterTombstoneTest {
                     chapterRepository = chapterRepository,
                     trackRepository = TrackRepositoryImpl(database),
                     mangaMetadataRepository = mockk(relaxed = true),
+                    orphanedDownloadCleaner = mockk(relaxed = true),
                 )
 
                 driver.insertManga()
@@ -137,6 +151,7 @@ class RestoreRepositoryChapterTombstoneTest {
                     chapterRepository = chapterRepository,
                     trackRepository = TrackRepositoryImpl(database),
                     mangaMetadataRepository = mockk(relaxed = true),
+                    orphanedDownloadCleaner = mockk(relaxed = true),
                 )
 
                 driver.insertManga()
@@ -180,12 +195,14 @@ class RestoreRepositoryChapterTombstoneTest {
                 val database = DatabaseBindings.providesDatabase(driver)
                 val mangaRepository = MangaRepositoryImpl(database)
                 val chapterRepository = ChapterRepositoryImpl(database)
+                val orphanedDownloadCleaner = mockk<OrphanedDownloadCleaner>(relaxed = true)
                 val repository = RestoreRepositoryImpl(
                     database = database,
                     mangaRepository = mangaRepository,
                     chapterRepository = chapterRepository,
                     trackRepository = TrackRepositoryImpl(database),
                     mangaMetadataRepository = mockk(relaxed = true),
+                    orphanedDownloadCleaner = orphanedDownloadCleaner,
                 )
 
                 driver.insertManga()
@@ -204,11 +221,14 @@ class RestoreRepositoryChapterTombstoneTest {
                     ),
                     isSync = true,
                     restoreCategories = false,
+                    // Not a complete-list restore, so no chapter is tombstoned...
                     removeMissingChaptersBefore = null,
                     update = { it.toMangaUpdate() },
                 )
 
                 chapterRepository.getChapterByMangaId(1).map { it.url } shouldContainExactly listOf("/c1", "/c2")
+                // ...and therefore nothing is handed to the file cleanup.
+                coVerify(exactly = 0) { orphanedDownloadCleaner.cleanupAfterChapterRemoval(any(), any()) }
             } finally {
                 driver.close()
             }
@@ -229,6 +249,7 @@ class RestoreRepositoryChapterTombstoneTest {
                     chapterRepository = chapterRepository,
                     trackRepository = TrackRepositoryImpl(database),
                     mangaMetadataRepository = mockk(relaxed = true),
+                    orphanedDownloadCleaner = mockk(relaxed = true),
                 )
 
                 driver.insertManga()
@@ -274,6 +295,7 @@ class RestoreRepositoryChapterTombstoneTest {
                     chapterRepository = chapterRepository,
                     trackRepository = TrackRepositoryImpl(database),
                     mangaMetadataRepository = mockk(relaxed = true),
+                    orphanedDownloadCleaner = mockk(relaxed = true),
                 )
 
                 driver.insertManga()
@@ -333,6 +355,7 @@ class RestoreRepositoryChapterTombstoneTest {
                     chapterRepository = chapterRepository,
                     trackRepository = TrackRepositoryImpl(database),
                     mangaMetadataRepository = mockk(relaxed = true),
+                    orphanedDownloadCleaner = mockk(relaxed = true),
                 )
 
                 driver.insertManga()
@@ -400,6 +423,7 @@ class RestoreRepositoryChapterTombstoneTest {
                     chapterRepository = chapterRepository,
                     trackRepository = TrackRepositoryImpl(database),
                     mangaMetadataRepository = mockk(relaxed = true),
+                    orphanedDownloadCleaner = mockk(relaxed = true),
                 )
 
                 driver.insertManga()

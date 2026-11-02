@@ -133,6 +133,7 @@ class RestoreRepositorySectionsDisabledTest {
                     chapterRepository = ChapterRepositoryImpl(database),
                     trackRepository = TrackRepositoryImpl(database),
                     mangaMetadataRepository = mockk(relaxed = true),
+                    orphanedDownloadCleaner = mockk(relaxed = true),
                 )
                 driver.insertManga(version = 5L, lastModifiedAt = 10L, userTitle = "Stored")
 
@@ -167,6 +168,7 @@ class RestoreRepositorySectionsDisabledTest {
                     chapterRepository = chapterRepository,
                     trackRepository = trackRepository,
                     mangaMetadataRepository = mockk(relaxed = true),
+                    orphanedDownloadCleaner = mockk(relaxed = true),
                 )
                 driver.insertManga(version = 5L, lastModifiedAt = 10L)
                 val chapters = chapterRepository.addAll(listOf(chapter("/c1"), chapter("/c2")))
@@ -249,6 +251,7 @@ class RestoreRepositorySectionsDisabledTest {
         chapterRepository = chapterRepository,
         trackRepository = trackRepository,
         mangaMetadataRepository = mockk(relaxed = true),
+        orphanedDownloadCleaner = mockk(relaxed = true),
     )
 
     private fun manga(

@@ -24,6 +24,7 @@ import tachiyomi.domain.chapter.model.ChapterRemoteUpdate
 import tachiyomi.domain.chapter.model.NoChaptersException
 import tachiyomi.domain.chapter.repository.ChapterRepository
 import tachiyomi.domain.chapter.service.ChapterRecognition
+import tachiyomi.domain.download.service.OrphanedDownloadCleaner
 import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.source.local.isLocal
@@ -44,6 +45,9 @@ class SyncChaptersWithSource(
     // SY -->
     private val syncPreferences: SyncPreferences,
     // SY <--
+    // KUN -->
+    private val orphanedDownloadCleaner: OrphanedDownloadCleaner,
+    // KUN <--
 ) {
 
     /**
@@ -263,6 +267,14 @@ class SyncChaptersWithSource(
         // SY -->
         syncPreferences.forgetDeletedChapters(added.map(tombstoneKey))
         // SY <--
+        // KUN -->
+        // The rows are gone now (updateFromRemote committed), so the files they used are orphaned
+        // unless a surviving chapter still resolves to the same name. The cleaner re-reads that list
+        // itself and swallows its own failures, so a sync is never broken by a filesystem error.
+        if (removedChapters.isNotEmpty()) {
+            orphanedDownloadCleaner.cleanupAfterChapterRemoval(removedChapters, manga)
+        }
+        // KUN <--
         val excludedScanlators = getExcludedScanlators.await(manga.id).toHashSet()
 
         // A first fetch lists the back catalogue, and chapters coming back under a deleted number were out already

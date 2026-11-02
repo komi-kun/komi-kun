@@ -53,6 +53,12 @@ class DownloadPreferences(
     val downloadCacheRenewInterval = preferenceStore.getInt("download_cache_renew_interval", 1)
     // KMK <--
 
+    // KUN -->
+    /** Delete the files of chapters that vanished from a source, unless a surviving chapter still uses the name. */
+    fun removeOrphanedDownloads(): Preference<Boolean> =
+        preferenceStore.getBoolean("pref_remove_orphaned_downloads", true)
+    // KUN <--
+
     companion object {
         private const val REMOVE_EXCLUDE_CATEGORIES_PREF_KEY = "remove_exclude_categories"
         private const val DOWNLOAD_NEW_CATEGORIES_PREF_KEY = "download_new_categories"
