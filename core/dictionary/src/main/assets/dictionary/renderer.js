@@ -2332,6 +2332,8 @@
   // streaming snapshot can reconcile that node in place instead of rebuilding it.
   let _audioMenuState = null;
   let _audioMenuPointerUp = null;
+  // Recovers the gesture when its release never reaches the page (see `_audioMenuPointerLost`).
+  let _audioMenuPointerLost = null;
 
   function closeAudioMenu() {
     if (_audioMenuNode) {
@@ -2350,6 +2352,12 @@
       document.removeEventListener('pointerup', _audioMenuPointerUp, true);
       document.removeEventListener('pointercancel', _audioMenuPointerUp, true);
       _audioMenuPointerUp = null;
+    }
+    if (_audioMenuPointerLost) {
+      document.removeEventListener('visibilitychange', _audioMenuPointerLost, true);
+      window.removeEventListener('blur', _audioMenuPointerLost, true);
+      document.removeEventListener('pointerout', _audioMenuPointerLost, true);
+      _audioMenuPointerLost = null;
     }
   }
 
@@ -2420,6 +2428,7 @@
           emptyItem: null,
           size: null, // last measured size, so a snapshot that did not change it skips reflow
           pointerDown: false,
+          pointerId: null, // the gesture that owns the release (see `trackPointer`)
           deferred: null, // a snapshot that arrived while a pointer was down, replayed on release
         };
     _audioMenuState = state;
@@ -2666,6 +2675,36 @@
       }
     };
 
+    // One gesture at a time: the pointer that presses the menu owns the release. A second finger's
+    // `pointerdown` must not take it over, or its release would replay the parked snapshot while the
+    // first finger is still on a row.
+    const trackPointer = (ev) => {
+      if (state.pointerDown) return;
+      state.pointerDown = true;
+      // `pointerId` names the gesture; a build without it falls back to "any release ends it".
+      state.pointerId = (ev && typeof ev.pointerId === 'number') ? ev.pointerId : null;
+    };
+
+    /**
+     * Ends the tracked gesture and replays what the snapshots parked. Idempotent: a second release,
+     * or a recovery event arriving after the real one, finds `pointerDown` already false and does
+     * nothing.
+     */
+    const releasePointer = (ev) => {
+      if (!state.pointerDown) return;
+      // Only the pointer that pressed the menu can release it.
+      if (ev && typeof ev.pointerId === 'number' && state.pointerId !== null && ev.pointerId !== state.pointerId) return;
+      state.pointerDown = false;
+      state.pointerId = null;
+      const deferred = state.deferred;
+      state.deferred = null;
+      if (deferred && _audioMenuNode === menu && _audioMenuState === state) {
+        showAudioMenu(button, deferred.payload, deferred.loading);
+      }
+      // A snapshot that landed while the pointer was down deferred its reflow: apply it now.
+      reflowIfNeeded();
+    };
+
     if (!reuse) {
       document.body.appendChild(menu);
       applyMenuMaxSize();
@@ -2674,29 +2713,30 @@
       _audioMenuNode = menu;
       _audioMenuButton = button;
       _audioMenuDismiss = (ev) => {
-        if (ev && ev.type === 'pointerdown') state.pointerDown = true;
+        if (ev && ev.type === 'pointerdown') trackPointer(ev);
         if (_audioMenuNode && ev && ev.target && _audioMenuNode.contains(ev.target)) return;
         closeAudioMenu();
       };
-      _audioMenuPointerUp = () => {
-        state.pointerDown = false;
-        // Replay the snapshot that arrived while the pointer was down (if any), then the deferred
-        // reflow. The slot is cleared first, and the replay is the same pure reconcile of that
-        // payload, so a second release cannot apply it twice; a menu that was closed (or replaced)
-        // in the meantime is not this `state` and is left alone.
-        const deferred = state.deferred;
-        state.deferred = null;
-        if (deferred && _audioMenuNode === menu && _audioMenuState === state) {
-          showAudioMenu(button, deferred.payload, deferred.loading);
-        }
-        // A snapshot that landed while the pointer was down deferred its reflow: apply it now.
-        reflowIfNeeded();
+      _audioMenuPointerUp = (ev) => releasePointer(ev);
+      // The release sometimes never reaches the page: the WebView is paused, the popup loses the
+      // gesture, or the document is hidden mid-press. Without these the flag would stay set and
+      // every later snapshot would be parked — the picker frozen on its last state.
+      _audioMenuPointerLost = (ev) => {
+        if (!ev) return;
+        // Only a real hide counts, and only a pointer that *left the window*: a move between
+        // elements (or a touch that is still down) carries a `relatedTarget`.
+        if (ev.type === 'visibilitychange' && document.visibilityState !== 'hidden') return;
+        if (ev.type === 'pointerout' && ev.relatedTarget) return;
+        releasePointer(ev);
       };
       document.addEventListener('pointerdown', _audioMenuDismiss, true);
       window.addEventListener('scroll', _audioMenuDismiss, true);
       window.addEventListener('resize', _audioMenuDismiss, true);
       document.addEventListener('pointerup', _audioMenuPointerUp, true);
       document.addEventListener('pointercancel', _audioMenuPointerUp, true);
+      document.addEventListener('visibilitychange', _audioMenuPointerLost, true);
+      window.addEventListener('blur', _audioMenuPointerLost, true);
+      document.addEventListener('pointerout', _audioMenuPointerLost, true);
       state.size = measuredSize();
     } else {
       // Re-apply the cap and the position only when the node's size actually changed.

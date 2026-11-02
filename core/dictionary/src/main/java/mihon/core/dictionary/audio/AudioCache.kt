@@ -132,8 +132,13 @@ object AudioCache {
 
     /**
      * Stores [data] in the in-memory cache if valid and not the JPod dummy placeholder.
+     *
+     * **Unguarded on purpose, and therefore not public.** This write path bypasses the generation
+     * invariant: [clear] cannot invalidate a direct `put`, so bytes fetched before a clear would
+     * repopulate the freshly emptied cache. The cache's own fetches go through [putIfGeneration];
+     * this stays `internal` so only this module (and its tests) can reach it.
      */
-    fun put(url: String, data: ByteArray) {
+    internal fun put(url: String, data: ByteArray) {
         synchronized(lock) { putLocked(url, data) }
     }
 
