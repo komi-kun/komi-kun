@@ -316,6 +316,22 @@
         </provider>
         <!-- KUN -->
 
+        <!-- KUN -->
+        <!-- ONNX Runtime's AAR injects a startup `ContentProvider` (`initOrder=100`) that loads
+             `libonnxruntime.so` and builds a native telemetry client on **every** cold start, before
+             `Application.onCreate`, even while both the dictionary/OCR and reader-upscaling features
+             are off (the library is only loaded for either when the user turns that feature on). It
+             is removed outright: the app creates its own ORT session when it needs one, and never
+             sends OTEL telemetry. The AAR's consumer ProGuard rules still `-keep` the class, so it
+             stays in the dex — but nothing instantiates it, so no provider runs, no
+             `System.loadLibrary` happens at startup, and no telemetry client is built. -->
+        <provider
+            android:name="ai.onnxruntime.TelemetryInitializer"
+            android:authorities="${applicationId}.onnxruntime_telemetry_initializer"
+            android:exported="false"
+            tools:node="remove" />
+        <!-- KUN -->
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.provider"

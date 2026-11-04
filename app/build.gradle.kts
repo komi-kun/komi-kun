@@ -5,7 +5,9 @@ import mihon.buildlogic.getGitSha
 import mihon.buildlogic.tasks.ReplaceShortcutsPlaceholderTask
 import org.gradle.api.tasks.Exec
 import java.io.FileInputStream
+import java.security.MessageDigest
 import java.util.Properties
+import java.util.zip.ZipFile
 import kotlin.io.encoding.Base64
 
 plugins {
@@ -178,6 +180,13 @@ android {
 
     packaging {
         jniLibs {
+            // KUN -->
+            // `:core:upscale` pulls `com.microsoft.onnxruntime:onnxruntime-android:1.31.0`, whose AAR
+            // ships `libonnxruntime.so` per ABI with bytes identical to the copy
+            // `core/ocr/paddle-manifest.json` fetches (arm64-v8a sha256 8005a741…), so either copy
+            // is the same binary. Packaging both trips the duplicate-path merge; pick one.
+            pickFirsts += "**/libonnxruntime.so"
+            // KUN <--
             keepDebugSymbols += listOf(
                 "libandroidx.graphics.path",
                 "libarchive-jni",
@@ -315,6 +324,7 @@ dependencies {
     // KUN -->
     implementation(projects.core.dictionary)
     implementation(projects.core.ocr)
+    implementation(projects.core.upscale)
     // KUN <--
     implementation(projects.coreMetadata)
     implementation(projects.sourceApi)
@@ -605,4 +615,113 @@ val verifyJniSymbols by tasks.registering(Exec::class) {
     val selfTest = layout.settingsDirectory.file("scripts/test-verify-jni-symbols.sh").asFile.absolutePath
     commandLine("bash", "-c", "bash \"$guard\" && bash \"$selfTest\"")
 }
+
+// ONNX Runtime lockstep.
+//
+// `libonnxruntime.so` reaches the APK from two independent version axes: `:core:upscale` compiles
+// against the AAR `com.microsoft.onnxruntime:onnxruntime-android` (pinned in `libs.versions.toml`),
+// and `:core:ocr` fetches its own copy per ABI from the release `core/ocr/paddle-manifest.json`
+// pins. `app`'s `pickFirsts += "**/libonnxruntime.so"` collapses the two paths into one file, so the
+// packaging step silently accepts whichever it sees first. A Renovate bump of the AAR alone would
+// therefore ship one ORT release's Java/JNI pair (`libonnxruntime4j_jni.so` + `classes.jar`, which
+// `:core:upscale`'s session uses) against another release's `libonnxruntime.so` (which the Paddle
+// shim `dlopen`s): `dlopen failed: cannot locate symbol "OrtGetApiBase"` on a device, with a green
+// build, a green unit-test run and no manifest diff. Nothing else compares them.
+//
+// This task hashes the AAR's library for every ABI the OCR manifest names, so the two axes can only
+// move together. It reads the AAR as a zip with `java.util.zip` rather than through Gradle's
+// `zipTree`, so it needs no unpack step and no extra task dependency (three hashes, ~0.2 s), and it
+// is wired into `preBuild` so every `assemble*` — and therefore every CI build — runs it.
+val verifyOrtLockstep = tasks.register("verifyOrtLockstep") {
+    group = "verification"
+    description = "Fails if the ONNX Runtime AAR and core/ocr/paddle-manifest.json disagree on libonnxruntime.so."
+
+    val paddleManifest = layout.settingsDirectory.file("core/ocr/paddle-manifest.json")
+    // A `ConfigurableFileCollection` over a detached configuration (rather than the configuration
+    // itself): the task state must survive the configuration cache, and a Gradle `Configuration` is
+    // not a serialisable task input.
+    val ortAar = objects.fileCollection().from(
+        configurations.detachedConfiguration(
+            dependencies.create(
+                "com.microsoft.onnxruntime:onnxruntime-android:${libs.versions.onnxruntime.get()}",
+            ),
+        ),
+    )
+    inputs.file(paddleManifest).withPropertyName("paddleManifest")
+    inputs.files(ortAar).withPropertyName("ortAar")
+
+    doLast {
+        // The manifest is hand-written JSON with no nested objects, so a brace scan is enough and
+        // keeps this build logic free of a JSON dependency (and of the configuration cache's view of
+        // one). Every entry is one `{ … }` on its own line.
+        val text = paddleManifest.asFile.readText()
+        fun field(block: String, name: String): String? =
+            Regex("\"" + name + "\"\\s*:\\s*\"([^\"]*)\"").find(block)?.groupValues?.get(1)
+
+        fun number(block: String, name: String): Long? =
+            Regex("\"" + name + "\"\\s*:\\s*(\\d+)").find(block)?.groupValues?.get(1)?.toLong()
+
+        val entries = Regex("\\{[^{}]*}").findAll(text)
+            .map { it.value }
+            .filter { field(it, "name") == "libonnxruntime.so" }
+            .map { block ->
+                Triple(
+                    field(block, "abi") ?: throw GradleException("paddle-manifest.json: an ORT entry has no abi"),
+                    field(block, "sha256") ?: throw GradleException("paddle-manifest.json: an ORT entry has no sha256"),
+                    number(block, "size") ?: throw GradleException("paddle-manifest.json: an ORT entry has no size"),
+                )
+            }
+            .toList()
+
+        if (entries.isEmpty()) {
+            logger.lifecycle(
+                "verifyOrtLockstep: core/ocr/paddle-manifest.json pins no libonnxruntime.so — " +
+                    "nothing to compare (the OCR artifact no longer ships ORT).",
+            )
+            return@doLast
+        }
+
+        val aar = ortAar.files.singleOrNull { it.name.endsWith(".aar") }
+            ?: throw GradleException(
+                "verifyOrtLockstep: no onnxruntime-android AAR on the resolved configuration " +
+                    "(got ${ortAar.files.map { it.name }}).",
+            )
+
+        ZipFile(aar).use { zip ->
+            for ((abi, expectedSha, expectedSize) in entries) {
+                val path = "jni/$abi/libonnxruntime.so"
+                val entry = zip.getEntry(path)
+                    ?: throw GradleException("verifyOrtLockstep: $aar has no $path, but the OCR manifest pins one.")
+                val digest = MessageDigest.getInstance("SHA-256")
+                var size = 0L
+                zip.getInputStream(entry).use { input ->
+                    val buffer = ByteArray(1 shl 16)
+                    while (true) {
+                        val read = input.read(buffer)
+                        if (read < 0) break
+                        digest.update(buffer, 0, read)
+                        size += read
+                    }
+                }
+                val sha = digest.digest().joinToString("") { "%02x".format(it) }
+                if (sha != expectedSha.lowercase() || size != expectedSize) {
+                    throw GradleException(
+                        "verifyOrtLockstep: libonnxruntime.so diverged for $abi.\n" +
+                            "  AAR ($aar): sha256 $sha, $size bytes\n" +
+                            "  core/ocr/paddle-manifest.json: sha256 $expectedSha, $expectedSize bytes\n" +
+                            "  The ONNX Runtime AAR and the OCR native artifact must be the same release: " +
+                            "bump core/ocr/paddle-manifest.json (and republish the OCR artifact) together " +
+                            "with libs.versions.toml's onnxruntime, or revert the bump.",
+                    )
+                }
+                logger.info("verifyOrtLockstep: $abi ok ($sha)")
+            }
+        }
+        logger.lifecycle("verifyOrtLockstep: ${entries.size} ABI(s) match the OCR manifest.")
+    }
+}
+
+// Every `assemble*`/`bundle*` path goes through `preBuild`; three hashes are cheap enough to pay on
+// every build rather than leaving the gate to CI.
+tasks.named("preBuild") { dependsOn(verifyOrtLockstep) }
 // KUN <--

@@ -8,6 +8,12 @@ import java.nio.ByteBuffer
 import kotlin.concurrent.Volatile
 import mihon.core.archive.ArchiveEntry as MihonArchiveEntry
 
+/**
+ * The largest `mtime` (in seconds) that is still a usable identity: 9999-12-31, so `* 1000` cannot
+ * overflow and a corrupt header cannot invent a time.
+ */
+private const val MAX_MTIME_SECONDS = 253_402_300_799L
+
 class ArchiveInputStream(
     buffer: Long,
     size: Long,
@@ -74,12 +80,24 @@ class ArchiveInputStream(
             // SY -->
             val isEncrypted = ArchiveEntry.isEncrypted(entry)
             // SY <--
+            // KUN --> the recorded size (see `ArchiveEntry.size`); -1 when the archive has none.
+            val size = if (ArchiveEntry.sizeIsSet(entry)) ArchiveEntry.size(entry) else -1L
+            // The recorded modification time, in millis (`mtime` is in seconds). Also metadata of the
+            // header just parsed, so it costs no buffer read. A value that cannot be a time — or whose
+            // millis would overflow — is reported as absent rather than as a bogus identity.
+            val seconds = if (ArchiveEntry.mtimeIsSet(entry)) ArchiveEntry.mtime(entry) else -1L
+            val lastModified = if (seconds in 1..MAX_MTIME_SECONDS) seconds * 1000L else -1L
+            // KUN <--
             MihonArchiveEntry(
                 name,
                 isFile,
                 // SY -->
                 isEncrypted,
                 // SY <--
+                // KUN -->
+                size,
+                lastModified,
+                // KUN <--
             )
         }
     }

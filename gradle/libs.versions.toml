@@ -24,6 +24,9 @@ image-decoder = "17"
 webgpuviewer = "ocr-accessors-2"
 # AnkiDroid API (GPL-3.0) — Phase 6 only; not consumed by any built module yet.
 anki-api = "2.15.6"
+# ONNX Runtime (MIT). `:core:ocr` fetches its `libonnxruntime.so` from the OCR artifact;
+# `:core:upscale` depends on the full AAR (not the `-mobile` build) for its own session.
+onnxruntime = "1.31.0"
 # KUN <--
 apollo = "5.2.0"
 apollo-adapters = "0.8.0"
@@ -87,6 +90,7 @@ image-decoder = { module = "ca.mpreg:imagedecoder", version.ref = "image-decoder
 # KUN -->
 webgpuviewer = { module = "com.github.komi-kun.webgpuviewer:library", version.ref = "webgpuviewer" }
 anki-api = { module = "com.ichi2.anki:api", version.ref = "anki-api" }
+onnxruntime-android = { module = "com.microsoft.onnxruntime:onnxruntime-android", version.ref = "onnxruntime" }
 # KUN <--
 
 natural-comparator = "com.github.gpanther:java-nat-sort:natural-comparator-1.1"

@@ -15,6 +15,7 @@ import eu.kanade.tachiyomi.ui.reader.model.InsertPage
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import eu.kanade.tachiyomi.ui.reader.ocr.OcrDisplayTransform
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
+import eu.kanade.tachiyomi.ui.reader.upscale.UpscaleRuntimePolicy
 import eu.kanade.tachiyomi.ui.reader.viewer.ReaderPageImageView
 import eu.kanade.tachiyomi.ui.reader.viewer.ReaderProgressIndicator
 import eu.kanade.tachiyomi.ui.webview.WebViewActivity
@@ -214,14 +215,47 @@ class PagerPageHolder(
         val streamFn = page.stream ?: return
         val streamFn2 = extraPage?.stream
 
+        // KUN -->
+        // Both halves of a double page are resolved before either is used: `open` is a synchronous
+        // cache lookup (so it runs off the main thread, with the reads), a page served from the cache
+        // is never requested again, and a merged sheet decodes from the cache only when *both* halves
+        // have an upscale — one cached half next to one original would be drawn at two scales.
+        val upscale = viewer.activity.readerUpscale
+        val extra = extraPage
+        val cachedHalves = withContext(Dispatchers.IO) {
+            val cached = upscale?.open(page)
+            val cachedExtra = extra?.let { upscale?.open(it) }
+            val fromCache = UpscaleRuntimePolicy.mergedHalvesFromCache(
+                pageCached = cached != null,
+                hasExtraPage = extra != null,
+                extraPageCached = cachedExtra != null,
+            )
+            if (!fromCache) {
+                // Nothing of these is used: the halves are decoded from the source instead.
+                cached?.close()
+                cachedExtra?.close()
+            }
+            if (cached == null) upscale?.request(page)
+            if (extra != null && cachedExtra == null) upscale?.request(extra)
+            (cached.takeIf { fromCache }) to (cachedExtra.takeIf { fromCache })
+        }
+        val upscaledMain = cachedHalves.first
+        val upscaledExtra = cachedHalves.second
+        // KUN <--
+
         try {
             val buffer = withContext(Dispatchers.IO) {
-                streamFn().buffered(16).use { Buffer().readFrom(it) }
+                // KUN -->
+                (upscaledMain ?: streamFn()).buffered(16).use { Buffer().readFrom(it) }
+                // KUN <--
             }
             // SY -->
             val buffer2 = if (extraPage != null) {
                 withContext(Dispatchers.IO) {
-                    streamFn2?.invoke()?.buffered(16)?.use { Buffer().readFrom(it) }
+                    // KUN --> the cached upscale of the extra page of a merged sheet, when both had one.
+                    val extraStream = upscaledExtra ?: streamFn2?.invoke()
+                    extraStream?.buffered(16)?.use { Buffer().readFrom(it) }
+                    // KUN <--
                 }
             } else {
                 null

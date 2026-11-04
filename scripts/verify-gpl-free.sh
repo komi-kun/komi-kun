@@ -65,6 +65,14 @@ SEAM_FILES=(
   # `ReaderActivity`/`ReaderViewModel` from the same package, so an import-based scan cannot see them
   # — listing them here is the only guard that they never gain a GPL header or GPL reference.
   "core/common/src/main/kotlin/tachiyomi/core/common/preference/DictionaryOcrPreferences.kt"
+  # Same rule for reader upscaling: the reader gates on it (its mode enum lives there so the reader
+  # can name the mode without importing the GPL `:core:upscale`).
+  "core/common/src/main/kotlin/tachiyomi/core/common/preference/UpscalePreferences.kt"
+  # Reader upscaling's Apache seam and its pure pre-decode policy: both upstream-contributable, both
+  # called by the GPL-free reader (`ReaderActivity` / the three page holders), so neither may name a
+  # GPL type. Their GPL implementation lives in `mihon.feature.upscale`, never beside them.
+  "app/src/main/java/eu/kanade/tachiyomi/ui/reader/upscale/ReaderUpscaleHost.kt"
+  "app/src/main/java/eu/kanade/tachiyomi/ui/reader/upscale/UpscaleRuntimePolicy.kt"
   "app/src/main/java/eu/kanade/tachiyomi/ui/reader/ReaderOcrTogglePolicy.kt"
   "app/src/main/java/eu/kanade/tachiyomi/ui/reader/ReaderOcrOverlayPolicy.kt"
 )
@@ -105,6 +113,9 @@ fi
 DENY_PREFIXES=(
   "mihon.core.dictionary"
   "mihon.core.ocr"
+  # The GPL upscaling engine module and the app-level GPL feature package behind the reader's seam.
+  "mihon.core.upscale"
+  "mihon.feature.upscale"
   "mihon.dictionary"
   "eu.kanade.tachiyomi.ui.reader.ocr"
   "eu.kanade.tachiyomi.ui.reader.overlay"

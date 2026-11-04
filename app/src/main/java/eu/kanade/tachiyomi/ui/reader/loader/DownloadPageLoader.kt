@@ -67,6 +67,14 @@ internal class DownloadPageLoader(
                 context.contentResolver.openInputStream(page.uri ?: Uri.EMPTY)!!
             }.apply {
                 status = Page.State.Ready
+                // KUN --> the document's size/mtime make a re-download miss the upscale cache.
+                runCatching {
+                    UniFile.fromUri(context, page.uri ?: Uri.EMPTY)?.let { file ->
+                        sourceLength = file.length()
+                        sourceLastModified = file.lastModified()
+                    }
+                }
+                // KUN <--
             }
         }
     }

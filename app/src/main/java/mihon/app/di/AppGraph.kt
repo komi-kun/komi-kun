@@ -67,6 +67,9 @@ import mihon.core.dictionary.repository.DictionaryRepository
 import mihon.core.metro.IsDebugBuild
 import mihon.core.ocr.di.OcrBindings
 import mihon.core.ocr.paddle.ModelDownloader
+import mihon.core.upscale.UpscaleService
+import mihon.core.upscale.cache.UpscaleCache
+import mihon.core.upscale.di.UpscaleBindings
 import mihon.data.cache.ChapterCache
 import mihon.dictionary.host.DictionaryHostBindings
 import mihon.domain.chapter.interactor.FilterChaptersForDownload
@@ -75,6 +78,7 @@ import mihon.domain.extension.interactor.GetExtensionStores
 import mihon.domain.source.interactor.UpdateMangaFromRemote
 import nl.adaptivity.xmlutil.serialization.XML
 import tachiyomi.core.common.preference.DictionaryOcrPreferences
+import tachiyomi.core.common.preference.UpscalePreferences
 import tachiyomi.domain.backup.service.BackupPreferences
 import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.domain.category.interactor.ResetCategoryFlags
@@ -99,6 +103,7 @@ import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.domain.storage.service.StoragePreferences
 import tachiyomi.domain.track.interactor.GetTracks
 import tachiyomi.domain.track.interactor.UpsertTrack
+import mihon.core.upscale.model.ModelDownloader as UpscaleModelDownloader
 
 @DependencyGraph(
     scope = AppScope::class,
@@ -110,6 +115,7 @@ import tachiyomi.domain.track.interactor.UpsertTrack
         OcrBindings::class,
         DictionaryHostBindings::class,
         OcrHostBindings::class,
+        UpscaleBindings::class,
     ],
     // KUN <--
 )
@@ -232,6 +238,19 @@ interface AppGraph : ViewModelGraph {
     // The single dictionary/OCR opt-in (`pref_dictionary_ocr_enabled`): the setup surfaces, the
     // settings master switches, the navigation filter and every runtime gate read this one instance.
     val dictionaryOcrPreferences: DictionaryOcrPreferences
+
+    // W4 reader upscaling: the master switch and the app-scoped service. `UpscalePreferences` is
+    // Apache-2.0 (in `:core:common`) so the reader itself can read it; the service, its engine, cache
+    // and model set are the GPL `:core:upscale` singletons wired by `UpscaleBindings` above.
+    val upscalePreferences: UpscalePreferences
+    val upscaleService: UpscaleService
+
+    // The downloader and the result cache are the same singletons `UpscaleService` holds, so the
+    // settings screen's installed set, its download progress and its "clear cache" act on exactly
+    // what the reader runs and reads — a second instance would report another state and free
+    // nothing. Aliased because `mihon.core.ocr.paddle.ModelDownloader` (the OCR one) is imported too.
+    val upscaleModelDownloader: UpscaleModelDownloader
+    val upscaleCache: UpscaleCache
     // KUN <--
 
     val json: Json

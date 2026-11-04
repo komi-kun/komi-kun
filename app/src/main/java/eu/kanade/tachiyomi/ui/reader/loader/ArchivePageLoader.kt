@@ -12,6 +12,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import mihon.core.archive.ArchiveEntry
 import mihon.core.archive.ArchiveInputStream
 import mihon.core.archive.ArchiveReader
 import tachiyomi.core.common.util.system.ImageUtil
@@ -56,12 +57,22 @@ internal class ArchivePageLoader(
     private class Cursor(reader: ArchiveReader) : ArchiveEntryCursor {
         private val stream = ArchiveInputStream(reader.address, reader.size, reader.encrypted)
 
+        /** The entry [next] returned last, so [lastEntrySize] reads no mapping. */
+        private var lastEntry: ArchiveEntry? = null
+
         override fun next(): String? {
             while (true) {
                 val entry = stream.getNextEntry() ?: return null
+                lastEntry = entry
                 if (entry.isFile) return entry.name
             }
         }
+
+        /** Recorded by [next] from the header it already parsed. */
+        override fun lastEntrySize(): Long = lastEntry?.size ?: -1L
+
+        /** Also recorded by [next], from the same header: metadata, so no mapping is read. */
+        override fun lastEntryModified(): Long = lastEntry?.lastModified ?: -1L
 
         override fun close() {
             stream.close()
@@ -110,11 +121,14 @@ internal class ArchivePageLoader(
         }
         // SY <--
         // KUN --> guarded per entry: enumerating the directory and testing each entry for an image
-        // both read the mapped buffer, so each is its own short hold (see [imageEntryNames]); the
-        // page streams stay guarded lazily, one read at a time.
-        return archiveReads.imageEntryNames(archiveSource)
-            .sortedWith { f1, f2 -> f1.compareToCaseInsensitiveNaturalOrder(f2) }
-            .mapIndexed { i, name ->
+        // both read the mapped buffer, so each is its own short hold (see [imagePageEntries]); the
+        // page streams stay guarded lazily, one read at a time. The entry's recorded size and
+        // modification time ride along so a re-downloaded chapter misses the upscale cache instead
+        // of serving stale bytes.
+        return archiveReads.imagePageEntries(archiveSource)
+            .sortedWith { f1, f2 -> f1.name.compareToCaseInsensitiveNaturalOrder(f2.name) }
+            .mapIndexed { i, entry ->
+                val name = entry.name
                 // SY -->
                 val imageBytesDeferred: Deferred<ByteArray>? =
                     when (readerPreferences.archiveReaderMode.get()) {
@@ -140,6 +154,13 @@ internal class ArchivePageLoader(
                     if (imageBytesDeferred != null) {
                         stream = { imageBytes!!.copyOf().inputStream() }
                     }
+                    // KUN <--
+                    // KUN --> the archive entry's recorded size and modification time, for the
+                    // upscale cache identity. Each stays -1 when the archive records none, and the
+                    // upscaler then skips the page: an unknown identity would key an entry the page
+                    // could never be served from.
+                    if (entry.size > 0L) sourceLength = entry.size
+                    if (entry.lastModified > 0L) sourceLastModified = entry.lastModified
                     // KUN <--
                 }
             }

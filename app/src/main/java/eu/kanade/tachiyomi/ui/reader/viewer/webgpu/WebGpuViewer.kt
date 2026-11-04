@@ -1270,10 +1270,18 @@ open class WebGpuViewer(
             return
         }
 
-        val stream = page.page.stream?.invoke() ?: run {
+        // KUN -->
+        // Resolve the cache first: this runs on the decode dispatcher, so the synchronous lookup is
+        // off the main thread, a page already upscaled is decoded from its entry and never queued
+        // again, and only a miss is requested.
+        val upscale = activity.readerUpscale
+        val cached = upscale?.open(page.page)
+        if (cached == null) upscale?.request(page.page)
+        val stream = (cached ?: page.page.stream?.invoke()) ?: run {
             synchronized(lock) { if (pageInCache(page)) page.state = PageState.IDLE }
             return
         }
+        // KUN <--
 
         stream.use { input ->
             synchronized(lock) {

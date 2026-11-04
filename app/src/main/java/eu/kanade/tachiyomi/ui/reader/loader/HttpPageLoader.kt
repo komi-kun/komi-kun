@@ -322,6 +322,10 @@ internal class HttpPageLoader(
                     throw e
                 }
             }
+            // KUN --> what makes a re-downloaded chapter miss the upscale cache.
+            page.sourceLength = file.length()
+            page.sourceLastModified = file.lastModified()
+            // KUN <--
             page.status = Page.State.Ready
         } catch (e: Throwable) {
             page.downloadStream = null
