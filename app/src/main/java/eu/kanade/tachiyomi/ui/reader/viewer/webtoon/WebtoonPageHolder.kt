@@ -211,8 +211,23 @@ class WebtoonPageHolder(
 
         val streamFn = page?.stream ?: return
 
+        // KUN -->
+        // `open` is a synchronous cache lookup (so it runs off the main thread, with the read): a page
+        // served from the cache is never queued again, and only a miss is requested.
+        val upscale = viewer.activity.readerUpscale
+        val upscaled = withContext(Dispatchers.IO) {
+            val cached = page?.let { upscale?.open(it) }
+            if (cached == null) page?.let { upscale?.request(it) }
+            cached
+        }
+        // KUN <--
+
         try {
-            val buffer = withContext(Dispatchers.IO) { streamFn().use { Buffer().readFrom(it) } }
+            val buffer = withContext(Dispatchers.IO) {
+                // KUN -->
+                (upscaled ?: streamFn()).use { Buffer().readFrom(it) }
+                // KUN <--
+            }
             // Splitting and merging decode the image, which is CPU work
             val (source, isAnimated) = withContext(Dispatchers.Default) {
                 val source = process(buffer)

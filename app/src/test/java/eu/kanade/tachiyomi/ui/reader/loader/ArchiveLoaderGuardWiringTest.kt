@@ -49,7 +49,9 @@ class ArchiveLoaderGuardWiringTest {
         // The enumeration goes through the seam (per-step holds), not the pre-fix bulk walk, which
         // held the read lock for every entry and made `recycle()` wait for the whole archive.
         val pages = functionBody(archive, "override suspend fun getPages()")
-        pages shouldContainSource """archiveReads\s*\.\s*imageEntryNames\(\s*archiveSource\s*\)"""
+        // `imagePageEntries` is the same walk plus each entry's recorded size (the upscale cache
+        // identity), so the per-step holds it is asserted for are the same ones.
+        pages shouldContainSource """archiveReads\s*\.\s*imagePageEntries\(\s*archiveSource\s*\)"""
         pages shouldContainSource """archiveReads\s*\.\s*readerPage\("""
         archive shouldNotContainSource """reader\s*\.\s*useEntries"""
 

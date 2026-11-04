@@ -121,6 +121,8 @@ import eu.kanade.tachiyomi.ui.reader.setting.ReaderOrientation
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderSettingsViewModel
 import eu.kanade.tachiyomi.ui.reader.setting.ReadingMode
+import eu.kanade.tachiyomi.ui.reader.upscale.ReaderUpscaleHost
+import eu.kanade.tachiyomi.ui.reader.upscale.ReaderUpscaleSession
 import eu.kanade.tachiyomi.ui.reader.viewer.LocalPageColorFilter
 import eu.kanade.tachiyomi.ui.reader.viewer.OcrTwoFingerTapDetector
 import eu.kanade.tachiyomi.ui.reader.viewer.OutsideTapDismissDetector
@@ -219,6 +221,22 @@ class ReaderActivity : BaseActivity() {
      * dictionary/OCR work, so "off" means the feature is inert rather than merely invisible.
      */
     @Inject private lateinit var dictionaryOcrPreferences: DictionaryOcrPreferences
+    // KUN <--
+
+    // KUN -->
+    // Apache-2.0 reader upscaling seam. The GPL implementation, its engine and its model downloader
+    // live in `mihon.feature.upscale` / `:core:upscale`; this file only ever sees the interface.
+    @Inject private lateinit var readerUpscaleHost: ReaderUpscaleHost
+
+    /**
+     * This reader's upscaling session — created in [onCreate], reset when the same activity opens
+     * another chapter, and closed in [onDestroy]. The viewers read it from here, so all three decode
+     * paths share one page identity for the chapter being read.
+     */
+    private var upscaleSession: ReaderUpscaleSession? = null
+
+    /** The session the viewers decode through, or null while upscaling is not available. */
+    val readerUpscale: ReaderUpscaleSession? get() = upscaleSession
     // KUN <--
 
     // KMK -->
@@ -381,6 +399,9 @@ class ReaderActivity : BaseActivity() {
         // session stays — it belongs to this reader, which continues — so it only releases the
         // chapter's state.
         ocrSession?.reset()
+        // The queued pages belong to the chapter being left, so they are dropped here (before the
+        // new chapter starts enqueueing its own).
+        upscaleSession?.reset()
 
         viewModel.openChapter(target)
     }
@@ -418,6 +439,11 @@ class ReaderActivity : BaseActivity() {
         // state cannot outlive it. A recreation asks the host for the session the closed one handed
         // over, which is what keeps an open lookup across a rotation.
         ocrSession = readerOcrHost.newSession()
+
+        // This reader's upscaling session: created here (the graph is built) and closed in
+        // `onDestroy`. The host is app-scoped, so a reader that closes only drops the handle; the
+        // engine and its result cache are the process's.
+        upscaleSession = readerUpscaleHost.newSession()
 
         // Upstream 00335b2a70 draws the reader through Compose: one Compose root holds the viewer,
         // the chrome and the dialogs, replacing the XML binding the activity used to inflate.
@@ -978,6 +1004,10 @@ class ReaderActivity : BaseActivity() {
         // would drop it — after inheriting this dead reader's viewport, block and popup anchor.
         ocrSession?.close(recreating = isChangingConfigurations && !isFinishing)
         ocrSession = null
+        // The upscaling session follows the same rule: a recreation keeps its queued work running
+        // (the results are app-scoped cache entries), leaving the reader stops it.
+        upscaleSession?.close(recreating = isChangingConfigurations && !isFinishing)
+        upscaleSession = null
         // KUN <--
     }
 
@@ -1828,6 +1858,12 @@ class ReaderActivity : BaseActivity() {
      * bottom menu and delegates the change to the presenter.
      */
     fun onPageSelected(page: ReaderPage, hasExtraPage: Boolean = false) {
+        // KUN -->
+        // The visible page (and the three after it) are what the upscaler serves first. This is the
+        // one page-shown event every viewer emits, so the queue is re-prioritised exactly once per
+        // page turn, whatever backend is drawing the chapter.
+        upscaleSession?.focus(page)
+        // KUN <--
         // SY -->
         val currentPageText = if (hasExtraPage) {
             // KUN --> the viewer is owned by the activity (upstream ca028cb657)

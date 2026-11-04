@@ -20,6 +20,20 @@ import java.io.InputStream
 internal interface ArchiveEntryCursor : AutoCloseable {
     /** The next file entry's name, or null at the end of the archive. */
     fun next(): String?
+
+    /**
+     * The size the archive records for the entry [next] returned last, or `-1` when it records none.
+     *
+     * Metadata only: reading it must **not** touch the mapped buffer (an implementation reads it
+     * once, from the header [next] already parsed), so it needs no read hold of its own.
+     */
+    fun lastEntrySize(): Long = -1L
+
+    /**
+     * The modification time the archive records for the entry [next] returned last (epoch millis), or
+     * `-1` when it records none. Metadata of the same parsed header, so it needs no read hold either.
+     */
+    fun lastEntryModified(): Long = -1L
 }
 
 /**
@@ -50,16 +64,34 @@ internal interface GuardedArchiveSource {
  * The cursor is closed outside the guard for the same reason a page stream's `close` is: freeing the
  * libarchive handle allocates and frees its own memory and does not read the mapped range.
  */
-internal fun ArchiveReadGuard.imageEntryNames(source: GuardedArchiveSource): List<String> {
-    val names = read { source.cursor() }.use { cursor ->
+internal fun ArchiveReadGuard.imageEntryNames(source: GuardedArchiveSource): List<String> =
+    imagePageEntries(source).map { it.name }
+
+/** One image entry of an archive: its name and the size the archive records for it (`-1` if none). */
+internal class ArchivePageEntry(
+    val name: String,
+    val size: Long,
+    /** The entry's recorded modification time in epoch millis, or `-1` when it records none. */
+    val lastModified: Long = -1L,
+)
+
+/**
+ * [imageEntryNames] with each entry's recorded size and modification time, so the reader can key an
+ * upscaled page on the bytes it came from (`ReaderPage.sourceLength`/`sourceLastModified`) instead of
+ * re-using one cached upscale across a re-downloaded chapter. Same per-step read holds as
+ * [imageEntryNames].
+ */
+internal fun ArchiveReadGuard.imagePageEntries(source: GuardedArchiveSource): List<ArchivePageEntry> {
+    val entries = read { source.cursor() }.use { cursor ->
         buildList {
             while (true) {
                 val name = read { cursor.next() } ?: break
-                add(name)
+                // Metadata of the header `next()` already parsed: no buffer read, no hold needed.
+                add(ArchivePageEntry(name, cursor.lastEntrySize(), cursor.lastEntryModified()))
             }
         }
     }
-    return names.filter { name -> read { source.isImage(name) } }
+    return entries.filter { entry -> read { source.isImage(entry.name) } }
 }
 
 /**

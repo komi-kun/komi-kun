@@ -264,6 +264,12 @@ object SettingsMainScreen : Screen() {
             icon = MaterialSymbols.AutoMirroredRounded.ChromeReaderMode,
             screen = SettingsOcrScreen,
         ),
+        Item(
+            titleRes = KUNMR.strings.pref_category_upscaling,
+            subtitleRes = KUNMR.strings.pref_upscaling_summary,
+            icon = MaterialSymbols.Rounded.Palette,
+            screen = SettingsUpscaleScreen,
+        ),
         // KUN <--
         // SY -->
         Item(

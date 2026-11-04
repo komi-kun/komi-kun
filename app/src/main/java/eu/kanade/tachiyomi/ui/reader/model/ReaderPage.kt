@@ -17,6 +17,24 @@ open class ReaderPage(
 
 ) : Page(index, url, imageUrl, null), ReaderItem {
 
+    // KUN -->
+    /**
+     * Size in bytes of the image this page's [stream] reads, or `-1` when the loader cannot know it
+     * (an archive entry the reader cannot stat, a chapter directory entry, …).
+     *
+     * It is part of the upscaling cache identity: [sourceLength] and [sourceLastModified] together
+     * make a re-downloaded chapter miss the cache instead of serving an upscale of the previous
+     * bytes. It does not change what [stream] reads.
+     */
+    var sourceLength: Long = -1L
+
+    /**
+     * Last-modified time (epoch millis) of the stored source image, or `-1` when unknown. See
+     * [sourceLength].
+     */
+    var sourceLastModified: Long = -1L
+    // KUN <--
+
     open lateinit var chapter: ReaderChapter
 
     /** Value to check if a page is too wide to be doubled up */

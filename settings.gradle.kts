@@ -66,6 +66,7 @@ include(":core:common")
 include(":core:dictionary")
 include(":core:metro")
 include(":core:ocr")
+include(":core:upscale")
 // KUN <--
 include(":data")
 include(":domain")

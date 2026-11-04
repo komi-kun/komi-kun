@@ -1,0 +1,226 @@
+{
+  "release": "upscale-models-v1",
+  "baseUrl": "https://github.com/komi-kun/komi-kun-upscale-models/releases/download/upscale-models-v1",
+  "files": [
+    {
+      "name": "2x_MangaJaNai_1200p_V1_ESRGAN_70k.onnx",
+      "path": "2x_MangaJaNai_1200p_V1_ESRGAN_70k.onnx",
+      "sha256": "e9e841d06f5fe7e48f67fef7199b67b000702b3e2988f4af5d76a90a6a1acb9c",
+      "size": 33874232,
+      "id": "mangajanai_2x_1200p",
+      "scale": 2,
+      "family": "MANGA_JANAI",
+      "bucket": 1200
+    },
+    {
+      "name": "2x_MangaJaNai_1300p_V1_ESRGAN_75k.onnx",
+      "path": "2x_MangaJaNai_1300p_V1_ESRGAN_75k.onnx",
+      "sha256": "7f4cdecefd4ce2bdacaf551f2b5ca3c5bcb8bd10ddd917328de9b7917bd8919f",
+      "size": 33874232,
+      "id": "mangajanai_2x_1300p",
+      "scale": 2,
+      "family": "MANGA_JANAI",
+      "bucket": 1300
+    },
+    {
+      "name": "2x_MangaJaNai_1400p_V1_ESRGAN_70k.onnx",
+      "path": "2x_MangaJaNai_1400p_V1_ESRGAN_70k.onnx",
+      "sha256": "2f6eaae8cb6718468c83c34b44009d655914e7ffb32ffa9be43f87480e16e253",
+      "size": 33874232,
+      "id": "mangajanai_2x_1400p",
+      "scale": 2,
+      "family": "MANGA_JANAI",
+      "bucket": 1400
+    },
+    {
+      "name": "2x_MangaJaNai_1500p_V1_ESRGAN_90k.onnx",
+      "path": "2x_MangaJaNai_1500p_V1_ESRGAN_90k.onnx",
+      "sha256": "afd6e8e2765b5cdb4751f5d4e05428407a19f010a46dc6872ba05990376a7b4b",
+      "size": 33874232,
+      "id": "mangajanai_2x_1500p",
+      "scale": 2,
+      "family": "MANGA_JANAI",
+      "bucket": 1500
+    },
+    {
+      "name": "2x_MangaJaNai_1600p_V1_ESRGAN_90k.onnx",
+      "path": "2x_MangaJaNai_1600p_V1_ESRGAN_90k.onnx",
+      "sha256": "436b6d3496b8c8063937ba42bec01aea9129ba650666ccca9c5658ac00d277f7",
+      "size": 33874232,
+      "id": "mangajanai_2x_1600p",
+      "scale": 2,
+      "family": "MANGA_JANAI",
+      "bucket": 1600
+    },
+    {
+      "name": "2x_MangaJaNai_1920p_V1_ESRGAN_70k.onnx",
+      "path": "2x_MangaJaNai_1920p_V1_ESRGAN_70k.onnx",
+      "sha256": "9c7cb1f6dffbdc8c17f634a0f4bce946958bf58b7b1295db273436e077fa6c82",
+      "size": 33874232,
+      "id": "mangajanai_2x_1920p",
+      "scale": 2,
+      "family": "MANGA_JANAI",
+      "bucket": 1920
+    },
+    {
+      "name": "2x_MangaJaNai_2048p_V1_ESRGAN_95k.onnx",
+      "path": "2x_MangaJaNai_2048p_V1_ESRGAN_95k.onnx",
+      "sha256": "67aa004413115673fd032cb2a995281e23c9ce35aa12405df23bfaf80b5021fa",
+      "size": 33874232,
+      "id": "mangajanai_2x_2048p",
+      "scale": 2,
+      "family": "MANGA_JANAI",
+      "bucket": 2048
+    },
+    {
+      "name": "4x_MangaJaNai_1200p_V1_ESRGAN_70k.onnx",
+      "path": "4x_MangaJaNai_1200p_V1_ESRGAN_70k.onnx",
+      "sha256": "35c34e4e846239421ec874c9bac1d8a0c4f5cccfbd39af028292ef0e438671e7",
+      "size": 33859540,
+      "id": "mangajanai_4x_1200p",
+      "scale": 4,
+      "family": "MANGA_JANAI",
+      "bucket": 1200
+    },
+    {
+      "name": "4x_MangaJaNai_1300p_V1_ESRGAN_75k.onnx",
+      "path": "4x_MangaJaNai_1300p_V1_ESRGAN_75k.onnx",
+      "sha256": "3bac04e572ee70efbcfcb5e03659426d6c921f9d5fc851118ab76880902dd2e8",
+      "size": 33859540,
+      "id": "mangajanai_4x_1300p",
+      "scale": 4,
+      "family": "MANGA_JANAI",
+      "bucket": 1300
+    },
+    {
+      "name": "4x_MangaJaNai_1400p_V1_ESRGAN_105k.onnx",
+      "path": "4x_MangaJaNai_1400p_V1_ESRGAN_105k.onnx",
+      "sha256": "5e34e632a790a7a22be3b67d106e26c88af28caa72ce57b0553b1ea3a01f6225",
+      "size": 33859540,
+      "id": "mangajanai_4x_1400p",
+      "scale": 4,
+      "family": "MANGA_JANAI",
+      "bucket": 1400
+    },
+    {
+      "name": "4x_MangaJaNai_1500p_V1_ESRGAN_105k.onnx",
+      "path": "4x_MangaJaNai_1500p_V1_ESRGAN_105k.onnx",
+      "sha256": "0207630b16f5898d502007e7cc7f9ae176607afad3fa106a0770fefbdf2f19de",
+      "size": 33859540,
+      "id": "mangajanai_4x_1500p",
+      "scale": 4,
+      "family": "MANGA_JANAI",
+      "bucket": 1500
+    },
+    {
+      "name": "4x_MangaJaNai_1600p_V1_ESRGAN_70k.onnx",
+      "path": "4x_MangaJaNai_1600p_V1_ESRGAN_70k.onnx",
+      "sha256": "dc945390d875e708307b171519bb1afb56e265a078ae9f74498de0f7c1fa02e7",
+      "size": 33859540,
+      "id": "mangajanai_4x_1600p",
+      "scale": 4,
+      "family": "MANGA_JANAI",
+      "bucket": 1600
+    },
+    {
+      "name": "4x_MangaJaNai_1920p_V1_ESRGAN_105k.onnx",
+      "path": "4x_MangaJaNai_1920p_V1_ESRGAN_105k.onnx",
+      "sha256": "9c66ec4b7dc80cfc12e9679399ea365f1ab15e812b99ef311151f89217ce55e6",
+      "size": 33859540,
+      "id": "mangajanai_4x_1920p",
+      "scale": 4,
+      "family": "MANGA_JANAI",
+      "bucket": 1920
+    },
+    {
+      "name": "4x_MangaJaNai_2048p_V1_ESRGAN_70k.onnx",
+      "path": "4x_MangaJaNai_2048p_V1_ESRGAN_70k.onnx",
+      "sha256": "5de460fe67f132269332b1f1efce48c28cb6e53951f476338ca1ce855eb95c8a",
+      "size": 33859540,
+      "id": "mangajanai_4x_2048p",
+      "scale": 4,
+      "family": "MANGA_JANAI",
+      "bucket": 2048
+    },
+    {
+      "name": "2x_IllustrationJaNai_V1_ESRGAN_120k.onnx",
+      "path": "2x_IllustrationJaNai_V1_ESRGAN_120k.onnx",
+      "sha256": "7cb8e9aa0f104fd36eed22feb638bc4fa39d541f30dd7944368cb024c71e4343",
+      "size": 33874232,
+      "id": "illustrationjanai_2x_v1_esrgan",
+      "scale": 2,
+      "family": "ILLUSTRATION_JANAI",
+      "bucket": 0
+    },
+    {
+      "name": "2x_IllustrationJaNai_V2standard_FDAT_M_unshuffle_40k.onnx",
+      "path": "2x_IllustrationJaNai_V2standard_FDAT_M_unshuffle_40k.onnx",
+      "sha256": "296a17a440ff2f0d2b1dd9d61031ad40a367bb34a980d05db3ca6871effbe152",
+      "size": 9158595,
+      "id": "illustrationjanai_2x_v2standard_fdat_m_unshuffle",
+      "scale": 2,
+      "family": "ILLUSTRATION_JANAI",
+      "bucket": 0
+    },
+    {
+      "name": "2x_IllustrationJaNai_V3denoise_SPAN_S_30k_fp16.onnx",
+      "path": "2x_IllustrationJaNai_V3denoise_SPAN_S_30k_fp16.onnx",
+      "sha256": "1b96dd10e3241eeb76ce149342870f86e511ad861abba621b01d561cceca0f82",
+      "size": 839921,
+      "id": "illustrationjanai_2x_v3denoise_span_s",
+      "scale": 2,
+      "family": "ILLUSTRATION_JANAI",
+      "bucket": 0
+    },
+    {
+      "name": "2x_IllustrationJaNai_V3denoise_FDAT_M_unshuffle_30k_fp16.onnx",
+      "path": "2x_IllustrationJaNai_V3denoise_FDAT_M_unshuffle_30k_fp16.onnx",
+      "sha256": "b1a6d9137b2dd8215e5b12e3233605e942b115be0aa41d869be2d8ccaef58e54",
+      "size": 9158595,
+      "id": "illustrationjanai_2x_v3denoise_fdat_m",
+      "scale": 2,
+      "family": "ILLUSTRATION_JANAI",
+      "bucket": 0
+    },
+    {
+      "name": "2x_IllustrationJaNai_V3detail_SPAN_S_40k_fp16.onnx",
+      "path": "2x_IllustrationJaNai_V3detail_SPAN_S_40k_fp16.onnx",
+      "sha256": "77434949223b70bccd95869c1d52111397180cc9d23b18ef9585f9dc85c238e3",
+      "size": 839921,
+      "id": "illustrationjanai_2x_v3detail_span_s",
+      "scale": 2,
+      "family": "ILLUSTRATION_JANAI",
+      "bucket": 0
+    },
+    {
+      "name": "2x_IllustrationJaNai_V3detail_FDAT_M_unshuffle_40k_fp16.onnx",
+      "path": "2x_IllustrationJaNai_V3detail_FDAT_M_unshuffle_40k_fp16.onnx",
+      "sha256": "ae263428f29eb775fa0a190de6edece9e1e56409162b6f29099f3c9986e84705",
+      "size": 9158595,
+      "id": "illustrationjanai_2x_v3detail_fdat_m",
+      "scale": 2,
+      "family": "ILLUSTRATION_JANAI",
+      "bucket": 0
+    },
+    {
+      "name": "4x_IllustrationJaNai_V2standard_FDAT_M_52k.onnx",
+      "path": "4x_IllustrationJaNai_V2standard_FDAT_M_52k.onnx",
+      "sha256": "06f9af8df4fd5acc1f4e165b00eec94c5c4ea5a639292d8599ac17dcd0cb99c1",
+      "size": 9130610,
+      "id": "illustrationjanai_4x_v2standard_fdat_m",
+      "scale": 4,
+      "family": "ILLUSTRATION_JANAI",
+      "bucket": 0
+    },
+    {
+      "name": "4x_IllustrationJaNai_V3detail_FDAT_M_40k_fp16.onnx",
+      "path": "4x_IllustrationJaNai_V3detail_FDAT_M_40k_fp16.onnx",
+      "sha256": "e3e576f8822612c50a5967c36a87cdebf32470f206675cf6de7735d29e7c01ef",
+      "size": 9130610,
+      "id": "illustrationjanai_4x_v3detail_fdat_m",
+      "scale": 4,
+      "family": "ILLUSTRATION_JANAI",
+      "bucket": 0
+    }
+  ]
+}

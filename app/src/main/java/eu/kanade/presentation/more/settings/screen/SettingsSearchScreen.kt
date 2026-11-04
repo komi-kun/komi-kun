@@ -316,6 +316,7 @@ private val settingScreens = listOf(
     SettingsDictionaryPopupScreen,
     SettingsAnkiScreen,
     SettingsOcrScreen,
+    SettingsUpscaleScreen,
     // KUN <--
 )
 

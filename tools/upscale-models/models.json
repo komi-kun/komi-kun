@@ -1,0 +1,226 @@
+{
+  "_comment": [
+    "Declarative model list for the komi-kun upscale model release.",
+    "Every entry maps one `UpscaleModelCatalog` entry (catalogId, in :core:upscale) to the upstream",
+    "MangaJaNai 3.0.0-onnx release zip that ships it and the exact member name inside that zip.",
+    "`memberName` IS the release asset name: the catalog's `UpscaleModel.fileName` must equal it, so",
+    "the app downloads the same bytes under the name it already looks for. Tools/upscale-models's",
+    "README documents the rename policy (none) and the licence boundary (CC BY-NC 4.0, not GPL).",
+    "Run `fetch_and_publish.py` after editing this file; `dist/manifest.json` is regenerated from it."
+  ],
+  "upstream": {
+    "release": "v3.0.0-onnx",
+    "baseUrl": "https://github.com/Lolle2000la/MangaJaNai/releases/download/v3.0.0-onnx",
+    "sumsFile": "sha256sums_fp16.txt",
+    "project": "https://github.com/the-database/MangaJaNai",
+    "onnxRelease": "https://github.com/Lolle2000la/MangaJaNai/releases/tag/v3.0.0-onnx",
+    "license": "CC-BY-NC-4.0",
+    "licenseFile": "https://raw.githubusercontent.com/the-database/MangaJaNai/main/LICENSE"
+  },
+  "release": {
+    "repo": "komi-kun/komi-kun-upscale-models",
+    "tag": "upscale-models-v1",
+    "title": "Upscale models v1",
+    "baseUrl": "https://github.com/komi-kun/komi-kun-upscale-models/releases/download/upscale-models-v1"
+  },
+  "models": [
+    {
+      "catalogId": "mangajanai_2x_1200p",
+      "upstreamZip": "MangaJaNai_V1_FP16_ONNX.zip",
+      "memberName": "2x_MangaJaNai_1200p_V1_ESRGAN_70k.onnx",
+      "scale": 2,
+      "family": "MANGA_JANAI",
+      "bucket": 1200,
+      "arch": "ESRGAN"
+    },
+    {
+      "catalogId": "mangajanai_2x_1300p",
+      "upstreamZip": "MangaJaNai_V1_FP16_ONNX.zip",
+      "memberName": "2x_MangaJaNai_1300p_V1_ESRGAN_75k.onnx",
+      "scale": 2,
+      "family": "MANGA_JANAI",
+      "bucket": 1300,
+      "arch": "ESRGAN"
+    },
+    {
+      "catalogId": "mangajanai_2x_1400p",
+      "upstreamZip": "MangaJaNai_V1_FP16_ONNX.zip",
+      "memberName": "2x_MangaJaNai_1400p_V1_ESRGAN_70k.onnx",
+      "scale": 2,
+      "family": "MANGA_JANAI",
+      "bucket": 1400,
+      "arch": "ESRGAN"
+    },
+    {
+      "catalogId": "mangajanai_2x_1500p",
+      "upstreamZip": "MangaJaNai_V1_FP16_ONNX.zip",
+      "memberName": "2x_MangaJaNai_1500p_V1_ESRGAN_90k.onnx",
+      "scale": 2,
+      "family": "MANGA_JANAI",
+      "bucket": 1500,
+      "arch": "ESRGAN"
+    },
+    {
+      "catalogId": "mangajanai_2x_1600p",
+      "upstreamZip": "MangaJaNai_V1_FP16_ONNX.zip",
+      "memberName": "2x_MangaJaNai_1600p_V1_ESRGAN_90k.onnx",
+      "scale": 2,
+      "family": "MANGA_JANAI",
+      "bucket": 1600,
+      "arch": "ESRGAN"
+    },
+    {
+      "catalogId": "mangajanai_2x_1920p",
+      "upstreamZip": "MangaJaNai_V1_FP16_ONNX.zip",
+      "memberName": "2x_MangaJaNai_1920p_V1_ESRGAN_70k.onnx",
+      "scale": 2,
+      "family": "MANGA_JANAI",
+      "bucket": 1920,
+      "arch": "ESRGAN"
+    },
+    {
+      "catalogId": "mangajanai_2x_2048p",
+      "upstreamZip": "MangaJaNai_V1_FP16_ONNX.zip",
+      "memberName": "2x_MangaJaNai_2048p_V1_ESRGAN_95k.onnx",
+      "scale": 2,
+      "family": "MANGA_JANAI",
+      "bucket": 2048,
+      "arch": "ESRGAN"
+    },
+    {
+      "catalogId": "mangajanai_4x_1200p",
+      "upstreamZip": "MangaJaNai_V1_FP16_ONNX.zip",
+      "memberName": "4x_MangaJaNai_1200p_V1_ESRGAN_70k.onnx",
+      "scale": 4,
+      "family": "MANGA_JANAI",
+      "bucket": 1200,
+      "arch": "ESRGAN"
+    },
+    {
+      "catalogId": "mangajanai_4x_1300p",
+      "upstreamZip": "MangaJaNai_V1_FP16_ONNX.zip",
+      "memberName": "4x_MangaJaNai_1300p_V1_ESRGAN_75k.onnx",
+      "scale": 4,
+      "family": "MANGA_JANAI",
+      "bucket": 1300,
+      "arch": "ESRGAN"
+    },
+    {
+      "catalogId": "mangajanai_4x_1400p",
+      "upstreamZip": "MangaJaNai_V1_FP16_ONNX.zip",
+      "memberName": "4x_MangaJaNai_1400p_V1_ESRGAN_105k.onnx",
+      "scale": 4,
+      "family": "MANGA_JANAI",
+      "bucket": 1400,
+      "arch": "ESRGAN"
+    },
+    {
+      "catalogId": "mangajanai_4x_1500p",
+      "upstreamZip": "MangaJaNai_V1_FP16_ONNX.zip",
+      "memberName": "4x_MangaJaNai_1500p_V1_ESRGAN_105k.onnx",
+      "scale": 4,
+      "family": "MANGA_JANAI",
+      "bucket": 1500,
+      "arch": "ESRGAN"
+    },
+    {
+      "catalogId": "mangajanai_4x_1600p",
+      "upstreamZip": "MangaJaNai_V1_FP16_ONNX.zip",
+      "memberName": "4x_MangaJaNai_1600p_V1_ESRGAN_70k.onnx",
+      "scale": 4,
+      "family": "MANGA_JANAI",
+      "bucket": 1600,
+      "arch": "ESRGAN"
+    },
+    {
+      "catalogId": "mangajanai_4x_1920p",
+      "upstreamZip": "MangaJaNai_V1_FP16_ONNX.zip",
+      "memberName": "4x_MangaJaNai_1920p_V1_ESRGAN_105k.onnx",
+      "scale": 4,
+      "family": "MANGA_JANAI",
+      "bucket": 1920,
+      "arch": "ESRGAN"
+    },
+    {
+      "catalogId": "mangajanai_4x_2048p",
+      "upstreamZip": "MangaJaNai_V1_FP16_ONNX.zip",
+      "memberName": "4x_MangaJaNai_2048p_V1_ESRGAN_70k.onnx",
+      "scale": 4,
+      "family": "MANGA_JANAI",
+      "bucket": 2048,
+      "arch": "ESRGAN"
+    },
+    {
+      "catalogId": "illustrationjanai_2x_v1_esrgan",
+      "upstreamZip": "IllustrationJaNai_V1_FP16_ONNX.zip",
+      "memberName": "2x_IllustrationJaNai_V1_ESRGAN_120k.onnx",
+      "scale": 2,
+      "family": "ILLUSTRATION_JANAI",
+      "bucket": null,
+      "arch": "ESRGAN"
+    },
+    {
+      "catalogId": "illustrationjanai_2x_v2standard_fdat_m_unshuffle",
+      "upstreamZip": "4x_IllustrationJaNai_V2standard_FP16_ONNX.zip",
+      "memberName": "2x_IllustrationJaNai_V2standard_FDAT_M_unshuffle_40k.onnx",
+      "scale": 2,
+      "family": "ILLUSTRATION_JANAI",
+      "bucket": null,
+      "arch": "FDAT_M"
+    },
+    {
+      "catalogId": "illustrationjanai_2x_v3denoise_span_s",
+      "upstreamZip": "IllustrationJaNai_V3denoise_FP16_ONNX.zip",
+      "memberName": "2x_IllustrationJaNai_V3denoise_SPAN_S_30k_fp16.onnx",
+      "scale": 2,
+      "family": "ILLUSTRATION_JANAI",
+      "bucket": null,
+      "arch": "SPAN_S"
+    },
+    {
+      "catalogId": "illustrationjanai_2x_v3denoise_fdat_m",
+      "upstreamZip": "IllustrationJaNai_V3denoise_FP16_ONNX.zip",
+      "memberName": "2x_IllustrationJaNai_V3denoise_FDAT_M_unshuffle_30k_fp16.onnx",
+      "scale": 2,
+      "family": "ILLUSTRATION_JANAI",
+      "bucket": null,
+      "arch": "FDAT_M"
+    },
+    {
+      "catalogId": "illustrationjanai_2x_v3detail_span_s",
+      "upstreamZip": "IllustrationJaNai_V3detail_FP16_ONNX.zip",
+      "memberName": "2x_IllustrationJaNai_V3detail_SPAN_S_40k_fp16.onnx",
+      "scale": 2,
+      "family": "ILLUSTRATION_JANAI",
+      "bucket": null,
+      "arch": "SPAN_S"
+    },
+    {
+      "catalogId": "illustrationjanai_2x_v3detail_fdat_m",
+      "upstreamZip": "IllustrationJaNai_V3detail_FP16_ONNX.zip",
+      "memberName": "2x_IllustrationJaNai_V3detail_FDAT_M_unshuffle_40k_fp16.onnx",
+      "scale": 2,
+      "family": "ILLUSTRATION_JANAI",
+      "bucket": null,
+      "arch": "FDAT_M"
+    },
+    {
+      "catalogId": "illustrationjanai_4x_v2standard_fdat_m",
+      "upstreamZip": "4x_IllustrationJaNai_V2standard_FP16_ONNX.zip",
+      "memberName": "4x_IllustrationJaNai_V2standard_FDAT_M_52k.onnx",
+      "scale": 4,
+      "family": "ILLUSTRATION_JANAI",
+      "bucket": null,
+      "arch": "FDAT_M"
+    },
+    {
+      "catalogId": "illustrationjanai_4x_v3detail_fdat_m",
+      "upstreamZip": "IllustrationJaNai_V3detail_FP16_ONNX.zip",
+      "memberName": "4x_IllustrationJaNai_V3detail_FDAT_M_40k_fp16.onnx",
+      "scale": 4,
+      "family": "ILLUSTRATION_JANAI",
+      "bucket": null,
+      "arch": "FDAT_M"
+    }
+  ]
+}

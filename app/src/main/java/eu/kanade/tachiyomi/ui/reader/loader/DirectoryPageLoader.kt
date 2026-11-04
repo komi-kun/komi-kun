@@ -22,6 +22,12 @@ internal class DirectoryPageLoader(val file: UniFile) : PageLoader() {
                 ReaderPage(i).apply {
                     stream = streamFn
                     status = Page.State.Ready
+                    // KUN --> size/mtime are part of the upscale cache identity.
+                    runCatching {
+                        sourceLength = file.length()
+                        sourceLastModified = file.lastModified()
+                    }
+                    // KUN <--
                 }
             }
             .orEmpty()
