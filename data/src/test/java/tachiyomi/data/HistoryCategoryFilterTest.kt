@@ -183,7 +183,16 @@ class HistoryCategoryFilterTest {
         ).await()
     }
 
+    /**
+     * Chapter and history row ids are offset from the manga id so a predicate that joins on the
+     * wrong column (chapter/history id instead of `mangaId`) cannot produce the expected numbers.
+     */
+    private fun chapterIdFor(mangaId: Long): Long = 100L + mangaId
+
+    private fun historyIdFor(mangaId: Long): Long = 1000L + mangaId
+
     private suspend fun SqlDriver.insertChapter(mangaId: Long) {
+        val chapterId = chapterIdFor(mangaId)
         execute(
             null,
             """
@@ -193,7 +202,7 @@ class HistoryCategoryFilterTest {
                 user_last_page_read, state_date_fetch,
                 remote_date_upload, last_modified_at, version, is_syncing
             ) VALUES (
-                $mangaId, $mangaId, '/manga/$mangaId/1', 'Chapter 1', 1.0,
+                $chapterId, $mangaId, '/manga/$mangaId/1', 'Chapter 1', 1.0,
                 1, '{}', 0, 0,
                 0, 2000,
                 2000, 10, 1, 0
@@ -207,7 +216,7 @@ class HistoryCategoryFilterTest {
         execute(
             null,
             "INSERT INTO history(id, chapter_id, manga_id, read_at, read_duration) " +
-                "VALUES ($mangaId, $mangaId, $mangaId, 3000, 60)",
+                "VALUES (${historyIdFor(mangaId)}, ${chapterIdFor(mangaId)}, $mangaId, 3000, 60)",
             0,
         ).await()
     }
