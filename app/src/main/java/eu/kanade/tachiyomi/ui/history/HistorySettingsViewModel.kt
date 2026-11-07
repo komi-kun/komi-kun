@@ -25,6 +25,7 @@ class HistorySettingsViewModel(
     // KUN -->
     val includedCategories = historyPreferences.filterIncludedCategories
     val excludedCategories = historyPreferences.filterExcludedCategories
+    val inclusionWins = historyPreferences.filterCategoryInclusionWins
 
     fun cycleCategory(category: Category) {
         when (category.id) {
@@ -35,6 +36,17 @@ class HistorySettingsViewModel(
 
             in excludedCategories.get() -> excludedCategories.getAndSet { it - category.id }
             else -> includedCategories.getAndSet { it + category.id }
+        }
+    }
+
+    fun setInclusionWins(value: Boolean) {
+        inclusionWins.set(value)
+    }
+
+    /** Clears both category lists; the precedence choice is left as it is. */
+    fun resetCategoryFilter() {
+        listOf(includedCategories, excludedCategories).forEach { preference ->
+            if (preference.get().isNotEmpty()) preference.delete()
         }
     }
     // KUN <--

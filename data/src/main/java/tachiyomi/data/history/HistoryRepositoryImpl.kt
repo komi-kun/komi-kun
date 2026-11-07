@@ -36,6 +36,7 @@ class HistoryRepositoryImpl(
         // KUN -->
         includedCategories: List<Long>,
         excludedCategories: List<Long>,
+        inclusionWins: Boolean,
         // KUN <--
     ): Flow<List<HistoryWithRelations>> {
         return database.historyViewQueries
@@ -52,6 +53,7 @@ class HistoryRepositoryImpl(
                 includedCategories = includedCategories,
                 excludedEmpty = excludedCategories.isEmpty(),
                 excludedCategories = excludedCategories,
+                inclusionWins = inclusionWins,
                 // KUN <--
                 query,
                 HistoryMapper::mapHistoryWithRelations,

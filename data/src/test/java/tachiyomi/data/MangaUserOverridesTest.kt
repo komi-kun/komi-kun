@@ -114,6 +114,7 @@ class MangaUserOverridesTest {
                         nonLibraryEntries = null,
                         includedCategories = emptyList(),
                         excludedCategories = emptyList(),
+                        inclusionWins = false,
                     )
                     .first()
                     .single()

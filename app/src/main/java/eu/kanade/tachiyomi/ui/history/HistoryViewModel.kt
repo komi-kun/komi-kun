@@ -122,6 +122,7 @@ class HistoryViewModel(
                 // KUN -->
                 includedCategories = pref.filterIncludedCategories,
                 excludedCategories = pref.filterExcludedCategories,
+                inclusionWins = pref.filterInclusionWins,
                 // KUN <--
             )
                 .distinctUntilChanged()
@@ -451,17 +452,23 @@ class HistoryViewModel(
             historyPreferences.filterUnfinishedChapter.changes(),
             historyPreferences.filterNonLibraryManga.changes(),
             // KUN -->
+            // A sixth flow is past the typed `combine` overloads, so the values arrive in an array.
+            // The category lists and the precedence flag belong to this flow so changing any of
+            // them re-runs the history query.
             historyPreferences.filterIncludedCategories.changes(),
             historyPreferences.filterExcludedCategories.changes(),
+            historyPreferences.filterCategoryInclusionWins.changes(),
             // KUN <--
-        ) { unfinishedManga, unfinishedChapter, nonLibraryManga, includedCategories, excludedCategories ->
+        ) { values ->
+            @Suppress("UNCHECKED_CAST")
             ItemPreferences(
-                filterUnfinishedManga = unfinishedManga,
-                filterUnfinishedChapter = unfinishedChapter,
-                filterNonLibraryManga = nonLibraryManga,
                 // KUN -->
-                filterIncludedCategories = includedCategories,
-                filterExcludedCategories = excludedCategories,
+                filterUnfinishedManga = values[0] as TriState,
+                filterUnfinishedChapter = values[1] as TriState,
+                filterNonLibraryManga = values[2] as TriState,
+                filterIncludedCategories = values[3] as List<Long>,
+                filterExcludedCategories = values[4] as List<Long>,
+                filterInclusionWins = values[5] as Boolean,
                 // KUN <--
             )
         }
@@ -479,6 +486,7 @@ class HistoryViewModel(
         // KUN -->
         val filterIncludedCategories: List<Long>,
         val filterExcludedCategories: List<Long>,
+        val filterInclusionWins: Boolean,
         // KUN <--
     )
     // KMK <--

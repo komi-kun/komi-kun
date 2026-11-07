@@ -325,4 +325,7 @@
     <string name="orphaned_downloads_scan_failed">Не удалось прочитать загрузки. Проверьте доступ к хранилищу и повторите попытку.</string>
     <string name="orphaned_downloads_delete_failed">Не удалось удалить выбранные файлы. Проверьте доступ к хранилищу и повторите попытку.</string>
     <string name="pref_filter_history_categories_details">Записи истории из исключённых категорий не будут показаны, даже если они также входят во включённые категории.</string>
+    <string name="pref_history_filter_inclusion_wins">Включённые категории имеют приоритет</string>
+    <string name="pref_history_filter_inclusion_wins_summary">Манга, входящая и во включённую, и в исключённую категорию, показывается, а не скрывается. Выкл.: приоритет у исключённых категорий.</string>
+    <string name="pref_history_filter_reset">Сбросить фильтр</string>
 </resources>

@@ -343,4 +343,7 @@
     <string name="orphaned_downloads_scan_failed">No se pudieron leer las descargas. Comprueba el acceso al almacenamiento e inténtalo de nuevo.</string>
     <string name="orphaned_downloads_delete_failed">No se pudieron eliminar los archivos seleccionados. Comprueba el acceso al almacenamiento e inténtalo de nuevo.</string>
     <string name="pref_filter_history_categories_details">Las entradas del historial de categorías excluidas no se mostrarán aunque también estén en alguna categoría incluida.</string>
+    <string name="pref_history_filter_inclusion_wins">Las categorías incluidas tienen prioridad</string>
+    <string name="pref_history_filter_inclusion_wins_summary">Un manga que está tanto en una categoría incluida como en una excluida se muestra en lugar de ocultarse. Desactivado: las categorías excluidas tienen prioridad.</string>
+    <string name="pref_history_filter_reset">Restablecer filtro</string>
 </resources>

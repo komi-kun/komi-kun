@@ -1,15 +1,20 @@
 package eu.kanade.presentation.category
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.toMutableStateList
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -17,6 +22,7 @@ import androidx.compose.ui.util.fastForEachIndexed
 import tachiyomi.core.common.preference.TriState
 import tachiyomi.domain.category.model.Category
 import tachiyomi.i18n.MR
+import tachiyomi.i18n.kun.KUNMR
 import tachiyomi.presentation.core.components.SettingsItemsPaddings
 import tachiyomi.presentation.core.components.TriStateItem
 import tachiyomi.presentation.core.components.material.padding
@@ -28,6 +34,10 @@ import tachiyomi.presentation.core.i18n.stringResource
  * A category is [TriState.ENABLED_IS] while it is in [includedCategories], [TriState.ENABLED_NOT]
  * while it is in [excludedCategories], and [TriState.DISABLED] otherwise. Tapping a row advances it
  * through that cycle; the persisted state is owned by [onCycleCategory].
+ *
+ * [inclusionWins] and [onInclusionWinsChange] optionally render an include-over-exclude precedence
+ * switch above the list, and [onReset] a button clearing both lists; a caller that passes neither
+ * (Updates) gets exactly the list.
  */
 @Composable
 fun ColumnScope.CategoryFilterSheetContent(
@@ -36,6 +46,9 @@ fun ColumnScope.CategoryFilterSheetContent(
     excludedCategories: List<Long>,
     onCycleCategory: (Category) -> Unit,
     description: String,
+    inclusionWins: Boolean? = null,
+    onInclusionWinsChange: ((Boolean) -> Unit)? = null,
+    onReset: (() -> Unit)? = null,
 ) {
     Text(
         description,
@@ -48,6 +61,48 @@ fun ColumnScope.CategoryFilterSheetContent(
     )
 
     HorizontalDivider(modifier = Modifier.padding(MaterialTheme.padding.extraSmall))
+
+    if (onInclusionWinsChange != null) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    horizontal = SettingsItemsPaddings.Horizontal,
+                    vertical = SettingsItemsPaddings.Vertical,
+                ),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(KUNMR.strings.pref_history_filter_inclusion_wins),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Text(
+                    text = stringResource(KUNMR.strings.pref_history_filter_inclusion_wins_summary),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+
+            Switch(
+                checked = inclusionWins == true,
+                onCheckedChange = onInclusionWinsChange,
+            )
+        }
+
+        if (onReset != null && (includedCategories.isNotEmpty() || excludedCategories.isNotEmpty())) {
+            TextButton(
+                onClick = onReset,
+                modifier = Modifier.padding(horizontal = SettingsItemsPaddings.Horizontal),
+            ) {
+                Text(stringResource(KUNMR.strings.pref_history_filter_reset))
+            }
+        }
+
+        HorizontalDivider(modifier = Modifier.padding(MaterialTheme.padding.extraSmall))
+    }
 
     if (categories.isEmpty()) {
         // Not a loading state: this list stays empty when no category has been created, so the

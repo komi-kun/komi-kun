@@ -324,4 +324,7 @@
     <string name="orphaned_downloads_scan_failed">Impossibile leggere i download. Verifica l\'accesso allo spazio di archiviazione e riprova.</string>
     <string name="orphaned_downloads_delete_failed">Impossibile eliminare i file selezionati. Verifica l\'accesso allo spazio di archiviazione e riprova.</string>
     <string name="pref_filter_history_categories_details">Le voci della cronologia nelle categorie escluse non verranno mostrate anche se sono presenti in una categoria inclusa.</string>
+    <string name="pref_history_filter_inclusion_wins">Le categorie incluse hanno la precedenza</string>
+    <string name="pref_history_filter_inclusion_wins_summary">Un manga presente sia in una categoria inclusa sia in una esclusa viene mostrato invece che nascosto. Disattivato: le categorie escluse hanno la precedenza.</string>
+    <string name="pref_history_filter_reset">Reimposta filtro</string>
 </resources>

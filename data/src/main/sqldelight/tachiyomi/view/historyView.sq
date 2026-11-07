@@ -125,6 +125,22 @@ AND (
             OR EXISTS (SELECT 1 FROM manga_category WHERE manga_category.manga_id = mangaId)
         )
     )
+    -- When inclusion wins, an explicit include match rescues the entry from an excluded category.
+    -- The include bypass (`:includedEmpty`) is deliberately not part of it: an empty include list
+    -- must not defeat exclusions.
+    OR (
+        :inclusionWins
+        AND (
+            EXISTS (
+                SELECT 1 FROM manga_category
+                WHERE manga_category.manga_id = mangaId
+                AND manga_category.category_id IN :includedCategories
+            )
+            OR (0 IN :includedCategories AND NOT EXISTS (
+                SELECT 1 FROM manga_category mc WHERE mc.manga_id = mangaId)
+            )
+        )
+    )
 )
 -- KUN <--
 AND maxReadAtChapterId = historyView.chapterId

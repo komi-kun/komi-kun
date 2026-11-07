@@ -87,6 +87,46 @@ class HistoryCategoryFilterTest {
     }
 
     @Test
+    fun `inclusion wins shows a manga in both categories and still hides excluded-only ones`() {
+        runBlocking {
+            val driver = newDriver()
+            try {
+                val database = DatabaseBindings.providesDatabase(driver)
+                driver.insertHistoryFixture()
+
+                // Default: exclusion wins, so manga 3 (in both) is hidden.
+                historyMangaIds(database, included = listOf(1L), excluded = listOf(2L)) shouldBe listOf(1L)
+                // With inclusion winning, manga 3 is shown; manga 2 (excluded only) and manga 4
+                // (uncategorised) stay hidden.
+                historyMangaIds(
+                    database,
+                    included = listOf(1L),
+                    excluded = listOf(2L),
+                    inclusionWins = true,
+                ) shouldBe listOf(1L, 3L)
+            } finally {
+                driver.close()
+            }
+        }
+    }
+
+    @Test
+    fun `inclusion wins with an empty include list still applies exclusions`() {
+        runBlocking {
+            val driver = newDriver()
+            try {
+                val database = DatabaseBindings.providesDatabase(driver)
+                driver.insertHistoryFixture()
+
+                // Nothing is explicitly included, so the include-over-exclude rescue cannot fire.
+                historyMangaIds(database, excluded = listOf(2L), inclusionWins = true) shouldBe listOf(1L, 4L)
+            } finally {
+                driver.close()
+            }
+        }
+    }
+
+    @Test
     fun `the system category selects uncategorised manga`() {
         runBlocking {
             val driver = newDriver()
@@ -106,6 +146,7 @@ class HistoryCategoryFilterTest {
         database: Database,
         included: List<Long> = emptyList(),
         excluded: List<Long> = emptyList(),
+        inclusionWins: Boolean = false,
     ): List<Long> {
         return HistoryRepositoryImpl(database)
             .getHistory(
@@ -115,6 +156,7 @@ class HistoryCategoryFilterTest {
                 nonLibraryEntries = null,
                 includedCategories = included,
                 excludedCategories = excluded,
+                inclusionWins = inclusionWins,
             )
             .first()
             .map { it.mangaId }

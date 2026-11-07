@@ -357,4 +357,7 @@
     <string name="orphaned_downloads_scan_failed">Die Downloads konnten nicht gelesen werden. Prüfe den Speicherzugriff und versuche es erneut.</string>
     <string name="orphaned_downloads_delete_failed">Die ausgewählten Dateien konnten nicht gelöscht werden. Prüfe den Speicherzugriff und versuche es erneut.</string>
     <string name="pref_filter_history_categories_details">Einträge im Verlauf, die zu ausgeschlossenen Kategorien gehören, werden nicht angezeigt, selbst wenn sie auch in einer eingeschlossenen Kategorie sind.</string>
+    <string name="pref_history_filter_inclusion_wins">Eingeschlossene Kategorien haben Vorrang</string>
+    <string name="pref_history_filter_inclusion_wins_summary">Ein Manga, der sowohl in einer eingeschlossenen als auch in einer ausgeschlossenen Kategorie ist, wird angezeigt statt ausgeblendet. Aus: ausgeschlossene Kategorien haben Vorrang.</string>
+    <string name="pref_history_filter_reset">Filter zurücksetzen</string>
 </resources>

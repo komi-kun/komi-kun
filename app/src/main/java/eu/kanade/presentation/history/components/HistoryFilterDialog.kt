@@ -119,6 +119,7 @@ private fun ColumnScope.CategoryFilterSheet(
     val allCategories by viewModel.getCategories.subscribe().collectAsState(initial = emptyList())
     val excluded by viewModel.excludedCategories.collectAsState()
     val included by viewModel.includedCategories.collectAsState()
+    val inclusionWins by viewModel.inclusionWins.collectAsState()
 
     CategoryFilterSheetContent(
         categories = allCategories,
@@ -126,6 +127,9 @@ private fun ColumnScope.CategoryFilterSheet(
         excludedCategories = excluded,
         onCycleCategory = viewModel::cycleCategory,
         description = stringResource(KUNMR.strings.pref_filter_history_categories_details),
+        inclusionWins = inclusionWins,
+        onInclusionWinsChange = viewModel::setInclusionWins,
+        onReset = viewModel::resetCategoryFilter,
     )
 }
 // KUN <--
