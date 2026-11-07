@@ -10,8 +10,8 @@ import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.PreferenceStore
 
 /**
- * The reset must write explicit empty values, not delete the keys: an absent key loses the sync
- * merge to the remote value, so a deleted reset would be undone on the next sync.
+ * The reset clears both category lists and leaves the precedence choice alone, writing an ordinary
+ * empty value to each key rather than unsetting it.
  */
 class HistoryPreferencesTest {
 
@@ -21,6 +21,7 @@ class HistoryPreferencesTest {
         val preferences = HistoryPreferences(store)
         preferences.filterIncludedCategories.set(listOf(1L, 2L))
         preferences.filterExcludedCategories.set(listOf(3L))
+        preferences.filterCategoryInclusionWins.set(true)
 
         // Positive control: the recorded value is the serialized list shape.
         assertEquals("1,2", store.serialized[HistoryPreferences.FILTER_INCLUDED_CATEGORIES_PREF_KEY])
@@ -34,6 +35,8 @@ class HistoryPreferencesTest {
         assertTrue(preferences.filterExcludedCategories.isSet())
         assertEquals("", store.serialized[HistoryPreferences.FILTER_INCLUDED_CATEGORIES_PREF_KEY])
         assertEquals("", store.serialized[HistoryPreferences.FILTER_EXCLUDED_CATEGORIES_PREF_KEY])
+        // The precedence choice is not the reset's business.
+        assertEquals(true, preferences.filterCategoryInclusionWins.get())
     }
 
     @Test

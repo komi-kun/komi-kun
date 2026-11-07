@@ -526,7 +526,7 @@ abstract class SyncService(
         return mergedSources
     }
 
-    private fun mergePreferencesLists(
+    internal fun mergePreferencesLists(
         localPreferences: List<BackupPreference>?,
         remotePreferences: List<BackupPreference>?,
     ): List<BackupPreference> {

@@ -58,9 +58,9 @@ class HistoryPreferences(
     )
 
     /**
-     * Clears both category lists with explicit empty values rather than [Preference.delete]. The
-     * explicit empty value is what survives the sync merge: an absent key would lose to the remote
-     * value and the reset would be undone on the next sync.
+     * Clears both category lists by writing an ordinary empty value instead of unsetting the keys:
+     * the reset is an explicit "no categories" selection, symmetric with the writes
+     * [cycleCategory] makes, so the stored value keeps reflecting what the user chose.
      */
     fun clearCategoryFilter() {
         filterIncludedCategories.set(emptyList())
