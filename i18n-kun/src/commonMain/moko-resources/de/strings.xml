@@ -356,4 +356,5 @@
     <string name="orphaned_downloads_scan_failed_short">Letzte Suche fehlgeschlagen</string>
     <string name="orphaned_downloads_scan_failed">Die Downloads konnten nicht gelesen werden. Prüfe den Speicherzugriff und versuche es erneut.</string>
     <string name="orphaned_downloads_delete_failed">Die ausgewählten Dateien konnten nicht gelöscht werden. Prüfe den Speicherzugriff und versuche es erneut.</string>
+    <string name="pref_filter_history_categories_details">Einträge im Verlauf, die zu ausgeschlossenen Kategorien gehören, werden nicht angezeigt, selbst wenn sie auch in einer eingeschlossenen Kategorie sind.</string>
 </resources>

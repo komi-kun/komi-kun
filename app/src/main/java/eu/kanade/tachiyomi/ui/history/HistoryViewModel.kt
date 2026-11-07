@@ -119,6 +119,10 @@ class HistoryViewModel(
                 unfinishedChapter = pref.filterUnfinishedChapter.toBooleanOrNull(),
                 nonLibraryEntries = pref.filterNonLibraryManga.toBooleanOrNull(),
                 // KMK <--
+                // KUN -->
+                includedCategories = pref.filterIncludedCategories,
+                excludedCategories = pref.filterExcludedCategories,
+                // KUN <--
             )
                 .distinctUntilChanged()
                 .catch { error ->
@@ -137,7 +141,11 @@ class HistoryViewModel(
                 prefs.filterUnfinishedChapter,
                 prefs.filterNonLibraryManga,
             )
-                .any { it != TriState.DISABLED }
+                .any { it != TriState.DISABLED } ||
+                // KUN -->
+                prefs.filterIncludedCategories.isNotEmpty() ||
+                prefs.filterExcludedCategories.isNotEmpty()
+            // KUN <--
         }
         .distinctUntilChanged()
     // KMK <--
@@ -442,11 +450,19 @@ class HistoryViewModel(
             historyPreferences.filterUnfinishedManga.changes(),
             historyPreferences.filterUnfinishedChapter.changes(),
             historyPreferences.filterNonLibraryManga.changes(),
-        ) { unfinishedManga, unfinishedChapter, nonLibraryManga ->
+            // KUN -->
+            historyPreferences.filterIncludedCategories.changes(),
+            historyPreferences.filterExcludedCategories.changes(),
+            // KUN <--
+        ) { unfinishedManga, unfinishedChapter, nonLibraryManga, includedCategories, excludedCategories ->
             ItemPreferences(
                 filterUnfinishedManga = unfinishedManga,
                 filterUnfinishedChapter = unfinishedChapter,
                 filterNonLibraryManga = nonLibraryManga,
+                // KUN -->
+                filterIncludedCategories = includedCategories,
+                filterExcludedCategories = excludedCategories,
+                // KUN <--
             )
         }
     }
@@ -460,6 +476,10 @@ class HistoryViewModel(
         val filterUnfinishedManga: TriState,
         val filterUnfinishedChapter: TriState,
         val filterNonLibraryManga: TriState,
+        // KUN -->
+        val filterIncludedCategories: List<Long>,
+        val filterExcludedCategories: List<Long>,
+        // KUN <--
     )
     // KMK <--
 

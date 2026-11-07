@@ -3,9 +3,11 @@ package tachiyomi.domain.history.service
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
+import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.core.common.preference.TriState
 import tachiyomi.core.common.preference.getEnum
+import tachiyomi.core.common.preference.getLongArray
 import tachiyomi.domain.updates.service.USE_PANORAMA_COVER_PREF
 
 @Inject
@@ -33,4 +35,16 @@ class HistoryPreferences(
         USE_PANORAMA_COVER_PREF,
         false,
     )
+
+    // KUN -->
+    val filterIncludedCategories: Preference<List<Long>> = preferenceStore.getLongArray(
+        "pref_filter_history_included_categories",
+        emptyList(),
+    )
+
+    val filterExcludedCategories: Preference<List<Long>> = preferenceStore.getLongArray(
+        "pref_filter_history_excluded_categories",
+        emptyList(),
+    )
+    // KUN <--
 }
