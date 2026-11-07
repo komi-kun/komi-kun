@@ -9,10 +9,13 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import tachiyomi.domain.history.service.HistoryPreferences
 
 class SyncManagerPreferencesTest {
 
     private val pinnedKey = SourcePreferences.PINNED_SOURCES_PREF_KEY
+    private val historyIncludedKey = HistoryPreferences.FILTER_INCLUDED_CATEGORIES_PREF_KEY
+    private val historyExcludedKey = HistoryPreferences.FILTER_EXCLUDED_CATEGORIES_PREF_KEY
 
     private fun preferences(vararg keys: String): List<BackupPreference> {
         return keys.map { BackupPreference(it, BooleanPreferenceValue(true)) }
@@ -23,6 +26,7 @@ class SyncManagerPreferencesTest {
         val filtered = SyncManager.filterSyncableAppPreferences(
             preferences(pinnedKey, "sync_library_entries"),
             syncPinnedSources = false,
+            syncHistoryCategoryFilter = false,
         )
 
         assertEquals(listOf("sync_library_entries"), filtered.map { it.key })
@@ -33,6 +37,7 @@ class SyncManagerPreferencesTest {
         val filtered = SyncManager.filterSyncableAppPreferences(
             preferences(pinnedKey, "sync_library_entries"),
             syncPinnedSources = true,
+            syncHistoryCategoryFilter = true,
         )
 
         assertTrue(pinnedKey in filtered.map { it.key })
@@ -44,6 +49,7 @@ class SyncManagerPreferencesTest {
         val filtered = SyncManager.filterSyncableAppPreferences(
             preferences("sync_service", "tablet_ui_mode", "connection_webdav_url", pinnedKey),
             syncPinnedSources = true,
+            syncHistoryCategoryFilter = true,
         )
 
         // Only the (enabled) pinned-source key survives the device-local exclusions.
@@ -93,6 +99,7 @@ class SyncManagerPreferencesTest {
                 remotePreferences = remote,
                 uploadedPreferences = upload,
                 syncPinnedSources = false,
+                syncHistoryCategoryFilter = false,
             ),
         )
     }
@@ -104,6 +111,7 @@ class SyncManagerPreferencesTest {
                 remotePreferences = preferences(pinnedKey),
                 uploadedPreferences = emptyList(),
                 syncPinnedSources = false,
+                syncHistoryCategoryFilter = false,
             ),
         )
     }
@@ -118,6 +126,7 @@ class SyncManagerPreferencesTest {
                 remotePreferences = remote,
                 uploadedPreferences = upload,
                 syncPinnedSources = false,
+                syncHistoryCategoryFilter = false,
             ),
         )
     }
@@ -129,15 +138,65 @@ class SyncManagerPreferencesTest {
                 remotePreferences = preferences(pinnedKey),
                 uploadedPreferences = emptyList(),
                 syncPinnedSources = true,
+                syncHistoryCategoryFilter = true,
             ),
         )
     }
 
     @Test
     fun `restored preference list drops the device-local pinned key`() {
-        val stripped = SyncManager.withoutDeviceLocalPinnedSources(
+        val stripped = SyncManager.withoutDeviceLocalPreferences(
             preferences(pinnedKey, "sync_library_entries"),
             syncPinnedSources = false,
+            syncHistoryCategoryFilter = false,
+        )
+
+        assertEquals(listOf("sync_library_entries"), stripped.map { it.key })
+    }
+
+    @Test
+    fun `history category filter is not uploaded when the setting is off`() {
+        val filtered = SyncManager.filterSyncableAppPreferences(
+            preferences(historyIncludedKey, historyExcludedKey, "sync_library_entries"),
+            syncPinnedSources = false,
+            syncHistoryCategoryFilter = false,
+        )
+
+        assertEquals(listOf("sync_library_entries"), filtered.map { it.key })
+    }
+
+    @Test
+    fun `history category filter is uploaded when the setting is on`() {
+        val filtered = SyncManager.filterSyncableAppPreferences(
+            preferences(historyIncludedKey, historyExcludedKey, "sync_library_entries"),
+            syncPinnedSources = false,
+            syncHistoryCategoryFilter = true,
+        )
+
+        assertEquals(
+            listOf(historyIncludedKey, historyExcludedKey, "sync_library_entries"),
+            filtered.map { it.key },
+        )
+    }
+
+    @Test
+    fun `stale remote history filter does not count as a preference change when it is device-local`() {
+        assertFalse(
+            SyncManager.hasSyncPreferenceChanges(
+                remotePreferences = preferences(historyIncludedKey),
+                uploadedPreferences = emptyList(),
+                syncPinnedSources = false,
+                syncHistoryCategoryFilter = false,
+            ),
+        )
+    }
+
+    @Test
+    fun `restored preference list drops the device-local history filter`() {
+        val stripped = SyncManager.withoutDeviceLocalPreferences(
+            preferences(historyIncludedKey, historyExcludedKey, "sync_library_entries"),
+            syncPinnedSources = false,
+            syncHistoryCategoryFilter = false,
         )
 
         assertEquals(listOf("sync_library_entries"), stripped.map { it.key })

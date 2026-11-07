@@ -3,12 +3,15 @@ package eu.kanade.tachiyomi.data.backup.restore.restorers
 
 import android.content.Context
 import eu.kanade.domain.source.service.SourcePreferences
+import eu.kanade.tachiyomi.data.backup.models.BackupCategory
 import eu.kanade.tachiyomi.data.backup.models.BackupPreference
 import eu.kanade.tachiyomi.data.backup.models.BooleanPreferenceValue
+import eu.kanade.tachiyomi.data.backup.models.StringPreferenceValue
 import eu.kanade.tachiyomi.data.backup.models.StringSetPreferenceValue
 import eu.kanade.tachiyomi.data.backup.restore.RestoreOptions
 import exh.source.EXH_OLD_ID
 import exh.source.EXH_SOURCE_ID
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -23,6 +26,8 @@ import org.junit.jupiter.api.Test
 import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.domain.category.interactor.GetCategories
+import tachiyomi.domain.category.model.Category
+import tachiyomi.domain.history.service.HistoryPreferences
 
 class PreferenceRestorerTest {
 
@@ -217,6 +222,78 @@ class PreferenceRestorerTest {
 
         verify(exactly = 1) { preference.set(true) }
     }
+
+    @Test
+    fun `history category filter ids are remapped onto this device's categories`() = runTest {
+        val key = HistoryPreferences.FILTER_INCLUDED_CATEGORIES_PREF_KEY
+        val store = StringPreferenceStore(key to "5,6")
+        val getCategories = mockk<GetCategories>()
+        coEvery { getCategories.await() } returns listOf(
+            Category(id = 7L, name = "Action", order = 0L, flags = 0L, hidden = false),
+            Category(id = 9L, name = "Drama", order = 1L, flags = 0L, hidden = false),
+        )
+
+        PreferenceRestorer(
+            context = mockk<Context>(relaxed = true),
+            getCategories = getCategories,
+            preferenceStore = store,
+        ).restorePreferences(
+            listOf(BackupPreference(key, StringPreferenceValue("5,6"))),
+            store,
+            backupCategories = listOf(
+                BackupCategory(name = "Action", id = 5L),
+                BackupCategory(name = "Drama", id = 6L),
+            ),
+            options = RestoreOptions(),
+            isAppPreferences = true,
+        )
+
+        assertEquals("7,9", store.getString(key, "").get())
+    }
+
+    @Test
+    fun `history category filter keeps the system category id and drops unknown ids`() = runTest {
+        val key = HistoryPreferences.FILTER_EXCLUDED_CATEGORIES_PREF_KEY
+        val store = StringPreferenceStore(key to "0,42")
+        val getCategories = mockk<GetCategories>()
+        coEvery { getCategories.await() } returns listOf(
+            Category(id = 9L, name = "Drama", order = 1L, flags = 0L, hidden = false),
+        )
+
+        PreferenceRestorer(
+            context = mockk<Context>(relaxed = true),
+            getCategories = getCategories,
+            preferenceStore = store,
+        ).restorePreferences(
+            listOf(BackupPreference(key, StringPreferenceValue("0,42"))),
+            store,
+            backupCategories = listOf(BackupCategory(name = "Drama", id = 6L)),
+            options = RestoreOptions(),
+            isAppPreferences = true,
+        )
+
+        assertEquals("0", store.getString(key, "").get())
+    }
+
+    @Test
+    fun `unrelated string preferences are still restored verbatim`() = runTest {
+        val key = "some_string_preference"
+        val store = StringPreferenceStore(key to "local")
+
+        PreferenceRestorer(
+            context = mockk<Context>(relaxed = true),
+            getCategories = mockk<GetCategories>(),
+            preferenceStore = store,
+        ).restorePreferences(
+            listOf(BackupPreference(key, StringPreferenceValue("remote"))),
+            store,
+            backupCategories = null,
+            options = RestoreOptions(),
+            isAppPreferences = true,
+        )
+
+        assertEquals("remote", store.getString(key, "").get())
+    }
 }
 
 /**
@@ -253,6 +330,68 @@ private class StringSetPreferenceStore(
     override fun getAll(): Map<String, *> = values.toMap()
 
     override fun getString(key: String, defaultValue: String): Preference<String> = unsupported(key)
+
+    override fun getLong(key: String, defaultValue: Long): Preference<Long> = unsupported(key)
+
+    override fun getInt(key: String, defaultValue: Int): Preference<Int> = unsupported(key)
+
+    override fun getFloat(key: String, defaultValue: Float): Preference<Float> = unsupported(key)
+
+    override fun getBoolean(key: String, defaultValue: Boolean): Preference<Boolean> = unsupported(key)
+
+    override fun <T> getObjectFromString(
+        key: String,
+        defaultValue: T,
+        serializer: (T) -> String,
+        deserializer: (String) -> T,
+    ): Preference<T> = unsupported(key)
+
+    override fun <T> getObjectFromInt(
+        key: String,
+        defaultValue: T,
+        serializer: (T) -> Int,
+        deserializer: (Int) -> T,
+    ): Preference<T> = unsupported(key)
+
+    override fun <T> getObjectSetFromStringSet(
+        key: String,
+        defaultValue: Set<T>,
+        serializer: (T) -> String,
+        deserializer: (String) -> T?,
+    ): Preference<Set<T>> = unsupported(key)
+
+    private fun unsupported(key: String): Nothing = error("Unexpected preference access: $key")
+}
+
+private class StringPreferenceStore(
+    vararg initial: Pair<String, String>,
+) : PreferenceStore {
+
+    private val values = initial.toMap().toMutableMap()
+
+    override fun getString(key: String, defaultValue: String): Preference<String> {
+        return object : Preference<String> {
+            override fun key() = key
+            override fun get() = values[key] ?: defaultValue
+            override fun set(value: String) {
+                values[key] = value
+            }
+
+            override fun isSet() = key in values
+            override fun delete() {
+                values.remove(key)
+            }
+
+            override fun defaultValue() = defaultValue
+            override fun changes(): Flow<String> = flowOf(get())
+            override fun stateIn(scope: CoroutineScope): StateFlow<String> =
+                MutableStateFlow(get())
+        }
+    }
+
+    override fun getAll(): Map<String, *> = values.toMap()
+
+    override fun getStringSet(key: String, defaultValue: Set<String>): Preference<Set<String>> = unsupported(key)
 
     override fun getLong(key: String, defaultValue: Long): Preference<Long> = unsupported(key)
 

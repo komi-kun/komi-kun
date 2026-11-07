@@ -75,6 +75,19 @@ class SyncPreferences(
         Preference.appStateKey("sync_pinned_sources"),
         false,
     )
+
+    /**
+     * Whether the History tab's category filter is synced. Off by default: the filter stores locally
+     * assigned category ids, so another device would apply ids that name a different category there.
+     * When on, both lists travel with app settings and restore remaps them by category name.
+     *
+     * App-state key: this is a per-device choice and must not be uploaded or restored with app
+     * settings, or enabling it on one device would silently enable it on all of them.
+     */
+    val syncHistoryCategoryFilter = preferenceStore.getBoolean(
+        Preference.appStateKey("sync_history_category_filter"),
+        false,
+    )
     // KUN <--
 
     val syncInterval = preferenceStore.getInt("sync_interval", 0)

@@ -359,4 +359,6 @@
     <string name="pref_history_filter_inclusion_wins">含めるカテゴリを優先</string>
     <string name="pref_history_filter_inclusion_wins_summary">含めるカテゴリと除外カテゴリの両方に属する作品を、非表示にせず表示します。オフ: 除外カテゴリを優先します。</string>
     <string name="pref_history_filter_reset">フィルターをリセット</string>
+    <string name="pref_sync_history_category_filter">履歴のカテゴリフィルターを同期</string>
+    <string name="pref_sync_history_category_filter_summary">履歴フィルターは端末ごとのカテゴリIDを使うため、オフの間はこの端末にのみ保存されます。カテゴリIDが一致する端末でのみ有効にしてください。</string>
 </resources>

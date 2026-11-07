@@ -346,4 +346,6 @@
     <string name="pref_history_filter_inclusion_wins">Les catégories incluses sont prioritaires</string>
     <string name="pref_history_filter_inclusion_wins_summary">Un manga présent à la fois dans une catégorie incluse et dans une catégorie exclue est affiché au lieu d'être masqué. Désactivé : les catégories exclues sont prioritaires.</string>
     <string name="pref_history_filter_reset">Réinitialiser le filtre</string>
+    <string name="pref_sync_history_category_filter">Synchroniser le filtre de catégories de l'historique</string>
+    <string name="pref_sync_history_category_filter_summary">Le filtre de l'historique utilise des ID de catégorie attribués localement ; il reste donc sur cet appareil sauf si cette option est activée. À activer uniquement sur des appareils dont les catégories ont les mêmes ID.</string>
 </resources>

@@ -34,6 +34,7 @@ import tachiyomi.domain.category.repository.CategoryRepository
 import tachiyomi.domain.chapter.repository.ChapterRepository
 import tachiyomi.domain.download.service.DownloadPreferences
 import tachiyomi.domain.history.repository.HistoryRepository
+import tachiyomi.domain.history.service.HistoryPreferences
 import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.sync.repository.SyncRepository
@@ -246,6 +247,7 @@ class SyncManager(
             backupPreferences = filterSyncableAppPreferences(
                 backupCreator.backupAppPreferences(backupOptions),
                 syncOptions.syncPinnedSources,
+                syncPreferences.syncHistoryCategoryFilter.get(),
             ),
             // KUN <--
             // SY <--
@@ -441,11 +443,13 @@ class SyncManager(
             backupSources = remoteBackup.backupSources.ifEmpty { backup.backupSources },
             // SY <--
             // KUN -->
-            // The server may still carry the device-local pinned-source key from when it was
-            // synced; drop it when the set is not synced so the comparison below converges.
-            backupPreferences = withoutDeviceLocalPinnedSources(
+            // The server may still carry the device-local pinned-source and History-filter keys
+            // from when they were synced; drop them when they are device-local so the comparison
+            // below converges.
+            backupPreferences = withoutDeviceLocalPreferences(
                 remoteBackup.backupPreferences,
                 syncOptions.syncPinnedSources,
+                syncPreferences.syncHistoryCategoryFilter.get(),
             ),
             // KUN <--
             backupSourcePreferences = remoteBackup.backupSourcePreferences,
@@ -494,6 +498,7 @@ class SyncManager(
             remotePreferences = remoteBackup.backupPreferences,
             uploadedPreferences = backup.backupPreferences,
             syncPinnedSources = syncOptions.syncPinnedSources,
+            syncHistoryCategoryFilter = syncPreferences.syncHistoryCategoryFilter.get(),
         )
         // KUN <--
         val hasSourcePreferenceChanges = remoteBackup.backupSourcePreferences.isNotEmpty() &&
@@ -920,13 +925,14 @@ class SyncManager(
         }
 
         /**
-         * App preferences that are safe to upload in a sync. Pinned sources are device-local unless
-         * the user enabled [SyncSettings.syncPinnedSources]; manual/file backups do not use this
+         * App preferences that are safe to upload in a sync. Pinned sources and the History category
+         * filter are device-local unless the user enabled them; manual/file backups do not use this
          * filter and still contain them.
          */
         internal fun filterSyncableAppPreferences(
             preferences: List<BackupPreference>,
             syncPinnedSources: Boolean,
+            syncHistoryCategoryFilter: Boolean,
         ): List<BackupPreference> {
             return preferences.filterNot {
                 it.key in NON_SYNCABLE_PREFERENCE_KEYS ||
@@ -934,22 +940,26 @@ class SyncManager(
                     it.key.startsWith("pref_connections_password_") ||
                     it.key in LibraryPreferences.categoryPreferenceKeys ||
                     it.key in DownloadPreferences.categoryPreferenceKeys ||
-                    (!syncPinnedSources && it.key == SourcePreferences.PINNED_SOURCES_PREF_KEY)
+                    (!syncPinnedSources && it.key == SourcePreferences.PINNED_SOURCES_PREF_KEY) ||
+                    (!syncHistoryCategoryFilter && it.key in HistoryPreferences.categoryPreferenceKeys)
             }
         }
 
         /**
-         * Drops the pinned-source preference from a server preference list when this device does
-         * not sync it. Applying the same filter to the uploaded list and to the server payload
-         * makes the change comparison converge after one sync instead of reporting the stale remote
-         * key as a difference forever.
+         * Drops the preferences this device does not sync: pinned sources and the History category
+         * filter. Applying the same filter to the uploaded list and to the server payload makes the
+         * change comparison converge after one sync instead of reporting the stale remote key as a
+         * difference forever.
          */
-        internal fun withoutDeviceLocalPinnedSources(
+        internal fun withoutDeviceLocalPreferences(
             preferences: List<BackupPreference>,
             syncPinnedSources: Boolean,
+            syncHistoryCategoryFilter: Boolean,
         ): List<BackupPreference> {
-            if (syncPinnedSources) return preferences
-            return preferences.filterNot { it.key == SourcePreferences.PINNED_SOURCES_PREF_KEY }
+            return preferences.filterNot {
+                (!syncPinnedSources && it.key == SourcePreferences.PINNED_SOURCES_PREF_KEY) ||
+                    (!syncHistoryCategoryFilter && it.key in HistoryPreferences.categoryPreferenceKeys)
+            }
         }
 
         /** Whether the server's app preferences differ from what this device uploaded. */
@@ -957,8 +967,13 @@ class SyncManager(
             remotePreferences: List<BackupPreference>,
             uploadedPreferences: List<BackupPreference>,
             syncPinnedSources: Boolean,
+            syncHistoryCategoryFilter: Boolean,
         ): Boolean {
-            val remote = withoutDeviceLocalPinnedSources(remotePreferences, syncPinnedSources)
+            val remote = withoutDeviceLocalPreferences(
+                remotePreferences,
+                syncPinnedSources,
+                syncHistoryCategoryFilter,
+            )
             return remote.isNotEmpty() && remote != uploadedPreferences
         }
     }

@@ -327,4 +327,6 @@
     <string name="pref_history_filter_inclusion_wins">Categorias incluídas têm prioridade</string>
     <string name="pref_history_filter_inclusion_wins_summary">Um mangá que está em uma categoria incluída e em uma excluída é exibido em vez de ocultado. Desativado: as categorias excluídas têm prioridade.</string>
     <string name="pref_history_filter_reset">Redefinir filtro</string>
+    <string name="pref_sync_history_category_filter">Sincronizar filtro de categorias do histórico</string>
+    <string name="pref_sync_history_category_filter_summary">O filtro do histórico usa IDs de categoria atribuídos localmente, então fica neste dispositivo a menos que isto esteja ativo. Ative apenas em dispositivos cujas categorias tenham IDs iguais.</string>
 </resources>

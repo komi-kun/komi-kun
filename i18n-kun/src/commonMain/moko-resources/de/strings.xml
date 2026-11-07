@@ -360,4 +360,6 @@
     <string name="pref_history_filter_inclusion_wins">Eingeschlossene Kategorien haben Vorrang</string>
     <string name="pref_history_filter_inclusion_wins_summary">Ein Manga, der sowohl in einer eingeschlossenen als auch in einer ausgeschlossenen Kategorie ist, wird angezeigt statt ausgeblendet. Aus: ausgeschlossene Kategorien haben Vorrang.</string>
     <string name="pref_history_filter_reset">Filter zurücksetzen</string>
+    <string name="pref_sync_history_category_filter">Verlaufs-Kategoriefilter synchronisieren</string>
+    <string name="pref_sync_history_category_filter_summary">Der Verlaufsfilter speichert lokal vergebene Kategorie-IDs und bleibt daher auf diesem Gerät, solange dies aus ist. Nur auf Geräten mit identischen Kategorie-IDs aktivieren.</string>
 </resources>

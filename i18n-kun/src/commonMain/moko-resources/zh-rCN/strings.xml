@@ -327,4 +327,6 @@
     <string name="pref_history_filter_inclusion_wins">已包含的分类优先</string>
     <string name="pref_history_filter_inclusion_wins_summary">同时属于已包含和已排除分类的漫画会显示而不是隐藏。关闭：已排除分类优先。</string>
     <string name="pref_history_filter_reset">重置筛选</string>
+    <string name="pref_sync_history_category_filter">同步历史分类筛选</string>
+    <string name="pref_sync_history_category_filter_summary">历史筛选使用本机分配的分类 ID，因此在关闭时仅保存在此设备。请只在分类 ID 一致的设备上开启。</string>
 </resources>

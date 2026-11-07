@@ -361,4 +361,7 @@
     <string name="pref_history_filter_inclusion_wins">Included categories take precedence</string>
     <string name="pref_history_filter_inclusion_wins_summary">A manga that is in both an included and an excluded category is shown instead of hidden. Off: excluded categories take precedence.</string>
     <string name="pref_history_filter_reset">Reset filter</string>
+    <!-- Sync: history category filter -->
+    <string name="pref_sync_history_category_filter">Sync history category filter</string>
+    <string name="pref_sync_history_category_filter_summary">The history filter stores locally assigned category IDs, so it stays on this device unless this is on. Only enable it on devices whose categories have matching IDs.</string>
 </resources>
