@@ -56,6 +56,16 @@ class HistoryPreferences(
         FILTER_INCLUSION_WINS_PREF_KEY,
         false,
     )
+
+    /**
+     * Clears both category lists with explicit empty values rather than [Preference.delete]. The
+     * explicit empty value is what survives the sync merge: an absent key would lose to the remote
+     * value and the reset would be undone on the next sync.
+     */
+    fun clearCategoryFilter() {
+        filterIncludedCategories.set(emptyList())
+        filterExcludedCategories.set(emptyList())
+    }
     // KUN <--
 
     // KUN -->

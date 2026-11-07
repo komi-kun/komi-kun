@@ -45,10 +45,7 @@ class HistorySettingsViewModel(
 
     /** Clears both category lists; the precedence choice is left as it is. */
     fun resetCategoryFilter() {
-        // Explicit empty values, not `delete()`: with the filter synced, an absent key loses the
-        // merge to the remote value and the reset would be undone on the next sync.
-        includedCategories.set(emptyList())
-        excludedCategories.set(emptyList())
+        historyPreferences.clearCategoryFilter()
     }
     // KUN <--
 

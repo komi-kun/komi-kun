@@ -79,7 +79,10 @@ class SyncPreferences(
     /**
      * Whether the History tab's category filter is synced. Off by default: the filter stores locally
      * assigned category ids, so another device would apply ids that name a different category there.
-     * When on, both lists travel with app settings and restore remaps them by category name.
+     *
+     * When on, both lists and the precedence flag travel with app settings and are restored
+     * verbatim; the filter therefore only lines up on devices whose category ids are identical.
+     * When off, the whole filter stays device-local.
      *
      * App-state key: this is a per-device choice and must not be uploaded or restored with app
      * settings, or enabling it on one device would silently enable it on all of them.

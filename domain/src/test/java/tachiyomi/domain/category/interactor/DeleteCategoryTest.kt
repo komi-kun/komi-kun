@@ -61,6 +61,13 @@ class DeleteCategoryTest {
         preferences.filterExcludedCategories.set(listOf(3L))
         store.writes.clear()
 
+        // Positive control: the recorder sees writes made through these preferences, so the empty
+        // assertion below cannot pass vacuously.
+        preferences.filterIncludedCategories.set(listOf(4L))
+        assertEquals(listOf(HistoryPreferences.FILTER_INCLUDED_CATEGORIES_PREF_KEY), store.writes)
+        preferences.filterIncludedCategories.set(listOf(2L))
+        store.writes.clear()
+
         val result = deleteCategory(preferences).await(1L)
 
         assertTrue(result is DeleteCategory.Result.Success)

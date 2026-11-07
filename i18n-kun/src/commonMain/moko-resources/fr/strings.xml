@@ -342,7 +342,7 @@
     <string name="orphaned_downloads_scan_failed_short">Dernière analyse échouée</string>
     <string name="orphaned_downloads_scan_failed">Impossible de lire les téléchargements. Vérifiez l\'accès au stockage et réessayez.</string>
     <string name="orphaned_downloads_delete_failed">Impossible de supprimer les fichiers sélectionnés. Vérifiez l\'accès au stockage et réessayez.</string>
-    <string name="pref_filter_history_categories_details">Touchez une catégorie pour inclure ses entrées d'historique, touchez-la à nouveau pour les exclure. Le commutateur ci-dessus décide quelle liste l'emporte quand une entrée est dans les deux.</string>
+    <string name="pref_filter_history_categories_details">Touchez une catégorie une fois pour l'inclure, deux fois pour l'exclure ; un troisième appui la neutralise. « Réinitialiser le filtre » vide les deux listes. Le commutateur ci-dessus décide quelle liste l'emporte quand une entrée est dans les deux.</string>
     <string name="pref_history_filter_inclusion_wins">Les catégories incluses sont prioritaires</string>
     <string name="pref_history_filter_inclusion_wins_summary">Un manga présent à la fois dans une catégorie incluse et dans une catégorie exclue est affiché au lieu d'être masqué. Désactivé : les catégories exclues sont prioritaires.</string>
     <string name="pref_history_filter_reset">Réinitialiser le filtre</string>
