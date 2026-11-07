@@ -328,6 +328,4 @@
     <string name="pref_history_filter_inclusion_wins">Включённые категории имеют приоритет</string>
     <string name="pref_history_filter_inclusion_wins_summary">Манга, входящая и во включённую, и в исключённую категорию, показывается, а не скрывается. Выкл.: приоритет у исключённых категорий.</string>
     <string name="pref_history_filter_reset">Сбросить фильтр</string>
-    <string name="pref_sync_history_category_filter">Синхронизировать фильтр категорий истории</string>
-    <string name="pref_sync_history_category_filter_summary">Фильтр истории использует локально назначенные ID категорий, поэтому хранится только на этом устройстве, пока параметр выключен. Включение надёжно работает только на устройствах с одинаковыми ID категорий.</string>
 </resources>

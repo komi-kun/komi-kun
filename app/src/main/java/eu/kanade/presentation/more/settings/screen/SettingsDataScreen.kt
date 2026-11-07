@@ -88,7 +88,6 @@ import tachiyomi.domain.storage.service.StorageManager.Companion.directoryAccess
 import tachiyomi.domain.storage.service.StoragePreferences
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
-import tachiyomi.i18n.kun.KUNMR
 import tachiyomi.i18n.sy.SYMR
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsState
@@ -655,16 +654,6 @@ object SettingsDataScreen : SearchableSettings {
                 title = stringResource(KMR.strings.pref_sync_pinned_sources),
                 subtitle = stringResource(KMR.strings.pref_sync_pinned_sources_summary),
                 visible = syncSettings.appSettings && syncPreferences.isSyncYomiV2(),
-            ),
-            // The History category filter stores locally assigned category ids, so it is only
-            // uploaded when the user opts in. That applies to every sync service (this screen is
-            // already inside the "a service is configured" branch), so unlike the pinned-source
-            // switch it is not gated on SyncYomi v2.
-            Preference.PreferenceItem.SwitchPreference(
-                preference = syncPreferences.syncHistoryCategoryFilter,
-                title = stringResource(KUNMR.strings.pref_sync_history_category_filter),
-                subtitle = stringResource(KUNMR.strings.pref_sync_history_category_filter_summary),
-                visible = syncSettings.appSettings,
             ),
             // KUN <--
             // KMK -->

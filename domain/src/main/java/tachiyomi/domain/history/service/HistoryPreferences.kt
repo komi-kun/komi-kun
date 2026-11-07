@@ -73,19 +73,6 @@ class HistoryPreferences(
         const val FILTER_INCLUDED_CATEGORIES_PREF_KEY = "pref_filter_history_included_categories"
         const val FILTER_EXCLUDED_CATEGORIES_PREF_KEY = "pref_filter_history_excluded_categories"
         const val FILTER_INCLUSION_WINS_PREF_KEY = "pref_filter_history_category_inclusion_wins"
-
-        /** History filter preferences whose values are local category ids. */
-        val categoryPreferenceKeys = setOf(
-            FILTER_INCLUDED_CATEGORIES_PREF_KEY,
-            FILTER_EXCLUDED_CATEGORIES_PREF_KEY,
-        )
-
-        /**
-         * The whole filter, precedence flag included: the lists and the choice of which one wins are
-         * kept per-device together, so another device cannot flip the precedence behind a device that
-         * kept its lists local.
-         */
-        val filterPreferenceKeys = categoryPreferenceKeys + FILTER_INCLUSION_WINS_PREF_KEY
     }
     // KUN <--
 }
