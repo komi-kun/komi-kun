@@ -6,6 +6,7 @@ import tachiyomi.domain.category.model.Category
 import tachiyomi.domain.category.repository.CategoryRepository
 import tachiyomi.domain.category.service.CategoryTombstones
 import tachiyomi.domain.download.service.DownloadPreferences
+import tachiyomi.domain.history.service.HistoryPreferences
 import tachiyomi.domain.library.service.LibraryPreferences
 
 class DeleteCategory(
@@ -15,6 +16,9 @@ class DeleteCategory(
     // SY -->
     private val categoryTombstones: CategoryTombstones,
     // SY <--
+    // KUN -->
+    private val historyPreferences: HistoryPreferences,
+    // KUN <--
 ) {
 
     suspend fun await(categoryId: Long): Result {
@@ -57,6 +61,19 @@ class DeleteCategory(
             if (categoryIdString !in ids) return@forEach
             preference.set(ids.minus(categoryIdString))
         }
+
+        // KUN -->
+        // The History category filter stores plain category ids, so a stale id there would keep
+        // filtering on a category that no longer exists. Only write when the id is actually present.
+        listOf(
+            historyPreferences.filterIncludedCategories,
+            historyPreferences.filterExcludedCategories,
+        ).forEach { preference ->
+            val ids = preference.get()
+            if (categoryId !in ids) return@forEach
+            preference.set(ids - categoryId)
+        }
+        // KUN <--
 
         return try {
             categoryRepository.updateAllOrders(orderedIds = orderedIds)

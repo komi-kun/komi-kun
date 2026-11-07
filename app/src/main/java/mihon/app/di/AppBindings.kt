@@ -231,11 +231,17 @@ object AppBindings {
         libraryPreferences: tachiyomi.domain.library.service.LibraryPreferences,
         downloadPreferences: tachiyomi.domain.download.service.DownloadPreferences,
         categoryTombstones: tachiyomi.domain.category.service.CategoryTombstones,
+        // KUN -->
+        historyPreferences: tachiyomi.domain.history.service.HistoryPreferences,
+        // KUN <--
     ): tachiyomi.domain.category.interactor.DeleteCategory = tachiyomi.domain.category.interactor.DeleteCategory(
         categoryRepository = categoryRepository,
         libraryPreferences = libraryPreferences,
         downloadPreferences = downloadPreferences,
         categoryTombstones = categoryTombstones,
+        // KUN -->
+        historyPreferences = historyPreferences,
+        // KUN <--
     )
     // KMK <--
     // SY <--

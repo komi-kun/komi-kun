@@ -12,21 +12,18 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.util.fastForEachIndexed
+import androidx.compose.ui.util.fastForEach
 import tachiyomi.core.common.preference.TriState
 import tachiyomi.domain.category.model.Category
-import tachiyomi.i18n.MR
 import tachiyomi.i18n.kun.KUNMR
 import tachiyomi.presentation.core.components.SettingsItemsPaddings
 import tachiyomi.presentation.core.components.TriStateItem
 import tachiyomi.presentation.core.components.material.padding
 import tachiyomi.presentation.core.i18n.stringResource
+import tachiyomi.presentation.core.screens.LoadingScreen
 
 /**
  * Tri-state category list shared by the History and Updates filter dialogs.
@@ -105,43 +102,24 @@ fun ColumnScope.CategoryFilterSheetContent(
     }
 
     if (categories.isEmpty()) {
-        // Not a loading state: this list stays empty when no category has been created, so the
-        // filter has to explain itself instead of spinning forever.
-        Text(
-            text = stringResource(MR.strings.information_empty_category_dialog),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            textAlign = TextAlign.Center,
-            style = MaterialTheme.typography.bodyMedium,
-        )
+        // since it includes the system category, this should only happen when loading is required
+        LoadingScreen(modifier = Modifier.padding(16.dp))
         return
     }
 
-    // Key the remembered tri-state list on the live category list so it is rebuilt (and stays the same
-    // size/order) when categories change while the dialog is open. Upstream origin: mihon 1d8a2b05dd
-    // ("Add category filters for Updates tab", #3589) used a keyless remember, which could throw
-    // IndexOutOfBoundsException / misalign the tri-state when allCategories changed.
-    val selected = remember(categories) {
-        categories.map { category ->
-            when (category.id) {
-                in includedCategories -> TriState.ENABLED_IS
-                in excludedCategories -> TriState.ENABLED_NOT
-                else -> TriState.DISABLED
-            }
-        }.toMutableStateList()
-    }
-
+    // Derive the tri-state from the persisted lists on every recomposition instead of snapshotting
+    // it: a change made elsewhere (sync, another dialog instance, category deletion) must show while
+    // this sheet is open, and the preference write on tap recomposes the caller with the new lists.
     Column {
-        categories.fastForEachIndexed { idx, category ->
-            val state = selected[idx]
+        categories.fastForEach { category ->
             TriStateItem(
                 label = category.visualName,
-                state = state,
-                onClick = {
-                    selected[idx] = state.next()
-                    onCycleCategory(category)
+                state = when (category.id) {
+                    in includedCategories -> TriState.ENABLED_IS
+                    in excludedCategories -> TriState.ENABLED_NOT
+                    else -> TriState.DISABLED
                 },
+                onClick = { onCycleCategory(category) },
             )
         }
     }
