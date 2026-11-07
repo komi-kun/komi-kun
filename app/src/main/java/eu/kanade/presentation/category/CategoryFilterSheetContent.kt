@@ -11,14 +11,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastForEachIndexed
 import tachiyomi.core.common.preference.TriState
 import tachiyomi.domain.category.model.Category
+import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.SettingsItemsPaddings
 import tachiyomi.presentation.core.components.TriStateItem
 import tachiyomi.presentation.core.components.material.padding
-import tachiyomi.presentation.core.screens.LoadingScreen
+import tachiyomi.presentation.core.i18n.stringResource
 
 /**
  * Tri-state category list shared by the History and Updates filter dialogs.
@@ -48,8 +50,16 @@ fun ColumnScope.CategoryFilterSheetContent(
     HorizontalDivider(modifier = Modifier.padding(MaterialTheme.padding.extraSmall))
 
     if (categories.isEmpty()) {
-        // since it includes the system category, this should only happen when loading is required
-        LoadingScreen(modifier = Modifier.padding(16.dp))
+        // Not a loading state: this list stays empty when no category has been created, so the
+        // filter has to explain itself instead of spinning forever.
+        Text(
+            text = stringResource(MR.strings.information_empty_category_dialog),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            textAlign = TextAlign.Center,
+            style = MaterialTheme.typography.bodyMedium,
+        )
         return
     }
 

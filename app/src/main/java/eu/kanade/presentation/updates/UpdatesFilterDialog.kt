@@ -147,12 +147,14 @@ private fun ColumnScope.FilterSheet(
 private fun ColumnScope.CategoryFilterSheet(
     viewModel: UpdatesSettingsViewModel,
 ) {
-    // KUN -->
-    // Rendered by the shared tri-state list so History's category tab cannot drift from this one.
     val allCategories by viewModel.getCategories.subscribe().collectAsState(initial = emptyList())
     val excluded by viewModel.updatesPreferences.filterExcludedCategories.collectAsState()
     val included by viewModel.updatesPreferences.filterIncludedCategories.collectAsState()
 
+    // KUN -->
+    // Rendering is shared with History's category tab so the two cannot drift. The shared list keeps
+    // the keyed `remember(allCategories)` fix (mihon 1d8a2b05dd, "Add category filters for Updates
+    // tab" #3589, used a keyless remember that could misalign the tri-state).
     CategoryFilterSheetContent(
         categories = allCategories,
         includedCategories = included,

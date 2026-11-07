@@ -47,14 +47,14 @@ class HistoryRepositoryImpl(
                 unfinishedChapter,
                 nonLibraryEntries,
                 // KMK <--
-                query = query,
                 // KUN -->
                 includedEmpty = includedCategories.isEmpty(),
                 includedCategories = includedCategories,
                 excludedEmpty = excludedCategories.isEmpty(),
                 excludedCategories = excludedCategories,
                 // KUN <--
-                mapper = HistoryMapper::mapHistoryWithRelations,
+                query,
+                HistoryMapper::mapHistoryWithRelations,
             )
             .subscribeToList()
     }
