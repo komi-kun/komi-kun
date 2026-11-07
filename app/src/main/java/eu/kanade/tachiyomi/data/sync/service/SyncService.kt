@@ -12,10 +12,12 @@ import eu.kanade.tachiyomi.data.backup.models.BackupPreference
 import eu.kanade.tachiyomi.data.backup.models.BackupSavedSearch
 import eu.kanade.tachiyomi.data.backup.models.BackupSource
 import eu.kanade.tachiyomi.data.backup.models.BackupSourcePreferences
+import eu.kanade.tachiyomi.data.backup.models.StringPreferenceValue
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import logcat.LogPriority
 import logcat.logcat
+import tachiyomi.domain.history.service.HistoryPreferences
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
@@ -97,7 +99,13 @@ abstract class SyncService(
         val mergedPreferencesList = if (!syncSettings.appSettings) {
             remoteSyncData.backup?.backupPreferences.orEmpty()
         } else {
-            mergePreferencesLists(localSyncData.backup?.backupPreferences, remoteSyncData.backup?.backupPreferences)
+            // KUN -->
+            mergePreferencesLists(
+                localSyncData.backup?.backupPreferences,
+                remoteSyncData.backup?.backupPreferences,
+                syncPreferences.syncHistoryCategoryFilter.get(),
+            )
+            // KUN <--
         }
 
         val mergedSourcePreferencesList = if (!syncSettings.sourceSettings) {
@@ -526,58 +534,6 @@ abstract class SyncService(
         return mergedSources
     }
 
-    private fun mergePreferencesLists(
-        localPreferences: List<BackupPreference>?,
-        remotePreferences: List<BackupPreference>?,
-    ): List<BackupPreference> {
-        val logTag = "MergePreferences"
-
-        // Create maps using key as the unique identifier
-        val localPreferencesMap = localPreferences?.associateBy { it.key } ?: emptyMap()
-        val remotePreferencesMap = remotePreferences?.associateBy { it.key } ?: emptyMap()
-
-        logcat(LogPriority.DEBUG, logTag) {
-            "Starting preferences merge. Local preferences: ${localPreferences?.size}, " +
-                "Remote preferences: ${remotePreferences?.size}"
-        }
-
-        // Merge both preferences maps
-        val mergedPreferences = (localPreferencesMap.keys + remotePreferencesMap.keys).distinct().mapNotNull { key ->
-            val localPreference = localPreferencesMap[key]
-            val remotePreference = remotePreferencesMap[key]
-
-            logcat(LogPriority.DEBUG, logTag) {
-                "Processing preference key: $key. Local preference: ${localPreference != null}, " +
-                    "Remote preference: ${remotePreference != null}"
-            }
-
-            when {
-                localPreference != null && remotePreference == null -> {
-                    logcat(LogPriority.DEBUG, logTag) { "Using local preference: ${localPreference.key}." }
-                    localPreference
-                }
-                remotePreference != null && localPreference == null -> {
-                    logcat(LogPriority.DEBUG, logTag) { "Using remote preference: ${remotePreference.key}." }
-                    remotePreference
-                }
-                else -> {
-                    // KUN -->
-                    logcat(LogPriority.DEBUG, logTag) {
-                        "Both remote and local have the same preference key: $key. Keeping remote."
-                    }
-                    remotePreference
-                    // KUN <--
-                }
-            }
-        }
-
-        logcat(LogPriority.DEBUG, logTag) {
-            "Preferences merge completed. Total merged preferences: ${mergedPreferences.size}"
-        }
-
-        return mergedPreferences
-    }
-
     private fun mergeSourcePreferencesLists(
         localPreferences: List<BackupSourcePreferences>?,
         remotePreferences: List<BackupSourcePreferences>?,
@@ -756,3 +712,95 @@ abstract class SyncService(
     }
     // KUN <--
 }
+
+// KUN -->
+/**
+ * Merges the app preference lists of the local upload and the server payload.
+ *
+ * A key both sides carry keeps the remote value, with one exception: an explicitly empty History
+ * category list is a user reset that the remote would otherwise undo on every sync, so it wins while
+ * the user syncs the History category filter. This is the `replacePinnedSources` rule (a deliberate
+ * local state beats the stored one) applied at merge time, because app preferences have no
+ * server-side merge hook.
+ *
+ * Top-level rather than a [SyncService] member so the decision can be unit-tested.
+ */
+internal fun mergePreferencesLists(
+    localPreferences: List<BackupPreference>?,
+    remotePreferences: List<BackupPreference>?,
+    syncHistoryCategoryFilter: Boolean,
+): List<BackupPreference> {
+    val logTag = "MergePreferences"
+    // Standalone (top-level) logcat overload: tag first, no `this` to derive it from.
+
+    // Create maps using key as the unique identifier
+    val localPreferencesMap = localPreferences?.associateBy { it.key } ?: emptyMap()
+    val remotePreferencesMap = remotePreferences?.associateBy { it.key } ?: emptyMap()
+
+    logcat(logTag, LogPriority.DEBUG) {
+        "Starting preferences merge. Local preferences: ${localPreferences?.size}, " +
+            "Remote preferences: ${remotePreferences?.size}"
+    }
+
+    // Merge both preferences maps
+    val mergedPreferences = (localPreferencesMap.keys + remotePreferencesMap.keys).distinct().mapNotNull { key ->
+        val localPreference = localPreferencesMap[key]
+        val remotePreference = remotePreferencesMap[key]
+
+        logcat(logTag, LogPriority.DEBUG) {
+            "Processing preference key: $key. Local preference: ${localPreference != null}, " +
+                "Remote preference: ${remotePreference != null}"
+        }
+
+        when {
+            localPreference != null && remotePreference == null -> {
+                logcat(logTag, LogPriority.DEBUG) { "Using local preference: ${localPreference.key}." }
+                localPreference
+            }
+            remotePreference != null && localPreference == null -> {
+                logcat(logTag, LogPriority.DEBUG) { "Using remote preference: ${remotePreference.key}." }
+                remotePreference
+            }
+            localPreference != null && remotePreference != null &&
+                localWinsHistoryCategoryClear(key, localPreference, remotePreference, syncHistoryCategoryFilter) -> {
+                logcat(logTag, LogPriority.DEBUG) {
+                    "Keeping the local clear of the History category filter for $key."
+                }
+                localPreference
+            }
+            else -> {
+                logcat(logTag, LogPriority.DEBUG) {
+                    "Both remote and local have the same preference key: $key. Keeping remote."
+                }
+                remotePreference
+            }
+        }
+    }
+
+    logcat(logTag, LogPriority.DEBUG) {
+        "Preferences merge completed. Total merged preferences: ${mergedPreferences.size}"
+    }
+
+    return mergedPreferences
+}
+
+/**
+ * Whether an explicit local clear of a History category list should survive the merge. Only when the
+ * filter is actually synced: with it off the payload never carries these keys from this device.
+ */
+private fun localWinsHistoryCategoryClear(
+    key: String,
+    local: BackupPreference,
+    remote: BackupPreference,
+    syncHistoryCategoryFilter: Boolean,
+): Boolean {
+    if (!syncHistoryCategoryFilter || key !in HistoryPreferences.categoryPreferenceKeys) return false
+    return local.isExplicitlyEmpty() && !remote.isExplicitlyEmpty()
+}
+
+/** The `Preference<List<Long>>` shape stores its values as a comma-joined string; empty is `""`. */
+private fun BackupPreference.isExplicitlyEmpty(): Boolean {
+    val stringValue = value as? StringPreferenceValue ?: return false
+    return stringValue.value.isEmpty()
+}
+// KUN <--

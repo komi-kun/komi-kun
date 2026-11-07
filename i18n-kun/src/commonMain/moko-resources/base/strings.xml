@@ -357,11 +357,11 @@
     <string name="orphaned_downloads_scan_failed">The downloads could not be read. Check storage access and try again.</string>
     <string name="orphaned_downloads_delete_failed">The selected files could not be deleted. Check storage access and try again.</string>
     <!-- History category filter -->
-    <string name="pref_filter_history_categories_details">History entries in excluded categories will not be shown even if they are also in any included categories.</string>
+    <string name="pref_filter_history_categories_details">Tap a category to include its history entries and tap again to exclude them. The switch above decides which list wins when an entry matches both.</string>
     <string name="pref_history_filter_inclusion_wins">Included categories take precedence</string>
     <string name="pref_history_filter_inclusion_wins_summary">A manga that is in both an included and an excluded category is shown instead of hidden. Off: excluded categories take precedence.</string>
     <string name="pref_history_filter_reset">Reset filter</string>
     <!-- Sync: history category filter -->
     <string name="pref_sync_history_category_filter">Sync history category filter</string>
-    <string name="pref_sync_history_category_filter_summary">The history filter stores locally assigned category IDs, so it stays on this device unless this is on. Only enable it on devices whose categories have matching IDs.</string>
+    <string name="pref_sync_history_category_filter_summary">The history filter stores locally assigned category IDs, so it stays on this device unless this is on. Enabling it only works reliably on devices whose categories have identical IDs.</string>
 </resources>

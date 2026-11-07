@@ -3,7 +3,6 @@ package eu.kanade.tachiyomi.data.backup.restore.restorers
 
 import android.content.Context
 import eu.kanade.domain.source.service.SourcePreferences
-import eu.kanade.tachiyomi.data.backup.models.BackupCategory
 import eu.kanade.tachiyomi.data.backup.models.BackupPreference
 import eu.kanade.tachiyomi.data.backup.models.BooleanPreferenceValue
 import eu.kanade.tachiyomi.data.backup.models.StringPreferenceValue
@@ -11,7 +10,6 @@ import eu.kanade.tachiyomi.data.backup.models.StringSetPreferenceValue
 import eu.kanade.tachiyomi.data.backup.restore.RestoreOptions
 import exh.source.EXH_OLD_ID
 import exh.source.EXH_SOURCE_ID
-import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -26,7 +24,6 @@ import org.junit.jupiter.api.Test
 import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.domain.category.interactor.GetCategories
-import tachiyomi.domain.category.model.Category
 import tachiyomi.domain.history.service.HistoryPreferences
 
 class PreferenceRestorerTest {
@@ -224,55 +221,25 @@ class PreferenceRestorerTest {
     }
 
     @Test
-    fun `history category filter ids are remapped onto this device's categories`() = runTest {
+    fun `history category filter ids are restored verbatim`() = runTest {
+        // Deliberately not remapped: a name-based remap cannot be made correct for v2 deltas that
+        // omit the category section, and it would pin the change comparison to a raw remote value.
         val key = HistoryPreferences.FILTER_INCLUDED_CATEGORIES_PREF_KEY
-        val store = StringPreferenceStore(key to "5,6")
-        val getCategories = mockk<GetCategories>()
-        coEvery { getCategories.await() } returns listOf(
-            Category(id = 7L, name = "Action", order = 0L, flags = 0L, hidden = false),
-            Category(id = 9L, name = "Drama", order = 1L, flags = 0L, hidden = false),
-        )
+        val store = StringPreferenceStore(key to "1")
 
         PreferenceRestorer(
             context = mockk<Context>(relaxed = true),
-            getCategories = getCategories,
+            getCategories = mockk<GetCategories>(relaxed = true),
             preferenceStore = store,
         ).restorePreferences(
             listOf(BackupPreference(key, StringPreferenceValue("5,6"))),
             store,
-            backupCategories = listOf(
-                BackupCategory(name = "Action", id = 5L),
-                BackupCategory(name = "Drama", id = 6L),
-            ),
+            backupCategories = null,
             options = RestoreOptions(),
             isAppPreferences = true,
         )
 
-        assertEquals("7,9", store.getString(key, "").get())
-    }
-
-    @Test
-    fun `history category filter keeps the system category id and drops unknown ids`() = runTest {
-        val key = HistoryPreferences.FILTER_EXCLUDED_CATEGORIES_PREF_KEY
-        val store = StringPreferenceStore(key to "0,42")
-        val getCategories = mockk<GetCategories>()
-        coEvery { getCategories.await() } returns listOf(
-            Category(id = 9L, name = "Drama", order = 1L, flags = 0L, hidden = false),
-        )
-
-        PreferenceRestorer(
-            context = mockk<Context>(relaxed = true),
-            getCategories = getCategories,
-            preferenceStore = store,
-        ).restorePreferences(
-            listOf(BackupPreference(key, StringPreferenceValue("0,42"))),
-            store,
-            backupCategories = listOf(BackupCategory(name = "Drama", id = 6L)),
-            options = RestoreOptions(),
-            isAppPreferences = true,
-        )
-
-        assertEquals("0", store.getString(key, "").get())
+        assertEquals("5,6", store.getString(key, "").get())
     }
 
     @Test

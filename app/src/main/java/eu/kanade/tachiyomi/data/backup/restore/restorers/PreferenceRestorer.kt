@@ -26,7 +26,6 @@ import tachiyomi.core.common.preference.plusAssign
 import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.domain.category.model.Category
 import tachiyomi.domain.download.service.DownloadPreferences
-import tachiyomi.domain.history.service.HistoryPreferences
 import tachiyomi.domain.library.service.LibraryPreferences
 
 @Inject
@@ -113,21 +112,7 @@ class PreferenceRestorer(
                     }
                     is StringPreferenceValue -> {
                         if (prefs[key] is String?) {
-                            // KUN -->
-                            // A category-id list is a comma-joined string here, so it needs the same
-                            // name-based remap the string-set category keys get; writing it verbatim
-                            // would point the filter at another device's category ids.
-                            val remapped = restoreCategoryIdList(
-                                key,
-                                value.value,
-                                preferenceStore,
-                                backupCategoriesById,
-                                categoriesByName,
-                            )
-                            if (!remapped) {
-                                preferenceStore.getString(key).set(value.value)
-                            }
-                            // KUN <--
+                            preferenceStore.getString(key).set(value.value)
                         }
                     }
                     is BooleanPreferenceValue -> {
@@ -195,40 +180,6 @@ class PreferenceRestorer(
         }
         return true
     }
-
-    // KUN -->
-    /**
-     * Remaps a comma-joined list of category ids (the `Preference<List<Long>>` shape) onto this
-     * device's categories by name, like [restoreCategoriesPreference] does for the `Set<String>`
-     * shape. The system category id 0 is a stable sentinel and is carried over; ids that match no
-     * restored category are dropped. An empty result leaves the local value alone instead of
-     * silently clearing the filter.
-     */
-    private fun restoreCategoryIdList(
-        key: String,
-        value: String,
-        preferenceStore: PreferenceStore,
-        backupCategoriesById: Map<String, BackupCategory>,
-        categoriesByName: Map<String, Category>,
-    ): Boolean {
-        if (key !in HistoryPreferences.categoryPreferenceKeys) return false
-
-        val ids = value.split(",")
-            .mapNotNull { it.toLongOrNull() }
-            .mapNotNull { id ->
-                if (id == Category.UNCATEGORIZED_ID) {
-                    id
-                } else {
-                    backupCategoriesById[id.toString()]?.name?.let { categoriesByName[it]?.id }
-                }
-            }
-
-        if (ids.isNotEmpty()) {
-            preferenceStore.getString(key).set(ids.joinToString(","))
-        }
-        return true
-    }
-    // KUN <--
 
     internal fun restorePinnedSourcesPreference(
         key: String,

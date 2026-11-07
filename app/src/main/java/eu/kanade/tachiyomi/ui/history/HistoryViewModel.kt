@@ -452,26 +452,27 @@ class HistoryViewModel(
             historyPreferences.filterUnfinishedChapter.changes(),
             historyPreferences.filterNonLibraryManga.changes(),
             // KUN -->
-            // A sixth flow is past the typed `combine` overloads, so the values arrive in an array.
-            // The category lists and the precedence flag belong to this flow so changing any of
-            // them re-runs the history query.
             historyPreferences.filterIncludedCategories.changes(),
             historyPreferences.filterExcludedCategories.changes(),
-            historyPreferences.filterCategoryInclusionWins.changes(),
             // KUN <--
-        ) { values ->
-            @Suppress("UNCHECKED_CAST")
+        ) { unfinishedManga, unfinishedChapter, nonLibraryManga, includedCategories, excludedCategories ->
             ItemPreferences(
                 // KUN -->
-                filterUnfinishedManga = values[0] as TriState,
-                filterUnfinishedChapter = values[1] as TriState,
-                filterNonLibraryManga = values[2] as TriState,
-                filterIncludedCategories = values[3] as List<Long>,
-                filterExcludedCategories = values[4] as List<Long>,
-                filterInclusionWins = values[5] as Boolean,
+                filterUnfinishedManga = unfinishedManga,
+                filterUnfinishedChapter = unfinishedChapter,
+                filterNonLibraryManga = nonLibraryManga,
+                filterIncludedCategories = includedCategories,
+                filterExcludedCategories = excludedCategories,
                 // KUN <--
             )
         }
+            // KUN -->
+            // The precedence flag is combined on afterwards so every slot above stays typed and
+            // named; an array-index `combine` could swap the two List<Long> slots silently.
+            .combine(historyPreferences.filterCategoryInclusionWins.changes()) { preferences, inclusionWins ->
+                preferences.copy(filterInclusionWins = inclusionWins)
+            }
+        // KUN <--
     }
 
     fun showFilterDialog() {
@@ -486,7 +487,8 @@ class HistoryViewModel(
         // KUN -->
         val filterIncludedCategories: List<Long>,
         val filterExcludedCategories: List<Long>,
-        val filterInclusionWins: Boolean,
+        /** Filled in by the precedence combine in [getHistoryItemPreferenceFlow]. */
+        val filterInclusionWins: Boolean = false,
         // KUN <--
     )
     // KMK <--

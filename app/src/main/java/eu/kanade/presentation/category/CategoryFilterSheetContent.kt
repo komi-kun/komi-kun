@@ -33,8 +33,8 @@ import tachiyomi.presentation.core.screens.LoadingScreen
  * through that cycle; the persisted state is owned by [onCycleCategory].
  *
  * [inclusionWins] and [onInclusionWinsChange] optionally render an include-over-exclude precedence
- * switch above the list, and [onReset] a button clearing both lists; a caller that passes neither
- * (Updates) gets exactly the list.
+ * switch above the list. [onReset] renders a "reset filter" button independently of the switch,
+ * whenever either list is non-empty. A caller that passes neither (Updates) gets exactly the list.
  */
 @Composable
 fun ColumnScope.CategoryFilterSheetContent(
@@ -88,16 +88,18 @@ fun ColumnScope.CategoryFilterSheetContent(
                 onCheckedChange = onInclusionWinsChange,
             )
         }
+    }
 
-        if (onReset != null && (includedCategories.isNotEmpty() || excludedCategories.isNotEmpty())) {
-            TextButton(
-                onClick = onReset,
-                modifier = Modifier.padding(horizontal = SettingsItemsPaddings.Horizontal),
-            ) {
-                Text(stringResource(KUNMR.strings.pref_history_filter_reset))
-            }
+    if (onReset != null && (includedCategories.isNotEmpty() || excludedCategories.isNotEmpty())) {
+        TextButton(
+            onClick = onReset,
+            modifier = Modifier.padding(horizontal = SettingsItemsPaddings.Horizontal),
+        ) {
+            Text(stringResource(KUNMR.strings.pref_history_filter_reset))
         }
+    }
 
+    if (onInclusionWinsChange != null || onReset != null) {
         HorizontalDivider(modifier = Modifier.padding(MaterialTheme.padding.extraSmall))
     }
 

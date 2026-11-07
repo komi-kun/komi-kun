@@ -926,8 +926,8 @@ class SyncManager(
 
         /**
          * App preferences that are safe to upload in a sync. Pinned sources and the History category
-         * filter are device-local unless the user enabled them; manual/file backups do not use this
-         * filter and still contain them.
+         * filter (its two lists and the precedence flag) are device-local unless the user enabled
+         * them; manual/file backups do not use this filter and still contain them.
          */
         internal fun filterSyncableAppPreferences(
             preferences: List<BackupPreference>,
@@ -941,13 +941,13 @@ class SyncManager(
                     it.key in LibraryPreferences.categoryPreferenceKeys ||
                     it.key in DownloadPreferences.categoryPreferenceKeys ||
                     (!syncPinnedSources && it.key == SourcePreferences.PINNED_SOURCES_PREF_KEY) ||
-                    (!syncHistoryCategoryFilter && it.key in HistoryPreferences.categoryPreferenceKeys)
+                    (!syncHistoryCategoryFilter && it.key in HistoryPreferences.filterPreferenceKeys)
             }
         }
 
         /**
          * Drops the preferences this device does not sync: pinned sources and the History category
-         * filter. Applying the same filter to the uploaded list and to the server payload makes the
+         * filter (its two lists and the precedence flag). Applying the same filter to the uploaded list and to the server payload makes the
          * change comparison converge after one sync instead of reporting the stale remote key as a
          * difference forever.
          */
@@ -958,7 +958,7 @@ class SyncManager(
         ): List<BackupPreference> {
             return preferences.filterNot {
                 (!syncPinnedSources && it.key == SourcePreferences.PINNED_SOURCES_PREF_KEY) ||
-                    (!syncHistoryCategoryFilter && it.key in HistoryPreferences.categoryPreferenceKeys)
+                    (!syncHistoryCategoryFilter && it.key in HistoryPreferences.filterPreferenceKeys)
             }
         }
 
