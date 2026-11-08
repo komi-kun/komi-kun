@@ -26,6 +26,7 @@ import tachiyomi.core.common.preference.plusAssign
 import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.domain.category.model.Category
 import tachiyomi.domain.download.service.DownloadPreferences
+import tachiyomi.domain.history.service.HistoryPreferences
 import tachiyomi.domain.library.service.LibraryPreferences
 
 @Inject
@@ -112,7 +113,21 @@ class PreferenceRestorer(
                     }
                     is StringPreferenceValue -> {
                         if (prefs[key] is String?) {
-                            preferenceStore.getString(key).set(value.value)
+                            // KUN -->
+                            // The History category filter is a comma-joined id list, so it goes
+                            // through the same name-based remap as the string-set category keys
+                            // above before any generic string write.
+                            val restored = restoreCategoryIdList(
+                                key,
+                                value.value,
+                                preferenceStore,
+                                backupCategoriesById,
+                                categoriesByName,
+                            )
+                            if (!restored) {
+                                preferenceStore.getString(key).set(value.value)
+                            }
+                            // KUN <--
                         }
                     }
                     is BooleanPreferenceValue -> {
@@ -180,6 +195,49 @@ class PreferenceRestorer(
         }
         return true
     }
+
+    // KUN -->
+    /**
+     * Remaps a comma-joined list of category ids (the `Preference<List<Long>>` shape) onto this
+     * device's categories by name, mirroring [restoreCategoriesPreference] for the `Set<String>`
+     * shape: backup id -> `BackupCategory` -> name -> local `Category` -> local id.
+     *
+     * The system category is a sentinel that is not in the backup category list, so [Category.UNCATEGORIZED_ID]
+     * is carried over as-is and unmappable ids are dropped. Nothing is written when the payload has no
+     * category section, or when every non-zero id was unmappable, so a restore can never collapse the
+     * filter to `"0"` or wipe it.
+     *
+     * @return true when [key] is one of the History category lists, whether or not a value was written.
+     */
+    private fun restoreCategoryIdList(
+        key: String,
+        value: String,
+        preferenceStore: PreferenceStore,
+        backupCategoriesById: Map<String, BackupCategory>,
+        categoriesByName: Map<String, Category>,
+    ): Boolean {
+        if (key !in HistoryPreferences.categoryPreferenceKeys) return false
+        if (backupCategoriesById.isEmpty()) return true
+
+        val ids = value.split(",").mapNotNull { it.toLongOrNull() }
+        val mappedNonZeroIds = ids
+            .filterNot { it == Category.UNCATEGORIZED_ID }
+            .mapNotNull { id ->
+                backupCategoriesById[id.toString()]?.name?.let { name -> categoriesByName[name]?.id }
+            }
+        if (ids.any { it != Category.UNCATEGORIZED_ID } && mappedNonZeroIds.isEmpty()) return true
+
+        val mapped = buildList {
+            if (ids.any { it == Category.UNCATEGORIZED_ID }) add(Category.UNCATEGORIZED_ID)
+            addAll(mappedNonZeroIds)
+        }.distinct()
+
+        if (mapped.isNotEmpty()) {
+            preferenceStore.getString(key).set(mapped.joinToString(","))
+        }
+        return true
+    }
+    // KUN <--
 
     internal fun restorePinnedSourcesPreference(
         key: String,

@@ -9,10 +9,14 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import tachiyomi.domain.history.service.HistoryPreferences
 
 class SyncManagerPreferencesTest {
 
     private val pinnedKey = SourcePreferences.PINNED_SOURCES_PREF_KEY
+    private val historyIncludedKey = HistoryPreferences.FILTER_INCLUDED_CATEGORIES_PREF_KEY
+    private val historyExcludedKey = HistoryPreferences.FILTER_EXCLUDED_CATEGORIES_PREF_KEY
+    private val historyInclusionWinsKey = HistoryPreferences.FILTER_INCLUSION_WINS_PREF_KEY
 
     private fun preferences(vararg keys: String): List<BackupPreference> {
         return keys.map { BackupPreference(it, BooleanPreferenceValue(true)) }
@@ -42,12 +46,31 @@ class SyncManagerPreferencesTest {
     @Test
     fun `other device-local preferences stay excluded from the sync upload`() {
         val filtered = SyncManager.filterSyncableAppPreferences(
-            preferences("sync_service", "tablet_ui_mode", "connection_webdav_url", pinnedKey),
+            preferences(
+                "sync_service",
+                "tablet_ui_mode",
+                "connection_webdav_url",
+                historyIncludedKey,
+                historyExcludedKey,
+                historyInclusionWinsKey,
+                pinnedKey,
+            ),
             syncPinnedSources = true,
         )
 
         // Only the (enabled) pinned-source key survives the device-local exclusions.
         assertEquals(listOf(pinnedKey), filtered.map { it.key })
+    }
+
+    @Test
+    fun `the history category filter never goes into the sync upload`() {
+        val filtered = SyncManager.filterSyncableAppPreferences(
+            preferences(historyIncludedKey, historyExcludedKey, historyInclusionWinsKey, "sync_library_entries"),
+            syncPinnedSources = true,
+        )
+
+        // Local category ids are meaningless elsewhere, and the precedence flag describes them.
+        assertEquals(listOf("sync_library_entries"), filtered.map { it.key })
     }
 
     @Test

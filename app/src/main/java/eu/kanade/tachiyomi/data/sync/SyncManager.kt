@@ -34,6 +34,7 @@ import tachiyomi.domain.category.repository.CategoryRepository
 import tachiyomi.domain.chapter.repository.ChapterRepository
 import tachiyomi.domain.download.service.DownloadPreferences
 import tachiyomi.domain.history.repository.HistoryRepository
+import tachiyomi.domain.history.service.HistoryPreferences
 import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.sync.repository.SyncRepository
@@ -855,6 +856,12 @@ class SyncManager(
             "pref_filter_upcoming_excluded_categories",
             "pref_filter_updates_included_categories",
             "pref_filter_updates_excluded_categories",
+            // KUN -->
+            HistoryPreferences.FILTER_INCLUDED_CATEGORIES_PREF_KEY,
+            HistoryPreferences.FILTER_EXCLUDED_CATEGORIES_PREF_KEY,
+            // The precedence flag describes those two device-local lists.
+            HistoryPreferences.FILTER_INCLUSION_WINS_PREF_KEY,
+            // KUN <--
             "discord_rpc_incognito_categories",
             "eh_enabled_categories",
             // Biometrics & screen privacy

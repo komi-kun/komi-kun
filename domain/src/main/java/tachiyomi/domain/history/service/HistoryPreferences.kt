@@ -37,11 +37,16 @@ class HistoryPreferences(
     )
 
     // KUN -->
+    /**
+     * Local category ids (the ids of this device's `category` rows). Never synced: they mean a
+     * different category elsewhere. A manual/file backup restore remaps them by category name.
+     */
     val filterIncludedCategories: Preference<List<Long>> = preferenceStore.getLongArray(
         FILTER_INCLUDED_CATEGORIES_PREF_KEY,
         emptyList(),
     )
 
+    /** Local category ids; see [filterIncludedCategories]. */
     val filterExcludedCategories: Preference<List<Long>> = preferenceStore.getLongArray(
         FILTER_EXCLUDED_CATEGORIES_PREF_KEY,
         emptyList(),
@@ -73,6 +78,12 @@ class HistoryPreferences(
         const val FILTER_INCLUDED_CATEGORIES_PREF_KEY = "pref_filter_history_included_categories"
         const val FILTER_EXCLUDED_CATEGORIES_PREF_KEY = "pref_filter_history_excluded_categories"
         const val FILTER_INCLUSION_WINS_PREF_KEY = "pref_filter_history_category_inclusion_wins"
+
+        /** History filter preferences whose values are local category ids; remapped on restore. */
+        val categoryPreferenceKeys = setOf(
+            FILTER_INCLUDED_CATEGORIES_PREF_KEY,
+            FILTER_EXCLUDED_CATEGORIES_PREF_KEY,
+        )
     }
     // KUN <--
 }
