@@ -58,8 +58,8 @@ class CategoryPreferenceRepairMigrationTest {
             historyPreferences = historyPreferences,
             updatesPreferences = updatesPreferences,
             upcomingPreferences = upcomingPreferences,
+            connectionsPreferences = connectionsPreferences,
         ),
-        connectionsPreferences = connectionsPreferences,
         getCategories = GetCategories(
             mockk<CategoryRepository>(relaxed = true).also { repository ->
                 coEvery { repository.getAll() } returns liveCategories

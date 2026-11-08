@@ -39,9 +39,9 @@ class DeleteCategory(
             .map { it.id }
 
         // KUN -->
-        // The library, download and History/Updates/Upcoming filters that store category ids — and
-        // `defaultCategory` with them — are reset in one place, because the non-v2 sync merge deletes
-        // categories without going through this interactor.
+        // The library, download, Discord incognito and History/Updates/Upcoming filters that store
+        // category ids — and `defaultCategory` with them — are reset in one place, because the
+        // non-v2 sync merge deletes categories without going through this interactor.
         pruneCategoryReferences.prune(listOf(categoryId))
         // KUN <--
 

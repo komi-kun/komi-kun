@@ -14,7 +14,6 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import dev.zacsweers.metro.Inject
-import eu.kanade.domain.connections.interactor.PruneDiscordIncognitoCategories
 import eu.kanade.domain.sync.SyncPreferences
 import eu.kanade.tachiyomi.data.SyncStatus
 import eu.kanade.tachiyomi.data.backup.create.BackupCreator
@@ -75,8 +74,6 @@ class SyncDataJob(private val context: Context, workerParams: WorkerParameters) 
 
     // KUN -->
     @Inject private lateinit var pruneCategoryReferences: PruneCategoryReferences
-
-    @Inject private lateinit var pruneDiscordIncognitoCategories: PruneDiscordIncognitoCategories
     // KUN <--
 
     @Inject private lateinit var backupCreatorFactory: BackupCreator.Factory
@@ -114,7 +111,6 @@ class SyncDataJob(private val context: Context, workerParams: WorkerParameters) 
                 getCategories = getCategories,
                 // KUN -->
                 pruneCategoryReferences = pruneCategoryReferences,
-                pruneDiscordIncognitoCategories = pruneDiscordIncognitoCategories,
                 // KUN <--
                 backupCreatorFactory = backupCreatorFactory,
                 notifier = notifier,

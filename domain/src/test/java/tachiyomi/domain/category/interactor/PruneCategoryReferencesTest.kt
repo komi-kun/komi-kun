@@ -1,9 +1,11 @@
 // KUN -->
 package tachiyomi.domain.category.interactor
 
+import eu.kanade.domain.connections.service.ConnectionsPreferences
 import kotlinx.coroutines.CoroutineScope
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import tachiyomi.core.common.preference.InMemoryPreferenceStore
 import tachiyomi.core.common.preference.Preference
@@ -16,8 +18,8 @@ import tachiyomi.domain.upcoming.service.UpcomingPreferences
 import tachiyomi.domain.updates.service.UpdatesPreferences
 
 /**
- * Category ids of deleted categories are pruned from every filter that stores them, with no write
- * when a preference does not carry the id (so nothing emits).
+ * Category ids of deleted categories are pruned from every filter that stores them — the Discord RPC
+ * incognito set included — with no write when a preference does not carry the id (so nothing emits).
  */
 class PruneCategoryReferencesTest {
 
@@ -27,12 +29,14 @@ class PruneCategoryReferencesTest {
     private val historyPreferences = HistoryPreferences(store)
     private val updatesPreferences = UpdatesPreferences(store)
     private val upcomingPreferences = UpcomingPreferences(store)
+    private val connectionsPreferences = ConnectionsPreferences(store)
     private val categoryIdPreferences = CategoryIdPreferences(
         libraryPreferences = libraryPreferences,
         downloadPreferences = downloadPreferences,
         historyPreferences = historyPreferences,
         updatesPreferences = updatesPreferences,
         upcomingPreferences = upcomingPreferences,
+        connectionsPreferences = connectionsPreferences,
     )
     private val prune = PruneCategoryReferences(
         categoryIdPreferences = categoryIdPreferences,
@@ -48,6 +52,7 @@ class PruneCategoryReferencesTest {
         downloadPreferences.removeExcludeCategories.set(stringIds)
         downloadPreferences.downloadNewChapterCategories.set(stringIds)
         downloadPreferences.downloadNewChapterCategoriesExclude.set(stringIds)
+        connectionsPreferences.discordRPCIncognitoCategories.set(stringIds)
         historyPreferences.filterIncludedCategories.set(longIds)
         historyPreferences.filterExcludedCategories.set(longIds)
         updatesPreferences.filterIncludedCategories.set(longIds)
@@ -65,6 +70,7 @@ class PruneCategoryReferencesTest {
         downloadPreferences.removeExcludeCategories.get(),
         downloadPreferences.downloadNewChapterCategories.get(),
         downloadPreferences.downloadNewChapterCategoriesExclude.get(),
+        connectionsPreferences.discordRPCIncognitoCategories.get(),
     )
 
     /** Every `Preference<List<Long>>` the interactor prunes: History, Updates and Upcoming. */
@@ -146,6 +152,62 @@ class PruneCategoryReferencesTest {
 
         assertEquals(emptyList<String>(), store.writes)
         assertFalse(libraryPreferences.defaultCategory.isSet())
+    }
+
+    @Test
+    fun `prune drops a stale Discord incognito id and keeps a live one`() {
+        // 9 is the deleted category; 2 is live. Only the Discord set is seeded, so the assertions
+        // cannot be satisfied by another preference.
+        connectionsPreferences.discordRPCIncognitoCategories.set(setOf("2", "9"))
+        store.writes.clear()
+
+        prune.prune(listOf(9L))
+
+        assertEquals(setOf("2"), connectionsPreferences.discordRPCIncognitoCategories.get())
+        assertEquals(
+            listOf("discord_rpc_incognito_categories"),
+            store.writes,
+        )
+    }
+
+    @Test
+    fun `a Discord incognito id that is a prefix of another only removes its own entry`() {
+        // The set holds strings: deleting category 1 must not touch category 10.
+        connectionsPreferences.discordRPCIncognitoCategories.set(setOf("1", "10"))
+        store.writes.clear()
+
+        prune.prune(listOf(1L))
+
+        assertEquals(setOf("10"), connectionsPreferences.discordRPCIncognitoCategories.get())
+    }
+
+    @Test
+    fun `prune leaves the Discord incognito set untouched when it has no deleted id`() {
+        connectionsPreferences.discordRPCIncognitoCategories.set(setOf("7"))
+        store.writes.clear()
+
+        prune.prune(listOf(1L))
+
+        // Not merely "wrote the same value": the store was not touched at all.
+        assertEquals(emptyList<String>(), store.writes)
+        assertEquals(setOf("7"), connectionsPreferences.discordRPCIncognitoCategories.get())
+    }
+
+    @Test
+    fun `pruning the last Discord incognito id writes an empty set rather than unsetting it`() {
+        connectionsPreferences.discordRPCIncognitoCategories.set(setOf("8"))
+        store.writes.clear()
+
+        prune.prune(listOf(8L))
+
+        // `delete()` would also leave `get()` empty; only the write can tell the two apart, and a
+        // set that is still set (empty) is what the prune expresses: "no category is incognito".
+        assertEquals(emptySet<String>(), connectionsPreferences.discordRPCIncognitoCategories.get())
+        assertTrue(connectionsPreferences.discordRPCIncognitoCategories.isSet())
+        assertEquals(
+            listOf("discord_rpc_incognito_categories"),
+            store.writes,
+        )
     }
 }
 

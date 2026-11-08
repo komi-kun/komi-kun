@@ -2,7 +2,6 @@ package eu.kanade.tachiyomi.data.sync
 
 import android.content.Context
 import android.net.Uri
-import eu.kanade.domain.connections.interactor.PruneDiscordIncognitoCategories
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.domain.sync.SyncPreferences
 import eu.kanade.domain.sync.models.SyncSettings
@@ -62,7 +61,6 @@ class SyncManager(
     private val getCategories: GetCategories,
     // KUN -->
     private val pruneCategoryReferences: PruneCategoryReferences,
-    private val pruneDiscordIncognitoCategories: PruneDiscordIncognitoCategories,
     // KUN <--
     private val backupCreatorFactory: BackupCreator.Factory,
     private val notifier: SyncNotifier,
@@ -544,10 +542,9 @@ class SyncManager(
                 categoryRepository.delete(categoriesToDelete.map { it.id })
                 // KUN -->
                 // These rows were deleted without going through DeleteCategory, so the category ids
-                // must be pruned from the library, download and history filters here too — and from
-                // the app-level Discord incognito set, which those filters cannot reach.
+                // must be pruned from the library, download, History/Updates/Upcoming and Discord
+                // incognito preferences here too.
                 pruneCategoryReferences.prune(categoriesToDelete.map { it.id })
-                pruneDiscordIncognitoCategories.prune(categoriesToDelete.map { it.id })
                 // KUN <--
                 categoriesToDelete.forEach { syncPreferences.rememberDeletedCategory(it.uid) }
             }

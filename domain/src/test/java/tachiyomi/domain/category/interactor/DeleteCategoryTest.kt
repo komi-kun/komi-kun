@@ -1,6 +1,7 @@
 // KUN -->
 package tachiyomi.domain.category.interactor
 
+import eu.kanade.domain.connections.service.ConnectionsPreferences
 import io.mockk.coEvery
 import io.mockk.mockk
 import kotlinx.coroutines.CoroutineScope
@@ -42,6 +43,7 @@ class DeleteCategoryTest {
                     historyPreferences = historyPreferences,
                     updatesPreferences = UpdatesPreferences(store),
                     upcomingPreferences = UpcomingPreferences(store),
+                    connectionsPreferences = ConnectionsPreferences(store),
                 ),
             ),
         )

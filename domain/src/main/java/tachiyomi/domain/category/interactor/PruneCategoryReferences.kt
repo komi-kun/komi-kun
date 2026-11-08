@@ -5,13 +5,15 @@ import tachiyomi.domain.category.service.CategoryIdPreferences
 
 /**
  * Removes the ids of deleted categories from every preference that stores a list of category ids:
- * the library and download update filters, the library filter tab and the History, Updates and
- * Upcoming tab filters. `LibraryPreferences.defaultCategory` stores a single id instead of a list,
- * so it is reset here too: the sync deletion path does not go through [DeleteCategory], and a stale
- * default would keep targeting a category that no longer exists.
+ * the library and download update filters, the library filter tab, the History, Updates and
+ * Upcoming tab filters and the Discord RPC incognito set. `LibraryPreferences.defaultCategory`
+ * stores a single id instead of a list, so it is reset here too: the sync deletion path does not go
+ * through [DeleteCategory], and a stale default would keep targeting a category that no longer
+ * exists.
  *
  * The inventory of pruned preferences is [CategoryIdPreferences], shared with the
- * `CategoryPreferenceRepairMigration` that repairs existing drift.
+ * `CategoryPreferenceRepairMigration` that repairs existing drift. Because the Discord set is part of
+ * it, both deletion paths prune it in this one layer — no caller has to remember it.
  *
  * Local deletions go through [DeleteCategory], but the non-v2 sync merge deletes merged-away category
  * rows directly, so the pruning has to be reachable from both. A stale id keeps filtering on a

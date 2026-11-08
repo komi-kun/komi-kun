@@ -3,6 +3,7 @@ package tachiyomi.domain.category.service
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
+import eu.kanade.domain.connections.service.ConnectionsPreferences
 import tachiyomi.core.common.preference.Preference
 import tachiyomi.domain.download.service.DownloadPreferences
 import tachiyomi.domain.history.service.HistoryPreferences
@@ -16,14 +17,15 @@ import tachiyomi.domain.updates.service.UpdatesPreferences
  * deletion) and `CategoryPreferenceRepairMigration` (the one-shot repair of existing drift) — and two
  * hand-maintained copies of the list had already started to drift.
  *
- * - [stringFilters] hold the ids as strings: the four library update/filter sets and the three
- *   download sets.
+ * - [stringFilters] hold the ids as strings: the four library update/filter sets, the three download
+ *   sets and the Discord RPC incognito set ([ConnectionsPreferences.discordRPCIncognitoCategories]).
  * - [longFilters] hold them as `List<Long>` (order kept): the History, Updates and Upcoming
  *   include/exclude pair each.
  * - [defaultCategory] is the single "add to library" default; `-1` means unset.
  *
- * The app-level Discord RPC incognito set is *not* here: it is a `ConnectionsPreferences` field in
- * `app`, which `domain` cannot reach, so its own prune and repair paths handle it separately.
+ * The Discord RPC incognito set is in [stringFilters] because `ConnectionsPreferences` lives in
+ * `:domain` too: while it was an app-level class the inventory could not carry it, so its prune ran
+ * from the app layer and could be missed.
  */
 @Inject
 @SingleIn(AppScope::class)
@@ -33,6 +35,7 @@ class CategoryIdPreferences(
     historyPreferences: HistoryPreferences,
     updatesPreferences: UpdatesPreferences,
     upcomingPreferences: UpcomingPreferences,
+    connectionsPreferences: ConnectionsPreferences,
 ) {
 
     val stringFilters: List<Preference<Set<String>>> = listOf(
@@ -43,6 +46,7 @@ class CategoryIdPreferences(
         downloadPreferences.removeExcludeCategories,
         downloadPreferences.downloadNewChapterCategories,
         downloadPreferences.downloadNewChapterCategoriesExclude,
+        connectionsPreferences.discordRPCIncognitoCategories,
     )
 
     val longFilters: List<Preference<List<Long>>> = listOf(
