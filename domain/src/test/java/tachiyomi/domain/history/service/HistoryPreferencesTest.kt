@@ -10,10 +10,20 @@ import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.PreferenceStore
 
 /**
- * The reset clears both category lists and leaves the precedence choice alone, writing an ordinary
- * empty value to each key rather than unsetting it.
+ * The filter is device-local app state: it is never synced and never written to a backup, so a
+ * restore cannot touch it. The reset clears both lists and leaves the precedence choice alone,
+ * writing an ordinary empty value to each key rather than unsetting it.
  */
 class HistoryPreferencesTest {
+
+    @Test
+    fun `the category filter preferences are app state`() {
+        val preferences = HistoryPreferences(InMemoryPreferenceStore())
+
+        assertTrue(Preference.isAppState(preferences.filterIncludedCategories.key()))
+        assertTrue(Preference.isAppState(preferences.filterExcludedCategories.key()))
+        assertTrue(Preference.isAppState(preferences.filterCategoryInclusionWins.key()))
+    }
 
     @Test
     fun `clearing the category filter writes explicit empty values`() {
@@ -24,7 +34,7 @@ class HistoryPreferencesTest {
         preferences.filterCategoryInclusionWins.set(true)
 
         // Positive control: the recorded value is the serialized list shape.
-        assertEquals("1,2", store.serialized[HistoryPreferences.FILTER_INCLUDED_CATEGORIES_PREF_KEY])
+        assertEquals("1,2", store.serialized[preferences.filterIncludedCategories.key()])
 
         preferences.clearCategoryFilter()
 
@@ -33,8 +43,8 @@ class HistoryPreferencesTest {
         // Both keys still exist, holding the explicit empty string.
         assertTrue(preferences.filterIncludedCategories.isSet())
         assertTrue(preferences.filterExcludedCategories.isSet())
-        assertEquals("", store.serialized[HistoryPreferences.FILTER_INCLUDED_CATEGORIES_PREF_KEY])
-        assertEquals("", store.serialized[HistoryPreferences.FILTER_EXCLUDED_CATEGORIES_PREF_KEY])
+        assertEquals("", store.serialized[preferences.filterIncludedCategories.key()])
+        assertEquals("", store.serialized[preferences.filterExcludedCategories.key()])
         // The precedence choice is not the reset's business.
         assertEquals(true, preferences.filterCategoryInclusionWins.get())
     }
@@ -49,7 +59,7 @@ class HistoryPreferencesTest {
 
         assertTrue(preferences.filterIncludedCategories.isSet())
         assertTrue(preferences.filterExcludedCategories.isSet())
-        assertEquals("", store.serialized[HistoryPreferences.FILTER_EXCLUDED_CATEGORIES_PREF_KEY])
+        assertEquals("", store.serialized[preferences.filterExcludedCategories.key()])
     }
 }
 

@@ -85,7 +85,7 @@ class DeleteCategoryTest {
         // Positive control: the recorder sees writes made through these preferences, so the empty
         // assertion below cannot pass vacuously.
         preferences.filterIncludedCategories.set(listOf(4L))
-        assertEquals(listOf(HistoryPreferences.FILTER_INCLUDED_CATEGORIES_PREF_KEY), store.writes)
+        assertEquals(listOf(preferences.filterIncludedCategories.key()), store.writes)
         preferences.filterIncludedCategories.set(listOf(2L))
         store.writes.clear()
 

@@ -35,7 +35,6 @@ import tachiyomi.domain.category.repository.CategoryRepository
 import tachiyomi.domain.chapter.repository.ChapterRepository
 import tachiyomi.domain.download.service.DownloadPreferences
 import tachiyomi.domain.history.repository.HistoryRepository
-import tachiyomi.domain.history.service.HistoryPreferences
 import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.sync.repository.SyncRepository
@@ -446,10 +445,9 @@ class SyncManager(
             backupSources = remoteBackup.backupSources.ifEmpty { backup.backupSources },
             // SY <--
             // KUN -->
-            // The server may still carry the device-local History filter and pinned-source keys
-            // from an earlier build or an enabled setting; drop them so the restore and the
-            // comparison below converge.
-            backupPreferences = withoutDeviceLocalPreferences(
+            // The server may still carry the device-local pinned-source key from when it was
+            // synced; drop it when the set is not synced so the comparison below converges.
+            backupPreferences = withoutDeviceLocalPinnedSources(
                 remoteBackup.backupPreferences,
                 syncOptions.syncPinnedSources,
             ),
@@ -866,11 +864,6 @@ class SyncManager(
             "pref_filter_upcoming_excluded_categories",
             "pref_filter_updates_included_categories",
             "pref_filter_updates_excluded_categories",
-            // KUN -->
-            // The precedence flag describes the History category lists; those are excluded through
-            // HistoryPreferences.categoryPreferenceKeys in filterSyncableAppPreferences.
-            HistoryPreferences.FILTER_INCLUSION_WINS_PREF_KEY,
-            // KUN <--
             "discord_rpc_incognito_categories",
             "eh_enabled_categories",
             // Biometrics & screen privacy
@@ -950,31 +943,22 @@ class SyncManager(
                     it.key.startsWith("pref_connections_password_") ||
                     it.key in LibraryPreferences.categoryPreferenceKeys ||
                     it.key in DownloadPreferences.categoryPreferenceKeys ||
-                    // KUN -->
-                    it.key in HistoryPreferences.categoryPreferenceKeys ||
-                    // KUN <--
                     (!syncPinnedSources && it.key == SourcePreferences.PINNED_SOURCES_PREF_KEY)
             }
         }
 
         /**
-         * Drops the device-local preferences from a server preference list. The History category
-         * filter is always device-local (its values are local category ids); pinned sources are
-         * unless the user syncs them. Applying the same filter to the uploaded list and to the
-         * server payload makes the change comparison converge after one sync instead of reporting
-         * the stale remote key as a difference forever.
+         * Drops the pinned-source preference from a server preference list when this device does
+         * not sync it. Applying the same filter to the uploaded list and to the server payload
+         * makes the change comparison converge after one sync instead of reporting the stale remote
+         * key as a difference forever.
          */
-        internal fun withoutDeviceLocalPreferences(
+        internal fun withoutDeviceLocalPinnedSources(
             preferences: List<BackupPreference>,
             syncPinnedSources: Boolean,
         ): List<BackupPreference> {
-            return preferences.filterNot {
-                // KUN -->
-                it.key in HistoryPreferences.categoryPreferenceKeys ||
-                    it.key == HistoryPreferences.FILTER_INCLUSION_WINS_PREF_KEY ||
-                    // KUN <--
-                    (!syncPinnedSources && it.key == SourcePreferences.PINNED_SOURCES_PREF_KEY)
-            }
+            if (syncPinnedSources) return preferences
+            return preferences.filterNot { it.key == SourcePreferences.PINNED_SOURCES_PREF_KEY }
         }
 
         /** Whether the server's app preferences differ from what this device uploaded. */
@@ -983,7 +967,7 @@ class SyncManager(
             uploadedPreferences: List<BackupPreference>,
             syncPinnedSources: Boolean,
         ): Boolean {
-            val remote = withoutDeviceLocalPreferences(remotePreferences, syncPinnedSources)
+            val remote = withoutDeviceLocalPinnedSources(remotePreferences, syncPinnedSources)
             return remote.isNotEmpty() && remote != uploadedPreferences
         }
     }

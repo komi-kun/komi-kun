@@ -45,20 +45,25 @@ class PreferenceBackupCreatorTest {
     }
 
     @Test
-    fun `manual backups still include the history category filter`() {
-        // The filter is in the sync denylist, but a manual/file backup must carry it so a restore
-        // can remap the local category ids by name.
+    fun `manual backups do not include the history category filter`() {
+        // The filter is device-local app state: it is not even in a manual/file backup, so a restore
+        // can never bring foreign category ids back.
+        val includedKey = Preference.appStateKey(HistoryPreferences.FILTER_INCLUDED_CATEGORIES_PREF_KEY)
+        val excludedKey = Preference.appStateKey(HistoryPreferences.FILTER_EXCLUDED_CATEGORIES_PREF_KEY)
+        val inclusionWinsKey = Preference.appStateKey(HistoryPreferences.FILTER_INCLUSION_WINS_PREF_KEY)
         val creator = creatorWith(
-            HistoryPreferences.FILTER_INCLUDED_CATEGORIES_PREF_KEY to "1,2",
-            HistoryPreferences.FILTER_EXCLUDED_CATEGORIES_PREF_KEY to "3",
-            HistoryPreferences.FILTER_INCLUSION_WINS_PREF_KEY to true,
+            includedKey to "1,2",
+            excludedKey to "3",
+            inclusionWinsKey to true,
+            "sync_library_entries" to true,
         )
 
         val keys = creator.createApp(includePrivatePreferences = true).map { it.key }
 
-        assertTrue(HistoryPreferences.FILTER_INCLUDED_CATEGORIES_PREF_KEY in keys)
-        assertTrue(HistoryPreferences.FILTER_EXCLUDED_CATEGORIES_PREF_KEY in keys)
-        assertTrue(HistoryPreferences.FILTER_INCLUSION_WINS_PREF_KEY in keys)
+        assertEquals(listOf("sync_library_entries"), keys)
+        assertFalse(includedKey in keys)
+        assertFalse(excludedKey in keys)
+        assertFalse(inclusionWinsKey in keys)
     }
 }
 // KUN <--
