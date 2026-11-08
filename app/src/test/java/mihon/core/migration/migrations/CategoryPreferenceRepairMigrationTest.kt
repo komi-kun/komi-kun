@@ -1,6 +1,7 @@
 // KUN -->
 package mihon.core.migration.migrations
 
+import eu.kanade.domain.connections.service.ConnectionsPreferences
 import io.mockk.coEvery
 import io.mockk.mockk
 import kotlinx.coroutines.CoroutineScope
@@ -24,9 +25,10 @@ import tachiyomi.domain.upcoming.service.UpcomingPreferences
 import tachiyomi.domain.updates.service.UpdatesPreferences
 
 /**
- * The one-shot repair removes category ids that no longer exist from every category-id preference —
- * including the History/Updates/Upcoming `List<Long>` filters the 73f cleanup skipped — and leaves a
- * clean store untouched, so it is idempotent.
+ * The one-shot repair removes category ids that no longer exist from the category-id preferences —
+ * the seven `Set<String>` filters, the Discord RPC incognito set, the History/Updates/Upcoming
+ * `List<Long>` filters the 73f cleanup skipped, and `defaultCategory` — and leaves a clean store
+ * untouched, so it is idempotent.
  *
  * The category table is faked: [GetCategories] is the real interactor over a mocked repository whose
  * `getAll()` returns the rows a real database would (the schema seeds the system category, id 0).
@@ -39,6 +41,7 @@ class CategoryPreferenceRepairMigrationTest {
     private val historyPreferences = HistoryPreferences(store)
     private val updatesPreferences = UpdatesPreferences(store)
     private val upcomingPreferences = UpcomingPreferences(store)
+    private val connectionsPreferences = ConnectionsPreferences(store)
 
     /** Live categories, as `getCategories.await()` returns them: the system category included. */
     private val liveCategories = listOf(
@@ -53,6 +56,7 @@ class CategoryPreferenceRepairMigrationTest {
         historyPreferences = historyPreferences,
         updatesPreferences = updatesPreferences,
         upcomingPreferences = upcomingPreferences,
+        connectionsPreferences = connectionsPreferences,
         getCategories = GetCategories(
             mockk<CategoryRepository>(relaxed = true).also { repository ->
                 coEvery { repository.getAll() } returns liveCategories
@@ -77,6 +81,7 @@ class CategoryPreferenceRepairMigrationTest {
         downloadPreferences.removeExcludeCategories.set(stringIds)
         downloadPreferences.downloadNewChapterCategories.set(stringIds)
         downloadPreferences.downloadNewChapterCategoriesExclude.set(stringIds)
+        connectionsPreferences.discordRPCIncognitoCategories.set(stringIds)
         historyPreferences.filterIncludedCategories.set(ids)
         historyPreferences.filterExcludedCategories.set(ids)
         updatesPreferences.filterIncludedCategories.set(ids)
@@ -94,6 +99,7 @@ class CategoryPreferenceRepairMigrationTest {
         downloadPreferences.removeExcludeCategories.get(),
         downloadPreferences.downloadNewChapterCategories.get(),
         downloadPreferences.downloadNewChapterCategoriesExclude.get(),
+        connectionsPreferences.discordRPCIncognitoCategories.get(),
     )
 
     private fun longFilterValues(): List<List<Long>> = listOf(
@@ -124,6 +130,20 @@ class CategoryPreferenceRepairMigrationTest {
 
         assertFalse(libraryPreferences.defaultCategory.isSet())
         assertEquals(-1, libraryPreferences.defaultCategory.get())
+    }
+
+    @Test
+    fun `a stale id is dropped from the Discord incognito set and a live id kept`() = runBlocking {
+        // 9 is a deleted category; 2 is live. Only the Discord set is seeded, so the assertion
+        // cannot be satisfied by another preference.
+        connectionsPreferences.discordRPCIncognitoCategories.set(setOf("2", "9"))
+        store.writes.clear()
+
+        migration.invoke(MigrationContext(dryrun = false, previousVersion = 84))
+
+        assertEquals(setOf("2"), connectionsPreferences.discordRPCIncognitoCategories.get())
+        // It is a category-id preference like the others: one write, for the set that changed.
+        assertEquals(listOf("discord_rpc_incognito_categories"), store.writes)
     }
 
     @Test

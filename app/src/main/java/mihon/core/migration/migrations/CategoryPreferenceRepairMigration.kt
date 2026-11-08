@@ -4,6 +4,7 @@ package mihon.core.migration.migrations
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesIntoSet
 import dev.zacsweers.metro.Inject
+import eu.kanade.domain.connections.service.ConnectionsPreferences
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import mihon.core.migration.Migration
@@ -16,8 +17,16 @@ import tachiyomi.domain.upcoming.service.UpcomingPreferences
 import tachiyomi.domain.updates.service.UpdatesPreferences
 
 /**
- * Removes the ids of categories that no longer exist from every preference that stores category ids,
- * once, on upgrade.
+ * Removes the ids of categories that no longer exist from the preferences that store category ids,
+ * once, on upgrade. The covered preferences are:
+ *
+ * - the seven `Set<String>` filters: `updateCategories`, `updateCategoriesExclude`,
+ *   `filterCategoriesInclude`, `filterCategoriesExclude` (library),
+ *   `removeExcludeCategories`, `downloadNewChapterCategories`,
+ *   `downloadNewChapterCategoriesExclude` (download);
+ * - `discordRPCIncognitoCategories`, the Discord RPC incognito set ([ConnectionsPreferences]);
+ * - the six `List<Long>` filters: the History, Updates and Upcoming include/exclude filters;
+ * - `defaultCategory` (library), which stores a single id.
  *
  * [CategoryPreferencesCleanupMigration] (73f) only covered the library/download `Set<String>` filters
  * and `defaultCategory`; the History, Updates and Upcoming `List<Long>` filters it skipped can still
@@ -30,6 +39,12 @@ import tachiyomi.domain.updates.service.UpdatesPreferences
  * can safely run twice. A fresh install never reaches it: `Migrator` seeds `applied` from the stored
  * version code, and `0` selects the [mihon.core.migration.InitialMigrationStrategy], which runs only
  * the `isAlways` migrations.
+ *
+ * This repairs existing drift only. `PruneCategoryReferences` is the steady-state path (reached from
+ * `DeleteCategory` and the sync merge) and it lives in `domain`, where `ConnectionsPreferences` —
+ * an app-level holder — is not reachable; so a category deleted *after* this migration still leaves
+ * its id in `discordRPCIncognitoCategories`. Moving that preference into `domain`, or adding an
+ * app-level prune path, is what would close the gap for future deletions.
  */
 @Inject
 @ContributesIntoSet(AppScope::class)
@@ -39,6 +54,7 @@ class CategoryPreferenceRepairMigration(
     private val historyPreferences: HistoryPreferences,
     private val updatesPreferences: UpdatesPreferences,
     private val upcomingPreferences: UpcomingPreferences,
+    private val connectionsPreferences: ConnectionsPreferences,
     private val getCategories: GetCategories,
 ) : Migration {
     override val version: Float = 85f
@@ -56,6 +72,9 @@ class CategoryPreferenceRepairMigration(
             downloadPreferences.removeExcludeCategories,
             downloadPreferences.downloadNewChapterCategories,
             downloadPreferences.downloadNewChapterCategoriesExclude,
+            // App-level (`ConnectionsPreferences`), so `domain`'s prune never touches it — this
+            // migration repairs its existing drift, not future deletions.
+            connectionsPreferences.discordRPCIncognitoCategories,
         )
         stringPreferences.forEach { preference ->
             val ids = preference.get()
