@@ -10,6 +10,8 @@ import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.domain.download.service.DownloadPreferences
 import tachiyomi.domain.history.service.HistoryPreferences
 import tachiyomi.domain.library.service.LibraryPreferences
+import tachiyomi.domain.upcoming.service.UpcomingPreferences
+import tachiyomi.domain.updates.service.UpdatesPreferences
 
 /**
  * Category ids of deleted categories are pruned from every filter that stores them, with no write
@@ -21,7 +23,15 @@ class PruneCategoryReferencesTest {
     private val libraryPreferences = LibraryPreferences(store)
     private val downloadPreferences = DownloadPreferences(store)
     private val historyPreferences = HistoryPreferences(store)
-    private val prune = PruneCategoryReferences(libraryPreferences, downloadPreferences, historyPreferences)
+    private val updatesPreferences = UpdatesPreferences(store)
+    private val upcomingPreferences = UpcomingPreferences(store)
+    private val prune = PruneCategoryReferences(
+        libraryPreferences = libraryPreferences,
+        downloadPreferences = downloadPreferences,
+        historyPreferences = historyPreferences,
+        updatesPreferences = updatesPreferences,
+        upcomingPreferences = upcomingPreferences,
+    )
 
     private fun seedAll(ids: List<String>) {
         val stringIds = ids.toSet()
@@ -35,6 +45,10 @@ class PruneCategoryReferencesTest {
         downloadPreferences.downloadNewChapterCategoriesExclude.set(stringIds)
         historyPreferences.filterIncludedCategories.set(longIds)
         historyPreferences.filterExcludedCategories.set(longIds)
+        updatesPreferences.filterIncludedCategories.set(longIds)
+        updatesPreferences.filterExcludedCategories.set(longIds)
+        upcomingPreferences.filterIncludedCategories.set(longIds)
+        upcomingPreferences.filterExcludedCategories.set(longIds)
         store.writes.clear()
     }
 
@@ -48,9 +62,14 @@ class PruneCategoryReferencesTest {
         downloadPreferences.downloadNewChapterCategoriesExclude.get(),
     )
 
-    private fun historyFilterValues(): List<List<Long>> = listOf(
+    /** Every `Preference<List<Long>>` the interactor prunes: History, Updates and Upcoming. */
+    private fun longFilterValues(): List<List<Long>> = listOf(
         historyPreferences.filterIncludedCategories.get(),
         historyPreferences.filterExcludedCategories.get(),
+        updatesPreferences.filterIncludedCategories.get(),
+        updatesPreferences.filterExcludedCategories.get(),
+        upcomingPreferences.filterIncludedCategories.get(),
+        upcomingPreferences.filterExcludedCategories.get(),
     )
 
     @Test
@@ -61,7 +80,7 @@ class PruneCategoryReferencesTest {
         prune.prune(listOf(1L, 2L))
 
         stringFilterValues().forEach { assertEquals(setOf("3"), it) }
-        historyFilterValues().forEach { assertEquals(listOf(3L), it) }
+        longFilterValues().forEach { assertEquals(listOf(3L), it) }
     }
 
     @Test
@@ -84,7 +103,7 @@ class PruneCategoryReferencesTest {
 
         assertEquals(emptyList<String>(), store.writes)
         stringFilterValues().forEach { assertEquals(setOf("1", "2", "3"), it) }
-        historyFilterValues().forEach { assertEquals(listOf(1L, 2L, 3L), it) }
+        longFilterValues().forEach { assertEquals(listOf(1L, 2L, 3L), it) }
     }
 }
 

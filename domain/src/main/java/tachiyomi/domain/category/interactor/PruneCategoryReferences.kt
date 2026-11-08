@@ -4,9 +4,14 @@ import dev.zacsweers.metro.Inject
 import tachiyomi.domain.download.service.DownloadPreferences
 import tachiyomi.domain.history.service.HistoryPreferences
 import tachiyomi.domain.library.service.LibraryPreferences
+import tachiyomi.domain.upcoming.service.UpcomingPreferences
+import tachiyomi.domain.updates.service.UpdatesPreferences
 
 /**
- * Removes the ids of deleted categories from every preference that stores category ids.
+ * Removes the ids of deleted categories from every preference that stores a list of category ids:
+ * the library and download update filters, the library filter tab and the History, Updates and
+ * Upcoming tab filters. `LibraryPreferences.defaultCategory` is a single Int id and is reset by
+ * [DeleteCategory], not by this list.
  *
  * Local deletions go through [DeleteCategory], but the non-v2 sync merge deletes merged-away category
  * rows directly, so the pruning has to be reachable from both. A stale id keeps filtering on a
@@ -21,6 +26,8 @@ class PruneCategoryReferences(
     private val libraryPreferences: LibraryPreferences,
     private val downloadPreferences: DownloadPreferences,
     private val historyPreferences: HistoryPreferences,
+    private val updatesPreferences: UpdatesPreferences,
+    private val upcomingPreferences: UpcomingPreferences,
 ) {
 
     fun prune(categoryIds: Collection<Long>) {
@@ -45,6 +52,10 @@ class PruneCategoryReferences(
         listOf(
             historyPreferences.filterIncludedCategories,
             historyPreferences.filterExcludedCategories,
+            updatesPreferences.filterIncludedCategories,
+            updatesPreferences.filterExcludedCategories,
+            upcomingPreferences.filterIncludedCategories,
+            upcomingPreferences.filterExcludedCategories,
         ).forEach { preference ->
             val ids = preference.get()
             val remaining = ids - categoryIdSet

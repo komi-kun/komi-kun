@@ -16,6 +16,8 @@ import tachiyomi.domain.category.service.CategoryTombstones
 import tachiyomi.domain.download.service.DownloadPreferences
 import tachiyomi.domain.history.service.HistoryPreferences
 import tachiyomi.domain.library.service.LibraryPreferences
+import tachiyomi.domain.upcoming.service.UpcomingPreferences
+import tachiyomi.domain.updates.service.UpdatesPreferences
 
 /**
  * Deleting a category must not leave its id behind in the History category filter: the filter stores
@@ -26,8 +28,8 @@ class DeleteCategoryTest {
     private fun deleteCategory(
         historyPreferences: HistoryPreferences,
         categoryRepository: CategoryRepository = mockk(relaxed = true),
+        store: PreferenceStore = InMemoryPreferenceStore(),
     ): DeleteCategory {
-        val store = InMemoryPreferenceStore()
         return DeleteCategory(
             categoryRepository = categoryRepository,
             libraryPreferences = LibraryPreferences(store),
@@ -36,6 +38,8 @@ class DeleteCategoryTest {
                 libraryPreferences = LibraryPreferences(store),
                 downloadPreferences = DownloadPreferences(store),
                 historyPreferences = historyPreferences,
+                updatesPreferences = UpdatesPreferences(store),
+                upcomingPreferences = UpcomingPreferences(store),
             ),
         )
     }
@@ -54,6 +58,20 @@ class DeleteCategoryTest {
         assertTrue(result is DeleteCategory.Result.Success)
         assertEquals(listOf(2L), preferences.filterIncludedCategories.get())
         assertEquals(listOf(3L), preferences.filterExcludedCategories.get())
+    }
+
+    @Test
+    fun `deleting a category also prunes the library and download filters`() = runTest {
+        val store = InMemoryPreferenceStore()
+        val libraryPreferences = LibraryPreferences(store)
+        val downloadPreferences = DownloadPreferences(store)
+        libraryPreferences.updateCategories.set(setOf("1", "2"))
+        downloadPreferences.removeExcludeCategories.set(setOf("1", "3"))
+
+        deleteCategory(HistoryPreferences(store), store = store).await(1L)
+
+        assertEquals(setOf("2"), libraryPreferences.updateCategories.get())
+        assertEquals(setOf("3"), downloadPreferences.removeExcludeCategories.get())
     }
 
     @Test
@@ -117,6 +135,10 @@ private class TrackingPreferenceStore(
 
     val writes = mutableListOf<String>()
 
+    override fun getStringSet(key: String, defaultValue: Set<String>): Preference<Set<String>> {
+        return track(key, delegate.getStringSet(key, defaultValue))
+    }
+
     override fun <T> getObjectFromString(
         key: String,
         defaultValue: T,
@@ -124,6 +146,10 @@ private class TrackingPreferenceStore(
         deserializer: (String) -> T,
     ): Preference<T> {
         val preference = delegate.getObjectFromString(key, defaultValue, serializer, deserializer)
+        return track(key, preference)
+    }
+
+    private fun <T> track(key: String, preference: Preference<T>): Preference<T> {
         return object : Preference<T> {
             override fun key() = preference.key()
             override fun get() = preference.get()
