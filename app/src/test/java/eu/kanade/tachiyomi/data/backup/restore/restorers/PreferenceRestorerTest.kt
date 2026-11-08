@@ -5,6 +5,7 @@ import android.content.Context
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.tachiyomi.data.backup.models.BackupPreference
 import eu.kanade.tachiyomi.data.backup.models.BooleanPreferenceValue
+import eu.kanade.tachiyomi.data.backup.models.StringPreferenceValue
 import eu.kanade.tachiyomi.data.backup.models.StringSetPreferenceValue
 import eu.kanade.tachiyomi.data.backup.restore.RestoreOptions
 import exh.source.EXH_OLD_ID
@@ -20,9 +21,11 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
+import tachiyomi.core.common.preference.InMemoryPreferenceStore
 import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.domain.category.interactor.GetCategories
+import tachiyomi.domain.history.service.HistoryPreferences
 
 class PreferenceRestorerTest {
 
@@ -198,6 +201,25 @@ class PreferenceRestorerTest {
     }
 
     @Test
+    fun `the history category filter is app state and is not restored`() = runTest {
+        // The filter lives on one device only: a payload carrying it must not write it back. The key
+        // comes from the real preference, so one that loses its app-state wrapper fails this test.
+        val key = HistoryPreferences(InMemoryPreferenceStore()).filterIncludedCategories.key()
+        val store = mockk<PreferenceStore>(relaxed = true)
+        every { store.getAll() } returns mapOf(key to "1,2")
+
+        restorer(store).restorePreferences(
+            listOf(BackupPreference(key, StringPreferenceValue("5,6"))),
+            store,
+            backupCategories = null,
+            options = RestoreOptions(),
+            isAppPreferences = true,
+        )
+
+        verify(exactly = 0) { store.getString(key) }
+    }
+
+    @Test
     fun `app-state-like source preference keys are still restored`() = runTest {
         // Source preferences are namespaced separately; the app-state guard must not drop them.
         val key = Preference.appStateKey("source_option")
@@ -216,6 +238,26 @@ class PreferenceRestorerTest {
         )
 
         verify(exactly = 1) { preference.set(true) }
+    }
+
+    @Test
+    fun `unrelated string preferences are still restored verbatim`() = runTest {
+        val key = "some_string_preference"
+        val store = StringPreferenceStore(key to "local")
+
+        PreferenceRestorer(
+            context = mockk<Context>(relaxed = true),
+            getCategories = mockk<GetCategories>(),
+            preferenceStore = store,
+        ).restorePreferences(
+            listOf(BackupPreference(key, StringPreferenceValue("remote"))),
+            store,
+            backupCategories = null,
+            options = RestoreOptions(),
+            isAppPreferences = true,
+        )
+
+        assertEquals("remote", store.getString(key, "").get())
     }
 }
 
@@ -253,6 +295,68 @@ private class StringSetPreferenceStore(
     override fun getAll(): Map<String, *> = values.toMap()
 
     override fun getString(key: String, defaultValue: String): Preference<String> = unsupported(key)
+
+    override fun getLong(key: String, defaultValue: Long): Preference<Long> = unsupported(key)
+
+    override fun getInt(key: String, defaultValue: Int): Preference<Int> = unsupported(key)
+
+    override fun getFloat(key: String, defaultValue: Float): Preference<Float> = unsupported(key)
+
+    override fun getBoolean(key: String, defaultValue: Boolean): Preference<Boolean> = unsupported(key)
+
+    override fun <T> getObjectFromString(
+        key: String,
+        defaultValue: T,
+        serializer: (T) -> String,
+        deserializer: (String) -> T,
+    ): Preference<T> = unsupported(key)
+
+    override fun <T> getObjectFromInt(
+        key: String,
+        defaultValue: T,
+        serializer: (T) -> Int,
+        deserializer: (Int) -> T,
+    ): Preference<T> = unsupported(key)
+
+    override fun <T> getObjectSetFromStringSet(
+        key: String,
+        defaultValue: Set<T>,
+        serializer: (T) -> String,
+        deserializer: (String) -> T?,
+    ): Preference<Set<T>> = unsupported(key)
+
+    private fun unsupported(key: String): Nothing = error("Unexpected preference access: $key")
+}
+
+private class StringPreferenceStore(
+    vararg initial: Pair<String, String>,
+) : PreferenceStore {
+
+    private val values = initial.toMap().toMutableMap()
+
+    override fun getString(key: String, defaultValue: String): Preference<String> {
+        return object : Preference<String> {
+            override fun key() = key
+            override fun get() = values[key] ?: defaultValue
+            override fun set(value: String) {
+                values[key] = value
+            }
+
+            override fun isSet() = key in values
+            override fun delete() {
+                values.remove(key)
+            }
+
+            override fun defaultValue() = defaultValue
+            override fun changes(): Flow<String> = flowOf(get())
+            override fun stateIn(scope: CoroutineScope): StateFlow<String> =
+                MutableStateFlow(get())
+        }
+    }
+
+    override fun getAll(): Map<String, *> = values.toMap()
+
+    override fun getStringSet(key: String, defaultValue: Set<String>): Preference<Set<String>> = unsupported(key)
 
     override fun getLong(key: String, defaultValue: Long): Preference<Long> = unsupported(key)
 

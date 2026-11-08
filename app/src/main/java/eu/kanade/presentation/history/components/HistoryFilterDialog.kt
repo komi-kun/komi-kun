@@ -14,15 +14,18 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import eu.kanade.presentation.category.CategoryFilterSheetContent
 import eu.kanade.presentation.components.TabbedDialog
 import eu.kanade.presentation.components.TabbedDialogPaddings
 import eu.kanade.tachiyomi.ui.history.HistorySettingsViewModel
 import tachiyomi.domain.history.service.HistoryPreferences
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
+import tachiyomi.i18n.kun.KUNMR
 import tachiyomi.presentation.core.components.SettingsItemsPaddings
 import tachiyomi.presentation.core.components.TriStateItem
 import tachiyomi.presentation.core.components.material.padding
@@ -38,14 +41,22 @@ fun HistoryFilterDialog(
         onDismissRequest = onDismissRequest,
         tabTitles = listOf(
             stringResource(MR.strings.action_filter),
+            // KUN -->
+            stringResource(MR.strings.categories),
+            // KUN <--
         ),
-    ) {
+    ) { page ->
         Column(
             modifier = Modifier
                 .padding(vertical = TabbedDialogPaddings.Vertical)
                 .verticalScroll(rememberScrollState()),
         ) {
-            FilterSheet(viewModel = viewModel)
+            // KUN -->
+            when (page) {
+                0 -> FilterSheet(viewModel = viewModel)
+                1 -> CategoryFilterSheet(viewModel = viewModel)
+            }
+            // KUN <--
         }
     }
 }
@@ -99,3 +110,26 @@ private fun ColumnScope.FilterSheet(
         )
     }
 }
+
+// KUN -->
+@Composable
+private fun ColumnScope.CategoryFilterSheet(
+    viewModel: HistorySettingsViewModel,
+) {
+    val allCategories by viewModel.getCategories.subscribe().collectAsState(initial = emptyList())
+    val excluded by viewModel.excludedCategories.collectAsState()
+    val included by viewModel.includedCategories.collectAsState()
+    val inclusionWins by viewModel.inclusionWins.collectAsState()
+
+    CategoryFilterSheetContent(
+        categories = allCategories,
+        includedCategories = included,
+        excludedCategories = excluded,
+        onCycleCategory = viewModel::cycleCategory,
+        description = stringResource(KUNMR.strings.pref_filter_history_categories_details),
+        inclusionWins = inclusionWins,
+        onInclusionWinsChange = viewModel::setInclusionWins,
+        onReset = viewModel::resetCategoryFilter,
+    )
+}
+// KUN <--
