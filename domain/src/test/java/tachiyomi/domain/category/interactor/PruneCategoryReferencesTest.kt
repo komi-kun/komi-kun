@@ -3,6 +3,7 @@ package tachiyomi.domain.category.interactor
 
 import kotlinx.coroutines.CoroutineScope
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Test
 import tachiyomi.core.common.preference.InMemoryPreferenceStore
 import tachiyomi.core.common.preference.Preference
@@ -105,6 +106,43 @@ class PruneCategoryReferencesTest {
         stringFilterValues().forEach { assertEquals(setOf("1", "2", "3"), it) }
         longFilterValues().forEach { assertEquals(listOf(1L, 2L, 3L), it) }
     }
+
+    @Test
+    fun `prune deletes a defaultCategory that names the deleted category`() {
+        seedAll(listOf("1", "2"))
+        libraryPreferences.defaultCategory.set(2)
+
+        prune.prune(listOf(2L))
+
+        // Unset again, so the "add to library" flows fall back to asking instead of targeting a
+        // category that no longer exists.
+        assertFalse(libraryPreferences.defaultCategory.isSet())
+        assertEquals(-1, libraryPreferences.defaultCategory.get())
+    }
+
+    @Test
+    fun `prune leaves a defaultCategory that names another category`() {
+        seedAll(listOf("1", "2"))
+        libraryPreferences.defaultCategory.set(1)
+        store.writes.clear()
+
+        prune.prune(listOf(2L))
+
+        assertEquals(1, libraryPreferences.defaultCategory.get())
+        // The list filters that carried 2 are written; the default is not one of the writes.
+        assertFalse(libraryPreferences.defaultCategory.key() in store.writes)
+    }
+
+    @Test
+    fun `prune leaves the unset defaultCategory alone`() {
+        seedAll(listOf("1"))
+
+        // -1 is the "no default category" sentinel, not an id a category could carry.
+        prune.prune(listOf(-1L))
+
+        assertEquals(emptyList<String>(), store.writes)
+        assertFalse(libraryPreferences.defaultCategory.isSet())
+    }
 }
 
 /**
@@ -116,6 +154,10 @@ private class PruneTrackingStore(
 ) : PreferenceStore by delegate {
 
     val writes = mutableListOf<String>()
+
+    override fun getInt(key: String, defaultValue: Int): Preference<Int> {
+        return track(key, delegate.getInt(key, defaultValue))
+    }
 
     override fun getStringSet(key: String, defaultValue: Set<String>): Preference<Set<String>> {
         return track(key, delegate.getStringSet(key, defaultValue))

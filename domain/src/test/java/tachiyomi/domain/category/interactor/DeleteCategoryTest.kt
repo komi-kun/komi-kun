@@ -6,6 +6,7 @@ import io.mockk.mockk
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import tachiyomi.core.common.preference.InMemoryPreferenceStore
@@ -32,7 +33,6 @@ class DeleteCategoryTest {
     ): DeleteCategory {
         return DeleteCategory(
             categoryRepository = categoryRepository,
-            libraryPreferences = LibraryPreferences(store),
             categoryTombstones = CategoryTombstones { },
             pruneCategoryReferences = PruneCategoryReferences(
                 libraryPreferences = LibraryPreferences(store),
@@ -107,6 +107,20 @@ class DeleteCategoryTest {
 
         assertEquals(emptyList<Long>(), preferences.filterIncludedCategories.get())
         assertEquals(emptyList<Long>(), preferences.filterExcludedCategories.get())
+    }
+
+    @Test
+    fun `deleting the category a defaultCategory names unsets it`() = runTest {
+        val store = InMemoryPreferenceStore()
+        val libraryPreferences = LibraryPreferences(store)
+        libraryPreferences.defaultCategory.set(1)
+
+        val result = deleteCategory(HistoryPreferences(store), store = store).await(1L)
+
+        assertTrue(result is DeleteCategory.Result.Success)
+        // The reset moved into PruneCategoryReferences; a delete that no longer reaches it would
+        // leave the default pointing at the deleted category.
+        assertFalse(libraryPreferences.defaultCategory.isSet())
     }
 
     @Test

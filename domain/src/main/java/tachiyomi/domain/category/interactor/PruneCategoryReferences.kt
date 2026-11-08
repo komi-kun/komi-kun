@@ -10,8 +10,9 @@ import tachiyomi.domain.updates.service.UpdatesPreferences
 /**
  * Removes the ids of deleted categories from every preference that stores a list of category ids:
  * the library and download update filters, the library filter tab and the History, Updates and
- * Upcoming tab filters. `LibraryPreferences.defaultCategory` is a single Int id and is reset by
- * [DeleteCategory], not by this list.
+ * Upcoming tab filters. `LibraryPreferences.defaultCategory` stores a single id instead of a list,
+ * so it is reset here too: the sync deletion path does not go through [DeleteCategory], and a stale
+ * default would keep targeting a category that no longer exists.
  *
  * Local deletions go through [DeleteCategory], but the non-v2 sync merge deletes merged-away category
  * rows directly, so the pruning has to be reachable from both. A stale id keeps filtering on a
@@ -32,6 +33,13 @@ class PruneCategoryReferences(
 
     fun prune(categoryIds: Collection<Long>) {
         if (categoryIds.isEmpty()) return
+
+        // -1 is `defaultCategory`'s "no default category" sentinel (`LibraryPreferences`), not an id,
+        // so only a real id match deletes the preference. An unset preference writes nothing.
+        val defaultCategory = libraryPreferences.defaultCategory.get()
+        if (defaultCategory >= 0 && categoryIds.contains(defaultCategory.toLong())) {
+            libraryPreferences.defaultCategory.delete()
+        }
 
         val categoryIdStrings = categoryIds.mapTo(mutableSetOf()) { it.toString() }
         listOf(
