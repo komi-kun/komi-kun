@@ -542,7 +542,8 @@ class SyncManager(
                 categoryRepository.delete(categoriesToDelete.map { it.id })
                 // KUN -->
                 // These rows were deleted without going through DeleteCategory, so the category ids
-                // must be pruned from the library, download and history filters here too.
+                // must be pruned from the library, download, History/Updates/Upcoming and Discord
+                // incognito preferences here too.
                 pruneCategoryReferences.prune(categoriesToDelete.map { it.id })
                 // KUN <--
                 categoriesToDelete.forEach { syncPreferences.rememberDeletedCategory(it.uid) }
