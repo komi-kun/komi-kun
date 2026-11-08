@@ -40,6 +40,11 @@ interface MangaRepository {
 
     suspend fun deleteNonLibraryManga(sourceIds: List<Long>, keepReadManga: Boolean)
 
+    // KUN -->
+    /** The `(source_id, remote_url)` rows [deleteNonLibraryManga] would remove for the same arguments. */
+    suspend fun getNonLibraryMangaToDelete(sourceIds: List<Long>, keepReadManga: Boolean): List<Pair<Long, String>>
+    // KUN <--
+
     suspend fun setMangaCategories(mangaId: Long, categoryIds: List<Long>)
 
     suspend fun getExcludedScanlators(mangaId: Long): Set<String>

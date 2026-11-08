@@ -146,6 +146,18 @@ class MangaRepositoryImpl(
         database.mangaQueries.deleteNonLibraryManga(sourceIds, keepReadManga.toLong())
     }
 
+    // KUN -->
+    override suspend fun getNonLibraryMangaToDelete(
+        sourceIds: List<Long>,
+        keepReadManga: Boolean,
+    ): List<Pair<Long, String>> {
+        return database.mangaQueries
+            .getNonLibraryMangaToDelete(sourceIds, keepReadManga.toLong())
+            .awaitAsList()
+            .map { it.source_id to it.remote_url }
+    }
+    // KUN <--
+
     override suspend fun setMangaCategories(mangaId: Long, categoryIds: List<Long>) {
         database.transaction {
             database.manga_categoryQueries.deleteMangaCategoryByMangaId(mangaId)

@@ -37,10 +37,12 @@ import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.binding
 import dev.zacsweers.metrox.viewmodel.ViewModelKey
 import dev.zacsweers.metrox.viewmodel.metroViewModel
+import eu.kanade.domain.sync.SyncPreferences
 import eu.kanade.presentation.browse.components.SourceIcon
 import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.components.AppBarActions
 import eu.kanade.presentation.util.Screen
+import eu.kanade.tachiyomi.data.sync.mangaTombstoneKey
 import eu.kanade.tachiyomi.util.system.toast
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -234,6 +236,9 @@ class ClearDatabaseViewModel(
     private val mangaRepository: MangaRepository,
     private val historyRepository: HistoryRepository,
     private val getSourcesWithNonLibraryManga: GetSourcesWithNonLibraryManga,
+    // KUN -->
+    private val syncPreferences: SyncPreferences,
+    // KUN <--
 ) : ViewModel() {
 
     val state: StateFlow<ClearDatabaseViewModel.State>
@@ -258,7 +263,17 @@ class ClearDatabaseViewModel(
         val state = state.value as? State.Ready ?: return
         // Finishes even if the screen is left while it runs
         appScope.launch {
+            // KUN -->
+            // Gather the keys before the SQL delete; the rows are gone afterwards. Recording is
+            // inside rememberDeletedManga's own v2/library gate, so this is always safe.
+            val deleted = mangaRepository.getNonLibraryMangaToDelete(state.selection, keepReadManga)
+            // KUN <--
             mangaRepository.deleteNonLibraryManga(state.selection, keepReadManga)
+            // KUN -->
+            syncPreferences.rememberDeletedManga(
+                deleted.map { (sourceId, url) -> mangaTombstoneKey(sourceId, url) },
+            )
+            // KUN <--
             historyRepository.deleteResetHistory()
         }.join()
     }

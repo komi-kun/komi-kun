@@ -378,6 +378,24 @@ class SyncManager(
         }
 
         // KUN -->
+        // A v2 full response is the only one whose omissions mean deletion; `full` is the local
+        // signal that the request asked for a full snapshot. A delta omits unchanged entries, so
+        // its absences say nothing, and a non-library response is not about the library at all.
+        val mangaIdsToDelete = if (canApplySnapshotDeletions(full, result.protocolV2, syncOptions.libraryEntries)) {
+            mangaIdsMissingFromFullSnapshot(
+                localManga = syncRepository.getAllManga(),
+                remoteManga = remoteBackup.backupManga,
+                // The upload built before the round trip: a local favourite that was never sent
+                // cannot have been tombstoned by the server, so it is never a deletion candidate.
+                uploadedManga = backup.backupManga,
+                fullSnapshot = true,
+            )
+        } else {
+            emptyList()
+        }
+        // KUN <--
+
+        // KUN -->
         // The server accepted the forced upload. Persist the raised versions now, before the
         // restore branches, so the local rows keep outranking peers even if the restore fails.
         if (forcePushV2) {
@@ -397,6 +415,8 @@ class SyncManager(
             // KUN -->
             commitRemoteState(result)
             markFullSyncCompleted(full, result)
+            // This branch runs no restore, so it cannot be a partial restore: deletions are safe.
+            applySnapshotMangaDeletions(mangaIdsToDelete)
             // KUN <--
             finishWithSuccess(syncStart, "Sync completed successfully", forcePushCompleted = forcePushV2)
             return
@@ -522,6 +542,8 @@ class SyncManager(
             // KUN -->
             commitRemoteState(result)
             markFullSyncCompleted(full, result)
+            // Nothing is restored here either, so full-snapshot deletions are safe.
+            applySnapshotMangaDeletions(mangaIdsToDelete)
             // KUN <--
             finishWithSuccess(syncStart, "Sync completed successfully", forcePushCompleted = forcePushV2)
             return
@@ -557,6 +579,8 @@ class SyncManager(
             // KUN -->
             commitRemoteState(result)
             markFullSyncCompleted(full, result)
+            // Nothing is restored here either, so full-snapshot deletions are safe.
+            applySnapshotMangaDeletions(mangaIdsToDelete)
             // KUN <--
             finishWithSuccess(syncStart, "Sync completed successfully", forcePushCompleted = forcePushV2)
             return
@@ -602,6 +626,9 @@ class SyncManager(
                 if (forcePushV2) {
                     syncPreferences.forcePushPending.set(false)
                 }
+                // The snapshot is fully applied, so only now may its omissions delete rows. A
+                // failed restore drops the ids and the next full sync recomputes them.
+                applySnapshotMangaDeletions(mangaIdsToDelete)
                 // KUN <--
             } else {
                 // SY -->
@@ -665,6 +692,17 @@ class SyncManager(
         if (full && result.protocolV2) {
             syncPreferences.lastFullSync.set(Clock.System.now().toEpochMilliseconds())
         }
+    }
+
+    /**
+     * Applies the manga the server omitted from a full v2 snapshot, deleting them locally. Called
+     * only on success exits, after (or instead of) the restore, so a partial restore never deletes
+     * rows the server did not actually drop.
+     */
+    private suspend fun applySnapshotMangaDeletions(ids: List<Long>) {
+        if (ids.isEmpty()) return
+        ids.forEach { syncRepository.deleteManga(it) }
+        logcat(LogPriority.DEBUG) { "Deleted ${ids.size} local manga absent from the full server snapshot" }
     }
     // KUN <--
 
