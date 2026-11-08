@@ -31,9 +31,12 @@ class DeleteCategoryTest {
         return DeleteCategory(
             categoryRepository = categoryRepository,
             libraryPreferences = LibraryPreferences(store),
-            downloadPreferences = DownloadPreferences(store),
             categoryTombstones = CategoryTombstones { },
-            historyPreferences = historyPreferences,
+            pruneCategoryReferences = PruneCategoryReferences(
+                libraryPreferences = LibraryPreferences(store),
+                downloadPreferences = DownloadPreferences(store),
+                historyPreferences = historyPreferences,
+            ),
         )
     }
 

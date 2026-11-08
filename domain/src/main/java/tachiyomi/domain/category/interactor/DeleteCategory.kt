@@ -5,19 +5,16 @@ import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.category.model.Category
 import tachiyomi.domain.category.repository.CategoryRepository
 import tachiyomi.domain.category.service.CategoryTombstones
-import tachiyomi.domain.download.service.DownloadPreferences
-import tachiyomi.domain.history.service.HistoryPreferences
 import tachiyomi.domain.library.service.LibraryPreferences
 
 class DeleteCategory(
     private val categoryRepository: CategoryRepository,
     private val libraryPreferences: LibraryPreferences,
-    private val downloadPreferences: DownloadPreferences,
     // SY -->
     private val categoryTombstones: CategoryTombstones,
     // SY <--
     // KUN -->
-    private val historyPreferences: HistoryPreferences,
+    private val pruneCategoryReferences: PruneCategoryReferences,
     // KUN <--
 ) {
 
@@ -44,35 +41,10 @@ class DeleteCategory(
             libraryPreferences.defaultCategory.delete()
         }
 
-        val categoryPreferences = listOf(
-            libraryPreferences.updateCategories,
-            libraryPreferences.updateCategoriesExclude,
-            downloadPreferences.removeExcludeCategories,
-            downloadPreferences.downloadNewChapterCategories,
-            downloadPreferences.downloadNewChapterCategoriesExclude,
-            // KMK -->
-            libraryPreferences.filterCategoriesInclude,
-            libraryPreferences.filterCategoriesExclude,
-            // KMK <--
-        )
-        val categoryIdString = categoryId.toString()
-        categoryPreferences.forEach { preference ->
-            val ids = preference.get()
-            if (categoryIdString !in ids) return@forEach
-            preference.set(ids.minus(categoryIdString))
-        }
-
         // KUN -->
-        // The History category filter stores plain category ids, so a stale id there would keep
-        // filtering on a category that no longer exists. Only write when the id is actually present.
-        listOf(
-            historyPreferences.filterIncludedCategories,
-            historyPreferences.filterExcludedCategories,
-        ).forEach { preference ->
-            val ids = preference.get()
-            if (categoryId !in ids) return@forEach
-            preference.set(ids - categoryId)
-        }
+        // The library, download and history filters that store category ids are pruned in one place,
+        // because the non-v2 sync merge deletes categories without going through this interactor.
+        pruneCategoryReferences.prune(listOf(categoryId))
         // KUN <--
 
         return try {
