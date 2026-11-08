@@ -142,6 +142,27 @@ class DeleteCategoryTest {
         assertTrue(result is DeleteCategory.Result.InternalError)
         assertEquals(listOf(1L), preferences.filterIncludedCategories.get())
     }
+
+    @Test
+    fun `a failing reorder still leaves the deleted id pruned from the history filter and the discord set`() =
+        runTest {
+            val store = InMemoryPreferenceStore()
+            val preferences = historyPreferences(store)
+            val connectionsPreferences = ConnectionsPreferences(store)
+            preferences.filterIncludedCategories.set(listOf(1L, 2L))
+            connectionsPreferences.discordRPCIncognitoCategories.set(setOf("1", "3"))
+
+            val repository = mockk<CategoryRepository>(relaxed = true)
+            coEvery { repository.updateAllOrders(any()) } throws IllegalStateException("boom")
+
+            val result = deleteCategory(preferences, repository, store).await(1L)
+
+            assertTrue(result is DeleteCategory.Result.InternalError)
+            // The prune runs before the reorder, so a reorder that blows up still cannot resurrect
+            // the id of the category that was already deleted.
+            assertEquals(listOf(2L), preferences.filterIncludedCategories.get())
+            assertEquals(setOf("3"), connectionsPreferences.discordRPCIncognitoCategories.get())
+        }
 }
 
 /**
