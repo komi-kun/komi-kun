@@ -526,10 +526,13 @@ abstract class SyncService(
         return mergedSources
     }
 
+    // KUN -->
+    // Visible to tests, hence internal instead of upstream's private.
     internal fun mergePreferencesLists(
         localPreferences: List<BackupPreference>?,
         remotePreferences: List<BackupPreference>?,
     ): List<BackupPreference> {
+        // KUN <--
         val logTag = "MergePreferences"
 
         // Create maps using key as the unique identifier
