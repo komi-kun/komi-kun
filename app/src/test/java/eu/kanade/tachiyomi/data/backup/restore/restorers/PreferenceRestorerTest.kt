@@ -314,6 +314,22 @@ class PreferenceRestorerTest {
     }
 
     @Test
+    fun `an empty history category list does not clear the target filter`() = runTest {
+        val store = StringPreferenceStore(historyIncludedKey to "1,2")
+
+        restoreHistoryFilter(
+            store = store,
+            key = historyIncludedKey,
+            payload = "",
+            localCategories = listOf(category(7L, "Action")),
+            backupCategories = listOf(BackupCategory(name = "Action", id = 5L)),
+        )
+
+        // Same policy as the library/download category keys: an empty selection writes nothing.
+        assertEquals("1,2", store.getString(historyIncludedKey, "").get())
+    }
+
+    @Test
     fun `history category filter is left alone when the payload has no category section`() = runTest {
         val store = StringPreferenceStore(historyIncludedKey to "1,2")
 

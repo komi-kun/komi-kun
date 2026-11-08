@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.PreferenceStore
+import tachiyomi.domain.history.service.HistoryPreferences
 import tachiyomi.domain.source.service.SourceManager
 
 class PreferenceBackupCreatorTest {
@@ -41,6 +42,23 @@ class PreferenceBackupCreatorTest {
         val keys = creator.createApp(includePrivatePreferences = true).map { it.key }
 
         assertTrue(pinnedKey in keys)
+    }
+
+    @Test
+    fun `manual backups still include the history category filter`() {
+        // The filter is in the sync denylist, but a manual/file backup must carry it so a restore
+        // can remap the local category ids by name.
+        val creator = creatorWith(
+            HistoryPreferences.FILTER_INCLUDED_CATEGORIES_PREF_KEY to "1,2",
+            HistoryPreferences.FILTER_EXCLUDED_CATEGORIES_PREF_KEY to "3",
+            HistoryPreferences.FILTER_INCLUSION_WINS_PREF_KEY to true,
+        )
+
+        val keys = creator.createApp(includePrivatePreferences = true).map { it.key }
+
+        assertTrue(HistoryPreferences.FILTER_INCLUDED_CATEGORIES_PREF_KEY in keys)
+        assertTrue(HistoryPreferences.FILTER_EXCLUDED_CATEGORIES_PREF_KEY in keys)
+        assertTrue(HistoryPreferences.FILTER_INCLUSION_WINS_PREF_KEY in keys)
     }
 }
 // KUN <--

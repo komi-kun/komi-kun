@@ -158,12 +158,50 @@ class SyncManagerPreferencesTest {
 
     @Test
     fun `restored preference list drops the device-local pinned key`() {
-        val stripped = SyncManager.withoutDeviceLocalPinnedSources(
+        val stripped = SyncManager.withoutDeviceLocalPreferences(
             preferences(pinnedKey, "sync_library_entries"),
             syncPinnedSources = false,
         )
 
         assertEquals(listOf("sync_library_entries"), stripped.map { it.key })
+    }
+
+    @Test
+    fun `the remote payload drops the history category filter`() {
+        val stripped = SyncManager.withoutDeviceLocalPreferences(
+            preferences(
+                historyIncludedKey,
+                historyExcludedKey,
+                historyInclusionWinsKey,
+                pinnedKey,
+                "sync_library_entries",
+            ),
+            syncPinnedSources = false,
+        )
+
+        // The History filter is device-local whatever the pinned-source setting says.
+        assertEquals(listOf("sync_library_entries"), stripped.map { it.key })
+    }
+
+    @Test
+    fun `a remote history filter does not count as a preference change`() {
+        assertFalse(
+            SyncManager.hasSyncPreferenceChanges(
+                remotePreferences = preferences(historyIncludedKey, historyExcludedKey, historyInclusionWinsKey),
+                uploadedPreferences = emptyList(),
+                syncPinnedSources = false,
+            ),
+        )
+    }
+
+    @Test
+    fun `synced pinned sources survive the remote history filter strip`() {
+        val stripped = SyncManager.withoutDeviceLocalPreferences(
+            preferences(historyIncludedKey, pinnedKey),
+            syncPinnedSources = true,
+        )
+
+        assertEquals(listOf(pinnedKey), stripped.map { it.key })
     }
 }
 // KUN <--
