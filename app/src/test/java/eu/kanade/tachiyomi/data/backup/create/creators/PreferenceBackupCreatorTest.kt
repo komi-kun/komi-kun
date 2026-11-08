@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import tachiyomi.core.common.preference.InMemoryPreferenceStore
 import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.domain.history.service.HistoryPreferences
@@ -47,10 +48,12 @@ class PreferenceBackupCreatorTest {
     @Test
     fun `manual backups do not include the history category filter`() {
         // The filter is device-local app state: it is not even in a manual/file backup, so a restore
-        // can never bring foreign category ids back.
-        val includedKey = Preference.appStateKey(HistoryPreferences.FILTER_INCLUDED_CATEGORIES_PREF_KEY)
-        val excludedKey = Preference.appStateKey(HistoryPreferences.FILTER_EXCLUDED_CATEGORIES_PREF_KEY)
-        val inclusionWinsKey = Preference.appStateKey(HistoryPreferences.FILTER_INCLUSION_WINS_PREF_KEY)
+        // can never bring foreign category ids back. The keys come from the real preferences, so a
+        // preference that loses its app-state wrapper makes this test fail.
+        val historyPreferences = HistoryPreferences(InMemoryPreferenceStore())
+        val includedKey = historyPreferences.filterIncludedCategories.key()
+        val excludedKey = historyPreferences.filterExcludedCategories.key()
+        val inclusionWinsKey = historyPreferences.filterCategoryInclusionWins.key()
         val creator = creatorWith(
             includedKey to "1,2",
             excludedKey to "3",

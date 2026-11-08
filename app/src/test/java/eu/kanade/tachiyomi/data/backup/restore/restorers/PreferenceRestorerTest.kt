@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
+import tachiyomi.core.common.preference.InMemoryPreferenceStore
 import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.domain.category.interactor.GetCategories
@@ -201,8 +202,9 @@ class PreferenceRestorerTest {
 
     @Test
     fun `the history category filter is app state and is not restored`() = runTest {
-        // The filter lives on one device only: a payload carrying it must not write it back.
-        val key = Preference.appStateKey(HistoryPreferences.FILTER_INCLUDED_CATEGORIES_PREF_KEY)
+        // The filter lives on one device only: a payload carrying it must not write it back. The key
+        // comes from the real preference, so one that loses its app-state wrapper fails this test.
+        val key = HistoryPreferences(InMemoryPreferenceStore()).filterIncludedCategories.key()
         val store = mockk<PreferenceStore>(relaxed = true)
         every { store.getAll() } returns mapOf(key to "1,2")
 
