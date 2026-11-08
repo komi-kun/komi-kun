@@ -9,6 +9,7 @@ import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.binding
 import dev.zacsweers.metrox.viewmodel.ViewModelKey
+import eu.kanade.domain.connections.interactor.PruneDiscordIncognitoCategories
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
@@ -45,6 +46,9 @@ class CategoryViewModel(
     // KMK -->
     private val hideCategory: HideCategory,
     // KMK <--
+    // KUN -->
+    private val pruneDiscordIncognitoCategories: PruneDiscordIncognitoCategories,
+    // KUN <--
 ) : ViewModel() {
 
     private val _events: Channel<CategoryEvent> = Channel()
@@ -90,7 +94,11 @@ class CategoryViewModel(
             // The deletion finishes even if the screen is left while it runs
             when (appScope.async { deleteCategory.await(categoryId = categoryId) }.await()) {
                 is DeleteCategory.Result.InternalError -> _events.send(CategoryEvent.InternalError)
-                else -> {}
+                // KUN -->
+                // Only a deletion that actually happened may drop the id: a failed delete leaves the
+                // category (and therefore the incognito id) in place.
+                is DeleteCategory.Result.Success -> pruneDiscordIncognitoCategories.prune(listOf(categoryId))
+                // KUN <--
             }
         }
     }

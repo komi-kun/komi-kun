@@ -10,11 +10,7 @@ import kotlinx.coroutines.withContext
 import mihon.core.migration.Migration
 import mihon.core.migration.MigrationContext
 import tachiyomi.domain.category.interactor.GetCategories
-import tachiyomi.domain.download.service.DownloadPreferences
-import tachiyomi.domain.history.service.HistoryPreferences
-import tachiyomi.domain.library.service.LibraryPreferences
-import tachiyomi.domain.upcoming.service.UpcomingPreferences
-import tachiyomi.domain.updates.service.UpdatesPreferences
+import tachiyomi.domain.category.service.CategoryIdPreferences
 
 /**
  * Removes the ids of categories that no longer exist from the preferences that store category ids,
@@ -28,6 +24,9 @@ import tachiyomi.domain.updates.service.UpdatesPreferences
  * - the six `List<Long>` filters: the History, Updates and Upcoming include/exclude filters;
  * - `defaultCategory` (library), which stores a single id.
  *
+ * The first and third groups, and `defaultCategory`, come from [CategoryIdPreferences], the same
+ * inventory `PruneCategoryReferences` prunes on deletion, so the two cannot drift apart.
+ *
  * [CategoryPreferencesCleanupMigration] (73f) only covered the library/download `Set<String>` filters
  * and `defaultCategory`; the History, Updates and Upcoming `List<Long>` filters it skipped can still
  * hold the id of a category deleted before this fork pruned them on deletion. A stale id there keeps
@@ -40,20 +39,15 @@ import tachiyomi.domain.updates.service.UpdatesPreferences
  * version code, and `0` selects the [mihon.core.migration.InitialMigrationStrategy], which runs only
  * the `isAlways` migrations.
  *
- * This repairs existing drift only. `PruneCategoryReferences` is the steady-state path (reached from
- * `DeleteCategory` and the sync merge) and it lives in `domain`, where `ConnectionsPreferences` —
- * an app-level holder — is not reachable; so a category deleted *after* this migration still leaves
- * its id in `discordRPCIncognitoCategories`. Moving that preference into `domain`, or adding an
- * app-level prune path, is what would close the gap for future deletions.
+ * This repairs existing drift; the steady state is pruning on deletion. `PruneCategoryReferences`
+ * covers the [CategoryIdPreferences] inventory from `DeleteCategory` and the sync merge, and
+ * `PruneDiscordIncognitoCategories` covers the Discord set from the same two paths, so a category
+ * deleted after this migration does not leave its id behind anywhere.
  */
 @Inject
 @ContributesIntoSet(AppScope::class)
 class CategoryPreferenceRepairMigration(
-    private val libraryPreferences: LibraryPreferences,
-    private val downloadPreferences: DownloadPreferences,
-    private val historyPreferences: HistoryPreferences,
-    private val updatesPreferences: UpdatesPreferences,
-    private val upcomingPreferences: UpcomingPreferences,
+    private val categoryIdPreferences: CategoryIdPreferences,
     private val connectionsPreferences: ConnectionsPreferences,
     private val getCategories: GetCategories,
 ) : Migration {
@@ -64,33 +58,17 @@ class CategoryPreferenceRepairMigration(
         val liveCategoryIds = getCategories.await().mapTo(mutableSetOf()) { it.id }
         val liveCategoryIdStrings = liveCategoryIds.mapTo(mutableSetOf()) { it.toString() }
 
-        val stringPreferences = listOf(
-            libraryPreferences.updateCategories,
-            libraryPreferences.updateCategoriesExclude,
-            libraryPreferences.filterCategoriesInclude,
-            libraryPreferences.filterCategoriesExclude,
-            downloadPreferences.removeExcludeCategories,
-            downloadPreferences.downloadNewChapterCategories,
-            downloadPreferences.downloadNewChapterCategoriesExclude,
-            // App-level (`ConnectionsPreferences`), so `domain`'s prune never touches it — this
-            // migration repairs its existing drift, not future deletions.
-            connectionsPreferences.discordRPCIncognitoCategories,
-        )
+        // The Discord set is app-level (`ConnectionsPreferences`), so `domain`'s inventory cannot
+        // carry it; the repair and `PruneDiscordIncognitoCategories` cover it between them.
+        val stringPreferences = categoryIdPreferences.stringFilters +
+            connectionsPreferences.discordRPCIncognitoCategories
         stringPreferences.forEach { preference ->
             val ids = preference.get()
             val remaining = ids.intersect(liveCategoryIdStrings)
             if (remaining != ids) preference.set(remaining)
         }
 
-        val longPreferences = listOf(
-            historyPreferences.filterIncludedCategories,
-            historyPreferences.filterExcludedCategories,
-            updatesPreferences.filterIncludedCategories,
-            updatesPreferences.filterExcludedCategories,
-            upcomingPreferences.filterIncludedCategories,
-            upcomingPreferences.filterExcludedCategories,
-        )
-        longPreferences.forEach { preference ->
+        categoryIdPreferences.longFilters.forEach { preference ->
             val ids = preference.get()
             // `filter` rather than `intersect`: the preference is a List and its order is kept.
             val remaining = ids.filter { it in liveCategoryIds }
@@ -98,9 +76,9 @@ class CategoryPreferenceRepairMigration(
         }
 
         // -1 is `defaultCategory`'s "no default category" sentinel, not an id.
-        val defaultCategory = libraryPreferences.defaultCategory.get()
+        val defaultCategory = categoryIdPreferences.defaultCategory.get()
         if (defaultCategory >= 0 && defaultCategory.toLong() !in liveCategoryIds) {
-            libraryPreferences.defaultCategory.delete()
+            categoryIdPreferences.defaultCategory.delete()
         }
 
         return@withContext true

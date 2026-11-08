@@ -18,6 +18,7 @@ import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.domain.category.model.Category
 import tachiyomi.domain.category.repository.CategoryRepository
+import tachiyomi.domain.category.service.CategoryIdPreferences
 import tachiyomi.domain.download.service.DownloadPreferences
 import tachiyomi.domain.history.service.HistoryPreferences
 import tachiyomi.domain.library.service.LibraryPreferences
@@ -51,11 +52,13 @@ class CategoryPreferenceRepairMigrationTest {
     )
 
     private val migration = CategoryPreferenceRepairMigration(
-        libraryPreferences = libraryPreferences,
-        downloadPreferences = downloadPreferences,
-        historyPreferences = historyPreferences,
-        updatesPreferences = updatesPreferences,
-        upcomingPreferences = upcomingPreferences,
+        categoryIdPreferences = CategoryIdPreferences(
+            libraryPreferences = libraryPreferences,
+            downloadPreferences = downloadPreferences,
+            historyPreferences = historyPreferences,
+            updatesPreferences = updatesPreferences,
+            upcomingPreferences = upcomingPreferences,
+        ),
         connectionsPreferences = connectionsPreferences,
         getCategories = GetCategories(
             mockk<CategoryRepository>(relaxed = true).also { repository ->

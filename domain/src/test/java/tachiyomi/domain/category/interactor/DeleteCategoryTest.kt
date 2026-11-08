@@ -13,6 +13,7 @@ import tachiyomi.core.common.preference.InMemoryPreferenceStore
 import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.domain.category.repository.CategoryRepository
+import tachiyomi.domain.category.service.CategoryIdPreferences
 import tachiyomi.domain.category.service.CategoryTombstones
 import tachiyomi.domain.download.service.DownloadPreferences
 import tachiyomi.domain.history.service.HistoryPreferences
@@ -35,11 +36,13 @@ class DeleteCategoryTest {
             categoryRepository = categoryRepository,
             categoryTombstones = CategoryTombstones { },
             pruneCategoryReferences = PruneCategoryReferences(
-                libraryPreferences = LibraryPreferences(store),
-                downloadPreferences = DownloadPreferences(store),
-                historyPreferences = historyPreferences,
-                updatesPreferences = UpdatesPreferences(store),
-                upcomingPreferences = UpcomingPreferences(store),
+                categoryIdPreferences = CategoryIdPreferences(
+                    libraryPreferences = LibraryPreferences(store),
+                    downloadPreferences = DownloadPreferences(store),
+                    historyPreferences = historyPreferences,
+                    updatesPreferences = UpdatesPreferences(store),
+                    upcomingPreferences = UpcomingPreferences(store),
+                ),
             ),
         )
     }

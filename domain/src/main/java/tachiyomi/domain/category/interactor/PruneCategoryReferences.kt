@@ -1,11 +1,7 @@
 package tachiyomi.domain.category.interactor
 
 import dev.zacsweers.metro.Inject
-import tachiyomi.domain.download.service.DownloadPreferences
-import tachiyomi.domain.history.service.HistoryPreferences
-import tachiyomi.domain.library.service.LibraryPreferences
-import tachiyomi.domain.upcoming.service.UpcomingPreferences
-import tachiyomi.domain.updates.service.UpdatesPreferences
+import tachiyomi.domain.category.service.CategoryIdPreferences
 
 /**
  * Removes the ids of deleted categories from every preference that stores a list of category ids:
@@ -13,6 +9,9 @@ import tachiyomi.domain.updates.service.UpdatesPreferences
  * Upcoming tab filters. `LibraryPreferences.defaultCategory` stores a single id instead of a list,
  * so it is reset here too: the sync deletion path does not go through [DeleteCategory], and a stale
  * default would keep targeting a category that no longer exists.
+ *
+ * The inventory of pruned preferences is [CategoryIdPreferences], shared with the
+ * `CategoryPreferenceRepairMigration` that repairs existing drift.
  *
  * Local deletions go through [DeleteCategory], but the non-v2 sync merge deletes merged-away category
  * rows directly, so the pruning has to be reachable from both. A stale id keeps filtering on a
@@ -24,11 +23,7 @@ import tachiyomi.domain.updates.service.UpdatesPreferences
  */
 @Inject
 class PruneCategoryReferences(
-    private val libraryPreferences: LibraryPreferences,
-    private val downloadPreferences: DownloadPreferences,
-    private val historyPreferences: HistoryPreferences,
-    private val updatesPreferences: UpdatesPreferences,
-    private val upcomingPreferences: UpcomingPreferences,
+    private val categoryIdPreferences: CategoryIdPreferences,
 ) {
 
     fun prune(categoryIds: Collection<Long>) {
@@ -36,35 +31,20 @@ class PruneCategoryReferences(
 
         // -1 is `defaultCategory`'s "no default category" sentinel (`LibraryPreferences`), not an id,
         // so only a real id match deletes the preference. An unset preference writes nothing.
-        val defaultCategory = libraryPreferences.defaultCategory.get()
+        val defaultCategory = categoryIdPreferences.defaultCategory.get()
         if (defaultCategory >= 0 && categoryIds.contains(defaultCategory.toLong())) {
-            libraryPreferences.defaultCategory.delete()
+            categoryIdPreferences.defaultCategory.delete()
         }
 
         val categoryIdStrings = categoryIds.mapTo(mutableSetOf()) { it.toString() }
-        listOf(
-            libraryPreferences.updateCategories,
-            libraryPreferences.updateCategoriesExclude,
-            libraryPreferences.filterCategoriesInclude,
-            libraryPreferences.filterCategoriesExclude,
-            downloadPreferences.removeExcludeCategories,
-            downloadPreferences.downloadNewChapterCategories,
-            downloadPreferences.downloadNewChapterCategoriesExclude,
-        ).forEach { preference ->
+        categoryIdPreferences.stringFilters.forEach { preference ->
             val ids = preference.get()
             val remaining = ids - categoryIdStrings
             if (remaining.size != ids.size) preference.set(remaining)
         }
 
         val categoryIdSet = categoryIds.toSet()
-        listOf(
-            historyPreferences.filterIncludedCategories,
-            historyPreferences.filterExcludedCategories,
-            updatesPreferences.filterIncludedCategories,
-            updatesPreferences.filterExcludedCategories,
-            upcomingPreferences.filterIncludedCategories,
-            upcomingPreferences.filterExcludedCategories,
-        ).forEach { preference ->
+        categoryIdPreferences.longFilters.forEach { preference ->
             val ids = preference.get()
             val remaining = ids - categoryIdSet
             if (remaining.size != ids.size) preference.set(remaining)

@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test
 import tachiyomi.core.common.preference.InMemoryPreferenceStore
 import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.PreferenceStore
+import tachiyomi.domain.category.service.CategoryIdPreferences
 import tachiyomi.domain.download.service.DownloadPreferences
 import tachiyomi.domain.history.service.HistoryPreferences
 import tachiyomi.domain.library.service.LibraryPreferences
@@ -26,12 +27,15 @@ class PruneCategoryReferencesTest {
     private val historyPreferences = HistoryPreferences(store)
     private val updatesPreferences = UpdatesPreferences(store)
     private val upcomingPreferences = UpcomingPreferences(store)
-    private val prune = PruneCategoryReferences(
+    private val categoryIdPreferences = CategoryIdPreferences(
         libraryPreferences = libraryPreferences,
         downloadPreferences = downloadPreferences,
         historyPreferences = historyPreferences,
         updatesPreferences = updatesPreferences,
         upcomingPreferences = upcomingPreferences,
+    )
+    private val prune = PruneCategoryReferences(
+        categoryIdPreferences = categoryIdPreferences,
     )
 
     private fun seedAll(ids: List<String>) {
