@@ -95,8 +95,13 @@ class HistoryRepositoryImpl(
     // KMK -->
     override suspend fun resetHistory(historyIds: List<Long>) {
         try {
-            // One bind variable per id, so a select-all needs chunking to fit SQLite's variable limit
-            historyIds.chunked(MAX_BOUND_IDS).forEach { database.historyQueries.resetHistoryByIds(it) }
+            // KUN -->
+            // One bind variable per id, so a select-all needs chunking to fit SQLite's variable limit;
+            // the transaction keeps the chunks all-or-nothing.
+            database.transaction {
+                historyIds.chunked(MAX_BOUND_IDS).forEach { database.historyQueries.resetHistoryByIds(it) }
+            }
+            // KUN <--
         } catch (e: Exception) {
             logcat(LogPriority.ERROR, throwable = e)
         }
@@ -104,7 +109,11 @@ class HistoryRepositoryImpl(
 
     override suspend fun resetHistoryByMangaIds(mangaIds: List<Long>) {
         try {
-            mangaIds.chunked(MAX_BOUND_IDS).forEach { database.historyQueries.resetHistoryByMangaIds(it) }
+            // KUN -->
+            database.transaction {
+                mangaIds.chunked(MAX_BOUND_IDS).forEach { database.historyQueries.resetHistoryByMangaIds(it) }
+            }
+            // KUN <--
         } catch (e: Exception) {
             logcat(LogPriority.ERROR, throwable = e)
         }
@@ -156,7 +165,7 @@ class HistoryRepositoryImpl(
     // SY <--
 }
 
-// KMK -->
+// KUN -->
 /** Bind ids per statement: SQLite allows 999 variables before Android 11, 32766 after. */
 private const val MAX_BOUND_IDS = 900
-// KMK <--
+// KUN <--
