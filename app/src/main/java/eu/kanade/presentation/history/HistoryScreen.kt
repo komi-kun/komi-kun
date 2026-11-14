@@ -203,10 +203,9 @@ private fun HistoryScreenContent(
 
     FastScrollLazyColumn(
         // KUN -->
+        // Using modifier instead of contentPadding so we can use stickyHeader
+        modifier = Modifier.padding(contentPadding),
         state = listState,
-        // KUN <--
-        contentPadding = contentPadding,
-        // KUN -->
         thumbLabel = thumbLabel,
         // KUN <--
     ) {

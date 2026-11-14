@@ -33,6 +33,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -188,6 +189,9 @@ fun VerticalFastScroller(
             val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
             val labelAlpha = remember { Animatable(0f) }
             var label by remember { mutableStateOf<String?>(null) }
+            // This effect only restarts with the label, unlike the drag one, so the mapping is read
+            // through a state or the pill would keep naming the section of the first composition
+            val currentTargetAt by rememberUpdatedState(::targetAt)
             LaunchedEffect(thumbLabel) {
                 if (thumbLabel == null) return@LaunchedEffect
                 snapshotFlow { if (isThumbDragged) thumbOffsetY else null }
@@ -198,7 +202,7 @@ fun VerticalFastScroller(
                             label = null
                         } else {
                             labelAlpha.snapTo(1f)
-                            label = thumbLabel(targetAt(offsetY).first)
+                            label = thumbLabel(currentTargetAt(offsetY).first)
                         }
                     }
             }
