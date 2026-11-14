@@ -4,14 +4,31 @@ import eu.kanade.presentation.history.HistoryUiModel
 import eu.kanade.tachiyomi.util.lang.toLocalDate
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import tachiyomi.domain.history.model.HistoryWithRelations
 import tachiyomi.domain.manga.model.MangaCover
+import java.util.TimeZone
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
 
 class HistoryUiModelsTest {
+
+    private lateinit var defaultTimeZone: TimeZone
+
+    // toLocalDate() reads the system zone, so the day boundaries below are only stable in UTC
+    @BeforeEach
+    fun pinUtc() {
+        defaultTimeZone = TimeZone.getDefault()
+        TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
+    }
+
+    @AfterEach
+    fun restoreTimeZone() {
+        TimeZone.setDefault(defaultTimeZone)
+    }
 
     private val day1 = Instant.fromEpochMilliseconds(1_704_888_000_000) // 2024-01-10T12:00:00Z
     private val day2 = Instant.fromEpochMilliseconds(1_704_715_200_000) // 2024-01-08T12:00:00Z
