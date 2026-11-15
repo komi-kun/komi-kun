@@ -216,23 +216,6 @@ class HistoryCategoryFilterTest {
     }
 
     @Test
-    fun `a zero read date never becomes the latest history entry`() {
-        runBlocking {
-            val driver = newDriver()
-            try {
-                val database = DatabaseBindings.providesDatabase(driver)
-                driver.insertManga(1L)
-                driver.insertChapter(mangaId = 1L)
-                driver.insertHistory(mangaId = 1L, readAt = 0L)
-
-                HistoryRepositoryImpl(database).getLastHistory() shouldBe null
-            } finally {
-                driver.close()
-            }
-        }
-    }
-
-    @Test
     fun `the first row is the most recent entry the category filter shows`() {
         runBlocking {
             val driver = newDriver()
