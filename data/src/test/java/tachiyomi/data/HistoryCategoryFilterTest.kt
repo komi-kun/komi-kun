@@ -186,6 +186,51 @@ class HistoryCategoryFilterTest {
         }
     }
 
+    @Test
+    fun `history rows with a zero read date are not listed`() {
+        runBlocking {
+            val driver = newDriver()
+            try {
+                val database = DatabaseBindings.providesDatabase(driver)
+                driver.insertHistoryFixture()
+                // A manga whose only history row is the epoch-0 leftover an old restore wrote...
+                driver.insertManga(5L)
+                driver.insertChapter(mangaId = 5L)
+                driver.insertHistory(mangaId = 5L, readAt = 0L)
+                // ...and a second, epoch-0 row next to the real one of manga 2.
+                driver.insertChapter(mangaId = 2L, chapterId = secondChapterIdFor(2L), index = 2)
+                driver.insertHistory(
+                    mangaId = 2L,
+                    chapterId = secondChapterIdFor(2L),
+                    historyId = secondHistoryIdFor(2L),
+                    readAt = 0L,
+                )
+
+                historyChapterIds(database) shouldBe listOf(104L, 201L, 103L, 102L)
+                historyMangaIds(database) shouldBe listOf(1L, 2L, 3L, 4L)
+            } finally {
+                driver.close()
+            }
+        }
+    }
+
+    @Test
+    fun `a zero read date never becomes the latest history entry`() {
+        runBlocking {
+            val driver = newDriver()
+            try {
+                val database = DatabaseBindings.providesDatabase(driver)
+                driver.insertManga(1L)
+                driver.insertChapter(mangaId = 1L)
+                driver.insertHistory(mangaId = 1L, readAt = 0L)
+
+                HistoryRepositoryImpl(database).getLastHistory() shouldBe null
+            } finally {
+                driver.close()
+            }
+        }
+    }
+
     private suspend fun historyMangaIds(
         database: Database,
         included: List<Long> = emptyList(),

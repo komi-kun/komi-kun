@@ -553,7 +553,8 @@ class HistoryViewModel(
  * One [HistoryUiModel.Header] per read date, with the rows in the order the history query returned them.
  */
 internal fun List<HistoryWithRelations>.toHistoryUiModels(): List<HistoryUiModel> {
-    // readAt is nullable on the model: a null row would otherwise be listed under the previous day's header
+    // The history queries only return positive read dates; the filter is the mapper's guard, so a
+    // null can never be listed under the previous day's header.
     return filter { it.readAt != null }
         .map { HistoryUiModel.Item(it) }
         .insertSeparators { before, after ->
