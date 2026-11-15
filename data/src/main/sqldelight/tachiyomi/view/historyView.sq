@@ -148,7 +148,6 @@ AND (
     )
 )
 -- KUN <--
-AND maxReadAtChapterId = historyView.chapterId
 AND lower(historyView.title) LIKE ('%' || :query || '%')
 -- KUN -->
 ORDER BY readAt DESC, id DESC;

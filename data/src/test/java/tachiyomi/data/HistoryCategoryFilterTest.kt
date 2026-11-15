@@ -145,16 +145,16 @@ class HistoryCategoryFilterTest {
     }
 
     @Test
-    fun `one row per manga keeps only its latest read chapter`() {
+    fun `every read chapter is listed and equal read dates follow the history id`() {
         runBlocking {
             val driver = newDriver()
             try {
                 val database = DatabaseBindings.providesDatabase(driver)
                 driver.insertHistoryFixture()
 
-                // Manga 1 read a second chapter later, so its earlier chapter is dropped instead of
-                // listed again; manga 4's newer entry still comes first.
-                historyChapterIds(database) shouldBe listOf(104L, 201L, 103L, 102L)
+                // Manga 1 read two chapters and contributes both rows, the later one first; the
+                // rest were all read at 3000.
+                historyChapterIds(database) shouldBe listOf(104L, 201L, 103L, 102L, 101L)
                 historyMangaIds(database) shouldBe listOf(1L, 2L, 3L, 4L)
             } finally {
                 driver.close()
@@ -163,7 +163,7 @@ class HistoryCategoryFilterTest {
     }
 
     @Test
-    fun `two history rows at the same read date still collapse to one row`() {
+    fun `rows with an equal read date come back by history id descending`() {
         runBlocking {
             val driver = newDriver()
             try {
@@ -177,9 +177,9 @@ class HistoryCategoryFilterTest {
                     historyId = secondHistoryIdFor(3L),
                 )
 
-                // Manga 3 still has one row, and that row outranks manga 2's row even though both
-                // were read at 3000, because its history id is larger either way.
-                historyRows(database).map { it.mangaId } shouldBe listOf(4L, 1L, 3L, 2L)
+                // Four rows tie at 3000, so the tiebreaker decides the order: history id 2003
+                // first, then 1003, 1002 and 1001.
+                historyChapterIds(database) shouldBe listOf(104L, 201L, 203L, 103L, 102L, 101L)
             } finally {
                 driver.close()
             }
@@ -206,7 +206,8 @@ class HistoryCategoryFilterTest {
                     readAt = 0L,
                 )
 
-                historyChapterIds(database) shouldBe listOf(104L, 201L, 103L, 102L)
+                // Manga 5's 0 row and manga 2's 0 row are gone, but manga 1's earlier chapter stays.
+                historyChapterIds(database) shouldBe listOf(104L, 201L, 103L, 102L, 101L)
                 historyMangaIds(database) shouldBe listOf(1L, 2L, 3L, 4L)
             } finally {
                 driver.close()
@@ -238,6 +239,7 @@ class HistoryCategoryFilterTest {
         inclusionWins: Boolean = false,
     ): List<Long> {
         return historyRows(database, included, excluded, inclusionWins)
+            // A manga can have several read chapters, and these cases are about membership
             .map { it.mangaId }
             .distinct()
             .sorted()
@@ -280,7 +282,7 @@ class HistoryCategoryFilterTest {
             insertHistory(mangaId = id, readAt = if (id == 4L) 4000L else 3000L)
         }
 
-        // A second read chapter for manga 1, read later than its first, so the collapse keeps it.
+        // A second read chapter for manga 1, read later than its first, so it comes before it.
         insertChapter(mangaId = 1L, chapterId = secondChapterIdFor(1L), index = 2)
         insertHistory(
             mangaId = 1L,
