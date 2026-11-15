@@ -130,6 +130,11 @@ class HistoryViewModel(
                 .catch { error ->
                     logcat(LogPriority.ERROR, error)
                     _events.send(Event.InternalError)
+                    // KUN -->
+                    // A catch that emitted nothing would complete the flow and leave the state on its
+                    // initial, loading value, which getNextChapter() waits on forever.
+                    emit(emptyList())
+                    // KUN <--
                 }
                 .map { it.toList() }
                 // KUN -->
