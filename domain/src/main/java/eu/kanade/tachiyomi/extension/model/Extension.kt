@@ -33,16 +33,15 @@ sealed interface Extension {
          * apk from any other store can't replace it, so only these are where its updates come from.
          */
         fun findListing(available: Collection<Available>): Available? {
-            return available
-                .filter { it.pkgName == pkgName && it.store.signingKey in signatures }
-                .maxWithOrNull(compareBy<Available> { it.versionCode }.thenBy { it.libVersion })
+            // KMK -->
+            return findAvailable(available)
+            // KMK <--
         }
 
         fun findUpdate(available: Collection<Available>): Available? {
-            val installedLibVersion = libVersion
-            return findListing(available)?.takeIf {
-                it.versionCode > versionCode || (installedLibVersion != null && it.libVersion > installedLibVersion)
-            }
+            // KMK -->
+            return findListing(available)?.takeIf { isOutdatedComparedTo(it) }
+            // KMK <--
         }
     }
 
