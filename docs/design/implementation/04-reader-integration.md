@@ -84,7 +84,9 @@ data class ImagePoint(val page: ReaderPage, val image: PointF)   // image is nor
  */
 sealed interface OcrDisplayTransform {
     data object None : OcrDisplayTransform
-    data class Crop(val cropRect: RectF) : OcrDisplayTransform
+    // Crop is the viewer's *last* step (both SSIV and the webtoon strip decoder crop whatever sheet
+    // they are handed), so it wraps the layout transform rather than competing with it.
+    data class Crop(val window: OcrCropWindow, val inner: OcrDisplayTransform = None) : OcrDisplayTransform
     data class Split(val keepLeft: Boolean) : OcrDisplayTransform
     data class SplitAndMerge(val upperIsRight: Boolean) : OcrDisplayTransform
     data class Merge(
@@ -92,6 +94,9 @@ sealed interface OcrDisplayTransform {
         val isLTR: Boolean, val centerMarginPx: Int,
     ) : OcrDisplayTransform
 }
+
+/** The shown part of the uncropped image (`0..1`): `mapX/mapY` in, `unmapX/unmapY` out. */
+data class OcrCropWindow(val left: Float, val top: Float, val right: Float, val bottom: Float)
 ```
 
 **Why this shape (vs `03`'s sketch):** `03` §3.5/§6 sketched `imageNormalizedToScreen(block)` and
@@ -131,6 +136,16 @@ webtoon `splitAndMerge` and WebGPU spreads without leaking viewer types into the
   (`viewer.splitDoublePages`), merged two pages (`ImageUtil.mergeBitmaps`,
   `PagerPageHolder.kt:336`), or cropped (`config.cropBorders`, `:220`). This is the same information
   `03` §1.4 attributes to `PagerPageHolder.loadOcrWithTransform` (`:729-745`) — reuse that path.
+  **Crop, as implemented:** OCR runs on the raw page, so blocks are normalized to the *uncropped*
+  image, while SSIV crops the sheet and keeps the rect to itself (no accessor; `sourceToViewX` has no
+  region subtraction). `ReaderPageImageView.ocrScanSheetCrop` therefore derives the rect with SSIV's
+  own routine (`CropBorders.findCropBorders`, 4 MP scan, ±1 sampled pixel pad, clamped) and
+  `onImageLoaded` applies it only when SSIV's own `sWidth`/`sHeight` equal the derived rect's
+  **extent** — a size drift falls back to the uncropped mapping instead of scaling every block by a
+  stale ratio. Only the extent is observable, so an origin-only drift is not caught by that check:
+  the guard there is the pinned SSIV version plus a device check with crop and OCR both on (a SSIV
+  bump must re-run it; the recipe unit tests stay green across a bump by design). The webtoon strip
+  decoder needs no derivation: it publishes the window it cut (`StripsImage.cropWindow`).
 - Edge: `dualPageRotateToFit` rotates the bitmap by ±90 before SSIV; handle by mapping corners and
   returning the bbox (documented limitation for the label rect; the box is still correct because
   SSIV's transform carries the rotation).
@@ -146,7 +161,8 @@ rebuilt on viewport change (`WebtoonViewer.kt:327`).
 - Strip path (`WebtoonStripImageView`): the view is drawn at `width = recycler.width - 2*sidePadding`
   and `height = width * imageHeight / imageWidth` (`WebtoonStripImageView.kt:77-80`, `:87`). So
   `screen = stripView.positionInOverlay + normalized * view.width/height`; `OcrDisplayTransform` is
-  `None` (or `Crop`, if `config.cropBorders`).
+  `None`, wrapped in `Crop` when `config.cropBorders` made the decoder trim the sheet (the window
+  travels with the strips, so it is the rect they were actually cut with).
 - Escape-hatch path (`WebtoonSubsamplingImageView`, KMK `alwaysDecodeLongStripWithSSIV` at
   `ReaderPageImageView.kt:66-70`, `:294`): same math as adapter 1.
 - `transformVersion()` → strip view's on-screen offset (recomputed on scroll) + view identity.

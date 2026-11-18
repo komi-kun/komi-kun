@@ -41,6 +41,10 @@ import com.github.chrisbanes.photoview.PhotoView
 import eu.kanade.tachiyomi.data.coil.ImageDecoder
 import eu.kanade.tachiyomi.data.coil.cropBorders
 import eu.kanade.tachiyomi.data.coil.webtoonStrips
+import eu.kanade.tachiyomi.ui.reader.ocr.OcrCropWindow
+import eu.kanade.tachiyomi.ui.reader.ocr.impl.OcrSheetCrop
+import eu.kanade.tachiyomi.ui.reader.ocr.impl.resolvedAgainst
+import eu.kanade.tachiyomi.ui.reader.ocr.impl.ssivCropScan
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences.LandscapeZoomScaleType
 import eu.kanade.tachiyomi.ui.reader.viewer.webtoon.WebtoonStripImageView
 import eu.kanade.tachiyomi.ui.reader.viewer.webtoon.WebtoonSubsamplingImageView
@@ -115,6 +119,9 @@ open class ReaderPageImageView @JvmOverloads constructor(
     @CallSuper
     open fun onImageLoaded() {
         // KUN -->
+        // The image is loaded, so SSIV can now report the size it cropped to: resolve the window the
+        // overlay's crop transform needs (a no-op when the sheet was not border-cropped).
+        resolveOcrCropWindow()
         bumpOcrTransformVersion()
         // KUN <--
         onImageLoaded?.invoke()
@@ -160,6 +167,55 @@ open class ReaderPageImageView @JvmOverloads constructor(
 
     private fun bumpOcrTransformVersion() {
         ocrTransformVersion++
+    }
+
+    /**
+     * The border crop the **displayed** sheet went through, as fractions of the uncropped sheet, or
+     * null when the page is shown whole. `OcrDisplayTransform.croppedBy` turns it into the transform
+     * the overlay projects with.
+     */
+    @Volatile
+    private var ocrCropWindow: OcrCropWindow? = null
+
+    /** A window derived from a sheet's bytes, waiting for SSIV to report the size it cropped to. */
+    @Volatile
+    private var ocrPendingCrop: OcrSheetCrop? = null
+
+    fun ocrCropWindow(): OcrCropWindow? = ocrCropWindow
+
+    /**
+     * Derives the border crop SSIV will apply to [sheet] (`cropRequested` = the viewer's crop-borders
+     * setting) and remembers it for [onImageLoaded], where it is checked against what SSIV actually
+     * cropped to.
+     *
+     * **Decodes [sheet], so call it off the main thread.** A no-op, with no decode, unless crop
+     * borders are requested, [isAnimated] is false (an animated page is drawn by a plain `ImageView`,
+     * which never crops), the page is drawn by SSIV (the webtoon strip decoder publishes the exact
+     * window it cut itself) and the dictionary/OCR feature is on.
+     */
+    fun ocrScanSheetCrop(sheet: BufferedSource, isAnimated: Boolean, cropRequested: Boolean) {
+        // A new sheet is coming up: whatever the previous one reported no longer describes it.
+        ocrPendingCrop = null
+        ocrCropWindow = null
+        if (!cropRequested || isAnimated) return
+        if (isWebtoon && !alwaysDecodeLongStripWithSSIV) return
+        if (!context.appGraph.dictionaryOcrPreferences.isEnabled()) return
+        ocrPendingCrop = ssivCropScan(sheet)
+    }
+
+    /**
+     * Resolves the pending window against the size SSIV actually cropped to
+     * ([OcrSheetCrop.resolvedAgainst]). Only the cropped *extent* is observable, so a recipe that no
+     * longer reproduces SSIV's rect in size (e.g. after a SSIV bump) yields no window and the overlay
+     * keeps the uncropped mapping instead of scaling every block by a stale ratio; an origin-only
+     * drift is caught by a device check, not here (see `OcrSheetCrop`).
+     */
+    private fun resolveOcrCropWindow() {
+        val pending = ocrPendingCrop ?: return
+        ocrPendingCrop = null
+        val ssiv = ocrSubsamplingImageView() ?: return
+        if (!ssiv.isReady) return
+        ocrCropWindow = pending.resolvedAgainst(ssiv.sWidth, ssiv.sHeight)
     }
     // KUN <--
 
@@ -248,6 +304,11 @@ open class ReaderPageImageView @JvmOverloads constructor(
     fun recycle() {
         stripRequest?.dispose()
         stripRequest = null
+        // KUN -->
+        // The next page is a different sheet: neither a derived nor a published crop describes it.
+        ocrPendingCrop = null
+        ocrCropWindow = null
+        // KUN <--
         pageView?.let {
             when (it) {
                 is SubsamplingScaleImageView -> it.recycle()
@@ -462,7 +523,12 @@ open class ReaderPageImageView @JvmOverloads constructor(
             .diskCachePolicy(CachePolicy.DISABLED)
             .target(
                 onSuccess = { result ->
-                    view.setImage(result as ImageDecoder.StripsImage)
+                    // KUN -->
+                    // The strips decoder border-crops the sheet itself and reports the window it cut,
+                    // so this is the exact rect (no derivation and no size check needed).
+                    ocrCropWindow = (result as ImageDecoder.StripsImage).cropWindow
+                    // KUN <--
+                    view.setImage(result)
                     if (!isReload) {
                         view.isVisible = true
                         onImageLoaded()

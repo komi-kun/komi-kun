@@ -202,7 +202,9 @@ class WebtoonViewer(
                 activity.onPageSingleTap(
                     ocrItem,
                     null,
-                    activity.toOverlayPoint(recycler, event.x, event.y),
+                    // `event.x`/`event.y` are the recycler's own, unzoomed coordinates; the viewport
+                    // converts them with the same origin and zoom it draws the boxes with.
+                    ocrViewportRef.overlayPointOfRecyclerLocal(event.x, event.y),
                 )
             ) {
                 return@tap
@@ -234,7 +236,7 @@ class WebtoonViewer(
                         // KUN -->
                         activity.onPageLongTap(
                             item,
-                            point = activity.toOverlayPoint(recycler, event.x, event.y),
+                            point = ocrViewportRef.overlayPointOfRecyclerLocal(event.x, event.y),
                         )
                         // KUN <--
                         return@f true
