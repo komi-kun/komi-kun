@@ -127,6 +127,9 @@ class CategoryRepositoryImpl(
             } else {
                 emptyList()
             }
+            // Hoisted so the order bookkeeping below tests membership against a set instead of
+            // re-scanning every displaced row for every category.
+            val displacedIds = displaced.mapTo(mutableSetOf()) { it.id }
             val parked = reordered + displaced
             // KUN <--
             if (parked.isNotEmpty()) {
@@ -147,7 +150,7 @@ class CategoryRepositoryImpl(
             }
             val reorderedIds = reordered.mapTo(mutableSetOf()) { it.id }
             val usedOrders = dbCategories
-                .filterNot { it.id in reorderedIds || displaced.any { d -> d.id == it.id } }
+                .filterNot { it.id in reorderedIds || it.id in displacedIds }
                 .mapTo(mutableSetOf()) { it.order }
             var nextOrder = (dbCategories.maxOfOrNull { it.order } ?: -1L) + 1
             fun freeOrder(): Long {
