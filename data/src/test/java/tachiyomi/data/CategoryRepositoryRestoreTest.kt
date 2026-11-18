@@ -201,6 +201,35 @@ class CategoryRepositoryRestoreTest {
     }
 
     @Test
+    fun `a local category the server does not know moves after the synced ones`() {
+        runBlocking {
+            val driver = newDriver()
+            try {
+                val database = DatabaseBindings.providesDatabase(driver)
+                val repository = CategoryRepositoryImpl(database)
+                // Squats the position the server claims for its own category.
+                driver.insertCategory(id = 1L, name = "Local", order = 0L)
+
+                repository.restoreCategories(
+                    categories = listOf(category(name = "Action", order = 0L)),
+                    isSync = true,
+                )
+
+                // A sync delta is a replica: the server's position wins and the local-only category
+                // follows it, instead of the synced row falling back to a free order.
+                driver.categoryNamesInOrder() shouldBe listOf("Action", "Local")
+                driver.categoryOrdersInOrder() shouldBe listOf(0L, 1L)
+                driver.scalarLong("SELECT min(`order`) FROM category WHERE id > 0") shouldBe 0L
+                driver.scalarLong("SELECT count(*) FROM category WHERE is_syncing != 0") shouldBe 0L
+                // Re-placing a parked local must not age it, or the next delta echoes it back.
+                driver.scalarLong("SELECT version FROM category WHERE name = 'Local'") shouldBe 0L
+            } finally {
+                driver.close()
+            }
+        }
+    }
+
+    @Test
     fun `deleting a batch commits once`() {
         runBlocking {
             val driver = newDriver()
