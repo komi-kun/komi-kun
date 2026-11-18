@@ -141,10 +141,20 @@ class RecommendsViewModel(
     }
 
     private fun updateItem(source: RecommendationPagingSource, result: RecommendationItemResult) {
-        val newItems = state.value.items.toMutableMap().also {
-            it[source] = result
+        // KMK -->
+        // Read the items inside update {} so results finishing at the same time don't overwrite
+        // each other and leave a source loading forever (mihonapp/mihon#4037)
+        state.update { currentState ->
+            val newItems = currentState.items.toMutableMap().also {
+                it[source] = result
+            }
+            currentState.copy(
+                items = newItems
+                    .toSortedMap(sortComparator(newItems))
+                    .toMap(),
+            )
         }
-        updateItems(newItems)
+        // KMK <--
     }
 
     @Immutable

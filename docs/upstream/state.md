@@ -6,26 +6,52 @@ history: update it when the position or the outstanding item changes, and keep
 
 ## 1. Position
 
-Verified against the remotes on 2026-10-28, before PR #80 was merged:
+Verified against the remotes on 2026-11-18, before the window in §2 is merged:
 
 | Ref | Commit | Committer date |
 |---|---|---|
-| fork `master` | `45c51d699f` | 2026-10-25 |
-| `mihon/main` | `e588e04359` | 2026-10-26 |
-| `tachiyomiSY/master` | `9955747216` | 2026-10-27 |
+| fork `master` | `85d7d1fade` (PR #80) | 2026-10-28 |
+| `mihon/main` | `4823ba69ca` | 2026-11-14 |
+| `tachiyomiSY/master` | `5c77cad303` | 2026-11-13 |
+| `komikku/master` | `290267dd4c` | 2026-11-16 |
 
-The fork was about **one day** behind `mihon/main`, not the two-year backlog the log's blank rows
-suggest. Those rows are blank because ports land as **squash merges** — no `cherry picked from commit`
-trailer — and because `mihon/main` is not an ancestor of `master` (vendored history), so neither
-detector fires. Adjudicate presence by content, per "Verify presence by content, not by the log" in the
-`upstream-port` skill; never from the Status column.
+The window itself is the branch `chore/upstream-window-and-deps`, based on `9624dc3187`. Its rows are
+**hand-marked** in the log: ports land here as squash merges with no `cherry picked from commit` trailer, and
+`mihon/main` is not an ancestor of `master` (vendored history), so neither detector can fire. A blank row is
+therefore never evidence that a change is missing — adjudicate presence by content, per "Verify presence by
+content, not by the log" in the `upstream-port` skill, and never from the Status column alone.
 
-## 2. PR #80 — `chore/upstream-port-2026-10`
+## 2. The 2026-11-18 window — `chore/upstream-window-and-deps`
 
-The sync that closed the gap: the Mihon and SY commits since 2024-01-01 that a content audit found
-genuinely missing, the Weblate translation commits in that window, and the fixes the port needed to stay
-coherent (chapter-cache TTL rewrite, duplicate-download cleanup, updater and telemetry fixes, the merge
-and backup repair). `ui/reader/**` is deliberately excluded and left to the reader stream below.
+Upstream commits since 2026-10-24 (`mihon` `e588e04359`→`4823ba69ca`, `tachiyomiSY`
+`9955747216`→`5c77cad303`) plus Komikku since its config `since` 2026-10-08 (`1656575e8f`→`290267dd4c`),
+adjudicated row by row: **13 ported, 5 already-present rows closed, 13 won't-pick (§5), 3 deferred (§4)**.
+
+- Mihon: `629033c804` → `c98f9b3cac` (lint: read the locale observably, `AppCompatButton`; its splash
+  resource hunk is omitted deliberately — the fork keeps its own themed splash) and `002a5fba27` →
+  `b95508035f` (scrollbars on Compose's scroll-indicator APIs, with the KUN drag label re-applied).
+- TachiyomiSY: `9926c3131a` → `d1c8355dce` (Weblate #1684), `90f9bfcb64` → `bfd842b602` (page preview keyed
+  by a stable identity), `c97ffb6025` → `5396eb148e` (synced category positions), `24ac64049a` →
+  `f1a6c41c58` (E-Hentai tag lists), `4ba3a6af5b` → `3db898e5e4` (MangaDex logout headers; the login half
+  was already in the tree), `e073ef6d84` → `e5e6abf58e` (empty ckb locale files end with a newline) and
+  `5c77cad303` → `1d2287a75b` (split/double-pages exclusivity decided at toggle time).
+- Komikku: `a1166f3c23` → `375bf1da65` (custom smart-update intervals in every build type), `07f6b434e8` →
+  `cac8a27724` (global search keeps its sources, recommendations stop spinning), `9c955b5b1e` →
+  `4bb1137fdb` (stop attributing other stores' updates to installed extensions; the `ExtensionMatching` half
+  is deferred, §4) and `383ffaa816` → `b5087846d2` (partial-pick detection and the newer `mark` options in
+  `.agents/skills/cherrypick-log/`).
+- Already present, now recorded: `c1eb1e3cbf`, `290267dd4c`, `6e218618d2`, `8d091eaebc` and the reader series'
+  `ca028cb657`, `8124d324a1`, `00335b2a70` (PR #81).
+- Dependencies: the window's catalog work landed as one series — Gradle 9.9.1, `compose-bom` 2026.11.00,
+  `metro` 1.5.2, `okhttp` 5.5.1, `sqlcipher` 4.20.0, `kotlinx-serialization` 1.13.0, `libarchive` 1.1.7,
+  `mockk` 1.14.12, `kotest-assertions` 6.2.7, `uiautomator` 2.4.1. What is still behind is in §4.
+
+## 3. PR #80 — `chore/upstream-port-2026-10` (landed)
+
+The sync that closed the two-year gap into `85d7d1fade`: the Mihon and SY commits since 2024-01-01 that a
+content audit found genuinely missing, the Weblate translation commits in that window, and the fixes the port
+needed to stay coherent (chapter-cache TTL rewrite, duplicate-download cleanup, updater and telemetry fixes,
+the merge and backup repair). `ui/reader/**` was deliberately excluded and left to the reader stream below.
 
 - Migrations: `59.sqm` (SY's `library_removal` table, renumbered from SY's `48.sqm`), `60.sqm` (KUN:
   the library/updates feed views dedupe a merged entry's chapters by its chapter-sort mode), `61.sqm`
@@ -35,41 +61,39 @@ and backup repair). `ui/reader/**` is deliberately excluded and left to the read
 - Gate: `./gradlew testDebugUnitTest` green — 530 tests across 63 suites, 0 failures, 1 skipped — plus
   the CI `spotlessCheck` / `assembleNightly` steps.
 
-## 3. Outstanding: the reader-through-Compose rewrite
+## 4. Open work
 
-Mihon's reader re-architecture — `00335b2a70` "Draw the reader through Compose" (#4191),
-`9079ad8c9a` "Handle reader input and state in the activity" (#4192), `e588e04359` "Share the reader's
-page chrome and page logic between viewers" (#4193), on top of `8124d324a1` (config listeners →
-settings view model state) and `ca028cb657` (viewer out of the ViewModel) — is **not on `master`** and
-cannot be cherry-picked as a block. It is a re-architecture of `ui/reader/**`, so it is being ported in
-steps on its own branch.
+- **Reader series, steps 4-6.** Steps 1-3 landed in PR #81 (`bc5bfa077c`, `docs/reader/`):
+  `ca028cb657`, `8124d324a1` and `00335b2a70` are in, hand-marked in the log. What is left, per
+  `docs/reader/step3-compose-reader.md` §6:
+  - step 4 — the dual-page join/shift/isolate engine over the new pager items;
+  - step 5 — `9079ad8c9a` (Mihon #4192, "Handle reader input and state in the activity"), **deferred
+    2026-11-18**: its extraction would delete the KUN `VolumeKeyPagingPolicy` OCR-overlay exemption and the
+    KMK pan-before-turn, so it needs a fork-shaped redesign rather than a straight pick;
+  - step 6 — `e588e04359` (Mihon #4193, "Share the reader's page chrome and page logic between viewers"),
+    **deferred 2026-11-18**: its extraction targets the KUN OCR display-transform bookkeeping and the SY
+    dual-page engine.
+- **Injekt removal** — `524fa53043` (Mihon #4179) is **deferred 2026-11-18**: 50 `.kt` files outside
+  `source-api/` still import `uy.kohesive.injekt` through the interop bridge in `mihon/app/di/injekt/`, so
+  the commit's premise does not hold in this tree yet.
+- **ExtensionMatching model convergence** — the `ExtensionMatching.kt` / `ExtensionMatchingTest.kt` half of
+  Komikku `9c955b5b1e` is **deferred 2026-11-18**: it needs `Extension.signatureHash` and
+  `Installed.storeName`, and the fork's model came from Mihon's newer design. The attribution half is ported
+  (`4bb1137fdb`).
+- **Dependency rows still behind `mihon/main`.** Every one of them is Renovate-authored, so `config.json`'s
+  identity filter keeps them out of the log (26 such commits on `mihon/main` and 7 on `tachiyomiSY/master`
+  in this window; they have to be read from the upstream catalogs, not from `cherrypick_log.md`):
+  `spotless` 8.8.0 → 8.11.0, `firebase-bom` 34.15.0 → 35.2.0, `google-services` 4.5.0 → 4.6.0,
+  `conscrypt-android` 2.5.3 → 2.9.0, `jsoup` 1.23.2 → 1.24.1, `androidx-webkit` 1.16.0 → 1.18.0 and AGP
+  9.4.1 → 9.5.1. `metro` is 1.5.2 here, level with `mihon/main`; the 1.6.0 bump this window expected is not
+  on any upstream branch yet, so there is nothing to pick for it.
+- **webgpuviewer fork AAR.** `32eb14c763`, `ede052af17`, `70c73c728b` and the two `imagedecoder` bumps are not
+  picks: the fork vendors its own `komi-kun/webgpuviewer` AAR in `maven/` and tracks it through the
+  `immersion-deps-sync` skill, so Maven bumps upstream do not apply.
 
-- Branch: `feat/reader-compose`, based on `7d4be1b84c`.
-- `docs/reader/feature-inventory.md`: the 55-capability `R1`–`R55` checklist every step must preserve.
-  **The IDs are stable — never renumber, reorder or reuse one; add `R56` instead.**
-- Landed:
-  - `719365dc88` — the inventory itself.
-  - Step 1, `ca028cb657` → `9bd2f451b7` (the viewer is owned by the activity, no longer by the
-    ViewModel).
-  - Step 2, `8124d324a1` → `86f62b3ebb` (phase A: the settings plane) + `db1e475143` (phase B: every
-    consumer migrated, `ViewerConfig`, `PagerConfig`, `WebtoonConfig` and `WebGpuConfig` deleted), plus
-    the fixes `0e1909e127` and `3e7ee19608`.
-- `docs/reader/step2-settings-plane.md` records what happened to the fork's 28 fork-only reader knobs
-  (18 homed in the new settings objects, 10 stay on `ReaderPreferences`) and what is deferred: R10 →
-  step 4, R32 → step 5, R19/R20 → step 6.
-- **Next: step 3 — `00335b2a70`** (Compose reader + `ViewerNavigation` value objects). After that:
-  step 4, the dual-page engine on the new `PagerItems`; step 5, `9079ad8c9a` (input + autoscroll API);
-  step 6, seed-colour theming, WebGPU settings and the zoom cluster.
-- Rebase contract once PR #80 is merged, so that the reader branch sits on the new `master` without
-  replaying the port commits underneath it:
+## 5. Rows judged inapplicable — do not re-litigate
 
-  ```bash
-  git rebase --onto master 7d4be1b84c feat/reader-compose
-  ```
-
-## 4. Rows judged inapplicable — do not re-litigate
-
-Each already carries an `AI checked` note in `cherrypick_log.md`; the reasons are:
+Each already carries a note in `cherrypick_log.md`; the reasons are:
 
 - `c67a33f3d4` (mihon, "Remove unused sync scaffold"): every hunk touches columns the fork's SyncYomi
   path reads, so the "unused" scaffold is live here and the commit is inseparable from SyncYomi.
@@ -78,8 +102,21 @@ Each already carries an `AI checked` note in `cherrypick_log.md`; the reasons ar
 - `e7dc95dba1` (tachiyomiSY, "Fix possible foreign key errors in migration"): it patches SY's
   `merged_new` / `search_metadata_new` rebuild, tables this schema never had — `43.sqm` here is the
   unrelated `updatesView` change, and the delete-orphans intent already exists in `49.sqm`.
+- `cfeccaf08b` (mihon, "Remove unused code, resources and strings"): the symbols it deletes are live fork
+  code — `NotificationReceiver` (13 Kotlin files), `WebGpuViewer`, `AppUpdateNotifier`, `DotSeparatorText`,
+  `TachiyomiTextInputEditText` — so the removal does not apply. The 2026-10-28 "already present" verdict on
+  this row was a false negative.
+- `f8334d644e`, `a8ed0a7194` (tachiyomiSY crash guards): the fork has no `runBlocking` path and resolves
+  `appGraph` lazily, so both crash paths are absent here.
+- `df84ab89ee` ("Fix build"), `df041f0a04` ("Lint"): superseded — the fork already streams `decodeEntries`
+  three times and carries the equivalent lint cleanup.
+- `4df41cef63` (mihon, "Add agent instructions"): upstream's own `AGENTS.md`, not this repo's guide.
+- `4b879d1ceb`, `007ec9a868`: release bookkeeping (`versionCode` bump, `v0.21.3`). The fork pins
+  `versionCode` 83 and ships nightlies, so neither is a pick.
+- `7a5632c013` and `e8977b4a66` ("Keep tab badges visible…" and its revert): the pair cancels out, and the
+  fork keeps the re-applied version that landed as `b19c8abeba` / `2e3ea2a3f5`.
 
-## 5. `library_removal` is redundant — the fork's removal sync came first
+## 6. `library_removal` is redundant — the fork's removal sync came first
 
 The fork already synced library removals and un-read / lower-progress chapters before SY's
 `78e6a65248` was ported: the owner built it in `5d0a67227d` (2026-10-14), `3991bd8537` (#43),
@@ -95,8 +132,8 @@ What `78e6a65248` genuinely added, and what to keep:
 - history-only change detection in `needsRestore` (`SyncDelta.kt:287`, `remote.history.any { … }`).
 
 What it added that is redundant today: the `library_removal` table and the two
-`OR id IN (SELECT manga_id FROM library_removal …)` terms (`manga.sq:223`, `:238`). Both triggers share
-the same `is_syncing = 0` guard, and the tombstone's `old.user_favorite_at IS NOT NULL AND
+`OR id IN (SELECT manga_id FROM library_removal …)` terms (`manga.sq:223`, `:238`). Both triggers share the
+same `is_syncing = 0` guard, and the tombstone's `old.user_favorite_at IS NOT NULL AND
 new.user_favorite_at IS NULL` is a strict subset of `update_last_favorited_at_mangas`'s
 `new.user_favorite_at IS NOT old.user_favorite_at`, so every row the tombstone names is already
 stamped. The table ships unreleased in `59.sqm` and is kept for SY parity, not because anything

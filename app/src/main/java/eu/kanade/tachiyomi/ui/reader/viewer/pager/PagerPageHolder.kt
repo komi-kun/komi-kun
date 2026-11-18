@@ -81,9 +81,9 @@ class PagerPageHolder(
     // KUN -->
     /**
      * How this holder transformed the raw page image for display (split / merge), so the OCR
-     * overlay can map block coordinates back onto the displayed sheet. [OcrDisplayTransform.None]
-     * covers the unmodified page (including SSIV's own crop, which `sourceToViewCoord` already
-     * accounts for). Display rotation (`dualPageRotateToFit`) is a documented v1 limitation.
+     * overlay can map block coordinates back onto the displayed sheet. With crop borders on, this is
+     * wrapped in an `OcrDisplayTransform.Crop` carrying the rect the page was cropped by (resolved in
+     * [onImageLoaded]); display rotation (`dualPageRotateToFit`) is a documented v1 limitation.
      */
     @Volatile
     private var ocrTransform: OcrDisplayTransform = OcrDisplayTransform.None
@@ -238,6 +238,12 @@ class PagerPageHolder(
                 }
                 // SY <--
                 val isAnimated = ImageUtil.isAnimatedAndSupported(source)
+                // KUN -->
+                // Crop borders are a request: SSIV derives the rect, and the overlay needs it to map
+                // blocks onto the cropped sheet. Derived here, off the main thread, from the same
+                // sheet SSIV is about to be given.
+                ocrScanSheetCrop(source, isAnimated, viewer.paged.page.cropBorders)
+                // KUN <--
                 val background = if (!isAnimated && viewer.general.automaticBackground) {
                     ImageUtil.chooseBackground(context, source.peek())
                 } else {
@@ -490,6 +496,11 @@ class PagerPageHolder(
 
     override fun onImageLoaded() {
         super.onImageLoaded()
+        // KUN -->
+        // `super` resolved the border crop SSIV applied (if any) now that it reports its cropped
+        // size; wrap the split/merge transform so blocks land in crop space, not on the whole page.
+        ocrTransform = ocrTransform.croppedBy(ocrCropWindow())
+        // KUN <--
         progressIndicator?.hide()
     }
 
