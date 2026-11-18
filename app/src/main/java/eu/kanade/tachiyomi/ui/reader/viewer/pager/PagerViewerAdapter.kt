@@ -51,7 +51,9 @@ class PagerViewerAdapter(
     fun setChapters(chapters: ViewerChapters, forceTransition: Boolean) {
         val update = joinedItems.setChapters(chapters, forceTransition, viewer.pager.currentItem)
 
+        // KUN --> already in slot positions: [PagerJoinedItems] translated the flat model's answer for the pager
         update.position?.let { viewer.pager.setCurrentItem(it, false) }
+        // KUN <--
 
         // Will skip insert page otherwise
         update.insertPage?.let(viewer::moveToPage)
