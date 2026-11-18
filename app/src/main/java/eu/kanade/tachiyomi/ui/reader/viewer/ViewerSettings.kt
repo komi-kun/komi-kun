@@ -28,16 +28,23 @@ data class NavigationSettings(
 ) {
 
     // KUN -->
-    // KMK: upstream's value-based navigator, plus the tap-zone size (R31) as a second value every
-    // navigator needs for its geometry.
-    fun navigator(default: (ReaderPreferences.TappingInvertMode, Boolean) -> ViewerNavigation): ViewerNavigation {
+    // KMK: upstream's value-based navigator, plus the tap-zone size (R31) as a value every
+    // navigator needs for its geometry. `default` therefore takes the inversion, the reading
+    // direction and the zone size, the three values a navigator is built from.
+    fun navigator(
+        isReversed: Boolean,
+        default: (ReaderPreferences.TappingInvertMode, Boolean, Boolean) -> ViewerNavigation,
+    ): ViewerNavigation {
         return when (mode) {
-            ReaderPreferences.NavigationMode.DEFAULT -> default(inverted, smallerTapZone)
-            ReaderPreferences.NavigationMode.L_SHAPED -> LNavigation(inverted, smallerTapZone)
-            ReaderPreferences.NavigationMode.KINDLISH -> KindlishNavigation(inverted, smallerTapZone)
-            ReaderPreferences.NavigationMode.EDGE -> EdgeNavigation(inverted, smallerTapZone)
-            ReaderPreferences.NavigationMode.RIGHT_AND_LEFT -> RightAndLeftNavigation(inverted, smallerTapZone)
-            ReaderPreferences.NavigationMode.DISABLED -> DisabledNavigation(inverted, smallerTapZone)
+            ReaderPreferences.NavigationMode.DEFAULT -> default(inverted, isReversed, smallerTapZone)
+            ReaderPreferences.NavigationMode.L_SHAPED -> LNavigation(inverted, isReversed, smallerTapZone)
+            ReaderPreferences.NavigationMode.KINDLISH ->
+                KindlishNavigation(inverted, isReversed, smallerTapZone)
+            ReaderPreferences.NavigationMode.EDGE -> EdgeNavigation(inverted, isReversed, smallerTapZone)
+            ReaderPreferences.NavigationMode.RIGHT_AND_LEFT ->
+                RightAndLeftNavigation(inverted, isReversed, smallerTapZone)
+            ReaderPreferences.NavigationMode.DISABLED ->
+                DisabledNavigation(inverted, isReversed, smallerTapZone)
         }
     }
     // KUN <--

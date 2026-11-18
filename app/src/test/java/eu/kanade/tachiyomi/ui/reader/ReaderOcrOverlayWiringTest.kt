@@ -122,16 +122,20 @@ class ReaderOcrOverlayWiringTest {
         // Each entry point exists exactly once, so "the guard before this call" is unambiguous.
         hitTests.forEach { occurrences(source, Regex.fromLiteral(it)) shouldBe 1 }
         occurrences(source, Regex.fromLiteral(GATE)) shouldBe hitTests.size
-        // ...and every one of them passes the chrome state, which is what stands the hit test down
-        // while the bars are up (the overlay is composed with `alpha = 0f` there). A `menuVisible`
-        // that defaults (or that one site forgets) puts the invisible-overlay lookup back.
-        occurrences(source, Regex("""menuVisible\s*=\s*viewModel\.state\.value\.menuVisible""")) shouldBe
-            hitTests.size
 
         hitTests.forEach { hitTest ->
             val call = indexOfCall(source, hitTest)
             val gate = source.lastIndexOf(GATE, call)
             if (gate < 0) fail("$hitTest is not guarded by $GATE at all")
+
+            // Every one of them passes the chrome state, which is what stands the hit test down while
+            // the bars are up (the overlay is composed with `alpha = 0f` there). A `menuVisible` that
+            // defaults (or that one site forgets) puts the invisible-overlay lookup back. Checked per
+            // site, between this site's decision and its call: the reader asks other policies about
+            // the same chrome elsewhere (the volume-key gate), and those are not tap entry points.
+            if (!source.substring(gate, call).contains(MENU_VISIBLE)) {
+                fail("$hitTest's policy decision does not pass the chrome state ($MENU_VISIBLE)")
+            }
 
             // The guard must be *this* site's decision: a call that consumes a gesture between the
             // nearest preceding decision and this one means the decision guards that call instead
@@ -262,6 +266,9 @@ class ReaderOcrOverlayWiringTest {
     private companion object {
         /** The one place the "may this gesture be looked up" decision is allowed to live. */
         private const val GATE = "ReaderOcrOverlayPolicy.acceptsLookup("
+
+        /** The chrome state every tap entry point hands its policy decision. */
+        private const val MENU_VISIBLE = "menuVisible = viewModel.state.value.menuVisible"
     }
 }
 

@@ -4,9 +4,8 @@ package eu.kanade.tachiyomi.ui.reader.viewer
 /**
  * Pure decision core for the readers' "volume keys turn pages" feature.
  *
- * Every viewer asks this before it turns a `KEYCODE_VOLUME_UP`/`KEYCODE_VOLUME_DOWN` event into a
- * page turn or scroll. The volume keys may only be consumed for navigation when all of the
- * following hold:
+ * The reader's key handler asks this before it turns a volume-key event into a page turn or
+ * scroll. The volume keys may only be consumed for navigation when all of the following hold:
  *
  * - the user asked for it ([volumeKeysEnabled]); and
  * - the reader menu/overlay is not covering the page ([menuVisible]); and
@@ -17,7 +16,7 @@ package eu.kanade.tachiyomi.ui.reader.viewer
  * volume instead of paging the manga. The rule is intentionally coarse - "overlay on, volume keys
  * never page" - rather than conditional on whether audio has played, so it stays predictable.
  *
- * Keeping the answer here instead of inlining it in each viewer's `handleKeyEvent` lets the rule be
+ * Keeping the answer here instead of inlining it in the key handler lets the rule be
  * unit-tested on the JVM with no Android device.
  */
 object VolumeKeyPagingPolicy {

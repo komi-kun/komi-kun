@@ -374,16 +374,17 @@ class ReaderSettingsViewModel(
                 paged.map { it.navigation }
             }
             // KUN -->
-            // KMK: the navigators take the tap-zone size (R31) with the inversion, so the flow
-            // re-emits when either changes.
-            val defaultNavigation: (ReaderPreferences.TappingInvertMode, Boolean) -> ViewerNavigation =
+            // KMK: the navigators take the reading direction (upstream) and the tap-zone size (R31)
+            // with the inversion, so the flow re-emits when any of them changes.
+            val isReversed = viewerMode.readingMode == ReadingMode.RIGHT_TO_LEFT
+            val defaultNavigation: (ReaderPreferences.TappingInvertMode, Boolean, Boolean) -> ViewerNavigation =
                 if (viewerMode.readingMode.direction == ReadingMode.Direction.Vertical) {
                     ::LNavigation
                 } else {
                     ::RightAndLeftNavigation
                 }
             // KUN <--
-            settings.distinctUntilChanged().map { it.navigator(defaultNavigation) }
+            settings.distinctUntilChanged().map { it.navigator(isReversed, defaultNavigation) }
         }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 

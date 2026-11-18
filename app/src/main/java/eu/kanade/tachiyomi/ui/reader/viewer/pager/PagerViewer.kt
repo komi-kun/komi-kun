@@ -2,10 +2,7 @@ package eu.kanade.tachiyomi.ui.reader.viewer.pager
 
 import android.content.Context
 import android.graphics.ColorFilter
-import android.graphics.PointF
-import android.view.InputDevice
-import android.view.KeyEvent
-import android.view.MotionEvent
+import android.view.ViewGroup
 import android.view.ViewGroup.LayoutParams
 import android.widget.FrameLayout
 import androidx.annotation.ColorInt
@@ -13,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.asAndroidColorFilter
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.children
@@ -32,9 +30,8 @@ import eu.kanade.tachiyomi.ui.reader.viewer.LocalPageColorFilter
 import eu.kanade.tachiyomi.ui.reader.viewer.PagedSettings
 import eu.kanade.tachiyomi.ui.reader.viewer.ReaderPageImageView.ZoomStartPosition
 import eu.kanade.tachiyomi.ui.reader.viewer.Viewer
-import eu.kanade.tachiyomi.ui.reader.viewer.ViewerNavigation.NavigationRegion
-import eu.kanade.tachiyomi.ui.reader.viewer.VolumeKeyPagingPolicy
 import eu.kanade.tachiyomi.ui.reader.viewer.collectChanges
+import eu.kanade.tachiyomi.ui.reader.viewer.mouseWheelPaging
 import eu.kanade.tachiyomi.ui.reader.viewer.position
 import eu.kanade.tachiyomi.util.view.isVisibleOnScreen
 import kotlinx.coroutines.MainScope
@@ -179,6 +176,7 @@ abstract class PagerViewer(
         pager.isVisible = false // Don't layout the pager yet
         pager.layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
         pager.isFocusable = false
+        pager.descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
         pager.offscreenPageLimit = 1
         pager.id = R.id.reader_pager
         pager.adapter = adapter
@@ -204,19 +202,11 @@ abstract class PagerViewer(
             pager.getLocationOnScreen(viewPosition)
             val viewPositionRelativeToWindow = IntArray(2)
             pager.getLocationInWindow(viewPositionRelativeToWindow)
-            val pos = PointF(
+            val pos = Offset(
                 (event.rawX - viewPosition[0] + viewPositionRelativeToWindow[0]) / pager.width,
                 (event.rawY - viewPosition[1] + viewPositionRelativeToWindow[1]) / pager.height,
             )
-            // KUN --> the tap zones come from the settings view model (upstream 00335b2a70)
-            when (activity.settingsViewModel.navigation.value?.getAction(pos) ?: NavigationRegion.MENU) {
-                // KUN <--
-                NavigationRegion.MENU -> activity.toggleMenu()
-                NavigationRegion.NEXT -> moveToNext()
-                NavigationRegion.PREV -> moveToPrevious()
-                NavigationRegion.RIGHT -> moveRight()
-                NavigationRegion.LEFT -> moveLeft()
-            }
+            activity.onViewerTap(pos)
         }
         pager.longTapListener = f@{ event ->
             if (activity.viewModel.state.value.menuVisible || general.longTapEnabled) {
@@ -291,7 +281,7 @@ abstract class PagerViewer(
         }
         AndroidView(
             factory = { context -> DisallowInterceptBarrier(context).apply { addView(pager) } },
-            modifier = modifier,
+            modifier = modifier.mouseWheelPaging(this),
         )
     }
 
@@ -484,23 +474,44 @@ abstract class PagerViewer(
     }
 
     /**
-     * Moves to the next page.
+     * Whether pages run right to left, so moving forward goes left.
      */
-    open fun moveToNext() {
-        moveRight()
+    protected open val isReversed = false
+
+    override fun moveForward() = if (isReversed) moveLeft() else moveRight()
+
+    override fun moveBackward() = if (isReversed) moveRight() else moveLeft()
+
+    // KMK -->
+    /**
+     * Pans to the top of the page or if already on the top moves to the previous page.
+     */
+    override fun moveUp() {
+        val holder = (currentPage as? ReaderPage)?.let(::getPageHolder)
+        if (holder != null && holder.canPanUp()) {
+            holder.panUp()
+        } else {
+            moveBackward()
+        }
     }
 
     /**
-     * Moves to the previous page.
+     * Pans to the bottom of the page or if already on the bottom moves to the next page.
      */
-    open fun moveToPrevious() {
-        moveLeft()
+    override fun moveDown() {
+        val holder = (currentPage as? ReaderPage)?.let(::getPageHolder)
+        if (holder != null && holder.canPanDown()) {
+            holder.panDown()
+        } else {
+            moveForward()
+        }
     }
+    // KMK <--
 
     /**
      * Moves to the page at the right.
      */
-    protected open fun moveRight() {
+    private fun moveRight() {
         if (pager.currentItem != adapter.count - 1) {
             val holder = (currentPage as? ReaderPage)?.let(::getPageHolder)
             if (holder != null && paged.navigateToPan && holder.canPanRight()) {
@@ -514,7 +525,7 @@ abstract class PagerViewer(
     /**
      * Moves to the page at the left.
      */
-    protected open fun moveLeft() {
+    private fun moveLeft() {
         if (pager.currentItem != 0) {
             val holder = (currentPage as? ReaderPage)?.let(::getPageHolder)
             if (holder != null && paged.navigateToPan && holder.canPanLeft()) {
@@ -522,34 +533,6 @@ abstract class PagerViewer(
             } else {
                 pager.setCurrentItem(pager.currentItem - 1, general.usePageTransitions)
             }
-        }
-    }
-
-    /**
-     * Pans to the top of the page or if already on the top moves to the previous page.
-     */
-    protected open fun moveUp() {
-        // KMK -->
-        val holder = (currentPage as? ReaderPage)?.let(::getPageHolder)
-        if (holder != null && holder.canPanUp()) {
-            holder.panUp()
-        } else {
-            // KMK <--
-            moveToPrevious()
-        }
-    }
-
-    /**
-     * Pans to the bottom of the page or if already on the bottom moves to the next page.
-     */
-    protected open fun moveDown() {
-        // KMK -->
-        val holder = (currentPage as? ReaderPage)?.let(::getPageHolder)
-        if (holder != null && holder.canPanDown()) {
-            holder.panDown()
-        } else {
-            // KMK <--
-            moveToNext()
         }
     }
 
@@ -562,85 +545,6 @@ abstract class PagerViewer(
         adapter.refresh()
         pager.adapter = adapter
         pager.setCurrentItem(currentItem, false)
-    }
-
-    /**
-     * Called from the containing activity when a key [event] is received. It should return true
-     * if the event was handled, false otherwise.
-     */
-    override fun handleKeyEvent(event: KeyEvent): Boolean {
-        val isUp = event.action == KeyEvent.ACTION_UP
-        val ctrlPressed = event.metaState.and(KeyEvent.META_CTRL_ON) > 0
-
-        when (event.keyCode) {
-            KeyEvent.KEYCODE_VOLUME_DOWN -> {
-                // KUN -->
-                if (!VolumeKeyPagingPolicy.shouldConsumeForPaging(
-                        volumeKeysEnabled = general.volumeKeysEnabled,
-                        menuVisible = activity.viewModel.state.value.menuVisible,
-                        ocrOverlayEnabled = general.ocrOverlayEnabled,
-                    )
-                ) {
-                    return false
-                }
-                // KUN <--
-                if (isUp) {
-                    if (!general.volumeKeysInverted) moveDown() else moveUp()
-                }
-            }
-            KeyEvent.KEYCODE_VOLUME_UP -> {
-                // KUN -->
-                if (!VolumeKeyPagingPolicy.shouldConsumeForPaging(
-                        volumeKeysEnabled = general.volumeKeysEnabled,
-                        menuVisible = activity.viewModel.state.value.menuVisible,
-                        ocrOverlayEnabled = general.ocrOverlayEnabled,
-                    )
-                ) {
-                    return false
-                }
-                // KUN <--
-                if (isUp) {
-                    if (!general.volumeKeysInverted) moveUp() else moveDown()
-                }
-            }
-            KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                if (isUp) {
-                    if (ctrlPressed) moveToNext() else moveRight()
-                }
-            }
-            KeyEvent.KEYCODE_DPAD_LEFT -> {
-                if (isUp) {
-                    if (ctrlPressed) moveToPrevious() else moveLeft()
-                }
-            }
-            KeyEvent.KEYCODE_DPAD_DOWN -> if (isUp) moveDown()
-            KeyEvent.KEYCODE_DPAD_UP -> if (isUp) moveUp()
-            KeyEvent.KEYCODE_PAGE_DOWN -> if (isUp) moveDown()
-            KeyEvent.KEYCODE_PAGE_UP -> if (isUp) moveUp()
-            KeyEvent.KEYCODE_MENU -> if (isUp) activity.toggleMenu()
-            else -> return false
-        }
-        return true
-    }
-
-    /**
-     * Called from the containing activity when a generic motion [event] is received. It should
-     * return true if the event was handled, false otherwise.
-     */
-    override fun handleGenericMotionEvent(event: MotionEvent): Boolean {
-        if (event.source and InputDevice.SOURCE_CLASS_POINTER != 0) {
-            when (event.action) {
-                MotionEvent.ACTION_SCROLL -> {
-                    if (event.getAxisValue(MotionEvent.AXIS_VSCROLL) < 0.0f) {
-                        moveDown()
-                    } else {
-                        moveUp()
-                    }
-                    return true
-                }
-            }
-        }
-        return false
     }
 
     fun onPageSplit(currentPage: ReaderPage, newPage: InsertPage) {
