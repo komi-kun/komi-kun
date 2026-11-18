@@ -6,6 +6,7 @@
 // KUN <--
 package eu.kanade.tachiyomi.ui.reader.viewer.webtoon
 
+import android.graphics.PointF
 import android.graphics.RectF
 import android.view.View
 import androidx.recyclerview.widget.RecyclerView
@@ -56,11 +57,13 @@ class WebtoonOcrViewport(
             val p1 = ssiv.sourceToViewCoord(display.left * ssiv.sWidth, display.top * ssiv.sHeight) ?: return null
             val p2 = ssiv.sourceToViewCoord(display.right * ssiv.sWidth, display.bottom * ssiv.sHeight) ?: return null
             val off = OcrOverlayCoords.offsetOf(ssiv, overlayView)
+            // SSIV view coordinates are a layout space: the ancestor zoom has to be multiplied in.
+            val scale = ancestorScaleOf(ssiv)
             return RectF(
-                min(p1.x, p2.x) + off.x,
-                min(p1.y, p2.y) + off.y,
-                max(p1.x, p2.x) + off.x,
-                max(p1.y, p2.y) + off.y,
+                off.x + min(p1.x, p2.x) * scale.x,
+                off.y + min(p1.y, p2.y) * scale.y,
+                off.x + max(p1.x, p2.x) * scale.x,
+                off.y + max(p1.y, p2.y) * scale.y,
             )
         }
 
@@ -75,18 +78,37 @@ class WebtoonOcrViewport(
             ownerH = 0,
         )
         val off = OcrOverlayCoords.offsetOf(strip, overlayView)
-        return RectF(
-            off.x + display.left * strip.width,
-            off.y + display.top * strip.height,
-            off.x + display.right * strip.width,
-            off.y + display.bottom * strip.height,
+        // `off` tracks the zoomed ancestors' translation but not their scale (a matrix-mapped point
+        // carries one, an extent re-derived from a layout size the other), so the extent needs it.
+        val scale = ancestorScaleOf(strip)
+        val screen = projectImageNormalizedToScreen(
+            block = OcrRect(display.left, display.top, display.right, display.bottom),
+            sheetWidth = strip.width.toFloat(),
+            sheetHeight = strip.height.toFloat(),
+            originX = off.x,
+            originY = off.y,
+            scaleX = scale.x,
+            scaleY = scale.y,
         )
+        return RectF(screen.left, screen.top, screen.right, screen.bottom)
     }
 
     override fun screenToImageNormalized(x: Float, y: Float): ImagePoint? {
         val recycler = viewer.recycler
         val recyclerOffset = OcrOverlayCoords.offsetOf(recycler, overlayView)
-        val child = recycler.findChildViewUnder(x - recyclerOffset.x, y - recyclerOffset.y) ?: return null
+        val recyclerScale = ancestorScaleOf(recycler)
+        // `findChildViewUnder` takes the recycler's **own** (layout) coordinates, i.e. before the
+        // zoom its ancestors apply, so the scale is undone as well as the offset - the same divisor
+        // the draw path multiplies by.
+        val recyclerLocal = overlayToViewLocal(
+            x = x,
+            y = y,
+            originX = recyclerOffset.x,
+            originY = recyclerOffset.y,
+            scaleX = recyclerScale.x,
+            scaleY = recyclerScale.y,
+        )
+        val child = recycler.findChildViewUnder(recyclerLocal.x, recyclerLocal.y) ?: return null
         val position = recycler.getChildAdapterPosition(child)
         val holder = viewer.ocrHolderAt(position) ?: return null
         val page = holder.ocrPage() ?: return null
@@ -95,7 +117,10 @@ class WebtoonOcrViewport(
         frame.ocrSubsamplingImageView()?.let { ssiv ->
             if (!ssiv.isReady || ssiv.sWidth <= 0 || ssiv.sHeight <= 0) return null
             val off = OcrOverlayCoords.offsetOf(ssiv, overlayView)
-            val source = ssiv.viewToSourceCoord(x - off.x, y - off.y) ?: return null
+            // `viewToSourceCoord` is in SSIV view space, so undo the ancestor zoom as well.
+            val ssivScale = ancestorScaleOf(ssiv)
+            val local = overlayToViewLocal(x, y, off.x, off.y, ssivScale.x, ssivScale.y)
+            val source = ssiv.viewToSourceCoord(local.x, local.y) ?: return null
             return holder.ocrDisplayTransform().mapInverse(
                 u = source.x / ssiv.sWidth,
                 v = source.y / ssiv.sHeight,
@@ -109,12 +134,20 @@ class WebtoonOcrViewport(
         val strip = frame.ocrStripImageView() ?: return null
         if (strip.width <= 0 || strip.height <= 0) return null
         val off = OcrOverlayCoords.offsetOf(strip, overlayView)
-        val u = (x - off.x) / strip.width
-        val v = (y - off.y) / strip.height
-        if (u < 0f || u > 1f || v < 0f || v > 1f) return null
+        val scale = ancestorScaleOf(strip)
+        val normalized = projectScreenToImageNormalized(
+            x = x,
+            y = y,
+            sheetWidth = strip.width.toFloat(),
+            sheetHeight = strip.height.toFloat(),
+            originX = off.x,
+            originY = off.y,
+            scaleX = scale.x,
+            scaleY = scale.y,
+        ) ?: return null
         return holder.ocrDisplayTransform().mapInverse(
-            u = u,
-            v = v,
+            u = normalized.x,
+            v = normalized.y,
             owner = page,
             partner = null,
             ownerW = 0,
@@ -125,9 +158,42 @@ class WebtoonOcrViewport(
     override fun transformVersion(): Long {
         // Scroll position drives the mapping; key the token on the recycler's scroll offset plus
         // the visible holders' identities so a page turn or reload invalidates it.
-        val scroll = viewer.recycler.computeVerticalScrollOffset().toLong()
+        val recycler = viewer.recycler
+        val scroll = recycler.computeVerticalScrollOffset().toLong()
         val holders = viewer.ocrVisibleHolders()
-        return scroll * 31L + holders.sumOf { it.hashCode().toLong() }
+        var token = scroll * 31L + holders.sumOf { it.hashCode().toLong() }
+        // A pinch moves neither the scroll offset nor the holder set: the zoom is a layer transform
+        // (`WebtoonRecyclerView.setScaleRate`), and the pan it comes with is the view's `x`/`y`
+        // translation, not its scroll position. Both change what the overlay must project, so both
+        // belong in the token - otherwise the boxes keep the pre-zoom projection for the whole
+        // gesture.
+        token = token * 31L + recycler.scaleX.toRawBits().toLong()
+        token = token * 31L + recycler.scaleY.toRawBits().toLong()
+        token = token * 31L + recycler.x.toRawBits().toLong()
+        token = token * 31L + recycler.y.toRawBits().toLong()
+        return token
+    }
+
+    /**
+     * The zoom [view] inherits from its ancestors, as seen from the overlay's coordinates.
+     *
+     * In the webtoon reader the zoom is a layer transform on the [RecyclerView]
+     * (`WebtoonRecyclerView.setScaleRate`: `scaleX`/`scaleY` plus an `x`/`y` pan), so the strip's own
+     * `scaleX` stays 1 and the factor has to be accumulated up the parent chain. The walk stops at the
+     * first ancestor the [overlayView] shares: that one scales the overlay too, so it cancels out
+     * between the two coordinate spaces.
+     */
+    private fun ancestorScaleOf(view: View): PointF {
+        val shared = generateSequence<View>(overlayView) { it.parent as? View }.toHashSet()
+        var scaleX = 1f
+        var scaleY = 1f
+        var current: View? = view
+        while (current != null && current !in shared) {
+            scaleX *= current.scaleX
+            scaleY *= current.scaleY
+            current = current.parent as? View
+        }
+        return PointF(scaleX, scaleY)
     }
 
     // KUN -->
