@@ -27,9 +27,9 @@ anki-api = "2.15.6"
 # KUN <--
 apollo = "5.2.0"
 apollo-adapters = "0.8.0"
-metro = "1.4.2"
-metrox-viewmodel = "1.4.2"
-metrox-viewmodel-compose = "1.4.2"
+metro = "1.5.2"
+metrox-viewmodel = "1.5.2"
+metrox-viewmodel-compose = "1.5.2"
 # KMK -->
 valkyrie = "0.5.2"
 # KMK <--
