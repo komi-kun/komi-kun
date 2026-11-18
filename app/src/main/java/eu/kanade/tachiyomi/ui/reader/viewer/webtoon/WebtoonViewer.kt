@@ -31,7 +31,6 @@ import eu.kanade.tachiyomi.ui.reader.viewer.LongStripSettings
 import eu.kanade.tachiyomi.ui.reader.viewer.ReaderPageImageView
 import eu.kanade.tachiyomi.ui.reader.viewer.Viewer
 import eu.kanade.tachiyomi.ui.reader.viewer.collectChanges
-import eu.kanade.tachiyomi.ui.reader.viewer.mouseWheelPaging
 import eu.kanade.tachiyomi.util.system.toast
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
@@ -346,7 +345,7 @@ class WebtoonViewer(
             pageColorFilter = pageFilter
             pageViews.forEach { it.pageColorFilter = pageFilter }
         }
-        AndroidView(factory = { frame }, modifier = modifier.mouseWheelPaging(this))
+        AndroidView(factory = { frame }, modifier = modifier)
     }
 
     // KUN -->

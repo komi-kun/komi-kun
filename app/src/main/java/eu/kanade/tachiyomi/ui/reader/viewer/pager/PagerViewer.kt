@@ -280,6 +280,7 @@ abstract class PagerViewer(
     private fun getPageHolder(page: ReaderPage): PagerPageHolder? =
         pager.children
             .filterIsInstance<PagerPageHolder>()
+            // KUN --> `it.item` is a pair, so the page can be either half (upstream: `it.item == page`) KUN <--
             .firstOrNull { it.item.first == page || it.item.second == page }
 
     // KUN -->
@@ -332,8 +333,11 @@ abstract class PagerViewer(
         // If we don't the size change could put us on a new chapter
         pager.removeOnPageChangeListener(pagerListener)
 
+        // KUN -->
+        // The slot holds a pair, so the transition is its first item (upstream: the item itself is the transition).
         val forceTransition = general.alwaysShowChapterTransition ||
             adapter.items.getOrNull(pager.currentItem)?.first is ChapterTransition
+        // KUN <--
         adapter.setChapters(chapters, forceTransition)
 
         // Layout the pager once a chapter is being set
@@ -354,7 +358,11 @@ abstract class PagerViewer(
      * Tells this viewer to move to the given [page].
      */
     override fun moveToPage(page: ReaderPage) {
+        // KUN -->
+        // The pager's slots are pairs, so the page is in a slot's first or second half (upstream:
+        // `items.indexOf(page)`).
         val position = adapter.items.indexOfFirst { it.first == page || it.second == page }
+        // KUN <--
         if (position != -1) {
             val currentPosition = pager.currentItem
             pager.setCurrentItem(position, true)
@@ -362,13 +370,16 @@ abstract class PagerViewer(
             if (currentPosition == position) {
                 onPageChange(position)
             } else {
-                // Call this since with double shift onPageChange wont get called (it shouldn't)
-                // Instead just update the page count in ui
+                // KUN -->
+                // SY: kept from the pre-port pager. It is pair-aware, so the page count shows the slot's second
+                // page; with a double shift onPageChange is not called (it shouldn't be), so this is what
+                // updates the UI.
                 val joinedItem = adapter.items.firstOrNull { it.first == page || it.second == page }
                 activity.onPageSelected(
                     joinedItem?.first as? ReaderPage ?: page,
                     joinedItem?.second != null,
                 )
+                // KUN <--
             }
         } else {
             logcat { "Page $page not found in adapter" }

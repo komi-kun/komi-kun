@@ -84,6 +84,53 @@ class ExtensionMatchingTest {
         installed.findUpdate(listOf(available(versionCode = 5, store = yuzono))) shouldBe null
     }
 
+    @Test
+    fun `An extension signed with several keys is matched by any of them, not just the last`() {
+        // The case above matches the *second* signature, so a `first()` implementation fails there; this one
+        // matches the *first*, which a `signatures.last()` implementation misses. Only a membership test passes
+        // both.
+        val installed = installed(versionCode = 1, signatures = listOf(YUZONO_KEY, KEIYOUSHI_KEY))
+        val fromYuzono = available(versionCode = 2, store = yuzono)
+
+        installed.findAvailable(listOf(fromYuzono)) shouldBe fromYuzono
+        installed.findUpdate(listOf(fromYuzono)) shouldBe fromYuzono
+    }
+
+    @Test
+    fun `A listing with a newer version code is an update`() {
+        val installed = installed(versionCode = 5, signatures = listOf(YUZONO_KEY), libVersion = 1.4)
+        val newer = available(versionCode = 6, store = yuzono)
+
+        installed.findUpdate(listOf(newer)) shouldBe newer
+        // ...while the same version code, at the same extension lib, is still no update.
+        installed.findUpdate(listOf(available(versionCode = 5, store = yuzono))) shouldBe null
+    }
+
+    @Test
+    fun `A listing at the same version code with a newer extension lib is an update`() {
+        val installed = installed(versionCode = 5, signatures = listOf(YUZONO_KEY), libVersion = 1.6)
+        val newerLib = available(versionCode = 5, store = yuzono, libVersion = 1.8)
+
+        installed.findUpdate(listOf(newerLib)) shouldBe newerLib
+        // The lib version is compared, not merely present: the same or an older one is no update.
+        installed.findUpdate(listOf(available(versionCode = 5, store = yuzono, libVersion = 1.6))) shouldBe null
+        installed.findUpdate(listOf(available(versionCode = 5, store = yuzono, libVersion = 1.5))) shouldBe null
+    }
+
+    @Test
+    fun `An extension that was never loaded is updated only by a newer version code`() {
+        val installed = notLoaded(versionCode = 5, signatures = listOf(YUZONO_KEY))
+        val sameVersionNewerLib = available(versionCode = 5, store = yuzono, libVersion = 9.9)
+
+        // No lib version was ever read for it, so there is nothing to be outdated by: only the version code counts.
+        installed.isOutdatedComparedTo(sameVersionNewerLib) shouldBe false
+        installed.findUpdate(listOf(sameVersionNewerLib)) shouldBe null
+
+        val newer = available(versionCode = 6, store = yuzono)
+        installed.isOutdatedComparedTo(newer) shouldBe true
+        installed.findUpdate(listOf(newer)) shouldBe newer
+    }
+
     private fun installed(
         versionCode: Long,
         signatures: List<String>,
@@ -100,6 +147,22 @@ class ExtensionMatchingTest {
         signatures = signatures,
         pkgFactory = null,
         sources = emptyList(),
+    )
+
+    private fun notLoaded(
+        versionCode: Long,
+        signatures: List<String>,
+    ) = Extension.NotLoaded(
+        name = "MangaDex",
+        pkgName = pkg,
+        versionName = "1.4.$versionCode",
+        versionCode = versionCode,
+        isShared = true,
+        contentWarning = ContentWarning.SAFE,
+        signatures = signatures,
+        libVersion = null,
+        lang = null,
+        reason = Extension.NotLoaded.Reason.Filtered,
     )
 
     private fun available(

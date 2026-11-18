@@ -1,12 +1,14 @@
 // KUN -->
 package eu.kanade.tachiyomi.ui.reader.setting
 
+import androidx.compose.ui.geometry.Offset
 import eu.kanade.domain.base.BasePreferences
 import eu.kanade.tachiyomi.ui.reader.ReaderViewModel
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences.NavigationMode
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences.TappingInvertMode
 import eu.kanade.tachiyomi.ui.reader.viewer.NavigationSettings
 import eu.kanade.tachiyomi.ui.reader.viewer.ViewerNavigation
+import eu.kanade.tachiyomi.ui.reader.viewer.ViewerNavigation.Action
 import eu.kanade.tachiyomi.ui.reader.viewer.ViewerNavigation.NavigationRegion
 import eu.kanade.tachiyomi.ui.reader.viewer.ViewerNavigation.Region
 import eu.kanade.tachiyomi.ui.reader.viewer.navigation.DisabledNavigation
@@ -384,6 +386,33 @@ class ReaderSettingsViewModelTest {
                 "$mode for a $readingMode viewer made a $navigator",
             )
         }
+    }
+
+    @Test
+    fun `the pager direction alone decides whether the navigator is reversed`() = runTest(dispatcher) {
+        // The direction is the value the navigator carries, and it is what a tap is mapped through: a
+        // left-to-right pager is not "reversed because it is paged", and a right-to-left one is.
+        preferences.navigationModePager.set(ReaderPreferences.NavigationMode.RIGHT_AND_LEFT.value)
+        preferences.pagerNavInverted.set(TappingInvertMode.NONE)
+        val rightSide = Offset(0.9f, 0.5f)
+
+        val leftToRight = createViewModel()
+        leftToRight.setViewerReadingMode(ReadingMode.LEFT_TO_RIGHT, isWebtoonViewer = false, isWebGpuViewer = false)
+        advanceUntilIdle()
+        assertEquals(
+            RightAndLeftNavigation(TappingInvertMode.NONE, isReversed = false, smallerTapZone = false),
+            leftToRight.navigation.value,
+        )
+        assertEquals(Action.FORWARD, leftToRight.navigation.value?.getAction(rightSide))
+
+        val rightToLeft = createViewModel()
+        rightToLeft.setViewerReadingMode(ReadingMode.RIGHT_TO_LEFT, isWebtoonViewer = false, isWebGpuViewer = false)
+        advanceUntilIdle()
+        assertEquals(
+            RightAndLeftNavigation(TappingInvertMode.NONE, isReversed = true, smallerTapZone = false),
+            rightToLeft.navigation.value,
+        )
+        assertEquals(Action.BACKWARD, rightToLeft.navigation.value?.getAction(rightSide))
     }
 
     private fun createViewModel() = ReaderSettingsViewModel(
