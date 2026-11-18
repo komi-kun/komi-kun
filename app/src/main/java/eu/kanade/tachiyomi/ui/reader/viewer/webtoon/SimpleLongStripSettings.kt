@@ -1,6 +1,7 @@
 package eu.kanade.tachiyomi.ui.reader.viewer.webtoon
 
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
+import eu.kanade.tachiyomi.ui.reader.viewer.DualPageSettings
 import eu.kanade.tachiyomi.ui.reader.viewer.NavigationSettings
 
 // KUN -->
@@ -29,9 +30,9 @@ data class SimpleLongStripSettings(
      */
     data class Page(
         val sidePadding: Int,
-        val dualPageSplit: Boolean,
-        val dualPageInvert: Boolean,
-        val dualPageRotateToFit: Boolean,
-        val dualPageRotateToFitInvert: Boolean,
-    )
+        override val dualPageSplit: Boolean,
+        override val dualPageInvert: Boolean,
+        override val dualPageRotateToFit: Boolean,
+        override val dualPageRotateToFitInvert: Boolean,
+    ) : DualPageSettings
 }
