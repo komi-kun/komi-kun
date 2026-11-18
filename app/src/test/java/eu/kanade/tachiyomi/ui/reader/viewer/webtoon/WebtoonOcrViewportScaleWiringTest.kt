@@ -105,6 +105,16 @@ class WebtoonOcrViewportScaleWiringTest {
         requireNeedle(projection, "scaleY = scale.y")
         requireNeedle(source, "val scale = ancestorScaleOf(strip)")
 
+        // The origin is as load-bearing as the zoom: the strip's own position in the overlay, not the
+        // recycler's, or every page after the first is drawn shifted by the difference.
+        requireNeedle(projection, "originX = off.x")
+        requireNeedle(projection, "originY = off.y")
+        requireNeedle(source, "val off = OcrOverlayCoords.offsetOf(strip, overlayView)")
+        assertFalse(
+            projection.contains("recyclerOffset"),
+            "the drawn block's origin is the strip's, not the recycler's",
+        )
+
         // The trap: the strip's own scaleX is always 1 here, so reading it would restore the bug
         // while every pure-math test above still passes.
         assertFalse(
@@ -112,6 +122,24 @@ class WebtoonOcrViewportScaleWiringTest {
             "the webtoon zoom lives on the recycler; the strip's own scale is always 1 " +
                 "(use ancestorScaleOf(strip))",
         )
+    }
+
+    @Test
+    fun `the escape hatch's SSIV branch is scaled and offset like the strip branch`() {
+        val source = viewportSource()
+        val branch = block(source, "ocrSubsamplingImageView()?.let { ssiv ->", open = '{', close = '}')
+
+        // `alwaysDecodeLongStripWithSSIV` draws the strip through SSIV, whose `sourceToViewCoord`
+        // corners are layout coordinates exactly like the strip's - so the same origin and ancestor
+        // zoom have to be applied, through the shared arithmetic (`overlayRectOfViewRect`, covered
+        // arithmetically by `WebtoonOcrViewportBodyTest`). Deleting either factor from this branch
+        // used to restore the bug for that configuration with every strip test green.
+        requireNeedle(branch, "overlayRectOfViewRect(")
+        requireNeedle(branch, "originX = off.x")
+        requireNeedle(branch, "originY = off.y")
+        requireNeedle(branch, "scaleX = scale.x")
+        requireNeedle(branch, "scaleY = scale.y")
+        requireNeedle(source, "val scale = ancestorScaleOf(ssiv)")
     }
 
     @Test
@@ -142,16 +170,21 @@ class WebtoonOcrViewportScaleWiringTest {
         val source = viewportSource()
 
         val version = block(source, "override fun transformVersion()", open = '{', close = '}')
-        requireNeedle(version, "recycler.scaleX.toRawBits()")
-        requireNeedle(version, "recycler.scaleY.toRawBits()")
-        requireNeedle(version, "recycler.x.toRawBits()")
-        requireNeedle(version, "recycler.y.toRawBits()")
+        // The token itself is composed by the pure `webtoonOcrTransformToken`, which
+        // `WebtoonOcrProjectionTest` pins term by term; what this guard owns is that the *live* view
+        // state reaches it, from the recycler the zoom lives on.
+        requireNeedle(version, "webtoonOcrTransformToken(")
+        requireNeedle(version, "scrollOffset = recycler.computeVerticalScrollOffset()")
+        requireNeedle(version, "holderIds = holders.map { it.hashCode() }")
+        requireNeedle(version, "holderTransformVersions = holders.map { it.ocrFrame().ocrTransformVersion() }")
+        requireNeedle(version, "scaleX = recycler.scaleX")
+        requireNeedle(version, "scaleY = recycler.scaleY")
+        requireNeedle(version, "translationX = recycler.x")
+        requireNeedle(version, "translationY = recycler.y")
 
-        // The scroll offset alone is not the geometry: a pinch changes neither it nor the holders.
-        assertTrue(
-            version.contains("computeVerticalScrollOffset"),
-            "the existing scroll term must stay in the token",
-        )
+        // The trap: the zoom lives on the recycler, so reading the strip's own scale would put a
+        // constant 1 in the token and a pinch would never redraw.
+        assertFalse(version.contains("strip.scaleX") || version.contains("strip.scaleY"))
     }
 
     @Test

@@ -43,6 +43,7 @@ import eu.kanade.tachiyomi.data.coil.cropBorders
 import eu.kanade.tachiyomi.data.coil.webtoonStrips
 import eu.kanade.tachiyomi.ui.reader.ocr.OcrCropWindow
 import eu.kanade.tachiyomi.ui.reader.ocr.impl.OcrSheetCrop
+import eu.kanade.tachiyomi.ui.reader.ocr.impl.resolvedAgainst
 import eu.kanade.tachiyomi.ui.reader.ocr.impl.ssivCropScan
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences.LandscapeZoomScaleType
 import eu.kanade.tachiyomi.ui.reader.viewer.webtoon.WebtoonStripImageView
@@ -203,18 +204,18 @@ open class ReaderPageImageView @JvmOverloads constructor(
     }
 
     /**
-     * Resolves the pending window against the size SSIV actually cropped to. A recipe that no longer
-     * reproduces SSIV's rect (e.g. after a SSIV bump) yields no window, so the overlay keeps the
-     * uncropped mapping instead of shifting every block by a stale offset.
+     * Resolves the pending window against the size SSIV actually cropped to
+     * ([OcrSheetCrop.resolvedAgainst]). Only the cropped *extent* is observable, so a recipe that no
+     * longer reproduces SSIV's rect in size (e.g. after a SSIV bump) yields no window and the overlay
+     * keeps the uncropped mapping instead of scaling every block by a stale ratio; an origin-only
+     * drift is caught by a device check, not here (see `OcrSheetCrop`).
      */
     private fun resolveOcrCropWindow() {
         val pending = ocrPendingCrop ?: return
         ocrPendingCrop = null
         val ssiv = ocrSubsamplingImageView() ?: return
         if (!ssiv.isReady) return
-        if (pending.matches(ssiv.sWidth, ssiv.sHeight)) {
-            ocrCropWindow = pending.window()
-        }
+        ocrCropWindow = pending.resolvedAgainst(ssiv.sWidth, ssiv.sHeight)
     }
     // KUN <--
 

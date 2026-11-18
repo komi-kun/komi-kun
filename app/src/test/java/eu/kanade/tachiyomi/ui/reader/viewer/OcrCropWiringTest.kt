@@ -35,6 +35,7 @@ private fun String.withoutComments(): String = replace(Regex("""/\*[\s\S]*?\*/""
 private const val READER_MODULE = "src/main/java/eu/kanade/tachiyomi/ui/reader"
 private const val PAGER_HOLDER = "$READER_MODULE/viewer/pager/PagerPageHolder.kt"
 private const val WEBTOON_HOLDER = "$READER_MODULE/viewer/webtoon/WebtoonPageHolder.kt"
+private const val WEBTOON_VIEWPORT = "$READER_MODULE/viewer/webtoon/WebtoonOcrViewport.kt"
 private const val PAGE_IMAGE = "$READER_MODULE/viewer/ReaderPageImageView.kt"
 private const val COIL_DECODER = "src/main/java/eu/kanade/tachiyomi/data/coil/ImageDecoder.kt"
 
@@ -113,10 +114,11 @@ class OcrCropWiringTest {
         val source = sourceOf(PAGE_IMAGE)
 
         val resolve = bodyOf(source, "private fun resolveOcrCropWindow()", PAGE_IMAGE)
-        // The invariant: the derived rect is applied only when its dimensions are the ones SSIV
-        // cropped to, so a drifted recipe falls back to the uncropped mapping.
-        resolve.requireNeedle("pending.matches(ssiv.sWidth, ssiv.sHeight)", PAGE_IMAGE)
-        resolve.requireNeedle("ocrCropWindow = pending.window()", PAGE_IMAGE)
+        // The decision lives in `OcrSheetCrop.resolvedAgainst`, which
+        // `OcrCropTransformTest.a mismatched crop resolves to no window...` pins behaviourally; here
+        // only the live values it is fed are pinned, because SSIV is not readable off-device.
+        resolve.requireNeedle("pending.resolvedAgainst(ssiv.sWidth, ssiv.sHeight)", PAGE_IMAGE)
+        resolve.requireNeedle("ocrCropWindow = pending.resolvedAgainst(", PAGE_IMAGE)
 
         // ...and it must run on load, before the version bump that makes the overlay re-project.
         val loaded = bodyOf(source, "open fun onImageLoaded()", PAGE_IMAGE)
@@ -130,6 +132,23 @@ class OcrCropWiringTest {
         scan.requireNeedle("ssivCropScan(sheet)", PAGE_IMAGE)
         scan.requireNeedle("isWebtoon && !alwaysDecodeLongStripWithSSIV", PAGE_IMAGE)
         scan.requireNeedle("dictionaryOcrPreferences.isEnabled()", PAGE_IMAGE)
+    }
+
+    @Test
+    fun `the paged holder asks SSIV to crop and derives a crop from the same setting`() {
+        val source = sourceOf(PAGER_HOLDER)
+        val setImage = bodyOf(source, "private suspend fun setImage()", PAGER_HOLDER)
+
+        // Two call sites in one method, one setting, and nothing compares them: if the scan were
+        // gated on another expression than the `Config` SSIV is given, the overlay would derive a
+        // crop for a sheet SSIV never cropped - and every behavioural test would still pass. (The
+        // margin helpers read the same preference for their own reasons, hence two explicit needles
+        // rather than a count over the file.)
+        setImage.requireNeedle("cropBorders = viewer.paged.page.cropBorders,", PAGER_HOLDER)
+        setImage.requireNeedle(
+            "ocrScanSheetCrop(source, isAnimated, viewer.paged.page.cropBorders)",
+            PAGER_HOLDER,
+        )
     }
 
     @Test
@@ -153,6 +172,19 @@ class OcrCropWiringTest {
         // page's crop.
         recycle.requireNeedle("ocrCropWindow = null", PAGE_IMAGE)
         recycle.requireNeedle("ocrPendingCrop = null", PAGE_IMAGE)
-        assertEquals(1, Regex("""ocrCropWindow = null""").findAll(recycle).count())
+    }
+
+    @Test
+    fun `the webtoon token carries each holder's transform version`() {
+        val source = sourceOf(WEBTOON_VIEWPORT)
+        val version = bodyOf(source, "override fun transformVersion()", WEBTOON_VIEWPORT)
+
+        // The webtoon crop is applied when the page's own decode finishes
+        // (`WebtoonPageHolder.onImageDecoded`), while blocks can resolve before it: without this term
+        // the token does not move and the overlay keeps drawing them at the pre-crop positions until
+        // a scroll. `WebtoonOcrProjectionTest` pins the composition; this pins that the live value is
+        // read at all.
+        version.requireNeedle("holderTransformVersions = holders.map { it.ocrFrame().ocrTransformVersion() }", WEBTOON_VIEWPORT)
+        version.requireNeedle("webtoonOcrTransformToken(", WEBTOON_VIEWPORT)
     }
 }

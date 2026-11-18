@@ -11,10 +11,17 @@
 // `cropLeft`/`cropTop`/`cropWidth`/`cropHeight` and exposes no accessor, and `sourceToViewX` has no
 // region subtraction, so the rect cannot be read back out of the view. It is therefore *derived* here
 // with the same routine and the same recipe SSIV uses (`CropBorders.findCropBorders` on a decode of
-// at most 4 MP, padded by one sampled pixel on each side and clamped to the sheet), and the result is
-// only trusted once SSIV reports exactly the cropped size it produced - see
-// `ReaderPageImageView.resolveOcrCropWindow`. A drifted recipe then falls back to the pre-fix
-// uncropped mapping instead of shifting every block by a stale offset.
+// at most 4 MP, padded by one sampled pixel on each side and clamped to the sheet), and its *extent*
+// is checked against the size SSIV reports for the sheet it cropped - see
+// `ReaderPageImageView.resolveOcrCropWindow`.
+//
+// What that check can and cannot catch: SSIV exposes only the cropped *size* (`sWidth`/`sHeight`), so
+// a drift that changed the size is caught and falls back to the pre-fix uncropped mapping, while a
+// drift that only moved the rect's origin while keeping its size would pass and shift every block by
+// a constant offset. Nothing else about the rect is observable, so the real guard for the origin is
+// the *pinned* SSIV version plus a device check with crop and OCR both on; a SSIV bump must re-run
+// that check, and these recipe tests will stay green across such a bump by design (they pin our port
+// of the recipe, not the library's behaviour).
 // KUN <--
 package eu.kanade.tachiyomi.ui.reader.ocr.impl
 
@@ -40,14 +47,30 @@ internal data class OcrSheetCrop(
     val sheetHeight: Int,
 ) {
     /**
-     * Whether SSIV's own [sWidth]/[sHeight] are this crop - the check that the derived rect is the
-     * one the displayed bitmap was cut with.
+     * Whether SSIV's own [sWidth]/[sHeight] are this crop's extent - the check that the derived rect
+     * describes the displayed bitmap. Only the extent is observable (SSIV exposes the cropped size and
+     * nothing about its origin), so this catches a recipe that drifted in size, not one that moved.
      */
     fun matches(sWidth: Int, sHeight: Int): Boolean = width == sWidth && height == sHeight
 
     /** The crop as fractions of the uncropped sheet; `null` when it trimmed nothing (or is invalid). */
     fun window(): OcrCropWindow? = OcrCropWindow.ofPixels(left, top, width, height, sheetWidth, sheetHeight)
 }
+
+/**
+ * The window to apply for a derived crop, or `null` when it is not the crop SSIV produced.
+ *
+ * [sWidth]/[sHeight] are SSIV's own cropped dimensions - the only part of its rect it exposes. A
+ * recipe that has drifted from the pinned SSIV *in extent* (or a decode that disagreed) therefore
+ * reports a different size and nothing is applied at all: the overlay keeps the pre-fix uncropped
+ * mapping instead of scaling every block by a stale ratio. A mismatch must yield `null`, never a
+ * "close enough" window.
+ *
+ * An origin-only drift is **not** caught here (same size, different start): see the note at the top
+ * of this file - the pinned SSIV version and a device check are that guard.
+ */
+internal fun OcrSheetCrop?.resolvedAgainst(sWidth: Int, sHeight: Int): OcrCropWindow? =
+    this?.takeIf { it.matches(sWidth, sHeight) }?.window()
 
 /** SSIV scans borders on a decode of about 4 MP; the same bound keeps its rect and ours identical. */
 private const val CROP_SCAN_PIXELS = 4_000_000.0
@@ -94,6 +117,12 @@ internal fun ssivCropRect(
  *
  * **Decodes the sheet, so call it off the main thread.** [sheet] is only peeked, never consumed: the
  * viewer still gets the whole stream.
+ *
+ * Swallows `Throwable`, not `Exception`: this runs *before* the viewer's own decode and is optional,
+ * and the callers wrap their decode in `catch (e: Throwable) { setError(e) }` - so an `Error` escaping
+ * from here (an `OutOfMemoryError` in the extra ≤4 MP decode) would turn a page that might still have
+ * rendered into the error layout. No failure of this scan is worth failing a page for; the overlay
+ * simply falls back to the uncropped mapping.
  */
 internal fun ssivCropScan(sheet: BufferedSource): OcrSheetCrop? {
     return try {
@@ -121,8 +150,7 @@ internal fun ssivCropScan(sheet: BufferedSource): OcrSheetCrop? {
                 sheetHeight = decoder.height,
             ).takeIf { it.width != it.sheetWidth || it.height != it.sheetHeight }
         }
-    } catch (_: Exception) {
+    } catch (_: Throwable) {
         null
     }
 }
-// KUN <--

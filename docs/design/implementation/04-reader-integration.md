@@ -140,8 +140,11 @@ webtoon `splitAndMerge` and WebGPU spreads without leaking viewer types into the
   image, while SSIV crops the sheet and keeps the rect to itself (no accessor; `sourceToViewX` has no
   region subtraction). `ReaderPageImageView.ocrScanSheetCrop` therefore derives the rect with SSIV's
   own routine (`CropBorders.findCropBorders`, 4 MP scan, ±1 sampled pixel pad, clamped) and
-  `onImageLoaded` only applies it when SSIV reports exactly the cropped `sWidth`/`sHeight` — a drifted
-  recipe falls back to the uncropped mapping instead of shifting every block. The webtoon strip
+  `onImageLoaded` applies it only when SSIV's own `sWidth`/`sHeight` equal the derived rect's
+  **extent** — a size drift falls back to the uncropped mapping instead of scaling every block by a
+  stale ratio. Only the extent is observable, so an origin-only drift is not caught by that check:
+  the guard there is the pinned SSIV version plus a device check with crop and OCR both on (a SSIV
+  bump must re-run it; the recipe unit tests stay green across a bump by design). The webtoon strip
   decoder needs no derivation: it publishes the window it cut (`StripsImage.cropWindow`).
 - Edge: `dualPageRotateToFit` rotates the bitmap by ±90 before SSIV; handle by mapping corners and
   returning the bbox (documented limitation for the label rect; the box is still correct because

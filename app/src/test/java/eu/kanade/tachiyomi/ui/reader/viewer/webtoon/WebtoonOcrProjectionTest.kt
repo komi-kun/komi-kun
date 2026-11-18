@@ -9,9 +9,13 @@
 //
 // The second half is the *touch* side: Android delivers a MotionEvent in the touched view's local
 // space, so a tap has to be converted into overlay pixels with the same origin and zoom the boxes are
-// drawn with. `a tap on a drawn block resolves to that block at every zoom` walks the whole path -
-// drawn box, finger, caller-side conversion, viewport inverse - and is the test that catches the
-// caller and the drawer sitting in different spaces.
+// drawn with. `a tap on a drawn block resolves to that block at every zoom` walks that path through
+// these pure helpers - drawn box, finger, caller-side conversion, viewport inverse - so it pins that
+// the conversions compose and disagree nowhere.
+//
+// It feeds the helpers directly, so it cannot see *which* values the caller passes; that half is the
+// source guard's job (`WebtoonOcrViewportScaleWiringTest`), and the live zoom the tap path reads off
+// the views is `WebtoonOcrViewportBodyTest`'s.
 //
 // What no JVM test can prove: that the adapter reads the right live numbers off the views. The
 // arithmetic is exact here; `WebtoonOcrViewportScaleWiringTest` guards the call site for that part.
@@ -19,6 +23,7 @@
 package eu.kanade.tachiyomi.ui.reader.viewer.webtoon
 
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.fail
@@ -379,5 +384,59 @@ class WebtoonOcrProjectionTest {
         assertEquals(167, overlayDistanceToScroll(500f, 3f))
         // A degenerate scale cannot happen (the zoom is clamped to 0.5..3); it must not overflow.
         assertEquals(0, overlayDistanceToScroll(500f, 0f))
+    }
+
+    // ------------------------------------------------------------ the transform token
+
+    private fun token(
+        scrollOffset: Int = 1000,
+        holderIds: List<Int> = listOf(7, 8),
+        holderTransformVersions: List<Long> = listOf(3, 4),
+        scaleX: Float = 2f,
+        scaleY: Float = 2f,
+        translationX: Float = 12f,
+        translationY: Float = -8f,
+    ) = webtoonOcrTransformToken(
+        scrollOffset = scrollOffset,
+        holderIds = holderIds,
+        holderTransformVersions = holderTransformVersions,
+        scaleX = scaleX,
+        scaleY = scaleY,
+        translationX = translationX,
+        translationY = translationY,
+    )
+
+    @Test
+    fun `a holder's finished decode changes the token`() {
+        // The border crop is applied when the page's own decode finishes
+        // (`WebtoonPageHolder.onImageDecoded`), while its blocks can resolve before that. This term is
+        // what moves a cropped page's boxes to their crop positions without a scroll: drop it and the
+        // overlay keeps drawing them at the uncropped positions until the user scrolls.
+        assertNotEquals(
+            token(holderTransformVersions = listOf(3, 4)),
+            token(holderTransformVersions = listOf(3, 5)),
+            "a holder whose transform changed must invalidate the overlay",
+        )
+    }
+
+    @Test
+    fun `a scroll, a page turn, a pinch and a pan each change the token`() {
+        val base = token()
+
+        // Each of these changes what the overlay must project, so each has to invalidate the draw.
+        assertNotEquals(token(scrollOffset = 1001), base, "a scroll")
+        assertNotEquals(token(holderIds = listOf(7, 9)), base, "a holder change")
+        // The zoom is a layer transform on the recycler, so it moves neither the scroll nor the
+        // holders: without these terms the boxes keep the pre-zoom projection for a whole pinch.
+        assertNotEquals(token(scaleX = 3f), base, "a pinch on x")
+        assertNotEquals(token(scaleY = 3f), base, "a pinch on y")
+        assertNotEquals(token(translationX = 13f), base, "a pan on x")
+        assertNotEquals(token(translationY = -9f), base, "a pan on y")
+    }
+
+    @Test
+    fun `the same geometry is the same token`() {
+        // Or the overlay would re-project every frame of a still page.
+        assertEquals(token(), token())
     }
 }

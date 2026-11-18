@@ -58,12 +58,17 @@ class WebtoonOcrViewport(
             val off = OcrOverlayCoords.offsetOf(ssiv, overlayView)
             // SSIV view coordinates are a layout space: the ancestor zoom has to be multiplied in.
             val scale = ancestorScaleOf(ssiv)
-            return RectF(
-                off.x + min(p1.x, p2.x) * scale.x,
-                off.y + min(p1.y, p2.y) * scale.y,
-                off.x + max(p1.x, p2.x) * scale.x,
-                off.y + max(p1.y, p2.y) * scale.y,
+            val screen = overlayRectOfViewRect(
+                left = min(p1.x, p2.x),
+                top = min(p1.y, p2.y),
+                right = max(p1.x, p2.x),
+                bottom = max(p1.y, p2.y),
+                originX = off.x,
+                originY = off.y,
+                scaleX = scale.x,
+                scaleY = scale.y,
             )
+            return RectF(screen.left, screen.top, screen.right, screen.bottom)
         }
 
         val strip = frame.ocrStripImageView() ?: return null
@@ -156,22 +161,17 @@ class WebtoonOcrViewport(
     }
 
     override fun transformVersion(): Long {
-        // Scroll position drives the mapping; key the token on the recycler's scroll offset plus
-        // the visible holders' identities so a page turn or reload invalidates it.
         val recycler = viewer.recycler
-        val scroll = recycler.computeVerticalScrollOffset().toLong()
         val holders = viewer.ocrVisibleHolders()
-        var token = scroll * 31L + holders.sumOf { it.hashCode().toLong() }
-        // A pinch moves neither the scroll offset nor the holder set: the zoom is a layer transform
-        // (`WebtoonRecyclerView.setScaleRate`), and the pan it comes with is the view's `x`/`y`
-        // translation, not its scroll position. Both change what the overlay must project, so both
-        // belong in the token - otherwise the boxes keep the pre-zoom projection for the whole
-        // gesture.
-        token = token * 31L + recycler.scaleX.toRawBits().toLong()
-        token = token * 31L + recycler.scaleY.toRawBits().toLong()
-        token = token * 31L + recycler.x.toRawBits().toLong()
-        token = token * 31L + recycler.y.toRawBits().toLong()
-        return token
+        return webtoonOcrTransformToken(
+            scrollOffset = recycler.computeVerticalScrollOffset(),
+            holderIds = holders.map { it.hashCode() },
+            holderTransformVersions = holders.map { it.ocrFrame().ocrTransformVersion() },
+            scaleX = recycler.scaleX,
+            scaleY = recycler.scaleY,
+            translationX = recycler.x,
+            translationY = recycler.y,
+        )
     }
 
     // KUN -->
@@ -185,12 +185,20 @@ class WebtoonOcrViewport(
      * keeps the two directions in one space: the caller never has to know about the zoom, and a tap
      * and the box drawn under the finger cannot disagree at any scale.
      */
-    fun overlayPointOfRecyclerLocal(x: Float, y: Float): PointF {
+    fun overlayPointOfRecyclerLocal(x: Float, y: Float): PointF =
+        overlayPointForRecyclerLocal(x, y).let { PointF(it.x, it.y) }
+
+    /**
+     * [overlayPointOfRecyclerLocal] without the `PointF`: the same conversion in the pure types the
+     * projection tests use, so the live origin and ancestor zoom this reads can be pinned on the JVM
+     * rather than by reading this file's text. `PointF` is a stub on the unit test classpath, which is
+     * why the two are split.
+     */
+    internal fun overlayPointForRecyclerLocal(x: Float, y: Float): OcrPoint {
         val recycler = viewer.recycler
         val origin = OcrOverlayCoords.offsetOf(recycler, overlayView)
         val scale = ancestorScaleOf(recycler)
-        val point = overlayPointOfViewLocal(x, y, origin.x, origin.y, scale.x, scale.y)
-        return PointF(point.x, point.y)
+        return recyclerLocalToOverlay(x, y, origin.x, origin.y, scale.x, scale.y)
     }
     // KUN <--
 
@@ -208,8 +216,11 @@ class WebtoonOcrViewport(
      * set for it - once per block would allocate on every frame of a pinch for no gain. Only the walk
      * up [view]'s own (short) chain is repeated, and it must be, because the scale it multiplies is
      * exactly what changes during a gesture.
+     *
+     * Returns [OcrPoint], not `PointF`: same two floats, but `PointF`'s constructor is a stub on the
+     * unit test classpath, so a `PointF` here would hide the live zoom from every JVM test.
      */
-    private fun ancestorScaleOf(view: View): PointF {
+    private fun ancestorScaleOf(view: View): OcrPoint {
         val shared = sharedAncestors()
         var scaleX = 1f
         var scaleY = 1f
@@ -219,7 +230,7 @@ class WebtoonOcrViewport(
             scaleY *= current.scaleY
             current = current.parent as? View
         }
-        return PointF(scaleX, scaleY)
+        return OcrPoint(scaleX, scaleY)
     }
 
     /** The overlay's ancestor chain, rebuilt only if the overlay view itself is replaced. */

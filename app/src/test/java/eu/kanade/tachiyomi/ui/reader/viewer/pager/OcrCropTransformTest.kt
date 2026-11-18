@@ -24,12 +24,16 @@ import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import eu.kanade.tachiyomi.ui.reader.ocr.OcrCropWindow
 import eu.kanade.tachiyomi.ui.reader.ocr.OcrDisplayTransform
 import eu.kanade.tachiyomi.ui.reader.ocr.impl.OcrSheetCrop
+import eu.kanade.tachiyomi.ui.reader.ocr.impl.resolvedAgainst
 import eu.kanade.tachiyomi.ui.reader.ocr.impl.ssivCropRect
 import eu.kanade.tachiyomi.ui.reader.ocr.impl.ssivCropSampleSize
+import eu.kanade.tachiyomi.ui.reader.ocr.impl.ssivCropScan
 import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
@@ -176,6 +180,38 @@ class OcrCropTransformTest {
     }
 
     @Test
+    fun `the crop applies outside a split-and-merge sheet`() {
+        // The webtoon dual-page path: a wide page is cut in half and the halves stacked, and the
+        // window the strip decoder published is measured against *that* stacked sheet. This is the
+        // combination the strips path actually produces, and the one where an order slip is silent:
+        // the mapping's own `coerceIn(0f, 1f)` sits inside the crop window's domain, so cropping the
+        // page first would merely clamp the block into the corner instead of throwing.
+        val splitAndMerge = OcrDisplayTransform.SplitAndMerge(upperIsRight = true)
+        val widePage = floatArrayOf(0.05f, 0.2f, 0.2f, 0.4f)
+
+        // Upper-left of the page, stacked into the lower half of the sheet at 2x.
+        assertMaps(floatArrayOf(0.1f, 0.6f, 0.4f, 0.7f), splitAndMerge.map(widePage))
+
+        val cropped = splitAndMerge.croppedBy(OcrCropWindow(left = 0.05f, top = 0.5f, right = 0.95f, bottom = 0.95f))
+        assertMaps(
+            floatArrayOf(
+                (0.1f - 0.05f) / 0.9f,
+                (0.6f - 0.5f) / 0.45f,
+                (0.4f - 0.05f) / 0.9f,
+                (0.7f - 0.5f) / 0.45f,
+            ),
+            cropped.map(widePage),
+            delta = 1e-6f,
+        )
+        // Cropping the *page* first would give x 0.05*0.9+0.05 = 0.095 ... and y clamped to 0 for
+        // this block (the window starts below the page), i.e. a different, plausible-looking box.
+        assertFalse(
+            cropped.map(widePage)[1] < 0.01f,
+            "the crop must apply to the stacked sheet, not to the page before the split",
+        )
+    }
+
+    @Test
     fun `a crop window cannot be applied twice`() {
         val window = OcrCropWindow(left = 0.1f, top = 0.2f, right = 0.9f, bottom = 0.8f)
         val once = OcrDisplayTransform.None.croppedBy(window)
@@ -199,6 +235,108 @@ class OcrCropTransformTest {
         // The displayed sheet's corners are the window's corners in page space.
         assertEquals(0.35f, window.unmapY(0f), 1e-6f)
         assertEquals(0.65f, window.unmapY(1f), 1e-6f)
+    }
+
+    @Test
+    fun `the transform's inverse un-crops each axis with its own factor`() {
+        // The composition, not the window alone: the sheet point is un-cropped by the *crop* stage and
+        // then inverted by the layout stage, in that order. A swapped `unmapX`/`unmapY`, or `mapX`
+        // where `unmapX` belongs, gives (0.5, 0.3) or (0.1875, 0.2875) here instead of (0.3, 0.5).
+        val cropped = OcrDisplayTransform.None
+            .croppedBy(OcrCropWindow(left = 0.1f, top = 0.3f, right = 0.9f, bottom = 0.7f))
+
+        val inverse = cropped.mapInversePoint(0.25f, 0.5f, page, partner = null, ownerW = 0, ownerH = 0)
+
+        assertNotNull(inverse, "the inverse dropped a point inside the sheet")
+        assertEquals(0.3f, inverse!!.x, 1e-6f, "x: 0.25 * 0.8 + 0.1")
+        assertEquals(0.5f, inverse.y, 1e-6f, "y: 0.5 * 0.4 + 0.3")
+        assertSame(page, inverse.page)
+    }
+
+    @Test
+    fun `forward and inverse are each other's inverse in every crop composition the viewers produce`() {
+        val window = OcrCropWindow(left = 0.1f, top = 0.15f, right = 0.85f, bottom = 0.9f)
+        val merge = OcrDisplayTransform.Merge(
+            partner = partner,
+            partnerW = 400,
+            partnerH = 600,
+            isLTR = true,
+            centerMarginPx = 0,
+        )
+
+        // The four shapes a cropped page is actually drawn in, each with a block that stays inside its
+        // own half (so the split/merge branch chosen on the way out is the one taken on the way back).
+        assertRoundTrips("crop", OcrDisplayTransform.None.croppedBy(window), floatArrayOf(0.3f, 0.25f, 0.6f, 0.55f))
+        assertRoundTrips(
+            "crop + split",
+            OcrDisplayTransform.Split(keepLeft = true).croppedBy(window),
+            floatArrayOf(0.1f, 0.2f, 0.35f, 0.6f),
+        )
+        assertRoundTrips(
+            "crop + merge (owner)",
+            merge.croppedBy(window),
+            block = floatArrayOf(0.2f, 0.2f, 0.8f, 0.8f),
+            ownerW = 400,
+            ownerH = 600,
+        )
+        assertRoundTrips(
+            "crop + merge (partner)",
+            merge.croppedBy(window),
+            // Left edge of the partner's page: inside the *crop* of the merged sheet, which trims the
+            // right 15%, so a block hugging the partner's right edge would be cropped away.
+            block = floatArrayOf(0.1f, 0.2f, 0.6f, 0.8f),
+            pointPage = partner,
+            ownerW = 400,
+            ownerH = 600,
+        )
+        assertRoundTrips(
+            "crop + split-and-merge",
+            OcrDisplayTransform.SplitAndMerge(upperIsRight = true).croppedBy(window),
+            floatArrayOf(0.05f, 0.2f, 0.2f, 0.4f),
+        )
+    }
+
+    /**
+     * [block] (page-normalized, on [pointPage]) → the displayed rect → back. The return leg must land
+     * on the same page and the same corners: this is the acceptance criterion the popup anchor and the
+     * lookup tap rest on, and the crop stage is what an axis slip breaks.
+     */
+    private fun assertRoundTrips(
+        label: String,
+        transform: OcrDisplayTransform,
+        block: FloatArray,
+        pointPage: ReaderPage = page,
+        ownerW: Int = 0,
+        ownerH: Int = 0,
+    ) {
+        val sheet = transform.mapForwardRect(
+            left = block[0],
+            top = block[1],
+            right = block[2],
+            bottom = block[3],
+            page = pointPage,
+            owner = page,
+            partner = partner,
+            ownerW = ownerW,
+            ownerH = ownerH,
+        )
+        // The projected rect is a sheet rect: every corner has to be inside the sheet for the return
+        // leg to be the exact inverse rather than a clamped approximation.
+        for (value in sheet) {
+            assertTrue(value in 0f..1f, "$label: forward left the sheet: ${sheet.toList()}")
+        }
+
+        val topLeft = transform.mapInversePoint(sheet[0], sheet[1], page, partner, ownerW, ownerH)
+        val bottomRight = transform.mapInversePoint(sheet[2], sheet[3], page, partner, ownerW, ownerH)
+
+        assertNotNull(topLeft, "$label: no inverse for the top-left of ${sheet.toList()}")
+        assertNotNull(bottomRight, "$label: no inverse for the bottom-right of ${sheet.toList()}")
+        assertSame(pointPage, topLeft!!.page, "$label: the top-left corner resolved on the wrong page")
+        assertSame(pointPage, bottomRight!!.page, "$label: the bottom-right corner resolved on the wrong page")
+        assertEquals(block[0], topLeft.x, 1e-5f, "$label: x")
+        assertEquals(block[1], topLeft.y, 1e-5f, "$label: y")
+        assertEquals(block[2], bottomRight.x, 1e-5f, "$label: right")
+        assertEquals(block[3], bottomRight.y, 1e-5f, "$label: bottom")
     }
 
     // ------------------------------------------------------------ degenerate windows
@@ -313,5 +451,36 @@ class OcrCropTransformTest {
             OcrCropWindow(left = 0.1f, top = 0.2f, right = 0.6f, bottom = 0.8f),
             crop.window(),
         )
+    }
+
+    @Test
+    fun `a mismatched crop resolves to no window, so the overlay falls back to the uncropped mapping`() {
+        val crop = OcrSheetCrop(left = 100, top = 200, width = 500, height = 600, sheetWidth = 1000, sheetHeight = 1000)
+
+        // The decision itself, not merely that a comparison happens somewhere: the window is only
+        // handed out when SSIV's size is the derived rect's. Hoisting the window out of the guard -
+        // `pending?.window()` - returns a window here and fails this.
+        assertEquals(
+            OcrCropWindow(left = 0.1f, top = 0.2f, right = 0.6f, bottom = 0.8f),
+            crop.resolvedAgainst(sWidth = 500, sHeight = 600),
+        )
+        assertNull(crop.resolvedAgainst(sWidth = 1000, sHeight = 1000), "an uncropped SSIV must apply no window")
+        assertNull(crop.resolvedAgainst(sWidth = 502, sHeight = 600), "one pixel of drift must apply no window")
+        assertNull(crop.resolvedAgainst(sWidth = 500, sHeight = 598), "one pixel of drift must apply no window")
+
+        // Nothing was derived (no crop, HDR, a failed scan): nothing to apply.
+        val none: OcrSheetCrop? = null
+        assertNull(none.resolvedAgainst(sWidth = 500, sHeight = 600))
+    }
+
+    @Test
+    fun `a failed scan yields no crop instead of failing the page`() {
+        // The scan runs *before* the viewer's own decode, inside a block whose caller turns any
+        // throwable into the page's error layout. The JVM classpath has no native decoder, so this
+        // reproduces the shape of a real failure from inside the scan - an `UnsatisfiedLinkError`,
+        // i.e. an `Error`, not an `Exception` - and asserts it cannot escape.
+        val garbage = okio.Buffer().writeUtf8("not an image")
+
+        assertNull(ssivCropScan(garbage), "a failing decode must leave the page uncropped, not error out")
     }
 }

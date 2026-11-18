@@ -164,12 +164,33 @@ internal fun OcrDisplayTransform.mapInverse(
     partner: ReaderPage?,
     ownerW: Int,
     ownerH: Int,
-): ImagePoint? {
+): ImagePoint? = mapInversePoint(u, v, owner, partner, ownerW, ownerH)
+    ?.let { ImagePoint(it.page, PointF(it.x, it.y)) }
+
+/** Where an [OcrDisplayTransform] inverse landed: the page, and its `[x, y]` in page-normalized space. */
+internal data class OcrInversePoint(val page: ReaderPage, val x: Float, val y: Float)
+
+/**
+ * [mapInverse] in plain floats, for the same reason [mapForwardRect] exists: `PointF` and `RectF` are
+ * stubs on the JVM unit test classpath, so the arithmetic that a lookup tap and the popup anchor
+ * depend on lives here where `OcrCropTransformTest` can pin it. **The composition with the viewer's
+ * layout transform is the part that matters**: the crop is inverted before `inner`, so an un-crop
+ * that used the wrong axis (or `mapX` instead of `unmapX`) sends every tap on a cropped page to the
+ * wrong block.
+ */
+internal fun OcrDisplayTransform.mapInversePoint(
+    u: Float,
+    v: Float,
+    owner: ReaderPage,
+    partner: ReaderPage?,
+    ownerW: Int,
+    ownerH: Int,
+): OcrInversePoint? {
     return when (this) {
-        OcrDisplayTransform.None -> ImagePoint(owner, PointF(u, v))
+        OcrDisplayTransform.None -> OcrInversePoint(owner, u, v)
 
         is OcrDisplayTransform.Crop -> {
-            inner.mapInverse(
+            inner.mapInversePoint(
                 u = window.unmapX(u),
                 v = window.unmapY(v),
                 owner = owner,
@@ -181,13 +202,13 @@ internal fun OcrDisplayTransform.mapInverse(
 
         is OcrDisplayTransform.Split -> {
             val offset = if (keepLeft) 0f else 0.5f
-            ImagePoint(owner, PointF(u / 2f + offset, v))
+            OcrInversePoint(owner, u / 2f + offset, v)
         }
 
         is OcrDisplayTransform.SplitAndMerge -> {
             val isInRight = u >= 0.5f
             val (xOffset, yOffset) = splitAndMergeOffsets(isInRight, upperIsRight)
-            ImagePoint(owner, PointF(u / 2f + xOffset, (v - yOffset) * 2f))
+            OcrInversePoint(owner, u / 2f + xOffset, (v - yOffset) * 2f)
         }
 
         is OcrDisplayTransform.Merge -> {
@@ -204,13 +225,13 @@ internal fun OcrDisplayTransform.mapInverse(
                 val pageW = ownerW
                 val pageH = ownerH
                 val yOffset = (totalH - pageH) / 2f
-                ImagePoint(owner, PointF((u * totalW - ownerXOffset) / pageW, (v * totalH - yOffset) / pageH))
+                OcrInversePoint(owner, (u * totalW - ownerXOffset) / pageW, (v * totalH - yOffset) / pageH)
             } else {
                 val pageW = partnerW
                 val pageH = partnerH
                 if (partner == null || pageW <= 0) return null
                 val yOffset = (totalH - pageH) / 2f
-                ImagePoint(partner, PointF((u * totalW - partnerXOffset) / pageW, (v * totalH - yOffset) / pageH))
+                OcrInversePoint(partner, (u * totalW - partnerXOffset) / pageW, (v * totalH - yOffset) / pageH)
             }
         }
     }

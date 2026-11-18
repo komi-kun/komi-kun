@@ -96,6 +96,89 @@ internal fun overlayPointOfViewLocal(
 )
 
 /**
+ * The token [WebtoonOcrViewport.transformVersion] builds: every input that changes what the overlay
+ * must project, folded into one value.
+ *
+ * - The **scroll offset** and the visible holders' identities: a page turn or a reload re-lays the
+ *   strips out.
+ * - Each holder's **transform version**: the sheet's own decode finished, so the border crop it went
+ *   through is now known (`WebtoonPageHolder.onImageDecoded` wraps the transform). Blocks can resolve
+ *   *before* their page's image does - the loader polls every frame and the strip's layout size is
+ *   already non-zero - so without this term the overlay would keep drawing them at the pre-crop
+ *   positions until something else moved. The paged backend is immune because `SsivOcrViewport`
+ *   already folds its holders' versions in.
+ * - The **zoom and pan**: a pinch moves neither the scroll offset nor the holder set - the zoom is a
+ *   layer transform (`WebtoonRecyclerView.setScaleRate`) and the pan is the view's `x`/`y`
+ *   translation - so without these the boxes keep the pre-zoom projection for the whole gesture.
+ *
+ * Pure so the composition can be checked on the JVM: dropping any term makes two different geometries
+ * share a token, which is exactly the "boxes stay where they were" defect this is here to prevent.
+ */
+internal fun webtoonOcrTransformToken(
+    scrollOffset: Int,
+    holderIds: List<Int>,
+    holderTransformVersions: List<Long>,
+    scaleX: Float,
+    scaleY: Float,
+    translationX: Float,
+    translationY: Float,
+): Long {
+    var token = scrollOffset.toLong() * 31L + holderIds.sumOf { it.toLong() }
+    token = token * 31L + holderTransformVersions.sum()
+    token = token * 31L + scaleX.toRawBits().toLong()
+    token = token * 31L + scaleY.toRawBits().toLong()
+    token = token * 31L + translationX.toRawBits().toLong()
+    token = token * 31L + translationY.toRawBits().toLong()
+    return token
+}
+
+/**
+ * A point in the recycler's own layout space → overlay pixels: the conversion the webtoon reader's
+ * tap path hands [WebtoonOcrViewport.overlayPointOfRecyclerLocal].
+ *
+ * [originX]/[originY] is the recycler's top-left in overlay space and [scaleX]/[scaleY] the zoom its
+ * ancestors apply. Both are read live from the same views the draw path projects with, which is what
+ * keeps a tap and the box drawn under the finger in one space - dropping the scale here (the
+ * `ea8552cb10` defect) leaves the tap in a third space that is `origin + local`.
+ */
+internal fun recyclerLocalToOverlay(
+    x: Float,
+    y: Float,
+    originX: Float,
+    originY: Float,
+    scaleX: Float,
+    scaleY: Float,
+): OcrPoint = overlayPointOfViewLocal(x, y, originX, originY, scaleX, scaleY)
+
+/**
+ * The overlay-space bounding box of a rect in a view's own (layout) space, through [originX]/
+ * [originY] and the ancestor zoom [scaleX]/[scaleY] - the SSIV escape hatch's draw path, whose
+ * `sourceToViewCoord` corners are layout coordinates like the strip's are.
+ *
+ * The corners are mapped and re-ordered rather than mapped as `origin + min * scale`, so the box is
+ * still a box if the scale is negative (it never is: the webtoon zoom is clamped to `0.5..3`).
+ */
+internal fun overlayRectOfViewRect(
+    left: Float,
+    top: Float,
+    right: Float,
+    bottom: Float,
+    originX: Float,
+    originY: Float,
+    scaleX: Float,
+    scaleY: Float,
+): OcrRect {
+    val topLeft = overlayPointOfViewLocal(left, top, originX, originY, scaleX, scaleY)
+    val bottomRight = overlayPointOfViewLocal(right, bottom, originX, originY, scaleX, scaleY)
+    return OcrRect(
+        left = minOf(topLeft.x, bottomRight.x),
+        top = minOf(topLeft.y, bottomRight.y),
+        right = maxOf(topLeft.x, bottomRight.x),
+        bottom = maxOf(topLeft.y, bottomRight.y),
+    )
+}
+
+/**
  * An overlay-pixel distance as a `RecyclerView.scrollBy` / `computeVerticalScrollOffset` distance.
  *
  * Scrolling moves the view's *layout*, which the zoom does not change, so a distance measured in
