@@ -85,9 +85,9 @@ class WebtoonPageHolder(
 
     // KUN -->
     /**
-     * How the displayed sheet differs from the raw page image (webtoon "split and merge" only), for
-     * the OCR overlay mapping. Crop borders are applied at decode time and are a documented v1
-     * limitation (the trim rect is not exposed here).
+     * How the displayed sheet differs from the raw page image (webtoon "split and merge"), for the
+     * OCR overlay mapping. Border cropping is applied at decode time and arrives separately as the
+     * sheet's `OcrDisplayTransform.Crop` wrapper, resolved in [onImageDecoded].
      */
     @Volatile
     private var ocrTransform: OcrDisplayTransform = OcrDisplayTransform.None
@@ -217,6 +217,17 @@ class WebtoonPageHolder(
             val (source, isAnimated) = withContext(Dispatchers.Default) {
                 val source = process(buffer)
                 val isAnimated = ImageUtil.isAnimatedAndSupported(source)
+                // KUN -->
+                // Crop borders are a request: SSIV (paged) or the strip decoder derives the rect, and
+                // the overlay needs it to map blocks onto the cropped sheet. Off the main thread.
+                frame.ocrScanSheetCrop(
+                    sheet = source,
+                    isAnimated = isAnimated,
+                    // SY: each long strip mode crops on its own preference (R50).
+                    cropRequested = (viewer.longStrip.cropBorders && viewer.isContinuous) ||
+                        (viewer.longStrip.continuousCropBorders && !viewer.isContinuous),
+                )
+                // KUN <--
                 Pair(source, isAnimated)
             }
             withContext(Dispatchers.Main) {
@@ -284,6 +295,11 @@ class WebtoonPageHolder(
      * Called when the image is decoded and going to be displayed.
      */
     private fun onImageDecoded() {
+        // KUN -->
+        // The displayed sheet's border crop (published by the strip decoder, or resolved against
+        // SSIV's escape hatch) maps the overlay's blocks into the cropped sheet.
+        ocrTransform = ocrTransform.croppedBy(frame.ocrCropWindow())
+        // KUN <--
         progressContainer.isVisible = false
         removeErrorLayout()
     }
