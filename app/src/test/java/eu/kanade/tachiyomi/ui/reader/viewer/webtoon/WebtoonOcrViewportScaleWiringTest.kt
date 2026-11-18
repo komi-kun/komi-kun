@@ -16,11 +16,19 @@
 //  - a hit-test that subtracts the offset but not the scale (taps drift left/up), and a transform
 //    token that ignores the zoom (no redraw during a pinch).
 //
+// A fourth defect was a *contract split* rather than arithmetic: `WebtoonViewer` converted its taps
+// with `Activity.toOverlayPoint`, which adds the origin and no scale, i.e. `origin + local` — a third
+// space. Every arithmetic test above stayed green while the tap path resolved off-block, which is why
+// the behavioural `a tap on a drawn block resolves to that block at every zoom` exists, and why the
+// guard here additionally checks the caller. The fit's scroll delta (overlay pixels fed to a
+// layout-pixel `scrollBy`) gets the same treatment.
+//
 // Residual gap: source text proves what the adapter reads in the file, not that the running views
 // return those values - a device gesture is still the only end-to-end proof.
 // KUN <--
 package eu.kanade.tachiyomi.ui.reader.viewer.webtoon
 
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -31,16 +39,34 @@ import java.io.File
  * Comments are stripped so a needle can only be satisfied (or broken) by code, and so a comment that
  * mentions the old shape cannot keep a test green.
  */
-private fun viewportSource(): String = File(VIEWPORT_PATH)
-    .readText()
-    .replace(Regex("""/\*[\s\S]*?\*/"""), "")
+private fun String.withoutComments(): String = replace(Regex("""/\*[\s\S]*?\*/"""), "")
     .replace(Regex("""(?m)//[^\n]*$"""), "")
+
+private fun sourceOf(path: String): String = File(path).readText().withoutComments()
+
+private fun viewportSource(): String = sourceOf(VIEWPORT_PATH)
+
+private fun viewerSource(): String = sourceOf(VIEWER_PATH)
 
 private const val VIEWPORT_PATH =
     "src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/webtoon/WebtoonOcrViewport.kt"
 
+private const val VIEWER_PATH =
+    "src/main/java/eu/kanade/tachiyomi/ui/reader/viewer/webtoon/WebtoonViewer.kt"
+
 private fun requireNeedle(source: String, needle: String) {
     if (!source.contains(needle)) fail("missing in $VIEWPORT_PATH: $needle")
+}
+
+/** How many times [needle] occurs in [source]. */
+private fun occurrences(source: String, needle: String): Int {
+    var count = 0
+    var at = source.indexOf(needle)
+    while (at >= 0) {
+        count++
+        at = source.indexOf(needle, at + needle.length)
+    }
+    return count
 }
 
 /** The substring of [source] from [from] up to its balanced [close] character. */
@@ -125,6 +151,41 @@ class WebtoonOcrViewportScaleWiringTest {
         assertTrue(
             version.contains("computeVerticalScrollOffset"),
             "the existing scroll term must stay in the token",
+        )
+    }
+
+    @Test
+    fun `the viewer converts taps through the viewport, not through the unscaled overlay conversion`() {
+        // `event.x`/`event.y` are the recycler's own, unzoomed coordinates. `Activity.toOverlayPoint`
+        // adds the origin and nothing else, so handing a tap through it put the caller in a third
+        // space - `origin + local` - that the viewport's inverse then over-divided by the zoom.
+        // `WebtoonOcrViewportScaleWiringTest` cannot see that split from this file, which is why the
+        // behavioural `a tap on a drawn block resolves to that block at every zoom` exists as well.
+        val viewer = viewerSource()
+        assertFalse(
+            viewer.contains("toOverlayPoint(recycler"),
+            "the webtoon tap path must convert through the viewport's own origin + zoom",
+        )
+        assertEquals(
+            2,
+            occurrences(viewer, "ocrViewportRef.overlayPointOfRecyclerLocal(event.x, event.y)"),
+            "both the single tap and the long press must convert their point" +
+                " (found in WebtoonViewer.kt)",
+        )
+    }
+
+    @Test
+    fun `the fit scrolls by layout pixels, not by the overlay delta`() {
+        val source = viewportSource()
+
+        // `scrollBy`/`computeVerticalScrollOffset` count layout pixels, which the zoom leaves alone;
+        // scrolling by the overlay delta overshoots by the zoom factor.
+        val fit = block(source, "override fun fitBlockAbove(", open = '{', close = '}')
+        requireNeedle(fit, "overlayDistanceToScroll(")
+        requireNeedle(fit, "scrollScale = ancestorScaleOf(recycler).y")
+        assertFalse(
+            fit.contains("(rect.centerY() - target.targetCenterY).roundToInt()"),
+            "the fit must divide its overlay delta by the zoom before scrolling",
         )
     }
 }

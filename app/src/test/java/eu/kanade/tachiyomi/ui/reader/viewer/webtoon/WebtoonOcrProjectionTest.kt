@@ -7,6 +7,12 @@
 // blocks at their *unzoomed* extent (they stayed the same size and drifted up/left as the zoom
 // grew) while the tap mapping divided by nothing at all, so draw and hit-test disagreed.
 //
+// The second half is the *touch* side: Android delivers a MotionEvent in the touched view's local
+// space, so a tap has to be converted into overlay pixels with the same origin and zoom the boxes are
+// drawn with. `a tap on a drawn block resolves to that block at every zoom` walks the whole path -
+// drawn box, finger, caller-side conversion, viewport inverse - and is the test that catches the
+// caller and the drawer sitting in different spaces.
+//
 // What no JVM test can prove: that the adapter reads the right live numbers off the views. The
 // arithmetic is exact here; `WebtoonOcrViewportScaleWiringTest` guards the call site for that part.
 // KUN <--
@@ -256,5 +262,122 @@ class WebtoonOcrProjectionTest {
                 scaleY = 1f,
             ),
         )
+    }
+
+    @Test
+    fun `a touch in view-local space converts back to the overlay point it came from`() {
+        for (scale in listOf(1f, 1.5f, 2f, 3f)) {
+            for (origin in listOf(0f to 0f, 24f to 380f, -140f to 60f)) {
+                val local = OcrPoint(505.5f, 1326.25f)
+
+                // The overlay point the view's local point is drawn at...
+                val overlay = overlayPointOfViewLocal(
+                    x = local.x,
+                    y = local.y,
+                    originX = origin.first,
+                    originY = origin.second,
+                    scaleX = scale,
+                    scaleY = scale,
+                )
+                // ...and back, which is what `findChildViewUnder` and the strip fraction need.
+                val back = overlayToViewLocal(
+                    x = overlay.x,
+                    y = overlay.y,
+                    originX = origin.first,
+                    originY = origin.second,
+                    scaleX = scale,
+                    scaleY = scale,
+                )
+
+                assertEquals(local.x, back.x, epsilon, "x at scale $scale, origin $origin")
+                assertEquals(local.y, back.y, epsilon, "y at scale $scale, origin $origin")
+            }
+        }
+    }
+
+    @Test
+    fun `a tap on a drawn block resolves to that block at every zoom`() {
+        // The strip sits inside the recycler's layout, so the two views have different origins; both
+        // carry the same ancestor zoom. A non-square sheet keeps x and y from cancelling each other.
+        val sheetW = 1000f
+        val sheetH = 2000f
+        val stripOrigin = OcrPoint(40f, 380f)
+        val recyclerOrigin = OcrPoint(24f, 0f)
+        val block = OcrRect(0.2f, 0.3f, 0.8f, 0.9f)
+        val centre = OcrPoint((block.left + block.right) / 2f, (block.top + block.bottom) / 2f)
+
+        for (scale in listOf(1f, 1.5f, 2f, 3f)) {
+            // Where the block is drawn, in overlay pixels.
+            val drawn = projectImageNormalizedToScreen(
+                block = block,
+                sheetWidth = sheetW,
+                sheetHeight = sheetH,
+                originX = stripOrigin.x,
+                originY = stripOrigin.y,
+                scaleX = scale,
+                scaleY = scale,
+            )
+            val drawnCentre = OcrPoint((drawn.left + drawn.right) / 2f, (drawn.top + drawn.bottom) / 2f)
+
+            // A finger on that point: Android delivers the touch to the recycler in *its* local space,
+            // i.e. the window point mapped through the inverse of the ancestors' transform. This step
+            // is the platform's, not ours - `window = origin + scale * local`, inverted.
+            val tapLocal = OcrPoint(
+                (drawnCentre.x - recyclerOrigin.x) / scale,
+                (drawnCentre.y - recyclerOrigin.y) / scale,
+            )
+
+            // The production conversion the tap path uses...
+            val tapOverlay = overlayPointOfViewLocal(
+                x = tapLocal.x,
+                y = tapLocal.y,
+                originX = recyclerOrigin.x,
+                originY = recyclerOrigin.y,
+                scaleX = scale,
+                scaleY = scale,
+            )
+
+            // ...must land on the drawn block, i.e. agree with the draw path's own inverse. Dropping
+            // the zoom from this conversion leaves the tap in a third space and resolves off-block.
+            val resolved = projectScreenToImageNormalized(
+                x = tapOverlay.x,
+                y = tapOverlay.y,
+                sheetWidth = sheetW,
+                sheetHeight = sheetH,
+                originX = stripOrigin.x,
+                originY = stripOrigin.y,
+                scaleX = scale,
+                scaleY = scale,
+            ) ?: fail("the tap fell outside the strip at scale $scale")
+            assertEquals(centre.x, resolved.x, epsilon, "x at scale $scale")
+            assertEquals(centre.y, resolved.y, epsilon, "y at scale $scale")
+
+            // The same overlay point must also name the same recycler local point for
+            // `findChildViewUnder`, or the tap resolves on a different page.
+            val childLocal = overlayToViewLocal(
+                x = tapOverlay.x,
+                y = tapOverlay.y,
+                originX = recyclerOrigin.x,
+                originY = recyclerOrigin.y,
+                scaleX = scale,
+                scaleY = scale,
+            )
+            assertEquals(tapLocal.x, childLocal.x, epsilon, "recycler local x at scale $scale")
+            assertEquals(tapLocal.y, childLocal.y, epsilon, "recycler local y at scale $scale")
+        }
+    }
+
+    @Test
+    fun `an overlay distance becomes fewer scroll pixels as the zoom grows`() {
+        // `scrollBy` and `computeVerticalScrollOffset` count layout pixels, which the zoom leaves
+        // alone, so 500 on-screen pixels are 500 layout pixels at 1x and 250 at 2x.
+        assertEquals(500, overlayDistanceToScroll(500f, 1f))
+        assertEquals(250, overlayDistanceToScroll(500f, 2f))
+        // Repeating the fit's own invariant: the move in overlay pixels is what the popup asks for.
+        assertEquals(500f, overlayDistanceToScroll(500f, 2f) * 2f, 0.5f)
+        // Rounds rather than truncates (500 / 3 = 166.67), so a fit never under-shoots by a pixel.
+        assertEquals(167, overlayDistanceToScroll(500f, 3f))
+        // A degenerate scale cannot happen (the zoom is clamped to 0.5..3); it must not overflow.
+        assertEquals(0, overlayDistanceToScroll(500f, 0f))
     }
 }

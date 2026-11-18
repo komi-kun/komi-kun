@@ -14,6 +14,8 @@
 // KUN <--
 package eu.kanade.tachiyomi.ui.reader.viewer.webtoon
 
+import kotlin.math.roundToInt
+
 /** A rectangle in one of the reader's OCR spaces: image-normalized (`0..1`), or overlay pixels. */
 internal data class OcrRect(
     val left: Float,
@@ -69,6 +71,44 @@ internal fun overlayToViewLocal(
     (x - originX) / scaleX,
     (y - originY) / scaleY,
 )
+
+/**
+ * The exact forward inverse of [overlayToViewLocal]: a point in a view's own (unzoomed) local space →
+ * overlay pixels, under the same [originX]/[originY] and [scaleX]/[scaleY].
+ *
+ * This is the conversion a *touch* needs. Android delivers a MotionEvent to a view in that view's
+ * local space - `ViewGroup` maps the window point through the inverse of the child's transform before
+ * dispatching - so `MotionEvent.getX()` is a layout coordinate, not an overlay one, and the ancestor
+ * zoom has to be multiplied back in. Using the origin alone (the pre-fix `toOverlayPoint`) leaves the
+ * tap path in a space that is neither: it draws at `origin + scale·local` but resolves at
+ * `origin + local`, and the two agree only at scale 1.
+ */
+internal fun overlayPointOfViewLocal(
+    x: Float,
+    y: Float,
+    originX: Float,
+    originY: Float,
+    scaleX: Float,
+    scaleY: Float,
+): OcrPoint = OcrPoint(
+    originX + x * scaleX,
+    originY + y * scaleY,
+)
+
+/**
+ * An overlay-pixel distance as a `RecyclerView.scrollBy` / `computeVerticalScrollOffset` distance.
+ *
+ * Scrolling moves the view's *layout*, which the zoom does not change, so a distance measured in
+ * overlay pixels is that many layout pixels only at scale 1; at zoom `s` the view has to move
+ * `overlay / s` layout pixels to cover the same on-screen distance.
+ *
+ * A non-positive scale cannot happen (the webtoon zoom is clamped to `0.5..3`); it returns 0 - no
+ * move - rather than an unbounded or infinite delta.
+ */
+internal fun overlayDistanceToScroll(overlayPixels: Float, scrollScale: Float): Int {
+    if (scrollScale <= 0f) return 0
+    return (overlayPixels / scrollScale).roundToInt()
+}
 
 /**
  * The exact inverse of [projectImageNormalizedToScreen]: an overlay point → image-normalized
