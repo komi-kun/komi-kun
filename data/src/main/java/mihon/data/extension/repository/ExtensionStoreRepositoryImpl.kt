@@ -108,9 +108,6 @@ class ExtensionStoreRepositoryImpl(
                             changed += ChangedExtensionStore(store, servedName = fetched.name)
                             return@let null
                         }
-                        if (store.indexUrl != fetched.indexUrl) {
-                            renamed[store.indexUrl] = fetched.indexUrl
-                        }
                         savedStores.remove(store.indexUrl)
                         savedStores[fetched.indexUrl] = fetched
                         store.indexUrl to fetched
@@ -122,6 +119,12 @@ class ExtensionStoreRepositoryImpl(
                     if (database.extension_storeQueries.contains(indexUrl).awaitAsOne()) {
                         upsert(store)
                         if (indexUrl != store.indexUrl) {
+                            // KUN -->
+                            // Recorded only here, where the store is actually applied: a store the user
+                            // deleted mid-refresh must not leak its new URL into the disabled-store
+                            // remap, or re-adding it later would come back silently disabled.
+                            renamed[indexUrl] = store.indexUrl
+                            // KUN <--
                             database.extension_storeQueries.delete(indexUrl)
                         }
                     }
