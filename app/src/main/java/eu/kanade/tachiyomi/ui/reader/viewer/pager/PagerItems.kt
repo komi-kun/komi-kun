@@ -91,6 +91,9 @@ class PagerItems(private val isReversed: Boolean) {
             preprocessed = preprocessed + newPage
         }
     }
+
+    // The split itself is pair-aware and lives in [PagerJoinedItems], which owns the joined slots: do not re-add
+    // onPageSplit / cleanupPageSplit here, nothing in the adapter would reach them.
     // KUN <--
 
     /**

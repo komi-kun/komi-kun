@@ -18,7 +18,7 @@ import tachiyomi.core.common.util.system.logcat
 class PagerViewerAdapter(
     private val viewer: PagerViewer,
     // KUN --> the fork's slots are pairs, see [PagerJoinedItems]
-    private val pagerItems: PagerJoinedItems,
+    private val joinedItems: PagerJoinedItems,
     // KMK -->
     @ColorInt private val seedColor: Int? = null,
     // KMK <--
@@ -29,7 +29,7 @@ class PagerViewerAdapter(
      * Paired list of currently set items.
      */
     val items: MutableList<Pair<ReaderItem, ReaderItem?>>
-        get() = pagerItems.items
+        get() = joinedItems.items
 
     /**
      * Context that has been wrapped to use the correct theme values based on the
@@ -40,7 +40,7 @@ class PagerViewerAdapter(
     init {
         // SY: the joined list is rebuilt by [PagerJoinedItems] itself, so it tells this adapter to
         // notify the pager before it restores the item it was on.
-        pagerItems.onItemsChanged = ::notifyDataSetChanged
+        joinedItems.onItemsChanged = ::notifyDataSetChanged
     }
 
     /**
@@ -49,7 +49,7 @@ class PagerViewerAdapter(
      * has R2L direction.
      */
     fun setChapters(chapters: ViewerChapters, forceTransition: Boolean) {
-        val update = pagerItems.setChapters(chapters, forceTransition, viewer.pager.currentItem)
+        val update = joinedItems.setChapters(chapters, forceTransition, viewer.pager.currentItem)
 
         update.position?.let { viewer.pager.setCurrentItem(it, false) }
 
@@ -108,13 +108,13 @@ class PagerViewerAdapter(
     }
 
     fun onPageSplit(currentPage: Any?, newPage: InsertPage) {
-        if (pagerItems.onPageSplit(currentPage, newPage)) {
+        if (joinedItems.onPageSplit(currentPage, newPage)) {
             notifyDataSetChanged()
         }
     }
 
     fun cleanupPageSplit() {
-        pagerItems.cleanupPageSplit()
+        joinedItems.cleanupPageSplit()
         notifyDataSetChanged()
     }
 
@@ -124,7 +124,7 @@ class PagerViewerAdapter(
 
     // SY -->
     fun splitDoublePages(current: ReaderPage) {
-        pagerItems.splitDoublePages(current)
+        joinedItems.splitDoublePages(current)
     }
     // SY <--
 }

@@ -68,7 +68,9 @@ class PagerPageTracker(
      * Called when a new page (either a [ReaderPage] or [ChapterTransition]) is marked as active
      */
     fun onPageChange(position: Int) {
+        // KUN --> the slots are pairs, so the first half is the page the pager is on (upstream: one item)
         val pagePair = items.items.getOrNull(position)
+        // KUN <--
         val page = pagePair?.first
         if (page != null && currentPage != page) {
             val allowPreload = checkAllowPreload(page as? ReaderPage)
@@ -88,7 +90,11 @@ class PagerPageTracker(
             }
             currentPage = page
             when (page) {
+                // KUN -->
+                // A paired slot tells the activity that two pages are shown at once (the `hasExtraPage`
+                // argument the fork's onPageSelected carries).
                 is ReaderPage -> onReaderPageSelected(page, allowPreload, forward, pagePair.second != null)
+                // KUN <--
                 is ChapterTransition -> onTransitionSelected(page)
             }
         }

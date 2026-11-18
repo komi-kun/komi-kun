@@ -80,6 +80,10 @@ val LocalPageColorFilter = compositionLocalOf<ColorFilter?> { null }
 
 /**
  * Turns pages with the mouse wheel instead of letting the content scroll.
+ *
+ * For the viewers whose pages do not scroll on their own: the pager and the WebGPU ones. The long strip
+ * deliberately does not apply it - its `RecyclerView` scrolls the strip natively, and a wheel notch turning
+ * one page there would fight that scroll.
  */
 fun Modifier.mouseWheelPaging(viewer: Viewer): Modifier = pointerInput(viewer) {
     awaitPointerEventScope {
