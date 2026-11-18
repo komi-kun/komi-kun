@@ -12,8 +12,10 @@ import eu.kanade.domain.extension.interactor.TrustExtension
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.extension.api.ExtensionUpdateNotifier
+import eu.kanade.tachiyomi.extension.model.AvailableExtensionVersionComparator
 import eu.kanade.tachiyomi.extension.model.Extension
 import eu.kanade.tachiyomi.extension.model.InstallStep
+import eu.kanade.tachiyomi.extension.model.identityKey
 import eu.kanade.tachiyomi.extension.util.ExtensionInstallReceiver
 import eu.kanade.tachiyomi.extension.util.ExtensionInstaller
 import eu.kanade.tachiyomi.extension.util.ExtensionLoader
@@ -142,11 +144,12 @@ class ExtensionManager(
         .map { extensions ->
             extensions
                 .filterNot { it.isBlacklisted() }
-                .groupBy { it.pkgName to it.store.signingKey }
+                // KMK -->
+                // Several stores can list the same package signed by the same key: keep the newest one.
+                .groupBy { it.identityKey }
                 .values
-                .map { listings ->
-                    listings.maxWith(compareBy<Extension.Available> { it.versionCode }.thenBy { it.libVersion })
-                }
+                .map { listings -> listings.maxWith(AvailableExtensionVersionComparator) }
+            // KMK <--
         }
         .stateIn(scope, SharingStarted.Lazily, emptyList())
     // SY <--

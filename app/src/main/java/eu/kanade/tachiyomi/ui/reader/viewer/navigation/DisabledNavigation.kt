@@ -15,11 +15,12 @@ import eu.kanade.tachiyomi.ui.reader.viewer.ViewerNavigation
 */
 class DisabledNavigation(
     invertMode: TappingInvertMode,
+    isReversed: Boolean,
     // KUN -->
     // KMK: the tap-zone size (R31) travels with the navigator.
     smallerTapZone: Boolean = false,
     // KUN <--
-) : ViewerNavigation(invertMode, smallerTapZone) {
+) : ViewerNavigation(invertMode, isReversed, smallerTapZone) {
 
     override val regionList: List<Region> = emptyList()
 }
