@@ -25,7 +25,8 @@ content, not by the log" in the `upstream-port` skill, and never from the Status
 
 Upstream commits since 2026-10-24 (`mihon` `e588e04359`→`4823ba69ca`, `tachiyomiSY`
 `9955747216`→`5c77cad303`) plus Komikku since its config `since` 2026-10-08 (`1656575e8f`→`290267dd4c`),
-adjudicated row by row: **13 ported, 5 already-present rows closed, 13 won't-pick (§5), 3 deferred (§4)**.
+adjudicated row by row: **13 ported, 5 already-present rows closed, 13 won't-pick (§5), 3 deferred, all
+three since landed on the stacked branch (last paragraph of this section)**.
 
 - Mihon: `629033c804` → `c98f9b3cac` (lint: read the locale observably, `AppCompatButton`; its splash
   resource hunk is omitted deliberately — the fork keeps its own themed splash) and `002a5fba27` →
@@ -38,20 +39,38 @@ adjudicated row by row: **13 ported, 5 already-present rows closed, 13 won't-pic
 - Komikku: `a1166f3c23` → `375bf1da65` (custom smart-update intervals in every build type), `07f6b434e8` →
   `cac8a27724` (global search keeps its sources, recommendations stop spinning), `9c955b5b1e` →
   `4bb1137fdb` (stop attributing other stores' updates to installed extensions; the `ExtensionMatching` half
-  is deferred, §4) and `383ffaa816` → `b5087846d2` (partial-pick detection and the newer `mark` options in
-  `.agents/skills/cherrypick-log/`).
+  followed on the stacked branch, below) and `383ffaa816` → `b5087846d2` (partial-pick detection and the newer
+  `mark` options in `.agents/skills/cherrypick-log/`).
 - Already present, now recorded: `c1eb1e3cbf`, `290267dd4c`, `6e218618d2`, `8d091eaebc` and the reader series'
   `ca028cb657`, `8124d324a1`, `00335b2a70` (PR #81).
 - Dependencies: the window's catalog work landed as one series — Gradle 9.9.1, `compose-bom` 2026.11.00,
   `metro` 1.5.2, `okhttp` 5.5.1, `sqlcipher` 4.20.0, `kotlinx-serialization` 1.13.0, `libarchive` 1.1.7,
   `mockk` 1.14.12, `kotest-assertions` 6.2.7, `uiautomator` 2.4.1. What is still behind is in §4.
 
+**The three deferred rows landed on the stacked branch `agent/stacked-deferrals`** — three commits on
+`eea356c883`, the tip of `chore/upstream-window-and-deps`, so it merges after that PR:
+
+- `9c955b5b1e` → `161196d446`: the `ExtensionMatching` half, on the fork's model — `isSameExtensionAs` is
+  `pkgName == other.pkgName && other.store.signingKey in signatures`, because the fork has neither
+  `Extension.signatureHash` nor `Installed.storeName`; its test comes with it, so every applicable file of
+  that commit is in and the row is `O`.
+- `9079ad8c9a` → `14046736ef`: key dispatch and tap handling move into `ReaderActivity`, and the four
+  navigation directions collapse into `moveForward()`/`moveBackward()`. The KUN `VolumeKeyPagingPolicy`
+  OCR-overlay exemption and the KMK pan-before-turn are re-applied on the new structure, the latter as
+  `Action.PAN_UP`/`PAN_DOWN` emitted only from the vertical keys and the mouse wheel.
+- `e588e04359` → `219fcf5bbf`: `PagerItems`/`PagerPageTracker` replace the holders' own page lists and the
+  page chrome leaves the holders for `ReaderError`/`ReaderPageError`/`ReaderTransitionPage`/
+  `ReaderThemedContent`/`TransitionDownloadState`/`PageImageProcessing`, so `ReaderButton` and
+  `res/layout/reader_error.xml` go. The KUN OCR display-transform bookkeeping survives as a hook on
+  `processPagedImage`/`processStripImage`, and the SY dual-page engine as a fork-only `PagerJoinedItems`
+  layered over the flat `PagerItems`.
+
 ## 3. PR #80 — `chore/upstream-port-2026-10` (landed)
 
 The sync that closed the two-year gap into `85d7d1fade`: the Mihon and SY commits since 2024-01-01 that a
 content audit found genuinely missing, the Weblate translation commits in that window, and the fixes the port
 needed to stay coherent (chapter-cache TTL rewrite, duplicate-download cleanup, updater and telemetry fixes,
-the merge and backup repair). `ui/reader/**` was deliberately excluded and left to the reader stream below.
+the merge and backup repair). `ui/reader/**` was deliberately excluded and left to the reader stream in §2.
 
 - Migrations: `59.sqm` (SY's `library_removal` table, renumbered from SY's `48.sqm`), `60.sqm` (KUN:
   the library/updates feed views dedupe a merged entry's chapters by its chapter-sort mode), `61.sqm`
@@ -63,23 +82,9 @@ the merge and backup repair). `ui/reader/**` was deliberately excluded and left 
 
 ## 4. Open work
 
-- **Reader series, steps 4-6.** Steps 1-3 landed in PR #81 (`bc5bfa077c`, `docs/reader/`):
-  `ca028cb657`, `8124d324a1` and `00335b2a70` are in, hand-marked in the log. What is left, per
-  `docs/reader/step3-compose-reader.md` §6:
-  - step 4 — the dual-page join/shift/isolate engine over the new pager items;
-  - step 5 — `9079ad8c9a` (Mihon #4192, "Handle reader input and state in the activity"), **deferred
-    2026-11-18**: its extraction would delete the KUN `VolumeKeyPagingPolicy` OCR-overlay exemption and the
-    KMK pan-before-turn, so it needs a fork-shaped redesign rather than a straight pick;
-  - step 6 — `e588e04359` (Mihon #4193, "Share the reader's page chrome and page logic between viewers"),
-    **deferred 2026-11-18**: its extraction targets the KUN OCR display-transform bookkeeping and the SY
-    dual-page engine.
 - **Injekt removal** — `524fa53043` (Mihon #4179) is **deferred 2026-11-18**: 50 `.kt` files outside
   `source-api/` still import `uy.kohesive.injekt` through the interop bridge in `mihon/app/di/injekt/`, so
   the commit's premise does not hold in this tree yet.
-- **ExtensionMatching model convergence** — the `ExtensionMatching.kt` / `ExtensionMatchingTest.kt` half of
-  Komikku `9c955b5b1e` is **deferred 2026-11-18**: it needs `Extension.signatureHash` and
-  `Installed.storeName`, and the fork's model came from Mihon's newer design. The attribution half is ported
-  (`4bb1137fdb`).
 - **Dependency rows still behind `mihon/main`.** Every one of them is Renovate-authored, so `config.json`'s
   identity filter keeps them out of the log (26 such commits on `mihon/main` and 7 on `tachiyomiSY/master`
   in this window; they have to be read from the upstream catalogs, not from `cherrypick_log.md`):
