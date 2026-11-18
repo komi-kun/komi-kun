@@ -58,8 +58,16 @@ fun ReaderError(
 internal fun Modifier.reportPress(onPressChange: (Boolean) -> Unit) = pointerInput(onPressChange) {
     awaitEachGesture {
         awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+        // KUN -->
+        // The release is in a `finally`: a gesture cancelled while the button is held - the error view removed,
+        // or this modifier restarted by a rebind, mid-press - skips the rest of the block, which would otherwise
+        // leave the viewer's gesture detector disabled and swiping off for the rest of the reader.
         onPressChange(true)
-        waitForUpOrCancellation(pass = PointerEventPass.Initial)
-        onPressChange(false)
+        try {
+            waitForUpOrCancellation(pass = PointerEventPass.Initial)
+        } finally {
+            onPressChange(false)
+        }
+        // KUN <--
     }
 }

@@ -52,10 +52,14 @@ class PagerJoinedItems(
 
     /**
      * Rebuilds the slots from [chapters], re-pairing them when the dual page layout changed, and returns where the
-     * flat list says the pager must go next.
+     * pager must go next, as a slot position: the flat model answers in pages, which [PagerItemPositions] translates.
      */
     fun setChapters(chapters: ViewerChapters, forceTransition: Boolean, currentPosition: Int): PagerItems.Update {
-        val update = pagerItems.setChapters(chapters, forceTransition, currentPosition)
+        // KUN -->
+        // [currentPosition] indexes the slots the pager shows, [PagerItems] indexes pages: with double pages those
+        // are different numbers for the same place, so the flat model is asked about the page the slot shows.
+        val update = PagerItemPositions.setChapters(pagerItems, chapters, forceTransition, items, currentPosition)
+        // KUN <--
 
         var useSecondPage = false
         if (shifted != viewer.shiftDoublePage || (doubledUp != viewer.doublePages && doubledUp)) {
@@ -67,7 +71,10 @@ class PagerJoinedItems(
         doubledUp = viewer.doublePages
         setJoinedItems(useSecondPage)
 
-        return update
+        // KUN --> and back again: the flat model answers with a page index, the pager is moved by slot.
+        val position = PagerItemPositions.slotFor(items, pagerItems, update)
+        return PagerItems.Update(position, update.insertPage)
+        // KUN <--
     }
 
     /**
@@ -285,3 +292,58 @@ class PagerJoinedItems(
     }
     // SY <--
 }
+
+// KUN -->
+/**
+ * Translates between the two index spaces the fork's pager keeps: a slot of [PagerJoinedItems], one per page turn,
+ * and a flat item of [PagerItems], one per page. They are the same number only while a slot holds a single page, so
+ * with double pages a slot index and a page index name different places, and handing one to the other leaves the
+ * pager on another spread - or in another chapter.
+ *
+ * Both directions are here rather than at the call sites so the flat model can be driven, and its answer translated,
+ * without a live [PagerViewer].
+ */
+internal object PagerItemPositions {
+
+    /**
+     * Rebuilds [pagerItems] for [chapters] while the pager is on [slot] of [slots], asking the flat model about the
+     * page that slot shows rather than about its index.
+     */
+    fun setChapters(
+        pagerItems: PagerItems,
+        chapters: ViewerChapters,
+        forceTransition: Boolean,
+        slots: List<Pair<ReaderItem, ReaderItem?>>,
+        slot: Int,
+    ): PagerItems.Update = pagerItems.setChapters(
+        chapters,
+        forceTransition,
+        flatPositionOf(slots, pagerItems.items, slot),
+    )
+
+    /**
+     * The slot to move the pager to for [update]: the one holding the page the flat model followed, or null when no
+     * slot holds it, where the pager stays where it is.
+     */
+    fun slotFor(
+        slots: List<Pair<ReaderItem, ReaderItem?>>,
+        pagerItems: PagerItems,
+        update: PagerItems.Update,
+    ): Int? = update.position?.let { slotOf(slots, pagerItems.items, it) }
+
+    /**
+     * The flat position of the page [slot] shows - the first of its pair, which is what the pager restores to.
+     * Falls back to -1, "no item", when that page is not in [flat], so a stale index cannot follow another page.
+     */
+    private fun flatPositionOf(slots: List<Pair<ReaderItem, ReaderItem?>>, flat: List<Any>, slot: Int): Int {
+        val item = slots.getOrNull(slot)?.first ?: return -1
+        return flat.indexOf(item)
+    }
+
+    /** The slot showing the flat item at [flatPosition] in [flat], or null when no slot holds it. */
+    private fun slotOf(slots: List<Pair<ReaderItem, ReaderItem?>>, flat: List<Any>, flatPosition: Int): Int? {
+        val item = flat.getOrNull(flatPosition) ?: return null
+        return slots.indexOfFirst { it.first == item || it.second == item }.takeIf { it >= 0 }
+    }
+}
+// KUN <--
