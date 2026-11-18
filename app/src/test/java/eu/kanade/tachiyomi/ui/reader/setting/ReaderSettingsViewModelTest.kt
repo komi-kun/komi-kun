@@ -1,7 +1,6 @@
 // KUN -->
 package eu.kanade.tachiyomi.ui.reader.setting
 
-import android.graphics.Color
 import eu.kanade.domain.base.BasePreferences
 import eu.kanade.tachiyomi.ui.reader.ReaderViewModel
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences.NavigationMode
@@ -17,7 +16,6 @@ import eu.kanade.tachiyomi.ui.reader.viewer.navigation.LNavigation
 import eu.kanade.tachiyomi.ui.reader.viewer.navigation.RightAndLeftNavigation
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -77,14 +75,8 @@ class ReaderSettingsViewModelTest {
     fun setUp() {
         Dispatchers.setMain(dispatcher)
         every { basePreferences.highQualityRenderer } returns highQualityRenderer
-        // Every navigator's regions carry a preview colour, and `android.graphics.Color.argb` is a stub that
-        // throws in these unit tests; the colour is not what is under test.
-        mockkStatic(Color::class)
-        every { Color.argb(any<Int>(), any<Int>(), any<Int>(), any<Int>()) } returns 0
-        // Constructing a navigator in these tests initialises `NavigationRegion` on the way, and its data
-        // objects compute their preview colour once, through the stub: they cache 0 for the rest of this JVM
-        // worker, and `unmockkAll()` cannot undo that. A test that asserts a region colour must not run after
-        // this class - it needs its own class (or this class needs to stop mocking `Color`).
+        // Every navigator's regions carry a preview colour. Since `ViewerNavigation` draws them as Compose
+        // colours they are plain values these unit tests can build, so nothing is mocked for them.
     }
 
     @AfterEach
@@ -110,7 +102,11 @@ class ReaderSettingsViewModelTest {
         assertInstanceOf(RightAndLeftNavigation::class.java, before)
         // The navigator carries the zone size it was built with: equal only to one of the same size.
         assertEquals(
-            RightAndLeftNavigation(ReaderPreferences.TappingInvertMode.VERTICAL, smallerTapZone = false),
+            RightAndLeftNavigation(
+                ReaderPreferences.TappingInvertMode.VERTICAL,
+                isReversed = true,
+                smallerTapZone = false,
+            ),
             before,
         )
 
@@ -121,7 +117,11 @@ class ReaderSettingsViewModelTest {
         val after = emitted.last()
         assertInstanceOf(RightAndLeftNavigation::class.java, after)
         assertEquals(
-            RightAndLeftNavigation(ReaderPreferences.TappingInvertMode.VERTICAL, smallerTapZone = true),
+            RightAndLeftNavigation(
+                ReaderPreferences.TappingInvertMode.VERTICAL,
+                isReversed = true,
+                smallerTapZone = true,
+            ),
             after,
         )
         assertNotEquals(before, after)
@@ -145,7 +145,11 @@ class ReaderSettingsViewModelTest {
         val before = emitted.single()
         assertInstanceOf(RightAndLeftNavigation::class.java, before)
         assertEquals(
-            RightAndLeftNavigation(ReaderPreferences.TappingInvertMode.VERTICAL, smallerTapZone = false),
+            RightAndLeftNavigation(
+                ReaderPreferences.TappingInvertMode.VERTICAL,
+                isReversed = false,
+                smallerTapZone = false,
+            ),
             before,
         )
 
@@ -156,7 +160,11 @@ class ReaderSettingsViewModelTest {
         val after = emitted.last()
         assertInstanceOf(RightAndLeftNavigation::class.java, after)
         assertEquals(
-            RightAndLeftNavigation(ReaderPreferences.TappingInvertMode.VERTICAL, smallerTapZone = true),
+            RightAndLeftNavigation(
+                ReaderPreferences.TappingInvertMode.VERTICAL,
+                isReversed = false,
+                smallerTapZone = true,
+            ),
             after,
         )
         assertNotEquals(before, after)
@@ -203,7 +211,11 @@ class ReaderSettingsViewModelTest {
             val after = viewModel.navigation.value
             assertSame(before, after)
             assertEquals(
-                RightAndLeftNavigation(ReaderPreferences.TappingInvertMode.VERTICAL, smallerTapZone = false),
+                RightAndLeftNavigation(
+                    ReaderPreferences.TappingInvertMode.VERTICAL,
+                    isReversed = true,
+                    smallerTapZone = false,
+                ),
                 after,
             )
         }
@@ -283,7 +295,7 @@ class ReaderSettingsViewModelTest {
             for ((mode, layout) in expected) {
                 for (invert in TappingInvertMode.entries) {
                     val navigation = NavigationSettings(mode, invert, smallerTapZone)
-                        .navigator(::RightAndLeftNavigation)
+                        .navigator(isReversed = false, ::RightAndLeftNavigation)
                     assertEquals(
                         layout,
                         navigation.getRegions().map { it.type },
@@ -297,15 +309,12 @@ class ReaderSettingsViewModelTest {
     /**
      * The fractions [ViewerNavigation] places a zone with, `regionSize1` and `1 - regionSize1` (R31).
      *
-     * The rectangles themselves are not readable here. The unit test classpath is AGP's mockable `android.jar`,
-     * which empties constructors: `RectF(0f, 0f, 0.33f, 1f)` constructs without throwing and then reads back as
-     * `0f, 0f, 0f, 0f` (the first version of the tests above asserted the real edges and failed with
-     * `[(LEFT, [0.0, 0.0, 0.0, 0.0]), (RIGHT, [0.0, 0.0, 0.0, 0.0])]`), and a `mockkConstructor` over `RectF`
-     * records no calls at all. So the coordinates each navigator passes in, and the mirroring `Region.invert`
-     * applies, stay on the manual pass - the values the navigators fill those rects with do not.
+     * The zones' rectangles are not asserted here: the tests above pin what each scheme offers (its region
+     * types, in order) and the navigator's value (inversion, direction, zone size), which is what the overlay
+     * draws and a tap is mapped through.
      */
     private fun fractionsOf(smallerTapZone: Boolean): Pair<Float, Float> =
-        object : ViewerNavigation(TappingInvertMode.NONE, smallerTapZone) {
+        object : ViewerNavigation(TappingInvertMode.NONE, isReversed = false, smallerTapZone) {
             override val regionList: List<Region> = emptyList()
 
             fun fractions() = regionSize1 to regionSize2
