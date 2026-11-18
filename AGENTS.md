@@ -369,6 +369,7 @@ Gradle `-P` flags (`buildSrc/src/main/kotlin/mihon/buildlogic/BuildConfig.kt`):
 - `?` rows are reviewed with the `cherrypick-log` skill.
 - `X` means "won't pick". The maintainer sets it by hand, and the skill sets it for version-bump-only commits.
 - Commits that cancel each other out (revert chains the fork has none of) are flagged `?` by the script with a `Cancels out (script):` note, for review.
+- A `cherry picked from commit` marker only counts as `O` when the citing commits carry all of the upstream commit's files that apply here (mihon's `CHANGELOG.md` and SQLDelight migrations are ignored); otherwise the row is a partial pick (`?`). A hand-set `?` with a `Partial <date>:` / `Folded <date>:` note is kept on reruns.
 - Pre-2024 rows at the end come from a one-off pass and may be deleted by hand.
 - Never hand-edit columns other than Status and Notes; use the script's `mark` command.
 - **A blank or `?` status is not proof of absence**: ports here land as squash merges, so no pick trailer reaches `master`; the current position and the open work are in [`docs/upstream/state.md`](docs/upstream/state.md), and presence must be adjudicated by content (see the `upstream-port` skill).
