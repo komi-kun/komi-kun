@@ -3,6 +3,10 @@ package eu.kanade.tachiyomi.ui.browse.extension.details
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
@@ -11,6 +15,8 @@ import eu.kanade.presentation.browse.ExtensionDetailsScreen
 import eu.kanade.presentation.util.Screen
 import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.ui.webview.WebViewScreen
+import eu.kanade.presentation.browse.PrivateExtensionUninstallDialog
+import eu.kanade.tachiyomi.util.system.isPackageInstalled
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.screens.EmptyScreen
 import tachiyomi.presentation.core.screens.LoadingScreen
@@ -26,6 +32,8 @@ data class ExtensionDetailsScreen(
                 create(pkgName = pkgName)
             }
         val state by viewModel.state.collectAsStateWithLifecycle()
+        val context = LocalContext.current
+        var showUninstallDialog by remember { mutableStateOf(false) }
 
         val navigator = LocalNavigator.currentOrThrow
 
@@ -61,10 +69,29 @@ data class ExtensionDetailsScreen(
                     onClickEnableAll = { viewModel.toggleSources(true) },
                     onClickDisableAll = { viewModel.toggleSources(false) },
                     onClickClearCookies = viewModel::clearCookies,
-                    onClickUninstall = viewModel::uninstallExtension,
+                    // KUN -->
+                    // An extension that is not a separate package (installed privately) gets a confirmation
+                    onClickUninstall = {
+                        if (context.isPackageInstalled(state.extension.pkgName)) {
+                            viewModel.uninstallExtension()
+                        } else {
+                            showUninstallDialog = true
+                        }
+                    },
+                    // KUN <--
                     onClickSource = viewModel::toggleSource,
                     onClickIncognito = viewModel::toggleIncognito,
                 )
+
+                if (showUninstallDialog) {
+                    PrivateExtensionUninstallDialog(
+                        extension = state.extension,
+                        onConfirm = viewModel::uninstallExtension,
+                        onDismissRequest = {
+                            showUninstallDialog = false
+                        },
+                    )
+                }
             }
         }
     }
