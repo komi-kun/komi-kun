@@ -381,7 +381,14 @@ class SyncManager(
         // A v2 full response is the only one whose omissions mean deletion; `full` is the local
         // signal that the request asked for a full snapshot. A delta omits unchanged entries, so
         // its absences say nothing, and a non-library response is not about the library at all.
-        val mangaIdsToDelete = if (canApplySnapshotDeletions(full, result.protocolV2, syncOptions.libraryEntries)) {
+        //
+        // This heuristic is the fallback for a server that predates the explicit tombstone list
+        // (`Backup.deletions`): a delta that carries the list says what was deleted, and the list
+        // wins, so the snapshot comparison does not even have to run.
+        val mangaIdsToDelete = if (
+            remoteBackup.deletions.isEmpty() &&
+            canApplySnapshotDeletions(full, result.protocolV2, syncOptions.libraryEntries)
+        ) {
             mangaIdsMissingFromFullSnapshot(
                 localManga = syncRepository.getAllManga(),
                 remoteManga = remoteBackup.backupManga,
@@ -409,7 +416,14 @@ class SyncManager(
         // KUN <--
 
         // SY -->
-        if (remoteBackup === syncData.backup || (result.protocolV2 && !result.changed)) {
+        if (
+            skipRemoteResponse(
+                ownBackup = remoteBackup === syncData.backup,
+                protocolV2 = result.protocolV2,
+                changed = result.changed,
+                deletions = remoteBackup.deletions,
+            )
+        ) {
             // nothing changed
             logcat(LogPriority.DEBUG) { "Skip restore, nothing new on the remote" }
             // KUN -->
@@ -421,6 +435,31 @@ class SyncManager(
             finishWithSuccess(syncStart, "Sync completed successfully", forcePushCompleted = forcePushV2)
             return
         }
+
+        // KUN -->
+        // Apply the delta's explicit tombstones before the restore reads the library, so a row the
+        // server deleted elsewhere is never restored back out of this payload. The gate above never
+        // skips a response that carries tombstones, so a delta whose only change is a deletion
+        // reaches this line instead of being dropped as "nothing new on the remote".
+        if (remoteBackup.deletions.isNotEmpty()) {
+            val skippedKinds = applyDeletions(
+                plan = deletionPlan(remoteBackup.deletions),
+                syncRepository = syncRepository,
+                chapterRepository = chapterRepository,
+                historyRepository = historyRepository,
+                categoryRepository = categoryRepository,
+                pruneCategoryReferences = pruneCategoryReferences,
+                // The same user settings the snapshot fallback honours: a section the user disabled
+                // is not deleted on the server's word.
+                librarySyncEnabled = syncOptions.libraryEntries,
+                historySyncEnabled = syncOptions.history,
+            )
+            logcat(LogPriority.DEBUG) {
+                "Applied ${remoteBackup.deletions.size} remote tombstones" +
+                    if (skippedKinds.isEmpty()) "" else "; not applying kinds ${skippedKinds.joinToString()}"
+            }
+        }
+        // KUN <--
 
         // KUN -->
         // Legacy SY had checks here that aborted sync on empty remote manga list or skipped restore
