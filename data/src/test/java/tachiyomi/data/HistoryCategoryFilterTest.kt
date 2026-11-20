@@ -9,15 +9,17 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Test
 import tachiyomi.data.history.HistoryRepositoryImpl
+import tachiyomi.domain.history.model.HistoryWithRelations
 
 /**
  * The History tab's category filter, exercised through the real `history` query instead of a
  * re-implementation of its predicate.
  *
  * Fixture: manga 1 is in category 1, manga 2 in category 2, manga 3 in both and manga 4 in none,
- * each with one chapter and one history entry. Assertions compare manga ids, so forwarding the
- * include and exclude lists to the wrong query parameter (or deriving `includedEmpty` /
- * `excludedEmpty` from the other list) changes the result instead of only its size.
+ * each with one chapter and one history entry, plus a later second read chapter for manga 1.
+ * Assertions compare manga ids, so forwarding the include and exclude lists to the wrong query
+ * parameter (or deriving `includedEmpty` / `excludedEmpty` from the other list) changes the result
+ * instead of only its size.
  */
 class HistoryCategoryFilterTest {
 
@@ -142,12 +144,134 @@ class HistoryCategoryFilterTest {
         }
     }
 
+    @Test
+    fun `every read chapter is listed and equal read dates follow the history id`() {
+        runBlocking {
+            val driver = newDriver()
+            try {
+                val database = DatabaseBindings.providesDatabase(driver)
+                driver.insertHistoryFixture()
+
+                // Manga 1 read two chapters and contributes both rows, the later one first; the
+                // rest were all read at 3000.
+                historyChapterIds(database) shouldBe listOf(104L, 201L, 103L, 102L, 101L)
+                historyMangaIds(database) shouldBe listOf(1L, 2L, 3L, 4L)
+            } finally {
+                driver.close()
+            }
+        }
+    }
+
+    @Test
+    fun `rows with an equal read date come back by history id descending`() {
+        runBlocking {
+            val driver = newDriver()
+            try {
+                val database = DatabaseBindings.providesDatabase(driver)
+                driver.insertHistoryFixture()
+                // A second read chapter for manga 3 sharing its first row's `read_at`.
+                driver.insertChapter(mangaId = 3L, chapterId = secondChapterIdFor(3L), index = 2)
+                driver.insertHistory(
+                    mangaId = 3L,
+                    chapterId = secondChapterIdFor(3L),
+                    historyId = secondHistoryIdFor(3L),
+                )
+
+                // Four rows tie at 3000, so the tiebreaker decides the order: history id 2003
+                // first, then 1003, 1002 and 1001.
+                historyChapterIds(database) shouldBe listOf(104L, 201L, 203L, 103L, 102L, 101L)
+            } finally {
+                driver.close()
+            }
+        }
+    }
+
+    @Test
+    fun `history rows with a zero read date are not listed`() {
+        runBlocking {
+            val driver = newDriver()
+            try {
+                val database = DatabaseBindings.providesDatabase(driver)
+                driver.insertHistoryFixture()
+                // A manga whose only history row is the epoch-0 leftover an old restore wrote...
+                driver.insertManga(5L)
+                driver.insertChapter(mangaId = 5L)
+                driver.insertHistory(mangaId = 5L, readAt = 0L)
+                // ...and a second, epoch-0 row next to the real one of manga 2.
+                driver.insertChapter(mangaId = 2L, chapterId = secondChapterIdFor(2L), index = 2)
+                driver.insertHistory(
+                    mangaId = 2L,
+                    chapterId = secondChapterIdFor(2L),
+                    historyId = secondHistoryIdFor(2L),
+                    readAt = 0L,
+                )
+
+                // Manga 5's 0 row and manga 2's 0 row are gone, but manga 1's earlier chapter stays.
+                historyChapterIds(database) shouldBe listOf(104L, 201L, 103L, 102L, 101L)
+                historyMangaIds(database) shouldBe listOf(1L, 2L, 3L, 4L)
+            } finally {
+                driver.close()
+            }
+        }
+    }
+
+    @Test
+    fun `the first row is the most recent entry the category filter shows`() {
+        runBlocking {
+            val driver = newDriver()
+            try {
+                val database = DatabaseBindings.providesDatabase(driver)
+                driver.insertHistoryFixture()
+                // Manga 2 sits in category 2 and is read after every other entry, so a listing that
+                // ignored the category filter would put it first.
+                driver.insertChapter(mangaId = 2L, chapterId = secondChapterIdFor(2L), index = 2)
+                driver.insertHistory(
+                    mangaId = 2L,
+                    chapterId = secondChapterIdFor(2L),
+                    historyId = secondHistoryIdFor(2L),
+                    readAt = 5000L,
+                )
+
+                // Reselecting the History tab resumes the first row of this list, so it has to be the
+                // newest entry the filter leaves visible: manga 1's later chapter, read at 3500.
+                val listed = historyRows(database, included = listOf(1L)).first()
+                listed.mangaId shouldBe 1L
+                listed.chapterId shouldBe secondChapterIdFor(1L)
+
+                // Exclude-only hides manga 2's 5000 row, leaving manga 4 (read at 4000) on top.
+                val excluded = historyRows(database, excluded = listOf(2L)).first()
+                excluded.mangaId shouldBe 4L
+                excluded.chapterId shouldBe chapterIdFor(4L)
+            } finally {
+                driver.close()
+            }
+        }
+    }
+
     private suspend fun historyMangaIds(
         database: Database,
         included: List<Long> = emptyList(),
         excluded: List<Long> = emptyList(),
         inclusionWins: Boolean = false,
     ): List<Long> {
+        return historyRows(database, included, excluded, inclusionWins)
+            // A manga can have several read chapters, and these cases are about membership
+            .map { it.mangaId }
+            .distinct()
+            .sorted()
+    }
+
+    /** Chapter ids in the order the `history` query returned them. */
+    private suspend fun historyChapterIds(database: Database): List<Long> {
+        return historyRows(database).map { it.chapterId }
+    }
+
+    private suspend fun historyRows(
+        database: Database,
+        included: List<Long> = emptyList(),
+        excluded: List<Long> = emptyList(),
+        inclusionWins: Boolean = false,
+    ): List<HistoryWithRelations> {
         return HistoryRepositoryImpl(database)
             .getHistory(
                 "",
@@ -159,8 +283,6 @@ class HistoryCategoryFilterTest {
                 inclusionWins = inclusionWins,
             )
             .first()
-            .map { it.mangaId }
-            .sorted()
     }
 
     private suspend fun newDriver(): SqlDriver {
@@ -173,8 +295,17 @@ class HistoryCategoryFilterTest {
         for (id in 1L..4L) {
             insertManga(id)
             insertChapter(mangaId = id)
-            insertHistory(mangaId = id)
+            insertHistory(mangaId = id, readAt = if (id == 4L) 4000L else 3000L)
         }
+
+        // A second read chapter for manga 1, read later than its first, so it comes before it.
+        insertChapter(mangaId = 1L, chapterId = secondChapterIdFor(1L), index = 2)
+        insertHistory(
+            mangaId = 1L,
+            chapterId = secondChapterIdFor(1L),
+            historyId = secondHistoryIdFor(1L),
+            readAt = 3500L,
+        )
 
         insertCategory(id = 1L, name = "Category 1", order = 0L)
         insertCategory(id = 2L, name = "Category 2", order = 1L)
@@ -233,8 +364,15 @@ class HistoryCategoryFilterTest {
 
     private fun historyIdFor(mangaId: Long): Long = 1000L + mangaId
 
-    private suspend fun SqlDriver.insertChapter(mangaId: Long) {
-        val chapterId = chapterIdFor(mangaId)
+    private fun secondChapterIdFor(mangaId: Long): Long = 200L + mangaId
+
+    private fun secondHistoryIdFor(mangaId: Long): Long = 2000L + mangaId
+
+    private suspend fun SqlDriver.insertChapter(
+        mangaId: Long,
+        chapterId: Long = chapterIdFor(mangaId),
+        index: Int = 1,
+    ) {
         execute(
             null,
             """
@@ -244,7 +382,7 @@ class HistoryCategoryFilterTest {
                 user_last_page_read, state_date_fetch,
                 remote_date_upload, last_modified_at, version, is_syncing
             ) VALUES (
-                $chapterId, $mangaId, '/manga/$mangaId/1', 'Chapter 1', 1.0,
+                $chapterId, $mangaId, '/manga/$mangaId/$index', 'Chapter $index', 1.0,
                 1, '{}', 0, 0,
                 0, 2000,
                 2000, 10, 1, 0
@@ -254,11 +392,16 @@ class HistoryCategoryFilterTest {
         ).await()
     }
 
-    private suspend fun SqlDriver.insertHistory(mangaId: Long) {
+    private suspend fun SqlDriver.insertHistory(
+        mangaId: Long,
+        chapterId: Long = chapterIdFor(mangaId),
+        historyId: Long = historyIdFor(mangaId),
+        readAt: Long = 3000L,
+    ) {
         execute(
             null,
             "INSERT INTO history(id, chapter_id, manga_id, read_at, read_duration) " +
-                "VALUES (${historyIdFor(mangaId)}, ${chapterIdFor(mangaId)}, $mangaId, 3000, 60)",
+                "VALUES ($historyId, $chapterId, $mangaId, $readAt, 60)",
             0,
         ).await()
     }

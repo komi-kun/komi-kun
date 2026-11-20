@@ -16,28 +16,28 @@ step in section 5 that deletes or threatens the capability.
 
 | ID | Capability (prov) | User-visible behaviour | Entry point -> consumers | Risk | Migration home |
 |----|-------------------|------------------------|--------------------------|------|----------------|
-| R1 | Webtoon autoscroll driver (SY) | Continuous viewers scroll themselves: `syncAutoScrollSettings` clamps the interval and arms/clears pause, `performAutoScrollStep` either glides a screen (`linearScroll`) or jumps a step (`scrollDown`), and skips while a gesture/menu is active. | `viewer/webtoon/WebtoonViewer.kt:292`, `:341`, `:358` -> `ReaderActivity.kt:831`, `:849` | 5 | `WebtoonViewer`, fed from settings/activity instead of prefs |
-| R2 | Activity autoscroll loop (SY) | One loop combines `autoscrollInterval` with `state.autoScroll`; per viewer it calls `moveToNext()` (pager) or `performAutoScrollStep` (webtoon) inside `repeatOnLifecycle(STARTED)` and pauses while the menu is open. | `ReaderActivity.kt:810` (called `:248`) -> `ReaderViewModel.kt:1690` | 1, 5 | `ReaderActivity`; needs `Viewer.moveForward()` + an autoscroll hook |
-| R3 | Autoscroll speed pref (SY) | Float seconds stored in `eh_util_autoscroll_interval`; `-1` means "off"; invalid or out-of-range text (`>9999`, `<=0`) flips `isAutoScrollEnabled` off. | `setting/ReaderPreferences.kt:227` -> `ReaderViewModel.kt:457`, `presentation/reader/appbars/ExhUtils.kt:124` | 2, 5 | `GeneralSettings` (or a new autoscroll settings object) |
-| R4 | Autoscroll toggle + switch (SY) | Reader overlay has an "Autoscroll" row with a `Switch`; disabled with an error hint when the stored frequency is invalid. | `ReaderViewModel.kt:1317` -> `ExhUtils.kt:88`, `ReaderActivity.kt:753` | 1, 5 | activity state + `ReaderAppBars`/`ExhUtils` |
+| R1 | Webtoon autoscroll driver (SY) | Continuous viewers scroll themselves: `syncAutoScrollSettings` clamps the interval and arms/clears pause, `performAutoScrollStep` either glides a screen (`linearScroll`) or jumps a step (`scrollDown`), and skips while a gesture/menu is active. | `viewer/webtoon/WebtoonViewer.kt:292`, `:341`, `:358` -> `ReaderActivity.kt:831`, `:849` | 4 | `WebtoonViewer`, fed from settings/activity instead of prefs |
+| R2 | Activity autoscroll loop (SY) | One loop combines `autoscrollInterval` with `state.autoScroll`; per viewer it calls `moveForward()` (pager) or `performAutoScrollStep` (webtoon) inside `repeatOnLifecycle(STARTED)` and pauses while the menu is open. | `ReaderActivity.kt:810` (called `:248`) -> `ReaderViewModel.kt:1690` | 1, 4 | `ReaderActivity`; needs `Viewer.moveForward()` + an autoscroll hook |
+| R3 | Autoscroll speed pref (SY) | Float seconds stored in `eh_util_autoscroll_interval`; `-1` means "off"; invalid or out-of-range text (`>9999`, `<=0`) flips `isAutoScrollEnabled` off. | `setting/ReaderPreferences.kt:227` -> `ReaderViewModel.kt:457`, `presentation/reader/appbars/ExhUtils.kt:124` | 2, 4 | `GeneralSettings` (or a new autoscroll settings object) |
+| R4 | Autoscroll toggle + switch (SY) | Reader overlay has an "Autoscroll" row with a `Switch`; disabled with an error hint when the stored frequency is invalid. | `ReaderViewModel.kt:1317` -> `ExhUtils.kt:88`, `ReaderActivity.kt:753` | 1, 4 | activity state + `ReaderAppBars`/`ExhUtils` |
 | R5 | Autoscroll gestures (SY) | Two-finger tap toggles pause, long-press starts, swipe sets speed, tap stops; toasts optional. **Already on base (`0efe2f094b`), do not re-add.** | `WebtoonRecyclerView.kt:70`-`:75`, `:107`, `:336` -> `WebtoonViewer.kt:184`-`:189` | 0 | keep as-is |
 | R6 | Smooth vs stepped scroll (SY) | `smooth_auto_scroll` picks `linearScroll(interval)` over `scrollDown()`. | `ReaderPreferences.kt:229` -> `WebtoonViewer.kt:350`, `:462` | 2 | `GeneralSettings` |
 | R7 | Autoscroll help dialogs (SY) | Three dialogs: autoscroll, gestures, gesture toasts. | `ReaderViewModel.kt:1297` -> `ReaderActivity.kt:479`-`:512` | 1 | activity dialogs |
-| R8 | Autoscroll/menu mutual exclusion (SY) | Opening the menu stops the scroll and interrupts the inter-step delay (`consumeAutoScrollDelayInterrupt`). | `WebtoonViewer.kt:319`, `:366` -> `ReaderActivity.kt:992`, `:1028` | 1, 5 | activity |
+| R8 | Autoscroll/menu mutual exclusion (SY) | Opening the menu stops the scroll and interrupts the inter-step delay (`consumeAutoScrollDelayInterrupt`). | `WebtoonViewer.kt:319`, `:366` -> `ReaderActivity.kt:992`, `:1028` | 1, 4 | activity |
 
 ### Dual page join / shift / isolate
 
 | ID | Capability (prov) | User-visible behaviour | Entry point -> consumers | Risk | Migration home |
 |----|-------------------|------------------------|--------------------------|------|----------------|
-| R9 | Dual-page join engine (SY) | `setJoinedItems` runs six steps: segment pages per chapter id (a chapter boundary always breaks pairing), clear shifts, mark one `shiftedPage`, insert blank slots after full/shifted pages, isolate the neighbour of a full page, then `chunked(2)` into `joinedItems`. | `viewer/pager/PagerViewerAdapter.kt:254` -> `PagerViewer.kt:200`, `:329` | 2, 4 | new engine over the `PagerItems` type from step 4 |
-| R10 | Shift page (SY) | "Shift page" moves the pairing parity by one from the current page (or the last full page before it); recomputed at chapter load so the first page lands on the correct side. | `ReaderActivity.kt:974`, `:1133` -> `PagerViewer.kt:507`, adapter `:298`-`:317` | 2, 4 | step 4 engine + a viewer-level `shiftDoublePage` |
-| R11 | Isolated page (SY) | A full/wide page leaves its would-be partner alone (`isolatedPage = true`) instead of pairing it with the following page, and adds a blank slot at an even index. | `PagerViewerAdapter.kt:322`-`:341` -> `PagerPageHolder.kt:289` | 4 | step 4 engine |
-| R12 | Wide-image split, rotate, merge (SY) | In dual mode a wide image is split in half; `dualPageRotateToFit` rotates a wide single page by +-90; two portrait pages are merged onto one bitmap with optional centre margins and canvas colour; animated/undecodable pages force a split (`fullPage`). | `PagerPageHolder.kt:244`, `:267`, `:277`, `:342`, `:400` -> `core/common/.../ImageUtil.kt:492` | 2, 6 | step 4 + the new paged page holder |
-| R13 | `pageLayout` single/double/automatic (SY) | Three layouts; `AUTOMATIC` turns double pages on in landscape (`setDoublePageMode`) and is re-evaluated on orientation change. | `ReaderPreferences.kt:249` -> `PagerConfig.kt:67`, `ReaderActivity.kt:946`, `ReadingModePage.kt:115` | 2, 4 | map onto `WebGpuPagedSettings.Page.dualPageView` + a paged equivalent |
-| R14 | Invert double pages (SY) | Swaps which side the first page of a pair sits on; also feeds page-number text. | `ReaderPreferences.kt:251` -> `ReaderViewModel.kt:1407`, `:1534`; `ReaderActivity.kt:1220` | 2, 4 | step 4 engine (paged side) |
-| R15 | Centre margin for joined pages (SY) | None / double page / wide page / both, drawn as blank gutter when merging. | `ReaderPreferences.kt:253` -> `PagerPageHolder.kt:346`, `:371` | 2, 6 | step 4 merge code |
+| R9 | Dual-page join engine (SY) | `setJoinedItems` runs six steps: segment pages per chapter id (a chapter boundary always breaks pairing), clear shifts, mark one `shiftedPage`, insert blank slots after full/shifted pages, isolate the neighbour of a full page, then `chunked(2)` into `joinedItems`. | `viewer/pager/PagerViewerAdapter.kt:254` -> `PagerViewer.kt:200`, `:329` | 2, 5 | new engine over the `PagerItems` type from step 5 |
+| R10 | Shift page (SY) | "Shift page" moves the pairing parity by one from the current page (or the last full page before it); recomputed at chapter load so the first page lands on the correct side. | `ReaderActivity.kt:974`, `:1133` -> `PagerViewer.kt:507`, adapter `:298`-`:317` | 2, 5 | step 5 engine + a viewer-level `shiftDoublePage` |
+| R11 | Isolated page (SY) | A full/wide page leaves its would-be partner alone (`isolatedPage = true`) instead of pairing it with the following page, and adds a blank slot at an even index. | `PagerViewerAdapter.kt:322`-`:341` -> `PagerPageHolder.kt:289` | 5 | step 5 engine |
+| R12 | Wide-image split, rotate, merge (SY) | In dual mode a wide image is split in half; `dualPageRotateToFit` rotates a wide single page by +-90; two portrait pages are merged onto one bitmap with optional centre margins and canvas colour; animated/undecodable pages force a split (`fullPage`). | `PagerPageHolder.kt:244`, `:267`, `:277`, `:342`, `:400` -> `core/common/.../ImageUtil.kt:492` | 2, 6 | step 5 + the new paged page holder |
+| R13 | `pageLayout` single/double/automatic (SY) | Three layouts; `AUTOMATIC` turns double pages on in landscape (`setDoublePageMode`) and is re-evaluated on orientation change. | `ReaderPreferences.kt:249` -> `PagerConfig.kt:67`, `ReaderActivity.kt:946`, `ReadingModePage.kt:115` | 2, 5 | map onto `WebGpuPagedSettings.Page.dualPageView` + a paged equivalent |
+| R14 | Invert double pages (SY) | Swaps which side the first page of a pair sits on; also feeds page-number text. | `ReaderPreferences.kt:251` -> `ReaderViewModel.kt:1407`, `:1534`; `ReaderActivity.kt:1220` | 2, 5 | step 5 engine (paged side) |
+| R15 | Centre margin for joined pages (SY) | None / double page / wide page / both, drawn as blank gutter when merging. | `ReaderPreferences.kt:253` -> `PagerPageHolder.kt:346`, `:371` | 2, 6 | step 5 merge code |
 | R16 | Paged canvas colour (SY) | Pager page background follows the reader theme (white / black / `0x202125`), used as the merge gutter colour and page background. | `PagerConfig.kt:263` -> `PagerPageHolder.kt:207`, `:337` | 2, 6 | `GeneralSettings.theme` derived colour |
-| R17 | Chapter-boundary pairing (SY) | Segmentation by `chapter.id` guarantees the first page of a new chapter is never paired with the last page of the previous one, and chapter transitions get their own slot. | `PagerViewerAdapter.kt:279`-`:295` | 4 | step 4 engine |
+| R17 | Chapter-boundary pairing (SY) | Segmentation by `chapter.id` guarantees the first page of a new chapter is never paired with the last page of the previous one, and chapter transitions get their own slot. | `PagerViewerAdapter.kt:279`-`:295` | 5 | step 5 engine |
 | R18 | WebGPU dual-page seeding (KUN) | First WebGPU use maps the SSIV/SY `pageLayout` + `dualPageSplitPaged` choice onto the newer `dualPageView` pref (once, only if unset), so enabling the high-quality renderer does not silently reset dual pages. | `viewer/webgpu/WebGpuConfig.kt:88`-`:98`, `:228`-`:240` | 2, 6 | a migration/seed step next to the new `WebGpuSettings` |
 
 ### Reader theming
@@ -66,11 +66,11 @@ step in section 5 that deletes or threatens the capability.
 
 | ID | Capability (prov) | User-visible behaviour | Entry point -> consumers | Risk | Migration home |
 |----|-------------------|------------------------|--------------------------|------|----------------|
-| R31 | Smaller tap zones (KMK) | Shrinks the prev/next tap zones from 33% to 25% columns height/width, growing the menu region; applies to every tap-zone layout and to the navigation overlay drawing. | `ReaderPreferences.kt:212` -> `viewer/ViewerNavigation.kt:59`-`:63`; `PagerConfig.kt:130`; `WebtoonConfig.kt:79`; `ReadingModePage.kt:128` | 2, 3, 5 | region geometry from settings; `ViewerNavigation` must keep a size input |
-| R32 | Vertical pan before page turn (KMK) | Up/Down/PageUp/PageDown (and volume keys) pan a zoomed page to its edge first and only then turn the page. | `viewer/pager/PagerViewer.kt:395`, `:409` -> `ReaderPageImageView.kt:207`-`:270` | 3, 5 | `ViewerNavigation` action set (needs a PAN action, not just FORWARD/BACKWARD) |
-| R33 | Tap-zone scheme set (Mihon) | Default / L-shaped / kindlish / edge / right-and-left / disabled. Upstream, listed only so the port keeps all six. | `ReaderPreferences.kt:394` -> `PagerConfig.kt:237`, `WebtoonConfig.kt:153` | 3, 5 | `NavigationSettings.mode` |
-| R34 | Volume/DPAD/page keys + Ctrl skip (Mihon) | Volume keys (invertible), DPAD, PageUp/Down, Ctrl+Left/Right chapter skip, Menu key. | `PagerViewer.kt:435` -> `WebtoonViewer.kt:512`, `WebGpuViewer.kt:1893` | 5 | `ReaderActivity.onKeyEvent` (`9079ad8c9a`) |
-| R35 | Mouse-wheel paging (Mihon) | Scroll wheel turns pages instead of scrolling content. | `PagerViewer.kt:478` -> `WebGpuViewer.kt:1925` | 5 | `Modifier.mouseWheelPaging` |
+| R31 | Smaller tap zones (KMK) | Shrinks the prev/next tap zones from 33% to 25% columns height/width, growing the menu region; applies to every tap-zone layout and to the navigation overlay drawing. | `ReaderPreferences.kt:212` -> `viewer/ViewerNavigation.kt:59`-`:63`; `PagerConfig.kt:130`; `WebtoonConfig.kt:79`; `ReadingModePage.kt:128` | 2, 3, 4 | region geometry from settings; `ViewerNavigation` must keep a size input |
+| R32 | Vertical pan before page turn (KMK) | Up/Down/PageUp/PageDown (and volume keys) pan a zoomed page to its edge first and only then turn the page. | `viewer/pager/PagerViewer.kt:395`, `:409` -> `ReaderPageImageView.kt:207`-`:270` | 3, 4 | `ViewerNavigation` action set (needs a PAN action, not just FORWARD/BACKWARD) |
+| R33 | Tap-zone scheme set (Mihon) | Default / L-shaped / kindlish / edge / right-and-left / disabled. Upstream, listed only so the port keeps all six. | `ReaderPreferences.kt:394` -> `PagerConfig.kt:237`, `WebtoonConfig.kt:153` | 3, 4 | `NavigationSettings.mode` |
+| R34 | Volume/DPAD/page keys + Ctrl skip (Mihon) | Volume keys (invertible), DPAD, PageUp/Down, Ctrl+Left/Right chapter skip, Menu key. | `PagerViewer.kt:435` -> `WebtoonViewer.kt:512`, `WebGpuViewer.kt:1893` | 4 | `ReaderActivity.onKeyEvent` (`9079ad8c9a`) |
+| R35 | Mouse-wheel paging (Mihon) | Scroll wheel turns pages instead of scrolling content. | `PagerViewer.kt:478` -> `WebGpuViewer.kt:1925` | 4 | `Modifier.mouseWheelPaging` |
 | R36 | Continuous vertical tap-by-page pref (SY) | Pref exists and is exposed in settings, but nothing consumes it at HEAD (dead knob). | `ReaderPreferences.kt:243` -> `SettingsReaderScreen.kt:481` only | 2 | decide: wire it or drop it |
 
 ### Reader settings plane and reader-local actions
@@ -91,7 +91,7 @@ step in section 5 that deletes or threatens the capability.
 | R48 | Chapter list dialog (SY) | Full chapter list with bookmark/read state from inside the reader, jumping between chapters. | `ReaderViewModel.kt:580` -> `ReaderActivity.kt:452`; `presentation/reader/ChapterListDialog.kt` | 1 | activity + `ChapterListDialog` |
 | R49 | Bookmark toggle in reader (SY) | Bookmark/unbookmark the current chapter from the reader app bar. | `ReaderViewModel.kt:1149` -> `ReaderActivity.kt:461` | 1 | activity |
 | R50 | Crop-border quick toggle (SY) | Bottom-bar crop button flips the paged/webtoon/continuous-vertical crop pref and toasts on/off. | `ReaderViewModel.kt:1242` -> `ReaderActivity.kt:745` | 1 | activity |
-| R51 | Second-page actions (SY) | When a spread is joined, "share/save/copy/set as cover" can target the first or the second page; `hasExtraPage` changes the labels. | `ReaderViewModel.kt:1403`, `:1530` -> `ReaderActivity.kt:420`-`:450`; `ReaderPageActionsDialog.kt:37`-`:121` | 1, 4 | activity + page-actions dialog |
+| R51 | Second-page actions (SY) | When a spread is joined, "share/save/copy/set as cover" can target the first or the second page; `hasExtraPage` changes the labels. | `ReaderViewModel.kt:1403`, `:1530` -> `ReaderActivity.kt:420`-`:450`; `ReaderPageActionsDialog.kt:37`-`:121` | 1, 5 | activity + page-actions dialog |
 | R52 | Boost page (SY) | Re-requests the current page with the highest priority ("boost") on HTTP sources. | `ReaderActivity.kt:932` -> `loader/HttpPageLoader.kt:339` | 1 | activity/loader |
 | R53 | Discord rich presence (KMK) | Publishes "reading manga X, chapter Y" while the reader is open and resets it on exit. | `ReaderActivity.kt:1557` -> `:554`, `:569`, `:1152` | 1 | activity; keep call sites |
 | R54 | Open at a specific page (SY) | `page` intent extra restores an exact page (used by continue-reading/merge flows). | `ReaderViewModel.kt:196` -> `ReaderActivity.kt:158` | 1 | activity intent handling |
@@ -277,7 +277,7 @@ upstream file (verified against `git show 8124d324a1:.../ReaderPreferences.kt`, 
 | Capability (rows) | What upstream deletes (evidence) | Sketch of a rebuild |
 |---|---|---|
 | Autoscroll (R1-R4, R6-R8) | `ReaderActivity.kt` is 902 lines at `8124d324a1` and 900 at `9079ad8c9a` (HEAD: 1600 - the fork's app-bar/overlay/autoscroll wiring is most of the difference); `8124d324a1` deletes the `ReaderConfig` inner class and its subscriptions; `9079ad8c9a` rewrites the same region again and `Viewer.kt` there exposes only `moveForward`/`moveBackward` (`9079ad8c9a:viewer/Viewer.kt:42-47`); `WebtoonViewer.kt` 669 -> 353 lines, autoscroll members gone. | Put the driver back on `WebtoonViewer` (it survives as a Viewer) and drive it from the activity with a `StateFlow`-backed loop calling `moveForward()` for pagers; expose `autoscroll` on the new `Viewer`/settings objects. |
-| Dual-page join/shift/isolate (R9-R17) | `PagerViewerAdapter.kt` 415 -> 207 lines, no `joinedItems` (`8124d324a1:PagerViewerAdapter.kt:23` is a plain `items` list); `ReaderPage.kt` 32 -> 18 lines, `shiftedPage`/`isolatedPage`/`fullPage` gone (`8124d324a1:model/ReaderPage.kt:6-17`); `SimplePagedSettings` has only the four split/rotate booleans. | Step 4 rebuilds the six-step pipeline over the new `PagerItems`, keeping `shiftDoublePage`/`pageToShift` as viewer state and `shiftedPage`/`isolatedPage`/`fullPage` on the page model (or a parallel per-page map). |
+| Dual-page join/shift/isolate (R9-R17) | `PagerViewerAdapter.kt` 415 -> 207 lines, no `joinedItems` (`8124d324a1:PagerViewerAdapter.kt:23` is a plain `items` list); `ReaderPage.kt` 32 -> 18 lines, `shiftedPage`/`isolatedPage`/`fullPage` gone (`8124d324a1:model/ReaderPage.kt:6-17`); `SimplePagedSettings` has only the four split/rotate booleans. | Step 5 rebuilds the six-step pipeline over the new `PagerItems`, keeping `shiftDoublePage`/`pageToShift` as viewer state and `shiftedPage`/`isolatedPage`/`fullPage` on the page model (or a parallel per-page map). |
 | Cover-seeded theming (R19-R20) | `ReaderActivity.kt` at all three commits contains zero `seedColor` matches; `00335b2a70` deletes `binding.setComposeOverlay()` (the fork's `TachiyomiTheme(seedColor=...)` wrapper) and introduces the Compose reader root without a seed argument. | Re-wrap the new Compose reader root in `TachiyomiTheme(seedColor = ...)`; keep passing the seed into page holders/transition/loading composables. |
 | WebGPU paged/long-strip crop+filter settings + dual-page seeding (R18, R22) | `8124d324a1` deletes `WebGpuConfig.kt` entirely (285 lines) and folds it into `WebGpuPagedSettings`/`WebGpuLongStripSettings`/`WebGpuSettings`/`LongStripSettings`; `WebGpuViewer.kt:1021-1022` now reads crop from `longStrip`/`paged` and no code maps `pageLayout` to `dualPageView`. | All the settings survive as fields; only the `pageLayout -> dualPageView` seed must be re-added as a one-shot migration in `ReaderSettingsViewModel`/`WebGpuViewer`. |
 | KMK pan-before-page-turn (R32) | `9079ad8c9a` deletes `PagerViewer.moveUp`/`moveDown` (`git show 9079ad8c9a -- .../pager/PagerViewer.kt` removes both overrides) and reduces the action set to `MENU/FORWARD/BACKWARD` (`9079ad8c9a:viewer/ViewerNavigation.kt:19`), mapping Up/Down straight to BACKWARD/FORWARD in `ReaderActivity.onKeyEvent`. | Add a PAN action (or `viewer.panOrTurn(direction)`) to `ViewerNavigation`/`Viewer` and route keys and taps through it, keeping `canvas.canPanUp/Down` on the SSIV page. |
@@ -289,6 +289,10 @@ upstream file (verified against `git show 8124d324a1:.../ReaderPreferences.kt`, 
 | Merged-source reading, initial page (R54-R55) | `ReaderViewModel` loses the `viewer` field at `ca028cb657` (12 lines) and its state is restructured at `9079ad8c9a` (11 lines); `ChapterLoader` keeps the SY constructor. | Keep `mergedManga`/`initialPage` in the view model; only `state.viewer` call sites move to the activity. |
 
 ## 5. Migration checklist
+
+Steps 4 and 5 are the two this branch carries (`14046736ef`, `219fcf5bbf`), so they are ticked: their
+work is in the tree. The acceptance criteria under step 5 are manual and **not device-verified**, so they
+stay unticked until someone runs the reader on a device.
 
 - [ ] **Step 0 (done on base, do not re-add): SY autoscroll gestures** - `c5899ab776` / `0efe2f094b`
   already contain R5; `8646b13175` flips the default off. Verify the port does not add a second copy of
@@ -309,15 +313,26 @@ upstream file (verified against `git show 8124d324a1:.../ReaderPreferences.kt`, 
   R47, R51, R53. It deletes `binding.setComposeOverlay`, `ReaderNavigationOverlayView.kt` (113 lines) and
   the activity's direct viewer container; re-wrap the Compose root in `TachiyomiTheme(seedColor=...)`
   and keep the `smallerTapZone` region size in the new `ReaderNavigationOverlay`.
-- [ ] **Step 4 - dual-page engine on the new `PagerItems`** rebuilds R9-R17: six-step `setJoinedItems`,
-  chapter-id segmentation, `shiftedPage`/`isolatedPage`/`fullPage`, wide-image split/rotate/merge with
-  centre margins and canvas colour, and the "return to the old page" restore. Add the R18 seed at the same
-  time. Acceptance: a wide double spread splits, a full page isolates its neighbour, shift-page flips
-  parity, and a chapter boundary never pairs across chapters.
-- [ ] **Step 5 - `9079ad8c9a` (input + autoscroll API)** preserves: R1-R4, R6-R8, R31-R35. The commit
-  collapses the viewer API to `moveForward`/`moveBackward` and centralises `onViewerTap`/`onKeyEvent`, and
-  contains no autoscroll at all: add the autoscroll driver to the new activity loop and a
-  `Viewer`/navigation hook for R32 pan-before-turn (which this commit deletes).
+- [x] **Step 4 - `9079ad8c9a` (input + autoscroll API)** - in the tree (`14046736ef`). Key dispatch and tap
+  handling now live in `ReaderActivity` (`onKeyEvent`/`onViewerTap`), and the four navigation directions are
+  `moveForward()`/`moveBackward()` plus `Modifier.mouseWheelPaging`. Kept from the fork: R1-R4, R6-R8 (the
+  autoscroll driver stays on `WebtoonViewer`, fed by the activity's loop), R31 (the tap-zone size travels
+  with the navigator as a value), R32 (pan-before-turn is `Action.PAN_UP`/`PAN_DOWN`, emitted only by the
+  vertical keys and the wheel, so a zoomed page pans to its edge before it turns), R33-R35, and the KUN OCR
+  exemption (the volume-key branch asks `VolumeKeyPagingPolicy` instead of inlining the rule).
+- [x] **Step 5 - `e588e04359` (shared page chrome and page logic)** - in the tree (`219fcf5bbf`). The page
+  list leaves `PagerViewer`/`PagerViewerAdapter` for the shared `viewerItems()` and upstream's flat
+  `PagerItems` + `PagerPageTracker`, with the long strip's twin `WebtoonItems` + `WebtoonPageTracker`. The
+  fork's pairs stay in `PagerJoinedItems`, layered over the flat list, so R9-R17 land here: six-step
+  `setJoinedItems`, chapter-id segmentation, `shiftedPage`/`isolatedPage`/`fullPage`, wide-image
+  split/rotate/merge with centre margins and canvas colour, the "return to the old page" restore, and the
+  pair-aware tracker that keeps `onPageSelected`'s `hasExtraPage` (R51) and the deferred setChapters path.
+  The page chrome moves to `ReaderError`/`ReaderPageError`/`ReaderTransitionPage`/`ReaderThemedContent`/
+  `TransitionDownloadState`/`PageImageProcessing`, so `ReaderButton` and `res/layout/reader_error.xml` are
+  gone; the KMK seed colour reaches `ReaderThemedContent`. The R18 seed is still step 6's.
+  - [ ] **Acceptance (manual, not device-verified):** a wide double spread splits in half; a full page
+    isolates its neighbour; shift-page flips the pairing parity; a chapter boundary never pairs pages
+    across chapters; the long strip's wheel scrolls the strip instead of turning pages.
 - [ ] **Step 6 - seed-colour theming + WebGPU settings + zoom cluster** preserves: R12, R15, R16, R18,
   R21-R30. Re-seed the Compose theme, re-add `pageLayout -> dualPageView`, and extend `PagedSettings`/
   `SimpleLongStripSettings` with the zoom/scale/pinch knobs (R24-R30) plus the R21 capability gate.

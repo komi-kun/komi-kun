@@ -122,16 +122,20 @@ class ReaderOcrOverlayWiringTest {
         // Each entry point exists exactly once, so "the guard before this call" is unambiguous.
         hitTests.forEach { occurrences(source, Regex.fromLiteral(it)) shouldBe 1 }
         occurrences(source, Regex.fromLiteral(GATE)) shouldBe hitTests.size
-        // ...and every one of them passes the chrome state, which is what stands the hit test down
-        // while the bars are up (the overlay is composed with `alpha = 0f` there). A `menuVisible`
-        // that defaults (or that one site forgets) puts the invisible-overlay lookup back.
-        occurrences(source, Regex("""menuVisible\s*=\s*viewModel\.state\.value\.menuVisible""")) shouldBe
-            hitTests.size
 
         hitTests.forEach { hitTest ->
             val call = indexOfCall(source, hitTest)
             val gate = source.lastIndexOf(GATE, call)
             if (gate < 0) fail("$hitTest is not guarded by $GATE at all")
+
+            // Every one of them passes the chrome state, which is what stands the hit test down while
+            // the bars are up (the overlay is composed with `alpha = 0f` there). A `menuVisible` that
+            // defaults (or that one site forgets) puts the invisible-overlay lookup back. Checked per
+            // site, between this site's decision and its call: the reader asks other policies about
+            // the same chrome elsewhere (the volume-key gate), and those are not tap entry points.
+            if (!source.substring(gate, call).contains(MENU_VISIBLE)) {
+                fail("$hitTest's policy decision does not pass the chrome state ($MENU_VISIBLE)")
+            }
 
             // The guard must be *this* site's decision: a call that consumes a gesture between the
             // nearest preceding decision and this one means the decision guards that call instead
@@ -259,9 +263,56 @@ class ReaderOcrOverlayWiringTest {
         occurrences(source, Regex("""readerOcrHost\s*\.""")) shouldBe 1
     }
 
+    /**
+     * The volume-key branch of `onKeyEvent` must ask `VolumeKeyPagingPolicy` and hand it the OCR overlay state.
+     * The rule itself is behavioural and covered in `VolumeKeyPagingPolicyTest`; what this pins is the wiring: a
+     * branch that re-inlines `volumeKeysEnabled && !menuVisible`, or that passes a literal `false` for the
+     * overlay, keeps the policy call healthy while paging through a user who is listening to dictionary audio.
+     *
+     * Sliced to the branch, which is the only place the reader asks this policy: `onKeyEvent` starts with the
+     * `viewer`/`navigation` reads and the other keys are their own `when` arms.
+     */
+    @Test
+    fun `the volume-key branch asks the paging policy with the OCR overlay state`() {
+        val source = readerActivity()
+
+        val onKeyEvent = functionBody(source, "private fun onKeyEvent(")
+        val branchStart = onKeyEvent.indexOf("Key.VolumeDown, Key.VolumeUp ->")
+        if (branchStart < 0) fail("onKeyEvent has no volume-key branch")
+        val branchEnd = onKeyEvent.indexOf("Key.DirectionRight ->", branchStart)
+        if (branchEnd < 0) fail("the volume-key branch has no end")
+        val branch = onKeyEvent.substring(branchStart, branchEnd)
+
+        // One decision, taken by the policy - not by a second, inline copy of the two-condition rule.
+        occurrences(branch, Regex.fromLiteral(VOLUME_POLICY)) shouldBe 1
+        branch shouldNotContainSource """volumeKeysEnabled\s*&&\s*"""
+
+        // The three inputs the rule is made of, each passed by name: the overlay state in particular may not be
+        // replaced by a literal, which is the shape that silently drops the exemption.
+        branch shouldContainSource """volumeKeysEnabled\s*=\s*general\s*\.\s*volumeKeysEnabled"""
+        branch shouldContainSource """menuVisible\s*=\s*viewModel\s*\.\s*state\s*\.\s*value\s*\.\s*menuVisible"""
+        branch shouldContainSource """ocrOverlayEnabled\s*=\s*general\s*\.\s*ocrOverlayEnabled"""
+        branch shouldNotContainSource """ocrOverlayEnabled\s*=\s*false"""
+
+        // ...and its answer is this branch's own guard: negated, inside the `if (` condition that stops the press
+        // from becoming a page turn.
+        branch shouldContainSource """if\s*\(\s*!\s*${Regex.escape(VOLUME_POLICY)}"""
+        val decision = branch.indexOf(VOLUME_POLICY)
+        val condition = enclosingIfCondition(branch, decision)
+        if (condition == null || !condition.contains(VOLUME_POLICY)) {
+            fail("the volume-key policy decision does not guard the branch: $condition")
+        }
+    }
+
     private companion object {
+        /** The one place the "may a volume press page" decision is allowed to live. */
+        private const val VOLUME_POLICY = "VolumeKeyPagingPolicy.shouldConsumeForPaging"
+
         /** The one place the "may this gesture be looked up" decision is allowed to live. */
         private const val GATE = "ReaderOcrOverlayPolicy.acceptsLookup("
+
+        /** The chrome state every tap entry point hands its policy decision. */
+        private const val MENU_VISIBLE = "menuVisible = viewModel.state.value.menuVisible"
     }
 }
 

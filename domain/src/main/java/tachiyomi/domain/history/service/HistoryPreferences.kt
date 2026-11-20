@@ -65,8 +65,8 @@ class HistoryPreferences(
 
     /**
      * Clears both category lists by writing an ordinary empty value instead of unsetting the keys:
-     * the reset is an explicit "no categories" selection, symmetric with the writes
-     * [cycleCategory] makes, so the stored value keeps reflecting what the user chose.
+     * the reset is an explicit "no categories" selection, symmetric with the ordinary writes the
+     * category-filter controls make, so the stored value keeps reflecting what the user chose.
      */
     fun clearCategoryFilter() {
         filterIncludedCategories.set(emptyList())

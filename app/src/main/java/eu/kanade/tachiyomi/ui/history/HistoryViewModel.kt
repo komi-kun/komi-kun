@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
@@ -129,8 +130,18 @@ class HistoryViewModel(
                 .catch { error ->
                     logcat(LogPriority.ERROR, error)
                     _events.send(Event.InternalError)
+                    // KUN -->
+                    // A catch that emitted nothing would complete the flow and leave the state on its
+                    // initial, loading value, which getNextChapter() waits on forever.
+                    emit(emptyList())
+                    // KUN <--
                 }
                 .map { it.toList() }
+                // KUN -->
+                // The query orders by readAt DESC, id DESC and the mapper keeps that order, so the
+                // first row of each manga is its latest read chapter.
+                .map { it.toLatestPerManga() }
+                // KUN <--
                 .flowOn(Dispatchers.IO)
         }
 
@@ -183,7 +194,13 @@ class HistoryViewModel(
         .stateIn(viewModelScope + subscriberGate, subscriberGate.whileSubscribed(5.seconds), State())
 
     suspend fun getNextChapter(): Chapter? {
-        return getNextChapters.await(onlyUnread = false).firstOrNull()
+        // KUN -->
+        // Resume the top of the list the tab shows: it is already filtered and collapsed to one row
+        // per manga, so the newest global entry can be one the active filter hides. It starts out
+        // loading, and the tab can be reselected before the first history emission.
+        val entry = state.first { !it.isLoading }.list.firstOrNull() ?: return null
+        // KUN <--
+        return getNextChapters.await(entry.mangaId, entry.chapterId, onlyUnread = false).firstOrNull()
     }
 
     fun getNextChapterForManga(mangaId: Long, chapterId: Long) {
@@ -216,7 +233,7 @@ class HistoryViewModel(
     fun removeAllFromHistory(toDelete: List<HistoryWithRelations>) {
         // KUN -->
         appScope.launchNonCancellable {
-            removeHistory.awaitManga(toDelete.map { it.mangaId })
+            removeHistory.awaitManga(toDelete.map { it.mangaId }.distinct())
             syncStateBumper.bumpForHistoryRemoval(toDelete.map { it.mangaId })
         }
         // KUN <--
@@ -509,16 +526,7 @@ class HistoryViewModel(
         val selected
             get() = list.fastFilter { it.chapterId in selection }
 
-        fun getUiModel() = list.map { HistoryUiModel.Item(it) }
-            .insertSeparators { before, after ->
-                val beforeDate = before?.item?.readAt?.toLocalDate()
-                val afterDate = after?.item?.readAt?.toLocalDate()
-                when {
-                    beforeDate != afterDate && afterDate != null -> HistoryUiModel.Header(afterDate)
-                    // Return null to avoid adding a separator between two items.
-                    else -> null
-                }
-            }
+        fun getUiModel() = list.toHistoryUiModels()
     }
     // KMK <--
 
@@ -556,3 +564,29 @@ class HistoryViewModel(
         data object HistoryCleared : Event
     }
 }
+
+// KUN -->
+// The per-manga pick happens here, after the query's readAt DESC, id DESC order, because SQLite's
+// bare-column `MAX()` rule leaves the surviving chapter of two rows read at the same time unspecified.
+internal fun List<HistoryWithRelations>.toLatestPerManga(): List<HistoryWithRelations> =
+    distinctBy { it.mangaId }
+
+/**
+ * One [HistoryUiModel.Header] per read date, with the rows in the order the history query returned them.
+ */
+internal fun List<HistoryWithRelations>.toHistoryUiModels(): List<HistoryUiModel> {
+    // The history queries only return positive read dates; the filter is the mapper's guard, so a
+    // null can never be listed under the previous day's header.
+    return filter { it.readAt != null }
+        .map { HistoryUiModel.Item(it) }
+        .insertSeparators { before, after ->
+            val beforeDate = before?.item?.readAt?.toLocalDate()
+            val afterDate = after?.item?.readAt?.toLocalDate()
+            when {
+                beforeDate != afterDate && afterDate != null -> HistoryUiModel.Header(afterDate)
+                // Return null to avoid adding a separator between two items.
+                else -> null
+            }
+        }
+}
+// KUN <--
