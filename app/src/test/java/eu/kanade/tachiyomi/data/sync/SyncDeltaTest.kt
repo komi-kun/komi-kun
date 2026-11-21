@@ -147,6 +147,31 @@ class SyncDeltaTest {
     }
 
     @Test
+    fun `a v2 upload drops the history rows a local removal reset`() {
+        val emptied = BackupManga(
+            source = 1,
+            url = "/a",
+            history = listOf(BackupHistory(url = "/a/1", lastRead = 0)),
+        )
+        val mixed = BackupManga(
+            source = 1,
+            url = "/m",
+            history = listOf(
+                BackupHistory(url = "/m/1", lastRead = 0),
+                BackupHistory(url = "/m/2", lastRead = 100),
+            ),
+        )
+
+        dropTombstonedHistory(listOf(emptied, mixed))
+
+        // A `lastRead = 0` row loses the server's version-first history merge and would hand the
+        // live entry back, so the v2 upload carries only the entries that still have a read date.
+        assertEquals(emptyList<String>(), emptied.history.map { it.url })
+        assertEquals(listOf("/m/2"), mixed.history.map { it.url })
+        assertEquals(100L, mixed.history.single().lastRead)
+    }
+
+    @Test
     fun `a forced full sync uploads everything even when the service does not need it`() {
         assertTrue(shouldUploadFullLibrary(forceFull = true, serviceNeedsFullSync = false))
         assertTrue(shouldUploadFullLibrary(forceFull = true, serviceNeedsFullSync = true))

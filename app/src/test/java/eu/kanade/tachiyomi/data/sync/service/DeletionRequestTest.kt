@@ -76,4 +76,38 @@ class DeletionRequestTest {
             root.getValue("deletedChapters").jsonArray.map { it.jsonPrimitive.content },
         )
     }
+
+    // KUN -->
+    @Test
+    fun `a history deletion is a history item and never a legacy chapter key`() {
+        val chapterKey = "1|/m\u001f/m/ch1"
+        val historyKey = "1|/m\u001f/m/ch2"
+        val body = json.encodeToString(
+            DeletionRequest.serializer(),
+            DeletionRequest(
+                items = deletionItems(
+                    chapters = listOf(chapterKey),
+                    mangas = listOf("1|/m"),
+                    histories = listOf(historyKey),
+                ),
+                deletedChapters = listOf(chapterKey),
+            ),
+        )
+
+        val root = Json.parseToJsonElement(body).jsonObject
+        assertEquals(
+            listOf("chapter" to chapterKey, "history" to historyKey, "manga" to "1|/m"),
+            root.getValue("items").jsonArray.map {
+                it.jsonObject.getValue("kind").jsonPrimitive.content to
+                    it.jsonObject.getValue("key").jsonPrimitive.content
+            },
+        )
+        // The legacy list is the chapter shape: an old server reads every entry in it as a chapter
+        // tombstone, so a history key there would delete the chapter instead of its history row.
+        assertEquals(
+            listOf(chapterKey),
+            root.getValue("deletedChapters").jsonArray.map { it.jsonPrimitive.content },
+        )
+    }
+    // KUN <--
 }

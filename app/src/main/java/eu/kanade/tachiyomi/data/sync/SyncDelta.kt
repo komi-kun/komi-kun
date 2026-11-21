@@ -64,6 +64,23 @@ internal fun missingRemoteChapterUrls(
     localUrls: Collection<String>,
     remoteUrls: Collection<String>,
 ): Set<String> = localUrls.filterNotTo(mutableSetOf()) { it in remoteUrls }
+
+/**
+ * Drops the history rows a local removal reset (`read_at = NULL`, exported as `lastRead = 0`) from
+ * a SyncYomi v2 upload, mutating the [mangas] in place.
+ *
+ * The removal travels as an explicit `history` tombstone instead. A `0` row would be merged into
+ * the server's history as "not newer", so the live entry would win and come straight back; it is
+ * not a statement of absence there either, because the server never deletes an entry the upload
+ * simply leaves out.
+ */
+internal fun dropTombstonedHistory(mangas: List<BackupManga>) {
+    mangas.forEach { manga ->
+        if (manga.history.any { it.lastRead == 0L }) {
+            manga.history = manga.history.filterNot { it.lastRead == 0L }
+        }
+    }
+}
 // KUN <--
 
 // KUN -->
