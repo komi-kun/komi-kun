@@ -22,6 +22,7 @@ import tachiyomi.data.DatabaseBindings
 import tachiyomi.data.category.CategoryRepositoryImpl
 import tachiyomi.data.chapter.ChapterRepositoryImpl
 import tachiyomi.data.history.HistoryRepositoryImpl
+import tachiyomi.data.source.SavedSearchRepositoryImpl
 import tachiyomi.data.sync.SyncRepositoryImpl
 import tachiyomi.domain.category.interactor.PruneCategoryReferences
 import tachiyomi.domain.chapter.model.Chapter
@@ -108,6 +109,7 @@ class SyncDeletionsTest {
                 item("history", "2|/other\u001f/other/ch"),
                 item("category", "uid:12"),
                 item("category", "name:Reading"),
+                item("saved_search", "q|1"),
             ),
         )
 
@@ -115,7 +117,19 @@ class SyncDeletionsTest {
         plan.chapters shouldBe listOf(ChapterTombstone(sourceId = 1, mangaUrl = "/m", chapterUrl = "/m/ch1"))
         plan.history shouldBe listOf(ChapterTombstone(sourceId = 2, mangaUrl = "/other", chapterUrl = "/other/ch"))
         plan.categories shouldBe listOf(CategoryTombstone(uid = 12), CategoryTombstone(name = "Reading"))
+        plan.savedSearches shouldBe listOf(SavedSearchTombstone(name = "q", sourceId = 1))
         plan.skippedKinds shouldBe emptySet()
+    }
+
+    @Test
+    fun `a saved search key splits on its last separator`() {
+        savedSearchKeyOf("q|1") shouldBe SavedSearchTombstone(name = "q", sourceId = 1)
+        // the name may hold the separator itself; only the source id follows the last one
+        savedSearchKeyOf("a|b|2") shouldBe SavedSearchTombstone(name = "a|b", sourceId = 2)
+        savedSearchKeyOf("q") shouldBe null
+        savedSearchKeyOf("|1") shouldBe null
+        savedSearchKeyOf("q|") shouldBe null
+        savedSearchKeyOf("q|source") shouldBe null
     }
 
     @Test
@@ -136,6 +150,8 @@ class SyncDeletionsTest {
                     item("category", "other:1"),
                     item("category", "uid:x"),
                     item("category", "name:"),
+                    item("saved_search", "no-separator"),
+                    item("saved_search", "q|source"),
                 ),
             )
 
@@ -143,6 +159,7 @@ class SyncDeletionsTest {
             plan.chapters.shouldBeEmpty()
             plan.history.shouldBeEmpty()
             plan.categories.shouldBeEmpty()
+            plan.savedSearches.shouldBeEmpty()
             plan.skippedKinds shouldBe emptySet()
 
             fixture.apply(plan) shouldBe emptySet()
@@ -447,6 +464,41 @@ class SyncDeletionsTest {
     }
 
     @Test
+    fun `a saved search tombstone deletes the local row its key names`(): Unit = runBlocking {
+        val fixture = Fixture()
+        try {
+            fixture.insertSavedSearch(id = 1L, name = "Reading", sourceId = 7L)
+            // the same name on another source is a different saved search
+            fixture.insertSavedSearch(id = 2L, name = "Reading", sourceId = 8L)
+            fixture.insertSavedSearch(id = 3L, name = "Other", sourceId = 7L)
+
+            fixture.apply(deletionPlan(listOf(item("saved_search", "Reading|7")))) shouldBe emptySet()
+
+            fixture.savedSearchIds() shouldBe listOf(2L, 3L)
+        } finally {
+            fixture.close()
+        }
+    }
+
+    @Test
+    fun `a saved search tombstone is skipped when the section is off`(): Unit = runBlocking {
+        val fixture = Fixture()
+        try {
+            fixture.insertSavedSearch(id = 1L, name = "Reading", sourceId = 7L)
+
+            val skipped = fixture.apply(
+                deletionPlan(listOf(item("saved_search", "Reading|7"))),
+                savedSearchesEnabled = false,
+            )
+
+            skipped shouldBe setOf("saved_search")
+            fixture.savedSearchIds() shouldBe listOf(1L)
+        } finally {
+            fixture.close()
+        }
+    }
+
+    @Test
     fun `a manga tombstone runs the download cleanup while the row still exists`(): Unit = runBlocking {
         val fixture = Fixture()
         try {
@@ -638,6 +690,7 @@ class SyncDeletionsTest {
         /** Counts the chapter reads a run makes, so the batch resolution path stays pinned. */
         val chapterRepository = CountingChapterRepository(ChapterRepositoryImpl(database))
         val historyRepository = HistoryRepositoryImpl(database)
+        val savedSearchRepository = SavedSearchRepositoryImpl(database)
         private val categoryRepository = CategoryRepositoryImpl(database)
 
         /** Manga handed to the download-cleanup hook, in order, as `(sourceId, url)`. */
@@ -702,6 +755,7 @@ class SyncDeletionsTest {
             historySyncEnabled: Boolean = true,
             chaptersEnabled: Boolean = true,
             categoriesEnabled: Boolean = true,
+            savedSearchesEnabled: Boolean = true,
         ): Set<String> = applyDeletions(
             plan = plan,
             syncRepository = syncRepository,
@@ -709,6 +763,7 @@ class SyncDeletionsTest {
             historyRepository = historyRepository,
             categoryRepository = categoryRepository,
             pruneCategoryReferences = pruneCategoryReferences,
+            savedSearchRepository = savedSearchRepository,
             // Stand-in for DownloadManager.deleteManga: records the call and whether the row was
             // still there, then removes the row like the real path does.
             deleteManga = { manga ->
@@ -720,6 +775,7 @@ class SyncDeletionsTest {
             historySyncEnabled = historySyncEnabled,
             chaptersEnabled = chaptersEnabled,
             categoriesEnabled = categoriesEnabled,
+            savedSearchesEnabled = savedSearchesEnabled,
         )
 
         fun mangaIds(): List<Long> = longs("SELECT id FROM manga ORDER BY id")
@@ -729,6 +785,8 @@ class SyncDeletionsTest {
         fun historyIds(): List<Long> = longs("SELECT id FROM history ORDER BY id")
 
         fun categoryIds(): List<Long> = longs("SELECT id FROM category ORDER BY id")
+
+        fun savedSearchIds(): List<Long> = longs("SELECT _id FROM saved_search ORDER BY _id")
 
         fun readAtOf(historyId: Long): Long? =
             nullableLongs("SELECT read_at FROM history WHERE id = $historyId").firstOrNull()
@@ -802,6 +860,15 @@ class SyncDeletionsTest {
                 null,
                 "INSERT INTO category(id, name, `order`, flags, hidden, version, uid, last_modified_at, is_syncing) " +
                     "VALUES ($id, '$name', $order, 0, 0, 0, $uid, 0, 1)",
+                0,
+            ).await()
+        }
+
+        suspend fun insertSavedSearch(id: Long, name: String, sourceId: Long) {
+            driver.execute(
+                null,
+                "INSERT INTO saved_search(_id, source, name, query, filters_json) " +
+                    "VALUES ($id, $sourceId, '$name', NULL, NULL)",
                 0,
             ).await()
         }

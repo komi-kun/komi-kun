@@ -38,6 +38,7 @@ import tachiyomi.domain.download.service.DownloadPreferences
 import tachiyomi.domain.history.repository.HistoryRepository
 import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.domain.manga.model.Manga
+import tachiyomi.domain.source.repository.SavedSearchRepository
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.domain.sync.repository.SyncRepository
 import tachiyomi.i18n.kmk.KMR
@@ -66,6 +67,8 @@ class SyncManager(
     /** Owns the files and queued chapters of a manga row removed by a sync. */
     private val downloadManager: DownloadManager,
     private val sourceManager: SourceManager,
+    /** Selected by a `saved_search` tombstone: one local row per name and source. */
+    private val savedSearchRepository: SavedSearchRepository,
     // KUN <--
     private val backupCreatorFactory: BackupCreator.Factory,
     private val notifier: SyncNotifier,
@@ -474,6 +477,7 @@ class SyncManager(
                 historyRepository = historyRepository,
                 categoryRepository = categoryRepository,
                 pruneCategoryReferences = pruneCategoryReferences,
+                savedSearchRepository = savedSearchRepository,
                 // Downloads and queued chapters go before the row that names them disappears.
                 deleteManga = { deleteMangaRow(it) },
                 // The same user settings the snapshot fallback honours: a section the user disabled
@@ -482,6 +486,7 @@ class SyncManager(
                 historySyncEnabled = syncOptions.history,
                 chaptersEnabled = syncOptions.chapters,
                 categoriesEnabled = syncOptions.categories,
+                savedSearchesEnabled = syncOptions.savedSearchesFeeds,
             )
             logcat(LogPriority.DEBUG) {
                 "Applied ${remoteBackup.deletions.size} remote tombstones" +

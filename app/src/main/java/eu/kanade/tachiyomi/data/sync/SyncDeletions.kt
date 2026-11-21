@@ -11,6 +11,7 @@ import tachiyomi.domain.chapter.model.Chapter
 import tachiyomi.domain.chapter.repository.ChapterRepository
 import tachiyomi.domain.history.repository.HistoryRepository
 import tachiyomi.domain.manga.model.Manga
+import tachiyomi.domain.source.repository.SavedSearchRepository
 import tachiyomi.domain.sync.repository.SyncRepository
 
 /**
@@ -23,6 +24,7 @@ import tachiyomi.domain.sync.repository.SyncRepository
 
 private const val LOG_TAG = "SyncDeletions"
 private const val MANGA_KEY_SEPARATOR = '|'
+private const val SAVED_SEARCH_KEY_SEPARATOR = '|'
 private const val CHAPTER_KEY_SEPARATOR = '\u001f'
 private const val CATEGORY_UID_PREFIX = "uid:"
 private const val CATEGORY_NAME_PREFIX = "name:"
@@ -32,18 +34,21 @@ internal const val TOMBSTONE_MANGA = "manga"
 internal const val TOMBSTONE_CHAPTER = "chapter"
 internal const val TOMBSTONE_HISTORY = "history"
 internal const val TOMBSTONE_CATEGORY = "category"
+internal const val TOMBSTONE_SAVED_SEARCH = "saved_search"
 
 /**
  * Kinds a delta may tombstone that this client never applies: every one of them names a settings
  * section, and dropping a local setting because the server tombstoned a section key would invent
  * settings-deletion behaviour. They are reported instead of applied.
+ *
+ * `saved_search` is not in this set: its key names one saved search, which is a row this client
+ * owns and can delete.
  */
 internal val unappliedTombstoneKinds = setOf(
     "source",
     "app_pref",
     "source_pref",
     "ext_store",
-    "saved_search",
     "extra",
 )
 
@@ -60,12 +65,19 @@ internal data class CategoryTombstone(
     val name: String? = null,
 )
 
+/** A saved-search tombstone: `<name>|<source id>`, the server's stored key for the section. */
+internal data class SavedSearchTombstone(
+    val name: String,
+    val sourceId: Long,
+)
+
 /** The local deletions [deletionPlan] derived from a delta, one entry per row the server tombstoned. */
 internal class DeletionPlan(
     val manga: List<Pair<Long, String>>,
     val chapters: List<ChapterTombstone>,
     val history: List<ChapterTombstone>,
     val categories: List<CategoryTombstone>,
+    val savedSearches: List<SavedSearchTombstone>,
     val skippedKinds: Set<String>,
 )
 
@@ -97,6 +109,17 @@ internal fun categoryKeyOf(key: String): CategoryTombstone? = when {
 }
 
 /**
+ * `<name>|<source id>`, or null when the key is not one this client understands. A name may contain
+ * the separator itself, so only the last one splits; an ambiguous key simply matches no local row.
+ */
+internal fun savedSearchKeyOf(key: String): SavedSearchTombstone? {
+    val separator = key.lastIndexOf(SAVED_SEARCH_KEY_SEPARATOR)
+    if (separator <= 0 || separator == key.lastIndex) return null
+    val sourceId = key.substring(separator + 1).toLongOrNull() ?: return null
+    return SavedSearchTombstone(name = key.substring(0, separator), sourceId = sourceId)
+}
+
+/**
  * Splits a delta's tombstones into the deletions this client can apply. A key of a known kind that
  * cannot be read is dropped with a warning; a kind this client does not apply is reported in
  * [DeletionPlan.skippedKinds].
@@ -106,6 +129,7 @@ internal fun deletionPlan(deletions: List<BackupDeletedItem>): DeletionPlan {
     val chapters = mutableListOf<ChapterTombstone>()
     val history = mutableListOf<ChapterTombstone>()
     val categories = mutableListOf<CategoryTombstone>()
+    val savedSearches = mutableListOf<SavedSearchTombstone>()
     val skipped = mutableSetOf<String>()
 
     deletions.forEach { item ->
@@ -114,6 +138,7 @@ internal fun deletionPlan(deletions: List<BackupDeletedItem>): DeletionPlan {
             TOMBSTONE_CHAPTER -> chapterKeyOf(item.key)?.let { chapters += it } ?: unreadableKey(item)
             TOMBSTONE_HISTORY -> chapterKeyOf(item.key)?.let { history += it } ?: unreadableKey(item)
             TOMBSTONE_CATEGORY -> categoryKeyOf(item.key)?.let { categories += it } ?: unreadableKey(item)
+            TOMBSTONE_SAVED_SEARCH -> savedSearchKeyOf(item.key)?.let { savedSearches += it } ?: unreadableKey(item)
             else -> {
                 skipped += item.kind
                 if (item.kind !in unappliedTombstoneKinds) {
@@ -123,7 +148,7 @@ internal fun deletionPlan(deletions: List<BackupDeletedItem>): DeletionPlan {
         }
     }
 
-    return DeletionPlan(manga, chapters, history, categories, skipped)
+    return DeletionPlan(manga, chapters, history, categories, savedSearches, skipped)
 }
 
 private fun unreadableKey(item: BackupDeletedItem) {
@@ -142,7 +167,7 @@ private fun unreadableKey(item: BackupDeletedItem) {
  *
  * [librarySyncEnabled], [historySyncEnabled], [chaptersEnabled] and [categoriesEnabled] honour the
  * same user settings the snapshot fallback honours: a section the user disabled is not deleted on
- * the server's word.
+ * the server's word. [savedSearchesEnabled] is the same for `saved_search` tombstones.
  *
  * A chapter row is the parent of `history.chapter_id` (`ON DELETE CASCADE`), so when history sync
  * is off a tombstoned chapter that still carries a local history entry is kept: deleting it would
@@ -159,11 +184,13 @@ internal suspend fun applyDeletions(
     historyRepository: HistoryRepository,
     categoryRepository: CategoryRepository,
     pruneCategoryReferences: PruneCategoryReferences,
+    savedSearchRepository: SavedSearchRepository,
     deleteManga: suspend (Manga) -> Unit = { syncRepository.deleteManga(it.id) },
     librarySyncEnabled: Boolean = true,
     historySyncEnabled: Boolean = true,
     chaptersEnabled: Boolean = true,
     categoriesEnabled: Boolean = true,
+    savedSearchesEnabled: Boolean = true,
 ): Set<String> {
     val skipped = plan.skippedKinds.toMutableSet()
 
@@ -259,6 +286,27 @@ internal suspend fun applyDeletions(
         }
     } else if (plan.categories.isNotEmpty()) {
         skipped += TOMBSTONE_CATEGORY
+    }
+
+    // A saved search is one row of this device's own, keyed by name and source: the key names it
+    // unambiguously, so a tombstone of one is a deletion the client can apply. Duplicate identities
+    // cannot exist on the server either (it stores one item per key), so every local row the key
+    // matches is removed.
+    if (savedSearchesEnabled && plan.savedSearches.isNotEmpty()) {
+        val savedSearchIds = savedSearchRepository.getAll()
+            .filter { savedSearch ->
+                plan.savedSearches.any { it.name == savedSearch.name && it.sourceId == savedSearch.source }
+            }
+            .map { it.id }
+            .distinct()
+        if (savedSearchIds.isNotEmpty()) {
+            logcat(LOG_TAG, LogPriority.DEBUG) {
+                "Deleting ${savedSearchIds.size} saved searches the delta tombstoned"
+            }
+            savedSearchIds.forEach { savedSearchRepository.delete(it) }
+        }
+    } else if (plan.savedSearches.isNotEmpty()) {
+        skipped += TOMBSTONE_SAVED_SEARCH
     }
 
     return skipped
