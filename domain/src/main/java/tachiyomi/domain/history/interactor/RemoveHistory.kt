@@ -3,9 +3,7 @@ package tachiyomi.domain.history.interactor
 import dev.zacsweers.metro.Inject
 import tachiyomi.domain.history.model.HistoryWithRelations
 import tachiyomi.domain.history.repository.HistoryRepository
-// KUN -->
 import tachiyomi.domain.history.service.HistoryTombstoneDelivery
-// KUN <--
 
 @Inject
 class RemoveHistory(
