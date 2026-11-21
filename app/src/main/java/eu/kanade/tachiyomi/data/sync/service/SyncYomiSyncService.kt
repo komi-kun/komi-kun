@@ -505,9 +505,9 @@ class SyncYomiSyncService(
      *
      * The history tombstones come from the database (`history.pending_deletion`) and go out in pages
      * of [HISTORY_DELETION_BATCH], so "clear all history" never builds one unbounded request. Each
-     * page is cleared on its own confirmation, and the cursor advances whether or not it was
-     * applied, so a server that ignores them leaves the rows queued for the next sync instead of
-     * this loop retrying the same page.
+     * page is cleared only on its own confirmation; a server that answers without applying the
+     * `items` shape ends the run, since it would ignore every later page too, and the queue is left
+     * for the next sync.
      */
     // KUN <--
     // SY -->
@@ -552,26 +552,34 @@ class SyncYomiSyncService(
             val acknowledged = acknowledgedDeletions(responseBody, batchChapters, batchMangas, historyKeys)
             syncPreferences.forgetDeletedChapters(acknowledged.chapters)
             if (acknowledged.mangas.isNotEmpty()) syncPreferences.forgetDeletedManga(acknowledged.mangas)
-            // The queue is the row, so clearing it is a write: only the rows this page carried, and
-            // only once the server reported `applied`.
-            if (historyRows.isNotEmpty() && acknowledged.histories.isNotEmpty()) {
-                historyRepository.clearPendingHistoryDeletion(historyRows.map { it.historyId })
-            }
-            val keptPending = (batchMangas.isNotEmpty() && acknowledged.mangas.isEmpty()) ||
-                (historyKeys.isNotEmpty() && acknowledged.histories.isEmpty())
-            if (keptPending) {
+            if (batchMangas.isNotEmpty() && acknowledged.mangas.isEmpty()) {
                 logcat(LogPriority.DEBUG) {
-                    "SyncYomi v2 deletions: manga and history tombstones stay pending, " +
+                    "SyncYomi v2 deletions: manga tombstones stay pending, " +
                         "the server did not report `applied`"
                 }
+            }
+            // A server that did not report `applied` ignored every `items` entry, not just this
+            // page, so the rest of the queue cannot be applied in this run either: keep it queued
+            // for the next sync instead of spending one request per page on a server that answers
+            // without applying anything.
+            if (historyKeys.isNotEmpty() && acknowledged.histories.isEmpty()) {
+                logcat(LogPriority.DEBUG) {
+                    "SyncYomi v2 deletions: ${historyKeys.size} history tombstones stay pending, " +
+                        "the server did not report `applied`"
+                }
+                return
+            }
+            // The queue is the row, so clearing it is a write: only the rows this page carried, and
+            // only once the server reported `applied`.
+            if (historyRows.isNotEmpty()) {
+                historyRepository.clearPendingHistoryDeletion(historyRows.map { it.historyId })
             }
             logcat(LogPriority.DEBUG) {
                 "SyncYomi v2 deletions applied: ${batchChapters.size} chapters, " +
                     "${historyKeys.size} history, ${batchMangas.size} manga"
             }
 
-            // Nothing further to page through. The cursor, not the flag, decides the next page: a
-            // server that did not apply this one leaves those rows queued without starving the rest.
+            // Nothing further to page through.
             if (historyRows.isEmpty()) return
             firstBatch = false
             afterId = historyRows.last().historyId

@@ -163,9 +163,10 @@ private fun unreadableKey(item: BackupDeletedItem) {
  * chapter, and a category is matched by uid or name. A key with no local row is a no-op, so a
  * tombstone of something this device never had is free.
  *
- * A history tombstone goes through [HistoryRepository.resetHistory], komi-kun's established
- * removal path for a history entry (the same one `RemoveHistory` uses): the row keeps its id but
- * loses its read date, which is what the History tab shows as gone.
+ * A history tombstone goes through [HistoryRepository.resetHistory]: the row keeps its id but loses
+ * its read date, which is what the History tab shows as gone. It is a plain reset, not the queueing
+ * removal `RemoveHistory` performs: the removal is already applied on the server, so queueing it
+ * here would echo a peer's tombstone straight back as one of ours.
  *
  * [librarySyncEnabled], [historySyncEnabled], [chaptersEnabled] and [categoriesEnabled] honour the
  * same user settings the snapshot fallback honours: a section the user disabled is not deleted on
