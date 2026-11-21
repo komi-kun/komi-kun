@@ -5,6 +5,7 @@ import app.cash.sqldelight.db.QueryResult
 import app.cash.sqldelight.db.SqlDriver
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import eu.kanade.tachiyomi.data.backup.models.Backup
+import eu.kanade.tachiyomi.data.backup.models.BackupCategory
 import eu.kanade.tachiyomi.data.backup.models.BackupDeletedItem
 import eu.kanade.tachiyomi.data.backup.models.BackupManga
 import io.kotest.matchers.collections.shouldBeEmpty
@@ -22,6 +23,8 @@ import tachiyomi.data.chapter.ChapterRepositoryImpl
 import tachiyomi.data.history.HistoryRepositoryImpl
 import tachiyomi.data.sync.SyncRepositoryImpl
 import tachiyomi.domain.category.interactor.PruneCategoryReferences
+import tachiyomi.domain.chapter.model.Chapter
+import tachiyomi.domain.chapter.repository.ChapterRepository
 import tachiyomi.domain.download.service.DownloadPreferences
 import tachiyomi.domain.history.service.HistoryPreferences
 import tachiyomi.domain.library.service.LibraryPreferences
@@ -248,6 +251,81 @@ class SyncDeletionsTest {
     }
 
     @Test
+    fun `several tombstones resolve their chapters in one batch read`(): Unit = runBlocking {
+        val fixture = Fixture()
+        try {
+            fixture.insertManga(id = 7L, sourceId = 1L, url = "/m")
+            fixture.insertChapter(mangaId = 7L, chapterId = 107L, url = "/m/ch1")
+            fixture.insertChapter(mangaId = 7L, chapterId = 207L, url = "/m/ch2", index = 2)
+            fixture.insertChapter(mangaId = 7L, chapterId = 307L, url = "/m/ch3", index = 3)
+            fixture.insertManga(id = 8L, sourceId = 2L, url = "/n")
+            fixture.insertChapter(mangaId = 8L, chapterId = 108L, url = "/n/ch1")
+            fixture.insertHistory(mangaId = 8L, chapterId = 108L, historyId = 1008L)
+            fixture.insertManga(id = 9L, sourceId = 3L, url = "/p")
+            fixture.insertChapter(mangaId = 9L, chapterId = 109L, url = "/p/ch1")
+            fixture.insertHistory(mangaId = 9L, chapterId = 109L, historyId = 1009L)
+
+            val skipped = fixture.apply(
+                deletionPlan(
+                    listOf(
+                        item("chapter", "1|/m\u001f/m/ch1"),
+                        item("chapter", "2|/n\u001f/n/ch1"),
+                        item("history", "3|/p\u001f/p/ch1"),
+                        // a key whose manga this device never had stays a no-op on the batch path
+                        item("chapter", "4|/unknown\u001f/unknown/ch"),
+                    ),
+                ),
+            )
+
+            skipped shouldBe emptySet()
+            // every tombstone above came out of one chapter query per run, never one per key
+            fixture.chapterRepository.batchReads shouldBe 1
+            fixture.chapterRepository.singleReads shouldBe 0
+            // 107 and 108 were tombstoned, and 108's history entry cascaded with it
+            fixture.chapterIds() shouldBe listOf(109L, 207L, 307L)
+            fixture.readAtOf(historyId = 1008L) shouldBe null
+            // the history tombstone cleared 1009 through chapter 109, which itself stays
+            fixture.readAtOf(historyId = 1009L) shouldBe null
+        } finally {
+            fixture.close()
+        }
+    }
+
+    @Test
+    fun `a tombstoned category is not resurrected by the merge built from the pre-deletion upload`(): Unit =
+        runBlocking {
+            val fixture = Fixture()
+            try {
+                fixture.insertCategory(id = 3L, name = "Reading", order = 0L, uid = 12L)
+                fixture.insertCategory(id = 4L, name = "Kept", order = 1L, uid = 13L)
+                // the upload snapshot the sync took before it applied the tombstones, plus the manga
+                // change that makes the delta reach the restore branch at all
+                val uploaded = listOf(
+                    BackupCategory(name = "Reading", order = 0, id = 3, uid = 12),
+                    BackupCategory(name = "Kept", order = 1, id = 4, uid = 13),
+                )
+                val remote = listOf(BackupCategory(name = "Kept", order = 1, id = 4, uid = 13))
+
+                val plan = deletionPlan(listOf(item("category", "uid:12")))
+                fixture.apply(plan) shouldBe emptySet()
+                fixture.categoryIds() shouldBe listOf(0L, 4L)
+
+                // the defect this guards: the raw upload snapshot still names the deleted category,
+                // and the v2 merge keeps a local entry the remote deltas do not mention
+                mergeSyncCategories(uploaded, remote, protocolV2 = true).map { it.name } shouldBe
+                    listOf("Reading", "Kept")
+
+                mergeSyncCategories(
+                    withoutTombstonedCategories(uploaded, plan.categories),
+                    remote,
+                    protocolV2 = true,
+                ).map { it.name } shouldBe listOf("Kept")
+            } finally {
+                fixture.close()
+            }
+        }
+
+    @Test
     fun `a tombstone of a row this device never had is a no-op`(): Unit = runBlocking {
         val fixture = Fixture()
         try {
@@ -292,13 +370,16 @@ class SyncDeletionsTest {
     fun `sections the user disabled are not deleted on the server's word`(): Unit = runBlocking {
         val fixture = Fixture()
         try {
-            // manga 7 carries the chapter tombstone, manga 8 the history one, so the chapter cascade
-            // cannot hide whether the history tombstone was applied
+            // manga 7 carries the chapter tombstone, manga 8 the history one, manga 9 a chapter
+            // tombstone whose chapter still holds a local history entry
             fixture.insertManga(id = 7L, sourceId = 1L, url = "/m")
             fixture.insertChapter(mangaId = 7L, chapterId = 107L, url = "/m/ch1")
             fixture.insertManga(id = 8L, sourceId = 1L, url = "/n")
             fixture.insertChapter(mangaId = 8L, chapterId = 108L, url = "/n/ch1")
             fixture.insertHistory(mangaId = 8L, chapterId = 108L, historyId = 1008L)
+            fixture.insertManga(id = 9L, sourceId = 1L, url = "/p")
+            fixture.insertChapter(mangaId = 9L, chapterId = 109L, url = "/p/ch1")
+            fixture.insertHistory(mangaId = 9L, chapterId = 109L, historyId = 1009L)
 
             val skipped = fixture.apply(
                 deletionPlan(
@@ -306,17 +387,77 @@ class SyncDeletionsTest {
                         item("manga", "1|/m"),
                         item("history", "1|/n\u001f/n/ch1"),
                         item("chapter", "1|/m\u001f/m/ch1"),
+                        item("chapter", "1|/p\u001f/p/ch1"),
                     ),
                 ),
                 librarySyncEnabled = false,
                 historySyncEnabled = false,
             )
 
-            skipped shouldBe setOf("manga", "history")
-            fixture.mangaIds() shouldBe listOf(7L, 8L)
+            skipped shouldBe setOf("manga", "history", "chapter")
+            fixture.mangaIds() shouldBe listOf(7L, 8L, 9L)
             fixture.readAtOf(historyId = 1008L) shouldBe 3000L
-            // a chapter tombstone stands on its own, it does not need library sync to remove one stale row
-            fixture.chapterIds() shouldBe listOf(108L)
+            // chapter 109 carries history 1009, and `history.chapter_id` cascades with the chapter
+            // row: deleting the chapter with history sync off would wipe history the user does not
+            // sync, so the tombstone is reported instead of applied
+            fixture.readAtOf(historyId = 1009L) shouldBe 3000L
+            // chapter 107 has no history entry, so its tombstone still stands on its own
+            fixture.chapterIds() shouldBe listOf(108L, 109L)
+        } finally {
+            fixture.close()
+        }
+    }
+
+    @Test
+    fun `chapter tombstones are skipped when chapter sync is off`(): Unit = runBlocking {
+        val fixture = Fixture()
+        try {
+            fixture.insertManga(id = 7L, sourceId = 1L, url = "/m")
+            fixture.insertChapter(mangaId = 7L, chapterId = 107L, url = "/m/ch1")
+
+            val skipped = fixture.apply(
+                deletionPlan(listOf(item("chapter", "1|/m\u001f/m/ch1"))),
+                chaptersEnabled = false,
+            )
+
+            skipped shouldBe setOf("chapter")
+            fixture.chapterIds() shouldBe listOf(107L)
+        } finally {
+            fixture.close()
+        }
+    }
+
+    @Test
+    fun `category tombstones are skipped when category sync is off`(): Unit = runBlocking {
+        val fixture = Fixture()
+        try {
+            fixture.insertCategory(id = 3L, name = "Reading", order = 0L, uid = 12L)
+
+            val skipped = fixture.apply(
+                deletionPlan(listOf(item("category", "uid:12"))),
+                categoriesEnabled = false,
+            )
+
+            skipped shouldBe setOf("category")
+            fixture.categoryIds() shouldBe listOf(0L, 3L)
+        } finally {
+            fixture.close()
+        }
+    }
+
+    @Test
+    fun `a manga tombstone runs the download cleanup while the row still exists`(): Unit = runBlocking {
+        val fixture = Fixture()
+        try {
+            fixture.insertManga(id = 7L, sourceId = 1L, url = "/m")
+
+            fixture.apply(deletionPlan(listOf(item("manga", "1|/m")))) shouldBe emptySet()
+
+            // The hook is the only thing that can still reach the download directory (keyed by the
+            // row's title and source) and the queued chapters, so it has to run before the row goes.
+            fixture.cleanupCalls shouldBe listOf(1L to "/m")
+            fixture.cleanupSawRow shouldBe listOf(true)
+            fixture.mangaIds().shouldBeEmpty()
         } finally {
             fixture.close()
         }
@@ -367,9 +508,16 @@ class SyncDeletionsTest {
         val syncRepository = SyncRepositoryImpl(database)
         val libraryPreferences = LibraryPreferences(preferenceStore)
 
-        private val chapterRepository = ChapterRepositoryImpl(database)
+        /** Counts the chapter reads a run makes, so the batch resolution path stays pinned. */
+        val chapterRepository = CountingChapterRepository(ChapterRepositoryImpl(database))
         private val historyRepository = HistoryRepositoryImpl(database)
         private val categoryRepository = CategoryRepositoryImpl(database)
+
+        /** Manga handed to the download-cleanup hook, in order, as `(sourceId, url)`. */
+        val cleanupCalls = mutableListOf<Pair<Long, String>>()
+
+        /** Whether the row the cleanup hook ran for was still in the database at that moment. */
+        val cleanupSawRow = mutableListOf<Boolean>()
         private val pruneCategoryReferences = PruneCategoryReferences(
             libraryPreferences = libraryPreferences,
             downloadPreferences = DownloadPreferences(preferenceStore),
@@ -393,6 +541,8 @@ class SyncDeletionsTest {
             plan: DeletionPlan,
             librarySyncEnabled: Boolean = true,
             historySyncEnabled: Boolean = true,
+            chaptersEnabled: Boolean = true,
+            categoriesEnabled: Boolean = true,
         ): Set<String> = applyDeletions(
             plan = plan,
             syncRepository = syncRepository,
@@ -400,8 +550,17 @@ class SyncDeletionsTest {
             historyRepository = historyRepository,
             categoryRepository = categoryRepository,
             pruneCategoryReferences = pruneCategoryReferences,
+            // Stand-in for DownloadManager.deleteManga: records the call and whether the row was
+            // still there, then removes the row like the real path does.
+            deleteManga = { manga ->
+                cleanupCalls += manga.source to manga.url
+                cleanupSawRow += manga.id in mangaIds()
+                syncRepository.deleteManga(manga.id)
+            },
             librarySyncEnabled = librarySyncEnabled,
             historySyncEnabled = historySyncEnabled,
+            chaptersEnabled = chaptersEnabled,
+            categoriesEnabled = categoriesEnabled,
         )
 
         fun mangaIds(): List<Long> = longs("SELECT id FROM manga ORDER BY id")
@@ -486,6 +645,29 @@ class SyncDeletionsTest {
                     "VALUES ($id, '$name', $order, 0, 0, 0, $uid, 0, 1)",
                 0,
             ).await()
+        }
+    }
+
+    /**
+     * The real chapter repository with counters, so a test can tell a per-tombstone lookup from the
+     * single batch read that resolves a whole delta.
+     */
+    private class CountingChapterRepository(
+        private val delegate: ChapterRepository,
+    ) : ChapterRepository by delegate {
+        var batchReads = 0
+            private set
+        var singleReads = 0
+            private set
+
+        override suspend fun getChaptersByMangaIds(mangaIds: List<Long>): List<Chapter> {
+            batchReads++
+            return delegate.getChaptersByMangaIds(mangaIds)
+        }
+
+        override suspend fun getChapterByUrlAndMangaId(url: String, mangaId: Long): Chapter? {
+            singleReads++
+            return delegate.getChapterByUrlAndMangaId(url, mangaId)
         }
     }
 }

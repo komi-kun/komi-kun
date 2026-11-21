@@ -46,6 +46,12 @@ class MangaRepositoryImpl(
     }
 
     // KUN -->
+    override suspend fun getMangaByIdOrNull(id: Long): Manga? {
+        return database.mangaQueries
+            .getMangaById(id, MangaMapper::mapManga)
+            .awaitAsOneOrNull()
+    }
+
     override suspend fun isSyncing(mangaId: Long): Boolean {
         return database.mangaQueries
             .getMangaIsSyncing(mangaId)
@@ -147,12 +153,12 @@ class MangaRepositoryImpl(
     }
 
     // KUN -->
-    override suspend fun getNonLibraryMangaToDelete(
+    override suspend fun deleteNonLibraryMangaReturningKeys(
         sourceIds: List<Long>,
         keepReadManga: Boolean,
     ): List<Pair<Long, String>> {
         return database.mangaQueries
-            .getNonLibraryMangaToDelete(sourceIds, keepReadManga.toLong())
+            .deleteNonLibraryMangaReturningKeys(sourceIds, keepReadManga.toLong())
             .awaitAsList()
             .map { it.source_id to it.remote_url }
     }

@@ -407,10 +407,11 @@ AND id NOT IN (
 ;
 
 -- KUN -->
--- Same rows as deleteNonLibraryManga; used to record the tombstones before the delete.
-getNonLibraryMangaToDelete:
-SELECT source_id, remote_url
-FROM manga
+-- Same rows as deleteNonLibraryManga, returned so the tombstones are recorded from the rows the
+-- delete actually removed: one statement instead of a SELECT followed by a DELETE whose shared
+-- WHERE could drift apart.
+deleteNonLibraryMangaReturningKeys:
+DELETE FROM manga
 WHERE user_favorite_at IS NULL
 AND source_id IN :sourceIds
 AND (
@@ -424,7 +425,8 @@ AND (
 )
 AND id NOT IN (
     SELECT DISTINCT manga_id FROM merged_entry
-);
+)
+RETURNING source_id, remote_url;
 -- KUN <--
 
 insert:

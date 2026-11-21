@@ -45,7 +45,6 @@ class SyncPreferences(
     )
     // KUN -->
     /** Chapter keys a source dropped, kept until the server acknowledges the tombstone. */
-    // KUN <--
     val pendingDeletedChapterKeys = preferenceStore.getStringSet(
         Preference.appStateKey("sync_pending_deleted_chapter_keys"),
         emptySet(),
@@ -55,6 +54,7 @@ class SyncPreferences(
         Preference.appStateKey("sync_pending_deleted_manga_keys"),
         emptySet(),
     )
+    // KUN <--
     // SY <--
 
     // KUN -->

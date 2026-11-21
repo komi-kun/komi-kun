@@ -85,7 +85,9 @@ class SyncYomiSyncService(
     }
 
     // SY -->
+    // KUN -->
     // The deletion request types live at file level so the body builder is testable.
+    // KUN <--
     // SY <--
 
     // SY -->
@@ -500,7 +502,14 @@ class SyncYomiSyncService(
             url = "$host/api/sync/v2/deletions",
             headers = baseHeaders(apiKey).build(),
             body = json
-                .encodeToString(DeletionRequest.serializer(), DeletionRequest(deletionItems(chapters, mangas)))
+                .encodeToString(
+                    DeletionRequest.serializer(),
+                    DeletionRequest(
+                        items = deletionItems(chapters, mangas),
+                        // An older server only reads the legacy shape; it merges and dedupes both.
+                        deletedChapters = chapters.toList(),
+                    ),
+                )
                 .toRequestBody("application/json; charset=utf-8".toMediaType()),
         )
 
@@ -529,18 +538,27 @@ class SyncYomiSyncService(
     // SY <--
 }
 
-// SY -->
+// KUN -->
 /** One entry of the SyncYomi v2 deletions request; [key] is a chapter or manga tombstone key. */
 @Serializable
 internal data class DeletionItem(val kind: String, val key: String)
 
+/**
+ * The body of `POST /api/sync/v2/deletions`.
+ *
+ * [items] is the shape current servers read. [deletedChapters] is the legacy shape an older server
+ * still understands; it carries the chapter keys only, and a server that reads both merges and
+ * dedupes them. Sending both during the transition means an old server that 2xxes and ignores
+ * `items` still applies the chapter tombstones before the client clears its queue.
+ */
 @Serializable
-internal data class DeletionRequest(val items: List<DeletionItem> = emptyList())
+internal data class DeletionRequest(
+    val items: List<DeletionItem> = emptyList(),
+    val deletedChapters: List<String> = emptyList(),
+)
 
-// KUN -->
 // Chapters go first: a manga tombstone removes the row, so the server must see the chapter keys
 // before it forgets the manga they belong to.
-// KUN <--
 internal fun deletionItems(chapters: Collection<String>, mangas: Collection<String>): List<DeletionItem> =
     chapters.map { DeletionItem("chapter", it) } + mangas.map { DeletionItem("manga", it) }
-// SY <--
+// KUN <--

@@ -1,10 +1,12 @@
 package eu.kanade.tachiyomi.data.sync
 
+import eu.kanade.tachiyomi.data.backup.models.BackupCategory
 import eu.kanade.tachiyomi.data.backup.models.BackupDeletedItem
 import logcat.LogPriority
 import logcat.logcat
 import tachiyomi.domain.category.interactor.PruneCategoryReferences
 import tachiyomi.domain.category.repository.CategoryRepository
+import tachiyomi.domain.chapter.model.Chapter
 import tachiyomi.domain.chapter.repository.ChapterRepository
 import tachiyomi.domain.history.repository.HistoryRepository
 import tachiyomi.domain.manga.model.Manga
@@ -137,8 +139,16 @@ private fun unreadableKey(item: BackupDeletedItem) {
  * removal path for a history entry (the same one `RemoveHistory` uses): the row keeps its id but
  * loses its read date, which is what the History tab shows as gone.
  *
- * [librarySyncEnabled] and [historySyncEnabled] honour the same user settings the snapshot
- * fallback honours: a section the user disabled is not deleted on the server's word. Returns the
+ * [librarySyncEnabled], [historySyncEnabled], [chaptersEnabled] and [categoriesEnabled] honour the
+ * same user settings the snapshot fallback honours: a section the user disabled is not deleted on
+ * the server's word.
+ *
+ * A chapter row is the parent of `history.chapter_id` (`ON DELETE CASCADE`), so when history sync
+ * is off a tombstoned chapter that still carries a local history entry is kept: deleting it would
+ * wipe history the user never asked to sync.
+ *
+ * [deleteManga] owns the local removal of a manga row, so the caller can drop the downloads and
+ * queued chapters of it before the row (and with it every handle on them) is gone. Returns the
  * kinds that were not applied.
  */
 internal suspend fun applyDeletions(
@@ -148,35 +158,74 @@ internal suspend fun applyDeletions(
     historyRepository: HistoryRepository,
     categoryRepository: CategoryRepository,
     pruneCategoryReferences: PruneCategoryReferences,
+    deleteManga: suspend (Manga) -> Unit = { syncRepository.deleteManga(it.id) },
     librarySyncEnabled: Boolean = true,
     historySyncEnabled: Boolean = true,
+    chaptersEnabled: Boolean = true,
+    categoriesEnabled: Boolean = true,
 ): Set<String> {
     val skipped = plan.skippedKinds.toMutableSet()
 
     // One library read serves every manga-keyed tombstone; nothing else below touches these rows.
     val needsLocalManga = plan.manga.isNotEmpty() || plan.chapters.isNotEmpty() || plan.history.isNotEmpty()
-    val localManga = if (needsLocalManga) syncRepository.getAllManga() else emptyList()
+    val localMangaByKey = if (needsLocalManga) {
+        syncRepository.getAllManga().associateBy { it.source to it.url }
+    } else {
+        emptyMap()
+    }
 
     if (librarySyncEnabled) {
         plan.manga.forEach { (sourceId, mangaUrl) ->
-            val manga = localManga.firstOrNull { it.source == sourceId && it.url == mangaUrl } ?: return@forEach
+            val manga = localMangaByKey[sourceId to mangaUrl] ?: return@forEach
             logcat(LOG_TAG, LogPriority.DEBUG) { "Deleting ${manga.url}: the delta tombstoned it" }
-            syncRepository.deleteManga(manga.id)
+            deleteManga(manga)
         }
     } else if (plan.manga.isNotEmpty()) {
         skipped += TOMBSTONE_MANGA
     }
 
-    val chapterIds = plan.chapters.mapNotNull { key ->
-        localChapterId(key, localManga, chapterRepository)
+    // Chapter and history tombstones both name a chapter, so one chapter read serves both.
+    val chapterRowByKey = resolveChapterRows(
+        keys = plan.chapters + plan.history,
+        localMangaByKey = localMangaByKey,
+        chapterRepository = chapterRepository,
+    )
+    val chapterRows = plan.chapters.distinct().mapNotNull { chapterRowByKey[it] }
+    val historyChapterRows = plan.history.distinct().mapNotNull { chapterRowByKey[it] }
+
+    // One history read serves the reset below and the chapter gate: `history.chapter_id` cascades
+    // with its chapter row, so a chapter that has one cannot be deleted while history sync is off.
+    val historyIdByChapterId = if (
+        chapterRowByKey.isNotEmpty() && (historySyncEnabled || plan.chapters.isNotEmpty())
+    ) {
+        historyRepository.getHistoryByMangaIds(chapterRowByKey.values.map { it.mangaId }.distinct())
+            .values
+            .flatten()
+            .associate { it.chapterId to it.id }
+    } else {
+        emptyMap()
     }
-    if (chapterIds.isNotEmpty()) {
-        logcat(LOG_TAG, LogPriority.DEBUG) { "Deleting ${chapterIds.size} chapters the delta tombstoned" }
-        chapterRepository.removeChaptersWithIds(chapterIds.distinct())
+
+    if (chaptersEnabled) {
+        val (deletable, keptForHistory) = chapterRows.partition {
+            historySyncEnabled || it.id !in historyIdByChapterId
+        }
+        if (deletable.isNotEmpty()) {
+            logcat(LOG_TAG, LogPriority.DEBUG) { "Deleting ${deletable.size} chapters the delta tombstoned" }
+            chapterRepository.removeChaptersWithIds(deletable.map { it.id }.distinct())
+        }
+        if (keptForHistory.isNotEmpty()) {
+            logcat(LOG_TAG, LogPriority.DEBUG) {
+                "Keeping ${keptForHistory.size} tombstoned chapters: they still carry local history"
+            }
+            skipped += TOMBSTONE_CHAPTER
+        }
+    } else if (plan.chapters.isNotEmpty()) {
+        skipped += TOMBSTONE_CHAPTER
     }
 
     if (historySyncEnabled) {
-        val historyIds = localHistoryIds(plan.history, localManga, chapterRepository, historyRepository)
+        val historyIds = historyChapterRows.mapNotNull { historyIdByChapterId[it.id] }.distinct()
         if (historyIds.isNotEmpty()) {
             logcat(LOG_TAG, LogPriority.DEBUG) {
                 "Deleting ${historyIds.size} history entries the delta tombstoned"
@@ -187,7 +236,7 @@ internal suspend fun applyDeletions(
         skipped += TOMBSTONE_HISTORY
     }
 
-    if (plan.categories.isNotEmpty()) {
+    if (categoriesEnabled && plan.categories.isNotEmpty()) {
         // one read for the whole list; local ids and uids only agree by accident, so match on both identities
         val localCategories = categoryRepository.getAll().filterNot { it.id == 0L }
         val categoryIds = plan.categories.mapNotNull { tombstone ->
@@ -207,44 +256,55 @@ internal suspend fun applyDeletions(
             // category that no longer exists.
             pruneCategoryReferences.prune(categoryIds)
         }
+    } else if (plan.categories.isNotEmpty()) {
+        skipped += TOMBSTONE_CATEGORY
     }
 
     return skipped
 }
 
-/** The local [Manga] a tombstone key names, or null when this device never had it. */
-private fun localMangaOf(key: ChapterTombstone, localManga: List<Manga>): Manga? =
-    localManga.firstOrNull { it.source == key.sourceId && it.url == key.mangaUrl }
-
-/** The local id of [key]'s chapter, resolved through its manga because the chapter key carries no id. */
-private suspend fun localChapterId(
-    key: ChapterTombstone,
-    localManga: List<Manga>,
+/**
+ * The local chapter rows [keys] name, resolved in one pass: every manga the keys touch is read with
+ * a single chapter query and matched on `remote_url`, instead of one lookup per tombstone. A key
+ * whose manga or chapter this device never had is absent from the result, as is a key whose manga
+ * a tombstone above already deleted.
+ */
+private suspend fun resolveChapterRows(
+    keys: List<ChapterTombstone>,
+    localMangaByKey: Map<Pair<Long, String>, Manga>,
     chapterRepository: ChapterRepository,
-): Long? {
-    val manga = localMangaOf(key, localManga) ?: return null
-    return chapterRepository.getChapterByUrlAndMangaId(key.chapterUrl, manga.id)?.id
+): Map<ChapterTombstone, Chapter> {
+    if (keys.isEmpty()) return emptyMap()
+    val localMangaIdByKey = keys.distinct()
+        .associateWith { localMangaByKey[it.sourceId to it.mangaUrl]?.id }
+    val mangaIds = localMangaIdByKey.values.filterNotNull().distinct()
+    if (mangaIds.isEmpty()) return emptyMap()
+    val chapterByMangaAndUrl = chapterRepository.getChaptersByMangaIds(mangaIds)
+        .associateBy { it.mangaId to it.url }
+    return localMangaIdByKey.mapNotNull { (key, mangaId) ->
+        mangaId?.let { chapterByMangaAndUrl[it to key.chapterUrl] }?.let { key to it }
+    }.toMap()
 }
 
 /**
- * The local history rows the tombstones name, read once for every manga they touch and matched by
- * chapter id — the tombstone key carries the chapter url, not the history id.
+ * Drops from the local side of a category merge the categories a tombstone removed. The merge is
+ * built from the upload snapshot taken before the deletions ran, so without this it hands the
+ * just-deleted rows to the restore, which re-inserts them in the same run.
  */
-private suspend fun localHistoryIds(
-    keys: List<ChapterTombstone>,
-    localManga: List<Manga>,
-    chapterRepository: ChapterRepository,
-    historyRepository: HistoryRepository,
-): List<Long> {
-    val chapterIds = keys.mapNotNull { key -> localChapterId(key, localManga, chapterRepository) }
-    if (chapterIds.isEmpty()) return emptyList()
-    val mangaIds = keys.mapNotNull { localMangaOf(it, localManga)?.id }.distinct()
-    if (mangaIds.isEmpty()) return emptyList()
-    val historyIdByChapter = historyRepository.getHistoryByMangaIds(mangaIds)
-        .values
-        .flatten()
-        .associate { it.chapterId to it.id }
-    return chapterIds.mapNotNull { historyIdByChapter[it] }.distinct()
+internal fun withoutTombstonedCategories(
+    local: List<BackupCategory>,
+    tombstones: List<CategoryTombstone>,
+): List<BackupCategory> {
+    if (tombstones.isEmpty()) return local
+    return local.filterNot { category ->
+        tombstones.any { tombstone ->
+            when {
+                tombstone.uid != null -> category.uid == tombstone.uid
+                tombstone.name != null -> category.name == tombstone.name
+                else -> false
+            }
+        }
+    }
 }
 
 /**

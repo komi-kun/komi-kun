@@ -13,6 +13,7 @@ import eu.kanade.tachiyomi.data.backup.models.BackupPreference
 import eu.kanade.tachiyomi.data.backup.restore.BackupRestoreWorker
 import eu.kanade.tachiyomi.data.backup.restore.RestoreOptions
 import eu.kanade.tachiyomi.data.backup.restore.restorers.MangaRestorer
+import eu.kanade.tachiyomi.data.download.DownloadManager
 import eu.kanade.tachiyomi.data.sync.service.BackupRequestBody
 import eu.kanade.tachiyomi.data.sync.service.GoogleDriveSyncService
 import eu.kanade.tachiyomi.data.sync.service.SyncData
@@ -37,6 +38,7 @@ import tachiyomi.domain.download.service.DownloadPreferences
 import tachiyomi.domain.history.repository.HistoryRepository
 import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.domain.manga.model.Manga
+import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.domain.sync.repository.SyncRepository
 import tachiyomi.i18n.kmk.KMR
 import java.io.File
@@ -61,6 +63,9 @@ class SyncManager(
     private val getCategories: GetCategories,
     // KUN -->
     private val pruneCategoryReferences: PruneCategoryReferences,
+    /** Owns the files and queued chapters of a manga row removed by a sync. */
+    private val downloadManager: DownloadManager,
+    private val sourceManager: SourceManager,
     // KUN <--
     private val backupCreatorFactory: BackupCreator.Factory,
     private val notifier: SyncNotifier,
@@ -441,18 +446,26 @@ class SyncManager(
         // server deleted elsewhere is never restored back out of this payload. The gate above never
         // skips a response that carries tombstones, so a delta whose only change is a deletion
         // reaches this line instead of being dropped as "nothing new on the remote".
+        //
+        // Parsed once: the deletions below apply the plan, and the category merge further down needs
+        // its identities to keep a category this run deletes out of the restore.
+        val tombstones = deletionPlan(remoteBackup.deletions)
         if (remoteBackup.deletions.isNotEmpty()) {
             val skippedKinds = applyDeletions(
-                plan = deletionPlan(remoteBackup.deletions),
+                plan = tombstones,
                 syncRepository = syncRepository,
                 chapterRepository = chapterRepository,
                 historyRepository = historyRepository,
                 categoryRepository = categoryRepository,
                 pruneCategoryReferences = pruneCategoryReferences,
+                // Downloads and queued chapters go before the row that names them disappears.
+                deleteManga = { deleteMangaRow(it) },
                 // The same user settings the snapshot fallback honours: a section the user disabled
                 // is not deleted on the server's word.
                 librarySyncEnabled = syncOptions.libraryEntries,
                 historySyncEnabled = syncOptions.history,
+                chaptersEnabled = syncOptions.chapters,
+                categoriesEnabled = syncOptions.categories,
             )
             logcat(LogPriority.DEBUG) {
                 "Applied ${remoteBackup.deletions.size} remote tombstones" +
@@ -488,7 +501,14 @@ class SyncManager(
 
         // KUN -->
         val mergedBackupCategories = mergeSyncCategories(
-            local = backup.backupCategories,
+            // The upload snapshot was taken before the tombstones above ran, so a category this run
+            // deleted is still in it. Drop it, or the merge hands it to the restore and the restore
+            // re-inserts the row the tombstone just removed.
+            local = if (syncOptions.categories) {
+                withoutTombstonedCategories(backup.backupCategories, tombstones.categories)
+            } else {
+                backup.backupCategories
+            },
             remote = remoteBackup.backupCategories,
             protocolV2 = result.protocolV2,
         )
@@ -740,8 +760,29 @@ class SyncManager(
      */
     private suspend fun applySnapshotMangaDeletions(ids: List<Long>) {
         if (ids.isEmpty()) return
-        ids.forEach { syncRepository.deleteManga(it) }
+        // The ids are local row ids; the download cleanup needs the rows themselves.
+        val localMangaById = syncRepository.getAllManga().associateBy { it.id }
+        ids.forEach { id ->
+            localMangaById[id]?.let { deleteMangaRow(it) } ?: syncRepository.deleteManga(id)
+        }
         logcat(LogPriority.DEBUG) { "Deleted ${ids.size} local manga absent from the full server snapshot" }
+    }
+
+    /**
+     * Removes a manga row the server deleted elsewhere, after clearing what hangs off its id outside
+     * the database: its download directory and its queued chapters would otherwise stay behind with
+     * nothing left to name them. Cleanup is best-effort so a file-system failure cannot leave the
+     * tombstone unapplied and retried forever; the row is deleted either way.
+     */
+    private suspend fun deleteMangaRow(manga: Manga) {
+        try {
+            downloadManager.deleteManga(manga, sourceManager.getOrStub(manga.source))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logcat(LogPriority.WARN, e) { "Failed to clean up the downloads of ${manga.url}" }
+        }
+        syncRepository.deleteManga(manga.id)
     }
     // KUN <--
 

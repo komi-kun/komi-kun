@@ -264,12 +264,10 @@ class ClearDatabaseViewModel(
         // Finishes even if the screen is left while it runs
         appScope.launch {
             // KUN -->
-            // Gather the keys before the SQL delete; the rows are gone afterwards. Recording is
-            // inside rememberDeletedManga's own v2/library gate, so this is always safe.
-            val deleted = mangaRepository.getNonLibraryMangaToDelete(state.selection, keepReadManga)
-            // KUN <--
-            mangaRepository.deleteNonLibraryManga(state.selection, keepReadManga)
-            // KUN -->
+            // One DELETE ... RETURNING: the keys come from the rows the delete actually removed, so
+            // no row can slip in or out between the read and the write. Recording is inside
+            // rememberDeletedManga's own v2/library gate, so this is always safe.
+            val deleted = mangaRepository.deleteNonLibraryMangaReturningKeys(state.selection, keepReadManga)
             syncPreferences.rememberDeletedManga(
                 deleted.map { (sourceId, url) -> mangaTombstoneKey(sourceId, url) },
             )
