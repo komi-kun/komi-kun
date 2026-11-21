@@ -2,6 +2,8 @@ package eu.kanade.tachiyomi.data.sync
 
 import eu.kanade.tachiyomi.data.backup.models.BackupCategory
 import eu.kanade.tachiyomi.data.backup.models.BackupDeletedItem
+import eu.kanade.tachiyomi.data.backup.models.BackupFeed
+import eu.kanade.tachiyomi.data.backup.models.BackupSavedSearch
 import logcat.LogPriority
 import logcat.logcat
 import tachiyomi.domain.category.interactor.PruneCategoryReferences
@@ -353,6 +355,40 @@ internal fun withoutTombstonedCategories(
                 else -> false
             }
         }
+    }
+}
+
+/**
+ * Drops from the restore payload the saved searches a tombstone removed.
+ *
+ * The tombstone deletes the local row before the restore runs, so a payload that still names it
+ * would have `SavedSearchRestorer` insert it again in the same run.
+ */
+internal fun withoutTombstonedSavedSearches(
+    local: List<BackupSavedSearch>,
+    tombstones: List<SavedSearchTombstone>,
+): List<BackupSavedSearch> {
+    if (tombstones.isEmpty()) return local
+    return local.filterNot { savedSearch ->
+        tombstones.any { it.name == savedSearch.name && it.sourceId == savedSearch.source }
+    }
+}
+
+/**
+ * Drops the feeds that carry a saved search a tombstone removed, for the same reason as
+ * [withoutTombstonedSavedSearches]. The server keeps feeds in the opaque `extra` blob, which a
+ * `saved_search` tombstone does not rewrite, so the payload can still name one; `FeedRestorer`
+ * creates the saved search a feed references when it is missing, which would undo the deletion.
+ */
+internal fun withoutFeedsOfTombstonedSavedSearches(
+    local: List<BackupFeed>,
+    tombstones: List<SavedSearchTombstone>,
+): List<BackupFeed> {
+    if (tombstones.isEmpty()) return local
+    return local.filterNot { feed ->
+        // the restorer stores a feed's saved search under the feed's own source
+        val savedSearch = feed.savedSearch ?: return@filterNot false
+        tombstones.any { it.name == savedSearch.name && it.sourceId == feed.source }
     }
 }
 

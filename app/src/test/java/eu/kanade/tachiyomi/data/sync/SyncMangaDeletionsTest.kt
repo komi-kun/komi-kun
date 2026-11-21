@@ -167,22 +167,64 @@ class SyncMangaDeletionsTest {
 
     @Test
     fun `a full v2 response with history sync on may prune history`() {
-        assertTrue(canApplySnapshotHistoryPrune(full = true, protocolV2 = true, historyEntries = true))
+        assertTrue(
+            canApplySnapshotHistoryPrune(
+                full = true,
+                protocolV2 = true,
+                libraryEntries = true,
+                historyEntries = true,
+            ),
+        )
     }
 
     @Test
     fun `a delta response never prunes history`() {
         // Its history sections only carry the entries that changed.
-        assertFalse(canApplySnapshotHistoryPrune(full = false, protocolV2 = true, historyEntries = true))
+        assertFalse(
+            canApplySnapshotHistoryPrune(
+                full = false,
+                protocolV2 = true,
+                libraryEntries = true,
+                historyEntries = true,
+            ),
+        )
     }
 
     @Test
     fun `a v1 response never prunes history`() {
-        assertFalse(canApplySnapshotHistoryPrune(full = true, protocolV2 = false, historyEntries = true))
+        assertFalse(
+            canApplySnapshotHistoryPrune(
+                full = true,
+                protocolV2 = false,
+                libraryEntries = true,
+                historyEntries = true,
+            ),
+        )
     }
 
     @Test
     fun `history sync disabled never prunes history`() {
-        assertFalse(canApplySnapshotHistoryPrune(full = true, protocolV2 = true, historyEntries = false))
+        assertFalse(
+            canApplySnapshotHistoryPrune(
+                full = true,
+                protocolV2 = true,
+                libraryEntries = true,
+                historyEntries = false,
+            ),
+        )
+    }
+
+    @Test
+    fun `library sync disabled never prunes history`() {
+        // A disabled library uploads no manga, so the response's history sections answer for rows
+        // this device never sent.
+        assertFalse(
+            canApplySnapshotHistoryPrune(
+                full = true,
+                protocolV2 = true,
+                libraryEntries = false,
+                historyEntries = true,
+            ),
+        )
     }
 }

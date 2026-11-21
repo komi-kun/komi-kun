@@ -47,21 +47,28 @@ internal fun mangaIdsMissingFromFullSnapshot(
 /**
  * Whether a response's history sections may be read as complete, so an entry missing from a manga's
  * list was removed elsewhere. Only a full v2 response can say that: a delta omits the entries that
- * did not change. History sync must be on, or this device never uploaded the rows the server's list
- * would be compared against.
+ * did not change.
+ *
+ * Both sections that feed the comparison have to be enabled. History sync must be on, or this device
+ * never uploaded the rows the server's list would be compared against; library sync must be on too,
+ * because a disabled library uploads no manga at all, so the response's history sections answer for
+ * rows this device never sent.
  */
 internal fun canApplySnapshotHistoryPrune(
     full: Boolean,
     protocolV2: Boolean,
+    libraryEntries: Boolean,
     historyEntries: Boolean,
-): Boolean = full && protocolV2 && historyEntries
+): Boolean = full && protocolV2 && libraryEntries && historyEntries
 
 /**
  * Local history rows of [remoteManga] that the full snapshot no longer lists.
  *
  * Only a manga the response carries is considered: its absence from the response as a whole says
- * nothing about history, and the manga absence check owns that case. An entry of such a manga whose
- * chapter url is missing from its history list was removed by another device.
+ * nothing about history, and the manga absence check owns that case. Only a manga this run uploaded
+ * counts as well: a manga read without being added to the library is never uploaded, so the server's
+ * list for it is not a statement about the local reads either. An entry of such a manga whose chapter
+ * url is missing from its history list was removed by another device.
  *
  * A row read at or after [syncStart] (epoch seconds) survives: it was read during this sync, may be
  * missing from the upload the server answered, and is therefore not a deletion. Rows without a read
@@ -70,20 +77,26 @@ internal fun canApplySnapshotHistoryPrune(
 internal suspend fun historyIdsMissingFromFullSnapshot(
     full: Boolean,
     protocolV2: Boolean,
+    libraryEntries: Boolean,
     historySyncEnabled: Boolean,
     syncStart: Long,
     remoteManga: List<BackupManga>,
+    uploadedManga: List<BackupManga>,
     syncRepository: SyncRepository,
     chapterRepository: ChapterRepository,
     historyRepository: HistoryRepository,
 ): List<Long> {
-    if (!canApplySnapshotHistoryPrune(full, protocolV2, historySyncEnabled)) return emptyList()
+    if (!canApplySnapshotHistoryPrune(full, protocolV2, libraryEntries, historySyncEnabled)) return emptyList()
     if (remoteManga.isEmpty()) return emptyList()
     val remoteUrlsByKey = remoteManga.associate { (it.source to it.url) to it.history.mapTo(mutableSetOf()) { h -> h.url } }
+    val uploadedKeys = uploadedManga.mapTo(HashSet()) { it.source to it.url }
     // `read_at` is stored in epoch millis, the sync epoch in seconds.
     val syncStartMillis = syncStart * 1000
 
-    val localManga = syncRepository.getAllManga().filter { (it.source to it.url) in remoteUrlsByKey }
+    val localManga = syncRepository.getAllManga().filter { manga ->
+        val key = manga.source to manga.url
+        key in remoteUrlsByKey && key in uploadedKeys
+    }
     if (localManga.isEmpty()) return emptyList()
 
     val mangaIds = localManga.map { it.id }

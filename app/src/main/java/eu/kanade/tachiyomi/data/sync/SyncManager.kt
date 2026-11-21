@@ -412,13 +412,19 @@ class SyncManager(
         // A full v2 response lists every live history entry of each manga it carries, so an entry
         // missing from that list was removed on a peer. The push in this mode is a full upload, so
         // the server holds every local row the comparison may delete. Gated and applied like the
-        // manga deletions: a delta, a disabled history section or a failed restore prunes nothing.
+        // manga deletions: a delta, a disabled library or history section, a manga this run never
+        // uploaded, or a failed restore prunes nothing.
         val historyIdsToPrune = historyIdsMissingFromFullSnapshot(
             full = full,
             protocolV2 = result.protocolV2,
+            libraryEntries = syncOptions.libraryEntries,
             historySyncEnabled = syncOptions.history,
             syncStart = syncStart,
             remoteManga = remoteBackup.backupManga,
+            // The upload built before the round trip. Only a manga it carried has a history section
+            // on the server that this device is answering for; a manga read without being added to
+            // the library is never uploaded, so its local reads cannot be judged by that list.
+            uploadedManga = backup.backupManga,
             syncRepository = syncRepository,
             chapterRepository = chapterRepository,
             historyRepository = historyRepository,
@@ -564,11 +570,26 @@ class SyncManager(
             backupExtensionStores = remoteBackup.backupExtensionStores,
 
             // SY -->
-            backupSavedSearches = remoteBackup.backupSavedSearches,
+            // KUN -->
+            // A saved search this run tombstoned is already deleted locally, so the payload the
+            // restore applies must not name it again (the restorer would insert it back).
+            backupSavedSearches = withoutTombstonedSavedSearches(
+                remoteBackup.backupSavedSearches,
+                tombstones.savedSearches,
+            ),
+            // KUN <--
             // SY <--
 
             // KMK -->
-            backupFeeds = remoteBackup.backupFeeds,
+            // KUN -->
+            // A feed that still names a tombstoned saved search would have the restorer recreate
+            // both: the server keeps feeds in its opaque `extra` blob, which a `saved_search`
+            // tombstone does not rewrite.
+            backupFeeds = withoutFeedsOfTombstonedSavedSearches(
+                remoteBackup.backupFeeds,
+                tombstones.savedSearches,
+            ),
+            // KUN <--
             // KMK <--
         )
 
