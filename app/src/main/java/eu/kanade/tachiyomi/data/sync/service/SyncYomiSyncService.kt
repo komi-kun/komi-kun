@@ -489,9 +489,13 @@ class SyncYomiSyncService(
 
     // KUN -->
     /**
-     * Reports the chapters a source dropped and the manga deleted locally to the v2 deletions
-     * endpoint before the merge, so the server tombstones them. Keys are cleared only on a 2xx, so
-     * an older server without the route (404) loses nothing and they go out once it is upgraded.
+     * Reports the chapter and history entries a source or the user dropped, and the manga deleted
+     * locally, to the v2 deletions endpoint before the merge, so the server tombstones them.
+     *
+     * Keys are cleared only on a 2xx, so an older server without the route (404) loses nothing and
+     * they go out once it is upgraded. Chapter keys are also honoured by the legacy request shape;
+     * manga and history keys are only cleared once the response reports `applied`, because a server
+     * that predates the `items` shape ignores them while still answering 200.
      */
     // KUN <--
     // SY -->
@@ -508,7 +512,7 @@ class SyncYomiSyncService(
         // KUN <--
         val chapters = syncPreferences.pendingDeletedChapterKeys.get()
         // KUN -->
-        val mangas = if (syncPreferences.getSyncSettings().libraryEntries) {
+        val mangas = if (syncSettings.libraryEntries) {
             syncPreferences.pendingDeletedMangaKeys.get()
         } else {
             emptySet()
@@ -539,6 +543,8 @@ class SyncYomiSyncService(
             logcat(LogPriority.WARN) { "SyncYomi v2 deletions not sent: ${e.message}" }
             return
         }
+        // KUN -->
+        // The body is read, not just the status: a server that ignores `items` still answers 200.
         val responseBody = response.use { resp ->
             if (!resp.isSuccessful) {
                 logcat(LogPriority.WARN) { "SyncYomi v2 deletions not applied: ${resp.code}" }
@@ -546,7 +552,6 @@ class SyncYomiSyncService(
             }
             resp.body.string()
         }
-        // KUN -->
         // Only the keys actually sent: one recorded while the request was in flight stays pending
         // for the next run. A pre-#335 server answers 200 and ignores `items`, so the kinds that
         // have no legacy shape are only cleared when the response says it applied them.
