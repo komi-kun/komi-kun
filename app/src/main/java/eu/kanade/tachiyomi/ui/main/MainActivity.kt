@@ -931,6 +931,10 @@ class MainActivity : BaseActivity() {
                 navigator.popUntilRoot()
                 HomeScreen.Tab.More(toDownloads = false, toLibraryUpdateErrors = true)
             }
+            Constants.SHORTCUT_MANGADEX_SETTINGS -> {
+                navigator.popUntilRoot()
+                HomeScreen.Tab.More(toDownloads = false, toMangadexSettings = true)
+            }
             // KMK <--
             Intent.ACTION_APPLICATION_PREFERENCES -> {
                 navigator.popUntilRoot()
