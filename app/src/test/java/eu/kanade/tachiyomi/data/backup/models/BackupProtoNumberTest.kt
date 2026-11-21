@@ -29,6 +29,15 @@ class BackupProtoNumberTest {
     }
 
     @Test
+    fun `the SyncYomi tombstone list stays at the server's field number`() {
+        // Wire compatibility with the SyncYomi server, which writes the v2 delta's explicit
+        // tombstones at this root-envelope tag; renumbering it would lose every deletion.
+        val numbers = protoNumbers(Backup.serializer().descriptor).toMap()
+
+        assertEquals(11000, numbers["deletions"])
+    }
+
+    @Test
     fun `every backup field number is unique and is the fork block or a documented upstream number`() {
         val descriptors = backupSerializers()
 
@@ -51,14 +60,17 @@ class BackupProtoNumberTest {
             )
 
             val nonFork = numbers.filter { (_, number) -> number !in FORK_BLOCK }
-            val unknown = nonFork.filter { (_, number) -> number !in UPSTREAM_NUMBERS }
+            val unknown = nonFork.filter { (_, number) ->
+                number !in UPSTREAM_NUMBERS && number !in SYNCYOMI_RESERVED
+            }
             assertEquals(
                 emptyList<Pair<String, Int>>(),
                 unknown,
                 "${descriptor.serialName} has a field number outside the fork block $FORK_BLOCK " +
-                    "that is not an upstream allocation $UPSTREAM_NUMBERS",
+                    "that is neither an upstream allocation $UPSTREAM_NUMBERS nor in SyncYomi's " +
+                    "reserved band $SYNCYOMI_RESERVED",
             )
-            upstreamNumbersInUse += nonFork.map { it.second }
+            upstreamNumbersInUse += nonFork.map { it.second }.filter { it in UPSTREAM_NUMBERS }
         }
 
         // Both directions: a new low number fails above, and dropping or renumbering an upstream
@@ -153,6 +165,19 @@ class BackupProtoNumberTest {
         val UPSTREAM_NUMBERS: Set<Int> =
             ((1..18).toSet() + (100..113) + (600..603) + setOf(610, 800, 801, 802, 804, 805, 900)) -
                 RETIRED_UPSTREAM_NUMBERS
+
+        /**
+         * `11000-11099` belongs to SyncYomi, not to komi-kun: `Backup.deletions` is the root-envelope
+         * field 11000 where a v2 delta lists its explicit tombstones, and the rest of the band is
+         * SyncYomi's to allocate. It sits outside [FORK_BLOCK] on purpose, so this stays an exception
+         * to komi-kun's `10000-10999` reservation rather than an extension of it: a komi-kun field
+         * still may not take a number in this band, and no komi-kun allocation moves or is reused.
+         *
+         * These numbers are matched separately rather than added to [UPSTREAM_NUMBERS], because the
+         * exact-equality assertion below is about upstream's allocations being kept, and a
+         * SyncYomi-owned field is not one.
+         */
+        val SYNCYOMI_RESERVED = 11000..11099
     }
 }
 // KUN <--
