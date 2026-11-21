@@ -2,7 +2,9 @@
 package eu.kanade.tachiyomi.data.backup.restore.restorers
 
 import android.content.Context
+import eu.kanade.domain.connections.service.ConnectionsPreferences
 import eu.kanade.domain.source.service.SourcePreferences
+import eu.kanade.tachiyomi.data.backup.models.BackupCategory
 import eu.kanade.tachiyomi.data.backup.models.BackupPreference
 import eu.kanade.tachiyomi.data.backup.models.BooleanPreferenceValue
 import eu.kanade.tachiyomi.data.backup.models.StringPreferenceValue
@@ -10,6 +12,7 @@ import eu.kanade.tachiyomi.data.backup.models.StringSetPreferenceValue
 import eu.kanade.tachiyomi.data.backup.restore.RestoreOptions
 import exh.source.EXH_OLD_ID
 import exh.source.EXH_SOURCE_ID
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -25,16 +28,43 @@ import tachiyomi.core.common.preference.InMemoryPreferenceStore
 import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.domain.category.interactor.GetCategories
+import tachiyomi.domain.category.model.Category
+import tachiyomi.domain.category.service.CategoryIdPreferences
+import tachiyomi.domain.download.service.DownloadPreferences
 import tachiyomi.domain.history.service.HistoryPreferences
+import tachiyomi.domain.library.service.LibraryPreferences
+import tachiyomi.domain.upcoming.service.UpcomingPreferences
+import tachiyomi.domain.updates.service.UpdatesPreferences
 
 class PreferenceRestorerTest {
 
     private val pinnedKey = SourcePreferences.PINNED_SOURCES_PREF_KEY
 
-    private fun restorer(store: PreferenceStore): PreferenceRestorer {
+    /**
+     * The real category-id inventory, built over a clean in-memory store of its own: the tests below
+     * hand the restorer a specialised store that fails on any unexpected access, and the inventory
+     * only contributes its keys.
+     */
+    private fun categoryIdPreferences(): CategoryIdPreferences {
+        val store = InMemoryPreferenceStore()
+        return CategoryIdPreferences(
+            libraryPreferences = LibraryPreferences(store),
+            downloadPreferences = DownloadPreferences(store),
+            historyPreferences = HistoryPreferences(store),
+            updatesPreferences = UpdatesPreferences(store),
+            upcomingPreferences = UpcomingPreferences(store),
+            connectionsPreferences = ConnectionsPreferences(store),
+        )
+    }
+
+    private fun restorer(
+        store: PreferenceStore,
+        getCategories: GetCategories = mockk<GetCategories>(),
+    ): PreferenceRestorer {
         return PreferenceRestorer(
             context = mockk<Context>(relaxed = true),
-            getCategories = mockk<GetCategories>(),
+            getCategories = getCategories,
+            categoryIdPreferences = categoryIdPreferences(),
             preferenceStore = store,
         )
     }
@@ -248,6 +278,7 @@ class PreferenceRestorerTest {
         PreferenceRestorer(
             context = mockk<Context>(relaxed = true),
             getCategories = mockk<GetCategories>(),
+            categoryIdPreferences = categoryIdPreferences(),
             preferenceStore = store,
         ).restorePreferences(
             listOf(BackupPreference(key, StringPreferenceValue("remote"))),
@@ -259,6 +290,99 @@ class PreferenceRestorerTest {
 
         assertEquals("remote", store.getString(key, "").get())
     }
+
+    // region category ids
+
+    /** The live categories of "this device": "Reading" is id 3 here and "Watching" id 4. */
+    private fun liveCategories() = listOf(
+        Category(id = 3L, name = "Reading", order = 0L, flags = 0L, hidden = false),
+        Category(id = 4L, name = "Watching", order = 1L, flags = 0L, hidden = false),
+    )
+
+    /** The categories of the device the backup came from: ids 10, 11 and 12, one absent here. */
+    private fun backedUpCategories() = listOf(
+        BackupCategory(name = "Reading", order = 0, id = 10, uid = 1),
+        BackupCategory(name = "Gone here", order = 1, id = 11, uid = 2),
+        BackupCategory(name = "Watching", order = 2, id = 12, uid = 3),
+    )
+
+    private fun getCategories(categories: List<Category>): GetCategories {
+        val getCategories = mockk<GetCategories>()
+        coEvery { getCategories.await() } returns categories
+        return getCategories
+    }
+
+    @Test
+    fun `a restored Updates category filter is remapped by category name`() = runTest {
+        // `getLongArray` stores the list as a comma-joined string of ids, so the payload carries
+        // "10,11,12": 10 is "Reading" (id 3 here), 12 is "Watching" (id 4 here), 11 names a category
+        // this device does not have.
+        val key = UpdatesPreferences(InMemoryPreferenceStore()).filterIncludedCategories.key()
+        val store = StringPreferenceStore(key to "5")
+
+        restorer(store, getCategories(liveCategories())).restorePreferences(
+            listOf(BackupPreference(key, StringPreferenceValue("10,11,12"))),
+            store,
+            backupCategories = backedUpCategories(),
+            options = RestoreOptions(),
+            isAppPreferences = true,
+        )
+
+        assertEquals("3,4", store.getString(key, "").get())
+    }
+
+    @Test
+    fun `a restored Upcoming category filter keeps the order of the surviving ids`() = runTest {
+        val key = UpcomingPreferences(InMemoryPreferenceStore()).filterExcludedCategories.key()
+        val store = StringPreferenceStore(key to "5")
+
+        restorer(store, getCategories(liveCategories())).restorePreferences(
+            listOf(BackupPreference(key, StringPreferenceValue("12,11,10"))),
+            store,
+            backupCategories = backedUpCategories(),
+            options = RestoreOptions(),
+            isAppPreferences = true,
+        )
+
+        // The list is the user's order, not a set: "Watching" (4) stays ahead of "Reading" (3).
+        assertEquals("4,3", store.getString(key, "").get())
+    }
+
+    @Test
+    fun `the Discord incognito set is remapped by category name`() = runTest {
+        val key = ConnectionsPreferences(InMemoryPreferenceStore()).discordRPCIncognitoCategories.key()
+        val store = StringSetPreferenceStore(key to setOf("5"))
+
+        restorer(store, getCategories(liveCategories())).restorePreferences(
+            listOf(BackupPreference(key, StringSetPreferenceValue(setOf("10", "11", "12")))),
+            store,
+            backupCategories = backedUpCategories(),
+            options = RestoreOptions(),
+            isAppPreferences = true,
+        )
+
+        assertEquals(setOf("3", "4"), store.getStringSet(key).get())
+    }
+
+    @Test
+    fun `a category filter naming no live category leaves the local filter alone`() = runTest {
+        // Every backed-up id names a category this device does not have: writing an empty list would
+        // silently clear a filter the backup never described.
+        val key = UpdatesPreferences(InMemoryPreferenceStore()).filterExcludedCategories.key()
+        val store = StringPreferenceStore(key to "5")
+
+        restorer(store, getCategories(liveCategories())).restorePreferences(
+            listOf(BackupPreference(key, StringPreferenceValue("11,99"))),
+            store,
+            backupCategories = backedUpCategories(),
+            options = RestoreOptions(),
+            isAppPreferences = true,
+        )
+
+        assertEquals("5", store.getString(key, "").get())
+    }
+
+    // endregion
 }
 
 /**
