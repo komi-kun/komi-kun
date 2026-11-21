@@ -539,18 +539,28 @@ class SyncYomiSyncService(
             logcat(LogPriority.WARN) { "SyncYomi v2 deletions not sent: ${e.message}" }
             return
         }
-        response.use { resp ->
+        val responseBody = response.use { resp ->
             if (!resp.isSuccessful) {
                 logcat(LogPriority.WARN) { "SyncYomi v2 deletions not applied: ${resp.code}" }
                 return
             }
+            resp.body.string()
         }
-        syncPreferences.forgetDeletedChapters(chapters)
         // KUN -->
-        // Only the keys actually sent: one recorded while the request was in flight stays
-        // pending for the next run.
-        if (mangas.isNotEmpty()) syncPreferences.forgetDeletedManga(mangas)
-        if (histories.isNotEmpty()) syncPreferences.forgetDeletedHistory(histories)
+        // Only the keys actually sent: one recorded while the request was in flight stays pending
+        // for the next run. A pre-#335 server answers 200 and ignores `items`, so the kinds that
+        // have no legacy shape are only cleared when the response says it applied them.
+        val acknowledged = acknowledgedDeletions(responseBody, chapters, mangas, histories)
+        syncPreferences.forgetDeletedChapters(acknowledged.chapters)
+        if (acknowledged.mangas.isNotEmpty()) syncPreferences.forgetDeletedManga(acknowledged.mangas)
+        if (acknowledged.histories.isNotEmpty()) syncPreferences.forgetDeletedHistory(acknowledged.histories)
+        val keptPending = (mangas.isNotEmpty() && acknowledged.mangas.isEmpty()) ||
+            (histories.isNotEmpty() && acknowledged.histories.isEmpty())
+        if (keptPending) {
+            logcat(LogPriority.DEBUG) {
+                "SyncYomi v2 deletions: manga and history keys stay pending, the server did not report `applied`"
+            }
+        }
         // KUN <--
         logcat(LogPriority.DEBUG) {
             "SyncYomi v2 deletions applied: ${chapters.size} chapters, ${histories.size} history, " +
@@ -590,4 +600,53 @@ internal fun deletionItems(
     chapters.map { DeletionItem("chapter", it) } +
         histories.map { DeletionItem("history", it) } +
         mangas.map { DeletionItem("manga", it) }
+
+/**
+ * The body of a 2xx `POST /api/sync/v2/deletions`. `applied` counts the entries the server actually
+ * changed and only exists on a server that reads the `items` shape; an older one answers
+ * `{"acknowledged":n}` after processing the legacy `deletedChapters` list alone.
+ */
+@Serializable
+internal data class DeletionResponse(
+    val acknowledged: Long = 0,
+    val applied: Long? = null,
+)
+
+private val deletionResponseJson = Json { ignoreUnknownKeys = true }
+
+/** Whether the response confirms that every kind in the request was processed. */
+internal fun deletionResponseAppliesEveryKind(body: String): Boolean {
+    if (body.isBlank()) return false
+    return try {
+        deletionResponseJson.decodeFromString(DeletionResponse.serializer(), body).applied != null
+    } catch (_: IllegalArgumentException) {
+        // not JSON, or not the shape above: an older server, so no confirmation
+        false
+    }
+}
+
+/** The pending keys a 2xx deletions response lets this device forget. */
+internal data class AcknowledgedDeletions(
+    val chapters: Collection<String>,
+    val mangas: Collection<String>,
+    val histories: Collection<String>,
+)
+
+/**
+ * Splits the keys a deletions request carried into the ones the response acknowledged.
+ *
+ * Chapter keys are safe to clear on any server: the legacy `deletedChapters` shape is still honoured,
+ * so even a server that ignores `items` applied them. Manga and history keys have no legacy shape,
+ * so a 2xx without `applied` leaves them pending for a server that has been upgraded.
+ */
+internal fun acknowledgedDeletions(
+    responseBody: String,
+    chapters: Collection<String>,
+    mangas: Collection<String>,
+    histories: Collection<String>,
+): AcknowledgedDeletions = if (deletionResponseAppliesEveryKind(responseBody)) {
+    AcknowledgedDeletions(chapters, mangas, histories)
+} else {
+    AcknowledgedDeletions(chapters, emptySet(), emptySet())
+}
 // KUN <--
