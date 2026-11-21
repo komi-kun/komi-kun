@@ -12,6 +12,11 @@ interface MangaRepository {
 
     suspend fun getMangaById(id: Long): Manga
 
+    // KUN -->
+    /** [getMangaById] for a row that may already be gone: null instead of throwing. */
+    suspend fun getMangaByIdOrNull(id: Long): Manga?
+    // KUN <--
+
     fun getMangaByIdAsFlow(id: Long): Flow<Manga>
 
     suspend fun getMangaByUrlAndSourceId(url: String, sourceId: Long): Manga?
@@ -39,6 +44,15 @@ interface MangaRepository {
     suspend fun resetViewerFlags(): Boolean
 
     suspend fun deleteNonLibraryManga(sourceIds: List<Long>, keepReadManga: Boolean)
+
+    // KUN -->
+    /**
+     * Deletes the rows [deleteNonLibraryManga] would remove for the same arguments and returns their
+     * `(source_id, remote_url)` keys in one statement, so the tombstones cannot disagree with what
+     * the delete actually removed.
+     */
+    suspend fun deleteNonLibraryMangaReturningKeys(sourceIds: List<Long>, keepReadManga: Boolean): List<Pair<Long, String>>
+    // KUN <--
 
     suspend fun setMangaCategories(mangaId: Long, categoryIds: List<Long>)
 
