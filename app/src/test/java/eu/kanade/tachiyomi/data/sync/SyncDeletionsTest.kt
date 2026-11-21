@@ -233,6 +233,9 @@ class SyncDeletionsTest {
             // clearing 2007 instead of 1007 is the mistake a chapter/history id mix-up makes
             fixture.readAtOf(historyId = 1007L) shouldBe null
             fixture.readAtOf(historyId = 2007L) shouldBe 3000L
+            // a peer's tombstone is already applied there, so it must not be queued back as one of
+            // ours: that would keep re-sending a removal the server made
+            fixture.pendingDeletionOf(historyId = 1007L) shouldBe 0L
             // a history tombstone removes no chapter and no manga
             fixture.chapterIds() shouldBe listOf(107L, 207L)
             fixture.mangaIds() shouldBe listOf(7L)
@@ -960,6 +963,9 @@ class SyncDeletionsTest {
 
         fun readAtOf(historyId: Long): Long? =
             nullableLongs("SELECT read_at FROM history WHERE id = $historyId").firstOrNull()
+
+        fun pendingDeletionOf(historyId: Long): Long? =
+            nullableLongs("SELECT pending_deletion FROM history WHERE id = $historyId").firstOrNull()
 
         private fun longs(sql: String): List<Long> = nullableLongs(sql).filterNotNull()
 

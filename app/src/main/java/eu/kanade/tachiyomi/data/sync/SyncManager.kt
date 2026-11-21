@@ -162,6 +162,9 @@ class SyncManager(
                     json,
                     syncPreferences,
                     notifier,
+                    // KUN -->
+                    historyRepository = historyRepository,
+                    // KUN <--
                 )
             }
 

@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import tachiyomi.domain.history.repository.PendingHistoryDeletion
 
 /**
  * The SyncYomi v2 deletions body. The server reads top-level `items` with a `kind` and a `key`, so
@@ -164,6 +165,48 @@ class DeletionRequestTest {
         assertEquals(listOf("c1"), acknowledged.chapters.toList())
         assertEquals(emptyList<String>(), acknowledged.mangas.toList())
         assertEquals(emptyList<String>(), acknowledged.histories.toList())
+    }
+
+    @Test
+    fun `history tombstone keys are built from the urls the queue row carries`() {
+        // The sync reads these rows from the database, so the key has to come from the joined
+        // source, manga url and chapter url — a swapped manga/chapter url names another entry.
+        val rows = listOf(
+            PendingHistoryDeletion(historyId = 101L, sourceId = 7L, mangaUrl = "/m", chapterUrl = "/m/ch1"),
+            PendingHistoryDeletion(historyId = 102L, sourceId = 8L, mangaUrl = "/n", chapterUrl = "/n/ch9"),
+        )
+
+        assertEquals(
+            listOf("7|/m\u001f/m/ch1", "8|/n\u001f/n/ch9"),
+            historyDeletionKeys(rows),
+        )
+    }
+
+    @Test
+    fun `a page of queued history rows becomes history items only`() {
+        // A "clear all" is sent in pages, so the body of every page after the first carries history
+        // items and no legacy chapter key: a history key in that list would tombstone the chapter.
+        val rows = (1..HISTORY_DELETION_BATCH).map { index ->
+            PendingHistoryDeletion(
+                historyId = index.toLong(),
+                sourceId = 1L,
+                mangaUrl = "/m",
+                chapterUrl = "/m/ch$index",
+            )
+        }
+
+        val body = json.encodeToString(
+            DeletionRequest.serializer(),
+            DeletionRequest(items = deletionItems(emptyList(), emptyList(), historyDeletionKeys(rows))),
+        )
+
+        val root = Json.parseToJsonElement(body).jsonObject
+        val items = root.getValue("items").jsonArray.map {
+            it.jsonObject.getValue("kind").jsonPrimitive.content
+        }
+        assertEquals(HISTORY_DELETION_BATCH, items.size)
+        assertEquals(setOf("history"), items.toSet())
+        assertEquals(0, root.getValue("deletedChapters").jsonArray.size)
     }
     // KUN <--
 }
