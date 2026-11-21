@@ -547,6 +547,51 @@ class SyncDeletionsTest {
 
     // endregion
 
+    // region full-snapshot category pruning
+
+    @Test
+    fun `a full v2 snapshot deletes the category it omits and keeps the one it lists`(): Unit = runBlocking {
+        val fixture = Fixture()
+        try {
+            fixture.insertCategory(id = 3L, name = "Reading", order = 0L, uid = 12L)
+            fixture.insertCategory(id = 4L, name = "Kept", order = 1L, uid = 13L)
+            // the History/Library filters store local ids: an id that no longer exists must go too
+            fixture.libraryPreferences.filterCategoriesInclude.set(setOf("3", "4"))
+
+            val uploaded = listOf(
+                BackupCategory(name = "Reading", order = 0, id = 3, uid = 12),
+                BackupCategory(name = "Kept", order = 1, id = 4, uid = 13),
+            )
+            val snapshot = listOf(BackupCategory(name = "Kept", order = 1, id = 4, uid = 13))
+
+            fixture.pruneCategories(snapshot, uploaded) shouldBe listOf(3L)
+            fixture.categoryIds() shouldBe listOf(0L, 4L)
+            fixture.libraryPreferences.filterCategoriesInclude.get() shouldBe setOf("4")
+        } finally {
+            fixture.close()
+        }
+    }
+
+    @Test
+    fun `a category created after the upload survives a full v2 snapshot`(): Unit = runBlocking {
+        val fixture = Fixture()
+        try {
+            fixture.insertCategory(id = 3L, name = "Reading", order = 0L, uid = 12L)
+            fixture.insertCategory(id = 5L, name = "Created mid-sync", order = 1L, uid = 15L)
+
+            // only "Reading" was uploaded, so the snapshot's silence about the other one is a race
+            val uploaded = listOf(BackupCategory(name = "Reading", order = 0, id = 3, uid = 12))
+            val snapshot = listOf(BackupCategory(name = "Reading", order = 0, id = 3, uid = 12))
+
+            fixture.pruneCategories(snapshot, uploaded).shouldBeEmpty()
+            fixture.categoryIds() shouldBe listOf(0L, 3L, 5L)
+        } finally {
+            fixture.close()
+        }
+    }
+
+    // endregion
+
     // region the early return
 
     @Test
@@ -636,6 +681,20 @@ class SyncDeletionsTest {
             chapterRepository = chapterRepository,
             historyRepository = historyRepository,
         )
+
+        /** The categories a full v2 snapshot would delete, through the prune the sync runs. */
+        suspend fun pruneCategories(
+            snapshot: List<BackupCategory>,
+            uploaded: List<BackupCategory>,
+            requireUploaded: Boolean = true,
+        ): List<Long> = pruneCategoriesMissingFromSnapshot(
+            localCategories = categoryRepository.getAll(),
+            snapshot = snapshot,
+            uploaded = uploaded,
+            requireUploaded = requireUploaded,
+            categoryRepository = categoryRepository,
+            pruneCategoryReferences = pruneCategoryReferences,
+        ).map { it.id }
 
         suspend fun apply(
             plan: DeletionPlan,

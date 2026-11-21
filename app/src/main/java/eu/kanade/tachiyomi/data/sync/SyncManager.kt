@@ -516,18 +516,26 @@ class SyncManager(
         // SY <--
 
         // KUN -->
-        val mergedBackupCategories = mergeSyncCategories(
-            // The upload snapshot was taken before the tombstones above ran, so a category this run
-            // deleted is still in it. Drop it, or the merge hands it to the restore and the restore
-            // re-inserts the row the tombstone just removed.
-            local = if (syncOptions.categories) {
-                withoutTombstonedCategories(backup.backupCategories, tombstones.categories)
-            } else {
-                backup.backupCategories
-            },
-            remote = remoteBackup.backupCategories,
-            protocolV2 = result.protocolV2,
-        )
+        // A full v2 response lists every live category, so the server's copy replaces the local
+        // union: a local category missing from it was deleted on a peer, and the restore must not
+        // re-insert the row the prune below removes. A delta only carries the categories that
+        // changed, so it keeps the union. An empty list fails closed, like the v1 fallback.
+        val mergedBackupCategories = if (full && result.protocolV2 && syncOptions.categories) {
+            remoteBackup.backupCategories.ifEmpty { backup.backupCategories }
+        } else {
+            mergeSyncCategories(
+                // The upload snapshot was taken before the tombstones above ran, so a category this
+                // run deleted is still in it. Drop it, or the merge hands it to the restore and the
+                // restore re-inserts the row the tombstone just removed.
+                local = if (syncOptions.categories) {
+                    withoutTombstonedCategories(backup.backupCategories, tombstones.categories)
+                } else {
+                    backup.backupCategories
+                },
+                remote = remoteBackup.backupCategories,
+                protocolV2 = result.protocolV2,
+            )
+        }
         // KUN <--
 
         val newSyncData = backup.copy(
@@ -628,23 +636,27 @@ class SyncManager(
 
         // SY -->
         // KUN -->
-        // Only prune categories when not on protocol v2 (v2 uses tombstones) and the category list is non-empty.
-        if (!result.protocolV2 && syncOptions.categories && newSyncData.backupCategories.isNotEmpty()) {
-            val mergedUids = newSyncData.backupCategories.map { it.uid }.toSet()
-            val mergedNames = newSyncData.backupCategories.map { it.name }.toSet()
-            val localCategories = getCategories.await().filterNot { it.id == 0L } // Exclude system category
-            val categoriesToDelete = localCategories.filter {
-                it.uid !in mergedUids && it.name !in mergedNames
-            }
-            if (categoriesToDelete.isNotEmpty()) {
-                categoryRepository.delete(categoriesToDelete.map { it.id })
-                // KUN -->
-                // These rows were deleted without going through DeleteCategory, so the category ids
-                // must be pruned from the library, download and history filters here too.
-                pruneCategoryReferences.prune(categoriesToDelete.map { it.id })
-                // KUN <--
-                categoriesToDelete.forEach { syncPreferences.rememberDeletedCategory(it.uid) }
-            }
+        // A full v2 snapshot lists every live category, so absence there means a peer deleted it; a
+        // v2 delta only carries the categories that changed, so it can never prune. An empty list
+        // fails closed either way: "the server has no categories" must not wipe the local ones.
+        if (
+            (full || !result.protocolV2) &&
+            syncOptions.categories &&
+            newSyncData.backupCategories.isNotEmpty()
+        ) {
+            val deletedCategories = pruneCategoriesMissingFromSnapshot(
+                localCategories = getCategories.await(),
+                snapshot = newSyncData.backupCategories,
+                uploaded = backup.backupCategories,
+                // Only a full v2 response is a complete list, and only a category this run uploaded
+                // can have been deleted by the server: one created after the upload was built was
+                // never sent, so its absence is a race between the upload and this read.
+                requireUploaded = result.protocolV2 && full,
+                categoryRepository = categoryRepository,
+                pruneCategoryReferences = pruneCategoryReferences,
+            )
+            // remembered for the next v2 request, which tombstones them on the server
+            deletedCategories.forEach { syncPreferences.rememberDeletedCategory(it.uid) }
         }
         // KUN <--
         // SY <--

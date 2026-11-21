@@ -5,6 +5,7 @@ import eu.kanade.tachiyomi.data.backup.models.BackupDeletedItem
 import logcat.LogPriority
 import logcat.logcat
 import tachiyomi.domain.category.interactor.PruneCategoryReferences
+import tachiyomi.domain.category.model.Category
 import tachiyomi.domain.category.repository.CategoryRepository
 import tachiyomi.domain.chapter.model.Chapter
 import tachiyomi.domain.chapter.repository.ChapterRepository
@@ -305,6 +306,36 @@ internal fun withoutTombstonedCategories(
             }
         }
     }
+}
+
+/**
+ * Deletes the local categories a category list no longer names (see [categoriesMissingFromSnapshot])
+ * and returns them, so the caller can remember the uids as tombstones.
+ *
+ * The rows are deleted without going through `DeleteCategory`, so the stale ids leave the library,
+ * download and History filters too, or a filter keeps matching a category that no longer exists.
+ */
+internal suspend fun pruneCategoriesMissingFromSnapshot(
+    localCategories: List<Category>,
+    snapshot: List<BackupCategory>,
+    uploaded: List<BackupCategory>,
+    requireUploaded: Boolean,
+    categoryRepository: CategoryRepository,
+    pruneCategoryReferences: PruneCategoryReferences,
+): List<Category> {
+    // the seeded system category is never a deletion target
+    val deleted = categoriesMissingFromSnapshot(
+        local = localCategories.filterNot { it.id == 0L },
+        snapshot = snapshot,
+        uploaded = uploaded,
+        requireUploaded = requireUploaded,
+    )
+    if (deleted.isEmpty()) return emptyList()
+    logcat(LOG_TAG, LogPriority.DEBUG) { "Deleting ${deleted.size} categories absent from the server's list" }
+    val ids = deleted.map { it.id }
+    categoryRepository.delete(ids)
+    pruneCategoryReferences.prune(ids)
+    return deleted
 }
 
 /**

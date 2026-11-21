@@ -6,6 +6,7 @@ import eu.kanade.tachiyomi.data.backup.models.BackupCategory
 import eu.kanade.tachiyomi.data.backup.models.BackupChapter
 import eu.kanade.tachiyomi.data.backup.models.BackupExtensionStore
 import eu.kanade.tachiyomi.data.backup.models.BackupManga
+import tachiyomi.domain.category.model.Category
 import tachiyomi.domain.chapter.model.Chapter
 import tachiyomi.domain.manga.model.Manga
 
@@ -276,6 +277,32 @@ internal fun mergeSyncCategories(
         }
     } else {
         remote.ifEmpty { local }
+    }
+}
+
+/**
+ * The local categories a category list no longer names, matched by uid or by name because local ids
+ * and uids only agree by accident.
+ *
+ * [requireUploaded] is for a full v2 snapshot, the complete list of live categories: only a
+ * category this run uploaded can have been deleted by the server, so one created locally after the
+ * upload was built (never sent) stays. The v1 path compares against the remote list directly and
+ * keeps its historical behaviour.
+ */
+internal fun categoriesMissingFromSnapshot(
+    local: List<Category>,
+    snapshot: List<BackupCategory>,
+    uploaded: List<BackupCategory>,
+    requireUploaded: Boolean,
+): List<Category> {
+    val snapshotUids = snapshot.mapTo(HashSet()) { it.uid }
+    val snapshotNames = snapshot.mapTo(HashSet()) { it.name }
+    val uploadedUids = if (requireUploaded) uploaded.mapTo(HashSet()) { it.uid } else emptySet()
+    val uploadedNames = if (requireUploaded) uploaded.mapTo(HashSet()) { it.name } else emptySet()
+    return local.filter { category ->
+        category.uid !in snapshotUids &&
+            category.name !in snapshotNames &&
+            (!requireUploaded || category.uid in uploadedUids || category.name in uploadedNames)
     }
 }
 // KUN <--
