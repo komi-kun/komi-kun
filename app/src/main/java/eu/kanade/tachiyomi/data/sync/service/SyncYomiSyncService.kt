@@ -545,12 +545,21 @@ class SyncYomiSyncService(
         }
         // KUN -->
         // The body is read, not just the status: a server that ignores `items` still answers 200.
-        val responseBody = response.use { resp ->
+        // An unreadable body is not a confirmation either, so a failure here keeps every key pending
+        // for the next run instead of aborting the sync.
+        val responseBody: String? = response.use { resp ->
             if (!resp.isSuccessful) {
                 logcat(LogPriority.WARN) { "SyncYomi v2 deletions not applied: ${resp.code}" }
                 return
             }
-            resp.body.string()
+            try {
+                resp.body.string()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                logcat(LogPriority.WARN) { "SyncYomi v2 deletions response unreadable: ${e.message}" }
+                null
+            }
         }
         // Only the keys actually sent: one recorded while the request was in flight stays pending
         // for the next run. A pre-#335 server answers 200 and ignores `items`, so the kinds that
@@ -620,8 +629,8 @@ internal data class DeletionResponse(
 private val deletionResponseJson = Json { ignoreUnknownKeys = true }
 
 /** Whether the response confirms that every kind in the request was processed. */
-internal fun deletionResponseAppliesEveryKind(body: String): Boolean {
-    if (body.isBlank()) return false
+internal fun deletionResponseAppliesEveryKind(body: String?): Boolean {
+    if (body.isNullOrBlank()) return false
     return try {
         deletionResponseJson.decodeFromString(DeletionResponse.serializer(), body).applied != null
     } catch (_: IllegalArgumentException) {
@@ -645,7 +654,7 @@ internal data class AcknowledgedDeletions(
  * so a 2xx without `applied` leaves them pending for a server that has been upgraded.
  */
 internal fun acknowledgedDeletions(
-    responseBody: String,
+    responseBody: String?,
     chapters: Collection<String>,
     mangas: Collection<String>,
     histories: Collection<String>,

@@ -421,12 +421,12 @@ class SyncManager(
             historySyncEnabled = syncOptions.history,
             syncStart = syncStart,
             remoteManga = remoteBackup.backupManga,
-            // The upload built before the round trip. Only a manga it carried has a history section
-            // on the server that this device is answering for; a manga read without being added to
-            // the library is never uploaded, so its local reads cannot be judged by that list.
+            // The upload built before the round trip. Only a manga it carried, and whose copy the
+            // server kept (the old per-manga shape can discard the uploaded history section), has a
+            // history list on the server this device is answering for; a manga read without being
+            // added to the library is never uploaded, so its local reads cannot be judged either.
             uploadedManga = backup.backupManga,
             syncRepository = syncRepository,
-            chapterRepository = chapterRepository,
             historyRepository = historyRepository,
         )
         // KUN <--
@@ -837,8 +837,10 @@ class SyncManager(
     private suspend fun applySnapshotHistoryPrune(ids: List<Long>) {
         if (ids.isEmpty()) return
         historyRepository.resetHistory(ids)
+        // The reset logs its own failures and returns nothing, so this can only report what was
+        // asked for; a failure leaves the rows for the next full sync to find again.
         logcat(LogPriority.DEBUG) {
-            "Cleared ${ids.size} local history entries absent from the full server snapshot"
+            "Requested clearing ${ids.size} local history entries absent from the full server snapshot"
         }
     }
 

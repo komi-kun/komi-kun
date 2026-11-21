@@ -59,16 +59,13 @@ class SyncStateBumper(
                 .mapTo(mutableSetOf()) { it.chapterId }
         if (chapterIdsToForget.isEmpty()) return
 
-        val chaptersByMangaId = chapterRepository.getChaptersByMangaIds(ids)
-            .filter { it.id in chapterIdsToForget }
-            .groupBy { it.mangaId }
-        val keys = mutableListOf<String>()
-        ids.forEach { mangaId ->
-            val chapters = chaptersByMangaId[mangaId] ?: return@forEach
-            val manga = mangaRepository.getMangaByIdOrNull(mangaId) ?: return@forEach
-            chapters.forEach { chapter ->
-                keys += chapterTombstoneKey(manga.source, manga.url, chapter.url)
-            }
+        // One manga read for the whole selection, then one chapter read per selected entry: never
+        // every chapter of the manga, which a long series would make thousands of rows.
+        val mangaById = mangaRepository.getMangaByIds(ids).associateBy { it.id }
+        val keys = chapterIdsToForget.mapNotNull { chapterId ->
+            val chapter = chapterRepository.getChapterById(chapterId) ?: return@mapNotNull null
+            val manga = mangaById[chapter.mangaId] ?: return@mapNotNull null
+            chapterTombstoneKey(manga.source, manga.url, chapter.url)
         }
         syncPreferences.rememberDeletedHistory(keys)
     }

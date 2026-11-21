@@ -227,4 +227,53 @@ class SyncMangaDeletionsTest {
             ),
         )
     }
+
+    @Test
+    fun `an upload that lost the version merge does not let the history list be read as complete`() {
+        // Pre-1.7.3 servers merge history inside the manga payload, so a server copy that won the
+        // version comparison carries the server's history section, not ours.
+        assertFalse(
+            uploadedMangaWonMerge(
+                uploaded = backupManga(version = 8, modifiedAt = 800),
+                remote = backupManga(version = 9, modifiedAt = 900),
+            ),
+        )
+        assertFalse(
+            uploadedMangaWonMerge(
+                uploaded = backupManga(version = 9, modifiedAt = 900),
+                remote = backupManga(version = 9, modifiedAt = 901),
+            ),
+        )
+    }
+
+    @Test
+    fun `an upload that won the merge, or tied it, may prune`() {
+        assertTrue(
+            uploadedMangaWonMerge(
+                uploaded = backupManga(version = 9, modifiedAt = 800),
+                remote = backupManga(version = 8, modifiedAt = 900),
+            ),
+        )
+        // equal version and an equal timestamp is a tie the upload keeps
+        assertTrue(
+            uploadedMangaWonMerge(
+                uploaded = backupManga(version = 9, modifiedAt = 900),
+                remote = backupManga(version = 9, modifiedAt = 900),
+            ),
+        )
+        assertTrue(
+            uploadedMangaWonMerge(
+                uploaded = backupManga(version = 9, modifiedAt = 900),
+                remote = backupManga(version = 9, modifiedAt = 800),
+            ),
+        )
+    }
+
+    private fun backupManga(version: Long, modifiedAt: Long) = BackupManga(
+        source = 1L,
+        url = "/m",
+        title = "/m",
+        version = version,
+        lastModifiedAt = modifiedAt,
+    )
 }

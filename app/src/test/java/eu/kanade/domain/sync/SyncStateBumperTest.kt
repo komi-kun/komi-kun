@@ -71,14 +71,16 @@ class SyncStateBumperTest {
     @Test
     fun `a removed history selection queues the chapter key of each entry`() {
         runBlocking {
-            coEvery { mangaRepository.getMangaByIdOrNull(1L) } returns
-                Manga.create().copy(id = 1L, source = 7L, url = "/m")
-            coEvery { chapterRepository.getChaptersByMangaIds(listOf(1L)) } returns listOf(
-                Chapter.create().copy(id = 11L, mangaId = 1L, url = "/m/ch1"),
-                Chapter.create().copy(id = 12L, mangaId = 1L, url = "/m/ch2"),
-                // the third chapter still exists but its history entry was not removed
-                Chapter.create().copy(id = 13L, mangaId = 1L, url = "/m/ch3"),
+            coEvery { mangaRepository.getMangaByIds(listOf(1L)) } returns listOf(
+                Manga.create().copy(id = 1L, source = 7L, url = "/m"),
             )
+            // only the selected entries are read; a long series is never loaded whole
+            coEvery { chapterRepository.getChapterById(11L) } returns
+                Chapter.create().copy(id = 11L, mangaId = 1L, url = "/m/ch1")
+            coEvery { chapterRepository.getChapterById(12L) } returns
+                Chapter.create().copy(id = 12L, mangaId = 1L, url = "/m/ch2")
+            coEvery { chapterRepository.getChapterById(13L) } returns
+                Chapter.create().copy(id = 13L, mangaId = 1L, url = "/m/ch3")
             val prefs = syncPreferences(syncService = SYNCYOMI)
 
             bumper(syncService = SYNCYOMI, prefs = prefs).rememberHistoryRemoval(
@@ -97,8 +99,9 @@ class SyncStateBumperTest {
     @Test
     fun `removing every history entry of a manga queues the rows a SQL reset would lose`() {
         runBlocking {
-            coEvery { mangaRepository.getMangaByIdOrNull(1L) } returns
-                Manga.create().copy(id = 1L, source = 7L, url = "/m")
+            coEvery { mangaRepository.getMangaByIds(listOf(1L)) } returns listOf(
+                Manga.create().copy(id = 1L, source = 7L, url = "/m"),
+            )
             // the list the History tab showed may only carry the latest entry per manga; the reset
             // runs over every row, so the queued tombstones have to cover all of them
             coEvery { historyRepository.getHistoryByMangaIds(listOf(1L)) } returns mapOf(
@@ -107,10 +110,10 @@ class SyncStateBumperTest {
                     History.create().copy(id = 102L, chapterId = 12L),
                 ),
             )
-            coEvery { chapterRepository.getChaptersByMangaIds(listOf(1L)) } returns listOf(
-                Chapter.create().copy(id = 11L, mangaId = 1L, url = "/m/ch1"),
-                Chapter.create().copy(id = 12L, mangaId = 1L, url = "/m/ch2"),
-            )
+            coEvery { chapterRepository.getChapterById(11L) } returns
+                Chapter.create().copy(id = 11L, mangaId = 1L, url = "/m/ch1")
+            coEvery { chapterRepository.getChapterById(12L) } returns
+                Chapter.create().copy(id = 12L, mangaId = 1L, url = "/m/ch2")
             val prefs = syncPreferences(syncService = SYNCYOMI)
 
             bumper(syncService = SYNCYOMI, prefs = prefs).rememberHistoryRemoval(mangaIds = listOf(1L))
@@ -125,11 +128,11 @@ class SyncStateBumperTest {
     @Test
     fun `a history removal queues nothing while history sync is off`() {
         runBlocking {
-            coEvery { mangaRepository.getMangaByIdOrNull(1L) } returns
-                Manga.create().copy(id = 1L, source = 7L, url = "/m")
-            coEvery { chapterRepository.getChaptersByMangaIds(listOf(1L)) } returns listOf(
-                Chapter.create().copy(id = 11L, mangaId = 1L, url = "/m/ch1"),
+            coEvery { mangaRepository.getMangaByIds(listOf(1L)) } returns listOf(
+                Manga.create().copy(id = 1L, source = 7L, url = "/m"),
             )
+            coEvery { chapterRepository.getChapterById(11L) } returns
+                Chapter.create().copy(id = 11L, mangaId = 1L, url = "/m/ch1")
             val prefs = syncPreferences(syncService = SYNCYOMI, history = false)
 
             bumper(syncService = SYNCYOMI, history = false, prefs = prefs).rememberHistoryRemoval(

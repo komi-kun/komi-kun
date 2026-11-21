@@ -149,5 +149,21 @@ class DeletionRequestTest {
         assertFalse(deletionResponseAppliesEveryKind(""))
         assertFalse(deletionResponseAppliesEveryKind("<html>not json</html>"))
     }
+
+    @Test
+    fun `an unreadable body is not a confirmation`() {
+        // the caller hands null over when reading the 2xx body itself failed
+        assertFalse(deletionResponseAppliesEveryKind(null))
+
+        val acknowledged = acknowledgedDeletions(
+            null,
+            chapters = listOf("c1"),
+            mangas = listOf("1|/m"),
+            histories = listOf("1|/m\u001f/m/h"),
+        )
+        assertEquals(listOf("c1"), acknowledged.chapters.toList())
+        assertEquals(emptyList<String>(), acknowledged.mangas.toList())
+        assertEquals(emptyList<String>(), acknowledged.histories.toList())
+    }
     // KUN <--
 }

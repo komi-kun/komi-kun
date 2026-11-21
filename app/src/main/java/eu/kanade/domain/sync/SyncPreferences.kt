@@ -213,6 +213,14 @@ class SyncPreferences(
      * Remembers history entries the user removed so the next SyncYomi v2 request can tombstone
      * them. A device that does not sync history does not manage the server's history entries, so it
      * must not record history tombstones either.
+     *
+     * The set is bounded by user action and by the server: one key per removed entry (a per-manga
+     * removal of a long series queues its whole history), cleared on the success exit of the next
+     * deletions request that reports `applied` — so nothing grows unless the user keeps deleting and
+     * the server is old enough to answer without applying the keys. Against a pre-#335 server the
+     * keys stay until it is upgraded, which is the point: dropping them would lose the deletion.
+     * "Clear all history" is deliberately not queued for this reason: it would put every history
+     * entry of the whole library in this preference set at once.
      */
     fun rememberDeletedHistory(keys: Collection<String>) {
         if (keys.isEmpty() || !isSyncYomiV2() || !getSyncSettings().history) return

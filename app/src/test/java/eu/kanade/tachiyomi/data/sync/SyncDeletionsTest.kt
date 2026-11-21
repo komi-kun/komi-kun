@@ -501,6 +501,26 @@ class SyncDeletionsTest {
     }
 
     @Test
+    fun `a saved search tombstone takes the feed that referenced it`(): Unit = runBlocking {
+        val fixture = Fixture()
+        try {
+            fixture.insertSavedSearch(id = 1L, name = "Reading", sourceId = 7L)
+            fixture.insertSavedSearch(id = 2L, name = "Other", sourceId = 7L)
+            fixture.insertFeed(id = 11L, sourceId = 7L, savedSearchId = 1L)
+            fixture.insertFeed(id = 12L, sourceId = 7L, savedSearchId = 2L)
+            fixture.insertFeed(id = 13L, sourceId = 7L, savedSearchId = null)
+
+            fixture.apply(deletionPlan(listOf(item("saved_search", "Reading|7")))) shouldBe emptySet()
+
+            // a feed whose saved search is gone has nothing left to show; only the feeds of the
+            // other saved search and the plain source feed stay
+            fixture.feedIds() shouldBe listOf(12L, 13L)
+        } finally {
+            fixture.close()
+        }
+    }
+
+    @Test
     fun `a tombstoned saved search leaves the restore payload with its feed`() {
         val tombstones = deletionPlan(listOf(item("saved_search", "Reading|7"))).savedSearches
         val searches = listOf(
@@ -656,6 +676,48 @@ class SyncDeletionsTest {
             val uploaded = listOf(BackupManga(source = 1, url = "/other", title = "/other"))
 
             fixture.historyToPrune(remote, uploadedManga = uploaded, syncStart = 9000).shouldBeEmpty()
+        } finally {
+            fixture.close()
+        }
+    }
+
+    @Test
+    fun `a manga whose upload lost the version comparison keeps its history`(): Unit = runBlocking {
+        val fixture = Fixture()
+        try {
+            fixture.insertManga(id = 7L, sourceId = 1L, url = "/m")
+            fixture.insertChapter(mangaId = 7L, chapterId = 107L, url = "/m/ch1")
+            fixture.insertHistory(mangaId = 7L, chapterId = 107L, historyId = 1007L, readAt = 3000L)
+
+            // The server's copy is newer, so on a pre-1.7.3 server its per-manga version merge kept
+            // the server's history section and dropped ours: the empty list below says nothing about
+            // the local read.
+            val remote = listOf(
+                BackupManga(source = 1, url = "/m", title = "/m", version = 9, lastModifiedAt = 900),
+            )
+            val uploaded = listOf(
+                BackupManga(source = 1, url = "/m", title = "/m", version = 8, lastModifiedAt = 800),
+            )
+
+            fixture.historyToPrune(remote, uploadedManga = uploaded, syncStart = 9000).shouldBeEmpty()
+
+            // The same version with a newer server timestamp also lost the merge.
+            fixture.historyToPrune(
+                listOf(BackupManga(source = 1, url = "/m", title = "/m", version = 9, lastModifiedAt = 901)),
+                uploadedManga = listOf(
+                    BackupManga(source = 1, url = "/m", title = "/m", version = 9, lastModifiedAt = 900),
+                ),
+                syncStart = 9000,
+            ).shouldBeEmpty()
+
+            // An equal version with an equal server timestamp is a tie the upload keeps, so it prunes.
+            fixture.historyToPrune(
+                listOf(BackupManga(source = 1, url = "/m", title = "/m", version = 9, lastModifiedAt = 900)),
+                uploadedManga = listOf(
+                    BackupManga(source = 1, url = "/m", title = "/m", version = 9, lastModifiedAt = 900),
+                ),
+                syncStart = 9000,
+            ) shouldBe listOf(1007L)
         } finally {
             fixture.close()
         }
@@ -830,7 +892,6 @@ class SyncDeletionsTest {
             remoteManga = remoteManga,
             uploadedManga = uploadedManga,
             syncRepository = syncRepository,
-            chapterRepository = chapterRepository,
             historyRepository = historyRepository,
         )
 
@@ -886,6 +947,8 @@ class SyncDeletionsTest {
         fun categoryIds(): List<Long> = longs("SELECT id FROM category ORDER BY id")
 
         fun savedSearchIds(): List<Long> = longs("SELECT _id FROM saved_search ORDER BY _id")
+
+        fun feedIds(): List<Long> = longs("SELECT _id FROM feed_saved_search ORDER BY _id")
 
         fun readAtOf(historyId: Long): Long? =
             nullableLongs("SELECT read_at FROM history WHERE id = $historyId").firstOrNull()
@@ -968,6 +1031,15 @@ class SyncDeletionsTest {
                 null,
                 "INSERT INTO saved_search(_id, source, name, query, filters_json) " +
                     "VALUES ($id, $sourceId, '$name', NULL, NULL)",
+                0,
+            ).await()
+        }
+
+        suspend fun insertFeed(id: Long, sourceId: Long, savedSearchId: Long?) {
+            driver.execute(
+                null,
+                "INSERT INTO feed_saved_search(_id, source, saved_search, global, feed_order) " +
+                    "VALUES ($id, $sourceId, ${savedSearchId ?: "NULL"}, 0, 0)",
                 0,
             ).await()
         }
