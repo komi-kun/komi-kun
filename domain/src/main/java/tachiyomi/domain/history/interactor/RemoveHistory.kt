@@ -15,11 +15,17 @@ class RemoveHistory(
 
     // KMK -->
     suspend fun await(historyIds: List<Long>) {
-        repository.resetHistory(historyIds)
+        // KUN -->
+        // The rows are queued, not only reset: a removal is a `history` tombstone the server has to
+        // be told about, and the row itself is the queue (history.pending_deletion).
+        repository.queueHistoryDeletion(historyIds)
+        // KUN <--
     }
 
     suspend fun awaitManga(mangaIds: List<Long>) {
-        repository.resetHistoryByMangaIds(mangaIds)
+        // KUN -->
+        repository.queueHistoryDeletionByMangaIds(mangaIds)
+        // KUN <--
     }
     // KMK <--
 }

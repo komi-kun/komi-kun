@@ -17,6 +17,7 @@ import tachiyomi.domain.history.model.HistoryUpdate
 import tachiyomi.domain.history.model.HistoryWithRelations
 import tachiyomi.domain.history.repository.HistoryChapterEntry
 import tachiyomi.domain.history.repository.HistoryRepository
+import tachiyomi.domain.history.repository.PendingHistoryDeletion
 import tachiyomi.domain.manga.model.Manga
 
 @Inject
@@ -98,6 +99,56 @@ class HistoryRepositoryImpl(
                 .awaitAsList()
         }
     }
+
+    override suspend fun queueHistoryDeletion(historyIds: List<Long>) {
+        try {
+            // one bind variable per id, so a select-all needs chunking to fit SQLite's variable limit;
+            // the transaction keeps the chunks all-or-nothing.
+            database.transaction {
+                historyIds.chunked(MAX_BOUND_IDS).forEach { database.historyQueries.queueHistoryDeletion(it) }
+            }
+        } catch (e: Exception) {
+            logcat(LogPriority.ERROR, throwable = e)
+        }
+    }
+
+    override suspend fun queueHistoryDeletionByMangaIds(mangaIds: List<Long>) {
+        try {
+            database.transaction {
+                mangaIds.chunked(MAX_BOUND_IDS).forEach {
+                    database.historyQueries.queueHistoryDeletionByMangaIds(it)
+                }
+            }
+        } catch (e: Exception) {
+            logcat(LogPriority.ERROR, throwable = e)
+        }
+    }
+
+    override suspend fun getPendingHistoryDeletions(
+        limit: Int,
+        afterId: Long,
+    ): List<PendingHistoryDeletion> {
+        return database.historyQueries
+            .getPendingHistoryDeletions(afterId, limit.toLong()) { historyId, sourceId, mangaUrl, chapterUrl ->
+                PendingHistoryDeletion(
+                    historyId = historyId,
+                    sourceId = sourceId,
+                    mangaUrl = mangaUrl,
+                    chapterUrl = chapterUrl,
+                )
+            }
+            .awaitAsList()
+    }
+
+    override suspend fun clearPendingHistoryDeletion(historyIds: List<Long>) {
+        try {
+            database.transaction {
+                historyIds.chunked(MAX_BOUND_IDS).forEach { database.historyQueries.clearPendingHistoryDeletion(it) }
+            }
+        } catch (e: Exception) {
+            logcat(LogPriority.ERROR, throwable = e)
+        }
+    }
     // KUN <--
 
     // KMK -->
@@ -130,6 +181,11 @@ class HistoryRepositoryImpl(
 
     override suspend fun deleteAllHistory(): Boolean {
         return try {
+            // KUN -->
+            // A soft delete: `removeAllHistory` resets and queues every row that still has a read
+            // date, so "clear all" propagates through the same history tombstone as the other two
+            // removal paths (the queue lives in the rows, not in a persisted key per entry).
+            // KUN <--
             database.historyQueries.removeAllHistory()
             true
         } catch (e: Exception) {

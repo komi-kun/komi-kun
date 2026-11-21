@@ -18,6 +18,18 @@ data class HistoryChapterEntry(
     val chapterUrl: String,
     val readAt: Instant?,
 )
+
+/**
+ * One history row the user removed on this device whose `history` tombstone the server has not
+ * confirmed yet, with the urls that tombstone's key is built from (the server keys a history entry
+ * by its chapter).
+ */
+data class PendingHistoryDeletion(
+    val historyId: Long,
+    val sourceId: Long,
+    val mangaUrl: String,
+    val chapterUrl: String,
+)
 // KUN <--
 
 interface HistoryRepository {
@@ -45,6 +57,24 @@ interface HistoryRepository {
     // KUN -->
     /** [HistoryChapterEntry] rows of [mangaIds], in one query joining each row to its chapter. */
     suspend fun getHistoryChapterEntriesByMangaIds(mangaIds: List<Long>): List<HistoryChapterEntry>
+
+    /**
+     * Queue [historyIds] for a server tombstone: each row loses its read date (which is what hides
+     * it from every history reader) and is marked pending. Rows without a read date are untouched.
+     */
+    suspend fun queueHistoryDeletion(historyIds: List<Long>)
+
+    /** The per-manga removal: queues every row of [mangaIds] that still has a read date. */
+    suspend fun queueHistoryDeletionByMangaIds(mangaIds: List<Long>)
+
+    /**
+     * At most [limit] rows still awaiting a server tombstone, ordered by row id, starting after
+     * [afterId]. Paged so a "clear all" never has to hold the whole removed history at once.
+     */
+    suspend fun getPendingHistoryDeletions(limit: Int, afterId: Long = 0): List<PendingHistoryDeletion>
+
+    /** Drops the queue flag of the rows the server confirmed; their read date stays as it is. */
+    suspend fun clearPendingHistoryDeletion(historyIds: List<Long>)
     // KUN <--
 
     // KMK -->
