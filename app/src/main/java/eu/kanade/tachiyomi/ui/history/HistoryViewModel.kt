@@ -220,9 +220,9 @@ class HistoryViewModel(
         // App-wide + non-cancellable: the reset writes `read_at = NULL`, and the following bump is
         // what makes that tombstone reach the server. Navigating away must not cancel the pair.
         appScope.launchNonCancellable {
-            // Recorded before the reset: the server keys a history removal by the manga and chapter
-            // urls of the entry, which the reset itself does not touch but the sync upload no
-            // longer carries.
+            // Recorded before the reset: the tombstone key is built from the manga and chapter urls
+            // of the entries, and the upload no longer carries a reset row, so this is the only
+            // way the removal reaches the server.
             syncStateBumper.rememberHistoryRemoval(
                 mangaIds = toDelete.map { it.mangaId }.distinct(),
                 chapterIds = toDelete.map { it.chapterId },
