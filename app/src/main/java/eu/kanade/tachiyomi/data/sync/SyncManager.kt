@@ -405,6 +405,21 @@ class SyncManager(
         } else {
             emptyList()
         }
+
+        // A full v2 response lists every live history entry of each manga it carries, so an entry
+        // missing from that list was removed on a peer. The push in this mode is a full upload, so
+        // the server holds every local row the comparison may delete. Gated and applied like the
+        // manga deletions: a delta, a disabled history section or a failed restore prunes nothing.
+        val historyIdsToPrune = historyIdsMissingFromFullSnapshot(
+            full = full,
+            protocolV2 = result.protocolV2,
+            historySyncEnabled = syncOptions.history,
+            syncStart = syncStart,
+            remoteManga = remoteBackup.backupManga,
+            syncRepository = syncRepository,
+            chapterRepository = chapterRepository,
+            historyRepository = historyRepository,
+        )
         // KUN <--
 
         // KUN -->
@@ -436,6 +451,7 @@ class SyncManager(
             markFullSyncCompleted(full, result)
             // This branch runs no restore, so it cannot be a partial restore: deletions are safe.
             applySnapshotMangaDeletions(mangaIdsToDelete)
+            applySnapshotHistoryPrune(historyIdsToPrune)
             // KUN <--
             finishWithSuccess(syncStart, "Sync completed successfully", forcePushCompleted = forcePushV2)
             return
@@ -603,6 +619,7 @@ class SyncManager(
             markFullSyncCompleted(full, result)
             // Nothing is restored here either, so full-snapshot deletions are safe.
             applySnapshotMangaDeletions(mangaIdsToDelete)
+            applySnapshotHistoryPrune(historyIdsToPrune)
             // KUN <--
             finishWithSuccess(syncStart, "Sync completed successfully", forcePushCompleted = forcePushV2)
             return
@@ -640,6 +657,7 @@ class SyncManager(
             markFullSyncCompleted(full, result)
             // Nothing is restored here either, so full-snapshot deletions are safe.
             applySnapshotMangaDeletions(mangaIdsToDelete)
+            applySnapshotHistoryPrune(historyIdsToPrune)
             // KUN <--
             finishWithSuccess(syncStart, "Sync completed successfully", forcePushCompleted = forcePushV2)
             return
@@ -688,6 +706,7 @@ class SyncManager(
                 // The snapshot is fully applied, so only now may its omissions delete rows. A
                 // failed restore drops the ids and the next full sync recomputes them.
                 applySnapshotMangaDeletions(mangaIdsToDelete)
+                applySnapshotHistoryPrune(historyIdsToPrune)
                 // KUN <--
             } else {
                 // SY -->
@@ -766,6 +785,23 @@ class SyncManager(
             localMangaById[id]?.let { deleteMangaRow(it) } ?: syncRepository.deleteManga(id)
         }
         logcat(LogPriority.DEBUG) { "Deleted ${ids.size} local manga absent from the full server snapshot" }
+    }
+
+    /**
+     * Clears the local history entries a full v2 snapshot no longer lists, through the same reset
+     * the user's own removal uses (the row keeps its id and loses its read date, which is what the
+     * History tab shows as gone). Only the ids [historyIdsMissingFromFullSnapshot] produced reach
+     * this, so a delta, a disabled history section or a row read during the sync is never pruned.
+     *
+     * Called only on the success exits, like the manga absence deletions, so a failed restore
+     * leaves the rows for the next full sync to re-examine.
+     */
+    private suspend fun applySnapshotHistoryPrune(ids: List<Long>) {
+        if (ids.isEmpty()) return
+        historyRepository.resetHistory(ids)
+        logcat(LogPriority.DEBUG) {
+            "Cleared ${ids.size} local history entries absent from the full server snapshot"
+        }
     }
 
     /**

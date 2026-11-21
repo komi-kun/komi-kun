@@ -164,4 +164,25 @@ class SyncMangaDeletionsTest {
             mangaIdsMissingFromFullSnapshot(local, remote, uploaded, fullSnapshot = true),
         )
     }
+
+    @Test
+    fun `a full v2 response with history sync on may prune history`() {
+        assertTrue(canApplySnapshotHistoryPrune(full = true, protocolV2 = true, historyEntries = true))
+    }
+
+    @Test
+    fun `a delta response never prunes history`() {
+        // Its history sections only carry the entries that changed.
+        assertFalse(canApplySnapshotHistoryPrune(full = false, protocolV2 = true, historyEntries = true))
+    }
+
+    @Test
+    fun `a v1 response never prunes history`() {
+        assertFalse(canApplySnapshotHistoryPrune(full = true, protocolV2 = false, historyEntries = true))
+    }
+
+    @Test
+    fun `history sync disabled never prunes history`() {
+        assertFalse(canApplySnapshotHistoryPrune(full = true, protocolV2 = true, historyEntries = false))
+    }
 }

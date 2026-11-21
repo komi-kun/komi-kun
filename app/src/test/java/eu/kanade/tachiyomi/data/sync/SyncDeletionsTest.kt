@@ -7,6 +7,7 @@ import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import eu.kanade.tachiyomi.data.backup.models.Backup
 import eu.kanade.tachiyomi.data.backup.models.BackupCategory
 import eu.kanade.tachiyomi.data.backup.models.BackupDeletedItem
+import eu.kanade.tachiyomi.data.backup.models.BackupHistory
 import eu.kanade.tachiyomi.data.backup.models.BackupManga
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
@@ -465,6 +466,87 @@ class SyncDeletionsTest {
 
     // endregion
 
+    // region full-snapshot history pruning
+
+    @Test
+    fun `a full v2 snapshot clears the history entries a manga no longer lists`(): Unit = runBlocking {
+        val fixture = Fixture()
+        try {
+            fixture.insertManga(id = 7L, sourceId = 1L, url = "/m")
+            fixture.insertChapter(mangaId = 7L, chapterId = 107L, url = "/m/ch1")
+            fixture.insertChapter(mangaId = 7L, chapterId = 207L, url = "/m/ch2")
+            fixture.insertHistory(mangaId = 7L, chapterId = 107L, historyId = 1007L, readAt = 3000L)
+            fixture.insertHistory(mangaId = 7L, chapterId = 207L, historyId = 2007L, readAt = 5000L)
+            // a second manga the response does not carry at all: nothing is known about its history
+            fixture.insertManga(id = 8L, sourceId = 1L, url = "/n")
+            fixture.insertChapter(mangaId = 8L, chapterId = 108L, url = "/n/ch1")
+            fixture.insertHistory(mangaId = 8L, chapterId = 108L, historyId = 1008L, readAt = 3000L)
+
+            val remote = listOf(
+                BackupManga(source = 1, url = "/m", title = "/m", history = listOf(BackupHistory("/m/ch2", 5000))),
+            )
+
+            fixture.historyToPrune(remote, syncStart = 9000) shouldBe listOf(1007L)
+        } finally {
+            fixture.close()
+        }
+    }
+
+    @Test
+    fun `a history entry read after the sync started survives the prune`(): Unit = runBlocking {
+        val fixture = Fixture()
+        try {
+            fixture.insertManga(id = 7L, sourceId = 1L, url = "/m")
+            fixture.insertChapter(mangaId = 7L, chapterId = 107L, url = "/m/ch1")
+            fixture.insertChapter(mangaId = 7L, chapterId = 307L, url = "/m/ch3")
+            // read before the sync: absent from the response, so it is a removal
+            fixture.insertHistory(mangaId = 7L, chapterId = 107L, historyId = 1007L, readAt = 3000L)
+            // read as the sync started (same second, epoch ms): it may predate the server's answer
+            fixture.insertHistory(mangaId = 7L, chapterId = 307L, historyId = 3007L, readAt = 9_000_000L)
+
+            val remote = listOf(BackupManga(source = 1, url = "/m", title = "/m", history = emptyList()))
+
+            fixture.historyToPrune(remote, syncStart = 9000) shouldBe listOf(1007L)
+        } finally {
+            fixture.close()
+        }
+    }
+
+    @Test
+    fun `a delta response and a disabled history section prune nothing`(): Unit = runBlocking {
+        val fixture = Fixture()
+        try {
+            fixture.insertManga(id = 7L, sourceId = 1L, url = "/m")
+            fixture.insertChapter(mangaId = 7L, chapterId = 107L, url = "/m/ch1")
+            fixture.insertHistory(mangaId = 7L, chapterId = 107L, historyId = 1007L, readAt = 3000L)
+
+            val remote = listOf(BackupManga(source = 1, url = "/m", title = "/m", history = emptyList()))
+
+            // a delta omits the entries that did not change, so an absent one means nothing
+            fixture.historyToPrune(remote, syncStart = 9000, full = false).shouldBeEmpty()
+            // a device that does not sync history never uploaded the rows being compared
+            fixture.historyToPrune(remote, syncStart = 9000, historySyncEnabled = false).shouldBeEmpty()
+        } finally {
+            fixture.close()
+        }
+    }
+
+    @Test
+    fun `an empty response prunes no history`(): Unit = runBlocking {
+        val fixture = Fixture()
+        try {
+            fixture.insertManga(id = 7L, sourceId = 1L, url = "/m")
+            fixture.insertChapter(mangaId = 7L, chapterId = 107L, url = "/m/ch1")
+            fixture.insertHistory(mangaId = 7L, chapterId = 107L, historyId = 1007L, readAt = 3000L)
+
+            fixture.historyToPrune(emptyList(), syncStart = 9000).shouldBeEmpty()
+        } finally {
+            fixture.close()
+        }
+    }
+
+    // endregion
+
     // region the early return
 
     @Test
@@ -510,7 +592,7 @@ class SyncDeletionsTest {
 
         /** Counts the chapter reads a run makes, so the batch resolution path stays pinned. */
         val chapterRepository = CountingChapterRepository(ChapterRepositoryImpl(database))
-        private val historyRepository = HistoryRepositoryImpl(database)
+        val historyRepository = HistoryRepositoryImpl(database)
         private val categoryRepository = CategoryRepositoryImpl(database)
 
         /** Manga handed to the download-cleanup hook, in order, as `(sourceId, url)`. */
@@ -536,6 +618,24 @@ class SyncDeletionsTest {
         }
 
         fun close() = driver.close()
+
+        /** The history entries a full v2 response would clear, gated exactly as the sync gates them. */
+        suspend fun historyToPrune(
+            remoteManga: List<BackupManga>,
+            syncStart: Long,
+            full: Boolean = true,
+            protocolV2: Boolean = true,
+            historySyncEnabled: Boolean = true,
+        ): List<Long> = historyIdsMissingFromFullSnapshot(
+            full = full,
+            protocolV2 = protocolV2,
+            historySyncEnabled = historySyncEnabled,
+            syncStart = syncStart,
+            remoteManga = remoteManga,
+            syncRepository = syncRepository,
+            chapterRepository = chapterRepository,
+            historyRepository = historyRepository,
+        )
 
         suspend fun apply(
             plan: DeletionPlan,
