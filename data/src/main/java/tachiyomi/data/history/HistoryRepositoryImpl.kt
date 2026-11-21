@@ -2,7 +2,6 @@ package tachiyomi.data.history
 
 import app.cash.sqldelight.async.coroutines.awaitAsList
 import app.cash.sqldelight.async.coroutines.awaitAsOne
-import app.cash.sqldelight.async.coroutines.awaitAsOneOrNull
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
 import dev.zacsweers.metro.Inject
@@ -16,6 +15,7 @@ import tachiyomi.data.subscribeToList
 import tachiyomi.domain.history.model.History
 import tachiyomi.domain.history.model.HistoryUpdate
 import tachiyomi.domain.history.model.HistoryWithRelations
+import tachiyomi.domain.history.repository.HistoryChapterEntry
 import tachiyomi.domain.history.repository.HistoryRepository
 import tachiyomi.domain.manga.model.Manga
 
@@ -61,16 +61,6 @@ class HistoryRepositoryImpl(
             .subscribeToList()
     }
 
-    override suspend fun getLastHistory(): HistoryWithRelations? {
-        return database.historyViewQueries
-            .getLatestHistory(
-                Manga.CHAPTER_SHOW_NOT_BOOKMARKED,
-                Manga.CHAPTER_SHOW_BOOKMARKED,
-                HistoryMapper::mapHistoryWithRelations,
-            )
-            .awaitAsOneOrNull()
-    }
-
     override suspend fun getTotalReadDuration(): Long {
         return database.historyQueries
             .getReadDuration()
@@ -92,10 +82,34 @@ class HistoryRepositoryImpl(
             .groupBy({ it.first }, { it.second })
     }
 
+    // KUN -->
+    override suspend fun getHistoryChapterEntriesByMangaIds(mangaIds: List<Long>): List<HistoryChapterEntry> {
+        // one bind variable per id, so a whole library needs chunking to fit SQLite's limit
+        return mangaIds.chunked(MAX_BOUND_IDS).flatMap { chunk ->
+            database.historyQueries
+                .getHistoryChapterEntriesByMangaIds(chunk) { mangaId, historyId, chapterUrl, readAt ->
+                    HistoryChapterEntry(
+                        historyId = historyId,
+                        mangaId = mangaId,
+                        chapterUrl = chapterUrl,
+                        readAt = readAt,
+                    )
+                }
+                .awaitAsList()
+        }
+    }
+    // KUN <--
+
     // KMK -->
     override suspend fun resetHistory(historyIds: List<Long>) {
         try {
-            database.historyQueries.resetHistoryByIds(historyIds)
+            // KUN -->
+            // One bind variable per id, so a select-all needs chunking to fit SQLite's variable limit;
+            // the transaction keeps the chunks all-or-nothing.
+            database.transaction {
+                historyIds.chunked(MAX_BOUND_IDS).forEach { database.historyQueries.resetHistoryByIds(it) }
+            }
+            // KUN <--
         } catch (e: Exception) {
             logcat(LogPriority.ERROR, throwable = e)
         }
@@ -103,7 +117,11 @@ class HistoryRepositoryImpl(
 
     override suspend fun resetHistoryByMangaIds(mangaIds: List<Long>) {
         try {
-            database.historyQueries.resetHistoryByMangaIds(mangaIds)
+            // KUN -->
+            database.transaction {
+                mangaIds.chunked(MAX_BOUND_IDS).forEach { database.historyQueries.resetHistoryByMangaIds(it) }
+            }
+            // KUN <--
         } catch (e: Exception) {
             logcat(LogPriority.ERROR, throwable = e)
         }
@@ -154,3 +172,8 @@ class HistoryRepositoryImpl(
     }
     // SY <--
 }
+
+// KUN -->
+/** Bind ids per statement: SQLite allows 999 variables before Android 11, 32766 after. */
+private const val MAX_BOUND_IDS = 900
+// KUN <--

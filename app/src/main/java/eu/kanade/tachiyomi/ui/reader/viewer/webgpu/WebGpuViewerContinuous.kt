@@ -7,6 +7,7 @@ import ca.mpreg.webgpuviewer.viewer.ImageViewerContinuous
 import ca.mpreg.webgpuviewer.viewer.ImageViewerContinuousState
 import eu.kanade.tachiyomi.ui.reader.ReaderActivity
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
+import eu.kanade.tachiyomi.ui.reader.viewer.mouseWheelPaging
 import kotlinx.coroutines.launch
 import kotlin.math.max
 
@@ -30,7 +31,7 @@ class WebGpuViewerContinuous(activity: ReaderActivity, val useGap: Boolean = fal
         // The base class's Content is what publishes the box the viewer is drawn in, and this
         // override replaces it, so the long strip takes the same modifier instead of leaving the
         // settings sheet on the null this viewer would otherwise never replace.
-        ImageViewerContinuous(modifier = modifier.publishViewerViewport(), state = state)
+        ImageViewerContinuous(modifier = modifier.publishViewerViewport().mouseWheelPaging(this), state = state)
         // KUN <--
     }
 

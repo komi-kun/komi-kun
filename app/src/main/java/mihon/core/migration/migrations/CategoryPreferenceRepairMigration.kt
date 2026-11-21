@@ -42,6 +42,10 @@ import tachiyomi.domain.category.service.CategoryIdPreferences
  * covers the whole [CategoryIdPreferences] inventory — the Discord incognito set included — from
  * `DeleteCategory` and the sync merge, so a category deleted after this migration does not leave its
  * id behind anywhere.
+ *
+ * Numbered `86f` because [ClearPagePreviewCacheMigration] took `85f`: `Migrator` runs only the
+ * versions in `(applied + 1)..target`, so a second migration at a version an install already applied
+ * would never run.
  */
 @Inject
 @ContributesIntoSet(AppScope::class)
@@ -49,7 +53,7 @@ class CategoryPreferenceRepairMigration(
     private val categoryIdPreferences: CategoryIdPreferences,
     private val getCategories: GetCategories,
 ) : Migration {
-    override val version: Float = 85f
+    override val version: Float = 86f
 
     override suspend fun invoke(migrationContext: MigrationContext): Boolean = withContext(Dispatchers.IO) {
         // The category table seeds the system category (id 0), so it is live like any other row.

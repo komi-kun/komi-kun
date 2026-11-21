@@ -1,15 +1,19 @@
 package eu.kanade.tachiyomi.ui.reader.viewer
 
-import android.graphics.Color
-import android.graphics.PointF
-import android.graphics.RectF
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Color
 import dev.icerock.moko.resources.StringResource
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
-import eu.kanade.tachiyomi.util.lang.invert
 import tachiyomi.i18n.MR
 
+/**
+ * Tap zones of a viewer. [isReversed] is set for right to left books, where the right side of the
+ * screen goes back.
+ */
 abstract class ViewerNavigation(
     val invertMode: ReaderPreferences.TappingInvertMode,
+    val isReversed: Boolean,
     // KUN -->
     // KMK: the tap-zone size (R31) travels with the navigator, as a value the settings plane
     // rebuilds it with, instead of being read from the preferences inside it.
@@ -17,27 +21,47 @@ abstract class ViewerNavigation(
     // KUN <--
 ) {
 
-    sealed class NavigationRegion(val nameRes: StringResource, val color: Int) {
-        data object MENU : NavigationRegion(MR.strings.action_menu, Color.argb(0xCC, 0x95, 0x81, 0x8D))
-        data object PREV : NavigationRegion(MR.strings.nav_zone_prev, Color.argb(0xCC, 0xFF, 0x77, 0x33))
-        data object NEXT : NavigationRegion(MR.strings.nav_zone_next, Color.argb(0xCC, 0x84, 0xE2, 0x96))
-        data object LEFT : NavigationRegion(MR.strings.nav_zone_left, Color.argb(0xCC, 0x7D, 0x11, 0x28))
-        data object RIGHT : NavigationRegion(MR.strings.nav_zone_right, Color.argb(0xCC, 0xA6, 0xCF, 0xD5))
+    enum class Action {
+        MENU,
+        FORWARD,
+        BACKWARD,
+
+        // KUN -->
+        // The same two moves for the vertical inputs only (the D-pad up/down, the page keys, the
+        // volume keys and the mouse wheel): the pager pans the current page up/down first when it
+        // can and turns the page only at its edge (KMK, "pan before turn"). The horizontal keys and
+        // the tap zones never pan vertically, so they stay plain [FORWARD]/[BACKWARD].
+        PAN_UP,
+        PAN_DOWN,
+        // KUN <--
+    }
+
+    sealed class NavigationRegion(val nameRes: StringResource, val color: Color) {
+        data object MENU : NavigationRegion(MR.strings.action_menu, Color(0xCC95818D))
+        data object PREV : NavigationRegion(MR.strings.nav_zone_prev, Color(0xCCFF7733))
+        data object NEXT : NavigationRegion(MR.strings.nav_zone_next, Color(0xCC84E296))
+        data object LEFT : NavigationRegion(MR.strings.nav_zone_left, Color(0xCC7D1128))
+        data object RIGHT : NavigationRegion(MR.strings.nav_zone_right, Color(0xCCA6CFD5))
     }
 
     data class Region(
-        val rectF: RectF,
+        val rect: Rect,
         val type: NavigationRegion,
     ) {
         fun invert(invertMode: ReaderPreferences.TappingInvertMode): Region {
-            if (invertMode == ReaderPreferences.TappingInvertMode.NONE) return this
-            return this.copy(
-                rectF = this.rectF.invert(invertMode),
+            val horizontal = invertMode.shouldInvertHorizontal
+            val vertical = invertMode.shouldInvertVertical
+            if (!horizontal && !vertical) return this
+            return copy(
+                rect = Rect(
+                    left = if (horizontal) 1f - rect.right else rect.left,
+                    top = if (vertical) 1f - rect.bottom else rect.top,
+                    right = if (horizontal) 1f - rect.left else rect.right,
+                    bottom = if (vertical) 1f - rect.top else rect.bottom,
+                ),
             )
         }
     }
-
-    private var constantMenuRegion: RectF = RectF(0f, 0f, 1f, 0.05f)
 
     protected abstract val regionList: List<Region>
 
@@ -46,25 +70,29 @@ abstract class ViewerNavigation(
         return regionList.map { it.invert(invertMode) }
     }
 
-    fun getAction(pos: PointF): NavigationRegion {
-        val x = pos.x
-        val y = pos.y
-        val region = getRegions().find { it.rectF.contains(x, y) }
-        return when {
-            region != null -> region.type
-            constantMenuRegion.contains(x, y) -> NavigationRegion.MENU
-            else -> NavigationRegion.MENU
-        }
+    fun getAction(pos: Offset): Action {
+        val region = getRegions().find { pos in it.rect } ?: return Action.MENU
+        return actionOf(region.type)
+    }
+
+    fun actionOf(region: NavigationRegion): Action = when (region) {
+        NavigationRegion.MENU -> Action.MENU
+        NavigationRegion.NEXT -> Action.FORWARD
+        NavigationRegion.PREV -> Action.BACKWARD
+        NavigationRegion.RIGHT -> if (isReversed) Action.BACKWARD else Action.FORWARD
+        NavigationRegion.LEFT -> if (isReversed) Action.FORWARD else Action.BACKWARD
     }
 
     // KUN -->
     override fun equals(other: Any?): Boolean =
         other is ViewerNavigation && other.javaClass == javaClass && other.invertMode == invertMode &&
-            other.smallerTapZone == smallerTapZone
+            other.isReversed == isReversed && other.smallerTapZone == smallerTapZone
 
     // The tap-zone size is part of the value: a navigator held in a StateFlow must re-emit when it
     // alone changes, or the reader keeps the old geometry (R31).
-    override fun hashCode(): Int = 31 * javaClass.hashCode() + 31 * invertMode.hashCode() + smallerTapZone.hashCode()
+    override fun hashCode(): Int =
+        ((31 * javaClass.hashCode() + 31 * invertMode.hashCode() + isReversed.hashCode()) * 31) +
+            smallerTapZone.hashCode()
     // KUN <--
 
     // KMK -->

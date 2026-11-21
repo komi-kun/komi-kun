@@ -17,6 +17,7 @@ import coil3.fetch.SourceFetchResult
 import coil3.request.Options
 import com.davemorrissey.labs.subscaleview.CropBorders
 import com.hippo.unifile.UniFile
+import eu.kanade.tachiyomi.ui.reader.ocr.OcrCropWindow
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import mihon.core.archive.CbzCrypto
@@ -64,7 +65,16 @@ class ImageDecoder(
      * immutable bitmap only when it is drawn, so only the strips on screen reach the GPU instead of
      * the whole page as one texture.
      */
-    class StripsImage(val strips: List<Bitmap>) : Image {
+    class StripsImage(
+        val strips: List<Bitmap>,
+        // KUN -->
+        /**
+         * The border crop the strips were cut from, as fractions of the uncropped sheet, so the OCR
+         * overlay can map block coordinates onto them; `null` when nothing was cropped.
+         */
+        val cropWindow: OcrCropWindow? = null,
+        // KUN <--
+    ) : Image {
         override val size: Long = strips.sumOf { it.allocationByteCount.toLong() }
         override val width: Int = strips.firstOrNull()?.width ?: 0
         override val height: Int = strips.sumOf { it.height }
@@ -218,7 +228,20 @@ class ImageDecoder(
                 strip.copy(config, false).also { if (strip !== band) strip.recycle() }
             }
             band.recycle()
-            DecodeResult(image = StripsImage(strips), isSampled = stripWidth < srcWidth)
+            // KUN -->
+            // Publish the exact crop the strips were cut with, so the OCR overlay maps blocks onto
+            // the displayed sheet instead of the uncropped page (the strips path trims its own way,
+            // with no sampled-pixel pad, so this is the only rect that matches these bitmaps).
+            val cropWindow = OcrCropWindow.ofPixels(
+                left = srcLeft,
+                top = srcTop,
+                width = srcWidth,
+                height = srcHeight,
+                sheetWidth = frame.width,
+                sheetHeight = frame.height,
+            )
+            DecodeResult(image = StripsImage(strips, cropWindow), isSampled = stripWidth < srcWidth)
+            // KUN <--
         }
     }
 

@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
@@ -129,8 +130,18 @@ class HistoryViewModel(
                 .catch { error ->
                     logcat(LogPriority.ERROR, error)
                     _events.send(Event.InternalError)
+                    // KUN -->
+                    // A catch that emitted nothing would complete the flow and leave the state on its
+                    // initial, loading value, which getNextChapter() waits on forever.
+                    emit(emptyList())
+                    // KUN <--
                 }
                 .map { it.toList() }
+                // KUN -->
+                // The query orders by readAt DESC, id DESC and the mapper keeps that order, so the
+                // first row of each manga is its latest read chapter.
+                .map { it.toLatestPerManga() }
+                // KUN <--
                 .flowOn(Dispatchers.IO)
         }
 
@@ -183,7 +194,13 @@ class HistoryViewModel(
         .stateIn(viewModelScope + subscriberGate, subscriberGate.whileSubscribed(5.seconds), State())
 
     suspend fun getNextChapter(): Chapter? {
-        return getNextChapters.await(onlyUnread = false).firstOrNull()
+        // KUN -->
+        // Resume the top of the list the tab shows: it is already filtered and collapsed to one row
+        // per manga, so the newest global entry can be one the active filter hides. It starts out
+        // loading, and the tab can be reselected before the first history emission.
+        val entry = state.first { !it.isLoading }.list.firstOrNull() ?: return null
+        // KUN <--
+        return getNextChapters.await(entry.mangaId, entry.chapterId, onlyUnread = false).firstOrNull()
     }
 
     fun getNextChapterForManga(mangaId: Long, chapterId: Long) {
@@ -203,6 +220,13 @@ class HistoryViewModel(
         // App-wide + non-cancellable: the reset writes `read_at = NULL`, and the following bump is
         // what makes that tombstone reach the server. Navigating away must not cancel the pair.
         appScope.launchNonCancellable {
+            // Recorded before the reset: the tombstone key is built from the manga and chapter urls
+            // of the entries, and the upload no longer carries a reset row, so this is the only
+            // way the removal reaches the server.
+            syncStateBumper.rememberHistoryRemoval(
+                mangaIds = toDelete.map { it.mangaId }.distinct(),
+                chapterIds = toDelete.map { it.chapterId },
+            )
             removeHistory.await(toDelete.map { it.id })
             // A history reset only writes `read_at = NULL` on the history rows, which does not touch
             // the manga row, so the sync delta would never upload the removal. History sync only:
@@ -216,7 +240,11 @@ class HistoryViewModel(
     fun removeAllFromHistory(toDelete: List<HistoryWithRelations>) {
         // KUN -->
         appScope.launchNonCancellable {
-            removeHistory.awaitManga(toDelete.map { it.mangaId })
+            val mangaIds = toDelete.map { it.mangaId }.distinct()
+            // The reset below is one statement over the manga, so the tombstone keys come from
+            // every history row those manga have, read while they still exist.
+            syncStateBumper.rememberHistoryRemoval(mangaIds = mangaIds)
+            removeHistory.awaitManga(mangaIds)
             syncStateBumper.bumpForHistoryRemoval(toDelete.map { it.mangaId })
         }
         // KUN <--
@@ -228,10 +256,13 @@ class HistoryViewModel(
         viewModelScope.launch {
             val result = removeHistory.awaitAll()
             // KUN -->
-            // Nothing to bump: "delete all" runs `DELETE FROM history` and cannot leave the
-            // `read_at = NULL` tombstones the other devices need, so there is no per-manga change to
-            // upload. Uploading the empty history section instead would be indistinguishable from a
-            // peer that has history disabled. Deletion propagation needs a protocol change.
+            // A per-entry or per-manga removal propagates as a `history` tombstone, but "clear all"
+            // does not: the endpoint only deletes the keys it is given, and the key queue is
+            // persisted until the next successful sync, so this would have to keep one key per
+            // deleted row — thousands of them in a preference set, with no bounded form.
+            // Nothing is bumped either: `DELETE FROM history` leaves no `read_at = NULL` row and no
+            // per-manga change, and uploading an empty history section would be indistinguishable
+            // from a peer that has history disabled.
             // KUN <--
             if (!result) return@launch
             _events.send(Event.HistoryCleared)
@@ -509,16 +540,7 @@ class HistoryViewModel(
         val selected
             get() = list.fastFilter { it.chapterId in selection }
 
-        fun getUiModel() = list.map { HistoryUiModel.Item(it) }
-            .insertSeparators { before, after ->
-                val beforeDate = before?.item?.readAt?.toLocalDate()
-                val afterDate = after?.item?.readAt?.toLocalDate()
-                when {
-                    beforeDate != afterDate && afterDate != null -> HistoryUiModel.Header(afterDate)
-                    // Return null to avoid adding a separator between two items.
-                    else -> null
-                }
-            }
+        fun getUiModel() = list.toHistoryUiModels()
     }
     // KMK <--
 
@@ -556,3 +578,29 @@ class HistoryViewModel(
         data object HistoryCleared : Event
     }
 }
+
+// KUN -->
+// The per-manga pick happens here, after the query's readAt DESC, id DESC order, because SQLite's
+// bare-column `MAX()` rule leaves the surviving chapter of two rows read at the same time unspecified.
+internal fun List<HistoryWithRelations>.toLatestPerManga(): List<HistoryWithRelations> =
+    distinctBy { it.mangaId }
+
+/**
+ * One [HistoryUiModel.Header] per read date, with the rows in the order the history query returned them.
+ */
+internal fun List<HistoryWithRelations>.toHistoryUiModels(): List<HistoryUiModel> {
+    // The history queries only return positive read dates; the filter is the mapper's guard, so a
+    // null can never be listed under the previous day's header.
+    return filter { it.readAt != null }
+        .map { HistoryUiModel.Item(it) }
+        .insertSeparators { before, after ->
+            val beforeDate = before?.item?.readAt?.toLocalDate()
+            val afterDate = after?.item?.readAt?.toLocalDate()
+            when {
+                beforeDate != afterDate && afterDate != null -> HistoryUiModel.Header(afterDate)
+                // Return null to avoid adding a separator between two items.
+                else -> null
+            }
+        }
+}
+// KUN <--

@@ -13,6 +13,7 @@ import eu.kanade.tachiyomi.data.backup.models.BackupPreference
 import eu.kanade.tachiyomi.data.backup.restore.BackupRestoreWorker
 import eu.kanade.tachiyomi.data.backup.restore.RestoreOptions
 import eu.kanade.tachiyomi.data.backup.restore.restorers.MangaRestorer
+import eu.kanade.tachiyomi.data.download.DownloadManager
 import eu.kanade.tachiyomi.data.sync.service.BackupRequestBody
 import eu.kanade.tachiyomi.data.sync.service.GoogleDriveSyncService
 import eu.kanade.tachiyomi.data.sync.service.SyncData
@@ -37,6 +38,8 @@ import tachiyomi.domain.download.service.DownloadPreferences
 import tachiyomi.domain.history.repository.HistoryRepository
 import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.domain.manga.model.Manga
+import tachiyomi.domain.source.repository.SavedSearchRepository
+import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.domain.sync.repository.SyncRepository
 import tachiyomi.i18n.kmk.KMR
 import java.io.File
@@ -61,6 +64,11 @@ class SyncManager(
     private val getCategories: GetCategories,
     // KUN -->
     private val pruneCategoryReferences: PruneCategoryReferences,
+    /** Owns the files and queued chapters of a manga row removed by a sync. */
+    private val downloadManager: DownloadManager,
+    private val sourceManager: SourceManager,
+    /** Selected by a `saved_search` tombstone: one local row per name and source. */
+    private val savedSearchRepository: SavedSearchRepository,
     // KUN <--
     private val backupCreatorFactory: BackupCreator.Factory,
     private val notifier: SyncNotifier,
@@ -378,6 +386,52 @@ class SyncManager(
         }
 
         // KUN -->
+        // A v2 full response is the only one whose omissions mean deletion; `full` is the local
+        // signal that the request asked for a full snapshot. A delta omits unchanged entries, so
+        // its absences say nothing, and a non-library response is not about the library at all.
+        //
+        // This heuristic is the fallback for a server that predates the explicit tombstone list
+        // (`Backup.deletions`): a delta that carries the list says what was deleted, and the list
+        // wins, so the snapshot comparison does not even have to run.
+        val mangaIdsToDelete = if (
+            remoteBackup.deletions.isEmpty() &&
+            canApplySnapshotDeletions(full, result.protocolV2, syncOptions.libraryEntries)
+        ) {
+            mangaIdsMissingFromFullSnapshot(
+                localManga = syncRepository.getAllManga(),
+                remoteManga = remoteBackup.backupManga,
+                // The upload built before the round trip: a local favourite that was never sent
+                // cannot have been tombstoned by the server, so it is never a deletion candidate.
+                uploadedManga = backup.backupManga,
+                fullSnapshot = true,
+            )
+        } else {
+            emptyList()
+        }
+
+        // A full v2 response lists every live history entry of each manga it carries, so an entry
+        // missing from that list was removed on a peer. The push in this mode is a full upload, so
+        // the server holds every local row the comparison may delete. Gated and applied like the
+        // manga deletions: a delta, a disabled library or history section, a manga this run never
+        // uploaded, or a failed restore prunes nothing.
+        val historyIdsToPrune = historyIdsMissingFromFullSnapshot(
+            full = full,
+            protocolV2 = result.protocolV2,
+            libraryEntries = syncOptions.libraryEntries,
+            historySyncEnabled = syncOptions.history,
+            syncStart = syncStart,
+            remoteManga = remoteBackup.backupManga,
+            // The upload built before the round trip. Only a manga it carried, and whose copy the
+            // server kept (the old per-manga shape can discard the uploaded history section), has a
+            // history list on the server this device is answering for; a manga read without being
+            // added to the library is never uploaded, so its local reads cannot be judged either.
+            uploadedManga = backup.backupManga,
+            syncRepository = syncRepository,
+            historyRepository = historyRepository,
+        )
+        // KUN <--
+
+        // KUN -->
         // The server accepted the forced upload. Persist the raised versions now, before the
         // restore branches, so the local rows keep outranking peers even if the restore fails.
         if (forcePushV2) {
@@ -391,16 +445,61 @@ class SyncManager(
         // KUN <--
 
         // SY -->
-        if (remoteBackup === syncData.backup || (result.protocolV2 && !result.changed)) {
+        if (
+            skipRemoteResponse(
+                ownBackup = remoteBackup === syncData.backup,
+                protocolV2 = result.protocolV2,
+                changed = result.changed,
+                deletions = remoteBackup.deletions,
+            )
+        ) {
             // nothing changed
             logcat(LogPriority.DEBUG) { "Skip restore, nothing new on the remote" }
             // KUN -->
             commitRemoteState(result)
             markFullSyncCompleted(full, result)
+            // This branch runs no restore, so it cannot be a partial restore: deletions are safe.
+            applySnapshotMangaDeletions(mangaIdsToDelete)
+            applySnapshotHistoryPrune(historyIdsToPrune)
             // KUN <--
             finishWithSuccess(syncStart, "Sync completed successfully", forcePushCompleted = forcePushV2)
             return
         }
+
+        // KUN -->
+        // Apply the delta's explicit tombstones before the restore reads the library, so a row the
+        // server deleted elsewhere is never restored back out of this payload. The gate above never
+        // skips a response that carries tombstones, so a delta whose only change is a deletion
+        // reaches this line instead of being dropped as "nothing new on the remote".
+        //
+        // Parsed once: the deletions below apply the plan, and the category merge further down needs
+        // its identities to keep a category this run deletes out of the restore.
+        val tombstones = deletionPlan(remoteBackup.deletions)
+        if (remoteBackup.deletions.isNotEmpty()) {
+            val skippedKinds = applyDeletions(
+                plan = tombstones,
+                syncRepository = syncRepository,
+                chapterRepository = chapterRepository,
+                historyRepository = historyRepository,
+                categoryRepository = categoryRepository,
+                pruneCategoryReferences = pruneCategoryReferences,
+                savedSearchRepository = savedSearchRepository,
+                // Downloads and queued chapters go before the row that names them disappears.
+                deleteManga = { deleteMangaRow(it) },
+                // The same user settings the snapshot fallback honours: a section the user disabled
+                // is not deleted on the server's word.
+                librarySyncEnabled = syncOptions.libraryEntries,
+                historySyncEnabled = syncOptions.history,
+                chaptersEnabled = syncOptions.chapters,
+                categoriesEnabled = syncOptions.categories,
+                savedSearchesEnabled = syncOptions.savedSearchesFeeds,
+            )
+            logcat(LogPriority.DEBUG) {
+                "Applied ${remoteBackup.deletions.size} remote tombstones" +
+                    if (skippedKinds.isEmpty()) "" else "; not applying kinds ${skippedKinds.joinToString()}"
+            }
+        }
+        // KUN <--
 
         // KUN -->
         // Legacy SY had checks here that aborted sync on empty remote manga list or skipped restore
@@ -428,11 +527,26 @@ class SyncManager(
         // SY <--
 
         // KUN -->
-        val mergedBackupCategories = mergeSyncCategories(
-            local = backup.backupCategories,
-            remote = remoteBackup.backupCategories,
-            protocolV2 = result.protocolV2,
-        )
+        // A full v2 response lists every live category, so the server's copy replaces the local
+        // union: a local category missing from it was deleted on a peer, and the restore must not
+        // re-insert the row the prune below removes. A delta only carries the categories that
+        // changed, so it keeps the union. An empty list fails closed, like the v1 fallback.
+        val mergedBackupCategories = if (full && result.protocolV2 && syncOptions.categories) {
+            remoteBackup.backupCategories.ifEmpty { backup.backupCategories }
+        } else {
+            mergeSyncCategories(
+                // The upload snapshot was taken before the tombstones above ran, so a category this
+                // run deleted is still in it. Drop it, or the merge hands it to the restore and the
+                // restore re-inserts the row the tombstone just removed.
+                local = if (syncOptions.categories) {
+                    withoutTombstonedCategories(backup.backupCategories, tombstones.categories)
+                } else {
+                    backup.backupCategories
+                },
+                remote = remoteBackup.backupCategories,
+                protocolV2 = result.protocolV2,
+            )
+        }
         // KUN <--
 
         val newSyncData = backup.copy(
@@ -456,11 +570,26 @@ class SyncManager(
             backupExtensionStores = remoteBackup.backupExtensionStores,
 
             // SY -->
-            backupSavedSearches = remoteBackup.backupSavedSearches,
+            // KUN -->
+            // A saved search this run tombstoned is already deleted locally, so the payload the
+            // restore applies must not name it again (the restorer would insert it back).
+            backupSavedSearches = withoutTombstonedSavedSearches(
+                remoteBackup.backupSavedSearches,
+                tombstones.savedSearches,
+            ),
+            // KUN <--
             // SY <--
 
             // KMK -->
-            backupFeeds = remoteBackup.backupFeeds,
+            // KUN -->
+            // A feed that still names a tombstoned saved search would have the restorer recreate
+            // both: the server keeps feeds in its opaque `extra` blob, which a `saved_search`
+            // tombstone does not rewrite.
+            backupFeeds = withoutFeedsOfTombstonedSavedSearches(
+                remoteBackup.backupFeeds,
+                tombstones.savedSearches,
+            ),
+            // KUN <--
             // KMK <--
         )
 
@@ -522,6 +651,9 @@ class SyncManager(
             // KUN -->
             commitRemoteState(result)
             markFullSyncCompleted(full, result)
+            // Nothing is restored here either, so full-snapshot deletions are safe.
+            applySnapshotMangaDeletions(mangaIdsToDelete)
+            applySnapshotHistoryPrune(historyIdsToPrune)
             // KUN <--
             finishWithSuccess(syncStart, "Sync completed successfully", forcePushCompleted = forcePushV2)
             return
@@ -530,24 +662,27 @@ class SyncManager(
 
         // SY -->
         // KUN -->
-        // Only prune categories when not on protocol v2 (v2 uses tombstones) and the category list is non-empty.
-        if (!result.protocolV2 && syncOptions.categories && newSyncData.backupCategories.isNotEmpty()) {
-            val mergedUids = newSyncData.backupCategories.map { it.uid }.toSet()
-            val mergedNames = newSyncData.backupCategories.map { it.name }.toSet()
-            val localCategories = getCategories.await().filterNot { it.id == 0L } // Exclude system category
-            val categoriesToDelete = localCategories.filter {
-                it.uid !in mergedUids && it.name !in mergedNames
-            }
-            if (categoriesToDelete.isNotEmpty()) {
-                categoryRepository.delete(categoriesToDelete.map { it.id })
-                // KUN -->
-                // These rows were deleted without going through DeleteCategory, so the category ids
-                // must be pruned from the library, download, History/Updates/Upcoming and Discord
-                // incognito preferences here too.
-                pruneCategoryReferences.prune(categoriesToDelete.map { it.id })
-                // KUN <--
-                categoriesToDelete.forEach { syncPreferences.rememberDeletedCategory(it.uid) }
-            }
+        // A full v2 snapshot lists every live category, so absence there means a peer deleted it; a
+        // v2 delta only carries the categories that changed, so it can never prune. An empty list
+        // fails closed either way: "the server has no categories" must not wipe the local ones.
+        if (
+            (full || !result.protocolV2) &&
+            syncOptions.categories &&
+            newSyncData.backupCategories.isNotEmpty()
+        ) {
+            val deletedCategories = pruneCategoriesMissingFromSnapshot(
+                localCategories = getCategories.await(),
+                snapshot = newSyncData.backupCategories,
+                uploaded = backup.backupCategories,
+                // Only a full v2 response is a complete list, and only a category this run uploaded
+                // can have been deleted by the server: one created after the upload was built was
+                // never sent, so its absence is a race between the upload and this read.
+                requireUploaded = result.protocolV2 && full,
+                categoryRepository = categoryRepository,
+                pruneCategoryReferences = pruneCategoryReferences,
+            )
+            // remembered for the next v2 request, which tombstones them on the server
+            deletedCategories.forEach { syncPreferences.rememberDeletedCategory(it.uid) }
         }
         // KUN <--
         // SY <--
@@ -558,6 +693,9 @@ class SyncManager(
             // KUN -->
             commitRemoteState(result)
             markFullSyncCompleted(full, result)
+            // Nothing is restored here either, so full-snapshot deletions are safe.
+            applySnapshotMangaDeletions(mangaIdsToDelete)
+            applySnapshotHistoryPrune(historyIdsToPrune)
             // KUN <--
             finishWithSuccess(syncStart, "Sync completed successfully", forcePushCompleted = forcePushV2)
             return
@@ -603,6 +741,10 @@ class SyncManager(
                 if (forcePushV2) {
                     syncPreferences.forcePushPending.set(false)
                 }
+                // The snapshot is fully applied, so only now may its omissions delete rows. A
+                // failed restore drops the ids and the next full sync recomputes them.
+                applySnapshotMangaDeletions(mangaIdsToDelete)
+                applySnapshotHistoryPrune(historyIdsToPrune)
                 // KUN <--
             } else {
                 // SY -->
@@ -666,6 +808,57 @@ class SyncManager(
         if (full && result.protocolV2) {
             syncPreferences.lastFullSync.set(Clock.System.now().toEpochMilliseconds())
         }
+    }
+
+    /**
+     * Applies the manga the server omitted from a full v2 snapshot, deleting them locally. Called
+     * only on success exits, after (or instead of) the restore, so a partial restore never deletes
+     * rows the server did not actually drop.
+     */
+    private suspend fun applySnapshotMangaDeletions(ids: List<Long>) {
+        if (ids.isEmpty()) return
+        // The ids are local row ids; the download cleanup needs the rows themselves.
+        val localMangaById = syncRepository.getAllManga().associateBy { it.id }
+        ids.forEach { id ->
+            localMangaById[id]?.let { deleteMangaRow(it) } ?: syncRepository.deleteManga(id)
+        }
+        logcat(LogPriority.DEBUG) { "Deleted ${ids.size} local manga absent from the full server snapshot" }
+    }
+
+    /**
+     * Clears the local history entries a full v2 snapshot no longer lists, through the same reset
+     * the user's own removal uses (the row keeps its id and loses its read date, which is what the
+     * History tab shows as gone). Only the ids [historyIdsMissingFromFullSnapshot] produced reach
+     * this, so a delta, a disabled history section or a row read during the sync is never pruned.
+     *
+     * Called only on the success exits, like the manga absence deletions, so a failed restore
+     * leaves the rows for the next full sync to re-examine.
+     */
+    private suspend fun applySnapshotHistoryPrune(ids: List<Long>) {
+        if (ids.isEmpty()) return
+        historyRepository.resetHistory(ids)
+        // The reset logs its own failures and returns nothing, so this can only report what was
+        // asked for; a failure leaves the rows for the next full sync to find again.
+        logcat(LogPriority.DEBUG) {
+            "Requested clearing ${ids.size} local history entries absent from the full server snapshot"
+        }
+    }
+
+    /**
+     * Removes a manga row the server deleted elsewhere, after clearing what hangs off its id outside
+     * the database: its download directory and its queued chapters would otherwise stay behind with
+     * nothing left to name them. Cleanup is best-effort so a file-system failure cannot leave the
+     * tombstone unapplied and retried forever; the row is deleted either way.
+     */
+    private suspend fun deleteMangaRow(manga: Manga) {
+        try {
+            downloadManager.deleteManga(manga, sourceManager.getOrStub(manga.source))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logcat(LogPriority.WARN, e) { "Failed to clean up the downloads of ${manga.url}" }
+        }
+        syncRepository.deleteManga(manga.id)
     }
     // KUN <--
 

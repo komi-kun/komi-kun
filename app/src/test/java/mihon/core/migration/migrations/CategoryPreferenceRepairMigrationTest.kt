@@ -187,9 +187,10 @@ class CategoryPreferenceRepairMigrationTest {
 
     @Test
     fun `the repair migration is numbered past the migrations an existing install already ran`() {
-        // 84f is the highest shipped migration; anything at or below it never runs on upgrade.
-        assertEquals(85f, migration.version)
-        assertEquals(85, nextMigrationTarget(applied = 84, migrations = listOf(migration)))
+        // 85f is `ClearPagePreviewCacheMigration`; the migrator runs only `(applied + 1)..target`, so
+        // at 85f or below this migration would never run for an install that already applied it.
+        assertEquals(86f, migration.version)
+        assertEquals(86, nextMigrationTarget(applied = 85, migrations = listOf(migration)))
     }
 }
 

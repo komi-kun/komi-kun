@@ -46,6 +46,22 @@ class MangaRepositoryImpl(
     }
 
     // KUN -->
+    override suspend fun getMangaByIdOrNull(id: Long): Manga? {
+        return database.mangaQueries
+            .getMangaById(id, MangaMapper::mapManga)
+            .awaitAsOneOrNull()
+    }
+
+    override suspend fun getMangaByIds(ids: List<Long>): List<Manga> {
+        if (ids.isEmpty()) return emptyList()
+        // one bind variable per id, so a large selection needs chunking to fit SQLite's limit
+        return ids.chunked(MAX_BOUND_IDS).flatMap { chunk ->
+            database.mangaQueries
+                .getMangaByIds(chunk, MangaMapper::mapManga)
+                .awaitAsList()
+        }
+    }
+
     override suspend fun isSyncing(mangaId: Long): Boolean {
         return database.mangaQueries
             .getMangaIsSyncing(mangaId)
@@ -145,6 +161,18 @@ class MangaRepositoryImpl(
     override suspend fun deleteNonLibraryManga(sourceIds: List<Long>, keepReadManga: Boolean) {
         database.mangaQueries.deleteNonLibraryManga(sourceIds, keepReadManga.toLong())
     }
+
+    // KUN -->
+    override suspend fun deleteNonLibraryMangaReturningKeys(
+        sourceIds: List<Long>,
+        keepReadManga: Boolean,
+    ): List<Pair<Long, String>> {
+        return database.mangaQueries
+            .deleteNonLibraryMangaReturningKeys(sourceIds, keepReadManga.toLong())
+            .awaitAsList()
+            .map { it.source_id to it.remote_url }
+    }
+    // KUN <--
 
     override suspend fun setMangaCategories(mangaId: Long, categoryIds: List<Long>) {
         database.transaction {
@@ -390,3 +418,8 @@ class MangaRepositoryImpl(
     }
     // SY <--
 }
+
+// KUN -->
+/** Bind ids per statement: SQLite allows 999 variables before Android 11, 32766 after. */
+private const val MAX_BOUND_IDS = 900
+// KUN <--

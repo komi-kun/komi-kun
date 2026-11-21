@@ -65,14 +65,15 @@ class MigrationTargetTest {
     fun `a migration numbered above the last applied one runs on the next launch`() {
         runBlocking {
             val ran = mutableListOf<Float>()
-            // 84f is the highest migration shipped so far, so this is the upgrade path of every
-            // existing install; the repair migration is the 85f one.
-            val migrations = listOf(migration(84f, ran), migration(85f, ran))
-            val target = nextMigrationTarget(applied = 84, migrations = migrations)
-            target shouldBe 85
+            // 85f is the highest migration shipped so far (the page-preview cache clear), so this is
+            // the upgrade path of every existing install; the repair migration is the 86f one.
+            val migrations = listOf(migration(84f, ran), migration(85f, ran), migration(86f, ran))
+            val target = nextMigrationTarget(applied = 85, migrations = migrations)
+            target shouldBe 86
 
-            strategy(84, target)(migrations).await()
-            ran shouldContainExactly listOf(85f)
+            strategy(85, target)(migrations).await()
+            // The 85f migration must not run a second time; only the new one is selected.
+            ran shouldContainExactly listOf(86f)
         }
     }
 

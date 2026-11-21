@@ -1,6 +1,5 @@
 package eu.kanade.tachiyomi.ui.reader.viewer.webtoon
 
-import android.view.LayoutInflater
 import android.view.ViewGroup
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
@@ -10,14 +9,13 @@ import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
 import androidx.core.view.updateMargins
 import com.davemorrissey.labs.subscaleview.SubsamplingScaleImageView
-import eu.kanade.presentation.util.formattedMessage
-import eu.kanade.tachiyomi.databinding.ReaderErrorBinding
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import eu.kanade.tachiyomi.ui.reader.ocr.OcrDisplayTransform
+import eu.kanade.tachiyomi.ui.reader.viewer.ReaderPageErrorView
 import eu.kanade.tachiyomi.ui.reader.viewer.ReaderPageImageView
 import eu.kanade.tachiyomi.ui.reader.viewer.ReaderProgressIndicator
-import eu.kanade.tachiyomi.ui.webview.WebViewActivity
+import eu.kanade.tachiyomi.ui.reader.viewer.processStripImage
 import eu.kanade.tachiyomi.util.system.dpToPx
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -28,11 +26,8 @@ import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.withContext
 import logcat.LogPriority
 import okio.Buffer
-import okio.BufferedSource
-import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.util.system.ImageUtil
 import tachiyomi.core.common.util.system.logcat
-import tachiyomi.i18n.MR
 
 /**
  * Holder of the webtoon reader for a single page of a chapter.
@@ -63,7 +58,7 @@ class WebtoonPageHolder(
     /**
      * Error layout to show when the image fails to load.
      */
-    private var errorLayout: ReaderErrorBinding? = null
+    private var errorLayout: ReaderPageErrorView? = null
 
     /**
      * Getter to retrieve the height of the recycler view.
@@ -85,9 +80,9 @@ class WebtoonPageHolder(
 
     // KUN -->
     /**
-     * How the displayed sheet differs from the raw page image (webtoon "split and merge" only), for
-     * the OCR overlay mapping. Crop borders are applied at decode time and are a documented v1
-     * limitation (the trim rect is not exposed here).
+     * How the displayed sheet differs from the raw page image (webtoon "split and merge"), for the
+     * OCR overlay mapping. Border cropping is applied at decode time and arrives separately as the
+     * sheet's `OcrDisplayTransform.Crop` wrapper, resolved in [onImageDecoded].
      */
     @Volatile
     private var ocrTransform: OcrDisplayTransform = OcrDisplayTransform.None
@@ -215,8 +210,23 @@ class WebtoonPageHolder(
             val buffer = withContext(Dispatchers.IO) { streamFn().use { Buffer().readFrom(it) } }
             // Splitting and merging decode the image, which is CPU work
             val (source, isAnimated) = withContext(Dispatchers.Default) {
-                val source = process(buffer)
+                // KUN --> the side a split put on top, for the OCR overlay's mapping
+                val source = viewer.simpleLongStrip.page.processStripImage(buffer) { side ->
+                    ocrTransform = OcrDisplayTransform.SplitAndMerge(upperIsRight = side == ImageUtil.Side.RIGHT)
+                }
+                // KUN <--
                 val isAnimated = ImageUtil.isAnimatedAndSupported(source)
+                // KUN -->
+                // Crop borders are a request: SSIV (paged) or the strip decoder derives the rect, and
+                // the overlay needs it to map blocks onto the cropped sheet. Off the main thread.
+                frame.ocrScanSheetCrop(
+                    sheet = source,
+                    isAnimated = isAnimated,
+                    // SY: each long strip mode crops on its own preference (R50).
+                    cropRequested = (viewer.longStrip.cropBorders && viewer.isContinuous) ||
+                        (viewer.longStrip.continuousCropBorders && !viewer.isContinuous),
+                )
+                // KUN <--
                 Pair(source, isAnimated)
             }
             withContext(Dispatchers.Main) {
@@ -243,35 +253,6 @@ class WebtoonPageHolder(
         }
     }
 
-    private fun process(imageSource: BufferedSource): BufferedSource {
-        if (viewer.simpleLongStrip.page.dualPageRotateToFit) {
-            return rotateDualPage(imageSource)
-        }
-
-        if (viewer.simpleLongStrip.page.dualPageSplit) {
-            val isDoublePage = ImageUtil.isWideImage(imageSource)
-            if (isDoublePage) {
-                val upperSide = if (viewer.simpleLongStrip.page.dualPageInvert) ImageUtil.Side.LEFT else ImageUtil.Side.RIGHT
-                // KUN -->
-                ocrTransform = OcrDisplayTransform.SplitAndMerge(upperIsRight = upperSide == ImageUtil.Side.RIGHT)
-                // KUN <--
-                return ImageUtil.splitAndMerge(imageSource, upperSide)
-            }
-        }
-
-        return imageSource
-    }
-
-    private fun rotateDualPage(imageSource: BufferedSource): BufferedSource {
-        val isDoublePage = ImageUtil.isWideImage(imageSource)
-        return if (isDoublePage) {
-            val rotation = if (viewer.simpleLongStrip.page.dualPageRotateToFitInvert) -90f else 90f
-            ImageUtil.rotateImage(imageSource, rotation)
-        } else {
-            imageSource
-        }
-    }
-
     /**
      * Called when the page has an error.
      */
@@ -284,6 +265,11 @@ class WebtoonPageHolder(
      * Called when the image is decoded and going to be displayed.
      */
     private fun onImageDecoded() {
+        // KUN -->
+        // The displayed sheet's border crop (published by the strip decoder, or resolved against
+        // SSIV's escape hatch) maps the overlay's blocks into the cropped sheet.
+        ocrTransform = ocrTransform.croppedBy(frame.ocrCropWindow())
+        // KUN <--
         progressContainer.isVisible = false
         removeErrorLayout()
     }
@@ -310,34 +296,20 @@ class WebtoonPageHolder(
     }
 
     /**
-     * Initializes a button to retry pages.
+     * Shows the error of the page.
      */
-    private fun initErrorLayout(error: Throwable?): ReaderErrorBinding {
-        if (errorLayout == null) {
-            errorLayout = ReaderErrorBinding.inflate(LayoutInflater.from(context), frame, true)
-            errorLayout?.root?.layoutParams = FrameLayout.LayoutParams(MATCH_PARENT, (parentHeight * 0.8).toInt())
-            errorLayout?.actionRetry?.setOnClickListener {
-                page?.let { it.chapter.pageLoader?.retryPage(it) }
-            }
+    private fun initErrorLayout(error: Throwable?) {
+        val page = page ?: return
+        val errorLayout = errorLayout ?: ReaderPageErrorView(
+            context,
+            // KMK -->
+            seedColor = seedColor,
+            // KMK <--
+        ).also {
+            frame.addView(it, FrameLayout.LayoutParams(MATCH_PARENT, (parentHeight * 0.8).toInt()))
+            errorLayout = it
         }
-
-        val imageUrl = page?.imageUrl
-        errorLayout?.actionOpenInWebView?.isVisible = imageUrl != null
-        if (imageUrl != null) {
-            if (imageUrl.startsWith("http", true)) {
-                errorLayout?.actionOpenInWebView?.setOnClickListener {
-                    val sourceId = viewer.activity.viewModel.manga?.source
-
-                    val intent = WebViewActivity.newIntent(context, imageUrl, sourceId)
-                    context.startActivity(intent)
-                }
-            }
-        }
-
-        errorLayout?.errorMessage?.text = with(context) { error?.formattedMessage }
-            ?: context.stringResource(MR.strings.decode_image_error)
-
-        return errorLayout!!
+        errorLayout.bind(page = page, error = error, sourceId = viewer.activity.viewModel.manga?.source)
     }
 
     /**
@@ -345,7 +317,7 @@ class WebtoonPageHolder(
      */
     private fun removeErrorLayout() {
         errorLayout?.let {
-            frame.removeView(it.root)
+            frame.removeView(it)
             errorLayout = null
         }
     }
