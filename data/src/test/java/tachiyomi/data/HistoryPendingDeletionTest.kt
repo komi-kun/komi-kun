@@ -34,7 +34,7 @@ class HistoryPendingDeletionTest {
             fixture.insertHistory(mangaId = 1L, chapterId = 11L, historyId = 101L, readAt = 5_000L)
             fixture.insertHistory(mangaId = 1L, chapterId = 12L, historyId = 102L, readAt = 6_000L)
 
-            fixture.repository.queueHistoryDeletion(listOf(101L))
+            fixture.repository.removeHistory(queueForSync = true, historyIds = listOf(101L))
 
             // the removed row is kept (its chapter is the tombstone key) but loses its read date
             fixture.readAtOf(101L) shouldBe null
@@ -60,7 +60,7 @@ class HistoryPendingDeletionTest {
             fixture.insertChapter(mangaId = 2L, chapterId = 21L, url = "/n/ch1")
             fixture.insertHistory(mangaId = 2L, chapterId = 21L, historyId = 201L, readAt = 7_000L)
 
-            fixture.repository.queueHistoryDeletionByMangaIds(listOf(1L))
+            fixture.repository.removeHistoryByMangaIds(queueForSync = true, mangaIds = listOf(1L))
 
             // both entries of the manga are queued, not just the latest one the History tab showed
             fixture.readAtOf(101L) shouldBe null
@@ -86,7 +86,7 @@ class HistoryPendingDeletionTest {
             // an entry removed by an older build: reset, but never queued for a tombstone
             fixture.insertHistory(mangaId = 1L, chapterId = 12L, historyId = 102L, readAt = null)
 
-            fixture.repository.deleteAllHistory() shouldBe true
+            fixture.repository.removeAllHistory(queueForSync = true) shouldBe true
 
             fixture.readAtOf(101L) shouldBe null
             fixture.pendingDeletionOf(101L) shouldBe 1L
@@ -109,7 +109,7 @@ class HistoryPendingDeletionTest {
             fixture.insertChapter(mangaId = 1L, chapterId = 12L, url = "/m/ch2")
             fixture.insertHistory(mangaId = 1L, chapterId = 11L, historyId = 101L, readAt = 5_000L)
             fixture.insertHistory(mangaId = 1L, chapterId = 12L, historyId = 102L, readAt = null)
-            fixture.repository.queueHistoryDeletion(listOf(101L))
+            fixture.repository.removeHistory(queueForSync = true, historyIds = listOf(101L))
 
             fixture.repository.deleteResetHistory()
 
@@ -128,7 +128,7 @@ class HistoryPendingDeletionTest {
             fixture.insertManga(id = 1L, sourceId = 7L, url = "/m")
             fixture.insertChapter(mangaId = 1L, chapterId = 11L, url = "/m/ch1")
             fixture.insertHistory(mangaId = 1L, chapterId = 11L, historyId = 101L, readAt = 5_000L)
-            fixture.repository.queueHistoryDeletion(listOf(101L))
+            fixture.repository.removeHistory(queueForSync = true, historyIds = listOf(101L))
 
             fixture.repository.upsertHistory(
                 HistoryUpdate(
@@ -153,7 +153,7 @@ class HistoryPendingDeletionTest {
             fixture.insertManga(id = 1L, sourceId = 7L, url = "/m")
             fixture.insertChapter(mangaId = 1L, chapterId = 11L, url = "/m/ch1")
             fixture.insertHistory(mangaId = 1L, chapterId = 11L, historyId = 101L, readAt = 5_000L)
-            fixture.repository.queueHistoryDeletion(listOf(101L))
+            fixture.repository.removeHistory(queueForSync = true, historyIds = listOf(101L))
 
             // a payload carrying this entry's read, e.g. a peer that had not learned of the removal
             fixture.insertRestoredRead(chapterId = 11L, readAt = 8_000L)
@@ -174,7 +174,7 @@ class HistoryPendingDeletionTest {
             fixture.insertChapter(mangaId = 1L, chapterId = 12L, url = "/m/ch2")
             fixture.insertHistory(mangaId = 1L, chapterId = 11L, historyId = 101L, readAt = 5_000L)
             fixture.insertHistory(mangaId = 1L, chapterId = 12L, historyId = 102L, readAt = 6_000L)
-            fixture.repository.queueHistoryDeletion(listOf(102L))
+            fixture.repository.removeHistory(queueForSync = true, historyIds = listOf(102L))
 
             val pending = fixture.repository.getPendingHistoryDeletions(limit = 10)
 
@@ -201,7 +201,7 @@ class HistoryPendingDeletionTest {
                     readAt = 5_000L,
                 )
             }
-            fixture.repository.queueHistoryDeletion(listOf(100L, 101L, 102L))
+            fixture.repository.removeHistory(queueForSync = true, historyIds = listOf(100L, 101L, 102L))
 
             val first = fixture.repository.getPendingHistoryDeletions(limit = 2)
             val second = fixture.repository.getPendingHistoryDeletions(limit = 2, afterId = first.last().historyId)
@@ -224,7 +224,7 @@ class HistoryPendingDeletionTest {
             fixture.insertManga(id = 1L, sourceId = 7L, url = "/m")
             fixture.insertChapter(mangaId = 1L, chapterId = 11L, url = "/m/ch1")
             fixture.insertHistory(mangaId = 1L, chapterId = 11L, historyId = 101L, readAt = 5_000L)
-            fixture.repository.queueHistoryDeletion(listOf(101L))
+            fixture.repository.removeHistory(queueForSync = true, historyIds = listOf(101L))
 
             fixture.repository.clearPendingHistoryDeletion(listOf(101L))
 
@@ -233,6 +233,75 @@ class HistoryPendingDeletionTest {
             fixture.readAtOf(101L) shouldBe null
             fixture.repository.getPendingHistoryDeletions(limit = 10).shouldBeEmpty()
             // and now "clear database" may take it
+            fixture.repository.deleteResetHistory()
+            fixture.historyIds().shouldBeEmpty()
+        } finally {
+            fixture.close()
+        }
+    }
+
+    @Test
+    fun `a removal no sync can deliver is reset without being queued`(): Unit = runBlocking {
+        val fixture = Fixture()
+        try {
+            fixture.insertManga(id = 1L, sourceId = 7L, url = "/m")
+            fixture.insertChapter(mangaId = 1L, chapterId = 11L, url = "/m/ch1")
+            fixture.insertChapter(mangaId = 1L, chapterId = 12L, url = "/m/ch2")
+            fixture.insertHistory(mangaId = 1L, chapterId = 11L, historyId = 101L, readAt = 5_000L)
+            fixture.insertHistory(mangaId = 1L, chapterId = 12L, historyId = 102L, readAt = 6_000L)
+
+            fixture.repository.removeHistory(queueForSync = false, historyIds = listOf(101L))
+            fixture.repository.removeHistoryByMangaIds(queueForSync = false, mangaIds = listOf(1L))
+
+            // the removal still hides both rows, but nothing is left for a request that will never run
+            fixture.readAtOf(101L) shouldBe null
+            fixture.readAtOf(102L) shouldBe null
+            fixture.pendingDeletionOf(101L) shouldBe 0L
+            fixture.pendingDeletionOf(102L) shouldBe 0L
+            fixture.repository.getPendingHistoryDeletions(limit = 10).shouldBeEmpty()
+            // an unqueued removal is an ordinary reset row: "clear database" takes it, and a restore
+            // payload may write over it again
+            fixture.repository.deleteResetHistory()
+            fixture.historyIds().shouldBeEmpty()
+        } finally {
+            fixture.close()
+        }
+    }
+
+    @Test
+    fun `clear all without a deliverable tombstone queues nothing`(): Unit = runBlocking {
+        val fixture = Fixture()
+        try {
+            fixture.insertManga(id = 1L, sourceId = 7L, url = "/m")
+            fixture.insertChapter(mangaId = 1L, chapterId = 11L, url = "/m/ch1")
+            fixture.insertHistory(mangaId = 1L, chapterId = 11L, historyId = 101L, readAt = 5_000L)
+
+            fixture.repository.removeAllHistory(queueForSync = false) shouldBe true
+
+            fixture.readAtOf(101L) shouldBe null
+            fixture.pendingDeletionOf(101L) shouldBe 0L
+            fixture.repository.deleteResetHistory()
+            fixture.historyIds().shouldBeEmpty()
+        } finally {
+            fixture.close()
+        }
+    }
+
+    @Test
+    fun `a removal that cannot be delivered drops a marker an earlier one left`(): Unit = runBlocking {
+        val fixture = Fixture()
+        try {
+            fixture.insertManga(id = 1L, sourceId = 7L, url = "/m")
+            fixture.insertChapter(mangaId = 1L, chapterId = 11L, url = "/m/ch1")
+            fixture.insertHistory(mangaId = 1L, chapterId = 11L, historyId = 101L, readAt = 5_000L)
+            // queued while the configuration could still deliver it, then the user configured it away
+            fixture.repository.removeHistory(queueForSync = true, historyIds = listOf(101L))
+
+            fixture.repository.clearAllPendingHistoryDeletions()
+
+            fixture.pendingDeletionOf(101L) shouldBe 0L
+            // the removal itself stands: the row is still hidden
+            fixture.readAtOf(101L) shouldBe null
             fixture.repository.deleteResetHistory()
             fixture.historyIds().shouldBeEmpty()
         } finally {

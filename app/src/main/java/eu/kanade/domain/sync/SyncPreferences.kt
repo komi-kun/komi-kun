@@ -142,6 +142,14 @@ class SyncPreferences(
             serverSupportsV2.get()
     }
 
+    /**
+     * Whether a history removal can be queued for a server tombstone at all. Only the SyncYomi v2
+     * deletions request consumes it, and only for the host it was probed against, and only while the
+     * history section is enabled: a removal queued on any other configuration could never be sent,
+     * and the queued row would stay un-restorable and un-cleanable for the rest of its life.
+     */
+    fun deliversHistoryTombstones(): Boolean = isSyncYomiV2() && getSyncSettings().history
+
     /** Serialises the read-modify-write of the tombstone sets so concurrent edits are not lost. */
     private val tombstoneLock = Any()
     // KUN <--

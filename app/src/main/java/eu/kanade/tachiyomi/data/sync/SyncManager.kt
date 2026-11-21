@@ -134,6 +134,17 @@ class SyncManager(
 
         val syncOptions = syncPreferences.getSyncSettings()
 
+        // KUN -->
+        // A row queued for a SyncYomi tombstone that this configuration can no longer deliver —
+        // history sync turned off, another service selected, or a host that is not v2 — would stay
+        // blocked for the rest of its life: a restore payload skips it, "Clear database" keeps it,
+        // and it pins its chapter against a remote deletion. A sync run is where the configuration
+        // is actually applied, so it is also where the stranded markers are dropped.
+        if (!syncPreferences.deliversHistoryTombstones()) {
+            historyRepository.clearAllPendingHistoryDeletions()
+        }
+        // KUN <--
+
         val backupOptions = BackupOptions(
             libraryEntries = syncOptions.libraryEntries,
             categories = syncOptions.categories,

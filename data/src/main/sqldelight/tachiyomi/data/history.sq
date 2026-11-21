@@ -11,6 +11,11 @@ CREATE TABLE history(
     -- the server yet: the row keeps its identity (the chapter key the tombstone is built from) but
     -- loses its read date, so every history reader hides it. Cleared by a new local read or by the
     -- deletions request the server confirmed.
+    --
+    -- The queue is row-scoped, and both foreign keys below cascade: a queued tombstone is lost if
+    -- its chapter or its manga is deleted before the request sends it, and the server then keeps
+    -- the entry. Only a local read of a chapter that still exists is covered by `upsert`, so this
+    -- marker is never the reason a row survives a cascade.
     pending_deletion INTEGER NOT NULL DEFAULT 0,
     -- KUN <--
     FOREIGN KEY(manga_id) REFERENCES manga (id)
@@ -64,16 +69,19 @@ LIMIT :limit;
 -- Queue one entry (or a selection) for a server tombstone: the row loses its read date, which is
 -- what hides it, and keeps the chapter it is keyed by. Rows that already lost their read date are
 -- not touched, so a repeated removal cannot re-queue an entry the user already removed.
-queueHistoryDeletion:
+--
+-- `:queue` is 0 when the configured sync cannot deliver a tombstone (see HistoryTombstoneDelivery):
+-- the removal still happens, it just does not leave a marker nothing would ever send.
+removeHistoryByIds:
 UPDATE history
 SET read_at = NULL,
-    pending_deletion = 1
+    pending_deletion = :queue
 WHERE id IN :historyIds AND read_at IS NOT NULL;
 
-queueHistoryDeletionByMangaIds:
+removeHistoryByMangaIds:
 UPDATE history
 SET read_at = NULL,
-    pending_deletion = 1
+    pending_deletion = :queue
 WHERE manga_id IN :mangaIds AND read_at IS NOT NULL;
 
 -- Clear the queue flag of the rows a deletions response confirmed, leaving the read date alone: a
@@ -82,6 +90,14 @@ clearPendingHistoryDeletion:
 UPDATE history
 SET pending_deletion = 0
 WHERE id IN :historyIds AND pending_deletion = 1;
+
+-- Drop every marker a configuration change stranded (history sync turned off, another service
+-- selected, a host that is no longer v2): no request will ever send them, and a marker blocks its
+-- row from being restored over and from being cleaned up.
+clearAllPendingHistoryDeletions:
+UPDATE history
+SET pending_deletion = 0
+WHERE pending_deletion = 1;
 -- KUN <--
 
 -- KMK -->
@@ -102,12 +118,17 @@ WHERE manga_id IN :mangaIds;
 
 -- KUN -->
 -- "Clear all history" is a soft delete like the other two removal paths: every row that still has a
--- read date is queued for a `history` tombstone instead of being dropped, so the removal can reach
--- the server — one row per entry instead of one persisted key per entry.
+-- read date is reset and, when `:queue` is 1, queued for a `history` tombstone instead of being
+-- dropped, so the removal can reach the server — one row per entry instead of one persisted key per
+-- entry.
+--
+-- The rows stay, so `getReadDuration` keeps counting the time the user spent reading them, exactly
+-- as a per-entry removal already did: the stat is "time read", not "time read on entries the
+-- History tab still lists".
 removeAllHistory:
 UPDATE history
 SET read_at = NULL,
-    pending_deletion = 1
+    pending_deletion = :queue
 WHERE read_at IS NOT NULL;
 -- KUN <--
 

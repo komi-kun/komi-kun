@@ -100,27 +100,44 @@ class HistoryRepositoryImpl(
         }
     }
 
-    override suspend fun queueHistoryDeletion(historyIds: List<Long>) {
+    override suspend fun removeHistory(historyIds: List<Long>, queueForSync: Boolean) {
         try {
             // one bind variable per id, so a select-all needs chunking to fit SQLite's variable limit;
             // the transaction keeps the chunks all-or-nothing.
             database.transaction {
-                historyIds.chunked(MAX_BOUND_IDS).forEach { database.historyQueries.queueHistoryDeletion(it) }
+                historyIds.chunked(MAX_BOUND_IDS).forEach {
+                    database.historyQueries.removeHistoryByIds(queue = queueForSync.toLong(), historyIds = it)
+                }
             }
         } catch (e: Exception) {
             logcat(LogPriority.ERROR, throwable = e)
         }
     }
 
-    override suspend fun queueHistoryDeletionByMangaIds(mangaIds: List<Long>) {
+    override suspend fun removeHistoryByMangaIds(mangaIds: List<Long>, queueForSync: Boolean) {
         try {
             database.transaction {
                 mangaIds.chunked(MAX_BOUND_IDS).forEach {
-                    database.historyQueries.queueHistoryDeletionByMangaIds(it)
+                    database.historyQueries.removeHistoryByMangaIds(queue = queueForSync.toLong(), mangaIds = it)
                 }
             }
         } catch (e: Exception) {
             logcat(LogPriority.ERROR, throwable = e)
+        }
+    }
+
+    override suspend fun removeAllHistory(queueForSync: Boolean): Boolean {
+        return try {
+            // KUN -->
+            // A soft delete: every row that still has a read date is reset and, when the configured
+            // sync can deliver a tombstone, queued — the same removal as the other two paths, over
+            // the whole table (the queue lives in the rows, not in a persisted key per entry).
+            // KUN <--
+            database.historyQueries.removeAllHistory(queue = queueForSync.toLong())
+            true
+        } catch (e: Exception) {
+            logcat(LogPriority.ERROR, throwable = e)
+            false
         }
     }
 
@@ -148,6 +165,10 @@ class HistoryRepositoryImpl(
         } catch (e: Exception) {
             logcat(LogPriority.ERROR, throwable = e)
         }
+    }
+
+    override suspend fun clearAllPendingHistoryDeletions() {
+        database.historyQueries.clearAllPendingHistoryDeletions()
     }
     // KUN <--
 
@@ -178,21 +199,6 @@ class HistoryRepositoryImpl(
         }
     }
     // KMK <--
-
-    override suspend fun deleteAllHistory(): Boolean {
-        return try {
-            // KUN -->
-            // A soft delete: `removeAllHistory` resets and queues every row that still has a read
-            // date, so "clear all" propagates through the same history tombstone as the other two
-            // removal paths (the queue lives in the rows, not in a persisted key per entry).
-            // KUN <--
-            database.historyQueries.removeAllHistory()
-            true
-        } catch (e: Exception) {
-            logcat(LogPriority.ERROR, throwable = e)
-            false
-        }
-    }
 
     override suspend fun deleteResetHistory() {
         database.historyQueries.removeResettedHistory()

@@ -577,6 +577,16 @@ object SettingsDataScreen : SearchableSettings {
                                 SyncDataJob.setupTask(context, prefInterval = 0)
                             }
                             // KMK <--
+                            // KUN -->
+                            // Leaving SyncYomi is the one change no later sync can repair: the
+                            // schedule is cancelled or now belongs to another service, so no run
+                            // would ever drop the history tombstones queued for SyncYomi. They
+                            // block their rows (no restore over them, no "clear database"), so
+                            // drop them here while this screen still knows the switch happened.
+                            if (it != SyncManager.SyncService.SYNCYOMI.value) {
+                                context.appGraph.historyRepository.clearAllPendingHistoryDeletions()
+                            }
+                            // KUN <--
                             true
                         },
                     ),

@@ -20,6 +20,7 @@ class SyncPreferencesTest {
         serverSupportsV2: Boolean = true,
         probedHost: String = "https://sync.tachiyomi.org",
         libraryEntries: Boolean = true,
+        history: Boolean = true,
     ) = SyncPreferences(
         InMemoryPreferenceStore(
             sequenceOf(
@@ -27,6 +28,7 @@ class SyncPreferencesTest {
                 InMemoryPreference("__APP_STATE_sync_server_supports_v2", serverSupportsV2, false),
                 InMemoryPreference("__APP_STATE_sync_v2_probed_host", probedHost, ""),
                 InMemoryPreference("sync_library_entries", libraryEntries, true),
+                InMemoryPreference("sync_history", history, true),
             ),
         ),
     )
@@ -140,6 +142,25 @@ class SyncPreferencesTest {
         prefs.forgetDeletedManga(sent)
 
         assertEquals(setOf("3|/c"), prefs.pendingDeletedMangaKeys.get())
+    }
+
+    @Test
+    fun `history tombstones are only deliverable to a confirmed v2 SyncYomi host with history on`() {
+        // The gate every removal path consults before queueing a row. Any other answer leaves a
+        // marker that no request reads, and that marker blocks its row from a restore, from "clear
+        // database" and from a remote chapter deletion.
+        assertTrue(syncPreferences(syncService = 1).deliversHistoryTombstones())
+        assertFalse(syncPreferences(syncService = 1, history = false).deliversHistoryTombstones())
+        // another service (or none) owns the server's rows now
+        assertFalse(syncPreferences(syncService = 0).deliversHistoryTombstones())
+        assertFalse(syncPreferences(syncService = 2).deliversHistoryTombstones())
+        assertFalse(syncPreferences(syncService = 3).deliversHistoryTombstones())
+        // a host that never confirmed v2 cannot read the `items` shape
+        assertFalse(syncPreferences(syncService = 1, serverSupportsV2 = false).deliversHistoryTombstones())
+        // the confirmation belongs to the host it was probed against
+        assertFalse(
+            syncPreferences(syncService = 1, probedHost = "https://other.example").deliversHistoryTombstones(),
+        )
     }
     // KUN <--
 }

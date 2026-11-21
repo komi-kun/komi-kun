@@ -59,13 +59,21 @@ interface HistoryRepository {
     suspend fun getHistoryChapterEntriesByMangaIds(mangaIds: List<Long>): List<HistoryChapterEntry>
 
     /**
-     * Queue [historyIds] for a server tombstone: each row loses its read date (which is what hides
-     * it from every history reader) and is marked pending. Rows without a read date are untouched.
+     * Removes [historyIds] from history: each row loses its read date, which is what every history
+     * reader shows as gone. [queueForSync] also queues the row as a SyncYomi `history` tombstone.
+     *
+     * A removal that no configured sync could ever deliver is reset *and* un-queued instead: a
+     * marker nothing will send blocks the row from being restored over, keeps it out of "clear
+     * database", and pins its chapter against a remote deletion. Rows without a read date are
+     * untouched either way.
      */
-    suspend fun queueHistoryDeletion(historyIds: List<Long>)
+    suspend fun removeHistory(historyIds: List<Long>, queueForSync: Boolean)
 
-    /** The per-manga removal: queues every row of [mangaIds] that still has a read date. */
-    suspend fun queueHistoryDeletionByMangaIds(mangaIds: List<Long>)
+    /** The per-manga removal: [removeHistory] over every row of [mangaIds] that has a read date. */
+    suspend fun removeHistoryByMangaIds(mangaIds: List<Long>, queueForSync: Boolean)
+
+    /** "Clear all history": [removeHistory] over every row that still has a read date. */
+    suspend fun removeAllHistory(queueForSync: Boolean): Boolean
 
     /**
      * At most [limit] rows still awaiting a server tombstone, ordered by row id, starting after
@@ -75,6 +83,12 @@ interface HistoryRepository {
 
     /** Drops the queue flag of the rows the server confirmed; their read date stays as it is. */
     suspend fun clearPendingHistoryDeletion(historyIds: List<Long>)
+
+    /**
+     * Drops every marker a configuration change stranded (history sync off, another service, a host
+     * that is no longer v2). Their removals stand: the rows keep no read date.
+     */
+    suspend fun clearAllPendingHistoryDeletions()
     // KUN <--
 
     // KMK -->
@@ -83,7 +97,10 @@ interface HistoryRepository {
     suspend fun resetHistoryByMangaIds(mangaIds: List<Long>)
     // KMK <--
 
-    suspend fun deleteAllHistory(): Boolean
+    // KUN -->
+    // Removed `deleteAllHistory`: "clear all" is a soft delete that reports whether the rows could
+    // be queued, so it is removeAllHistory(queueForSync) above.
+    // KUN <--
 
     suspend fun deleteResetHistory()
 
