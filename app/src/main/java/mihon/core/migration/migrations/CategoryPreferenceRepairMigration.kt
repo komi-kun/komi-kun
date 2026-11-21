@@ -24,7 +24,8 @@ import tachiyomi.domain.category.service.CategoryIdPreferences
  * - `defaultCategory` (library), which stores a single id.
  *
  * Every group comes from [CategoryIdPreferences], the same inventory `PruneCategoryReferences` prunes
- * on deletion, so the two cannot drift apart.
+ * on deletion and the backup `PreferenceRestorer` translates on a restore, so the three cannot drift
+ * apart.
  *
  * [CategoryPreferencesCleanupMigration] (73f) only covered the library/download `Set<String>` filters
  * and `defaultCategory`; the History, Updates and Upcoming `List<Long>` filters it skipped can still

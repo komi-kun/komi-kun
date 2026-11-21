@@ -25,15 +25,39 @@ import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.core.common.preference.plusAssign
 import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.domain.category.model.Category
-import tachiyomi.domain.download.service.DownloadPreferences
+import tachiyomi.domain.category.service.CategoryIdPreferences
 import tachiyomi.domain.library.service.LibraryPreferences
 
 @Inject
 class PreferenceRestorer(
     private val context: Context,
     private val getCategories: GetCategories,
+    // KUN -->
+    // The category-id inventory the pruner and the repair migration share. Restoring a backup has
+    // to translate the other device's category rowids in exactly the same preferences, so deriving
+    // the key set from `CategoryIdPreferences` keeps the three in step; the hand-maintained
+    // `LibraryPreferences`/`DownloadPreferences` key sets missed the Discord incognito set and every
+    // `List<Long>` filter.
+    private val categoryIdPreferences: CategoryIdPreferences,
+    // KUN <--
     private val preferenceStore: PreferenceStore,
 ) {
+    // KUN -->
+    /**
+     * The category-id keys, split by how the value is stored, both derived from [CategoryIdPreferences]:
+     *
+     * - [categoryIdStringKeys] are `Set<String>` (`StringSetPreferenceValue` in a payload);
+     * - [categoryIdLongKeys] are `List<Long>` written by `getLongArray`, i.e. a comma-joined `String`
+     *   (`StringPreferenceValue` in a payload).
+     *
+     * The History filters of `longFilters` are app-state keys: `PreferenceBackupCreator` drops them
+     * when creating a backup and [restorePreferences] drops them again on the way in, so a payload
+     * never carries them. They are in the set because it is the inventory, not a copy of it.
+     */
+    private val categoryIdStringKeys = categoryIdPreferences.stringFilters.mapTo(mutableSetOf()) { it.key() }
+    private val categoryIdLongKeys = categoryIdPreferences.longFilters.mapTo(mutableSetOf()) { it.key() }
+    // KUN <--
+
     suspend fun restoreApp(
         preferences: List<BackupPreference>,
         backupCategories: List<BackupCategory>?,
@@ -112,7 +136,18 @@ class PreferenceRestorer(
                     }
                     is StringPreferenceValue -> {
                         if (prefs[key] is String?) {
-                            preferenceStore.getString(key).set(value.value)
+                            // KUN -->
+                            val restored = restoreCommaJoinedCategoriesPreference(
+                                key,
+                                value.value,
+                                preferenceStore,
+                                backupCategoriesById,
+                                categoriesByName,
+                            )
+                            if (!restored) {
+                                preferenceStore.getString(key).set(value.value)
+                            }
+                            // KUN <--
                         }
                     }
                     is BooleanPreferenceValue -> {
@@ -164,13 +199,14 @@ class PreferenceRestorer(
         backupCategoriesById: Map<String, BackupCategory>,
         categoriesByName: Map<String, Category>,
     ): Boolean {
-        val categoryPreferences = LibraryPreferences.categoryPreferenceKeys + DownloadPreferences.categoryPreferenceKeys
-        if (key !in categoryPreferences) return false
+        // KUN -->
+        // The key set is the shared category-id inventory, not a second hand-maintained list: it
+        // covers the Discord incognito set as well as the library and download filters.
+        if (key !in categoryIdStringKeys) return false
+        // KUN <--
 
         val ids = value.mapNotNull {
-            backupCategoriesById[it]?.name?.let { name ->
-                categoriesByName[name]?.id?.toString()
-            }
+            remapCategoryId(it, backupCategoriesById, categoriesByName)
         }
 
         if (ids.isNotEmpty()) {
@@ -180,6 +216,43 @@ class PreferenceRestorer(
         }
         return true
     }
+
+    // KUN -->
+    /**
+     * Remaps a `List<Long>` category filter, which `getLongArray` stores as a comma-joined string of
+     * ids, so a restore of another device's backup would otherwise write its rowids verbatim.
+     *
+     * Returns `false` for a key that is not one of those filters, so the caller writes the value as
+     * it came. Like [restoreCategoriesPreference], a list whose ids all name categories missing here
+     * leaves the local preference alone rather than clearing it.
+     */
+    private fun restoreCommaJoinedCategoriesPreference(
+        key: String,
+        value: String,
+        preferenceStore: PreferenceStore,
+        backupCategoriesById: Map<String, BackupCategory>,
+        categoriesByName: Map<String, Category>,
+    ): Boolean {
+        if (key !in categoryIdLongKeys) return false
+
+        val ids = value.split(",").mapNotNull {
+            remapCategoryId(it, backupCategoriesById, categoriesByName)
+        }
+        if (ids.isNotEmpty()) {
+            preferenceStore.getString(key).set(ids.joinToString(","))
+        }
+        return true
+    }
+
+    /** A backup category id as this device's id for the same category name; an unknown id drops. */
+    private fun remapCategoryId(
+        backupId: String,
+        backupCategoriesById: Map<String, BackupCategory>,
+        categoriesByName: Map<String, Category>,
+    ): String? = backupCategoriesById[backupId]?.name?.let { name ->
+        categoriesByName[name]?.id?.toString()
+    }
+    // KUN <--
 
     internal fun restorePinnedSourcesPreference(
         key: String,

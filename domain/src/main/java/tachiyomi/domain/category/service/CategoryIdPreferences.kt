@@ -13,8 +13,9 @@ import tachiyomi.domain.updates.service.UpdatesPreferences
 
 /**
  * The typed inventory of every preference that stores local category ids. It lives in one place
- * because two readers need the same list — `PruneCategoryReferences` (the steady-state prune after a
- * deletion) and `CategoryPreferenceRepairMigration` (the one-shot repair of existing drift) — and two
+ * because three readers need the same list — `PruneCategoryReferences` (the steady-state prune after
+ * a deletion), `CategoryPreferenceRepairMigration` (the one-shot repair of existing drift) and the
+ * backup `PreferenceRestorer`, which translates another device's ids by category name — and two
  * hand-maintained copies of the list had already started to drift.
  *
  * - [stringFilters] hold the ids as strings: the four library update/filter sets, the three download
@@ -26,6 +27,10 @@ import tachiyomi.domain.updates.service.UpdatesPreferences
  * The Discord RPC incognito set is in [stringFilters] because `ConnectionsPreferences` lives in
  * `:domain` too: while it was an app-level class the inventory could not carry it, so its prune ran
  * from the app layer and could be missed.
+ *
+ * The History filters are app-state keys, so they are never written to a backup and never restored
+ * from one; they are in the inventory all the same, and the readers that do cover backups key off
+ * [stringFilters] and [longFilters] rather than a second copy of the list.
  */
 @Inject
 @SingleIn(AppScope::class)
