@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import tachiyomi.domain.history.repository.HistoryRepository
+import tachiyomi.domain.history.service.HistoryTombstoneDeliverability
 import tachiyomi.domain.history.service.HistoryTombstoneDelivery
 
 /**
@@ -77,10 +78,31 @@ class RemoveHistoryTest {
         assertTrue(removeHistory(canDeliver = true).awaitAll())
     }
 
+    @Test
+    fun `an unprobed host does not queue a tombstone`() = runTest {
+        val removeHistory = RemoveHistory(
+            repository = repository,
+            tombstoneDelivery = HistoryTombstoneDelivery { HistoryTombstoneDeliverability.UNKNOWN },
+        )
+
+        removeHistory.await(listOf(11L))
+
+        // UNKNOWN is not a confirmation that a request will read the marker, so the removal is only
+        // a reset; the sweep of already queued markers is the one decision that must not act on it
+        coVerify(exactly = 1) { repository.removeHistory(listOf(11L), queueForSync = false) }
+        coVerify(exactly = 0) { repository.removeHistory(any(), queueForSync = true) }
+    }
+
     /** The production seam is a `fun interface`, so the test drives the real policy shape. */
     private fun removeHistory(canDeliver: Boolean) = RemoveHistory(
         repository = repository,
-        tombstoneDelivery = HistoryTombstoneDelivery { canDeliver },
+        tombstoneDelivery = HistoryTombstoneDelivery {
+            if (canDeliver) {
+                HistoryTombstoneDeliverability.DELIVERABLE
+            } else {
+                HistoryTombstoneDeliverability.UNDELIVERABLE
+            }
+        },
     )
 }
 // KUN <--

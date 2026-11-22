@@ -9,6 +9,7 @@ import dev.zacsweers.metro.SingleIn
 import kotlinx.coroutines.flow.Flow
 import logcat.LogPriority
 import tachiyomi.core.common.util.lang.toLong
+import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.data.Database
 import tachiyomi.data.subscribeToList
@@ -168,7 +169,13 @@ class HistoryRepositoryImpl(
     }
 
     override suspend fun clearAllPendingHistoryDeletions() {
-        database.historyQueries.clearAllPendingHistoryDeletions()
+        // KUN -->
+        // Dispatched here rather than at the call sites: one of them is a Compose settings callback
+        // on Main, and this is a full-table update whenever anything is queued.
+        // KUN <--
+        withIOContext {
+            database.historyQueries.clearAllPendingHistoryDeletions()
+        }
     }
     // KUN <--
 

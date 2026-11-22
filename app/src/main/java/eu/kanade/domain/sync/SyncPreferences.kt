@@ -8,6 +8,7 @@ import eu.kanade.tachiyomi.data.sync.SyncManager
 import eu.kanade.tachiyomi.data.sync.models.SyncTriggerOptions
 import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.PreferenceStore
+import tachiyomi.domain.history.service.HistoryTombstoneDeliverability
 import java.util.UUID
 
 @Inject
@@ -143,12 +144,28 @@ class SyncPreferences(
     }
 
     /**
-     * Whether a history removal can be queued for a server tombstone at all. Only the SyncYomi v2
-     * deletions request consumes it, and only for the host it was probed against, and only while the
-     * history section is enabled: a removal queued on any other configuration could never be sent,
-     * and the queued row would stay un-restorable and un-cleanable for the rest of its life.
+     * The three-state answer behind the removal gate and the stranded-marker sweep: whether a
+     * history removal can be queued for a server tombstone at all.
+     *
+     * Only the SyncYomi service consumes the queue, and only while the history section is enabled;
+     * anything else is [HistoryTombstoneDeliverability.UNDELIVERABLE] and no request will ever read
+     * the marker. For SyncYomi the answer depends on the capability probe, which is cached per host:
+     * a host that answered "no" is undeliverable, but a host that has *not* answered yet is
+     * [HistoryTombstoneDeliverability.UNKNOWN], not a refusal. The sync run probes before it decides
+     * anything, so the sweep never has to guess.
      */
-    fun deliversHistoryTombstones(): Boolean = isSyncYomiV2() && getSyncSettings().history
+    fun historyTombstoneDeliverability(): HistoryTombstoneDeliverability {
+        if (syncService.get() != SyncManager.SyncService.SYNCYOMI.value) {
+            return HistoryTombstoneDeliverability.UNDELIVERABLE
+        }
+        if (!getSyncSettings().history) return HistoryTombstoneDeliverability.UNDELIVERABLE
+        if (v2ProbedHost.get() != clientHost.get()) return HistoryTombstoneDeliverability.UNKNOWN
+        return if (serverSupportsV2.get()) {
+            HistoryTombstoneDeliverability.DELIVERABLE
+        } else {
+            HistoryTombstoneDeliverability.UNDELIVERABLE
+        }
+    }
 
     /** Serialises the read-modify-write of the tombstone sets so concurrent edits are not lost. */
     private val tombstoneLock = Any()

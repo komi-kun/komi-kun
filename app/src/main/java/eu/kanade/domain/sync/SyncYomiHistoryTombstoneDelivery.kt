@@ -5,6 +5,7 @@ import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
+import tachiyomi.domain.history.service.HistoryTombstoneDeliverability
 import tachiyomi.domain.history.service.HistoryTombstoneDelivery
 
 /**
@@ -19,6 +20,7 @@ import tachiyomi.domain.history.service.HistoryTombstoneDelivery
 class SyncYomiHistoryTombstoneDelivery(
     private val syncPreferences: SyncPreferences,
 ) : HistoryTombstoneDelivery {
-    override fun canDeliver(): Boolean = syncPreferences.deliversHistoryTombstones()
+    override fun deliverability(): HistoryTombstoneDeliverability =
+        syncPreferences.historyTombstoneDeliverability()
 }
 // KUN <--

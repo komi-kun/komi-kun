@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test
 import tachiyomi.core.common.preference.InMemoryPreferenceStore
 import tachiyomi.core.common.preference.InMemoryPreferenceStore.InMemoryPreference
 import tachiyomi.core.common.preference.Preference
+import tachiyomi.domain.history.service.HistoryTombstoneDeliverability
 
 /**
  * Ported from TachiyomiSY (jobobby04/TachiyomiSY#1658).
@@ -149,17 +150,45 @@ class SyncPreferencesTest {
         // The gate every removal path consults before queueing a row. Any other answer leaves a
         // marker that no request reads, and that marker blocks its row from a restore, from "clear
         // database" and from a remote chapter deletion.
-        assertTrue(syncPreferences(syncService = 1).deliversHistoryTombstones())
-        assertFalse(syncPreferences(syncService = 1, history = false).deliversHistoryTombstones())
+        assertEquals(
+            HistoryTombstoneDeliverability.DELIVERABLE,
+            syncPreferences(syncService = 1).historyTombstoneDeliverability(),
+        )
+        // a disabled section is a verdict: this device does not manage the server's history
+        assertEquals(
+            HistoryTombstoneDeliverability.UNDELIVERABLE,
+            syncPreferences(syncService = 1, history = false).historyTombstoneDeliverability(),
+        )
         // another service (or none) owns the server's rows now
-        assertFalse(syncPreferences(syncService = 0).deliversHistoryTombstones())
-        assertFalse(syncPreferences(syncService = 2).deliversHistoryTombstones())
-        assertFalse(syncPreferences(syncService = 3).deliversHistoryTombstones())
-        // a host that never confirmed v2 cannot read the `items` shape
-        assertFalse(syncPreferences(syncService = 1, serverSupportsV2 = false).deliversHistoryTombstones())
-        // the confirmation belongs to the host it was probed against
-        assertFalse(
-            syncPreferences(syncService = 1, probedHost = "https://other.example").deliversHistoryTombstones(),
+        listOf(0, 2, 3).forEach { service ->
+            assertEquals(
+                HistoryTombstoneDeliverability.UNDELIVERABLE,
+                syncPreferences(syncService = service).historyTombstoneDeliverability(),
+            )
+        }
+        // a host that answered "no" cannot read the `items` shape
+        assertEquals(
+            HistoryTombstoneDeliverability.UNDELIVERABLE,
+            syncPreferences(syncService = 1, serverSupportsV2 = false).historyTombstoneDeliverability(),
+        )
+    }
+
+    @Test
+    fun `an unprobed host is the third answer, not a refusal`() {
+        // A changed host (or a fresh install) has no probe result for the host it now points at.
+        // That is not the same as "this host cannot take tombstones": the next sync asks before it
+        // decides anything, so a sweep driven by this answer must not act on it.
+        assertEquals(
+            HistoryTombstoneDeliverability.UNKNOWN,
+            syncPreferences(syncService = 1, probedHost = "https://other.example")
+                .historyTombstoneDeliverability(),
+        )
+        // the probe belongs to the host it ran against: a confirmed v2 answer for a different host
+        // says nothing about this one
+        assertEquals(
+            HistoryTombstoneDeliverability.UNKNOWN,
+            syncPreferences(syncService = 1, serverSupportsV2 = true, probedHost = "")
+                .historyTombstoneDeliverability(),
         )
     }
     // KUN <--
