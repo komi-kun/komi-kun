@@ -4,8 +4,10 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.long
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import tachiyomi.domain.history.repository.PendingHistoryDeletion
@@ -91,7 +93,7 @@ class DeletionRequestTest {
                 items = deletionItems(
                     chapters = listOf(chapterKey),
                     mangas = listOf("1|/m"),
-                    histories = listOf(historyKey),
+                    histories = listOf(HistoryTombstone(historyKey, removedAtSeconds = 1_700_000_000L)),
                 ),
                 deletedChapters = listOf(chapterKey),
             ),
@@ -195,13 +197,25 @@ class DeletionRequestTest {
         // The sync reads these rows from the database, so the key has to come from the joined
         // source, manga url and chapter url — a swapped manga/chapter url names another entry.
         val rows = listOf(
-            PendingHistoryDeletion(historyId = 101L, sourceId = 7L, mangaUrl = "/m", chapterUrl = "/m/ch1"),
-            PendingHistoryDeletion(historyId = 102L, sourceId = 8L, mangaUrl = "/n", chapterUrl = "/n/ch9"),
+            PendingHistoryDeletion(
+                historyId = 101L,
+                sourceId = 7L,
+                mangaUrl = "/m",
+                chapterUrl = "/m/ch1",
+                removedAt = 1_700_000_000_000L,
+            ),
+            PendingHistoryDeletion(
+                historyId = 102L,
+                sourceId = 8L,
+                mangaUrl = "/n",
+                chapterUrl = "/n/ch9",
+                removedAt = 1_700_000_001_000L,
+            ),
         )
 
         assertEquals(
             listOf("7|/m\u001f/m/ch1", "8|/n\u001f/n/ch9"),
-            historyDeletionKeys(rows),
+            historyTombstones(rows).map { it.key },
         )
     }
 
@@ -215,12 +229,13 @@ class DeletionRequestTest {
                 sourceId = 1L,
                 mangaUrl = "/m",
                 chapterUrl = "/m/ch$index",
+                removedAt = 1_700_000_000_000L,
             )
         }
 
         val body = json.encodeToString(
             DeletionRequest.serializer(),
-            DeletionRequest(items = deletionItems(emptyList(), emptyList(), historyDeletionKeys(rows))),
+            DeletionRequest(items = deletionItems(emptyList(), emptyList(), historyTombstones(rows))),
         )
 
         val root = Json.parseToJsonElement(body).jsonObject
@@ -230,6 +245,81 @@ class DeletionRequestTest {
         assertEquals(HISTORY_DELETION_BATCH, items.size)
         assertEquals(setOf("history"), items.toSet())
         assertEquals(0, root.getValue("deletedChapters").jsonArray.size)
+    }
+
+    @Test
+    fun `a history tombstone carries the removal time in seconds and nothing else does`() {
+        // The database keeps epoch milliseconds (`history.removed_at`, the unit `read_at` uses) and
+        // the server reads epoch seconds, so the wire value has to be divided: sending milliseconds
+        // would name a moment ~50 000 years out and no read could ever be newer than the removal.
+        val historyKey = "1|/m\u001f/m/ch2"
+        val body = json.encodeToString(
+            DeletionRequest.serializer(),
+            DeletionRequest(
+                items = deletionItems(
+                    chapters = listOf("c1"),
+                    mangas = listOf("1|/m"),
+                    histories = listOf(HistoryTombstone(historyKey, removedAtSeconds = 1_700_000_000L)),
+                ),
+                deletedChapters = listOf("c1"),
+            ),
+        )
+
+        val items = Json.parseToJsonElement(body).jsonObject.getValue("items").jsonArray
+        // the history entry names the moment of the removal ...
+        assertEquals(1_700_000_000L, items[1].jsonObject.getValue("at").jsonPrimitive.long)
+        // ... while a chapter and a manga tombstone stay exactly the two-field body they were: they
+        // are versioned, so a time on them would be a change to a shape the server already accepts
+        assertEquals(setOf("kind", "key"), items[0].jsonObject.keys)
+        assertEquals(setOf("kind", "key"), items[2].jsonObject.keys)
+        // and a body with no history item is byte-identical to the pre-time body
+        assertEquals(
+            """{"items":[{"kind":"chapter","key":"c1"},{"kind":"manga","key":"1|/m"}],""" +
+                """"deletedChapters":[]}""",
+            json.encodeToString(
+                DeletionRequest.serializer(),
+                DeletionRequest(deletionItems(chapters = listOf("c1"), mangas = listOf("1|/m"))),
+            ),
+        )
+    }
+
+    @Test
+    fun `a queued row with no recorded removal time sends no at`() {
+        // A removal queued before the time was recorded (and, on the server, a tombstone without an
+        // action time) must travel as no time at all rather than as `at = 0`, which would claim the
+        // removal happened at the epoch — earlier than every read there is.
+        val row = PendingHistoryDeletion(
+            historyId = 101L,
+            sourceId = 7L,
+            mangaUrl = "/m",
+            chapterUrl = "/m/ch1",
+            removedAt = 0L,
+        )
+
+        assertEquals(
+            listOf(HistoryTombstone("7|/m\u001f/m/ch1", removedAtSeconds = null)),
+            historyTombstones(listOf(row)),
+        )
+
+        val body = json.encodeToString(
+            DeletionRequest.serializer(),
+            DeletionRequest(items = deletionItems(emptyList(), emptyList(), historyTombstones(listOf(row)))),
+        )
+        assertEquals(
+            """{"items":[{"kind":"history","key":"7|/m\u001f/m/ch1"}],"deletedChapters":[]}""",
+            body,
+        )
+    }
+
+    @Test
+    fun `the removal time travels as Unix seconds, truncated from milliseconds`() {
+        // 1 ms of truncation is fine; the units are not: a value passed through un-divided is three
+        // orders of magnitude too large, and 0/negative milliseconds must mean "unknown".
+        assertEquals(1_700_000_000L, removedAtSeconds(1_700_000_000_000L))
+        assertEquals(1_700_000_000L, removedAtSeconds(1_700_000_000_999L))
+        assertNull(removedAtSeconds(0L))
+        assertNull(removedAtSeconds(500L))
+        assertNull(removedAtSeconds(-1_700_000_000_000L))
     }
     // KUN <--
 }

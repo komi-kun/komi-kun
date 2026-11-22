@@ -11,6 +11,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Test
 import tachiyomi.data.history.HistoryRepositoryImpl
 import tachiyomi.domain.history.model.HistoryUpdate
+import kotlin.time.Clock
 import kotlin.time.Instant
 
 /**
@@ -122,6 +123,62 @@ class HistoryPendingDeletionTest {
     }
 
     @Test
+    fun `a queued removal records when it happened`(): Unit = runBlocking {
+        val fixture = Fixture()
+        try {
+            fixture.insertManga(id = 1L, sourceId = 7L, url = "/m")
+            fixture.insertChapter(mangaId = 1L, chapterId = 11L, url = "/m/ch1")
+            fixture.insertHistory(mangaId = 1L, chapterId = 11L, historyId = 101L, readAt = 5_000L)
+
+            val before = Clock.System.now().toEpochMilliseconds()
+            fixture.repository.removeHistory(queueForSync = true, historyIds = listOf(101L))
+            val after = Clock.System.now().toEpochMilliseconds()
+
+            // The tombstone has to name the moment of the removal in the row's own unit — epoch
+            // milliseconds, like read_at. A seconds value would sit three orders of magnitude below
+            // `before`, and the server would then let a read the user made *after* the removal win.
+            // 0 is the "unknown" the wire field omits, so a queued row must never keep it either.
+            val removedAt = fixture.removedAtOf(101L) ?: 0L
+            (removedAt in before..after) shouldBe true
+            // and the deletions request hands that same value to the sync
+            fixture.repository.getPendingHistoryDeletions(limit = 10).single().removedAt shouldBe removedAt
+        } finally {
+            fixture.close()
+        }
+    }
+
+    @Test
+    fun `clearing the queue drops the removal time with the marker`(): Unit = runBlocking {
+        val fixture = Fixture()
+        try {
+            fixture.insertManga(id = 1L, sourceId = 7L, url = "/m")
+            listOf(11L, 12L).forEachIndexed { index, chapterId ->
+                fixture.insertChapter(mangaId = 1L, chapterId = chapterId, url = "/m/ch$chapterId")
+                fixture.insertHistory(
+                    mangaId = 1L,
+                    chapterId = chapterId,
+                    historyId = 100L + index,
+                    readAt = 5_000L,
+                )
+            }
+            fixture.repository.removeHistory(queueForSync = true, historyIds = listOf(100L, 101L))
+
+            // the acknowledged page: the tombstone is no longer owed, so its action time goes too
+            fixture.repository.clearPendingHistoryDeletion(listOf(100L))
+            // and the sweep of a configuration that can no longer deliver it
+            fixture.repository.clearAllPendingHistoryDeletions()
+
+            fixture.removedAtOf(100L) shouldBe 0L
+            fixture.removedAtOf(101L) shouldBe 0L
+            // the removals themselves stand: the rows are still hidden
+            fixture.readAtOf(100L) shouldBe null
+            fixture.readAtOf(101L) shouldBe null
+        } finally {
+            fixture.close()
+        }
+    }
+
+    @Test
     fun `reading the chapter again clears the queue flag`(): Unit = runBlocking {
         val fixture = Fixture()
         try {
@@ -141,6 +198,8 @@ class HistoryPendingDeletionTest {
             // a new read supersedes the removal: the row comes back and is no longer a tombstone
             fixture.readAtOf(101L) shouldBe 9_000L
             fixture.pendingDeletionOf(101L) shouldBe 0L
+            // nor does it keep the removal time of a tombstone it no longer owes
+            fixture.removedAtOf(101L) shouldBe 0L
         } finally {
             fixture.close()
         }
@@ -258,6 +317,9 @@ class HistoryPendingDeletionTest {
             fixture.readAtOf(102L) shouldBe null
             fixture.pendingDeletionOf(101L) shouldBe 0L
             fixture.pendingDeletionOf(102L) shouldBe 0L
+            // and no time reference is left behind for a tombstone that will never be built
+            fixture.removedAtOf(101L) shouldBe 0L
+            fixture.removedAtOf(102L) shouldBe 0L
             fixture.repository.getPendingHistoryDeletions(limit = 10).shouldBeEmpty()
             // an unqueued removal is an ordinary reset row: "clear database" takes it, and a restore
             // payload may write over it again
@@ -384,6 +446,9 @@ class HistoryPendingDeletionTest {
 
         fun pendingDeletionOf(historyId: Long): Long? =
             nullableLongs("SELECT pending_deletion FROM history WHERE id = $historyId").firstOrNull()
+
+        fun removedAtOf(historyId: Long): Long? =
+            nullableLongs("SELECT removed_at FROM history WHERE id = $historyId").firstOrNull()
 
         fun readAtOf(historyId: Long): Long? =
             nullableLongs("SELECT read_at FROM history WHERE id = $historyId").firstOrNull()

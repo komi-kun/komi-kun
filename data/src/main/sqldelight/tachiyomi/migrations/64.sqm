@@ -1,0 +1,16 @@
+-- KUN -->
+-- A history removal tombstone had no action time, so the server stamped it at receipt: a removal
+-- made at t1 and synced at t4 beat a read made at t2 on another device. Record when the removal
+-- happened, in epoch milliseconds (the unit `read_at` uses), so the deletions request can send it.
+--
+-- 0 is "unknown", which is what every row that is not queued gets.
+ALTER TABLE history ADD COLUMN removed_at INTEGER NOT NULL DEFAULT 0;
+
+-- A row queued by the previous version has no removal time of its own. Stamp it with the migration
+-- time: that is earlier than the moment this build starts sending it, so a queued tombstone can
+-- still lose to a read that genuinely happens after the upgrade, while it does not arrive at the
+-- server with no time at all.
+UPDATE history
+SET removed_at = CAST(strftime('%s', 'now') AS INTEGER) * 1000
+WHERE pending_deletion = 1;
+-- KUN <--
