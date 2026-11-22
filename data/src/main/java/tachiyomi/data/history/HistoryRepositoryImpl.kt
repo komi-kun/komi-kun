@@ -153,13 +153,18 @@ class HistoryRepositoryImpl(
             // A soft delete: every row that still has a read date is reset and, when the configured
             // sync can deliver a tombstone, queued — the same removal as the other two paths, over
             // the whole table (the queue lives in the rows, not in a persisted key per entry).
+            //
+            // One full-table UPDATE, and its only caller is a `viewModelScope` (Main) handler, so the
+            // hop belongs here; the other two paths are reached from `appScope` (IO).
             // KUN <--
-            database.historyQueries.removeAllHistory(
-                // KUN -->
-                removedAtMs = if (queueForSync) Clock.System.now().toEpochMilliseconds() else 0L,
-                // KUN <--
-                queue = queueForSync.toLong(),
-            )
+            withIOContext {
+                database.historyQueries.removeAllHistory(
+                    // KUN -->
+                    removedAtMs = if (queueForSync) Clock.System.now().toEpochMilliseconds() else 0L,
+                    // KUN <--
+                    queue = queueForSync.toLong(),
+                )
+            }
             true
         } catch (e: Exception) {
             logcat(LogPriority.ERROR, throwable = e)

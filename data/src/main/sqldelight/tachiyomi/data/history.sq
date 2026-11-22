@@ -177,7 +177,9 @@ ON CONFLICT(chapter_id) DO UPDATE SET
 --
 -- A queued row is left alone: the user removed it here and the server has not been told yet, so a
 -- payload read (or its own tombstone) must not resurrect it or clear the queue flag. Its time is not
--- compared here: the server decides, through the tombstone's own `at`.
+-- compared here: the server decides, through the tombstone's own `at`. An inbound tombstone is
+-- time-blind too (`BackupDeletedItem` carries no time), so a read made after the upload snapshot but
+-- before the delta applies is still removed locally.
 setHistoryFromRestore:
 UPDATE history
 SET read_at = :readAt,
