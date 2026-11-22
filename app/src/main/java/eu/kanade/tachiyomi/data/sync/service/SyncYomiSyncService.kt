@@ -509,8 +509,7 @@ class SyncYomiSyncService(
      * page is cleared only on its own confirmation; a server that answers without applying the
      * `items` shape ends the run, since it would ignore every later page too, and the queue is left
      * for the next sync. A history entry also carries when the user removed it (`at`, Unix seconds),
-     * so the server does not have to stamp the deletion at receipt and can refuse to tombstone an
-     * entry that was read after the removal.
+     * so the server does not have to stamp the deletion at receipt.
      */
     // KUN <--
     // SY -->
@@ -655,43 +654,28 @@ class SyncYomiSyncService(
 internal const val HISTORY_DELETION_BATCH = 500
 
 /**
- * One `history` tombstone: the key its chapter makes, plus [removedAtSeconds] — when the user removed
- * the entry on this device, in Unix seconds, or null when the row does not know (a removal queued by
- * a build that did not record one).
- *
- * Without it the server can only stamp the deletion at receipt, so a removal made at t1 and synced at
- * t4 would delete a read the user made at t2 on another device. With it the server refuses to
- * tombstone a row newer than the action.
+ * One `history` tombstone: the key its chapter makes, plus the removal time in Unix seconds — null
+ * when the row does not know it. The server compares it with the entry's own `modified_at`.
  */
 internal data class HistoryTombstone(val key: String, val removedAtSeconds: Long?)
 
-/**
- * [rows] as tombstones, each with the key its chapter makes — the server keys a history entry by its
- * chapter, so a swapped manga and chapter url would tombstone another entry — and the removal time it
- * carries.
- */
 internal fun historyTombstones(rows: List<PendingHistoryDeletion>): List<HistoryTombstone> =
     rows.map {
         HistoryTombstone(
             key = chapterTombstoneKey(it.sourceId, it.mangaUrl, it.chapterUrl),
-            removedAtSeconds = removedAtSeconds(it.removedAt),
+            removedAtSeconds = removedAtSeconds(it.removedAtMs),
         )
     }
 
-/**
- * The row's removal time in the Unix seconds the wire field carries. The column is epoch
- * milliseconds (what `read_at` uses) and 0 means "unknown", so an unrecorded removal travels as no
- * time rather than as a deletion at the epoch.
- */
-internal fun removedAtSeconds(removedAtMillis: Long): Long? = (removedAtMillis / 1000).takeIf { it > 0 }
+/** The wire unit is Unix seconds; the column is milliseconds and 0 means unknown. */
+internal fun removedAtSeconds(removedAtMs: Long): Long? = (removedAtMs / 1000).takeIf { it > 0 }
 
 /**
- * One entry of the SyncYomi v2 deletions request; [key] is a chapter or manga tombstone key, and
- * [at] is the action time in Unix seconds that only a `history` tombstone carries.
+ * One entry of the SyncYomi v2 deletions request; [key] is a chapter or manga tombstone key and [at]
+ * is the action time, which only a `history` entry has.
  *
- * `at` is omitted rather than defaulted into the body: chapter and manga tombstones are versioned, so
- * sending a time for them would change a body the server already understands, and a queued history
- * row with no recorded removal time has nothing to say.
+ * `at` is omitted when null — for chapter and manga entries and for an untimed removal — rather than
+ * defaulted to 0, so those request bodies stay byte-identical to the pre-time shape.
  */
 @Serializable
 internal data class DeletionItem(

@@ -383,12 +383,7 @@ class MigrationTest {
         }
     }
 
-    /**
-     * `removed_at` (schema 65) is the removal time the SyncYomi `history` tombstone carries as `at`.
-     * A row already queued at version 64 has no time of its own, and a tombstone without one is
-     * stamped by the server at receipt — which is exactly what lets a removal beat a read made later
-     * on another device. The migration therefore stamps queued rows only, in epoch milliseconds.
-     */
+    /** A queued row must not lose its only time reference on upgrade; a plain row stays at 0. */
     @Test
     fun `migration from version 64 backfills the removal time of a queued row only`() {
         runBlocking {
@@ -397,11 +392,10 @@ class MigrationTest {
             val driver = JdbcSqliteDriver("jdbc:sqlite:$dbFile")
             try {
                 populateOldSchema(driver)
-                // Version 64: the queue flag exists, the removal time does not.
+                // version 64 has the queue flag but not the removal time
                 Database.Schema.migrate(driver, 49L, 64L).await()
 
-                // One row queued by that build, one row that is ordinary history. Fresh chapters, so
-                // the seeded history of the rework fixture does not collide with them.
+                // fresh chapter ids: the fixture's own history rows already use 1..3
                 driver.execute(
                     null,
                     "INSERT INTO chapter(id,manga_id,remote_url,remote_name,remote_chapter_number,remote_order,remote_memo,user_read,user_bookmark,user_last_page_read,state_date_fetch) " +
@@ -420,17 +414,13 @@ class MigrationTest {
                 Database.Schema.migrate(driver, 64L, Database.Schema.version).await()
                 val after = Clock.System.now().toEpochMilliseconds()
 
-                // The queued row keeps a time reference: the moment the migration ran, in the unit
-                // read_at uses. `strftime('%s','now')` is whole seconds, so the stamp can sit up to
-                // one second before the test's own reading; a value in *seconds* is 1000x below this
-                // window and 0 means no action time at all, so either would fail here.
-                val backfilled = driver.scalarLong("SELECT removed_at FROM history WHERE id = 200") ?: 0L
+                // catches a seconds stamp (far below this window), a 0, and a backfill of plain rows;
+                // the one-second slack is `strftime('%s','now')`'s whole-second precision
+                val backfilled = driver.scalarLong("SELECT removed_at_ms FROM history WHERE id = 200") ?: 0L
                 (backfilled in (before - 1_000)..after) shouldBe true
-                // A row that is not queued has nothing to tombstone, so it keeps the "unknown" default.
-                driver.scalarLong("SELECT removed_at FROM history WHERE id = 201") shouldBe 0L
-                // No queued row is left without a time.
-                driver.scalarLong("SELECT count(*) FROM history WHERE pending_deletion = 1 AND removed_at = 0") shouldBe 0L
-                // The queue flag itself is untouched by the migration.
+                driver.scalarLong("SELECT removed_at_ms FROM history WHERE id = 201") shouldBe 0L
+                driver.scalarLong("SELECT count(*) FROM history WHERE pending_deletion = 1 AND removed_at_ms = 0") shouldBe 0L
+                // the migration leaves the flag alone
                 driver.scalarLong("SELECT pending_deletion FROM history WHERE id = 200") shouldBe 1L
                 driver.scalarLong("SELECT pending_deletion FROM history WHERE id = 201") shouldBe 0L
             } finally {

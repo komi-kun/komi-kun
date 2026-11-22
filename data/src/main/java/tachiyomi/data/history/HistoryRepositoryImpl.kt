@@ -105,10 +105,8 @@ class HistoryRepositoryImpl(
     override suspend fun removeHistory(historyIds: List<Long>, queueForSync: Boolean) {
         try {
             // KUN -->
-            // The moment of the removal, in epoch milliseconds: one value for the whole call, so the
-            // chunks of one removal cannot disagree about when it happened. An unqueued removal
-            // stores 0 instead — no tombstone will carry it.
-            val removedAt = if (queueForSync) Clock.System.now().toEpochMilliseconds() else 0L
+            // Read once, outside the chunk loop, so the chunks of one removal cannot straddle it.
+            val removedAtMs = if (queueForSync) Clock.System.now().toEpochMilliseconds() else 0L
             // KUN <--
             // one bind variable per id, so a select-all needs chunking to fit SQLite's variable limit;
             // the transaction keeps the chunks all-or-nothing.
@@ -116,7 +114,7 @@ class HistoryRepositoryImpl(
                 historyIds.chunked(MAX_BOUND_IDS).forEach {
                     database.historyQueries.removeHistoryByIds(
                         // KUN -->
-                        removedAt = removedAt,
+                        removedAtMs = removedAtMs,
                         // KUN <--
                         queue = queueForSync.toLong(),
                         historyIds = it,
@@ -131,13 +129,13 @@ class HistoryRepositoryImpl(
     override suspend fun removeHistoryByMangaIds(mangaIds: List<Long>, queueForSync: Boolean) {
         try {
             // KUN -->
-            val removedAt = if (queueForSync) Clock.System.now().toEpochMilliseconds() else 0L
+            val removedAtMs = if (queueForSync) Clock.System.now().toEpochMilliseconds() else 0L
             // KUN <--
             database.transaction {
                 mangaIds.chunked(MAX_BOUND_IDS).forEach {
                     database.historyQueries.removeHistoryByMangaIds(
                         // KUN -->
-                        removedAt = removedAt,
+                        removedAtMs = removedAtMs,
                         // KUN <--
                         queue = queueForSync.toLong(),
                         mangaIds = it,
@@ -158,7 +156,7 @@ class HistoryRepositoryImpl(
             // KUN <--
             database.historyQueries.removeAllHistory(
                 // KUN -->
-                removedAt = if (queueForSync) Clock.System.now().toEpochMilliseconds() else 0L,
+                removedAtMs = if (queueForSync) Clock.System.now().toEpochMilliseconds() else 0L,
                 // KUN <--
                 queue = queueForSync.toLong(),
             )
@@ -174,13 +172,13 @@ class HistoryRepositoryImpl(
         afterId: Long,
     ): List<PendingHistoryDeletion> {
         return database.historyQueries
-            .getPendingHistoryDeletions(afterId, limit.toLong()) { historyId, sourceId, mangaUrl, chapterUrl, removedAt ->
+            .getPendingHistoryDeletions(afterId, limit.toLong()) { historyId, sourceId, mangaUrl, chapterUrl, removedAtMs ->
                 PendingHistoryDeletion(
                     historyId = historyId,
                     sourceId = sourceId,
                     mangaUrl = mangaUrl,
                     chapterUrl = chapterUrl,
-                    removedAt = removedAt,
+                    removedAtMs = removedAtMs,
                 )
             }
             .awaitAsList()
