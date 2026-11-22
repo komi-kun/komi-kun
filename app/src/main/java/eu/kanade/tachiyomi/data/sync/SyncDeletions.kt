@@ -179,10 +179,11 @@ private fun unreadableKey(item: BackupDeletedItem) {
  * removal `RemoveHistory` performs: the removal is already applied on the server, so queueing it
  * here would echo a peer's tombstone straight back as one of ours.
  *
- * A tombstone that carries the action time (`at`) only removes a read that is not newer than it, so
- * a read made after the removal survives the sync. A row already removed (`read_at = NULL`, and
- * usually queued as our own tombstone) is left alone: there is no read to compare, its pending
- * marker stays, and the server acknowledges the duplicate tombstone without applying it.
+ * A tombstone that carries the action time (`at`) only removes a read that lands in that second or
+ * earlier, so a read made in a later second survives the sync. A row already removed
+ * (`read_at = NULL`, and usually queued as our own tombstone) is left alone: there is no read to
+ * compare, its pending marker stays, and the server acknowledges the duplicate tombstone without
+ * applying it.
  *
  * [librarySyncEnabled], [historySyncEnabled], [chaptersEnabled] and [categoriesEnabled] honour the
  * same user settings the snapshot fallback honours: a section the user disabled is not deleted on
@@ -284,10 +285,10 @@ internal suspend fun applyDeletions(
             // all, so there is no read to protect and nothing to reset.
             val history = historyByChapterId[chapter.id] ?: return@mapNotNull null
             val readAt = history.readAt ?: return@mapNotNull null
-            // `at` is Unix seconds and `read_at` epoch milliseconds. The server applies a deletion to
-            // a row that is not newer than the action (`modified_at <= at`), so only a read strictly
-            // above the tombstone's whole second survives it.
-            val kept = tombstone.atSeconds > 0 && readAt.toEpochMilliseconds() > tombstone.atSeconds * 1000
+            // `at` is Unix seconds, and so is the `modified_at` the server compares: it truncates the
+            // uploaded `read_at` to whole seconds and drops the row when `modified_at <= at`. A read
+            // therefore only outlives the tombstone in a later second.
+            val kept = tombstone.atSeconds > 0 && readAt.toEpochMilliseconds() / 1000 > tombstone.atSeconds
             if (kept) null else history.id
         }.distinct()
         if (historyIds.isNotEmpty()) {

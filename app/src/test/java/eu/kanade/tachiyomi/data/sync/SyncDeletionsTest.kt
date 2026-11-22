@@ -269,15 +269,15 @@ class SyncDeletionsTest {
         try {
             fixture.insertManga(id = 7L, sourceId = 1L, url = "/m")
             fixture.insertChapter(mangaId = 7L, chapterId = 107L, url = "/m/ch1")
-            // read at 8000.5 s, after the removal the peer sends at 8000 s
-            fixture.insertHistory(mangaId = 7L, chapterId = 107L, historyId = 1007L, readAt = 8_000_500L)
+            // read at 8001 s, a whole second after the removal the peer sends at 8000 s
+            fixture.insertHistory(mangaId = 7L, chapterId = 107L, historyId = 1007L, readAt = 8_001_000L)
 
             fixture.apply(
                 deletionPlan(listOf(item("history", "1|/m\u001f/m/ch1", at = 8000))),
             ) shouldBe emptySet()
 
-            // the read is newer than the removal, so it survives with its date intact
-            fixture.readAtOf(historyId = 1007L) shouldBe 8_000_500L
+            // a read in a later second is one the server declines to delete too, so the row survives
+            fixture.readAtOf(historyId = 1007L) shouldBe 8_001_000L
             // and a peer's tombstone applied there must not be queued back as one of ours
             fixture.pendingDeletionOf(historyId = 1007L) shouldBe 0L
         } finally {
@@ -292,24 +292,29 @@ class SyncDeletionsTest {
             fixture.insertManga(id = 7L, sourceId = 1L, url = "/m")
             fixture.insertChapter(mangaId = 7L, chapterId = 107L, url = "/m/ch1")
             fixture.insertChapter(mangaId = 7L, chapterId = 207L, url = "/m/ch2", index = 2)
+            fixture.insertChapter(mangaId = 7L, chapterId = 307L, url = "/m/ch3", index = 3)
             // 7999.5 s, before the removal: read_at is milliseconds, so a comparison that fed those
             // milliseconds straight against the seconds `at` would keep this row
             fixture.insertHistory(mangaId = 7L, chapterId = 107L, historyId = 1007L, readAt = 7_999_500L)
-            // read inside the removal's own second: the server applies a deletion to a row that is
-            // not newer than it, so this one goes too
-            fixture.insertHistory(mangaId = 7L, chapterId = 207L, historyId = 2007L, readAt = 8_000_000L)
+            // half a second into the removal's own second: the server stores the read truncated to
+            // 8000 s and drops the row, so keeping it here would leave a row only this device sees
+            fixture.insertHistory(mangaId = 7L, chapterId = 207L, historyId = 2007L, readAt = 8_000_500L)
+            // exactly on the boundary: the server applies a deletion to `modified_at <= at`
+            fixture.insertHistory(mangaId = 7L, chapterId = 307L, historyId = 3007L, readAt = 8_000_000L)
 
             fixture.apply(
                 deletionPlan(
                     listOf(
                         item("history", "1|/m\u001f/m/ch1", at = 8000),
                         item("history", "1|/m\u001f/m/ch2", at = 8000),
+                        item("history", "1|/m\u001f/m/ch3", at = 8000),
                     ),
                 ),
             ) shouldBe emptySet()
 
             fixture.readAtOf(historyId = 1007L) shouldBe null
             fixture.readAtOf(historyId = 2007L) shouldBe null
+            fixture.readAtOf(historyId = 3007L) shouldBe null
         } finally {
             fixture.close()
         }
@@ -335,6 +340,30 @@ class SyncDeletionsTest {
     }
 
     @Test
+    fun `a history tombstone leaves an already queued removal alone`(): Unit = runBlocking {
+        val fixture = Fixture()
+        try {
+            fixture.insertManga(id = 7L, sourceId = 1L, url = "/m")
+            fixture.insertChapter(mangaId = 7L, chapterId = 107L, url = "/m/ch1")
+            fixture.insertHistory(mangaId = 7L, chapterId = 107L, historyId = 1007L)
+            // removed here and queued: the row has no read left to compare
+            fixture.historyRepository.removeHistory(queueForSync = true, historyIds = listOf(1007L))
+            fixture.readAtOf(historyId = 1007L) shouldBe null
+            fixture.pendingDeletionOf(historyId = 1007L) shouldBe 1L
+
+            // the peer's tombstone must not drop the marker: our own removal still has to be delivered
+            fixture.apply(
+                deletionPlan(listOf(item("history", "1|/m\u001f/m/ch1", at = 8_000_000))),
+            ) shouldBe emptySet()
+
+            fixture.readAtOf(historyId = 1007L) shouldBe null
+            fixture.pendingDeletionOf(historyId = 1007L) shouldBe 1L
+        } finally {
+            fixture.close()
+        }
+    }
+
+    @Test
     fun `a mixed page applies only the removals newer than their read`(): Unit = runBlocking {
         val fixture = Fixture()
         try {
@@ -343,12 +372,12 @@ class SyncDeletionsTest {
             fixture.insertChapter(mangaId = 7L, chapterId = 207L, url = "/m/ch2", index = 2)
             fixture.insertChapter(mangaId = 7L, chapterId = 307L, url = "/m/ch3", index = 3)
             fixture.insertChapter(mangaId = 7L, chapterId = 407L, url = "/m/ch4", index = 4)
-            // read after its tombstone: kept
-            fixture.insertHistory(mangaId = 7L, chapterId = 107L, historyId = 1007L, readAt = 8_000_500L)
+            // read a second after its tombstone: kept
+            fixture.insertHistory(mangaId = 7L, chapterId = 107L, historyId = 1007L, readAt = 8_001_000L)
             // read before its tombstone: removed
             fixture.insertHistory(mangaId = 7L, chapterId = 207L, historyId = 2007L, readAt = 7_000_000L)
             // no time from the server: removed
-            fixture.insertHistory(mangaId = 7L, chapterId = 307L, historyId = 3007L, readAt = 8_000_500L)
+            fixture.insertHistory(mangaId = 7L, chapterId = 307L, historyId = 3007L, readAt = 8_001_000L)
 
             fixture.apply(
                 deletionPlan(
@@ -362,7 +391,7 @@ class SyncDeletionsTest {
                 ),
             ) shouldBe emptySet()
 
-            fixture.readAtOf(historyId = 1007L) shouldBe 8_000_500L
+            fixture.readAtOf(historyId = 1007L) shouldBe 8_001_000L
             fixture.readAtOf(historyId = 2007L) shouldBe null
             fixture.readAtOf(historyId = 3007L) shouldBe null
             fixture.chapterIds() shouldBe listOf(107L, 207L, 307L)
