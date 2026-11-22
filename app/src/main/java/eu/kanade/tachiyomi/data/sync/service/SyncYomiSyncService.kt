@@ -685,9 +685,11 @@ internal fun deletionItems(
         mangas.map { DeletionItem("manga", it) }
 
 /**
- * The body of a 2xx `POST /api/sync/v2/deletions`. `applied` counts the entries the server actually
- * changed and only exists on a server that reads the `items` shape; an older one answers
- * `{"acknowledged":n}` after processing the legacy `deletedChapters` list alone.
+ * The body of a 2xx `POST /api/sync/v2/deletions`. It carries **counts, not keys**: `applied` counts
+ * the entries the server actually changed and only exists on a server that reads the `items` shape;
+ * an older one answers `{"acknowledged":n}` after processing the legacy `deletedChapters` list alone.
+ * `acknowledged` counts the entries the server read, so a batch it deduplicated to no change
+ * (`applied: 0`) still reports the full entry count.
  */
 @Serializable
 internal data class DeletionResponse(
@@ -697,15 +699,28 @@ internal data class DeletionResponse(
 
 private val deletionResponseJson = Json { ignoreUnknownKeys = true }
 
-/** Whether the response confirms that every kind in the request was processed. */
-internal fun deletionResponseAppliesEveryKind(body: String?): Boolean {
-    if (body.isNullOrBlank()) return false
-    return try {
-        deletionResponseJson.decodeFromString(DeletionResponse.serializer(), body).applied != null
+/**
+ * Whether the response confirms that the server processed **every** entry of a request that carried
+ * [itemCount] items.
+ *
+ * The presence of `applied` only says the server understands the `items` shape; it says nothing
+ * about how much of this request it processed, and a partially applied page (or one the server
+ * deduplicated against entries it already held) must keep its tombstones. Because the body has no
+ * per-key answer, the count is the only evidence available: every entry has to be accounted for,
+ * either as a changed row (`applied`) or as a read one (`acknowledged`). A retry against entries the
+ * server already tombstoned answers `applied: 0` with the full `acknowledged`, so it still clears.
+ */
+internal fun deletionResponseCoversEveryItem(body: String?, itemCount: Int): Boolean {
+    if (body.isNullOrBlank() || itemCount <= 0) return false
+    val response = try {
+        deletionResponseJson.decodeFromString(DeletionResponse.serializer(), body)
     } catch (_: IllegalArgumentException) {
         // not JSON, or not the shape above: an older server, so no confirmation
-        false
+        return false
     }
+    // no `applied` at all: a server that only read the legacy `deletedChapters` list
+    val applied = response.applied ?: return false
+    return maxOf(response.acknowledged, applied) >= itemCount
 }
 
 /** The pending keys a 2xx deletions response lets this device forget. */
@@ -719,17 +734,22 @@ internal data class AcknowledgedDeletions(
  * Splits the keys a deletions request carried into the ones the response acknowledged.
  *
  * Chapter keys are safe to clear on any server: the legacy `deletedChapters` shape is still honoured,
- * so even a server that ignores `items` applied them. Manga and history keys have no legacy shape,
- * so a 2xx without `applied` leaves them pending for a server that has been upgraded.
+ * so even a server that ignores `items` applied them. Manga and history keys have no legacy shape
+ * and no per-key answer either, so they are cleared only when the response accounts for every entry
+ * of the request — a page the server applied only in part keeps them for the next run.
  */
 internal fun acknowledgedDeletions(
     responseBody: String?,
     chapters: Collection<String>,
     mangas: Collection<String>,
     histories: Collection<String>,
-): AcknowledgedDeletions = if (deletionResponseAppliesEveryKind(responseBody)) {
-    AcknowledgedDeletions(chapters, mangas, histories)
-} else {
-    AcknowledgedDeletions(chapters, emptySet(), emptySet())
+): AcknowledgedDeletions {
+    // the request carries exactly one item per key (the legacy chapter list repeats its own keys)
+    val itemCount = chapters.size + mangas.size + histories.size
+    return if (deletionResponseCoversEveryItem(responseBody, itemCount)) {
+        AcknowledgedDeletions(chapters, mangas, histories)
+    } else {
+        AcknowledgedDeletions(chapters, emptySet(), emptySet())
+    }
 }
 // KUN <--

@@ -144,17 +144,40 @@ class DeletionRequestTest {
     @Test
     fun `a fully deduplicated batch still confirms the batch`() {
         // `applied` counts the rows that changed, not the entries processed: a retry of keys the
-        // server already tombstoned answers 0 and must still clear the queue.
-        assertTrue(deletionResponseAppliesEveryKind("""{"acknowledged":2,"applied":0}"""))
-        assertFalse(deletionResponseAppliesEveryKind("""{"acknowledged":2}"""))
-        assertFalse(deletionResponseAppliesEveryKind(""))
-        assertFalse(deletionResponseAppliesEveryKind("<html>not json</html>"))
+        // server already tombstoned answers 0 and must still clear the queue, because the server
+        // says it read all three entries.
+        assertTrue(deletionResponseCoversEveryItem("""{"acknowledged":3,"applied":0}""", itemCount = 3))
+        // no `applied` at all: a server that only read the legacy `deletedChapters` list
+        assertFalse(deletionResponseCoversEveryItem("""{"acknowledged":3}""", itemCount = 3))
+        assertFalse(deletionResponseCoversEveryItem("", itemCount = 3))
+        assertFalse(deletionResponseCoversEveryItem("<html>not json</html>", itemCount = 3))
+    }
+
+    @Test
+    fun `a partially applied page does not confirm the tombstones it skipped`() {
+        // The body carries counts, not keys, so the only evidence that a page was processed is that
+        // every entry of it is accounted for. A page of 500 where the server read 400 must keep all
+        // 500 tombstones: clearing the whole page would lose the 100 it never looked at.
+        assertFalse(deletionResponseCoversEveryItem("""{"acknowledged":400,"applied":399}""", itemCount = 500))
+        assertTrue(deletionResponseCoversEveryItem("""{"acknowledged":500,"applied":400}""", itemCount = 500))
+        // every entry changed is coverage too, even if the server under-reports what it read
+        assertTrue(deletionResponseCoversEveryItem("""{"acknowledged":0,"applied":500}""", itemCount = 500))
+        // a request with nothing in it is never "covered": there is nothing to confirm
+        assertFalse(deletionResponseCoversEveryItem("""{"acknowledged":9,"applied":9}""", itemCount = 0))
+
+        val acknowledged = acknowledgedDeletions(
+            """{"acknowledged":1,"applied":1}""",
+            chapters = emptyList(),
+            mangas = emptyList(),
+            histories = listOf("1|/m\u001f/m/h1", "1|/m\u001f/m/h2"),
+        )
+        assertEquals(emptyList<String>(), acknowledged.histories.toList())
     }
 
     @Test
     fun `an unreadable body is not a confirmation`() {
         // the caller hands null over when reading the 2xx body itself failed
-        assertFalse(deletionResponseAppliesEveryKind(null))
+        assertFalse(deletionResponseCoversEveryItem(null, itemCount = 3))
 
         val acknowledged = acknowledgedDeletions(
             null,
