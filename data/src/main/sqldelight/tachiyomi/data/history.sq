@@ -26,6 +26,11 @@ CREATE TABLE history(
 
 CREATE INDEX history_manga_id_index ON history(manga_id);
 CREATE INDEX history_read_at_index ON history(read_at);
+-- KUN -->
+-- Serves the deletions request (paging the queued rows by id) and the stranded-marker sweep. Partial,
+-- because the queue is normally empty and every history write would otherwise maintain it.
+CREATE INDEX history_pending_deletion_index ON history(id) WHERE pending_deletion = 1;
+-- KUN <--
 
 getHistoryByMangaId:
 SELECT id, chapter_id, read_at, read_duration
