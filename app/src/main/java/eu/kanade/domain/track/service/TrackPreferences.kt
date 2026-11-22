@@ -54,6 +54,21 @@ class TrackPreferences(
     )
     // KUN <--
 
+    // KMK -->
+    /**
+     * PKCE code verifier of the login in progress in the browser, until its code exchange. Stored rather than
+     * kept in memory, so the login still completes when the app process is killed while the browser is open.
+     *
+     * App state rather than private: private preferences go into backups and sync when the user includes
+     * private settings, and a sync restoring another device's verifier during a login would fail it.
+     */
+    fun trackPkceCodeVerifier(tracker: Tracker) = preferenceStore.getString(
+        Preference.appStateKey("track_pkce_code_verifier_${tracker.id}"),
+        "",
+    )
+    // KMK <--
+
+
     val anilistScoreType = preferenceStore.getString("anilist_score_type", Anilist.POINT_10)
 
     val kitsuScoreType: Preference<String> = preferenceStore.getString("kitsu_score_type", Kitsu.RATING_ADVANCED)
