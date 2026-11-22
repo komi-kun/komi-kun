@@ -226,12 +226,18 @@ internal suspend fun applyDeletions(
 
     // One history read serves the reset below and the chapter gate: `history.chapter_id` cascades
     // with its chapter row, so a chapter that has one cannot be deleted while history sync is off.
+    //
+    // Only a *live* entry counts. A row the user removed keeps `read_at = NULL` — and since "clear
+    // all history" went soft, that is every chapter they ever read — so treating those rows as
+    // history would refuse every remote chapter tombstone on a history-disabled device. A reset row
+    // is nothing deleting the chapter could destroy.
     val historyIdByChapterId = if (
         chapterRowByKey.isNotEmpty() && (historySyncEnabled || plan.chapters.isNotEmpty())
     ) {
         historyRepository.getHistoryByMangaIds(chapterRowByKey.values.map { it.mangaId }.distinct())
             .values
             .flatten()
+            .filter { it.readAt != null }
             .associate { it.chapterId to it.id }
     } else {
         emptyMap()
