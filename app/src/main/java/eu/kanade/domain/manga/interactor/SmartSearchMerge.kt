@@ -83,6 +83,10 @@ class SmartSearchMerge(
             )
             .copyFrom(originalManga.toSManga())
             .copy(
+                // KMK -->
+                // Keep the cover the user sees, like `ogTitle` above (toSManga() now carries the source cover)
+                ogThumbnailUrl = originalManga.thumbnailUrl,
+                // KMK <--
                 // KUN -->
                 // The fork's model still carries the favourite flag and date separately
                 // (`user_favorite_at` in the DB), not upstream's single `favoriteAt`.
