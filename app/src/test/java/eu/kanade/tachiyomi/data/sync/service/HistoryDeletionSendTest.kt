@@ -18,27 +18,31 @@ import kotlin.time.Clock
  * The send side of the history tombstone queue.
  *
  * `SyncYomiSyncService.submitDeletedItems` pages `pending_history_deletion` by queue row id, builds
- * the keys with [historyTombstones] and deletes a page only when [acknowledgedDeletions] accounts for
- * every entry of the request. The requests themselves go over HTTP, which these tests do not touch:
- * what they drive is the repository the loop reads and deletes through, plus the acknowledgement it
- * decides with, over a real in-memory database.
+ * the keys with [historyTombstones] and asks [historyRowsToClear] which rows of a page it may drop.
+ * The requests themselves go over HTTP, which these tests do not touch: they drive the decision the
+ * loop makes per page, and the repository it deletes through, over a real in-memory database.
  */
 class HistoryDeletionSendTest {
 
     @Test
-    fun `a page the server confirms is deleted and leaves the removal standing`(): Unit = runBlocking {
+    fun `a page the server accounted for is cleared and leaves the removal standing`(): Unit = runBlocking {
         val fixture = Fixture()
         try {
             fixture.queueThreeEntries()
 
             val page = fixture.repository.getPendingHistoryDeletions(limit = 3)
-            val keys = historyTombstones(page).map { it.key }
-            // every entry of the request is accounted for, which is what the loop requires
-            val acknowledged = acknowledgedDeletions("""{"acknowledged":3,"applied":2}""", emptySet(), emptySet(), keys)
-            assertEquals(keys, acknowledged.histories.toList())
-            fixture.repository.clearPendingHistoryDeletion(page.map { it.id })
+            // every entry of the request is accounted for (`applied` counts changes, not entries)
+            val acknowledged = acknowledgedDeletions(
+                """{"acknowledged":3,"applied":2}""",
+                emptySet(),
+                emptySet(),
+                historyTombstones(page).map { it.key },
+            )
+            val rowsToClear = historyRowsToClear(page, acknowledged)
+            // catches a page cleared from `applied` alone, or one that drops fewer rows than it sent
+            assertEquals(page.map { it.id }, rowsToClear.map { it.id })
 
-            // the tombstone has been delivered: nothing is left queued, the removals still stand
+            fixture.repository.clearPendingHistoryDeletion(rowsToClear.map { it.id })
             assertTrue(fixture.repository.getPendingHistoryDeletions(limit = 10).isEmpty())
             assertEquals(3L, fixture.count("SELECT count(*) FROM history WHERE read_at IS NULL"))
         } finally {
@@ -47,37 +51,44 @@ class HistoryDeletionSendTest {
     }
 
     @Test
-    fun `a page the server only partly applied stays queued`(): Unit = runBlocking {
+    fun `a page the server only partly applied clears nothing`(): Unit = runBlocking {
         val fixture = Fixture()
         try {
             fixture.queueThreeEntries()
 
             val page = fixture.repository.getPendingHistoryDeletions(limit = 3)
-            val keys = historyTombstones(page).map { it.key }
             // `applied` counts changed rows, so a page of three that changed two is not a
-            // confirmation: deleting here would lose the tombstone the server never looked at
-            val acknowledged = acknowledgedDeletions("""{"acknowledged":2,"applied":2}""", emptySet(), emptySet(), keys)
-            // the loop ends the run instead of clearing, so the whole page is still queued
-            assertTrue(acknowledged.histories.isEmpty())
-            assertEquals(3, fixture.repository.getPendingHistoryDeletions(limit = 10).size)
+            // confirmation: clearing here would lose the tombstone the server never looked at
+            val acknowledged = acknowledgedDeletions(
+                """{"acknowledged":2,"applied":2}""",
+                emptySet(),
+                emptySet(),
+                historyTombstones(page).map { it.key },
+            )
+
+            assertTrue(historyRowsToClear(page, acknowledged).isEmpty())
         } finally {
             fixture.close()
         }
     }
 
     @Test
-    fun `a legacy acknowledgement keeps the whole history page queued`(): Unit = runBlocking {
+    fun `a legacy acknowledgement clears nothing`(): Unit = runBlocking {
         val fixture = Fixture()
         try {
             fixture.queueThreeEntries()
 
             val page = fixture.repository.getPendingHistoryDeletions(limit = 3)
-            val keys = historyTombstones(page).map { it.key }
             // a pre-#335 server 2xxes and ignores `items`: it only read the legacy chapter list, so
             // clearing the history rows here would drop removals the server never applied
-            val acknowledged = acknowledgedDeletions("""{"acknowledged":3}""", emptySet(), emptySet(), keys)
-            assertTrue(acknowledged.histories.isEmpty())
-            assertEquals(3, fixture.repository.getPendingHistoryDeletions(limit = 10).size)
+            val acknowledged = acknowledgedDeletions(
+                """{"acknowledged":3}""",
+                chapters = emptySet(),
+                mangas = emptySet(),
+                histories = historyTombstones(page).map { it.key },
+            )
+
+            assertTrue(historyRowsToClear(page, acknowledged).isEmpty())
         } finally {
             fixture.close()
         }

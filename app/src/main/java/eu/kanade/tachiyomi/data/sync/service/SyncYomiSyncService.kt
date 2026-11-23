@@ -561,21 +561,24 @@ class SyncYomiSyncService(
                         "the server did not report `applied`"
                 }
             }
-            // A server that did not report `applied` ignored every `items` entry, not just this
-            // page, so the rest of the queue cannot be applied in this run either: keep it queued
-            // for the next sync instead of spending one request per page on a server that answers
-            // without applying anything.
-            if (historyKeys.isNotEmpty() && acknowledged.histories.isEmpty()) {
+            // The rows this page may drop: all of them once the server accounted for the whole
+            // request, none while it did not.
+            val rowsToClear = historyRowsToClear(historyRows, acknowledged)
+            if (historyKeys.isNotEmpty() && rowsToClear.isEmpty()) {
+                // A server that did not report `applied` ignored every `items` entry, not just this
+                // page, so the rest of the queue cannot be applied in this run either: keep it
+                // queued for the next sync instead of spending one request per page on a server
+                // that answers without applying anything.
                 logcat(LogPriority.DEBUG) {
                     "SyncYomi v2 deletions: ${historyKeys.size} history tombstones stay pending, " +
                         "the server did not report `applied`"
                 }
                 return
             }
-            // The tombstone has been delivered, so only this page's queue rows go — there is
-            // nothing to restore — and only once the server reported `applied`.
-            if (historyRows.isNotEmpty()) {
-                historyRepository.clearPendingHistoryDeletion(historyRows.map { it.id })
+            // The tombstones have been delivered, so their queue rows go: there is nothing left to
+            // restore or to send again, while the removals themselves stand.
+            if (rowsToClear.isNotEmpty()) {
+                historyRepository.clearPendingHistoryDeletion(rowsToClear.map { it.id })
             }
             logcat(LogPriority.DEBUG) {
                 "SyncYomi v2 deletions applied: ${batchChapters.size} chapters, " +
@@ -669,6 +672,19 @@ internal fun historyTombstones(rows: List<PendingHistoryDeletion>): List<History
 
 /** The wire unit is Unix seconds; the column is milliseconds and 0 means unknown. */
 internal fun removedAtSeconds(removedAtMs: Long): Long? = (removedAtMs / 1000).takeIf { it > 0 }
+
+/**
+ * The queued history entries a deletions page may drop: all of them once the response accounts for
+ * every item of the request, and none otherwise.
+ *
+ * [acknowledgedDeletions] answers all-or-nothing for history keys — a pre-#335 server 2xxes while
+ * ignoring `items`, and a page it applied only in part keeps every tombstone — so the page is
+ * either delivered whole or not at all, and a partly delivered one is sent again next run.
+ */
+internal fun historyRowsToClear(
+    rows: List<PendingHistoryDeletion>,
+    acknowledged: AcknowledgedDeletions,
+): List<PendingHistoryDeletion> = if (acknowledged.histories.isNotEmpty()) rows else emptyList()
 
 /**
  * One entry of the SyncYomi v2 deletions request; [key] is a chapter or manga tombstone key and [at]
