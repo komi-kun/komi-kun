@@ -39,6 +39,8 @@ class HistoryDeletionSendTest {
                 historyTombstones(page).map { it.key },
             )
             val rowsToClear = historyRowsToClear(page, acknowledged)
+            // a paging bug that returned an empty page would make the assertions below vacuous
+            assertEquals(3, page.size)
             // catches a page cleared from `applied` alone, or one that drops fewer rows than it sent
             assertEquals(page.map { it.id }, rowsToClear.map { it.id })
 
@@ -66,6 +68,8 @@ class HistoryDeletionSendTest {
                 historyTombstones(page).map { it.key },
             )
 
+            // a paging bug that returned an empty page would make the assertion below vacuous
+            assertEquals(3, page.size)
             assertTrue(historyRowsToClear(page, acknowledged).isEmpty())
         } finally {
             fixture.close()
@@ -88,7 +92,32 @@ class HistoryDeletionSendTest {
                 histories = historyTombstones(page).map { it.key },
             )
 
+            // a paging bug that returned an empty page would make the assertion below vacuous
+            assertEquals(3, page.size)
             assertTrue(historyRowsToClear(page, acknowledged).isEmpty())
+        } finally {
+            fixture.close()
+        }
+    }
+
+    @Test
+    fun `a page the acknowledgement only partly names is not cleared`(): Unit = runBlocking {
+        val fixture = Fixture()
+        try {
+            fixture.queueThreeEntries()
+
+            val page = fixture.repository.getPendingHistoryDeletions(limit = 3)
+            // `acknowledgedDeletions` answers all-or-nothing today, so this set is built by hand: the
+            // rule has to be "as many entries as the page", not "not empty", or a future partial
+            // answer would drop tombstones the server never applied
+            val partial = AcknowledgedDeletions(
+                chapters = emptyList(),
+                mangas = emptyList(),
+                histories = listOf(historyTombstones(page).first().key),
+            )
+
+            assertEquals(3, page.size)
+            assertEquals(emptyList<Long>(), historyRowsToClear(page, partial).map { it.id })
         } finally {
             fixture.close()
         }

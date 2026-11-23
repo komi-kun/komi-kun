@@ -674,17 +674,18 @@ internal fun historyTombstones(rows: List<PendingHistoryDeletion>): List<History
 internal fun removedAtSeconds(removedAtMs: Long): Long? = (removedAtMs / 1000).takeIf { it > 0 }
 
 /**
- * The queued history entries a deletions page may drop: all of them once the response accounts for
- * every item of the request, and none otherwise.
+ * The queued history entries a deletions page may drop: the whole page once the response accounts
+ * for every entry of it, and none otherwise.
  *
- * [acknowledgedDeletions] answers all-or-nothing for history keys — a pre-#335 server 2xxes while
- * ignoring `items`, and a page it applied only in part keeps every tombstone — so the page is
- * either delivered whole or not at all, and a partly delivered one is sent again next run.
+ * The sets are compared by size rather than by emptiness: a row carries one key and the keys are
+ * unique, so a page is covered exactly when the acknowledgement is as long as the page — a page the
+ * server applied only in part is sent again next run instead of losing the tombstones it skipped.
  */
 internal fun historyRowsToClear(
     rows: List<PendingHistoryDeletion>,
     acknowledged: AcknowledgedDeletions,
-): List<PendingHistoryDeletion> = if (acknowledged.histories.isNotEmpty()) rows else emptyList()
+): List<PendingHistoryDeletion> =
+    if (rows.isNotEmpty() && acknowledged.histories.size == rows.size) rows else emptyList()
 
 /**
  * One entry of the SyncYomi v2 deletions request; [key] is a chapter or manga tombstone key and [at]

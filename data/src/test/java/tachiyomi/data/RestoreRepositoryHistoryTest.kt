@@ -363,7 +363,19 @@ class RestoreRepositoryHistoryTest {
                 // "Clear database" took /c1's reset row but not /c2's, so the same payload reaches
                 // the absent-row branch for /c1 and the present-row branch for /c2
                 driver.execute(null, "DELETE FROM history WHERE chapter_id = ${chapters[0].id}", 0).await()
-                driver.queuedKeys() shouldBe listOf("1|/manga/1|/c1", "1|/manga/1|/c2")
+                // A second manga of the same source with the same chapter url, removed and queued:
+                // its entry must not make the restore refuse manga 1's /c3, which needs the whole
+                // key (source, manga url, chapter url) to stay apart
+                driver.insertManga(version = 5L, lastModifiedAt = 10L, id = 2L, url = "/manga/2")
+                chapterRepository.addAll(listOf(chapter("/c3", mangaId = 2L)))
+                driver.execute(
+                    null,
+                    "INSERT INTO pending_history_deletion(source_id, manga_url, chapter_url, removed_at_ms) " +
+                        "VALUES (1, '/manga/2', '/c3', 5_000)",
+                    0,
+                ).await()
+                val queuedKeys = listOf("1|/manga/1|/c1", "1|/manga/1|/c2", "1|/manga/2|/c3")
+                driver.queuedKeys() shouldBe queuedKeys
 
                 restore(
                     repository = repository,
@@ -380,8 +392,10 @@ class RestoreRepositoryHistoryTest {
                 // neither branch writes a read over the queued removal, and both keep the tombstone
                 historyRows(database)[chapters[0].id] shouldBe null
                 historyRows(database).getValue(chapters[1].id).read_at shouldBe null
-                driver.queuedKeys() shouldBe listOf("1|/manga/1|/c1", "1|/manga/1|/c2")
-                // and the absent-row branch still inserts when nothing is queued for the chapter
+                // ...including the other manga's entry, which the restore never names
+                driver.queuedKeys() shouldBe queuedKeys
+                // the absent-row branch still inserts: nothing is queued for this manga's /c3, and a
+                // query keyed on the chapter url alone would refuse it on the other manga's entry
                 historyRows(database).getValue(chapters[2].id).read_at shouldBe Instant.fromEpochMilliseconds(900)
             } finally {
                 driver.close()
@@ -471,8 +485,8 @@ class RestoreRepositoryHistoryTest {
         memo = JsonObject(emptyMap()),
     )
 
-    private fun chapter(url: String) = Chapter.create().copy(
-        mangaId = 1L,
+    private fun chapter(url: String, mangaId: Long = 1L) = Chapter.create().copy(
+        mangaId = mangaId,
         url = url,
         name = url,
         dateFetch = Instant.fromEpochMilliseconds(1_000),
@@ -486,7 +500,12 @@ class RestoreRepositoryHistoryTest {
         }
     }
 
-    private suspend fun SqlDriver.insertManga(version: Long, lastModifiedAt: Long) {
+    private suspend fun SqlDriver.insertManga(
+        version: Long,
+        lastModifiedAt: Long,
+        id: Long = 1L,
+        url: String = "/manga/1",
+    ) {
         execute(
             null,
             """
@@ -497,7 +516,7 @@ class RestoreRepositoryHistoryTest {
                 state_cover_last_modified, last_modified_at, version, is_syncing,
                 user_favorite_at, favorite_modified_at
             ) VALUES (
-                1, 1, '/manga/1', 'Title', 0, 0,
+                $id, 1, '$url', 'Title', 0, 0,
                 '{}', '', 0, 0,
                 0, 1, 'https://example.com/cover.jpg',
                 123, $lastModifiedAt, $version, 0,
