@@ -29,8 +29,8 @@ enum class HistoryTombstoneDeliverability {
  *
  * Only the SyncYomi v2 deletions request consumes the queue (`pending_history_deletion`), so a
  * removal on a device whose sync is off, belongs to another service, or points at a host that does
- * not speak v2 has nothing to queue for: a tombstone only a server that will accept it can use is a
- * row that would sit in the queue until a sync that can actually send it.
+ * not speak v2 queues nothing. A stranded entry is not harmless even so: it makes
+ * `setHistoryFromRestore` skip its entry, so no payload could ever restore over that removal.
  */
 fun interface HistoryTombstoneDelivery {
     fun deliverability(): HistoryTombstoneDeliverability
