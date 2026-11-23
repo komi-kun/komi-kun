@@ -32,9 +32,9 @@ import kotlin.time.Instant
  * payload is versioned per manga, not per history section, so an absent entry may just mean the
  * peer had history disabled. A removal is stored as `read_at IS NULL`, never epoch 0.
  *
- * A write that has to insert a row (no local history row at all) also drops the entry's queued
- * tombstone: the queue outlives the row, so a removal can still be pending after "Clear database"
- * took the reset row, and it must not be sent over the read this restore just wrote.
+ * A queued removal is never restored over, whether or not its reset row still exists: the queue
+ * outlives the row, so a removal can still be pending after "Clear database" took that row, and
+ * both branches refuse the payload's read on the same key. Only a local read cancels the removal.
  */
 class RestoreRepositoryHistoryTest {
 
@@ -340,7 +340,7 @@ class RestoreRepositoryHistoryTest {
     }
 
     @Test
-    fun `a restore insert drops the queued tombstone of its own entry only`() {
+    fun `both restore branches refuse a read over a queued removal`() {
         runBlocking {
             val driver = newDriver()
             try {
@@ -350,29 +350,39 @@ class RestoreRepositoryHistoryTest {
                 val historyRepository = HistoryRepositoryImpl(database)
                 val repository = restoreRepository(database, mangaRepository, chapterRepository)
                 driver.insertManga(version = 5L, lastModifiedAt = 10L)
-                val chapters = chapterRepository.addAll(listOf(chapter("/c1"), chapter("/c2")))
+                val chapters = chapterRepository.addAll(
+                    listOf(chapter("/c1"), chapter("/c2"), chapter("/c3")),
+                )
                 driver.insertHistory(chapters[0].id, readAt = 500L, readDuration = 10L)
                 driver.insertHistory(chapters[1].id, readAt = 500L, readDuration = 20L)
-                // both entries removed while a sync could deliver their tombstones, then dropped by
-                // "Clear database": no history row is left, the queued tombstones still are
-                val historyIds = historyRows(database).values.map { it.id }
-                historyRepository.removeHistory(queueForSync = true, historyIds = historyIds)
-                historyRepository.deleteResetHistory()
+                // both entries removed while a sync could deliver their tombstones
+                historyRepository.removeHistory(
+                    queueForSync = true,
+                    historyIds = historyRows(database).values.map { it.id },
+                )
+                // "Clear database" took /c1's reset row but not /c2's, so the same payload reaches
+                // the absent-row branch for /c1 and the present-row branch for /c2
+                driver.execute(null, "DELETE FROM history WHERE chapter_id = ${chapters[0].id}", 0).await()
                 driver.queuedKeys() shouldBe listOf("1|/manga/1|/c1", "1|/manga/1|/c2")
 
                 restore(
                     repository = repository,
                     isSync = false,
-                    chapters = listOf(chapter("/c1"), chapter("/c2")),
-                    // the payload carries a read for the first entry only
-                    history = listOf(RestoredHistory("/c1", Instant.fromEpochMilliseconds(900), 10L)),
+                    chapters = listOf(chapter("/c1"), chapter("/c2"), chapter("/c3")),
+                    history = listOf(
+                        RestoredHistory("/c1", Instant.fromEpochMilliseconds(900), 10L),
+                        RestoredHistory("/c2", Instant.fromEpochMilliseconds(900), 20L),
+                        // never removed locally, so there is nothing to refuse
+                        RestoredHistory("/c3", Instant.fromEpochMilliseconds(900), 30L),
+                    ),
                 )
 
-                // the payload's read is inserted, and its tombstone is not left to overwrite it
-                historyRows(database).getValue(chapters[0].id).read_at shouldBe Instant.fromEpochMilliseconds(900)
-                driver.queuedKeys() shouldBe listOf("1|/manga/1|/c2")
-                // the other entry keeps its tombstone and gets no read back
-                historyRows(database)[chapters[1].id] shouldBe null
+                // neither branch writes a read over the queued removal, and both keep the tombstone
+                historyRows(database)[chapters[0].id] shouldBe null
+                historyRows(database).getValue(chapters[1].id).read_at shouldBe null
+                driver.queuedKeys() shouldBe listOf("1|/manga/1|/c1", "1|/manga/1|/c2")
+                // and the absent-row branch still inserts when nothing is queued for the chapter
+                historyRows(database).getValue(chapters[2].id).read_at shouldBe Instant.fromEpochMilliseconds(900)
             } finally {
                 driver.close()
             }

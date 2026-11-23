@@ -126,6 +126,18 @@ WHERE (source_id, manga_url, chapter_url) IN (
     JOIN manga ON manga.id = chapter.manga_id
     WHERE chapter.id = :chapterId
 );
+
+-- Whether a removal of that chapter is still queued: a restore's insert branch refuses a payload read
+-- over it for the same reason `setHistoryFromRestore` does, so the answer comes from the same key.
+countPendingHistoryDeletionsByChapterId:
+SELECT count(*)
+FROM pending_history_deletion
+WHERE (source_id, manga_url, chapter_url) IN (
+    SELECT manga.source_id, manga.remote_url, chapter.remote_url
+    FROM chapter
+    JOIN manga ON manga.id = chapter.manga_id
+    WHERE chapter.id = :chapterId
+);
 -- KUN <--
 
 -- KMK -->
