@@ -133,18 +133,21 @@ class HistoryPendingDeletionTest {
     }
 
     @Test
-    fun `a second removal of the same entry does not queue it twice`(): Unit = runBlocking {
+    fun `an entry a remote tombstone reset is not queued by a later clear all`(): Unit = runBlocking {
         val fixture = Fixture()
         try {
             fixture.insertManga(id = 1L, sourceId = 7L, url = "/m")
             fixture.insertChapter(mangaId = 1L, chapterId = 11L, url = "/m/ch1")
+            fixture.insertChapter(mangaId = 1L, chapterId = 12L, url = "/m/ch2")
             fixture.insertHistory(mangaId = 1L, chapterId = 11L, historyId = 101L, readAt = 5_000L)
+            fixture.insertHistory(mangaId = 1L, chapterId = 12L, historyId = 102L, readAt = 6_000L)
+            // the sync applied a peer's `history` tombstone: a plain reset, never one of our removals
+            fixture.repository.resetHistory(listOf(102L))
 
-            fixture.repository.removeHistory(queueForSync = true, historyIds = listOf(101L))
-            fixture.repository.removeHistory(queueForSync = true, historyIds = listOf(101L))
             fixture.repository.removeAllHistory(queueForSync = true) shouldBe true
 
-            // catches an enqueue that copies every row instead of the ones the removal still resets
+            // catches an enqueue that copies every row instead of the ones this removal still resets:
+            // it would echo the peer's removal back to the server as a tombstone this device made
             fixture.queuedKeys() shouldBe listOf("7|/m|/m/ch1")
         } finally {
             fixture.close()
