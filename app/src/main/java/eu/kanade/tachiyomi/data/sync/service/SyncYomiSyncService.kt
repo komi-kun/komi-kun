@@ -45,8 +45,8 @@ class SyncYomiSyncService(
     // KUN -->
     // Metro DI: the shared ProtoBuf singleton replaces the old `Injekt.get()` default.
     private val protoBuf: ProtoBuf = ProtoBuf,
-    // The history tombstone queue lives on the rows (`history.pending_deletion`), so the deletions
-    // request reads and clears it here rather than through a preference set.
+    // The history tombstone queue is the `pending_history_deletion` table, so the deletions request
+    // reads and clears it here rather than through a preference set.
     private val historyRepository: HistoryRepository,
     // KUN <--
 ) : SyncService(context, json, syncPreferences) {
@@ -504,7 +504,7 @@ class SyncYomiSyncService(
      * manga and history keys are only cleared once the response reports `applied`, because a server
      * that predates the `items` shape ignores them while still answering 200.
      *
-     * The history tombstones come from the database (`history.pending_deletion`) and go out in pages
+     * The history tombstones come from the database (`pending_history_deletion`) and go out in pages
      * of [HISTORY_DELETION_BATCH], so "clear all history" never builds one unbounded request. Each
      * page is cleared only on its own confirmation; a server that answers without applying the
      * `items` shape ends the run, since it would ignore every later page too, and the queue is left
@@ -572,10 +572,10 @@ class SyncYomiSyncService(
                 }
                 return
             }
-            // The queue is the row, so clearing it is a write: only the rows this page carried, and
-            // only once the server reported `applied`.
+            // The tombstone has been delivered, so only this page's queue rows go — there is
+            // nothing to restore — and only once the server reported `applied`.
             if (historyRows.isNotEmpty()) {
-                historyRepository.clearPendingHistoryDeletion(historyRows.map { it.historyId })
+                historyRepository.clearPendingHistoryDeletion(historyRows.map { it.id })
             }
             logcat(LogPriority.DEBUG) {
                 "SyncYomi v2 deletions applied: ${batchChapters.size} chapters, " +
@@ -585,7 +585,7 @@ class SyncYomiSyncService(
             // Nothing further to page through.
             if (historyRows.isEmpty()) return
             firstBatch = false
-            afterId = historyRows.last().historyId
+            afterId = historyRows.last().id
         }
     }
 
