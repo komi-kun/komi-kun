@@ -3,6 +3,7 @@ package tachiyomi.data
 
 import app.cash.sqldelight.async.coroutines.await
 import app.cash.sqldelight.async.coroutines.awaitAsList
+import app.cash.sqldelight.db.QueryResult
 import app.cash.sqldelight.db.SqlDriver
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import eu.kanade.tachiyomi.source.model.UpdateStrategy
@@ -13,6 +14,7 @@ import kotlinx.serialization.json.JsonObject
 import org.junit.jupiter.api.Test
 import tachiyomi.data.backup.RestoreRepositoryImpl
 import tachiyomi.data.chapter.ChapterRepositoryImpl
+import tachiyomi.data.history.HistoryRepositoryImpl
 import tachiyomi.data.manga.MangaRepositoryImpl
 import tachiyomi.data.track.TrackRepositoryImpl
 import tachiyomi.domain.backup.model.RestoredHistory
@@ -29,6 +31,10 @@ import kotlin.time.Instant
  * restore or a losing payload only max-merges. Absence from the payload never removes a local row: the manga
  * payload is versioned per manga, not per history section, so an absent entry may just mean the
  * peer had history disabled. A removal is stored as `read_at IS NULL`, never epoch 0.
+ *
+ * A write that has to insert a row (no local history row at all) also drops the entry's queued
+ * tombstone: the queue outlives the row, so a removal can still be pending after "Clear database"
+ * took the reset row, and it must not be sent over the read this restore just wrote.
  */
 class RestoreRepositoryHistoryTest {
 
@@ -333,6 +339,46 @@ class RestoreRepositoryHistoryTest {
         }
     }
 
+    @Test
+    fun `a restore insert drops the queued tombstone of its own entry only`() {
+        runBlocking {
+            val driver = newDriver()
+            try {
+                val database = DatabaseBindings.providesDatabase(driver)
+                val mangaRepository = MangaRepositoryImpl(database)
+                val chapterRepository = ChapterRepositoryImpl(database)
+                val historyRepository = HistoryRepositoryImpl(database)
+                val repository = restoreRepository(database, mangaRepository, chapterRepository)
+                driver.insertManga(version = 5L, lastModifiedAt = 10L)
+                val chapters = chapterRepository.addAll(listOf(chapter("/c1"), chapter("/c2")))
+                driver.insertHistory(chapters[0].id, readAt = 500L, readDuration = 10L)
+                driver.insertHistory(chapters[1].id, readAt = 500L, readDuration = 20L)
+                // both entries removed while a sync could deliver their tombstones, then dropped by
+                // "Clear database": no history row is left, the queued tombstones still are
+                val historyIds = historyRows(database).values.map { it.id }
+                historyRepository.removeHistory(queueForSync = true, historyIds = historyIds)
+                historyRepository.deleteResetHistory()
+                driver.queuedKeys() shouldBe listOf("1|/manga/1|/c1", "1|/manga/1|/c2")
+
+                restore(
+                    repository = repository,
+                    isSync = false,
+                    chapters = listOf(chapter("/c1"), chapter("/c2")),
+                    // the payload carries a read for the first entry only
+                    history = listOf(RestoredHistory("/c1", Instant.fromEpochMilliseconds(900), 10L)),
+                )
+
+                // the payload's read is inserted, and its tombstone is not left to overwrite it
+                historyRows(database).getValue(chapters[0].id).read_at shouldBe Instant.fromEpochMilliseconds(900)
+                driver.queuedKeys() shouldBe listOf("1|/manga/1|/c2")
+                // the other entry keeps its tombstone and gets no read back
+                historyRows(database)[chapters[1].id] shouldBe null
+            } finally {
+                driver.close()
+            }
+        }
+    }
+
     private suspend fun restore(
         repository: RestoreRepositoryImpl,
         isSync: Boolean = true,
@@ -366,6 +412,19 @@ class RestoreRepositoryHistoryTest {
         .getHistoryByMangaId(1L)
         .awaitAsList()
         .associateBy { it.chapter_id }
+
+    /** `<source id>|<manga url>|<chapter url>` per queued tombstone, i.e. the server's key in test form. */
+    private fun SqlDriver.queuedKeys(): List<String> = executeQuery(
+        null,
+        "SELECT source_id || '|' || manga_url || '|' || chapter_url " +
+            "FROM pending_history_deletion ORDER BY id",
+        { cursor ->
+            val values = mutableListOf<String>()
+            while (cursor.next().value) values += cursor.getString(0)!!
+            QueryResult.Value<List<String>>(values.toList())
+        },
+        0,
+    ).value
 
     private fun restoreRepository(
         database: Database,

@@ -667,6 +667,15 @@ class RestoreRepositoryImpl(
                 dbHistory == null -> {
                     // A tombstone for an entry that never existed locally has nothing to preserve.
                     if (incomingReadAt != null) {
+                        // KUN -->
+                        // The queue entry outlives its history row, so a removal still owed to the
+                        // server can be queued here with no row in front of it ("clear database"
+                        // drops reset rows). Inserting the payload's read anyway would leave the
+                        // tombstone to be sent over it: the device would show a read the server is
+                        // told to delete. Write the read and take the queue entry with it, in this
+                        // restore's own transaction, so a rollback keeps the removal queued.
+                        database.historyQueries.deletePendingHistoryDeletionByChapterId(chapterId)
+                        // KUN <--
                         database.historyQueries.upsert(
                             chapterId = chapterId,
                             readAt = incomingReadAt,
