@@ -1117,11 +1117,18 @@ class LibraryViewModel(
         }
     }
 
-    fun resetInfo() {
+    // KMK -->
+    fun resetInfo(
+        mangaIds: Collection<Long>,
+    ) {
+        // KMK <--
         viewModelScope.launch(Dispatchers.IO) {
-            val updates = state.value.selectedManga.map { manga ->
+            // KUN -->
+            // Reset exactly the ids the confirmation dialog captured, not the live selection.
+            // KUN <--
+            val updates = mangaIds.map { id ->
                 val mangaInfo = MangaUserInfoUpdate(
-                    id = manga.id,
+                    id = id,
                     title = null,
                     author = null,
                     artist = null,
@@ -1544,6 +1551,14 @@ class LibraryViewModel(
         dialog.update { Dialog.DeleteManga(selectedManga) }
     }
 
+    // KMK -->
+    // KUN --> the fork's dialog state lives in its own `dialog` flow, not in `state`
+    fun openResetInfoMangaDialog() {
+        dialog.update { Dialog.ResetInfoManga(selectedManga) }
+    }
+    // KUN <--
+    // KMK <--
+
     fun closeDialog() {
         dialog.update { null }
     }
@@ -1555,6 +1570,9 @@ class LibraryViewModel(
             val initialSelection: List<CheckboxState<Category>>,
         ) : Dialog
         data class DeleteManga(val manga: List<Manga>) : Dialog
+        // KMK -->
+        data class ResetInfoManga(val manga: List<Manga>) : Dialog
+        // KMK <--
 
         // SY -->
         data object SyncFavoritesWarning : Dialog

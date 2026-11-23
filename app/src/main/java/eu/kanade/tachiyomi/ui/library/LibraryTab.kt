@@ -32,6 +32,9 @@ import dev.zacsweers.metrox.viewmodel.metroViewModel
 import eu.kanade.presentation.category.components.ChangeCategoryDialog
 import eu.kanade.presentation.library.DeleteLibraryMangaDialog
 import eu.kanade.presentation.library.LibrarySettingsDialog
+// KMK -->
+import eu.kanade.presentation.library.ResetInfoMangaDialog
+// KMK <--
 import eu.kanade.presentation.library.components.LibraryContent
 import eu.kanade.presentation.library.components.LibraryToolbar
 import eu.kanade.presentation.library.components.SyncFavoritesConfirmDialog
@@ -85,7 +88,6 @@ import tachiyomi.presentation.core.screens.LoadingScreen
 import tachiyomi.source.local.isLocal
 
 data object LibraryTab : Tab {
-    @Suppress("unused")
     private fun readResolve(): Any = LibraryTab
 
     override val options: TabOptions
@@ -277,7 +279,10 @@ data object LibraryTab : Tab {
                     onClickCleanTitles = viewModel::cleanTitles.takeIf { state.showCleanTitles },
                     onClickCollectRecommendations = viewModel::showRecommendationSearchDialog.takeIf { state.selection.size > 1 },
                     onClickAddToMangaDex = viewModel::syncMangaToDex.takeIf { state.showAddToMangadex },
-                    onClickResetInfo = viewModel::resetInfo.takeIf { state.showResetInfo },
+                    // KMK -->
+                    // Confirms before resetting, capturing the selection the dialog shows.
+                    onClickResetInfo = viewModel::openResetInfoMangaDialog.takeIf { state.showResetInfo },
+                    // KMK <--
                     // KUN -->
                     // This commit also added an `onClickMerge` overflow action, but the library
                     // already offers Komikku's merge in the bottom bar (`onMergeClicked` above),
@@ -392,6 +397,14 @@ data object LibraryTab : Tab {
                     },
                 )
             }
+            // KMK -->
+            is LibraryViewModel.Dialog.ResetInfoManga -> {
+                ResetInfoMangaDialog(
+                    onDismissRequest = onDismissRequest,
+                    onConfirm = { viewModel.resetInfo(dialog.manga.map(Manga::id)) },
+                )
+            }
+            // KMK <--
             // SY -->
             LibraryViewModel.Dialog.SyncFavoritesWarning -> {
                 SyncFavoritesWarningDialog(
