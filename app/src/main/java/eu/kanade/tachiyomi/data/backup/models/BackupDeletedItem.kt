@@ -15,10 +15,5 @@ data class BackupDeletedItem(
     @ProtoNumber(1) val kind: String = "",
     @ProtoNumber(2) val key: String = "",
     @ProtoNumber(3) val seq: Long = 0,
-    // KUN -->
-    // `at` mirrors SyncYomi's own `BackupDeletedItem.at` (field 4): when the deletion happened, in
-    // Unix seconds. 0 is a tombstone recorded before the field existed, which keeps the
-    // unconditional removal.
     @ProtoNumber(4) val at: Long = 0,
-    // KUN <--
 )
