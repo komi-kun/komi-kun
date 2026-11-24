@@ -11,6 +11,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.util.fastMap
+import androidx.core.content.ContextCompat
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.presentation.category.visualName
@@ -18,6 +19,7 @@ import eu.kanade.presentation.more.settings.Preference
 import eu.kanade.presentation.more.settings.screen.advanced.OrphanedDownloadsScreen
 import eu.kanade.presentation.more.settings.widget.TriStateListDialog
 import eu.kanade.tachiyomi.data.download.OrphanedDownloadScanManager
+import komikun.download.FilteredDownloadCleanupWorker
 import mihon.app.di.appGraph
 import tachiyomi.domain.category.model.Category
 import tachiyomi.domain.download.service.DownloadPreferences
@@ -86,6 +88,9 @@ object SettingsDownloadScreen : SearchableSettings {
         downloadPreferences: DownloadPreferences,
         categories: List<Category>,
     ): Preference.PreferenceGroup {
+        // KUN -->
+        val context = LocalContext.current
+        // KUN <--
         return Preference.PreferenceGroup(
             title = stringResource(MR.strings.pref_category_delete_chapters),
             preferenceItems = listOf(
@@ -113,6 +118,32 @@ object SettingsDownloadScreen : SearchableSettings {
                     downloadPreferences = downloadPreferences,
                     categories = { categories },
                 ),
+                // KUN -->
+                Preference.PreferenceItem.SwitchPreference(
+                    preference = downloadPreferences.removeFilteredDownloads,
+                    title = stringResource(KUNMR.strings.pref_remove_filtered_downloads),
+                    subtitle = stringResource(KUNMR.strings.pref_remove_filtered_downloads_summary),
+                    // Only the sweep is (un)scheduled here — no immediate deletion: the grace period is
+                    // the feature, so a download must survive a flip of this switch. Turning it on does
+                    // start one discovery-only pass right away, for downloads a filter hid before the
+                    // switch existed (their grace period starts now instead of an hour from now); that
+                    // pass can stamp a chapter but never delete one.
+                    onValueChanged = { enabled ->
+                        // The framework writes the preference *after* this callback returns
+                        // (`PreferenceItem.kt`: `if (item.onValueChanged(newValue)) item.preference.set(…)`),
+                        // so the work below must be posted to run after that write: cancelling while the
+                        // stored value still reads `true` lets an in-flight sweep pass its guard and
+                        // re-stamp the queue after the clear, and starting the immediate pass while it
+                        // still reads `false` makes that pass a no-op. Same shape as the app-update job
+                        // in `SettingsAdvancedScreen`.
+                        ContextCompat.getMainExecutor(context).execute {
+                            FilteredDownloadCleanupWorker.setupTask(context, enabled)
+                            if (enabled) FilteredDownloadCleanupWorker.enqueueImmediate(context)
+                        }
+                        true
+                    },
+                ),
+                // KUN <--
             ),
         )
     }

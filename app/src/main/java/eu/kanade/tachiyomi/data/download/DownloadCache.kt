@@ -113,6 +113,29 @@ class DownloadCache(
     @Volatile
     private var rootDownloadsDir = RootDirectory(null)
 
+    // KUN -->
+    /**
+     * Set where the index is really filled in — the disk-cache load in `init` and the walk in
+     * [renewCache] — and never cleared: an index that has been built once stays usable (stale at
+     * worst) for the rest of the process, while the [RootDirectory] stub the class starts with is
+     * exactly the "no index" state this reports. It is not derived from the index being empty, so a
+     * genuinely empty library counts as built.
+     *
+     * Deliberately not `lastRenew != 0L`: that stamp is also written by [renewCache]'s completion
+     * handler for a renewal that *failed*, which leaves the empty stub in place — reporting that as
+     * "built" is the false positive a caller trusting an empty index must not get.
+     */
+    @Volatile
+    private var indexBuilt = false
+
+    /**
+     * Whether something in this process has built the downloads index, i.e. whether the lookups that
+     * never renew ([getMangaWithDownloads], [getDownloadedChapterIdsNoRenew]) see real data rather
+     * than the empty stub. A pure read: it never touches the filesystem and never starts a build.
+     */
+    fun isIndexBuilt(): Boolean = indexBuilt
+    // KUN <--
+
     init {
         // Attempt to read cache file
         initJob = scope.launch(Dispatchers.IO) {
@@ -124,6 +147,10 @@ class DownloadCache(
                         }
                         rootDownloadsDir = diskCache
                         lastRenew = System.currentTimeMillis()
+                        // KUN -->
+                        // Loaded from disk, so the lookups above have real data from here on.
+                        indexBuilt = true
+                        // KUN <--
                     }
                 } catch (e: Throwable) {
                     logcat(LogPriority.ERROR, e) { "Failed to initialize from disk cache" }
@@ -246,6 +273,64 @@ class DownloadCache(
             it.id to (mangaDir?.chapterDirs?.size ?: 0)
         }
     }
+
+    // KUN -->
+    /**
+     * The [mangas] that currently have at least one chapter entry in the already-built index.
+     *
+     * Unlike the lookups above this never starts a cache renewal: a periodic background sweep must not
+     * turn itself into a filesystem walk, and it runs on the index as it is. A stale index is safe for
+     * that caller — it can only hide a manga that has downloads, and the delete path re-derives the
+     * directory names of the specific chapters it deletes, so a stale entry retains a file and never
+     * deletes one.
+     *
+     * @param mangas the mangas to check.
+     */
+    fun getMangaWithDownloads(mangas: List<Manga>): List<Manga> {
+        val sourceDirs = rootDownloadsDir.sourceDirs
+        return mangas.filter { manga ->
+            val mangaDirs = sourceDirs[manga.source]?.mangaDirs
+            // Building the directory name is the costly part, so it's skipped for sources without downloads
+            if (mangaDirs.isNullOrEmpty()) {
+                false
+            } else {
+                mangaDirs[provider.getMangaDirName(/* SY --> */ manga.ogTitle /* SY <-- */)]
+                    ?.chapterDirs?.isNotEmpty() == true
+            }
+        }
+    }
+
+    /**
+     * The ids of the downloaded chapters among [chapters] of [manga], read from the index as it stands.
+     *
+     * Same lookup as [getDownloadedChapterIds], but this one never calls `renewCache()` — it exists for
+     * the periodic sweep of filtered downloads, which runs hourly and would otherwise rebuild the whole
+     * downloads tree on almost every run (`renewInterval` defaults to one hour).
+     *
+     * Running on a stale index is safe for that caller: a stale or not-yet-built index can only
+     * *under-report* downloads, which can only skip queueing a chapter or drop a queue row — both of
+     * which merely postpone a deletion — and the delete path re-derives the directory name of the
+     * specific chapter it deletes, so nothing here can cause a file to be deleted. If nothing in this
+     * process has built the index yet, the sweep simply finds nothing and the next pass (or any screen
+     * that renews it) picks the work up.
+     *
+     * @param chapters the chapters of [manga] to look for.
+     * @param manga the manga of the chapters.
+     */
+    fun getDownloadedChapterIdsNoRenew(chapters: List<Chapter>, manga: Manga): List<Long> {
+        val chapterDirs = rootDownloadsDir.sourceDirs[manga.source]
+            ?.mangaDirs?.get(provider.getMangaDirName(/* SY --> */ manga.ogTitle /* SY <-- */))
+            ?.chapterDirs
+        if (chapterDirs.isNullOrEmpty()) return emptyList()
+
+        return chapters
+            .filter { chapter ->
+                provider.getValidChapterDirNames(chapter.name, chapter.scanlator, chapter.url)
+                    .any { it in chapterDirs }
+            }
+            .map { it.id }
+    }
+    // KUN <--
 
     /**
      * Adds a chapter that has just been download to this cache.
@@ -505,6 +590,10 @@ class DownloadCache(
                     .awaitAll()
 
                 rootDownloadsDir = updatedRootDir
+                // KUN -->
+                // The walk completed, so the index is built even if the tree turned out to be empty.
+                indexBuilt = true
+                // KUN <--
             }
 
             _isInitializing.emit(false)

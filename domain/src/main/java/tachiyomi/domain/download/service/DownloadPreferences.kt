@@ -65,6 +65,16 @@ class DownloadPreferences(
      */
     val removeOrphanedDownloads: Preference<Boolean> =
         preferenceStore.getBoolean("pref_remove_orphaned_downloads", true)
+
+    /**
+     * Delete the download of a library manga's chapter that a persistent chapter filter hides.
+     *
+     * A `val` for the same reason as [removeOrphanedDownloads]: the settings switch keys its flow
+     * subscription on this `Preference` instance, so a fresh one per call would restart it on every
+     * recomposition.
+     */
+    val removeFilteredDownloads: Preference<Boolean> =
+        preferenceStore.getBoolean("pref_remove_filtered_downloads", false)
     // KUN <--
 
     companion object {

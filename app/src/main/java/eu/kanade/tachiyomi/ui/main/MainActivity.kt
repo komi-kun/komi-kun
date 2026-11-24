@@ -117,6 +117,7 @@ import exh.debug.DebugToggles
 import exh.eh.EHentaiUpdateWorker
 import exh.log.DebugModeOverlay
 import exh.source.ExhPreferences
+import komikun.download.FilteredDownloadCleanupWorker
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
@@ -640,6 +641,19 @@ class MainActivity : BaseActivity() {
                         ).show()
                     }
                 }
+                // KUN -->
+                // Unconditional, unlike the two above: the call is idempotent
+                // (`ExistingPeriodicWorkPolicy.UPDATE`) and it is also what *cancels* the sweep when
+                // the setting is off, so an install that turned it off never keeps a stale job.
+                try {
+                    FilteredDownloadCleanupWorker.setupTask(
+                        context,
+                        context.appGraph.downloadPreferences.removeFilteredDownloads.get(),
+                    )
+                } catch (e: Exception) {
+                    logcat(LogPriority.ERROR, e)
+                }
+                // KUN <--
             }
         }
     }

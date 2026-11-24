@@ -323,6 +323,8 @@
     <string name="orphaned_downloads_scan_failed_short">Ultima scansione non riuscita</string>
     <string name="orphaned_downloads_scan_failed">Impossibile leggere i download. Verifica l\'accesso allo spazio di archiviazione e riprova.</string>
     <string name="orphaned_downloads_delete_failed">Impossibile eliminare i file selezionati. Verifica l\'accesso allo spazio di archiviazione e riprova.</string>
+    <string name="pref_remove_filtered_downloads">Elimina i download nascosti dai filtri</string>
+    <string name="pref_remove_filtered_downloads_summary">Solo manga della libreria: un capitolo scaricato nascosto da un filtro capitoli permanente viene eliminato dopo circa un\'ora. Lo stato letto/non letto non conta, e i capitoli con segnalibro vengono rispettati. Attivandola vengono inclusi anche i download già nascosti, ma solo dopo la stessa attesa.</string>
     <string name="pref_filter_history_categories_details">Tocca una categoria una volta per includerla e due volte per escluderla; un terzo tocco la disattiva. «Reimposta filtro» svuota entrambi gli elenchi. L'interruttore sopra decide quale elenco prevale quando una voce è in entrambi.</string>
     <string name="pref_history_filter_inclusion_wins">Le categorie incluse hanno la precedenza</string>
     <string name="pref_history_filter_inclusion_wins_summary">Un manga presente sia in una categoria inclusa sia in una esclusa viene mostrato invece che nascosto. Disattivato: le categorie escluse hanno la precedenza.</string>

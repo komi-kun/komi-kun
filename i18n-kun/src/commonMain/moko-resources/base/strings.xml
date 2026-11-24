@@ -356,6 +356,9 @@
     <string name="orphaned_downloads_scan_failed_short">Last scan failed</string>
     <string name="orphaned_downloads_scan_failed">The downloads could not be read. Check storage access and try again.</string>
     <string name="orphaned_downloads_delete_failed">The selected files could not be deleted. Check storage access and try again.</string>
+    <!-- Filtered downloads (downloaded chapters hidden by a persistent filter) -->
+    <string name="pref_remove_filtered_downloads">Delete downloads hidden by filters</string>
+    <string name="pref_remove_filtered_downloads_summary">Library manga only: a downloaded chapter that a persistent chapter filter hides is deleted after about an hour. Read/unread state does not count, and bookmarked chapters are respected. Turning it on also picks up downloads that were already hidden, but only after the same wait.</string>
     <!-- History category filter -->
     <string name="pref_filter_history_categories_details">Tap a category once to include it and twice to exclude it; a third tap clears it. Reset filter clears both lists. The switch above decides which list wins when an entry matches both.</string>
     <string name="pref_history_filter_inclusion_wins">Included categories take precedence</string>

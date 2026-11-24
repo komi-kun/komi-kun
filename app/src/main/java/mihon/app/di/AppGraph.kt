@@ -60,6 +60,7 @@ import exh.eh.EHentaiUpdateHelper
 import exh.eh.EHentaiUpdateWorker
 import exh.pref.DelegateSourcePreferences
 import exh.source.ExhPreferences
+import komikun.download.FilteredDownloadCleanupService
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.protobuf.ProtoBuf
 import mihon.core.dictionary.di.DictionaryBindings
@@ -211,6 +212,10 @@ interface AppGraph : ViewModelGraph {
     // both read this instance, so a scan survives leaving the screen and its progress is the same
     // wherever it is shown.
     val orphanedDownloadScanManager: OrphanedDownloadScanManager
+
+    // The hourly sweep that deletes a download a persistent chapter filter hides: exposed so its
+    // worker reaches it through the graph without a second `inject(...)` member.
+    val filteredDownloadCleanupService: FilteredDownloadCleanupService
 
     // W2 dictionary feature: exposed so Composable screens (popup/tab/settings) can reach
     // the repository and preferences via `context.appGraph` (plan 02 §5.3; the GPL impls
