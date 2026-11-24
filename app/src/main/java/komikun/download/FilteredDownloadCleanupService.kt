@@ -1,11 +1,11 @@
-// KUN -->
-package eu.kanade.tachiyomi.data.download
+package komikun.download
 
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
-import eu.kanade.domain.download.FilteredDownloadDeletionGuard
-import eu.kanade.domain.download.FilteredDownloadPolicy
+import eu.kanade.tachiyomi.data.download.DownloadCache
+import eu.kanade.tachiyomi.data.download.DownloadManager
+import eu.kanade.tachiyomi.data.download.DownloadProvider
 import eu.kanade.tachiyomi.source.Source
 import exh.log.xLogD
 import exh.log.xLogE
@@ -15,8 +15,6 @@ import kotlinx.coroutines.launch
 import mihon.core.metro.AppCoroutineScope
 import tachiyomi.domain.chapter.model.Chapter
 import tachiyomi.domain.chapter.repository.ChapterRepository
-import tachiyomi.domain.download.model.PendingDownloadDeletion
-import tachiyomi.domain.download.repository.PendingDownloadDeletionRepository
 import tachiyomi.domain.download.service.DownloadPreferences
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.manga.repository.MangaMergeRepository
@@ -476,4 +474,3 @@ class FilteredDownloadCleanupService(
         const val EXPIRY_BATCH = 25
     }
 }
-// KUN <--

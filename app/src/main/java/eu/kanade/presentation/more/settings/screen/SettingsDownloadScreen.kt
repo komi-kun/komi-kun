@@ -18,8 +18,8 @@ import eu.kanade.presentation.category.visualName
 import eu.kanade.presentation.more.settings.Preference
 import eu.kanade.presentation.more.settings.screen.advanced.OrphanedDownloadsScreen
 import eu.kanade.presentation.more.settings.widget.TriStateListDialog
-import eu.kanade.tachiyomi.data.download.FilteredDownloadCleanupWorker
 import eu.kanade.tachiyomi.data.download.OrphanedDownloadScanManager
+import komikun.download.FilteredDownloadCleanupWorker
 import mihon.app.di.appGraph
 import tachiyomi.domain.category.model.Category
 import tachiyomi.domain.download.service.DownloadPreferences

@@ -1,5 +1,4 @@
-// KUN -->
-package eu.kanade.domain.download
+package komikun.download
 
 import tachiyomi.core.common.preference.TriState
 import tachiyomi.domain.chapter.model.Chapter
@@ -73,4 +72,3 @@ object FilteredDownloadPolicy {
         return hiddenByBookmark || hiddenByScanlator
     }
 }
-// KUN <--

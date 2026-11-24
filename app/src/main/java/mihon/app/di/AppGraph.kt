@@ -30,7 +30,6 @@ import eu.kanade.tachiyomi.data.connections.ConnectionsManager
 import eu.kanade.tachiyomi.data.download.DownloadCache
 import eu.kanade.tachiyomi.data.download.DownloadManager
 import eu.kanade.tachiyomi.data.download.DownloadWorker
-import eu.kanade.tachiyomi.data.download.FilteredDownloadCleanupService
 import eu.kanade.tachiyomi.data.download.OrphanedDownloadScanManager
 import eu.kanade.tachiyomi.data.library.LibraryUpdateWorker
 import eu.kanade.tachiyomi.data.library.MetadataUpdateWorker
@@ -61,6 +60,7 @@ import exh.eh.EHentaiUpdateHelper
 import exh.eh.EHentaiUpdateWorker
 import exh.pref.DelegateSourcePreferences
 import exh.source.ExhPreferences
+import komikun.download.FilteredDownloadCleanupService
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.protobuf.ProtoBuf
 import mihon.core.dictionary.di.DictionaryBindings

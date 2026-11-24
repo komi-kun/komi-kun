@@ -57,6 +57,7 @@ Markers record **what diverges from upstream** — they never mark upstream code
 - Never label code that is not from TachiyomiSY as `// SY` (or its legacy `// EXH` form), and never label code that is not from Komikku as `// KMK`.
 - Keep existing upstream `// KMK` / `// SY` / `// EXH` blocks intact; when changing code inside one, wrap your change in a nested `// KUN` block.
 - Markers apply to `.sq` queries and mappers too (use `-- KUN -->` / `-- KUN <--`).
+- Wholly-new Kotlin files under the top-level `komikun.*` package are fork-only by construction and need no `// KUN` wrapper; markers are still required for edits to existing files and for SQL.
 
 ### Internationalization (strings)
 
@@ -140,7 +141,7 @@ Version catalogs in `gradle/`: `libs.versions.toml`, `kotlinx.versions.toml`, `a
 
 Dependency flow: `app` → `domain` → `source-api`; `data` implements `domain` repos. `:app` also depends on the two **GPL-3.0** modules `:core:dictionary` and `:core:ocr`; those two are independent and must **never** depend on each other (see [Licensing & native modules](#licensing--native-modules)).
 
-Package roots: `eu.kanade.tachiyomi.*` (legacy UI), `tachiyomi.*` (domain/data), `mihon.*` (Mihon's newer package root — also used by komi-kun code, e.g. `mihon.feature.*`, `mihon.core.dictionary.*`, `mihon.core.ocr.*`), `exh.*` (enhanced sources, SY).
+Package roots: `eu.kanade.tachiyomi.*` (legacy UI), `tachiyomi.*` (domain/data), `mihon.*` (Mihon's newer package root — also used by komi-kun code, e.g. `mihon.feature.*`, `mihon.core.dictionary.*`, `mihon.core.ocr.*`), `exh.*` (enhanced sources, SY), `komikun.*` (fork-only code).
 
 ---
 

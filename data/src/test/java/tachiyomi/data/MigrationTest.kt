@@ -5,11 +5,11 @@ import app.cash.sqldelight.db.QueryResult
 import app.cash.sqldelight.db.SqlDriver
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import io.kotest.matchers.shouldBe
+import komikun.download.PendingDownloadDeletion
+import komikun.download.PendingDownloadDeletionRepositoryImpl
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Test
-import tachiyomi.data.download.PendingDownloadDeletionRepositoryImpl
 import tachiyomi.data.manga.MangaRepositoryImpl
-import tachiyomi.domain.download.model.PendingDownloadDeletion
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption.REPLACE_EXISTING

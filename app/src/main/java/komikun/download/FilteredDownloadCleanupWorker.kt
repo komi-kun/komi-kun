@@ -1,5 +1,4 @@
-// KUN -->
-package eu.kanade.tachiyomi.data.download
+package komikun.download
 
 import android.content.Context
 import androidx.work.Constraints
@@ -141,4 +140,3 @@ class FilteredDownloadCleanupWorker(
         }
     }
 }
-// KUN <--

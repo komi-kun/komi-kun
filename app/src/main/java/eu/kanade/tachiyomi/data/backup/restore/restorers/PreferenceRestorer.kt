@@ -14,12 +14,12 @@ import eu.kanade.tachiyomi.data.backup.models.LongPreferenceValue
 import eu.kanade.tachiyomi.data.backup.models.StringPreferenceValue
 import eu.kanade.tachiyomi.data.backup.models.StringSetPreferenceValue
 import eu.kanade.tachiyomi.data.backup.restore.RestoreOptions
-import eu.kanade.tachiyomi.data.download.FilteredDownloadCleanupWorker
 import eu.kanade.tachiyomi.data.library.LibraryUpdateWorker
 import eu.kanade.tachiyomi.data.updater.AppUpdateJob
 import eu.kanade.tachiyomi.source.sourcePreferences
 import exh.EXHMigrations
 import exh.log.xLogE
+import komikun.download.FilteredDownloadCleanupWorker
 import mihon.app.di.appGraph
 import tachiyomi.core.common.preference.AndroidPreferenceStore
 import tachiyomi.core.common.preference.Preference

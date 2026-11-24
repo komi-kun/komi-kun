@@ -1,7 +1,5 @@
-// KUN -->
-package tachiyomi.domain.download.repository
+package komikun.download
 
-import tachiyomi.domain.download.model.PendingDownloadDeletion
 import kotlin.time.Instant
 
 /**
@@ -36,4 +34,3 @@ interface PendingDownloadDeletionRepository {
 
     suspend fun selectAll(): List<PendingDownloadDeletion>
 }
-// KUN <--

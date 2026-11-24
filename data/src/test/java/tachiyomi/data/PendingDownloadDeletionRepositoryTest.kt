@@ -7,10 +7,10 @@ import app.cash.sqldelight.db.SqlDriver
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
+import komikun.download.PendingDownloadDeletion
+import komikun.download.PendingDownloadDeletionRepositoryImpl
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Test
-import tachiyomi.data.download.PendingDownloadDeletionRepositoryImpl
-import tachiyomi.domain.download.model.PendingDownloadDeletion
 import kotlin.time.Instant
 
 /**

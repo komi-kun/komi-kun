@@ -84,7 +84,6 @@ import eu.kanade.tachiyomi.data.backup.create.BackupCreateWorker
 import eu.kanade.tachiyomi.data.coil.MangaCoverMetadata
 import eu.kanade.tachiyomi.data.connections.discord.DiscordRPCService
 import eu.kanade.tachiyomi.data.download.DownloadCache
-import eu.kanade.tachiyomi.data.download.FilteredDownloadCleanupWorker
 import eu.kanade.tachiyomi.data.library.LibraryUpdateWorker
 import eu.kanade.tachiyomi.data.notification.NotificationReceiver
 import eu.kanade.tachiyomi.data.ocr.OcrQueueWorkProbe
@@ -118,6 +117,7 @@ import exh.debug.DebugToggles
 import exh.eh.EHentaiUpdateWorker
 import exh.log.DebugModeOverlay
 import exh.source.ExhPreferences
+import komikun.download.FilteredDownloadCleanupWorker
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose

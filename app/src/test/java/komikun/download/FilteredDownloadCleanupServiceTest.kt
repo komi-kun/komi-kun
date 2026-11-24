@@ -1,7 +1,9 @@
-// KUN -->
-package eu.kanade.tachiyomi.data.download
+package komikun.download
 
 import android.util.Log
+import eu.kanade.tachiyomi.data.download.DownloadCache
+import eu.kanade.tachiyomi.data.download.DownloadManager
+import eu.kanade.tachiyomi.data.download.DownloadProvider
 import eu.kanade.tachiyomi.source.Source
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
@@ -24,8 +26,6 @@ import org.junit.jupiter.api.assertThrows
 import tachiyomi.core.common.preference.InMemoryPreferenceStore
 import tachiyomi.domain.chapter.model.Chapter
 import tachiyomi.domain.chapter.repository.ChapterRepository
-import tachiyomi.domain.download.model.PendingDownloadDeletion
-import tachiyomi.domain.download.repository.PendingDownloadDeletionRepository
 import tachiyomi.domain.download.service.DownloadPreferences
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.manga.model.MergedEntry
@@ -43,7 +43,7 @@ import kotlin.time.Instant
  * downloaded chapter, what it refuses to queue or delete, and what it does once a queued chapter has
  * stayed hidden for the grace period.
  *
- * The pure decision itself is [eu.kanade.domain.download.FilteredDownloadPolicy]'s test; this one pins
+ * The pure decision itself is [FilteredDownloadPolicy]'s test; this one pins
  * what the engine does with its answer — the cheap exit, the queue bookkeeping, the re-verification
  * before a file is touched, and the read-state bypass of the deletion call.
  *
@@ -1295,4 +1295,3 @@ private class FakePendingDownloadDeletionRepository : PendingDownloadDeletionRep
         return rows
     }
 }
-// KUN <--

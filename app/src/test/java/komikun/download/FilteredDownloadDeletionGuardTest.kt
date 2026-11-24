@@ -1,5 +1,4 @@
-// KUN -->
-package eu.kanade.domain.download
+package komikun.download
 
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
@@ -148,4 +147,3 @@ class FilteredDownloadDeletionGuardTest {
         safe(chapters, emptyList()) shouldBe chapters
     }
 }
-// KUN <--

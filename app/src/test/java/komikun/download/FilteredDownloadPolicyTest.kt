@@ -1,5 +1,4 @@
-// KUN -->
-package eu.kanade.domain.download
+package komikun.download
 
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
@@ -181,4 +180,3 @@ class FilteredDownloadPolicyTest {
         const val SOURCE_ID = 2L
     }
 }
-// KUN <--

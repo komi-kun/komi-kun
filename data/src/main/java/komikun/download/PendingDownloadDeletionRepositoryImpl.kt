@@ -1,5 +1,4 @@
-// KUN -->
-package tachiyomi.data.download
+package komikun.download
 
 import app.cash.sqldelight.async.coroutines.awaitAsList
 import dev.zacsweers.metro.AppScope
@@ -7,8 +6,6 @@ import dev.zacsweers.metro.ContributesBinding
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import tachiyomi.data.Database
-import tachiyomi.domain.download.model.PendingDownloadDeletion
-import tachiyomi.domain.download.repository.PendingDownloadDeletionRepository
 import kotlin.time.Instant
 
 @Inject
@@ -68,4 +65,3 @@ class PendingDownloadDeletionRepositoryImpl(
 }
 
 private const val MAX_BOUND_IDS = 900
-// KUN <--

@@ -1,5 +1,4 @@
-// KUN -->
-package tachiyomi.domain.download.model
+package komikun.download
 
 import kotlin.time.Instant
 
@@ -27,4 +26,3 @@ data class PendingDownloadDeletion(
     val firstHiddenAt: Instant,
     val chapterUrl: String,
 )
-// KUN <--

@@ -1,5 +1,4 @@
-// KUN -->
-package eu.kanade.domain.download
+package komikun.download
 
 import tachiyomi.domain.chapter.model.Chapter
 import java.util.TreeSet
@@ -59,4 +58,3 @@ object FilteredDownloadDeletionGuard {
         return toDelete.filterNot { chapter -> dirNames(chapter).any { keptDirNames.contains(it) } }
     }
 }
-// KUN <--

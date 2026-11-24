@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: Apache-2.0
-// KUN -->
 // **Source-level wiring guard for the "remove filtered downloads" switch — not a behavioural test.**
 //
 // The callback lives inside a Compose `Preference.PreferenceItem.SwitchPreference`, and this module has
@@ -12,8 +11,7 @@
 // `false` (so that pass returns at its first guard). The fix is shape: post the work.
 // Residual gap, stated once: a green run does not prove the executor really runs the block after the
 // write at runtime (that needs a Compose test), only that the calls cannot run before it in source.
-// KUN <--
-package eu.kanade.presentation.more.settings.screen
+package komikun.download
 
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotContain
