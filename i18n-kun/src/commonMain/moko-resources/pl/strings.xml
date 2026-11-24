@@ -294,4 +294,6 @@
     <string name="orphaned_downloads_scan_failed_short">Ostatnie skanowanie nie powiodło się</string>
     <string name="orphaned_downloads_scan_failed">Nie udało się odczytać pobrań. Sprawdź dostęp do pamięci i spróbuj ponownie.</string>
     <string name="orphaned_downloads_delete_failed">Nie udało się usunąć zaznaczonych plików. Sprawdź dostęp do pamięci i spróbuj ponownie.</string>
+    <string name="pref_remove_filtered_downloads">Usuwaj pobrania ukryte przez filtry</string>
+    <string name="pref_remove_filtered_downloads_summary">Tylko mangi z biblioteki: pobrany rozdział ukryty przez trwały filtr rozdziałów jest usuwany po około godzinie. Stan przeczytania nie ma znaczenia, a rozdziały w zakładkach i wykluczone kategorie są respektowane. Włączenie obejmuje też pobrania, które były już ukryte, ale dopiero po tym samym czasie oczekiwania.</string>
 </resources>

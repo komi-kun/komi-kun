@@ -1,0 +1,44 @@
+-- A downloaded chapter that a persistent chapter filter hides from the chapter list of a library
+-- manga is queued here with the time it was *first* seen hidden, and a later sweep deletes it once
+-- that time is older than the grace period. `first_hidden_at` is epoch milliseconds, like
+-- `last_modified_at`.
+--
+-- No foreign key, no cascade, deliberately: a library sync can delete the chapter or the manga while
+-- the row is still pending, and the row must outlive it (the sweep drops it either way). Nothing
+-- here joins `chapter` or `manga`, so a row whose chapter is gone stays readable and its deletes are
+-- plain no-ops.
+CREATE TABLE pending_download_deletion(
+    chapter_id INTEGER NOT NULL PRIMARY KEY,
+    manga_id INTEGER NOT NULL,
+    first_hidden_at INTEGER NOT NULL
+);
+
+-- OR IGNORE is what makes the timestamp the *first* time: a chapter that is still hidden on the next
+-- pass keeps the time it was first recorded with, instead of restarting the grace period every run.
+insert:
+INSERT OR IGNORE INTO pending_download_deletion(chapter_id, manga_id, first_hidden_at)
+VALUES (:chapterId, :mangaId, :firstHiddenAt);
+
+-- The chapter is visible again, or its download is already gone: nothing left to delete.
+deleteByChapterIds:
+DELETE FROM pending_download_deletion
+WHERE chapter_id IN :chapterIds;
+
+-- The manga left the library, was deleted, or its filter no longer hides anything.
+deleteByMangaIds:
+DELETE FROM pending_download_deletion
+WHERE manga_id IN :mangaIds;
+
+deleteAll:
+DELETE FROM pending_download_deletion;
+
+-- Not "hidden since before the cutoff" but "first seen hidden at or before it": a row stamped exactly
+-- at the cutoff has waited the whole grace period.
+selectExpired:
+SELECT *
+FROM pending_download_deletion
+WHERE first_hidden_at <= :cutoff;
+
+selectAll:
+SELECT *
+FROM pending_download_deletion;

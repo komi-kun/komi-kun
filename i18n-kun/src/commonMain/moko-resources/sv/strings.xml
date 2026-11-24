@@ -293,4 +293,6 @@
     <string name="orphaned_downloads_scan_failed_short">Senaste sökningen misslyckades</string>
     <string name="orphaned_downloads_scan_failed">Nedladdningarna kunde inte läsas. Kontrollera åtkomsten till lagringen och försök igen.</string>
     <string name="orphaned_downloads_delete_failed">De markerade filerna kunde inte raderas. Kontrollera åtkomsten till lagringen och försök igen.</string>
+    <string name="pref_remove_filtered_downloads">Radera nedladdningar som döljs av filter</string>
+    <string name="pref_remove_filtered_downloads_summary">Endast biblioteksmanga: ett nedladdat kapitel som ett bestående kapitelfilter döljer raderas efter ungefär en timme. Läst/oläst räknas inte, och bokmärkta kapitel och uteslutna kategorier respekteras. Slår du på det tas även nedladdningar som redan var dolda med, men först efter samma väntetid.</string>
 </resources>

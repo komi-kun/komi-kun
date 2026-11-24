@@ -1,0 +1,17 @@
+-- KUN -->
+-- A downloaded chapter that a persistent chapter filter hides from the chapter list of a library
+-- manga has to be deleted, but not the moment it disappears: a filter the user is still editing
+-- would then take downloads that come back a moment later. The chapter is queued here with the time
+-- it was *first* seen hidden, and a later sweep deletes it only once that time is older than the
+-- grace period.
+--
+-- The queue is its own table, keyed by chapter, with no foreign key and no cascade: a library sync
+-- can drop the chapter or the manga while its row is pending, and it must outlive both long enough
+-- for the sweep to drop it. Deleting a row that no longer matches a chapter is a no-op, and reads
+-- never join `chapter`, so a dangling row is tolerated by construction.
+CREATE TABLE pending_download_deletion(
+    chapter_id INTEGER NOT NULL PRIMARY KEY,
+    manga_id INTEGER NOT NULL,
+    first_hidden_at INTEGER NOT NULL
+);
+-- KUN <--

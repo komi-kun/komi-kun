@@ -247,6 +247,33 @@ class DownloadCache(
         }
     }
 
+    // KUN -->
+    /**
+     * The [mangas] that currently have at least one chapter entry in the already-built index.
+     *
+     * Unlike the lookups above this never starts a cache renewal: a periodic background sweep must not
+     * turn itself into a filesystem walk, and it runs on the index as it is. A stale index is safe for
+     * that caller — it can only hide a manga that has downloads, and the delete path re-derives the
+     * directory names of the specific chapters it deletes, so a stale entry retains a file and never
+     * deletes one.
+     *
+     * @param mangas the mangas to check.
+     */
+    fun getMangaWithDownloads(mangas: List<Manga>): List<Manga> {
+        val sourceDirs = rootDownloadsDir.sourceDirs
+        return mangas.filter { manga ->
+            val mangaDirs = sourceDirs[manga.source]?.mangaDirs
+            // Building the directory name is the costly part, so it's skipped for sources without downloads
+            if (mangaDirs.isNullOrEmpty()) {
+                false
+            } else {
+                mangaDirs[provider.getMangaDirName(/* SY --> */ manga.ogTitle /* SY <-- */)]
+                    ?.chapterDirs?.isNotEmpty() == true
+            }
+        }
+    }
+    // KUN <--
+
     /**
      * Adds a chapter that has just been download to this cache.
      *

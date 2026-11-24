@@ -84,6 +84,7 @@ import eu.kanade.tachiyomi.data.backup.create.BackupCreateWorker
 import eu.kanade.tachiyomi.data.coil.MangaCoverMetadata
 import eu.kanade.tachiyomi.data.connections.discord.DiscordRPCService
 import eu.kanade.tachiyomi.data.download.DownloadCache
+import eu.kanade.tachiyomi.data.download.FilteredDownloadCleanupWorker
 import eu.kanade.tachiyomi.data.library.LibraryUpdateWorker
 import eu.kanade.tachiyomi.data.notification.NotificationReceiver
 import eu.kanade.tachiyomi.data.ocr.OcrQueueWorkProbe
@@ -640,6 +641,19 @@ class MainActivity : BaseActivity() {
                         ).show()
                     }
                 }
+                // KUN -->
+                // Unconditional, unlike the two above: the call is idempotent
+                // (`ExistingPeriodicWorkPolicy.UPDATE`) and it is also what *cancels* the sweep when
+                // the setting is off, so an install that turned it off never keeps a stale job.
+                try {
+                    FilteredDownloadCleanupWorker.setupTask(
+                        context,
+                        context.appGraph.downloadPreferences.removeFilteredDownloads.get(),
+                    )
+                } catch (e: Exception) {
+                    logcat(LogPriority.ERROR, e)
+                }
+                // KUN <--
             }
         }
     }

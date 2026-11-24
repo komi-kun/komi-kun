@@ -30,6 +30,7 @@ import eu.kanade.tachiyomi.data.connections.ConnectionsManager
 import eu.kanade.tachiyomi.data.download.DownloadCache
 import eu.kanade.tachiyomi.data.download.DownloadManager
 import eu.kanade.tachiyomi.data.download.DownloadWorker
+import eu.kanade.tachiyomi.data.download.FilteredDownloadCleanupService
 import eu.kanade.tachiyomi.data.download.OrphanedDownloadScanManager
 import eu.kanade.tachiyomi.data.library.LibraryUpdateWorker
 import eu.kanade.tachiyomi.data.library.MetadataUpdateWorker
@@ -211,6 +212,10 @@ interface AppGraph : ViewModelGraph {
     // both read this instance, so a scan survives leaving the screen and its progress is the same
     // wherever it is shown.
     val orphanedDownloadScanManager: OrphanedDownloadScanManager
+
+    // The hourly sweep that deletes a download a persistent chapter filter hides: exposed so its
+    // worker reaches it through the graph without a second `inject(...)` member.
+    val filteredDownloadCleanupService: FilteredDownloadCleanupService
 
     // W2 dictionary feature: exposed so Composable screens (popup/tab/settings) can reach
     // the repository and preferences via `context.appGraph` (plan 02 §5.3; the GPL impls

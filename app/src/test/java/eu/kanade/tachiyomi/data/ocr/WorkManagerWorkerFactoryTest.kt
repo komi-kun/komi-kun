@@ -50,6 +50,9 @@ class WorkManagerWorkerFactoryTest {
             "DelayedTrackingUpdateWorker",
             "DownloadWorker",
             "EHentaiUpdateWorker",
+            // KUN -->
+            "FilteredDownloadCleanupWorker",
+            // KUN <--
             "LibraryUpdateWorker",
             "MetadataUpdateWorker",
             "OcrWorker",

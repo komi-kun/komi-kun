@@ -342,6 +342,8 @@
     <string name="orphaned_downloads_scan_failed_short">El último análisis falló</string>
     <string name="orphaned_downloads_scan_failed">No se pudieron leer las descargas. Comprueba el acceso al almacenamiento e inténtalo de nuevo.</string>
     <string name="orphaned_downloads_delete_failed">No se pudieron eliminar los archivos seleccionados. Comprueba el acceso al almacenamiento e inténtalo de nuevo.</string>
+    <string name="pref_remove_filtered_downloads">Eliminar descargas ocultas por filtros</string>
+    <string name="pref_remove_filtered_downloads_summary">Solo manga de la biblioteca: un capítulo descargado que oculta un filtro de capítulos persistente se elimina tras aproximadamente una hora. El estado leído/no leído no cuenta, y se respetan los capítulos marcados y las categorías excluidas. Al activarlo también se incluyen las descargas que ya estaban ocultas, pero solo tras la misma espera.</string>
     <string name="pref_filter_history_categories_details">Toca una categoría una vez para incluirla y dos veces para excluirla; un tercer toque la desactiva. «Restablecer filtro» vacía ambas listas. El interruptor de arriba decide qué lista gana cuando una entrada está en ambas.</string>
     <string name="pref_history_filter_inclusion_wins">Las categorías incluidas tienen prioridad</string>
     <string name="pref_history_filter_inclusion_wins_summary">Un manga que está tanto en una categoría incluida como en una excluida se muestra en lugar de ocultarse. Desactivado: las categorías excluidas tienen prioridad.</string>

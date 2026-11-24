@@ -293,4 +293,6 @@
     <string name="orphaned_downloads_scan_failed_short">Laatste scan mislukt</string>
     <string name="orphaned_downloads_scan_failed">De downloads konden niet worden gelezen. Controleer de toegang tot de opslag en probeer het opnieuw.</string>
     <string name="orphaned_downloads_delete_failed">De geselecteerde bestanden konden niet worden verwijderd. Controleer de toegang tot de opslag en probeer het opnieuw.</string>
+    <string name="pref_remove_filtered_downloads">Door filters verborgen downloads verwijderen</string>
+    <string name="pref_remove_filtered_downloads_summary">Alleen bibliotheekmanga: een gedownload hoofdstuk dat een permanente hoofdstukfilter verbergt, wordt na ongeveer een uur verwijderd. Gelezen/ongelezen telt niet mee, en gemarkeerde hoofdstukken en uitgesloten categorieën worden gerespecteerd. Inschakelen pakt ook downloads mee die al verborgen waren, maar pas na dezelfde wachttijd.</string>
 </resources>

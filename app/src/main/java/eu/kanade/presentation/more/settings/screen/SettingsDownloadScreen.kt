@@ -17,6 +17,7 @@ import eu.kanade.presentation.category.visualName
 import eu.kanade.presentation.more.settings.Preference
 import eu.kanade.presentation.more.settings.screen.advanced.OrphanedDownloadsScreen
 import eu.kanade.presentation.more.settings.widget.TriStateListDialog
+import eu.kanade.tachiyomi.data.download.FilteredDownloadCleanupWorker
 import eu.kanade.tachiyomi.data.download.OrphanedDownloadScanManager
 import mihon.app.di.appGraph
 import tachiyomi.domain.category.model.Category
@@ -86,6 +87,9 @@ object SettingsDownloadScreen : SearchableSettings {
         downloadPreferences: DownloadPreferences,
         categories: List<Category>,
     ): Preference.PreferenceGroup {
+        // KUN -->
+        val context = LocalContext.current
+        // KUN <--
         return Preference.PreferenceGroup(
             title = stringResource(MR.strings.pref_category_delete_chapters),
             preferenceItems = listOf(
@@ -113,6 +117,23 @@ object SettingsDownloadScreen : SearchableSettings {
                     downloadPreferences = downloadPreferences,
                     categories = { categories },
                 ),
+                // KUN -->
+                Preference.PreferenceItem.SwitchPreference(
+                    preference = downloadPreferences.removeFilteredDownloads,
+                    title = stringResource(KUNMR.strings.pref_remove_filtered_downloads),
+                    subtitle = stringResource(KUNMR.strings.pref_remove_filtered_downloads_summary),
+                    // Only the sweep is (un)scheduled here — no immediate deletion: the grace period is
+                    // the feature, so a download must survive a flip of this switch. Turning it on does
+                    // start one discovery-only pass right away, for downloads a filter hid before the
+                    // switch existed (their grace period starts now instead of an hour from now); that
+                    // pass can stamp a chapter but never delete one.
+                    onValueChanged = {
+                        FilteredDownloadCleanupWorker.setupTask(context, it)
+                        if (it) FilteredDownloadCleanupWorker.enqueueImmediate(context)
+                        true
+                    },
+                ),
+                // KUN <--
             ),
         )
     }
