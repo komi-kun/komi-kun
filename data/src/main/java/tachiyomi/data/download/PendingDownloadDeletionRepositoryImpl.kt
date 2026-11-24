@@ -1,3 +1,4 @@
+// KUN -->
 package tachiyomi.data.download
 
 import app.cash.sqldelight.async.coroutines.awaitAsList
@@ -25,6 +26,7 @@ class PendingDownloadDeletionRepositoryImpl(
                     chapterId = it.chapterId,
                     mangaId = it.mangaId,
                     firstHiddenAt = it.firstHiddenAt.toEpochMilliseconds(),
+                    chapterUrl = it.chapterUrl,
                 )
             }
         }
@@ -66,3 +68,4 @@ class PendingDownloadDeletionRepositoryImpl(
 }
 
 private const val MAX_BOUND_IDS = 900
+// KUN <--

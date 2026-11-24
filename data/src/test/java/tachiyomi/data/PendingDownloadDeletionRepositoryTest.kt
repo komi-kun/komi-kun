@@ -30,11 +30,41 @@ class PendingDownloadDeletionRepositoryTest {
         val fixture = Fixture()
         try {
             fixture.repository.insertAll(listOf(deletion(chapterId = 11L, hiddenAtMs = 1_000L)))
-            fixture.repository.insertAll(listOf(deletion(chapterId = 11L, hiddenAtMs = 5_000L)))
+            fixture.repository.insertAll(
+                listOf(deletion(chapterId = 11L, hiddenAtMs = 5_000L, chapterUrl = "https://reused/11")),
+            )
 
             // catches a plain INSERT/replace: it would push the stamp forward and restart the grace
             // period on every pass, so a chapter that is only briefly hidden forever escapes deletion
             fixture.rows() shouldBe listOf(Triple(11L, 1L, 1_000L))
+            // and the row keeps the url it was first queued with, not the later one: the identity the
+            // sweep compares stays the one of the chapter that was actually seen hidden
+            fixture.repository.selectAll().single().chapterUrl shouldBe "https://c11"
+        } finally {
+            fixture.close()
+        }
+    }
+
+    @Test
+    fun `a chapter url round-trips through selectAll and selectExpired unchanged`(): Unit = runBlocking {
+        val fixture = Fixture()
+        try {
+            // a url nothing could derive from the id: a mapper that dropped the column, or an insert
+            // that bound an empty string or the wrong column in its place, would not give this back
+            fixture.repository.insertAll(
+                listOf(
+                    deletion(
+                        chapterId = 4242L,
+                        hiddenAtMs = 1_000L,
+                        chapterUrl = "https://example.test/chapter/4242?token=abc",
+                    ),
+                ),
+            )
+
+            fixture.repository.selectAll().map { it.chapterUrl } shouldBe
+                listOf("https://example.test/chapter/4242?token=abc")
+            fixture.repository.selectExpired(Instant.fromEpochMilliseconds(1_000L)).map { it.chapterUrl } shouldBe
+                listOf("https://example.test/chapter/4242?token=abc")
         } finally {
             fixture.close()
         }
@@ -215,9 +245,15 @@ class PendingDownloadDeletionRepositoryTest {
     }
 }
 
-private fun deletion(chapterId: Long, mangaId: Long = 1L, hiddenAtMs: Long) = PendingDownloadDeletion(
+private fun deletion(
+    chapterId: Long,
+    mangaId: Long = 1L,
+    hiddenAtMs: Long,
+    chapterUrl: String = "https://c$chapterId",
+) = PendingDownloadDeletion(
     chapterId = chapterId,
     mangaId = mangaId,
     firstHiddenAt = Instant.fromEpochMilliseconds(hiddenAtMs),
+    chapterUrl = chapterUrl,
 )
 // KUN <--

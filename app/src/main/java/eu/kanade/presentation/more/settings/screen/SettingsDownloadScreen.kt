@@ -11,6 +11,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.util.fastMap
+import androidx.core.content.ContextCompat
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.presentation.category.visualName
@@ -127,9 +128,18 @@ object SettingsDownloadScreen : SearchableSettings {
                     // start one discovery-only pass right away, for downloads a filter hid before the
                     // switch existed (their grace period starts now instead of an hour from now); that
                     // pass can stamp a chapter but never delete one.
-                    onValueChanged = {
-                        FilteredDownloadCleanupWorker.setupTask(context, it)
-                        if (it) FilteredDownloadCleanupWorker.enqueueImmediate(context)
+                    onValueChanged = { enabled ->
+                        // The framework writes the preference *after* this callback returns
+                        // (`PreferenceItem.kt`: `if (item.onValueChanged(newValue)) item.preference.set(…)`),
+                        // so the work below must be posted to run after that write: cancelling while the
+                        // stored value still reads `true` lets an in-flight sweep pass its guard and
+                        // re-stamp the queue after the clear, and starting the immediate pass while it
+                        // still reads `false` makes that pass a no-op. Same shape as the app-update job
+                        // in `SettingsAdvancedScreen`.
+                        ContextCompat.getMainExecutor(context).execute {
+                            FilteredDownloadCleanupWorker.setupTask(context, enabled)
+                            if (enabled) FilteredDownloadCleanupWorker.enqueueImmediate(context)
+                        }
                         true
                     },
                 ),

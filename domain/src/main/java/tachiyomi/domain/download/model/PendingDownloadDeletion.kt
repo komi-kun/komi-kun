@@ -1,3 +1,4 @@
+// KUN -->
 package tachiyomi.domain.download.model
 
 import kotlin.time.Instant
@@ -14,9 +15,16 @@ import kotlin.time.Instant
  *
  * Neither id is a foreign key: the chapter or the manga may be deleted by a library sync while the
  * row is pending, and the row stays readable and droppable when it is.
+ *
+ * [chapterUrl] is the identity token: `chapter.id` has no AUTOINCREMENT, so SQLite can hand a freed id
+ * to a *different* chapter of the same manga after a delete/insert cycle. A row keyed by the id alone
+ * would then name a chapter it was never queued for; the url survives that reuse, so a sweep compares
+ * it before it deletes anything.
  */
 data class PendingDownloadDeletion(
     val chapterId: Long,
     val mangaId: Long,
     val firstHiddenAt: Instant,
+    val chapterUrl: String,
 )
+// KUN <--

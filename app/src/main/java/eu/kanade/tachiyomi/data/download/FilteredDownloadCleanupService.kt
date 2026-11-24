@@ -4,6 +4,7 @@ package eu.kanade.tachiyomi.data.download
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
+import eu.kanade.domain.download.FilteredDownloadDeletionGuard
 import eu.kanade.domain.download.FilteredDownloadPolicy
 import eu.kanade.tachiyomi.source.Source
 import exh.log.xLogE
@@ -17,6 +18,7 @@ import tachiyomi.domain.download.model.PendingDownloadDeletion
 import tachiyomi.domain.download.repository.PendingDownloadDeletionRepository
 import tachiyomi.domain.download.service.DownloadPreferences
 import tachiyomi.domain.manga.model.Manga
+import tachiyomi.domain.manga.repository.MangaMergeRepository
 import tachiyomi.domain.manga.repository.MangaRepository
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.source.local.isLocal
@@ -39,6 +41,17 @@ import kotlin.time.Instant
  * the filesystem), examines at most [DISCOVERY_BATCH] manga for new hidden chapters and at most
  * [EXPIRY_BATCH] mangas whose queue rows are due, and stops there. A pass that cannot finish is
  * simply continued by the next one — the queue rows survive until a pass gets to them.
+ *
+ * Dwell is **wall-clock** time: `firstHiddenAt` is compared against the wall clock, and nothing here
+ * measures elapsed monotonic time. A clock that jumps backwards therefore only *delays* every expiry,
+ * which is the safe direction; the one case that would stall a row altogether — a stamp that is now in
+ * the future because the clock moved back after it was written — is re-stamped to the current time by
+ * the discovery phase, so it can expire on the normal schedule instead of waiting for the clock to
+ * catch up (which, after a large backwards jump, could be a very long time).
+ *
+ * A manga that a merge touches is never examined: its chapter list is the *merged* one, which applies
+ * the merge parent's chapter flags to a child's chapters, so the child's own filters say nothing about
+ * what the user sees (see [mergedMangaIds]).
  */
 @Inject
 @SingleIn(AppScope::class)
@@ -46,9 +59,11 @@ class FilteredDownloadCleanupService(
     private val downloadPreferences: DownloadPreferences,
     private val downloadManager: DownloadManager,
     private val downloadCache: DownloadCache,
+    private val downloadProvider: DownloadProvider,
     private val pendingDeletionRepository: PendingDownloadDeletionRepository,
     private val mangaRepository: MangaRepository,
     private val chapterRepository: ChapterRepository,
+    private val mangaMergeRepository: MangaMergeRepository,
     private val sourceManager: SourceManager,
     // The delete of the off switch is fire-and-forget from a main-thread callback.
     @AppCoroutineScope private val scope: CoroutineScope,
@@ -140,9 +155,22 @@ class FilteredDownloadCleanupService(
             .toList()
         if (abandonedMangaIds.isNotEmpty()) pendingDeletionRepository.deleteByMangaIds(abandonedMangaIds)
 
+        // A manga a merge touches is never a candidate here, and a row it already has is dropped
+        // without any delete: this sweep will not verify it, so the row would only linger.
+        val mergedIds = mergedMangaIds()
+        val mergedPendingMangaIds = pending.asSequence()
+            .map { it.mangaId }
+            .filter { it in mergedIds }
+            .distinct()
+            .toList()
+        if (mergedPendingMangaIds.isNotEmpty()) pendingDeletionRepository.deleteByMangaIds(mergedPendingMangaIds)
+
         val pendingByManga = pending.groupBy { it.mangaId }
         val batch = downloadCache.getMangaWithDownloads(favorites.filterNot { it.isLocal() })
             .sortedBy { it.id }
+            // Excluded before the window, so an excluded manga never consumes one of its slots: the
+            // window has to keep moving over the mangas that are actually examined.
+            .filterNot { it.id in mergedIds }
             .runWindow(now, DISCOVERY_BATCH)
         if (batch.isEmpty()) return
 
@@ -156,6 +184,9 @@ class FilteredDownloadCleanupService(
 
         val toInsert = mutableListOf<PendingDownloadDeletion>()
         val staleChapterIds = mutableListOf<Long>()
+        // Rows whose stamp is in the future: the clock moved backwards after they were written, so
+        // their dwell would only start once the clock caught up. They are re-stamped to `now`.
+        val restampChapterIds = mutableListOf<Long>()
         batch.forEach { manga ->
             runCatching {
                 val chapters = chaptersByManga[manga.id].orEmpty()
@@ -171,14 +202,23 @@ class FilteredDownloadCleanupService(
                 val hiddenIds = hidden.mapTo(HashSet()) { it.id }
                 // The row's timestamp is not refreshed here: the insert is an INSERT OR IGNORE, so a
                 // chapter that is already queued keeps the moment it was *first* seen hidden and the
-                // grace period never restarts.
-                hidden.forEach { toInsert += PendingDownloadDeletion(it.id, manga.id, now) }
+                // grace period never restarts. `chapterUrl` travels with it as the identity token: the
+                // id alone could name a different chapter after a rowid reuse (see [expire]).
+                hidden.forEach { toInsert += PendingDownloadDeletion(it.id, manga.id, now, it.url) }
+                val rows = pendingByManga[manga.id].orEmpty()
                 // A row of this manga whose chapter is visible again, gone from the list, or no longer
                 // downloaded is queued no more; it is dropped without touching any file.
-                pendingByManga[manga.id].orEmpty()
-                    .map { it.chapterId }
+                rows.map { it.chapterId }
                     .filterNot { it in hiddenIds }
                     .forEach { staleChapterIds += it }
+                // The watchdog for a stamp the clock can never reach. The repository has no update
+                // query, so the row is deleted here and re-inserted by the `toInsert` entry above —
+                // both in the same batch write, and in that order, so the new stamp is the one that
+                // survives.
+                rows.filter { it.firstHiddenAt > now }
+                    .map { it.chapterId }
+                    .filter { it in hiddenIds }
+                    .forEach { restampChapterIds += it }
             }.onFailure { e ->
                 if (e is CancellationException) throw e
                 xLogE("Failed to queue filtered downloads of manga ${manga.id}", e)
@@ -190,8 +230,11 @@ class FilteredDownloadCleanupService(
         // pass after a re-enable would then delete that backlog at once. One extra read is the guard.
         if (!downloadPreferences.removeFilteredDownloads.get()) return
 
-        // Both writes are per batch, not per row: one transaction for the inserts, one statement for
-        // the queue rows that are no longer hidden.
+        // All three writes are per batch, not per row: one transaction for the inserts, one statement
+        // each for the queue rows that are no longer hidden and the stamps that were in the future.
+        // The re-stamp delete has to precede the insert above it or the INSERT OR IGNORE would keep
+        // the future stamp it is meant to replace.
+        if (restampChapterIds.isNotEmpty()) pendingDeletionRepository.deleteByChapterIds(restampChapterIds)
         if (toInsert.isNotEmpty()) pendingDeletionRepository.insertAll(toInsert)
         if (staleChapterIds.isNotEmpty()) pendingDeletionRepository.deleteByChapterIds(staleChapterIds)
     }
@@ -207,7 +250,19 @@ class FilteredDownloadCleanupService(
         if (expired.isEmpty()) return
 
         val rowsByManga = expired.groupBy { it.mangaId }
-        val mangaIds = rowsByManga.keys.sorted().runWindow(now, EXPIRY_BATCH)
+        // Defensive, and it runs before the window: a due row of a merge-touched manga is dropped
+        // without any delete, exactly as discovery drops the row it finds. Discovery already does
+        // that for every row it reads, so this can only fire for a row written before the merge
+        // existed or a merge created between the two phases of one sweep — but the direction that
+        // matters is the safe one, and a merged list must never expire anything.
+        val mergedIds = mergedMangaIds()
+        val mergedExpiredMangaIds = rowsByManga.keys.filter { it in mergedIds }
+        if (mergedExpiredMangaIds.isNotEmpty()) pendingDeletionRepository.deleteByMangaIds(mergedExpiredMangaIds)
+
+        val mangaIds = rowsByManga.keys
+            .filterNot { it in mergedIds }
+            .sorted()
+            .runWindow(now, EXPIRY_BATCH)
         if (mangaIds.isEmpty()) return
         // Same guard as discovery, before this phase's first write: a pass that was already running
         // when the switch went off must not delete a file the user has just vetoed.
@@ -227,6 +282,10 @@ class FilteredDownloadCleanupService(
 
         val keepBookmarked = !downloadPreferences.removeBookmarkedChapters.get()
         mangaIds.filterNot { it in abandonedMangaIds }.forEach { mangaId ->
+            // Re-read immediately before the manga's work: the batch was opened by a single read, and
+            // the loop below is where the files and the rows actually go. With the switch off, this
+            // manga and every one after it is skipped — nothing is deleted, nothing is un-queued.
+            if (!downloadPreferences.removeFilteredDownloads.get()) return@forEach
             val manga = mangasById.getValue(mangaId)
             runCatching {
                 val chapters = chaptersByManga[mangaId].orEmpty()
@@ -244,24 +303,92 @@ class FilteredDownloadCleanupService(
                     keepBookmarked = keepBookmarked,
                 ).associateBy { it.id }
                 val rows = rowsByManga.getValue(mangaId)
-                val staleChapterIds = rows.map { it.chapterId }.filterNot { it in stillHidden }
+
+                // A row is stale when its chapter is no longer a candidate, or when it no longer names
+                // that chapter at all: `chapter.id` has no AUTOINCREMENT, so a row that was queued for
+                // a deleted chapter can name a *different* one that inherited the id after a
+                // delete/insert cycle. The url is the identity that survives that reuse, and a
+                // mismatch means this row was never about this chapter — it is dropped, not acted on.
+                val staleChapterIds = rows.filter { row ->
+                    val chapter = stillHidden[row.chapterId]
+                    chapter == null || chapter.url != row.chapterUrl
+                }.map { it.chapterId }
                 if (staleChapterIds.isNotEmpty()) {
                     pendingDeletionRepository.deleteByChapterIds(staleChapterIds)
                 }
 
-                val toDelete = rows.mapNotNull { stillHidden[it.chapterId] }
+                val staleIds = staleChapterIds.toHashSet()
+                val toDelete = rows.filterNot { it.chapterId in staleIds }.mapNotNull { stillHidden[it.chapterId] }
                 if (toDelete.isEmpty()) return@runCatching
                 // An unavailable extension cannot produce the chapter directory names, so nothing is
                 // guessed at: the rows stay queued and the next pass with the extension installed
                 // deletes them.
                 val source = sourceManager.get(manga.source) ?: return@runCatching
-                deleteDownloads(toDelete, manga, source)
-                pendingDeletionRepository.deleteByChapterIds(toDelete.map { it.id })
+
+                // `deleteChapters` deletes by *directory name*, with no check that a chapter it keeps
+                // resolves to a different one, so a hidden chapter can share a directory with a
+                // sibling that stays visible. The guard answers with the subset whose directories no
+                // kept chapter reaches; that subset is the only thing handed to the manager.
+                val toDeleteIds = toDelete.mapTo(HashSet()) { it.id }
+                val safe = FilteredDownloadDeletionGuard.safeToDelete(
+                    toDelete = toDelete,
+                    kept = chapters.filterNot { it.id in toDeleteIds },
+                    dirNames = { chapter ->
+                        downloadProvider.getValidChapterDirNames(chapter.name, chapter.scanlator, chapter.url).toSet()
+                    },
+                )
+                val safeIds = safe.mapTo(HashSet()) { it.id }
+                // What the guard drops is not deleted, so its row goes too: keeping it would only
+                // re-run the same refusal every pass. If the chapter stays hidden, discovery re-stamps
+                // it, so the grace period restarts and the file is reconsidered later — by then the
+                // sibling may be gone, which is the only thing that makes it reachable again.
+                val notDeletedChapterIds = toDelete.map { it.id }.filterNot { it in safeIds }
+                if (safe.isEmpty()) {
+                    if (notDeletedChapterIds.isNotEmpty()) {
+                        pendingDeletionRepository.deleteByChapterIds(notDeletedChapterIds)
+                    }
+                    return@runCatching
+                }
+                // The last veto read before the files go: the reads above take time, and the switch is
+                // a main-thread callback that can land in the middle of them.
+                if (!downloadPreferences.removeFilteredDownloads.get()) return@runCatching
+
+                deleteDownloads(safe, manga, source)
+
+                // A row is dropped only for a chapter that is really gone. The manager applies its own
+                // bookmark filter (`getChaptersToDelete`), so it can refuse a chapter this service
+                // found to be a candidate; dropping that chapter's row would leave a file nothing ever
+                // re-queues. The cheap, non-renewing index read is the witness of what it actually did.
+                val stillDownloaded = downloadCache.getDownloadedChapterIdsNoRenew(chapters, manga).toHashSet()
+                val removedChapterIds = safe.map { it.id }.filterNot { it in stillDownloaded }
+                val rowsToDrop = notDeletedChapterIds + removedChapterIds
+                if (rowsToDrop.isNotEmpty()) pendingDeletionRepository.deleteByChapterIds(rowsToDrop)
             }.onFailure { e ->
                 if (e is CancellationException) throw e
                 xLogE("Failed to delete filtered downloads of manga $mangaId", e)
             }
         }
+    }
+
+    /**
+     * Every manga that a merge touches, as a child or as a merge parent.
+     *
+     * The chapter list of a merged manga is not the child's own: `chapter.sq` resolves a merged
+     * manga's chapters by joining `manga` on the *merge id* (`JOIN manga MA ON MA.id = :mangaId`), so
+     * the list a user sees applies the merge parent's `user_chapter_flags` to the child's chapters.
+     * A child's own bookmark filter therefore says nothing about what the merged list shows, and a
+     * chapter the policy finds "hidden" in the child may be perfectly visible in the merged list — the
+     * safe direction is to leave every merged manga alone, in both phases.
+     *
+     * One batched read for the whole phase, never one per manga: [MangaMergeRepository.getAllEntries]
+     * is the existing accessor for the table (`selectAllEntries`, `merged.sq`), and each row carries
+     * both ids — `mangaId` is the child, `mergeId` is the parent. A merge with no entries has no
+     * children, so its list is its own chapter list and it cannot differ from the child's view.
+     */
+    private suspend fun mergedMangaIds(): Set<Long> {
+        val entries = mangaMergeRepository.getAllEntries()
+        if (entries.isEmpty()) return emptySet()
+        return entries.flatMapTo(HashSet()) { listOf(it.mangaId, it.mergeId) }
     }
 
     /**
@@ -279,6 +406,9 @@ class FilteredDownloadCleanupService(
      * `removeBookmarkedChapters` is off. The manager's own bookmark filter must not be relied on here:
      * `getChaptersToDelete` applies it only when `chapters.size > 1 || !ignoreCategoryExclusion`, and
      * `ignoreCategoryExclusion = true` with a single-chapter batch short-circuits it.
+     *
+     * [chapters] must already be the subset [FilteredDownloadDeletionGuard] found safe: the manager
+     * deletes by directory name and will not check that a chapter it keeps resolves to another one.
      */
     private suspend fun deleteDownloads(chapters: List<Chapter>, manga: Manga, source: Source) {
         downloadManager.deleteChapters(chapters, manga, source, ignoreCategoryExclusion = true)

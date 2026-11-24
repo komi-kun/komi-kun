@@ -1,3 +1,4 @@
+// KUN -->
 package tachiyomi.domain.download.repository
 
 import tachiyomi.domain.download.model.PendingDownloadDeletion
@@ -35,3 +36,4 @@ interface PendingDownloadDeletionRepository {
 
     suspend fun selectAll(): List<PendingDownloadDeletion>
 }
+// KUN <--

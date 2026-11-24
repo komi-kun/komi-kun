@@ -448,20 +448,57 @@ class MigrationTest {
 
                 // the columns, in the order the mapper reads and binds them
                 driver.columnNames("pending_download_deletion") shouldBe
-                    listOf("chapter_id", "manga_id", "first_hidden_at")
+                    listOf("chapter_id", "manga_id", "first_hidden_at", "chapter_url")
+
+                // the constraints the queue's guarantees rest on, read off the migrated table itself:
+                // `chapter_id` must be the primary key (it is what makes the insert OR IGNORE one row
+                // per chapter) and no column may be nullable, or a row would round-trip as null
+                driver.columnIsPrimaryKey("pending_download_deletion", "chapter_id") shouldBe 1L
+                driver.columnIsNotNull("pending_download_deletion", "chapter_id") shouldBe 1L
+                driver.columnIsNotNull("pending_download_deletion", "manga_id") shouldBe 1L
+                driver.columnIsNotNull("pending_download_deletion", "first_hidden_at") shouldBe 1L
+                driver.columnIsNotNull("pending_download_deletion", "chapter_url") shouldBe 1L
 
                 // the queue an upgraded install actually gets: one row in, the same row out, with a
-                // millisecond stamp no rounding or seconds/milliseconds slip would survive
+                // millisecond stamp no rounding or seconds/milliseconds slip would survive, and the
+                // chapter url that identifies the chapter past a rowid reuse carried intact
                 val repository = PendingDownloadDeletionRepositoryImpl(DatabaseBindings.providesDatabase(driver))
                 val queued = PendingDownloadDeletion(
                     chapterId = 4242L,
                     mangaId = 77L,
                     firstHiddenAt = Instant.fromEpochMilliseconds(1_700_000_000_123L),
+                    chapterUrl = "https://c4242?token=abc",
                 )
                 repository.insertAll(listOf(queued))
 
                 repository.selectAll() shouldBe listOf(queued)
                 repository.selectExpired(Instant.fromEpochMilliseconds(1_700_000_000_123L)) shouldBe listOf(queued)
+
+                // the same chapter id queued twice — a row still hidden on the next pass, or an id
+                // SQLite reused for another chapter — stays one row with the first stamp: catches a
+                // migrated table without `PRIMARY KEY`, which would queue the id twice and let the
+                // later url and stamp override what the sweep compares against
+                repository.insertAll(
+                    listOf(
+                        PendingDownloadDeletion(
+                            chapterId = 5555L,
+                            mangaId = 77L,
+                            firstHiddenAt = Instant.fromEpochMilliseconds(2_000L),
+                            chapterUrl = "https://c5555",
+                        ),
+                        PendingDownloadDeletion(
+                            chapterId = 5555L,
+                            mangaId = 77L,
+                            firstHiddenAt = Instant.fromEpochMilliseconds(9_000L),
+                            chapterUrl = "https://reused/5555",
+                        ),
+                    ),
+                )
+
+                val reused = repository.selectAll().filter { it.chapterId == 5555L }
+                reused.size shouldBe 1
+                reused.single().firstHiddenAt.toEpochMilliseconds() shouldBe 2_000L
+                reused.single().chapterUrl shouldBe "https://c5555"
             } finally {
                 driver.close()
             }
@@ -541,6 +578,16 @@ class MigrationTest {
 
     private fun SqlDriver.columnCount(table: String, column: String): Long =
         scalarLong("SELECT count(*) FROM pragma_table_info('$table') WHERE name = '$column'") ?: -1
+
+    // KUN -->
+    /** `pragma_table_info.notnull` for one column: 1 when it is declared NOT NULL, 0 when it is not. */
+    private fun SqlDriver.columnIsNotNull(table: String, column: String): Long =
+        scalarLong("SELECT \"notnull\" FROM pragma_table_info('$table') WHERE name = '$column'") ?: -1
+
+    /** `pragma_table_info.pk`: 0 when the column is not part of the primary key, 1..n for its position. */
+    private fun SqlDriver.columnIsPrimaryKey(table: String, column: String): Long =
+        scalarLong("SELECT pk FROM pragma_table_info('$table') WHERE name = '$column'") ?: -1
+    // KUN <--
 
     private fun SqlDriver.triggerExists(name: String): Boolean =
         (scalarLong("SELECT count(*) FROM sqlite_master WHERE type = 'trigger' AND name = '$name'") ?: 0) > 0

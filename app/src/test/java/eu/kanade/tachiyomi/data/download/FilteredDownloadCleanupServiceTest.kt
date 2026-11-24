@@ -21,6 +21,8 @@ import tachiyomi.domain.download.model.PendingDownloadDeletion
 import tachiyomi.domain.download.repository.PendingDownloadDeletionRepository
 import tachiyomi.domain.download.service.DownloadPreferences
 import tachiyomi.domain.manga.model.Manga
+import tachiyomi.domain.manga.model.MergedEntry
+import tachiyomi.domain.manga.repository.MangaMergeRepository
 import tachiyomi.domain.manga.repository.MangaRepository
 import tachiyomi.domain.source.service.SourceManager
 import kotlin.time.Clock
@@ -43,19 +45,21 @@ import kotlin.time.Instant
  * chapters of the manga it was asked about (all of them unless a test says otherwise), so a test that
  * forgets to make a chapter downloaded really exercises the "no longer downloaded" path.
  *
- * `DownloadManager`, `DownloadCache`, `SourceManager` and the two repositories cannot run on a host
- * JVM: they need an Android `Context`, a database, or both, so the files are never really deleted
- * here. What is asserted is the call the manager receives, including the `ignoreCategoryExclusion`
- * argument; the manager's own behaviour behind it is covered by `DownloadManager`'s callers and is
- * not re-tested through a mock.
+ * `DownloadManager`, `DownloadCache`, `SourceManager`, `DownloadProvider` and the repositories cannot
+ * run on a host JVM: they need an Android `Context`, a database, or both, so the files are never really
+ * deleted here. What is asserted is the call the manager receives, including the
+ * `ignoreCategoryExclusion` argument; the manager's own behaviour behind it is covered by
+ * `DownloadManager`'s callers and is not re-tested through a mock.
  */
 class FilteredDownloadCleanupServiceTest {
 
     private val downloadPreferences = DownloadPreferences(InMemoryPreferenceStore())
     private val downloadManager = mockk<DownloadManager>(relaxed = true)
     private val downloadCache = mockk<DownloadCache>(relaxed = true)
+    private val downloadProvider = mockk<DownloadProvider>(relaxed = true)
     private val mangaRepository = mockk<MangaRepository>(relaxed = true)
     private val chapterRepository = mockk<ChapterRepository>(relaxed = true)
+    private val mangaMergeRepository = mockk<MangaMergeRepository>(relaxed = true)
     private val sourceManager = mockk<SourceManager>(relaxed = true)
 
     private val pendingRepository = FakePendingDownloadDeletionRepository()
@@ -69,6 +73,25 @@ class FilteredDownloadCleanupServiceTest {
 
     /** Per-manga override of the download index; the default is "every chapter of the manga". */
     private val downloadedChapterIds = mutableMapOf<Long, List<Long>>()
+
+    /**
+     * What `merged_entry` holds when it is read. A queue rather than a value, because each phase reads
+     * the table for itself: it is how a test models a merge created between the two phases of one
+     * sweep, which is the only way a due row of a merged manga can reach the expiry phase.
+     */
+    private val mergedEntryReads = ArrayDeque<List<MergedEntry>>()
+
+    /** Chapters the manager really removed; the fake index stops reporting them, like the real one. */
+    private val removedChapterIds = mutableSetOf<Long>()
+
+    /**
+     * Chapters the manager was handed but did *not* delete — its own bookmark filter refuses a single
+     * chapter (`getChaptersToDelete`), so a call is not proof that the file went.
+     */
+    private val refusedChapterIds = mutableSetOf<Long>()
+
+    /** One-shot seam: run once, inside the next source lookup, before it answers. */
+    private var onNextSourceLookup: (() -> Unit)? = null
 
     /**
      * The sweep's notion of "now". Advanced by the tests that need a second pass to happen later, so
@@ -94,23 +117,50 @@ class FilteredDownloadCleanupServiceTest {
             ids.flatMap { chaptersByManga[it].orEmpty() }
         }
         every { downloadCache.getDownloadedChapterIdsNoRenew(any(), any()) } answers {
-            downloadedChapterIds[secondArg<Manga>().id]
-                ?: firstArg<List<Chapter>>().map { it.id }
+            val chapters = firstArg<List<Chapter>>()
+            val indexed = downloadedChapterIds[secondArg<Manga>().id] ?: chapters.map { it.id }
+            // A chapter the manager really deleted is no longer in the index: the re-read after a
+            // delete is the only witness of what the call actually did, so the fake has to be wrong
+            // in the same direction the real index would be.
+            indexed.filterNot { it in removedChapterIds }
         }
         every { downloadCache.getMangaWithDownloads(any()) } answers {
             val mangas = firstArg<List<Manga>>()
             mangas.filter { it.id in mangaWithDownloadsIds }
         }
-        coEvery { sourceManager.get(any()) } answers { source }
+        // Stands in for `DownloadProvider.getValidChapterDirNames`: one candidate name per chapter, so
+        // two chapters share a directory exactly when they share a name (and a scanlator, which the
+        // fixture encodes in the name when it matters).
+        every { downloadProvider.getValidChapterDirNames(any(), any(), any()) } answers {
+            listOf(firstArg<String>())
+        }
+        // The deletion itself: a refusal leaves the chapter in the index, a deletion takes it out.
+        coEvery { downloadManager.deleteChapters(any(), any(), any(), any()) } answers {
+            firstArg<List<Chapter>>().forEach { chapter ->
+                if (chapter.id !in refusedChapterIds) removedChapterIds += chapter.id
+            }
+        }
+        coEvery { mangaMergeRepository.getAllEntries() } answers {
+            mergedEntryReads.removeFirstOrNull().orEmpty()
+        }
+        coEvery { sourceManager.get(any()) } answers {
+            val answer = source
+            val sideEffect = onNextSourceLookup
+            onNextSourceLookup = null
+            sideEffect?.invoke()
+            answer
+        }
     }
 
     private fun service() = FilteredDownloadCleanupService(
         downloadPreferences = downloadPreferences,
         downloadManager = downloadManager,
         downloadCache = downloadCache,
+        downloadProvider = downloadProvider,
         pendingDeletionRepository = pendingRepository,
         mangaRepository = mangaRepository,
         chapterRepository = chapterRepository,
+        mangaMergeRepository = mangaMergeRepository,
         sourceManager = sourceManager,
         scope = testScope,
         now = { currentTime },
@@ -137,12 +187,16 @@ class FilteredDownloadCleanupServiceTest {
         read: Boolean = false,
         bookmark: Boolean = false,
         scanlator: String? = null,
+        name: String = "Chapter $id",
+        url: String = "https://example.org/$id",
     ) = Chapter.create().copy(
         id = id,
         mangaId = mangaId,
         read = read,
         bookmark = bookmark,
         scanlator = scanlator,
+        name = name,
+        url = url,
     )
 
     private fun given(
@@ -160,7 +214,19 @@ class FilteredDownloadCleanupServiceTest {
         chapterId: Long = CHAPTER_ID,
         mangaId: Long = MANGA_ID,
         age: Duration = 2.hours,
-    ) = PendingDownloadDeletion(chapterId, mangaId, currentTime - age)
+        // The url is the row's identity token; by default it is the one `chapter()` gives the same id,
+        // so a row only mismatches when a test says the id now names another chapter.
+        chapterUrl: String = "https://example.org/$chapterId",
+    ) = PendingDownloadDeletion(chapterId, mangaId, currentTime - age, chapterUrl)
+
+    private fun mergedEntry(mangaId: Long = MANGA_ID, mergeId: Long = PARENT_ID) = MergedEntry(
+        id = 1L,
+        mergeId = mergeId,
+        mangaId = mangaId,
+        fetchChapterUpdates = true,
+        downloadChapters = true,
+        chapterPriority = 0,
+    )
 
     @Test
     fun `a disabled setting exits before touching any dependency`() {
@@ -176,12 +242,14 @@ class FilteredDownloadCleanupServiceTest {
             mangaRepository.getMangaByIds(any())
             mangaRepository.getExcludedScanlatorsByMangaIds(any())
             chapterRepository.getChaptersByMangaIds(any())
+            mangaMergeRepository.getAllEntries()
             sourceManager.get(any())
             downloadManager.deleteChapters(any(), any(), any(), any())
         }
         verify(exactly = 0) {
             downloadCache.getDownloadedChapterIdsNoRenew(any(), any())
             downloadCache.getMangaWithDownloads(any())
+            downloadProvider.getValidChapterDirNames(any(), any(), any())
         }
         pendingRepository.calls shouldBe emptyList()
     }
@@ -715,10 +783,179 @@ class FilteredDownloadCleanupServiceTest {
         downloadPreferences.removeFilteredDownloads.get() shouldBe false
     }
 
+    @Test
+    fun `a merged manga is never a candidate even when its own filter hides the download`() {
+        downloadPreferences.removeFilteredDownloads.set(true)
+        downloadPreferences.removeBookmarkedChapters.set(true)
+        // The merged chapter list applies the *merge parent's* `user_chapter_flags`, not the child's
+        // (`chapter.sq` joins `manga` on the merge id), so the child's "hide bookmarked" flag says
+        // nothing about what the user sees there. Without the exclusion this chapter — visible in the
+        // merged list, hidden in the child's own — would be deleted.
+        val child = manga(chapterFlags = Manga.CHAPTER_SHOW_NOT_BOOKMARKED)
+        val parent = manga(id = PARENT_ID)
+        favourites = listOf(child, parent)
+        mangasInDb = listOf(child, parent)
+        chaptersByManga = mapOf(MANGA_ID to listOf(chapter(bookmark = true, scanlator = EXCLUDED_SCANLATOR)))
+        excludedScanlators = mapOf(MANGA_ID to listOf(EXCLUDED_SCANLATOR))
+        mangaWithDownloadsIds = setOf(MANGA_ID, PARENT_ID)
+        mergedEntryReads.add(listOf(mergedEntry()))
+        pendingRepository.rows = listOf(queued())
+
+        sweep()
+
+        pendingRepository.inserted.shouldBeEmpty()
+        coVerify(exactly = 0) { downloadManager.deleteChapters(any(), any(), any(), any()) }
+        // The row it already had is dropped, and dropped without a file.
+        pendingRepository.deletedMangaIds shouldBe listOf(MANGA_ID)
+        pendingRepository.deletedChapterIds.shouldBeEmpty()
+        pendingRepository.rows shouldBe emptyList()
+    }
+
+    @Test
+    fun `an expired row of a manga that became merged mid-sweep is dropped without a delete`() {
+        downloadPreferences.removeFilteredDownloads.set(true)
+        given()
+        pendingRepository.rows = listOf(queued())
+        // A merge created between the two phases of one sweep: discovery read the merge table before it
+        // existed, so the row got through discovery. Expiry reads it again and drops the row
+        // defensively — a merged list must never expire anything, whatever a stale row says.
+        mergedEntryReads.add(emptyList())
+        mergedEntryReads.add(listOf(mergedEntry()))
+
+        sweep()
+
+        coVerify(exactly = 0) { downloadManager.deleteChapters(any(), any(), any(), any()) }
+        pendingRepository.deletedMangaIds shouldBe listOf(MANGA_ID)
+        pendingRepository.rows shouldBe emptyList()
+    }
+
+    @Test
+    fun `a hidden chapter sharing a directory name with a visible sibling is not deleted`() {
+        downloadPreferences.removeFilteredDownloads.set(true)
+        downloadPreferences.removeBookmarkedChapters.set(true)
+        // Same name and no scanlator: both chapters resolve to the same download directory, and the
+        // manager deletes by directory name. Deleting the hidden one would take the visible one's file
+        // with it, so the guard keeps it and only its queue row goes.
+        given(
+            manga = manga(chapterFlags = Manga.CHAPTER_SHOW_NOT_BOOKMARKED),
+            chapters = listOf(
+                chapter(id = CHAPTER_ID, bookmark = true, name = "Chapter 1"),
+                chapter(id = VISIBLE_CHAPTER_ID, name = "Chapter 1"),
+            ),
+            excludedScanlators = emptyList(),
+        )
+        pendingRepository.rows = listOf(queued())
+
+        sweep()
+
+        coVerify(exactly = 0) { downloadManager.deleteChapters(any(), any(), any(), any()) }
+        pendingRepository.deletedChapterIds shouldBe listOf(CHAPTER_ID)
+        pendingRepository.rows shouldBe emptyList()
+    }
+
+    @Test
+    fun `turning the setting off inside the expiry loop stops it before any delete`() {
+        downloadPreferences.removeFilteredDownloads.set(true)
+        // Two due rows in different mangas, both genuinely deletable. Discovery runs first; the switch
+        // goes off while the expiry loop is working on the first manga — after the guard that opens the
+        // phase, which is exactly the window the loop itself leaves open.
+        val first = manga()
+        val second = manga(id = GONE_MANGA_ID)
+        favourites = listOf(first, second)
+        mangasInDb = listOf(first, second)
+        chaptersByManga = mapOf(
+            first.id to listOf(chapter(id = CHAPTER_ID, scanlator = EXCLUDED_SCANLATOR)),
+            second.id to listOf(chapter(id = GONE_CHAPTER_ID, mangaId = second.id, scanlator = EXCLUDED_SCANLATOR)),
+        )
+        excludedScanlators = mapOf(
+            first.id to listOf(EXCLUDED_SCANLATOR),
+            second.id to listOf(EXCLUDED_SCANLATOR),
+        )
+        mangaWithDownloadsIds = setOf(first.id, second.id)
+        val firstRow = queued(chapterId = CHAPTER_ID)
+        val secondRow = queued(chapterId = GONE_CHAPTER_ID, mangaId = GONE_MANGA_ID)
+        pendingRepository.rows = listOf(firstRow, secondRow)
+        onNextSourceLookup = { downloadPreferences.removeFilteredDownloads.set(false) }
+
+        sweep()
+
+        coVerify(exactly = 0) { downloadManager.deleteChapters(any(), any(), any(), any()) }
+        // The second manga is never taken on at all: the loop re-reads the veto for every manga.
+        coVerify(exactly = 1) { sourceManager.get(any()) }
+        pendingRepository.deletedChapterIds.shouldBeEmpty()
+        pendingRepository.rows shouldBe listOf(firstRow, secondRow)
+    }
+
+    @Test
+    fun `a row whose chapter url no longer matches is dropped without a delete`() {
+        downloadPreferences.removeFilteredDownloads.set(true)
+        given()
+        // `chapter.id` has no AUTOINCREMENT, so after a delete/insert cycle the id can name a different
+        // chapter of the same manga. The queued url is the identity that survives that reuse; when it
+        // does not match, the row was never about this chapter and nothing may be deleted for it.
+        pendingRepository.rows = listOf(queued(chapterUrl = "https://example.org/an-older-chapter"))
+
+        sweep()
+
+        coVerify(exactly = 0) { downloadManager.deleteChapters(any(), any(), any(), any()) }
+        pendingRepository.deletedChapterIds shouldBe listOf(CHAPTER_ID)
+        pendingRepository.rows shouldBe emptyList()
+    }
+
+    @Test
+    fun `a row survives a delete the manager refused and goes for one it removed`() {
+        downloadPreferences.removeFilteredDownloads.set(true)
+        // The manager applies its own bookmark filter (`getChaptersToDelete`), so it can hand nothing
+        // back for a chapter this sweep found to be a candidate. Dropping that chapter's row anyway
+        // would leave a file that nothing ever re-queues.
+        val refused = manga()
+        val honoured = manga(id = GONE_MANGA_ID)
+        favourites = listOf(refused, honoured)
+        mangasInDb = listOf(refused, honoured)
+        chaptersByManga = mapOf(
+            refused.id to listOf(chapter(id = CHAPTER_ID, scanlator = EXCLUDED_SCANLATOR)),
+            honoured.id to listOf(chapter(id = GONE_CHAPTER_ID, mangaId = honoured.id, scanlator = EXCLUDED_SCANLATOR)),
+        )
+        excludedScanlators = mapOf(
+            refused.id to listOf(EXCLUDED_SCANLATOR),
+            honoured.id to listOf(EXCLUDED_SCANLATOR),
+        )
+        mangaWithDownloadsIds = setOf(refused.id, honoured.id)
+        refusedChapterIds += CHAPTER_ID
+        pendingRepository.rows = listOf(
+            queued(chapterId = CHAPTER_ID),
+            queued(chapterId = GONE_CHAPTER_ID, mangaId = GONE_MANGA_ID),
+        )
+
+        sweep()
+
+        // Both were handed over; only one of them is gone.
+        coVerify(exactly = 2) { downloadManager.deleteChapters(any(), any(), any(), any()) }
+        pendingRepository.rows.map { it.chapterId } shouldBe listOf(CHAPTER_ID)
+    }
+
+    @Test
+    fun `a row stamped in the future is re-stamped to now and nothing is deleted`() {
+        downloadPreferences.removeFilteredDownloads.set(true)
+        given()
+        // The clock moved backwards after the row was written, so its dwell only starts when the clock
+        // catches up — which after a large jump can be never. Discovery re-stamps it instead.
+        pendingRepository.rows = listOf(queued(age = -1.hours))
+
+        sweep()
+
+        // The repository has no update query, so the re-stamp is a delete + insert of the same row:
+        // the delete is the mechanism, and the assertion that matters is the stamp that came back.
+        pendingRepository.deletedChapterIds shouldBe listOf(CHAPTER_ID)
+        pendingRepository.rows.single().firstHiddenAt shouldBe currentTime
+        coVerify(exactly = 0) { downloadManager.deleteChapters(any(), any(), any(), any()) }
+    }
+
     private companion object {
         const val MANGA_ID = 1L
         const val SOURCE_ID = 2L
         const val GONE_MANGA_ID = 3L
+        const val PARENT_ID = 4L
         const val CHAPTER_ID = 10L
         const val VISIBLE_CHAPTER_ID = 11L
         const val GONE_CHAPTER_ID = 12L
