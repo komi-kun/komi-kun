@@ -294,4 +294,6 @@
     <string name="orphaned_downloads_scan_failed_short">पिछला स्कैन विफल रहा</string>
     <string name="orphaned_downloads_scan_failed">डाउनलोड पढ़े नहीं जा सके। स्टोरेज पहुँच जाँचें और फिर से कोशिश करें।</string>
     <string name="orphaned_downloads_delete_failed">चयनित फ़ाइलें हटाई नहीं जा सकीं। स्टोरेज पहुँच जाँचें और फिर से कोशिश करें।</string>
+    <string name="pref_remove_filtered_downloads">फ़िल्टर द्वारा छिपाए गए डाउनलोड हटाएं</string>
+    <string name="pref_remove_filtered_downloads_summary">केवल पुस्तकालय का मांगा: एक स्थायी अध्याय फ़िल्टर द्वारा छिपाया गया डाउनलोड किया हुआ अध्याय लगभग एक घंटे बाद हटा दिया जाता है। पढ़ा/अपठित स्थिति नहीं गिनी जाती, और बुकमार्क किए गए अध्याय सुरक्षित रखे जाते हैं। इसे चालू करने पर पहले से छिपे डाउनलोड भी शामिल होते हैं, लेकिन केवल उसी प्रतीक्षा के बाद।</string>
 </resources>

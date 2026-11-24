@@ -294,4 +294,6 @@
     <string name="orphaned_downloads_scan_failed_short">Poslední prohledávání selhalo</string>
     <string name="orphaned_downloads_scan_failed">Stahování se nepodařilo načíst. Zkontrolujte přístup k úložišti a zkuste to znovu.</string>
     <string name="orphaned_downloads_delete_failed">Vybrané soubory se nepodařilo smazat. Zkontrolujte přístup k úložišti a zkuste to znovu.</string>
+    <string name="pref_remove_filtered_downloads">Mazat stahování skrytá filtry</string>
+    <string name="pref_remove_filtered_downloads_summary">Pouze manga v knihovně: stažená kapitola, kterou skryje trvalý filtr kapitol, se smaže přibližně po hodině. Stav přečteno/nepřečteno se nepočítá a kapitoly se záložkou jsou respektovány. Zapnutím se zachytí i stahování, která už byla skrytá, ale až po stejné době čekání.</string>
 </resources>

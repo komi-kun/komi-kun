@@ -293,4 +293,6 @@
     <string name="orphaned_downloads_scan_failed_short">Imbasan terakhir gagal</string>
     <string name="orphaned_downloads_scan_failed">Fail yang dimuat turun tidak dapat dibaca. Semak akses storan dan cuba lagi.</string>
     <string name="orphaned_downloads_delete_failed">Fail yang dipilih tidak dapat dipadam. Semak akses storan dan cuba lagi.</string>
+    <string name="pref_remove_filtered_downloads">Padam muat turun yang disembunyikan oleh tapis</string>
+    <string name="pref_remove_filtered_downloads_summary">Hanya manga pustaka: bab yang dimuat turun dan disembunyikan oleh tapis bab kekal akan dipadam selepas kira-kira sejam. Keadaan dibaca/tidak dibaca tidak dikira, dan bab yang ditanda akan dikekalkan. Menghidupkannya turut mengambil kira muat turun yang sudah tersembunyi, tetapi hanya selepas tempoh menunggu yang sama.</string>
 </resources>

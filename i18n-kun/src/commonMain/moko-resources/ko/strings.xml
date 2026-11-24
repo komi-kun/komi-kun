@@ -300,4 +300,6 @@
     <string name="orphaned_downloads_scan_failed_short">마지막 검색 실패</string>
     <string name="orphaned_downloads_scan_failed">다운로드를 읽을 수 없습니다. 저장소 접근 권한을 확인한 후 다시 시도하세요.</string>
     <string name="orphaned_downloads_delete_failed">선택한 파일을 삭제할 수 없습니다. 저장소 접근 권한을 확인한 후 다시 시도하세요.</string>
+    <string name="pref_remove_filtered_downloads">필터로 숨겨진 다운로드 삭제</string>
+    <string name="pref_remove_filtered_downloads_summary">서재 만화만 해당: 영구 챕터 필터로 숨겨진 다운로드된 챕터는 약 1시간 후에 삭제됩니다. 읽음/읽지 않음 상태는 계산되지 않으며, 북마크된 챕터는 유지됩니다. 이 기능을 켜면 이미 숨겨져 있던 다운로드도 포함되지만, 같은 대기 시간이 지난 후에만 처리됩니다.</string>
 </resources>

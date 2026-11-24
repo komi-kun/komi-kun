@@ -293,4 +293,6 @@
     <string name="orphaned_downloads_scan_failed_short">Pemindaian terakhir gagal</string>
     <string name="orphaned_downloads_scan_failed">File yang diunduh tidak dapat dibaca. Periksa akses penyimpanan dan coba lagi.</string>
     <string name="orphaned_downloads_delete_failed">File yang dipilih tidak dapat dihapus. Periksa akses penyimpanan dan coba lagi.</string>
+    <string name="pref_remove_filtered_downloads">Hapus unduhan yang disembunyikan oleh filter</string>
+    <string name="pref_remove_filtered_downloads_summary">Hanya manga pustaka: bab yang diunduh dan disembunyikan oleh filter bab permanen akan dihapus setelah sekitar satu jam. Status dibaca/belum dibaca tidak dihitung, dan bab yang ditandai akan dipertahankan. Mengaktifkannya juga mencakup unduhan yang sudah tersembunyi, tetapi hanya setelah waktu tunggu yang sama.</string>
 </resources>

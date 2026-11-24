@@ -293,4 +293,6 @@
     <string name="orphaned_downloads_scan_failed_short">Nabigo ang huling pag-scan</string>
     <string name="orphaned_downloads_scan_failed">Hindi mabasa ang mga na-download na file. Suriin ang access sa storage at subukan muli.</string>
     <string name="orphaned_downloads_delete_failed">Hindi mabura ang mga napiling file. Suriin ang access sa storage at subukan muli.</string>
+    <string name="pref_remove_filtered_downloads">Burahin ang mga download na nakatago ng mga pansala</string>
+    <string name="pref_remove_filtered_downloads_summary">Mga manga sa aklatan lang: ang na-download na kabanata na nakatago ng isang permanenteng pansala ng kabanata ay binubura pagkalipas ng humigit-kumulang isang oras. Hindi binibilang ang estado ng nabasa/hindi nabasa, at iginagalang ang mga na-bookmark na kabanata. Kapag binuksan ito, kasama rin ang mga download na nakatago na noon, ngunit pagkatapos lang ng parehong paghihintay.</string>
 </resources>

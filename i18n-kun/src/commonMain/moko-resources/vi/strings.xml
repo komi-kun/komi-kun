@@ -293,4 +293,6 @@
     <string name="orphaned_downloads_scan_failed_short">Lần quét trước thất bại</string>
     <string name="orphaned_downloads_scan_failed">Không thể đọc các tệp đã tải xuống. Hãy kiểm tra quyền truy cập bộ nhớ và thử lại.</string>
     <string name="orphaned_downloads_delete_failed">Không thể xóa các tệp đã chọn. Hãy kiểm tra quyền truy cập bộ nhớ và thử lại.</string>
+    <string name="pref_remove_filtered_downloads">Xóa bản tải xuống bị bộ lọc ẩn</string>
+    <string name="pref_remove_filtered_downloads_summary">Chỉ manga trong thư viện: một chương đã tải xuống bị bộ lọc chương cố định ẩn sẽ bị xóa sau khoảng một giờ. Trạng thái đã đọc/chưa đọc không được tính, và các chương đã đánh dấu được giữ lại. Khi bật, các bản tải xuống đã bị ẩn trước đó cũng được xử lý, nhưng chỉ sau cùng khoảng thời gian chờ.</string>
 </resources>

@@ -294,4 +294,6 @@
     <string name="orphaned_downloads_scan_failed_short">শেষ স্ক্যান ব্যর্থ হয়েছে</string>
     <string name="orphaned_downloads_scan_failed">ডাউনলোডগুলো পড়া যায়নি। স্টোরেজ অ্যাক্সেস যাচাই করে আবার চেষ্টা করুন।</string>
     <string name="orphaned_downloads_delete_failed">নির্বাচিত ফাইলগুলো মোছা যায়নি। স্টোরেজ অ্যাক্সেস যাচাই করে আবার চেষ্টা করুন।</string>
+    <string name="pref_remove_filtered_downloads">ফিল্টার দ্বারা লুকানো ডাউনলোড মুছুন</string>
+    <string name="pref_remove_filtered_downloads_summary">শুধুমাত্র লাইব্রেরির মাঙ্গা: একটি স্থায়ী অধ্যায় ফিল্টার যে ডাউনলোড করা অধ্যায় লুকায়, তা প্রায় এক ঘণ্টা পরে মুছে ফেলা হয়। পড়া/না পড়া অবস্থা গণনা করা হয় না, এবং বুকমার্ককৃত অধ্যায়গুলিকে সম্মান করা হয়। এটি চালু করলে আগে থেকেই লুকানো ডাউনলোডগুলিও ধরা পড়ে, তবে একই অপেক্ষার পরেই।</string>
 </resources>
