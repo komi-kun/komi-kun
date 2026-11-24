@@ -2,6 +2,7 @@
 package eu.kanade.domain.download
 
 import tachiyomi.domain.chapter.model.Chapter
+import java.util.TreeSet
 
 /**
  * The single answer to "may this chapter's download files be deleted without taking another
@@ -29,6 +30,13 @@ object FilteredDownloadDeletionGuard {
      * never collides with anything. Only [kept] protects; chapters in [toDelete] are free to share
      * names with each other, because they are all leaving anyway.
      *
+     * Names are compared **ignoring case**, exactly like the deletion itself resolves them:
+     * `DownloadProvider.findChapterDirs` looks a chapter's directory up through a case-insensitive
+     * map (a case-insensitive volume or a storage access framework tree hands `X.cbz` to a chapter
+     * named `x.cbz`), so a case-only difference is the same directory on disk. An exact comparison
+     * would call the deletion safe and let it take the kept chapter's file with it —
+     * `OrphanedDownloads.reachableFileNames` compares the same way for the same reason.
+     *
      * @param toDelete the chapters the sweep intends to delete
      * @param kept every other chapter of the same manga (the ones that stay on disk)
      * @param dirNames the candidate directory names for a chapter
@@ -42,11 +50,13 @@ object FilteredDownloadDeletionGuard {
     ): List<Chapter> {
         if (toDelete.isEmpty() || kept.isEmpty()) return toDelete
 
-        val keptDirNames = HashSet<String>()
+        val keptDirNames = TreeSet(String.CASE_INSENSITIVE_ORDER)
         kept.forEach { keptDirNames.addAll(dirNames(it)) }
         if (keptDirNames.isEmpty()) return toDelete
 
-        return toDelete.filterNot { chapter -> dirNames(chapter).any { it in keptDirNames } }
+        // `TreeSet.contains` compares under the set's comparator, so this is a case-insensitive
+        // membership test — the same comparison `OrphanedDownloads` uses, not a lowered copy.
+        return toDelete.filterNot { chapter -> dirNames(chapter).any { keptDirNames.contains(it) } }
     }
 }
 // KUN <--

@@ -85,8 +85,9 @@ class FilteredDownloadCleanupService(
      * feature on can never empty the downloads at once.
      *
      * @param discoverOnly stops after the discovery phase. This is the immediate pass of an off → on
-     * toggle: it exists to start the clock for that backlog, and it never deletes anything — no expiry
-     * read, no file, no queue row.
+     * toggle: it exists to start the clock for that backlog. No file is ever deleted and no expiry is
+     * run, but queue rows may be corrected: stale, abandoned and merged rows are dropped, and a stamp
+     * in the future is reset.
      */
     suspend fun run(discoverOnly: Boolean = false) {
         // The cheap exit, and deliberately the first statement: with the feature off a periodic pass

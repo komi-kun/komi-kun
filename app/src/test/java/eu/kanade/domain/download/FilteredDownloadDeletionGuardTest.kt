@@ -22,14 +22,16 @@ class FilteredDownloadDeletionGuardTest {
         url = url,
     )
 
-    // Mimics the shape of `DownloadProvider.getValidChapterDirNames`: a set of candidates, usually
-    // one plain name plus a url-derived hash variant (never a single string), so the set-intersection
-    // behaviour is genuinely exercised. A blank name has no resolvable directory, hence an empty set.
+    // Mimics the shape of `DownloadProvider.getValidChapterDirNames`: a plain name and a url-derived
+    // hash variant, each also as its `.cbz` archive (what a chapter downloaded as one file resolves
+    // to), so the set-intersection behaviour is exercised on every on-disk shape the manager deletes.
+    // A blank name has no resolvable directory, hence an empty set.
     private fun dirNames(chapter: Chapter): Set<String> {
         if (chapter.name.isBlank()) return emptySet()
         val scanlator = chapter.scanlator?.takeIf { it.isNotBlank() }
         val base = if (scanlator == null) chapter.name else "${scanlator}_${chapter.name}"
-        return setOf(base, "${base}_${chapter.url.hashCode().toString(16)}")
+        val hashed = "${base}_${chapter.url.hashCode().toString(16)}"
+        return setOf(base, "$base.cbz", hashed, "$hashed.cbz")
     }
 
     private fun safe(toDelete: List<Chapter>, kept: List<Chapter>): List<Chapter> =
@@ -48,10 +50,14 @@ class FilteredDownloadDeletionGuardTest {
 
     @Test
     fun `a chapter with no directory name in common with a kept sibling stays deletable`() {
+        // `Ch. 2` and `Ch. 10` differ by more than case, so case-insensitive matching must not reach
+        // across distinct names (`Ch. 10` shares the `Ch. 1` prefix, which only a sloppier normalising
+        // comparison would treat as a collision).
         val kept = chapter(name = "Ch. 1")
         val hidden = chapter(name = "Ch. 2")
+        val longer = chapter(name = "Ch. 10")
 
-        safe(listOf(hidden), listOf(kept)) shouldBe listOf(hidden)
+        safe(listOf(hidden, longer), listOf(kept)) shouldBe listOf(hidden, longer)
     }
 
     @Test
@@ -77,15 +83,57 @@ class FilteredDownloadDeletionGuardTest {
 
     @Test
     fun `a kept chapter whose directory names partially overlap still drops the delete`() {
-        // Same scanlator and name, different url: one common candidate out of two per set. The
-        // conservative direction wins — the file is retained rather than risk deleting the kept one.
+        // Same scanlator and name, different url: two common candidates out of four per set (the
+        // folder and its `.cbz` archive); only the url-hash variants differ. The conservative
+        // direction wins — the file is retained rather than risk deleting the kept one.
         val kept = chapter(name = "Ch. 3", scanlator = "Group", url = "https://example.com/a/3")
         val hidden = chapter(name = "Ch. 3", scanlator = "Group", url = "https://example.com/b/3")
 
         val keptNames = dirNames(kept)
         val hiddenNames = dirNames(hidden)
-        (keptNames intersect hiddenNames).size shouldBe 1
-        (keptNames - hiddenNames).size shouldBe 1
+        (keptNames intersect hiddenNames) shouldBe setOf("Group_Ch. 3", "Group_Ch. 3.cbz")
+        (keptNames - hiddenNames).size shouldBe 2
+
+        safe(listOf(hidden), listOf(kept)) shouldBe emptyList()
+    }
+
+    @Test
+    fun `a kept chapter whose name differs only by case still protects the hidden one`() {
+        // The delete resolves chapter directories case-insensitively (`DownloadProvider.findChapterDirs`
+        // matches through `sortedMapOf(String.CASE_INSENSITIVE_ORDER)`), so `ch. 1` is the same folder
+        // as `Ch. 1` on disk. No candidate matches exactly, yet the hidden chapter must be dropped:
+        // an exact comparison would call this delete safe and take the kept chapter's folder with it.
+        val kept = chapter(name = "Ch. 1", url = "https://example.com/a/1")
+        val hidden = chapter(name = "ch. 1", url = "https://example.com/b/1")
+
+        (dirNames(kept) intersect dirNames(hidden)) shouldBe emptySet()
+
+        safe(listOf(hidden), listOf(kept)) shouldBe emptyList()
+    }
+
+    @Test
+    fun `the archived cbz name collides by case too`() {
+        // A chapter downloaded as one archive resolves to `<name>.cbz`, a separate on-disk entry the
+        // manager deletes the same way, and the case-insensitive lookup hands `ch. 1.cbz` to a kept
+        // `Ch. 1.cbz`. The archive candidates differ only by case and carry no exact match either.
+        val kept = chapter(name = "Ch. 1", url = "https://example.com/a/1")
+        val hidden = chapter(name = "ch. 1", url = "https://example.com/b/1")
+
+        ("Ch. 1.cbz" in dirNames(kept)) shouldBe true
+        ("ch. 1.cbz" in dirNames(hidden)) shouldBe true
+        (dirNames(kept) intersect dirNames(hidden)) shouldBe emptySet()
+
+        safe(listOf(hidden), listOf(kept)) shouldBe emptyList()
+    }
+
+    @Test
+    fun `a case-only difference in the scanlator is the same directory as well`() {
+        // The scanlator is part of the directory name, so a group differing only in case produces the
+        // same folder under the case-insensitive lookup.
+        val kept = chapter(name = "Ch. 1", scanlator = "Group", url = "https://example.com/a/1")
+        val hidden = chapter(name = "Ch. 1", scanlator = "group", url = "https://example.com/b/1")
+
+        (dirNames(kept) intersect dirNames(hidden)) shouldBe emptySet()
 
         safe(listOf(hidden), listOf(kept)) shouldBe emptyList()
     }

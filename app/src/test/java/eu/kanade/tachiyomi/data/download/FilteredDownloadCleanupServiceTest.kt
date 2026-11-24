@@ -495,6 +495,46 @@ class FilteredDownloadCleanupServiceTest {
     }
 
     @Test
+    fun `a merged id is excluded before the window so it takes no slot and starves nothing`() {
+        downloadPreferences.removeFilteredDownloads.set(true)
+        // 30 favourites with downloads, every one of them hidden by an excluded scanlator, and the
+        // *lowest* id is a merge parent: it sorts first in the batch the service examines, so it is
+        // exactly the one that would eat a window slot if the exclusion ran after the window.
+        val mangas = (1L..(FilteredDownloadCleanupService.DISCOVERY_BATCH + 5L)).map { id -> manga(id = id) }
+        favourites = mangas
+        mangasInDb = mangas
+        chaptersByManga = mangas.associate {
+            it.id to listOf(chapter(id = it.id * 10, mangaId = it.id, scanlator = EXCLUDED_SCANLATOR))
+        }
+        excludedScanlators = mangas.associate { it.id to listOf(EXCLUDED_SCANLATOR) }
+        mangaWithDownloadsIds = mangas.mapTo(mutableSetOf()) { it.id }
+        // The parent role only: id 1 is the entry's *merge id*, and the child it names is outside this
+        // fixture, so the exclusion cannot come from the child half of the row.
+        mergedEntryReads.add(listOf(mergedEntry(mangaId = OUTSIDE_LIBRARY_MANGA_ID, mergeId = 1L)))
+        // `runWindow` starts at `(hourIndex * DISCOVERY_BATCH) % size`; this hour index is a multiple
+        // of the 29 mangas that survive the exclusion, so the window is exactly the first 25 of them
+        // and none of the assertions below depends on the wall clock. `getMangaWithDownloads` answers in
+        // the order of `favourites` (ids ascending here) and the service sorts by id, so the batch is
+        // ascending too.
+        currentTime = Instant.fromEpochMilliseconds(29L * 25_517L * 3_600_000L)
+
+        sweep()
+
+        val queuedIds = pendingRepository.inserted.map { it.mangaId }.distinct()
+        // The merged id is never queued: the 25 slots went to the unmerged ids only, from the head.
+        queuedIds shouldBe (2L..26L).toList()
+        queuedIds.size shouldBe FilteredDownloadCleanupService.DISCOVERY_BATCH
+        // The starvation pin: id 26 is the last manga of the window, and it is reachable only because
+        // id 1 consumed no slot. A window taken over the merged id first would end at 25 and leave 26,
+        // which is "still hidden, still downloaded", unexamined for this whole pass.
+        queuedIds.last() shouldBe 26L
+        // The tail beyond the window is not examined now; the next pass reaches it (the rotation test
+        // above pins that it does).
+        pendingRepository.inserted.map { it.mangaId }.filter { it > 26L }.shouldBeEmpty()
+        coVerify(exactly = 0) { downloadManager.deleteChapters(any(), any(), any(), any()) }
+    }
+
+    @Test
     fun `a backlog hidden before the feature existed is stamped now and only deleted a grace period later`() {
         downloadPreferences.removeFilteredDownloads.set(true)
         // An upgrade: the manga is hidden and downloaded, and the queue table is empty because no pass
@@ -830,6 +870,70 @@ class FilteredDownloadCleanupServiceTest {
     }
 
     @Test
+    fun `the merge parent role alone keeps a manga from being a candidate`() {
+        downloadPreferences.removeFilteredDownloads.set(true)
+        downloadPreferences.removeBookmarkedChapters.set(true)
+        // The entry names this manga as its *merge id*, not as its child: `chapter.sq` joins `manga`
+        // on the merge id, so the parent's own chapter flags are what the merged list applies, and the
+        // manga is merged even though no row names it as `mangaId`. Without the parent half of the
+        // exclusion its downloaded bookmarked chapter — which its own "hide bookmarked" flag hides —
+        // would be queued and, a grace period later, deleted.
+        val child = manga(id = MANGA_ID)
+        val parent = manga(id = PARENT_ID, chapterFlags = Manga.CHAPTER_SHOW_NOT_BOOKMARKED)
+        favourites = listOf(child, parent)
+        mangasInDb = listOf(parent)
+        chaptersByManga = mapOf(
+            PARENT_ID to listOf(chapter(id = PARENT_CHAPTER_ID, mangaId = PARENT_ID, bookmark = true)),
+        )
+        excludedScanlators = emptyMap()
+        mangaWithDownloadsIds = setOf(PARENT_ID)
+        // Read by both phases: the merge exists for the whole sweep.
+        mergedEntryReads.add(listOf(mergedEntry(mangaId = MANGA_ID, mergeId = PARENT_ID)))
+        mergedEntryReads.add(listOf(mergedEntry(mangaId = MANGA_ID, mergeId = PARENT_ID)))
+        pendingRepository.rows = listOf(queued(chapterId = PARENT_CHAPTER_ID, mangaId = PARENT_ID))
+
+        sweep()
+
+        // Not queued, never handed to a delete, and not even read: the batch is empty once the merged
+        // id is filtered out.
+        pendingRepository.inserted.shouldBeEmpty()
+        coVerify(exactly = 0) { chapterRepository.getChaptersByMangaIds(any()) }
+        coVerify(exactly = 0) { downloadManager.deleteChapters(any(), any(), any(), any()) }
+        // The row it already had goes with the discovery drop, un-deleted.
+        pendingRepository.deletedMangaIds shouldBe listOf(PARENT_ID)
+        pendingRepository.deletedChapterIds.shouldBeEmpty()
+        pendingRepository.rows shouldBe emptyList()
+    }
+
+    @Test
+    fun `an expired row of a merge parent that became merged mid-sweep is dropped without a delete`() {
+        downloadPreferences.removeFilteredDownloads.set(true)
+        // The same mid-sweep merge as the child case, but the entry names this manga as its *merge
+        // id*: the parent is merged too, and a due row of it must be dropped, not acted on.
+        val parent = manga(id = PARENT_ID)
+        favourites = listOf(parent)
+        mangasInDb = listOf(parent)
+        chaptersByManga = mapOf(
+            PARENT_ID to listOf(chapter(id = PARENT_CHAPTER_ID, mangaId = PARENT_ID, scanlator = EXCLUDED_SCANLATOR)),
+        )
+        excludedScanlators = mapOf(PARENT_ID to listOf(EXCLUDED_SCANLATOR))
+        mangaWithDownloadsIds = setOf(PARENT_ID)
+        pendingRepository.rows = listOf(queued(chapterId = PARENT_CHAPTER_ID, mangaId = PARENT_ID))
+        // Discovery read the merge table before the merge existed, so the row got through it — and is
+        // still re-sent by the INSERT OR IGNORE. Expiry reads the table again and drops it.
+        mergedEntryReads.add(emptyList())
+        mergedEntryReads.add(listOf(mergedEntry(mangaId = MANGA_ID, mergeId = PARENT_ID)))
+
+        sweep()
+
+        pendingRepository.inserted.map { it.chapterId } shouldBe listOf(PARENT_CHAPTER_ID)
+        coVerify(exactly = 0) { downloadManager.deleteChapters(any(), any(), any(), any()) }
+        pendingRepository.deletedMangaIds shouldBe listOf(PARENT_ID)
+        pendingRepository.deletedChapterIds.shouldBeEmpty()
+        pendingRepository.rows shouldBe emptyList()
+    }
+
+    @Test
     fun `a hidden chapter sharing a directory name with a visible sibling is not deleted`() {
         downloadPreferences.removeFilteredDownloads.set(true)
         downloadPreferences.removeBookmarkedChapters.set(true)
@@ -959,6 +1063,8 @@ class FilteredDownloadCleanupServiceTest {
         const val CHAPTER_ID = 10L
         const val VISIBLE_CHAPTER_ID = 11L
         const val GONE_CHAPTER_ID = 12L
+        const val PARENT_CHAPTER_ID = 13L
+        const val OUTSIDE_LIBRARY_MANGA_ID = 999L
         const val EXCLUDED_SCANLATOR = "Excluded"
         const val EXCLUDED_CATEGORY_ID = "3"
     }

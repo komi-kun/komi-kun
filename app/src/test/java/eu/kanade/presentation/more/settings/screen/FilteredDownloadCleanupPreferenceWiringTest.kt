@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // KUN -->
 // **Source-level wiring guard for the "remove filtered downloads" switch — not a behavioural test.**
 //
