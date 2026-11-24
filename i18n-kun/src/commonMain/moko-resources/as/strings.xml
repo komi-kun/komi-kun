@@ -294,4 +294,6 @@
     <string name="orphaned_downloads_scan_failed_short">শেষ স্কেন ব্যৰ্থ হ\'ল</string>
     <string name="orphaned_downloads_scan_failed">ডাউনলোডবোৰ পঢ়িব পৰা নগ\'ল। সংৰক্ষণৰ প্ৰৱেশ পৰীক্ষা কৰি পুনৰ চেষ্টা কৰক।</string>
     <string name="orphaned_downloads_delete_failed">বাছনি কৰা ফাইলবোৰ মচিব পৰা নগ\'ল। সংৰক্ষণৰ প্ৰৱেশ পৰীক্ষা কৰি পুনৰ চেষ্টা কৰক।</string>
+    <string name="pref_remove_filtered_downloads">ফিল্টাৰে লুকুৱা ডাউনলোড মচক</string>
+    <string name="pref_remove_filtered_downloads_summary">কেৱল পুথিভঁৰালৰ মাংগা: এটা স্থায়ী অধ্যায় ফিল্টাৰে লুকুৱা ডাউনলোড কৰা অধ্যায় প্ৰায় এঘণ্টাৰ পিছত মচা হয়। পঢ়া/নপঢ়া অৱস্থা গণনা নহয়, আৰু বুকমাৰ্ক কৰা অধ্যায়সমূহক সন্মান কৰা হয়। ইয়াক সক্ৰিয় কৰিলে আগতে লুকুৱাই থোৱা ডাউনলোডবোৰো ধৰা পৰে, কিন্তু একে অপেক্ষাৰ পিছতহে।</string>
 </resources>

@@ -327,4 +327,6 @@
     <string name="pref_history_filter_inclusion_wins">已包含的分类优先</string>
     <string name="pref_history_filter_inclusion_wins_summary">同时属于已包含和已排除分类的漫画会显示而不是隐藏。关闭：已排除分类优先。</string>
     <string name="pref_history_filter_reset">重置筛选</string>
+    <string name="pref_remove_filtered_downloads">删除被筛选隐藏的下载</string>
+    <string name="pref_remove_filtered_downloads_summary">仅限书架中的漫画：被持久章节筛选隐藏的已下载章节会在约一小时后删除。已读/未读状态不计入，已添加书签的章节会被保留。开启后也会处理此前已被隐藏的下载，但同样需要等待相同时间。</string>
 </resources>

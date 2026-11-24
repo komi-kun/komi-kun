@@ -294,4 +294,6 @@
     <string name="orphaned_downloads_scan_failed_short">Son tarama başarısız</string>
     <string name="orphaned_downloads_scan_failed">İndirmeler okunamadı. Depolama erişimini kontrol edip yeniden deneyin.</string>
     <string name="orphaned_downloads_delete_failed">Seçili dosyalar silinemedi. Depolama erişimini kontrol edip yeniden deneyin.</string>
+    <string name="pref_remove_filtered_downloads">Filtrelerle gizlenen indirmeleri sil</string>
+    <string name="pref_remove_filtered_downloads_summary">Yalnızca kütüphane mangaları: kalıcı bir bölüm filtresi tarafından gizlenen indirilmiş bir bölüm yaklaşık bir saat sonra silinir. Okundu/okunmadı durumu sayılmaz ve yer imli bölümler korunur. Etkinleştirmek, zaten gizlenmiş indirmeleri de kapsar, ancak yalnızca aynı bekleme süresinden sonra.</string>
 </resources>

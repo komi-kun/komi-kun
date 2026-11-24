@@ -293,4 +293,6 @@
     <string name="orphaned_downloads_scan_failed_short">Ultima scanare a eșuat</string>
     <string name="orphaned_downloads_scan_failed">Descărcările nu au putut fi citite. Verificați accesul la stocare și încercați din nou.</string>
     <string name="orphaned_downloads_delete_failed">Fișierele selectate nu au putut fi șterse. Verificați accesul la stocare și încercați din nou.</string>
+    <string name="pref_remove_filtered_downloads">Șterge descărcările ascunse de filtre</string>
+    <string name="pref_remove_filtered_downloads_summary">Doar manga din bibliotecă: un capitol descărcat pe care un filtru permanent de capitole îl ascunde este șters după aproximativ o oră. Starea citit/necitit nu contează, iar capitolele marcate sunt respectate. Activarea include și descărcările deja ascunse, dar numai după aceeași perioadă de așteptare.</string>
 </resources>

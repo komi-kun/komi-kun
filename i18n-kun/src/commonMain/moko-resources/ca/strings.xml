@@ -293,4 +293,6 @@
     <string name="orphaned_downloads_scan_failed_short">L\'última anàlisi ha fallat</string>
     <string name="orphaned_downloads_scan_failed">No s\'han pogut llegir les baixades. Comprova l\'accés a l\'emmagatzematge i torna-ho a provar.</string>
     <string name="orphaned_downloads_delete_failed">No s\'han pogut eliminar els fitxers seleccionats. Comprova l\'accés a l\'emmagatzematge i torna-ho a provar.</string>
+    <string name="pref_remove_filtered_downloads">Elimina les baixades ocultes pels filtres</string>
+    <string name="pref_remove_filtered_downloads_summary">Només manga de la biblioteca: un capítol baixat que un filtre de capítols persistent amaga s\'elimina al cap d\'aproximadament una hora. L\'estat llegit/no llegit no compta, i es respecten els capítols marcats. En activar-ho també s\'inclouen les baixades que ja estaven ocultes, però només després de la mateixa espera.</string>
 </resources>

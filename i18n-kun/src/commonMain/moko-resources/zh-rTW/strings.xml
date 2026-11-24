@@ -300,4 +300,6 @@
     <string name="orphaned_downloads_scan_failed_short">上次掃描失敗</string>
     <string name="orphaned_downloads_scan_failed">無法讀取已下載檔案。請檢查儲存空間存取權後再試一次。</string>
     <string name="orphaned_downloads_delete_failed">無法刪除選取的檔案。請檢查儲存空間存取權後再試一次。</string>
+    <string name="pref_remove_filtered_downloads">刪除被篩選器隱藏的下載</string>
+    <string name="pref_remove_filtered_downloads_summary">僅限書櫃中的漫畫：被持久章節篩選器隱藏的下載章節會在約一小時後刪除。已讀/未讀狀態不列入計算，已加上書籤的章節會被保留。開啟後也會處理先前已被隱藏的下載，但同樣需要等待相同時間。</string>
 </resources>
