@@ -60,7 +60,9 @@ representative at an online or offline event.
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
 reported to the community moderators responsible for enforcement at
-the [Discord server](https://discord.gg/85jB7V5AJR).
+the [upstream Komikku community's Discord server](https://discord.gg/85jB7V5AJR).
+That is the upstream Komikku community's own venue, and reports about behaviour in
+that community go there. This fork has no separate reporting venue of its own.
 All complaints will be reviewed and investigated promptly and fairly.
 
 All community moderators are obligated to respect the privacy and security of the

@@ -26,7 +26,7 @@ Before you start, please note that the ability to use following technologies is 
 
 ## Getting help
 
-- Join [the Discord server](https://discord.gg/85jB7V5AJR) for online help and to ask questions while developing.
+- Join [the upstream Komikku community's Discord server](https://discord.gg/85jB7V5AJR) for online help and to ask questions while developing.
 
 ## Automated code reviews
 
@@ -57,7 +57,14 @@ The workflow lives in [`.github/workflows/opencode_review.yml`](.github/workflow
 
 # Translations
 
-Translations are done externally via [Weblate](https://hosted.weblate.org/engage/komikku-app/). See [our website](https://komikku-app.github.io/docs/contribute#translation) for more details.
+No Weblate component is wired to this fork's strings: translations are maintained here, in-tree, as normal source files. The root `.weblate` file is a leftover and still names upstream Komikku's component, `komikku-app/komikku` — not one belonging to this fork.
+
+- Strings live in four modules — `i18n/` (Mihon), `i18n-sy/` (TachiyomiSY), `i18n-kmk/` (Komikku) and `i18n-kun/` (this fork). Only each module's `base` folder declares strings; every other locale file holds its translations.
+- New Komikun strings go in `i18n-kun/` and are referenced through `KUNMR`. Ship the base string together with its translations for the locales you can translate confidently — a missing key falls back to the base language.
+- Upstream translation updates (the "Translations update from Hosted Weblate" commits from Mihon, TachiyomiSY and Komikku) are ported like any other upstream commit. They are the only source of refreshed upstream translations, so never skip them.
+- Hand-edit an existing translation only to fix an obvious error.
+
+The upstream Komikku project documents its own translation process at [komikku-app.github.io](https://komikku-app.github.io/docs/contribute#translation); that page describes upstream Komikku, not this fork.
 
 
 # Forks

@@ -1,6 +1,6 @@
 ---
 name: cherrypick-log
-description: Update and review cherrypick_log.md, the todo list of upstream commits not yet cherry-picked into the fork's target branch. The upstreams are set in config.json (one main upstream plus one or more additional ones; in Komikku, main mihon/main, additional tachiyomiSY/master). Use when asked to refresh/update the cherry-pick log, list new upstream commits, resolve '?' (uncertain) entries by checking whether an upstream change is already in master, or clean the log by omitting (marking X) commits that only bump the app version.
+description: Update and review cherrypick_log.md, the todo list of upstream commits not yet cherry-picked into the fork's target branch. The upstreams are set in config.json (one main upstream plus one or more additional ones; in this fork, main mihon/main, additional tachiyomiSY/master and komikku/master). Use when asked to refresh/update the cherry-pick log, list new upstream commits, resolve '?' (uncertain) entries by checking whether an upstream change is already in master, or clean the log by omitting (marking X) commits that only bump the app version.
 ---
 
 # Cherry-pick log: update + AI review
@@ -11,7 +11,7 @@ Everything for this tool lives in this folder (`.agents/skills/cherrypick-log/`)
 |------|------|
 | `SKILL.md` | This file: the procedure an AI agent follows |
 | `update_cherrypick_log.py` | Deterministic generator: fetch, filter, pair, order, detect, keep manual marks |
-| `config.json` | Main upstream + additional upstreams, target branch, start date (`since`, per repo), output path, excluded identities, and per upstream the optional path keys (in Komikku only `partial_ignore_paths` on mihon) |
+| `config.json` | Main upstream + additional upstreams (mihon/main, tachiyomiSY/master and komikku/master in this fork), target branch, start date (`since`, per repo), output path, excluded identities, and per upstream the optional path keys (in this fork only `partial_ignore_paths` on mihon) |
 | `README.md` | Human documentation: rules, columns, commands, porting to another project |
 
 The output is `cherrypick_log.md` in the repo root. **The script is the source of truth** for
@@ -66,17 +66,17 @@ For upstream commit `H` (already fetched locally):
      "Partial picks"). Compare `git show --name-status --format= H` with the files of every commit citing it
      (`git log master --format=%h -i --grep=<first 7 characters of H>`: a citation can use a short hash, and the
      prefix can also match another commit, so check each hit), then check each left-out file as in step 3. **O**
-     when the left-out changes reached `master` another way (often a Komikku rework in another file), or don't apply
-     here (code Komikku dropped, a dependency it doesn't use; say which in the note). Otherwise keep **?** with a note
+     when the left-out changes reached `master` another way (often this fork reworked it in another file), or don't apply
+     here (code this fork dropped, a dependency it doesn't use; say which in the note). Otherwise keep **?** with a note
      naming what is missing.
 3. Otherwise, search `master` for the change itself:
-   - `git grep -n -F '<distinctive added line>' master -- <path>` (Komikku keeps most upstream paths;
+   - `git grep -n -F '<distinctive added line>' master -- <path>` (this fork keeps most upstream paths;
      changes may be wrapped in `// KMK` / `// SY` markers or be in a renamed file).
    - `git log master --oneline -S'<distinctive snippet>' --since=<upstream date - 6 months>`.
    - For removals, check that the removed code is gone from `master`.
 4. Decide:
    - **O**: the change is in `master` (cherry-picked, squashed into another commit, or re-implemented).
-   - **?**: partly present, conflicts with a Komikku rework, or you can't tell.
+   - **?**: partly present, conflicts with a rework by this fork, or you can't tell.
    - **empty**: not present.
    Never set **X** here. That is the maintainer's "won't pick" decision. The only exception is
    section 5 (version-bump-only commits).
