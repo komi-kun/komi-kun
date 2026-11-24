@@ -295,5 +295,5 @@
     <string name="orphaned_downloads_scan_failed">Preuzimanja nije bilo moguće pročitati. Provjerite pristup spremištu i pokušajte ponovno.</string>
     <string name="orphaned_downloads_delete_failed">Odabrane datoteke nije bilo moguće izbrisati. Provjerite pristup spremištu i pokušajte ponovno.</string>
     <string name="pref_remove_filtered_downloads">Briši preuzimanja skrivena filtrima</string>
-    <string name="pref_remove_filtered_downloads_summary">Samo manga iz biblioteke: preuzeto poglavlje koje skriva trajni filtar poglavlja briše se nakon otprilike jednog sata. Stanje pročitano/nepročitano se ne računa, a poglavlja s oznakom se poštuju. Uključivanjem se obuhvaćaju i preuzimanja koja su već bila skrivena, ali tek nakon istog čekanja.</string>
+    <string name="pref_remove_filtered_downloads_summary">Samo manga iz biblioteke: preuzeto poglavlje koje skriva trajni filtar poglavlja briše se nakon otprilike jednog sata. Stanje pročitano/nepročitano se ne računa, a zabilježena poglavlja se zadržavaju. Uključivanjem se obuhvaćaju i preuzimanja koja su već bila skrivena, ali tek nakon istog čekanja.</string>
 </resources>

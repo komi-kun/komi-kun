@@ -294,5 +294,5 @@
     <string name="orphaned_downloads_scan_failed">Latauksia ei voitu lukea. Tarkista tallennustilan käyttöoikeus ja yritä uudelleen.</string>
     <string name="orphaned_downloads_delete_failed">Valittuja tiedostoja ei voitu poistaa. Tarkista tallennustilan käyttöoikeus ja yritä uudelleen.</string>
     <string name="pref_remove_filtered_downloads">Poista suodattimien piilottamat lataukset</string>
-    <string name="pref_remove_filtered_downloads_summary">Vain kirjaston manga: ladattu luku, jonka pysyvä lukusuodatin piilottaa, poistetaan noin tunnin kuluttua. Luettu/lukematon-tila ei vaikuta, ja kirjanmerkityt luvut säilytetään. Käyttöönotto ottaa mukaan myös aiemmin piilotetut lataukset, mutta vasta saman odotusajan jälkeen.</string>
+    <string name="pref_remove_filtered_downloads_summary">Vain kirjaston manga: ladattu luku, jonka pysyvä lukujen suodatin piilottaa, poistetaan noin tunnin kuluttua. Luettu/lukematon-tila ei vaikuta, ja kirjanmerkityt luvut säilytetään. Käyttöönotto ottaa mukaan myös aiemmin piilotetut lataukset, mutta vasta saman odotusajan jälkeen.</string>
 </resources>
