@@ -294,5 +294,5 @@
     <string name="orphaned_downloads_scan_failed">Downloads kunne ikke læses. Kontrollér adgangen til lageret, og prøv igen.</string>
     <string name="orphaned_downloads_delete_failed">De valgte filer kunne ikke slettes. Kontrollér adgangen til lageret, og prøv igen.</string>
     <string name="pref_remove_filtered_downloads">Slet downloads skjult af filtre</string>
-    <string name="pref_remove_filtered_downloads_summary">Kun biblioteksmanga: et downloadet kapitel, som et permanent kapitelfilter skjuler, slettes efter cirka en time. Læst/ulæst tæller ikke, og bogmærkede kapitler og udelukkede kategorier respekteres. Slår du det til, medtages også downloads, der allerede var skjult, men først efter samme ventetid.</string>
+    <string name="pref_remove_filtered_downloads_summary">Kun biblioteksmanga: et downloadet kapitel, som et permanent kapitelfilter skjuler, slettes efter cirka en time. Læst/ulæst tæller ikke, og bogmærkede kapitler respekteres. Slår du det til, medtages også downloads, der allerede var skjult, men først efter samme ventetid.</string>
 </resources>

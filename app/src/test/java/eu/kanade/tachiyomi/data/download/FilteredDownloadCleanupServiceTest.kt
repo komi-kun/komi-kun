@@ -24,6 +24,7 @@ import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.manga.repository.MangaRepository
 import tachiyomi.domain.source.service.SourceManager
 import kotlin.time.Clock
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
@@ -38,9 +39,9 @@ import kotlin.time.Instant
  * before a file is touched, and the read-state bypass of the deletion call.
  *
  * The stubs encode the contracts of the collaborators rather than fixed values: the bulk queries
- * return the rows of the ids they were asked for, and `getDownloadedChapterIds` returns the chapters
- * of the manga it was asked about (all of them unless a test says otherwise), so a test that forgets
- * to make a chapter downloaded really exercises the "no longer downloaded" path.
+ * return the rows of the ids they were asked for, and `getDownloadedChapterIdsNoRenew` returns the
+ * chapters of the manga it was asked about (all of them unless a test says otherwise), so a test that
+ * forgets to make a chapter downloaded really exercises the "no longer downloaded" path.
  *
  * `DownloadManager`, `DownloadCache`, `SourceManager` and the two repositories cannot run on a host
  * JVM: they need an Android `Context`, a database, or both, so the files are never really deleted
@@ -67,7 +68,7 @@ class FilteredDownloadCleanupServiceTest {
     private var source: Source? = mockk(relaxed = true)
 
     /** Per-manga override of the download index; the default is "every chapter of the manga". */
-    private val downloadedChapterIds = mutableMapOf<Long, Set<Long>>()
+    private val downloadedChapterIds = mutableMapOf<Long, List<Long>>()
 
     /**
      * The sweep's notion of "now". Advanced by the tests that need a second pass to happen later, so
@@ -92,9 +93,9 @@ class FilteredDownloadCleanupServiceTest {
             val ids = firstArg<List<Long>>()
             ids.flatMap { chaptersByManga[it].orEmpty() }
         }
-        every { downloadManager.getDownloadedChapterIds(any(), any()) } answers {
+        every { downloadCache.getDownloadedChapterIdsNoRenew(any(), any()) } answers {
             downloadedChapterIds[secondArg<Manga>().id]
-                ?: firstArg<List<Chapter>>().mapTo(mutableSetOf()) { it.id }
+                ?: firstArg<List<Chapter>>().map { it.id }
         }
         every { downloadCache.getMangaWithDownloads(any()) } answers {
             val mangas = firstArg<List<Manga>>()
@@ -155,8 +156,11 @@ class FilteredDownloadCleanupServiceTest {
         this.excludedScanlators = mapOf(manga.id to excludedScanlators)
     }
 
-    private fun queued(chapterId: Long = CHAPTER_ID, mangaId: Long = MANGA_ID, age: Long = 2L) =
-        PendingDownloadDeletion(chapterId, mangaId, currentTime - age.hours)
+    private fun queued(
+        chapterId: Long = CHAPTER_ID,
+        mangaId: Long = MANGA_ID,
+        age: Duration = 2.hours,
+    ) = PendingDownloadDeletion(chapterId, mangaId, currentTime - age)
 
     @Test
     fun `a disabled setting exits before touching any dependency`() {
@@ -176,7 +180,7 @@ class FilteredDownloadCleanupServiceTest {
             downloadManager.deleteChapters(any(), any(), any(), any())
         }
         verify(exactly = 0) {
-            downloadManager.getDownloadedChapterIds(any(), any())
+            downloadCache.getDownloadedChapterIdsNoRenew(any(), any())
             downloadCache.getMangaWithDownloads(any())
         }
         pendingRepository.calls shouldBe emptyList()
@@ -203,7 +207,7 @@ class FilteredDownloadCleanupServiceTest {
     fun `a chapter that is still hidden is queued again so the stored first time survives`() {
         downloadPreferences.removeFilteredDownloads.set(true)
         given()
-        val original = queued(age = 0L)
+        val original = queued(age = 0.hours)
         pendingRepository.rows = listOf(original)
 
         sweep()
@@ -268,7 +272,7 @@ class FilteredDownloadCleanupServiceTest {
     fun `an expired chapter that is no longer downloaded is not deleted but its row is`() {
         downloadPreferences.removeFilteredDownloads.set(true)
         given()
-        downloadedChapterIds[MANGA_ID] = emptySet()
+        downloadedChapterIds[MANGA_ID] = emptyList()
         pendingRepository.rows = listOf(queued())
 
         sweep()
@@ -301,6 +305,11 @@ class FilteredDownloadCleanupServiceTest {
         // The manga sits in a category the user excluded from read-driven deletion, and the chapter
         // was never read. `getChaptersToDelete` would keep it for both reasons; the sweep's reason is
         // the filter, so it must ask for the read-state carve-out to be skipped.
+        //
+        // This preference cannot change the assertion below: `Manga.create()` carries no category
+        // membership and `DownloadManager` is mocked, so the carve-out is only provable at the
+        // argument boundary it is asserted on (`ignoreCategoryExclusion = true`). It is set anyway so
+        // the fixture reads like the situation it describes.
         downloadPreferences.removeExcludeCategories.set(setOf(EXCLUDED_CATEGORY_ID))
         given(chapters = listOf(chapter(read = false, scanlator = EXCLUDED_SCANLATOR)))
         pendingRepository.rows = listOf(queued())
@@ -502,7 +511,7 @@ class FilteredDownloadCleanupServiceTest {
     fun `a discover-only pass never deletes, even with an expired row waiting`() {
         downloadPreferences.removeFilteredDownloads.set(true)
         given()
-        pendingRepository.rows = listOf(queued(age = 3L))
+        pendingRepository.rows = listOf(queued(age = 3.hours))
 
         discoverOnlySweep()
 
@@ -517,7 +526,7 @@ class FilteredDownloadCleanupServiceTest {
     fun `clearing the queue empties the table`() {
         downloadPreferences.removeFilteredDownloads.set(true)
         given()
-        pendingRepository.rows = listOf(queued(age = 1L), queued(chapterId = 11L, age = 0L))
+        pendingRepository.rows = listOf(queued(age = 1.hours), queued(chapterId = 11L, age = 0.hours))
 
         runBlocking { service().clearPending() }
 
@@ -525,10 +534,194 @@ class FilteredDownloadCleanupServiceTest {
         pendingRepository.calls shouldBe listOf("deleteAll")
     }
 
+    @Test
+    fun `only the hidden chapter of a manga is handed to the deletion call`() {
+        downloadPreferences.removeFilteredDownloads.set(true)
+        // One manga, two downloaded chapters: only the one an excluded scanlator hides is due.
+        given(
+            chapters = listOf(
+                chapter(id = CHAPTER_ID, scanlator = EXCLUDED_SCANLATOR),
+                chapter(id = VISIBLE_CHAPTER_ID),
+            ),
+        )
+        pendingRepository.rows = listOf(queued())
+
+        sweep()
+
+        // The whole manga's chapter list goes in as the input to the decision; the deletion call must
+        // receive only the hidden one, or a visible download would go with it.
+        coVerify(exactly = 1) {
+            downloadManager.deleteChapters(
+                match { chapters -> chapters.map { it.id } == listOf(CHAPTER_ID) },
+                any(),
+                any(),
+                ignoreCategoryExclusion = true,
+            )
+        }
+        pendingRepository.deletedChapterIds shouldBe listOf(CHAPTER_ID)
+    }
+
+    @Test
+    fun `a chapter hidden for just under the grace period is not deleted yet`() {
+        downloadPreferences.removeFilteredDownloads.set(true)
+        given()
+        pendingRepository.rows = listOf(queued(age = 59.minutes))
+
+        sweep()
+
+        coVerify(exactly = 0) { downloadManager.deleteChapters(any(), any(), any(), any()) }
+        // Still queued, with its original timestamp: the very next pass is the one that may delete it.
+        pendingRepository.deletedChapterIds shouldBe emptyList()
+        pendingRepository.rows.map { it.chapterId } shouldBe listOf(CHAPTER_ID)
+    }
+
+    @Test
+    fun `consecutive passes examine different mangas`() {
+        downloadPreferences.removeFilteredDownloads.set(true)
+        // Five mangas more than a window holds: the tail is only ever reached if the window moves.
+        val mangas = (1L..(FilteredDownloadCleanupService.DISCOVERY_BATCH + 5L)).map { id -> manga(id = id) }
+        favourites = mangas
+        mangasInDb = mangas
+        chaptersByManga = mangas.associate {
+            it.id to listOf(chapter(id = it.id * 10, mangaId = it.id, scanlator = EXCLUDED_SCANLATOR))
+        }
+        excludedScanlators = mangas.associate { it.id to listOf(EXCLUDED_SCANLATOR) }
+        mangaWithDownloadsIds = mangas.mapTo(mutableSetOf()) { it.id }
+
+        sweep()
+        val firstWindow = pendingRepository.inserted.map { it.mangaId }.toSet()
+
+        currentTime += 1.hours
+        sweep()
+        val examined = pendingRepository.inserted.map { it.mangaId }.toSet()
+
+        firstWindow.size shouldBe FilteredDownloadCleanupService.DISCOVERY_BATCH
+        // The second pass moved on to the mangas the first one could not fit — a plain `take(N)` would
+        // have re-read the same head forever and starved them.
+        (examined - firstWindow).size shouldBe 5
+    }
+
+    @Test
+    fun `an expiry pass deletes only the expiry budget of mangas and the next window reaches the rest`() {
+        downloadPreferences.removeFilteredDownloads.set(true)
+        val mangas = (1L..(FilteredDownloadCleanupService.EXPIRY_BATCH + 5L)).map { id -> manga(id = id) }
+        favourites = mangas
+        mangasInDb = mangas
+        chaptersByManga = mangas.associate {
+            it.id to listOf(chapter(id = it.id * 10, mangaId = it.id, scanlator = EXCLUDED_SCANLATOR))
+        }
+        excludedScanlators = mangas.associate { it.id to listOf(EXCLUDED_SCANLATOR) }
+        mangaWithDownloadsIds = mangas.mapTo(mutableSetOf()) { it.id }
+        pendingRepository.rows = mangas.map { queued(chapterId = it.id * 10, mangaId = it.id) }
+
+        sweep()
+
+        coVerify(exactly = FilteredDownloadCleanupService.EXPIRY_BATCH) {
+            downloadManager.deleteChapters(any(), any(), any(), any())
+        }
+        pendingRepository.rows.size shouldBe 5
+
+        currentTime += 1.hours
+        sweep()
+
+        // Every due manga is reached across the two passes, none of them twice.
+        coVerify(exactly = FilteredDownloadCleanupService.EXPIRY_BATCH + 5) {
+            downloadManager.deleteChapters(any(), any(), any(), any())
+        }
+    }
+
+    @Test
+    fun `the read filter never deletes a chapter it hides in the other direction`() {
+        downloadPreferences.removeFilteredDownloads.set(true)
+        // "Show only unread" hides this *read* chapter: being read is what puts it out of view, and the
+        // regression this pins would delete the downloads of everything the user has already read.
+        given(
+            manga = manga(chapterFlags = Manga.CHAPTER_SHOW_UNREAD),
+            chapters = listOf(chapter(read = true)),
+            excludedScanlators = emptyList(),
+        )
+        pendingRepository.rows = listOf(queued())
+
+        sweep()
+
+        pendingRepository.inserted.shouldBeEmpty()
+        coVerify(exactly = 0) { downloadManager.deleteChapters(any(), any(), any(), any()) }
+        pendingRepository.deletedChapterIds shouldBe listOf(CHAPTER_ID)
+        pendingRepository.rows shouldBe emptyList()
+    }
+
+    @Test
+    fun `turning the setting off during discovery drops the pass before it writes`() {
+        downloadPreferences.removeFilteredDownloads.set(true)
+        // One chapter a filter hides, so discovery has something to queue, and one it does not, so the
+        // row already queued for that one is stale and discovery has something to drop. Both writes of
+        // the phase are therefore loaded before it starts.
+        given(
+            chapters = listOf(
+                chapter(id = CHAPTER_ID, scanlator = EXCLUDED_SCANLATOR),
+                chapter(id = VISIBLE_CHAPTER_ID),
+            ),
+        )
+        val staleRow = queued(chapterId = VISIBLE_CHAPTER_ID)
+        pendingRepository.rows = listOf(staleRow)
+        // The switch goes off inside the pass, after the reads that open discovery and before any of
+        // its writes: that is what a pass still in flight sees when the user turns the feature off,
+        // because the queue clear that follows the switch runs asynchronously.
+        pendingRepository.onNextSelectAll = { downloadPreferences.removeFilteredDownloads.set(false) }
+
+        sweep()
+
+        // Neither write is issued, so no row stamped with a pre-pause time reaches the queue and the row
+        // that was queued before the pass survives it: the guard has to precede both writes, not just
+        // the first one.
+        pendingRepository.inserted.shouldBeEmpty()
+        pendingRepository.deletedChapterIds.shouldBeEmpty()
+        pendingRepository.rows shouldBe listOf(staleRow)
+        downloadPreferences.removeFilteredDownloads.get() shouldBe false
+    }
+
+    @Test
+    fun `turning the setting off during expiry deletes nothing`() {
+        downloadPreferences.removeFilteredDownloads.set(true)
+        // Two due rows with different fates, so both writes of the expiry phase are loaded: the first
+        // manga is still in the library and still downloaded, so its chapter would be handed to the
+        // deletion call; the second is not in the database any more, so its row would be dropped.
+        val keptManga = manga()
+        val goneManga = manga(id = GONE_MANGA_ID)
+        favourites = listOf(keptManga, goneManga)
+        mangasInDb = listOf(keptManga)
+        chaptersByManga = mapOf(
+            keptManga.id to listOf(chapter(id = CHAPTER_ID, scanlator = EXCLUDED_SCANLATOR)),
+            goneManga.id to listOf(chapter(id = GONE_CHAPTER_ID, mangaId = GONE_MANGA_ID, scanlator = EXCLUDED_SCANLATOR)),
+        )
+        excludedScanlators = mapOf(
+            keptManga.id to listOf(EXCLUDED_SCANLATOR),
+            goneManga.id to listOf(EXCLUDED_SCANLATOR),
+        )
+        mangaWithDownloadsIds = setOf(keptManga.id, goneManga.id)
+        val keptRow = queued(chapterId = CHAPTER_ID)
+        val goneRow = queued(chapterId = GONE_CHAPTER_ID, mangaId = GONE_MANGA_ID)
+        pendingRepository.rows = listOf(keptRow, goneRow)
+        // The same seam, on the read that opens expiry: discovery has already run and queued both rows
+        // (they were queued already, so the insert-or-ignore left them as they were).
+        pendingRepository.onNextSelectExpired = { downloadPreferences.removeFilteredDownloads.set(false) }
+
+        sweep()
+
+        coVerify(exactly = 0) { downloadManager.deleteChapters(any(), any(), any(), any()) }
+        pendingRepository.deletedChapterIds.shouldBeEmpty()
+        pendingRepository.deletedMangaIds.shouldBeEmpty()
+        pendingRepository.rows shouldBe listOf(keptRow, goneRow)
+        downloadPreferences.removeFilteredDownloads.get() shouldBe false
+    }
+
     private companion object {
         const val MANGA_ID = 1L
         const val SOURCE_ID = 2L
+        const val GONE_MANGA_ID = 3L
         const val CHAPTER_ID = 10L
+        const val VISIBLE_CHAPTER_ID = 11L
+        const val GONE_CHAPTER_ID = 12L
         const val EXCLUDED_SCANLATOR = "Excluded"
         const val EXCLUDED_CATEGORY_ID = "3"
     }
@@ -544,6 +737,16 @@ private class FakePendingDownloadDeletionRepository : PendingDownloadDeletionRep
     val deletedChapterIds = mutableListOf<Long>()
     val deletedMangaIds = mutableListOf<Long>()
     var lastCutoff: Instant? = null
+
+    /**
+     * Runs once, inside the next [selectAll], after the call is recorded and before it returns its rows.
+     * It is how a test lets the feature be turned off *while* a pass is in flight — between the pass'
+     * reads and its writes — without having to fake the preference itself.
+     */
+    var onNextSelectAll: (() -> Unit)? = null
+
+    /** The same one-shot seam for [selectExpired], the read that opens the expiry phase. */
+    var onNextSelectExpired: (() -> Unit)? = null
 
     override suspend fun insertAll(pendingDeletions: List<PendingDownloadDeletion>) {
         calls += "insertAll"
@@ -574,11 +777,17 @@ private class FakePendingDownloadDeletionRepository : PendingDownloadDeletionRep
     override suspend fun selectExpired(cutoff: Instant): List<PendingDownloadDeletion> {
         calls += "selectExpired"
         lastCutoff = cutoff
+        val sideEffect = onNextSelectExpired
+        onNextSelectExpired = null
+        sideEffect?.invoke()
         return rows.filter { it.firstHiddenAt <= cutoff }
     }
 
     override suspend fun selectAll(): List<PendingDownloadDeletion> {
         calls += "selectAll"
+        val sideEffect = onNextSelectAll
+        onNextSelectAll = null
+        sideEffect?.invoke()
         return rows
     }
 }

@@ -296,5 +296,5 @@
     <string name="orphaned_downloads_scan_failed">Não foi possível ler as transferências. Verifica o acesso ao armazenamento e tenta novamente.</string>
     <string name="orphaned_downloads_delete_failed">Não foi possível eliminar os ficheiros selecionados. Verifica o acesso ao armazenamento e tenta novamente.</string>
     <string name="pref_remove_filtered_downloads">Eliminar transferências ocultas por filtros</string>
-    <string name="pref_remove_filtered_downloads_summary">Apenas manga da biblioteca: um capítulo transferido ocultado por um filtro de capítulos persistente é eliminado após cerca de uma hora. O estado lido/não lido não conta, e os capítulos com marcador e as categorias excluídas são respeitados. Ao ativá-la, também são incluídas as transferências já ocultas, mas só após a mesma espera.</string>
+    <string name="pref_remove_filtered_downloads_summary">Apenas manga da biblioteca: um capítulo transferido ocultado por um filtro de capítulos persistente é eliminado após cerca de uma hora. O estado lido/não lido não conta, e os capítulos com marcador são respeitados. Ao ativá-la, também são incluídas as transferências já ocultas, mas só após a mesma espera.</string>
 </resources>

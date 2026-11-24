@@ -59,10 +59,11 @@ class FilteredDownloadCleanupService(
     /**
      * One sweep: record what is hidden now, then delete what has been hidden for [GRACE].
      *
-     * Discovery is a **full recomputation** on every pass — every favourite manga with downloads is
-     * re-examined against the manga's current filter flags, never "only what became hidden since the
-     * last pass" — so the downloads a filter hid before this feature (or this switch) existed are all
-     * stamped by the first pass that runs.
+     * Discovery is a **full recomputation** of its window on every pass: the batch is a rotating
+     * window over the library's mangas with downloads (see [runWindow]), and each of them is
+     * re-examined against its current filter flags — never "only what became hidden since the last
+     * pass" — so a download a filter hid before this feature (or this switch) existed is stamped by
+     * the first pass whose window reaches it.
      *
      * Nothing is backdated, though: a chapter that has been hidden for months is stamped with *this*
      * moment, so the grace period always runs from the first time a pass saw it hidden and turning the
@@ -158,7 +159,8 @@ class FilteredDownloadCleanupService(
         batch.forEach { manga ->
             runCatching {
                 val chapters = chaptersByManga[manga.id].orEmpty()
-                val downloadedIds = downloadManager.getDownloadedChapterIds(chapters, manga)
+                // The non-renewing read: an hourly pass must never rebuild the downloads tree.
+                val downloadedIds = downloadCache.getDownloadedChapterIdsNoRenew(chapters, manga)
                 val hidden = FilteredDownloadPolicy.hiddenDownloadedChapters(
                     chapters = chapters,
                     manga = manga,
@@ -183,6 +185,11 @@ class FilteredDownloadCleanupService(
             }
         }
 
+        // The clear that follows the switch runs asynchronously, so a pass already in flight could
+        // otherwise write rows *after* it: those rows would carry a pre-pause timestamp and the first
+        // pass after a re-enable would then delete that backlog at once. One extra read is the guard.
+        if (!downloadPreferences.removeFilteredDownloads.get()) return
+
         // Both writes are per batch, not per row: one transaction for the inserts, one statement for
         // the queue rows that are no longer hidden.
         if (toInsert.isNotEmpty()) pendingDeletionRepository.insertAll(toInsert)
@@ -202,6 +209,9 @@ class FilteredDownloadCleanupService(
         val rowsByManga = expired.groupBy { it.mangaId }
         val mangaIds = rowsByManga.keys.sorted().runWindow(now, EXPIRY_BATCH)
         if (mangaIds.isEmpty()) return
+        // Same guard as discovery, before this phase's first write: a pass that was already running
+        // when the switch went off must not delete a file the user has just vetoed.
+        if (!downloadPreferences.removeFilteredDownloads.get()) return
 
         val mangasById = mangaRepository.getMangaByIds(mangaIds).associateBy { it.id }
         val chaptersByManga = chapterRepository.getChaptersByMangaIds(mangaIds).groupBy { it.mangaId }
@@ -220,7 +230,8 @@ class FilteredDownloadCleanupService(
             val manga = mangasById.getValue(mangaId)
             runCatching {
                 val chapters = chaptersByManga[mangaId].orEmpty()
-                val downloadedIds = downloadManager.getDownloadedChapterIds(chapters, manga)
+                // The non-renewing read: an hourly pass must never rebuild the downloads tree.
+                val downloadedIds = downloadCache.getDownloadedChapterIdsNoRenew(chapters, manga)
                 // The policy is the verification: it only returns chapters that are still downloaded
                 // *and* still hidden by a persistent filter, so a row it does not return has stopped
                 // being a candidate — whether the chapter became visible, was deleted, or its file is
@@ -263,10 +274,11 @@ class FilteredDownloadCleanupService(
      * filter the user persisted for this manga hides it — and that has nothing to do with whether it
      * was read: a hidden chapter is deleted read or unread, excluded category or not.
      *
-     * The bypass covers only that read-state carve-out, not bookmark retention: a bookmarked chapter
-     * never reaches this call while `removeBookmarkedChapters` is off, because
-     * [FilteredDownloadPolicy] already excluded it, and the manager keeps filtering bookmarks out
-     * itself for the same setting.
+     * The bypass covers only that read-state carve-out. Bookmark retention still holds, but on this
+     * call path it rests on [FilteredDownloadPolicy] alone, which excludes a bookmarked chapter while
+     * `removeBookmarkedChapters` is off. The manager's own bookmark filter must not be relied on here:
+     * `getChaptersToDelete` applies it only when `chapters.size > 1 || !ignoreCategoryExclusion`, and
+     * `ignoreCategoryExclusion = true` with a single-chapter batch short-circuits it.
      */
     private suspend fun deleteDownloads(chapters: List<Chapter>, manga: Manga, source: Source) {
         downloadManager.deleteChapters(chapters, manga, source, ignoreCategoryExclusion = true)

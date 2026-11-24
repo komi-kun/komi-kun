@@ -272,6 +272,37 @@ class DownloadCache(
             }
         }
     }
+
+    /**
+     * The ids of the downloaded chapters among [chapters] of [manga], read from the index as it stands.
+     *
+     * Same lookup as [getDownloadedChapterIds], but this one never calls `renewCache()` — it exists for
+     * the periodic sweep of filtered downloads, which runs hourly and would otherwise rebuild the whole
+     * downloads tree on almost every run (`renewInterval` defaults to one hour).
+     *
+     * Running on a stale index is safe for that caller: a stale or not-yet-built index can only
+     * *under-report* downloads, which can only skip queueing a chapter or drop a queue row — both of
+     * which merely postpone a deletion — and the delete path re-derives the directory name of the
+     * specific chapter it deletes, so nothing here can cause a file to be deleted. If nothing in this
+     * process has built the index yet, the sweep simply finds nothing and the next pass (or any screen
+     * that renews it) picks the work up.
+     *
+     * @param chapters the chapters of [manga] to look for.
+     * @param manga the manga of the chapters.
+     */
+    fun getDownloadedChapterIdsNoRenew(chapters: List<Chapter>, manga: Manga): List<Long> {
+        val chapterDirs = rootDownloadsDir.sourceDirs[manga.source]
+            ?.mangaDirs?.get(provider.getMangaDirName(/* SY --> */ manga.ogTitle /* SY <-- */))
+            ?.chapterDirs
+        if (chapterDirs.isNullOrEmpty()) return emptyList()
+
+        return chapters
+            .filter { chapter ->
+                provider.getValidChapterDirNames(chapter.name, chapter.scanlator, chapter.url)
+                    .any { it in chapterDirs }
+            }
+            .map { it.id }
+    }
     // KUN <--
 
     /**

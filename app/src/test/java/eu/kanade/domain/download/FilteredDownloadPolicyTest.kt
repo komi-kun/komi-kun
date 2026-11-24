@@ -53,18 +53,33 @@ class FilteredDownloadPolicyTest {
 
     @Test
     fun `an excluded scanlator is a candidate whether the chapter is read or unread`() {
-        // Only the read filter is set: the downloaded/not dimension stays DISABLED, so the two
-        // ignored dimensions are pinned by separate tests.
-        val showOnlyRead = manga(chapterFlags = Manga.CHAPTER_SHOW_READ)
+        // Everything but the scanlator filter is off, so the scanlator is the only hiding cause here.
         val readHidden = chapter(id = 1, read = true, scanlator = "Scanner")
         val unreadHidden = chapter(id = 2, read = false, scanlator = "Scanner")
-        // Hidden only by the read filter: being absent from the chapter list is not a hiding cause.
-        val unreadOnly = chapter(id = 3, read = false, scanlator = "Other")
+        val otherScanlator = chapter(id = 3, read = false, scanlator = "Other")
 
-        // Both read states of the chapter hidden by the scanlator filter are candidates, and the
-        // chapter the read filter hides on its own is not.
-        hidden(listOf(readHidden, unreadHidden, unreadOnly), showOnlyRead, excludedScanlators = setOf("Scanner")) shouldBe
+        hidden(listOf(readHidden, unreadHidden, otherScanlator), manga(), excludedScanlators = setOf("Scanner")) shouldBe
             listOf(readHidden, unreadHidden)
+    }
+
+    @Test
+    fun `the show-read-only filter hides unread chapters and that is not a hiding cause`() {
+        // Only the read filter is on (bookmark and downloaded/not stay DISABLED), and this unread
+        // chapter has no other reason to be hidden: it must not be a candidate.
+        val showOnlyRead = manga(chapterFlags = Manga.CHAPTER_SHOW_READ)
+        val unreadChapter = chapter(id = 1, read = false)
+
+        hidden(listOf(unreadChapter), showOnlyRead) shouldBe emptyList()
+    }
+
+    @Test
+    fun `the show-unread-only filter hides read chapters and that is not a hiding cause`() {
+        // The mirror direction, so a regression that honours the read filter in either TriState arm
+        // fails on its own test.
+        val showOnlyUnread = manga(chapterFlags = Manga.CHAPTER_SHOW_UNREAD)
+        val readChapter = chapter(id = 1, read = true)
+
+        hidden(listOf(readChapter), showOnlyUnread) shouldBe emptyList()
     }
 
     @Test

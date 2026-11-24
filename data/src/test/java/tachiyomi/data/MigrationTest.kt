@@ -7,10 +7,13 @@ import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Test
+import tachiyomi.data.download.PendingDownloadDeletionRepositoryImpl
 import tachiyomi.data.manga.MangaRepositoryImpl
+import tachiyomi.domain.download.model.PendingDownloadDeletion
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption.REPLACE_EXISTING
+import kotlin.time.Instant
 
 /**
  * Guards the destructive schema rework: the migration from the pre-rework schema (version 49, snapshot
@@ -427,6 +430,54 @@ class MigrationTest {
             }
         }
     }
+
+    /**
+     * `66.sqm` and `pendingDownloadDeletion.sq` each declare the queue, and only the `.sq` one is
+     * exercised by `Schema.create`: a migration that was missing, or that disagreed with the `.sq`
+     * file, would leave every upgraded install without the table while every other test still passed.
+     * This walks the same snapshot-to-current migration path and then uses the table.
+     */
+    @Test
+    fun `migration from version 49 creates the pending download deletion queue`() {
+        runBlocking {
+            val dbFile = Files.createTempFile("komikku-migration-download-queue-test", ".db")
+            Files.copy(Path.of("src/main/sqldelight/49.db"), dbFile, REPLACE_EXISTING)
+            val driver = JdbcSqliteDriver("jdbc:sqlite:$dbFile")
+            try {
+                Database.Schema.migrate(driver, 49L, Database.Schema.version).await()
+
+                // the columns, in the order the mapper reads and binds them
+                driver.columnNames("pending_download_deletion") shouldBe
+                    listOf("chapter_id", "manga_id", "first_hidden_at")
+
+                // the queue an upgraded install actually gets: one row in, the same row out, with a
+                // millisecond stamp no rounding or seconds/milliseconds slip would survive
+                val repository = PendingDownloadDeletionRepositoryImpl(DatabaseBindings.providesDatabase(driver))
+                val queued = PendingDownloadDeletion(
+                    chapterId = 4242L,
+                    mangaId = 77L,
+                    firstHiddenAt = Instant.fromEpochMilliseconds(1_700_000_000_123L),
+                )
+                repository.insertAll(listOf(queued))
+
+                repository.selectAll() shouldBe listOf(queued)
+                repository.selectExpired(Instant.fromEpochMilliseconds(1_700_000_000_123L)) shouldBe listOf(queued)
+            } finally {
+                driver.close()
+            }
+        }
+    }
+
+    private fun SqlDriver.columnNames(table: String): List<String> = executeQuery(
+        null,
+        "SELECT name FROM pragma_table_info('$table') ORDER BY cid",
+        { cursor ->
+            val names = mutableListOf<String>()
+            while (cursor.next().value) names += cursor.getString(0)!!
+            QueryResult.Value<List<String>>(names.toList())
+        },
+        0,
+    ).value
     // KUN <--
 
     private fun populateOldSchema(driver: SqlDriver) = runBlocking {
