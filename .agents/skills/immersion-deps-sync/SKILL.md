@@ -116,9 +116,10 @@ GITHUB_REF_TYPE=tag GITHUB_REF_NAME=${NEW_TAG} ./gradlew :library:publishToMaven
 1. Re-group the fork's artifact into the coordinate the catalog resolves —
    `com.github.komi-kun.webgpuviewer:library` (`gradle/libs.versions.toml:88`). The fork publishes
    `ca.mpreg:webgpuviewer` (`library/build.gradle.kts:101`), so copy its files, rename them
-   `library-<tag>.*`, and rewrite the artifact's own GAV in the `.pom` (`<groupId>`/`<artifactId>`) and
-   the `.module` (`component.group`/`component.module` only — leave dependency coordinates alone).
-   The `.aar`/`.jar` bytes are unchanged.
+   `library-<tag>.*`, and rewrite the artifact's own GAV in the `.pom` (`<groupId>`/`<artifactId>`) and the
+   `.module` — `component.group`/`component.module` and every `variants[].files[].name`/`url`, which still name
+   the published `webgpuviewer-<tag>.*` (names only, so `size`/`sha*` stay valid); leave dependency coordinates
+   alone. The `.aar`/`.jar` bytes are unchanged.
    ```bash
    rm -rf maven/com/github/komi-kun/webgpuviewer/library/ocr-accessors-*
    mkdir -p maven/com/github/komi-kun/webgpuviewer/library/${NEW_TAG}

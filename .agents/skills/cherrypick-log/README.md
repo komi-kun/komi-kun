@@ -65,11 +65,11 @@ The detectors fire unevenly here. `hash of` marks most rows `O`: a squash keeps 
 commits do), and the vendored base carries SY's own pick commits as ancestors, trailers and all. `in history as
 tachiyomiSY` fires for those inherited commits. `in history as mihon` never fires, because `mihon/main` is not
 an ancestor. `in history as komikku` effectively does not either: older Komikku commits are ancestors too, but
-Komikku's `since` starts at the base commit, so the one listed Komikku commit that is an ancestor of `master` is
-the base commit itself, and the Renovate filter drops its row — a Komikku row is `O` by `hash of komikku` or by
-hand. A blank row is the script reporting that it could not *see* the pick — it is not evidence the change is
-missing. Decide presence by content: see "Verify presence by content, not by the log" in the `upstream-port`
-skill.
+Komikku's `since` starts at the base commit, so none of those ancestors is a listed row — the base commit itself
+is not one either (0 rows in `cherrypick_log.md`) — so the detector never matches: a Komikku row is `O` by
+`hash of komikku` or by hand. A blank row is the script reporting that it could not *see* the pick — it is not
+evidence the change is missing. Decide presence by content: see "Verify presence by content, not by the log" in
+the `upstream-port` skill.
 
 Because of that, **mark the rows of every squash-merged port** with
 `mark HASH --status O --note "…"` as part of the port, not as a later cleanup. Re-adjudicating the blank
@@ -271,11 +271,11 @@ templates). Their note is `AI checked <date>: omitted - version bump only (<file
 
 A **base / merge upstream** (in this fork: `komikku`, the project it is forked from) is listed as an
 additional upstream too, but it does not get `O` for free: `in history as komikku` fires only for a listed
-commit that is an ancestor of the target branch, which takes a merge that reached `master` as a merge commit —
-a sync that lands as a squash merge leaves none. So a Komikku row is `O` through `hash of komikku` (the port
-kept the trailer) or a hand mark. Give it its own `since` close to the current base commit — otherwise every
-Komikku commit back to the global `since` would be listed — and advance that `since` whenever you sync the base
-forward. When a single Komikku commit does need cherry-picking, see
+commit that is an ancestor of the target branch, and no Komikku commit that is an ancestor of `master` here is
+a listed row. So a Komikku row is `O` through `hash of komikku` (the port kept the trailer) or a hand mark.
+Give it its own `since` close to the current base commit — otherwise every Komikku commit back to the global
+`since` would be listed — and advance that `since` whenever you sync the base forward. When a single Komikku
+commit does need cherry-picking, see
 [Komikku as a cherry-pick source](#komikku-as-a-cherry-pick-source).
 
 Tuning constants (similarity threshold, date limits, minimum title words, module folders) are at the top of the script.

@@ -6,9 +6,9 @@ description: Build, publish and wire the PaddleOCR native artifact that :core:oc
 # Releasing the OCR native artifact
 
 `:core:ocr` uses **our own** Apache-2.0 PaddleOCR artifact — not the opaque zip Chimahon ships. It lives
-in the GitHub repo **`komi-kun/komi-kun-ocr-models`** (native releases are tagged `ocr-native-vN`; the
-current pin keeps the legacy name `ocr-models-v5`), and the app fetches it at build time and verifies
-every SHA-256.
+in the GitHub repo **`komi-kun/komi-kun-ocr-models`** (native artifacts use `ocr-native-vN` going
+forward; the current pin keeps the legacy name `ocr-models-v5`), and the app fetches it at build time
+and verifies every SHA-256.
 
 ## What the artifact is
 

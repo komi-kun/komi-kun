@@ -378,7 +378,7 @@ Gradle `-P` flags (`buildSrc/src/main/kotlin/mihon/buildlogic/BuildConfig.kt`):
 - A `cherry picked from commit` marker only counts as `O` when the citing commits carry all of the upstream commit's files that apply here (mihon's `CHANGELOG.md` and SQLDelight migrations are ignored); otherwise the row is a partial pick (`?`). A hand-set `?` with a `Partial <date>:` / `Folded <date>:` note is kept on reruns.
 - Pre-2024 rows at the end come from a one-off pass and may be deleted by hand.
 - Never hand-edit columns other than Status and Notes; use the script's `mark` command.
-- **A blank or `?` status is not proof of absence**: ports here land as squash merges, so no pick trailer reaches `master`; the current position and the open work are in [`docs/upstream/state.md`](docs/upstream/state.md), and presence must be adjudicated by content (see the `upstream-port` skill).
+- **A blank or `?` status is not proof of absence**: a squash-merged port keeps the `(cherry picked from commit <sha>)` trailer only when its message carried one (67 of the 77 commits above the Komikku base do), and `mihon/main` is not an ancestor of `master`, so detection is partial; the current position and the open work are in [`docs/upstream/state.md`](docs/upstream/state.md), and presence must be adjudicated by content (see the `upstream-port` skill).
 
 Rules, commands and the porting guide: `.agents/skills/cherrypick-log/README.md`.
 
