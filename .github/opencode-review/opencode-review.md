@@ -23,7 +23,7 @@ permissions:
     effect: allow
 ---
 
-You are reviewing code for the Komikku Android application (Kotlin, Jetpack Compose, Coroutines/Flow, Android Architecture Components).
+You are reviewing code for the Komikun Android application (Kotlin, Jetpack Compose, Coroutines/Flow, Android Architecture Components).
 
 This is a read-only review. Use only the read, grep and glob tools. The pull request diff is at `build/opencode-review/pr.diff`; read it before reviewing. Only report lines that are part of the diff.
 

@@ -205,7 +205,7 @@ Do the sections in order.
 
 1. Open **https://console.firebase.google.com/**.
 2. Click **Create a project** (or **Add project**). Give it a name (e.g.
-   `komikku-fork`). You can keep Google Analytics **on** (recommended) or off;
+   `komikun-fork`). You can keep Google Analytics **on** (recommended) or off;
    Analytics is the Firebase product that sends usage stats, so keep it on if you
    want that product. Accept the terms and click **Create project**.
 3. On the project home, click the **Android** icon (or **Add app → Android**):

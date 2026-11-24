@@ -241,16 +241,10 @@ class AboutScreen : Screen() {
                 }
                 // KMK <--
 
-                item {
-                    TextPreferenceWidget(
-                        title = stringResource(MR.strings.help_translate),
-                        onPreferenceClick = {
-                            uriHandler.openUri(
-                                "https://hosted.weblate.org/engage/komikku-app/",
-                            )
-                        },
-                    )
-                }
+                // KUN -->
+                // Komikku's "Help translate" row opened its Weblate project; this fork has no
+                // Weblate component and keeps translations in-tree, so the row is not surfaced.
+                // KUN <--
 
                 item {
                     TextPreferenceWidget(

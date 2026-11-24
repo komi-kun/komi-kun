@@ -26,9 +26,9 @@ python3 .agents/skills/cherrypick-log/update_cherrypick_log.py mark 1a2b3c4d --s
 python3 .agents/skills/cherrypick-log/update_cherrypick_log.py mark 5e6f7a8b --status X --note "SY-only release bump"
 ```
 
-The upstream remotes named in `config.json` must exist. In Komikku these are `git remote add mihon https://github.com/mihonapp/mihon`
-and `git remote add tachiyomiSY https://github.com/jobobby04/TachiyomiSY`. The script fetches them itself
-unless you pass `--no-fetch`.
+The upstream remotes named in `config.json` must exist. In this fork these are `git remote add mihon https://github.com/mihonapp/mihon`,
+`git remote add tachiyomiSY https://github.com/jobobby04/TachiyomiSY` and `git remote add komikku https://github.com/komikku-app/komikku`.
+The script fetches them itself unless you pass `--no-fetch`.
 
 ## Commands
 
@@ -49,7 +49,7 @@ They go before the command. Quote `?` in zsh (`--status '?'`).
 |--------|---------|
 | Status | `O` cherry-picked into the target branch · `?` maybe, needs review (including commits that cancel each other out, see [Revert chains](#revert-chains-flagged-)) · empty (written as one space so the raw table stays aligned) = not found · `X` won't pick (set by hand, or version-bump-only commits, see [Omitted commits](#omitted-commits-x)) |
 | Commit | Short hash, linked to the full GitHub commit. The script reads the full hash back from this link, so don't edit it |
-| Upstream | `mihon`, `tachiyomiSY`, or `↳ tachiyomiSY` for SY's copy of the mihon commit directly below it |
+| Upstream | `mihon`, `tachiyomiSY`, `komikku`, or `↳ <name>` for that upstream's copy of the mihon commit directly below it |
 | Date | Committer date, i.e. when the commit landed on that upstream branch (ISO) |
 | Title / Author | First line of the commit message and its author |
 | Details | Generated on every run: why the row is listed (`repo-wide: …`, only with [path filters](#path-filters-optional)), how it was paired and how its status was found (see below) |
@@ -61,16 +61,47 @@ Only **Status** and **Notes** are yours to edit. Every other cell, the order of 
 
 An empty or `?` status means **"no pick was detected"**, not "not in the tree".
 
-Ports in this fork land as **squash merges**, so they carry no `cherry picked from commit <sha>`
-trailer and the `hash of` detector never fires; the fork's history was also vendored, so `mihon/main`
-is not an ancestor and `in history as …` never fires either. A blank row is the script reporting that it
-could not *see* the pick — it is not evidence the change is missing. Decide presence by content: see
+Ports in this fork land as **squash merges**, so a squashed pick carries no `cherry picked from commit <sha>`
+trailer and `hash of` cannot see it; the fork's history was also vendored, so `mihon/main` is not an ancestor and
+`in history as mihon` never fires. A blank row is the script reporting that it could not *see* the pick — it is
+not evidence the change is missing. Komikku rows are the exception: the base is merged, not squashed, so
+`in history as komikku` and `hash of komikku` do mark them `O`. Decide presence by content: see
 "Verify presence by content, not by the log" in the `upstream-port` skill.
 
 Because of that, **mark the rows of every squash-merged port** with
 `mark HASH --status O --note "…"` as part of the port, not as a later cleanup. Re-adjudicating the blank
 rows from scratch after each squash merge is the waste this note exists to prevent, and it is what
 turns the blank count in the summary table into a phantom backlog.
+
+## Komikku as a cherry-pick source
+
+`komikku` (`komikku-app/komikku`, the fork's parent) is a cherry-pick source like the other two: it is an
+`additional_upstreams` entry in `config.json`, with the same `name` / `remote` / `branch` / `github` keys, and its
+rows are listed and marked like any other upstream's. `uncertain --repo komikku` filters to them (the `↳` of a copy
+row is stripped before the comparison), `mark HASH` takes any row, whatever its upstream, and a Komikku commit that
+copies a mihon commit is paired with it by the [rules above](#pairing-sy-commits-with-mihon-commits) — they apply to
+every additional upstream, not just SY — and shown as `↳ komikku`, sharing its original's status.
+
+Komikku is still the **base** upstream, not a peer, so it gets its own `since` (`2026-10-08` here, close to the
+current base commit — the global `2024-01-01` would list every Komikku commit back to 2024). Note that `--since`
+sets only the global date: a per-upstream `since` still wins for that upstream's rows.
+
+The default is not to cherry-pick Komikku commit by commit. The fork's `master` descends from a Komikku commit and
+is normally advanced by merging `komikku/master` on a feature branch, which is what the `komikku-sync` skill does.
+Cherry-pick single Komikku commits when you want one change **without** taking the base forward — a fix the fork
+needs now while a full sync waits, or a partial sync — which is what `komikku-sync` falls back to for the commits it
+does want (`git cherry-pick -x`, then adapt to the fork).
+
+The two interact, so check the log before picking:
+
+- A commit a sync already merged is reachable from `master`, so its row is `O` with `in history as komikku`.
+  Don't pick it again: the merge brought the change, and the pick would duplicate it.
+- After a sync, advance Komikku's `since` in `config.json` to the new base commit's date and re-run the generator
+  (`komikku-sync`, step 5): once `since` moves past the merged commits they are no longer listed, so their rows drop
+  out of the log. A Komikku commit older than `since` therefore has no row to mark — decide it by content instead.
+- A picked Komikku commit keeps its `(cherry picked from commit <sha>)` trailer as the pick evidence, and the
+  markers follow `AGENTS.md`: Komikku code is `// KMK` (`-- KMK -->` in `.sq` / `.sqm`), and anything the fork
+  adapts is a nested `// KUN` block. `// KMK` never means the fork wrote it.
 
 ## Rules
 
@@ -83,11 +114,12 @@ turns the blank count in the summary table into a phantom backlog.
   connected to this repo, so they are the only source of translation updates. Never mark them `X`.
   See the `upstream-port` skill for resolving the locale-file conflicts.
 - Optionally, an upstream's commits that only change some paths are left out (see [Path filters](#path-filters-optional)).
-  Komikku doesn't use this.
+  This fork does not use that.
 
 ### Path filters (optional)
 
-These per-upstream keys are off in Komikku. They exist for forks that take only part of an upstream, e.g. an extensions
+These per-upstream keys are off in this fork, which sets only `partial_ignore_paths` (on `mihon`, to `CHANGELOG.md` and
+the SQLDelight `migrations/` folder). They exist for forks that take only part of an upstream, e.g. an extensions
 repo that takes the shared code but not the upstream's own sources.
 
 - `exclude_only_paths`: a commit is excluded if every file it changes is under one of these paths. Renames count as a
@@ -100,8 +132,8 @@ repo that takes the shared code but not the upstream's own sources.
 
 ### Pairing SY commits with mihon commits
 
-`main_upstream` in `config.json` is the **primary** one (mihon in Komikku). Each entry of `additional_upstreams`
-is a **secondary** (tachiyomiSY in Komikku), and each secondary is interleaved with the primary on its own.
+`main_upstream` in `config.json` is the **primary** one (mihon in this fork). Each entry of `additional_upstreams`
+is a **secondary** (tachiyomiSY and komikku in this fork), and each secondary is interleaved with the primary on its own.
 A secondary commit is a copy of a primary commit if one of these applies, checked in this order (shown as Details `pick of mihon … [method]`):
 
 1. `marker`: its message has `cherry picked from commit <primary hash>`.
@@ -150,9 +182,9 @@ warnings) but carries only 14 of its 21 files. So the script compares files: the
 the files changed by every target commit that cites it.
 
 - Only files outside the upstream's `exclude_only_paths` and `partial_ignore_paths`, and inside its
-  `partial_check_paths` (when set), count. Komikku sets `partial_ignore_paths` on mihon to `CHANGELOG.md` (Komikku never
+  `partial_check_paths` (when set), count. This fork sets `partial_ignore_paths` on mihon to `CHANGELOG.md` (this fork never
   takes mihon's changelog entries, which about 300 mihon commits since 2024 add) and
-  `data/src/main/sqldelight/tachiyomi/migrations/` (Komikku numbers its migrations differently, so mihon's `9.sqm` is
+  `data/src/main/sqldelight/tachiyomi/migrations/` (this fork numbers its migrations differently, so mihon's `9.sqm` is
   another file here and the pick adds a new migration instead).
 - A file the target branch had at the same path before the first citing commit counts as picked only when the citing
   commits changed that path.
@@ -160,7 +192,7 @@ the files changed by every target commit that cites it.
   changed a file of that name in that module.
 - A new file applies when its module was there, or when the citing commits change files in it.
 - Anything else doesn't apply here, and doesn't count: a changed or deleted file the target branch didn't have in any
-  package (code Komikku dropped or never had), or a new file in a module that neither the target branch nor the
+  package (code this fork dropped or never had), or a new file in a module that neither the target branch nor the
   citing commits have.
 
 When files that apply are left out, the row gets `?` instead of `O`. It turns `O` by itself once later picks that cite
@@ -210,7 +242,7 @@ templates). Their note is `AI checked <date>: omitted - version bump only (<file
 - If a commit is no longer reachable from its upstream branch (force-push), it moves to a **Gone from upstream** section
   and keeps its status and notes. Delete it by hand once you no longer need it.
 - Rows dated **before `since`** that are already in the file stay at the end of the list, unchanged, in their current
-  order. These were added by a one-off pass over older history (in Komikku: the mihon commits before its `since` that
+  order. These were added by a one-off pass over older history (in this fork: the mihon commits before its `since` that
   SY never picked, whose Details start with `pre-<since>`). An empty or `?` row there only changes to `O`, when new `O`
   evidence appears. You may delete such rows by hand; they are not re-added, and the summary simply counts the rows
   that are in the file.
@@ -223,21 +255,22 @@ templates). Their note is `AI checked <date>: omitted - version bump only (<file
 | Key | Meaning |
 |-----|---------|
 | `target_branch` | Branch to check for already-picked commits (`master`). The local branch is read, so keep it up to date; `--target` overrides it |
-| `since` | First commit date to include, `YYYY-MM-DD` (committer date). Required, and specific to each repo (Komikku: `2024-01-01`); `--since` overrides it |
+| `since` | First commit date to include, `YYYY-MM-DD` (committer date). Required, and specific to each repo (this fork: `2024-01-01`); `--since` overrides it |
 | `output` | Output Markdown path, relative to the repo root (or absolute) |
-| `exclude_identity_regex` | Case-insensitive regex matched against author, committer and co-authors (Komikku: `renovate`). Empty = exclude nothing |
+| `exclude_identity_regex` | Case-insensitive regex matched against author, committer and co-authors (this fork: `renovate`). Empty = exclude nothing |
 | `main_upstream` | `{name, remote, branch, github}` of the main upstream, plus the optional keys below. Its commits set the order of the list. Required |
 | `additional_upstreams` | List of one or more `{name, remote, branch, github, since?}` (or the extra optional keys) to interleave with the main upstream's. Names must be unique. The optional per-upstream `since` (`YYYY-MM-DD`) overrides the global one for that upstream |
+| `exclude_only_paths` | Per upstream, optional. List of repo-relative directories or files (leading / trailing `/` ignored). That upstream's commits that only change files under them are not listed ([Path filters](#path-filters-optional)). This fork: not set |
+| `repo_wide_min_modules` | Per upstream, optional, whole number. A commit dropped by `exclude_only_paths` is kept as repo-wide when it touches at least this many modules. `0` or absent = off. This fork: not set |
+| `partial_check_paths` | Per upstream, optional. List of repo-relative directories or files. A pick of that upstream's commits must carry its files under them to count as `O` ([Partial picks](#partial-picks)). Absent = all files. This fork: not set |
+| `partial_ignore_paths` | Per upstream, optional. List of repo-relative directories or files that a pick needn't carry. This fork: `CHANGELOG.md` and the SQLDelight `migrations/` folder on mihon |
 
 A **base / merge upstream** (in this fork: `komikku`, the project it is forked from) is listed as an
 additional upstream too. Its commits are *merged* into `master`, not cherry-picked, so the generator
-marks them `O` automatically once their hash is reachable from the target branch. Give it its own
-`since` close to the current base commit — otherwise every Komikku commit back to the global `since`
-would be listed — and advance that `since` whenever you sync the base forward.
-| `exclude_only_paths` | Per upstream, optional. List of repo-relative directories or files (leading / trailing `/` ignored). That upstream's commits that only change files under them are not listed ([Path filters](#path-filters-optional)). Komikku: not set |
-| `repo_wide_min_modules` | Per upstream, optional, whole number. A commit dropped by `exclude_only_paths` is kept as repo-wide when it touches at least this many modules. `0` or absent = off. Komikku: not set |
-| `partial_check_paths` | Per upstream, optional. List of repo-relative directories or files. A pick of that upstream's commits must carry its files under them to count as `O` ([Partial picks](#partial-picks)). Absent = all files. Komikku: not set |
-| `partial_ignore_paths` | Per upstream, optional. List of repo-relative directories or files that a pick needn't carry. Komikku: `CHANGELOG.md` and the SQLDelight `migrations/` folder on mihon |
+marks them `O` automatically once their hash is reachable from the target branch (`in history as komikku`).
+Give it its own `since` close to the current base commit — otherwise every Komikku commit back to the global
+`since` would be listed — and advance that `since` whenever you sync the base forward. When a single Komikku
+commit does need cherry-picking, see [Komikku as a cherry-pick source](#komikku-as-a-cherry-pick-source).
 
 Tuning constants (similarity threshold, date limits, minimum title words, module folders) are at the top of the script.
 
@@ -273,7 +306,7 @@ They need no git repository.
 
 - These are heuristics. A reworded, split or hand-ported change can show as empty or `?`. That's what the AI review is for.
 - The [partial-pick](#partial-picks) check compares file names, not contents. A citing commit that changes a file
-  counts as carrying all of that file's change. A file left out on purpose (a change Komikku reworked in another file)
+  counts as carrying all of that file's change. A file left out on purpose (a change this fork reworked in another file)
   still makes the row `?`, and the rest of a pick made by a commit that doesn't cite the hash isn't seen.
 - Reverts are only linked through git's default `This reverts commit <hash>` message, and only to commits that are in
   the list. A reworded revert, or a revert of a commit outside the list (before `since`, excluded, or deleted by hand),

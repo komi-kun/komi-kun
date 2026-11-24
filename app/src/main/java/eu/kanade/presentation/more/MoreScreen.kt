@@ -252,11 +252,10 @@ fun MoreScreen(
                     onPreferenceClick = { uriHandler.openUri(Constants.URL_HELP) },
                 )
             }
-            // KMK -->
-            item {
-                Sponsor()
-            }
-            // KMK <--
+            // KUN -->
+            // Komikku's Sponsor entry opened its maintainer's GitHub Sponsors page, which does not
+            // fund this fork, so the entry is not surfaced. The `Sponsor()` composable is kept.
+            // KUN <--
         }
     }
 }

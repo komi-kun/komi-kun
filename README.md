@@ -5,9 +5,10 @@
 </a><br/>
  <h1 align="center"> Komikun </h1>
 
-**Komikun** is a personal vendoring fork of [Komikku](https://github.com/komikku-app/komikku),
-which is itself based on TachiyomiSY & Mihon/Tachiyomi. See [FORK.md](./FORK.md) for the upstreams it
-tracks.
+**Komikun** is a personal vendoring fork of [Komikku](https://github.com/komikku-app/komikku).
+Komikku is itself derived from TachiyomiSY, which in turn builds on Mihon (the original Tachiyomi).
+This fork keeps the upstream feature set and adds its own work on top; it does not claim the
+upstream features as its own. See [FORK.md](./FORK.md) for the upstreams it tracks.
 
 | Nightly |
 |---------|
@@ -17,19 +18,19 @@ tracks.
 
 [![Discord](https://img.shields.io/discord/1242381704459452488.svg?label=&labelColor=6A7EC2&color=7389D8&logo=discord&logoColor=FFFFFF)](https://discord.gg/85jB7V5AJR)
 [![CI](https://img.shields.io/github/actions/workflow/status/komi-kun/komi-kun/build_push.yml?labelColor=27303D&label=CI)](https://github.com/komi-kun/komi-kun/actions/workflows/build_push.yml)
-[![License: Apache-2.0](https://img.shields.io/github/license/komi-kun/komi-kun?labelColor=27303D&color=0877d2)](https://github.com/komi-kun/komi-kun/blob/master/LICENSE)
-[![Translation status](https://img.shields.io/weblate/progress/komikku-app?labelColor=27303D&color=946300)](https://hosted.weblate.org/engage/komikku-app/)
+[![License: GPL-3.0-or-later](https://img.shields.io/badge/License-GPL--3.0--or--later-0877d2?labelColor=27303D)](https://github.com/komi-kun/komi-kun/blob/master/LICENSE)
+
+*The [Discord server](https://discord.gg/85jB7V5AJR) behind that badge, and the [Komikku website and
+FAQ](https://komikku-app.github.io/), are **upstream Komikku** resources: useful, but not run by this fork.*
 
 ## Download
 
 [![Nightly](https://img.shields.io/github/v/release/komi-kun/komi-kun.svg?maxAge=3600&label=Nightly&labelColor=06599d&color=043b69)](https://github.com/komi-kun/komi-kun/releases/latest)
 
-*Requires Android 8.0 or higher.*
-
-[![Sponsor me on GitHub](https://custom-icon-badges.demolab.com/badge/-Sponsor-ea4aaa?style=for-the-badge&logo=heart&logoColor=white)](https://github.com/sponsors/cuong-tran "Sponsor me on GitHub")
-
 <div align="left">
-A free and open source manga reader which is based off TachiyomiSY & Mihon/Tachiyomi. This fork is meant to provide new & useful features while regularly take features/updates from Mihon or other forks like SY, J2K and Neko...
+A free and open source manga reader, forked from [Komikku](https://github.com/komikku-app/komikku) —
+which is itself built on TachiyomiSY and Mihon. This fork keeps that feature set, takes fixes and
+features from Komikku, Mihon and TachiyomiSY as they land, and adds its own work on top.
 
 ![screenshots of app](./.github/readme-images/screens.png)
 
@@ -37,7 +38,33 @@ A free and open source manga reader which is based off TachiyomiSY & Mihon/Tachi
 
 ## Features
 
-### Komikun's unique features:
+### Komikun additions
+What actually originates in this fork, on top of the upstream chain:
+
+- **Dictionary lookup.** Import Yomitan dictionaries and look words up — from the Dictionary screen,
+  and in the reader by tapping a recognised word on the OCR overlay — with per-profile dictionary
+  ordering and word audio.
+- **Manga OCR.** PaddleOCR PP-OCRv6 on ONNX Runtime, plus `.mokuro` sidecars, with tappable text boxes
+  drawn over the page, a per-chapter OCR queue fed by the download pipeline, and selectable
+  detector × recogniser models.
+- **AnkiDroid mining.** Send a lookup or an OCR crop to AnkiDroid as a card, with deck / note type /
+  field mapping, duplicate checks, profiles and screenshot crop presets.
+- **One explicit, default-off switch for all three.** Nothing runs — engine, model download, import,
+  overlay, reader tap handling — until you answer, and you are asked once: in onboarding on a fresh
+  install, or through a one-time screen after upgrading.
+- **History category filter.** Filter the History screen by library category.
+- **Orphaned-download cleanup.** Delete chapter downloads that no surviving chapter can name any more —
+  automatically when a chapter disappears from a library update or a device sync, or from a
+  Settings → Downloads scan you can review and confirm.
+- **Nightly-only releases, with the update APK verified before install.** Releases are cut by commit count
+  (`r<count>` tags), and the downloaded update APK's SHA-256 is checked against the release asset digest
+  before install — a mismatch deletes the download.
+
+### Inherited from Komikku
+Everything below is [Komikku](https://github.com/komikku-app/komikku)'s feature list, inherited by this
+fork — not written by it. Komikku is itself derived from TachiyomiSY and Mihon, so its list carries
+theirs too.
+
 - `Suggestions` automatically showing source-website's recommendations / suggestions / related to current entry for all sources.
 - `Hidden categories` to hide yours things from *nosy* people.
 - `Auto theme color` based on each entry's cover for entry View & Reader.
@@ -63,8 +90,8 @@ A free and open source manga reader which is based off TachiyomiSY & Mihon/Tachi
 - In-app progress banner shows Library syncing / Backup restoring / Library updating progress.
 - Auto-install app update.
 - Configurable interval to refresh entries from downloaded storage.
-- Forked from SY so everything from SY.
-- Always up-to-date with Mihon & SY
+- Everything from TachiyomiSY and Mihon, which Komikku builds on.
+- Kept current with Mihon and TachiyomiSY upstream by Komikku.
 - More app themes & better UI, improvements...
 
 
@@ -139,10 +166,10 @@ Pull requests are welcome. For major changes, please open an issue first to disc
 
 <details><summary>Issues</summary>
 
-[Upstream website](https://komikku-app.github.io/)
+[Upstream Komikku website](https://komikku-app.github.io/) — run by the Komikku project, not by this fork.
 
-1. **Before reporting a new issue, take a look at the [FAQ](https://komikku-app.github.io/docs/faq/general), the [changelog](https://github.com/komi-kun/komi-kun/releases) and the already opened [issues](https://github.com/komi-kun/komi-kun/issues).**
-2. If you are unsure, ask here: [![Discord](https://img.shields.io/discord/1242381704459452488.svg?label=&labelColor=6A7EC2&color=7389D8&logo=discord&logoColor=FFFFFF)](https://discord.gg/85jB7V5AJR)
+1. **Before reporting a new issue, take a look at the [upstream Komikku FAQ](https://komikku-app.github.io/docs/faq/general), the [changelog](https://github.com/komi-kun/komi-kun/releases) and the already opened [issues](https://github.com/komi-kun/komi-kun/issues).**
+2. If you are unsure, ask in the upstream Komikku community: [![Discord](https://img.shields.io/discord/1242381704459452488.svg?label=&labelColor=6A7EC2&color=7389D8&logo=discord&logoColor=FFFFFF)](https://discord.gg/85jB7V5AJR)
 
 </details>
 
@@ -195,6 +222,27 @@ The developer(s) of this application does not have any affiliation with the cont
 <div align="left">
 
 ## License
+
+**The app as distributed is GPL-3.0-or-later.** The repository as a whole, and the binaries built
+from it (the "combined work"), are distributed under the GNU General Public License, version 3 or
+later. The full text is in [LICENSES/GPL-3.0-or-later.txt](./LICENSES/GPL-3.0-or-later.txt), and
+[NOTICE](./NOTICE) records the provenance of the GPL components and of the upstream (Apache-2.0)
+projects. That is the license of the APK you install or pass on.
+
+**Why the Apache-2.0 text is still below.** Every file inherited from Mihon, TachiyomiSY and Komikku
+stays Apache-2.0 in its own right — Apache-2.0 code may be combined into a GPL-3.0 work — so the
+top-level [LICENSE](./LICENSE) is the Apache-2.0 text and those files keep their Apache-2.0 headers.
+It does not narrow the GPL-3.0-or-later terms of the combined distribution.
+
+**What that means if you reuse the code.** Taking an upstream-derived file gives you it under
+Apache-2.0. Taking this fork's own dictionary/OCR work — the `:core:dictionary` and `:core:ocr`
+modules and the app code that implements them, which carry
+`SPDX-License-Identifier: GPL-3.0-or-later` headers — gives you it under GPL-3.0-or-later. The
+exception is a small set of **GPL-free seam files** — the reader OCR and dictionary interfaces, the
+shared dictionary/OCR opt-in preference, and the reader and chapter files (including a SQLDelight
+migration and query) they are threaded through: they are Apache-2.0 and import no GPL code precisely
+so they can be contributed back upstream to Komikku. The authoritative list is the `SEAM_FILES` array
+in [`scripts/verify-gpl-free.sh`](./scripts/verify-gpl-free.sh).
 
     Copyright 2015 Javier Tomás
 

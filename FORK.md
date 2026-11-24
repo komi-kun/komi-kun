@@ -1,10 +1,10 @@
 # komi-kun — personal fork of Komikku
 
-This repository is a **personal vendoring fork of [Komikku](../AGENTS.md)**. It intends to stay a
-superset of Komikku while also tracking two further upstreams. This file documents the upstreams,
-the provenance markers, and the workflow that keeps future porting cheap. `AGENTS.md` is still the
-mandatory rulebook for code style, markers and i18n — read it first; this file only adds the fork's
-upstream topology.
+This repository is a **personal vendoring fork of
+[Komikku](https://github.com/komikku-app/komikku)**. It intends to stay a superset of Komikku while also
+tracking two further upstreams. This file documents the upstreams, the provenance markers, and the
+workflow that keeps future porting cheap. `AGENTS.md` is still the mandatory rulebook for code style,
+markers and i18n — read it first; this file only adds the fork's upstream topology.
 
 ## Upstreams
 
@@ -63,10 +63,10 @@ upstream** — they never mark upstream code itself. Rules (extending `AGENTS.md
    tests (`:app:testDebugUnitTest`, `:domain:testDebugUnitTest`) where relevant.
 7. **Translation commits are ports too.** “Translations update from Hosted Weblate” commits are never
    skipped (`X`): Weblate is not connected to this repo, so they are the only source of refreshed
-   translations. Resolve locale-file conflicts with `scripts/resolve_i18n_union.py` from the
-   `upstream-port` skill (upstream wins per key, base-less entries are dropped, fork-only
-   translations are re-appended), then
-   validate the XML and that no base key lost its translation.
+   translations. Resolve locale-file conflicts with
+   `.agents/skills/upstream-port/scripts/resolve_i18n_union.py` from the `upstream-port`
+   skill (upstream wins per key, base-less entries are dropped, fork-only translations are
+   re-appended), then validate the XML and that no base key lost its translation.
 8. For SQL changes append a **new** migration at the next number
    (`data/src/main/sqldelight/tachiyomi/migrations/<n+1>.sqm`); never renumber or edit an existing
    migration. Reconcile the incoming triggers/columns with what Komikku already has — some may
