@@ -1,6 +1,7 @@
 // KUN -->
 package eu.kanade.tachiyomi.data.download
 
+import android.util.Log
 import eu.kanade.tachiyomi.source.Source
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
@@ -8,12 +9,18 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
 import io.mockk.verify
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.runBlocking
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import tachiyomi.core.common.preference.InMemoryPreferenceStore
 import tachiyomi.domain.chapter.model.Chapter
 import tachiyomi.domain.chapter.repository.ChapterRepository
@@ -75,6 +82,13 @@ class FilteredDownloadCleanupServiceTest {
     private val downloadedChapterIds = mutableMapOf<Long, List<Long>>()
 
     /**
+     * Whether the download index counts as built. True by default so an ordinary test exercises a real
+     * sweep; a test that sets it to false models a process whose cache has not been populated yet, where
+     * `getMangaWithDownloads` and `getDownloadedChapterIdsNoRenew` answer as if nothing were downloaded.
+     */
+    private var indexBuilt = true
+
+    /**
      * What `merged_entry` holds when it is read. A queue rather than a value, because each phase reads
      * the table for itself: it is how a test models a merge created between the two phases of one
      * sweep, which is the only way a due row of a merged manga can reach the expiry phase.
@@ -117,6 +131,9 @@ class FilteredDownloadCleanupServiceTest {
             ids.flatMap { chaptersByManga[it].orEmpty() }
         }
         every { downloadCache.getDownloadedChapterIdsNoRenew(any(), any()) } answers {
+            // An index nothing has built yet answers every lookup as if nothing were downloaded: that
+            // is the answer the sweep must refuse to sweep on, so the fake has to be just as empty.
+            if (!indexBuilt) return@answers emptyList()
             val chapters = firstArg<List<Chapter>>()
             val indexed = downloadedChapterIds[secondArg<Manga>().id] ?: chapters.map { it.id }
             // A chapter the manager really deleted is no longer in the index: the re-read after a
@@ -125,9 +142,11 @@ class FilteredDownloadCleanupServiceTest {
             indexed.filterNot { it in removedChapterIds }
         }
         every { downloadCache.getMangaWithDownloads(any()) } answers {
+            if (!indexBuilt) return@answers emptyList()
             val mangas = firstArg<List<Manga>>()
             mangas.filter { it.id in mangaWithDownloadsIds }
         }
+        every { downloadCache.isIndexBuilt() } answers { indexBuilt }
         // Stands in for `DownloadProvider.getValidChapterDirNames`: one candidate name per chapter, so
         // two chapters share a directory exactly when they share a name (and a scanlator, which the
         // fixture encodes in the name when it matters).
@@ -150,6 +169,23 @@ class FilteredDownloadCleanupServiceTest {
             sideEffect?.invoke()
             answer
         }
+    }
+
+    /**
+     * The sweep reports through `xLogE`/`xLogD`, which fall back to `android.util.Log` — a stub on the
+     * JVM that throws instead of writing. Stubbed here so a failure path (which logs) can run at all;
+     * nothing asserts on the output, only on what the pass did around it.
+     */
+    @BeforeEach
+    fun stubAndroidLog() {
+        mockkStatic(Log::class)
+        every { Log.println(any(), any(), any()) } returns 0
+        every { Log.getStackTraceString(any()) } returns ""
+    }
+
+    @AfterEach
+    fun unstubAndroidLog() {
+        unmockkStatic(Log::class)
     }
 
     private fun service() = FilteredDownloadCleanupService(
@@ -252,6 +288,131 @@ class FilteredDownloadCleanupServiceTest {
             downloadProvider.getValidChapterDirNames(any(), any(), any())
         }
         pendingRepository.calls shouldBe emptyList()
+    }
+
+    @Test
+    fun `an unbuilt index asks for one renewal and touches nothing else`() {
+        downloadPreferences.removeFilteredDownloads.set(true)
+        given()
+        // A process whose cache has not been populated: both non-renewing lookups answer "nothing is
+        // downloaded", which is exactly what expiry reads as "this due row is stale".
+        indexBuilt = false
+        pendingRepository.rows = listOf(queued())
+
+        val sweepService = service()
+        runBlocking {
+            sweepService.run()
+            // A second pass can run before the asynchronous renewal lands, and must not ask again: the
+            // service is app-scoped, so one request per instance is one request per process.
+            sweepService.run()
+        }
+
+        verify(exactly = 1) { downloadCache.invalidateCache() }
+        // The guard sits before every read and write of the queue path, so nothing of it ran.
+        pendingRepository.calls shouldBe emptyList()
+        coVerify(exactly = 0) {
+            mangaRepository.getFavorites()
+            chapterRepository.getChaptersByMangaIds(any())
+            mangaMergeRepository.getAllEntries()
+            downloadManager.deleteChapters(any(), any(), any(), any())
+        }
+        verify(exactly = 0) { downloadCache.getMangaWithDownloads(any()) }
+        // The point of the guard: the due row survives a pass that cannot tell an unbuilt index from an
+        // empty downloads folder. Without it, expiry drops this row as "no longer downloaded".
+        pendingRepository.rows.map { it.chapterId } shouldBe listOf(CHAPTER_ID)
+    }
+
+    @Test
+    fun `a built but empty index still runs a normal pass`() {
+        downloadPreferences.removeFilteredDownloads.set(true)
+        given()
+        // Built, and genuinely nothing downloaded. "Built" is not "non-empty", so the guard must not
+        // fire: a user who deleted every download keeps the sweep.
+        mangaWithDownloadsIds = emptySet()
+        downloadedChapterIds[MANGA_ID] = emptyList()
+        pendingRepository.rows = listOf(queued())
+
+        sweep()
+
+        verify(exactly = 0) { downloadCache.invalidateCache() }
+        // Both phases ran: the queue was read and expiry considered the row against the real index.
+        pendingRepository.calls shouldBe listOf("selectAll", "selectExpired", "deleteByChapterIds")
+        pendingRepository.lastCutoff shouldBe currentTime - FilteredDownloadCleanupService.GRACE
+        // Today's behaviour for a due row whose chapter the built index does not have: the row goes,
+        // no file is touched.
+        coVerify(exactly = 0) { downloadManager.deleteChapters(any(), any(), any(), any()) }
+        pendingRepository.deletedChapterIds shouldBe listOf(CHAPTER_ID)
+        pendingRepository.rows shouldBe emptyList()
+    }
+
+    @Test
+    fun `an Error inside a manga is not swallowed by the sweep`() {
+        downloadPreferences.removeFilteredDownloads.set(true)
+        given()
+        // Not a per-manga data problem: an OOM or a failed assertion must reach the worker instead of
+        // being logged and reported as a successful pass.
+        every { downloadCache.getDownloadedChapterIdsNoRenew(any(), any()) } throws AssertionError("failed hard")
+
+        val thrown = assertThrows<AssertionError> { sweep() }
+
+        thrown.message shouldBe "failed hard"
+    }
+
+    @Test
+    fun `an ordinary exception in one manga does not stop the ones after it`() {
+        downloadPreferences.removeFilteredDownloads.set(true)
+        // Two mangas with downloads, each hiding one chapter: the first one's lookups fail, and the
+        // second must still be examined and queued.
+        val failing = manga()
+        val next = manga(id = GONE_MANGA_ID)
+        favourites = listOf(failing, next)
+        mangasInDb = listOf(failing, next)
+        chaptersByManga = mapOf(
+            failing.id to listOf(chapter(id = CHAPTER_ID, scanlator = EXCLUDED_SCANLATOR)),
+            next.id to listOf(chapter(id = GONE_CHAPTER_ID, mangaId = next.id, scanlator = EXCLUDED_SCANLATOR)),
+        )
+        excludedScanlators = mapOf(
+            failing.id to listOf(EXCLUDED_SCANLATOR),
+            next.id to listOf(EXCLUDED_SCANLATOR),
+        )
+        mangaWithDownloadsIds = setOf(failing.id, next.id)
+        every { downloadCache.getDownloadedChapterIdsNoRenew(any(), any()) } answers {
+            if (secondArg<Manga>().id == failing.id) throw IllegalStateException("broken manga")
+            firstArg<List<Chapter>>().map { it.id }
+        }
+
+        sweep()
+
+        pendingRepository.inserted.map { it.mangaId } shouldBe listOf(next.id)
+    }
+
+    @Test
+    fun `a cancellation in discovery is rethrown`() {
+        downloadPreferences.removeFilteredDownloads.set(true)
+        given()
+        every { downloadCache.getDownloadedChapterIdsNoRenew(any(), any()) } throws CancellationException("cancelled")
+
+        val thrown = assertThrows<CancellationException> { sweep() }
+
+        thrown.message shouldBe "cancelled"
+    }
+
+    @Test
+    fun `a cancellation in expiry is rethrown`() {
+        downloadPreferences.removeFilteredDownloads.set(true)
+        given()
+        pendingRepository.rows = listOf(queued())
+        // Discovery's lookups succeed; the expiry phase's read is the one that is cancelled, so this
+        // pins the second per-manga block as well.
+        var reads = 0
+        every { downloadCache.getDownloadedChapterIdsNoRenew(any(), any()) } answers {
+            if (++reads > 1) throw CancellationException("cancelled during expiry")
+            firstArg<List<Chapter>>().map { it.id }
+        }
+
+        val thrown = assertThrows<CancellationException> { sweep() }
+
+        thrown.message shouldBe "cancelled during expiry"
     }
 
     @Test

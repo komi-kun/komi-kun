@@ -7,6 +7,7 @@ import dev.zacsweers.metro.SingleIn
 import eu.kanade.domain.download.FilteredDownloadDeletionGuard
 import eu.kanade.domain.download.FilteredDownloadPolicy
 import eu.kanade.tachiyomi.source.Source
+import exh.log.xLogD
 import exh.log.xLogE
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -22,6 +23,7 @@ import tachiyomi.domain.manga.repository.MangaMergeRepository
 import tachiyomi.domain.manga.repository.MangaRepository
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.source.local.isLocal
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Instant
@@ -41,6 +43,11 @@ import kotlin.time.Instant
  * the filesystem), examines at most [DISCOVERY_BATCH] manga for new hidden chapters and at most
  * [EXPIRY_BATCH] mangas whose queue rows are due, and stops there. A pass that cannot finish is
  * simply continued by the next one — the queue rows survive until a pass gets to them.
+ *
+ * A pass on an index this process has not built yet does no work at all: it asks [DownloadCache] for
+ * one renewal and returns (see [run]), because an index that was never built looks exactly like an
+ * empty downloads folder — and expiry reading it as one would drop every due row as "no longer
+ * downloaded" without deleting anything.
  *
  * Dwell is **wall-clock** time: `firstHiddenAt` is compared against the wall clock, and nothing here
  * measures elapsed monotonic time. A clock that jumps backwards therefore only *delays* every expiry,
@@ -72,6 +79,15 @@ class FilteredDownloadCleanupService(
 ) {
 
     /**
+     * Whether this process has already asked for the download index to be built (see [run]).
+     *
+     * The service is app-scoped, so this is the process-wide bound on that request: a second pass can
+     * run before the asynchronous renewal lands, and would otherwise ask again on every pass. An
+     * atomic rather than a plain flag because two passes can overlap on different dispatchers.
+     */
+    private val renewalRequested = AtomicBoolean(false)
+
+    /**
      * One sweep: record what is hidden now, then delete what has been hidden for [GRACE].
      *
      * Discovery is a **full recomputation** of its window on every pass: the batch is a rotating
@@ -94,6 +110,22 @@ class FilteredDownloadCleanupService(
         // must cost one preference read and nothing else — no database query, no download-cache
         // lookup, no download manager call.
         if (!downloadPreferences.removeFilteredDownloads.get()) return
+
+        // An index nothing in this process has built reports no downloads at all: discovery would find
+        // nothing, and expiry would conclude that every due queue row is "no longer downloaded" and
+        // drop it without deleting a file. Ask for one build instead of sweeping — the renewal only
+        // starts the walk ([DownloadCache.invalidateCache] does not wait for it), so this pass stays
+        // non-blocking and the next one does the real work on the built index.
+        //
+        // At most one request per process: the service is app-scoped, and a second pass can run before
+        // the asynchronous build lands.
+        if (!downloadCache.isIndexBuilt()) {
+            if (renewalRequested.compareAndSet(false, true)) {
+                xLogD("Download index not built yet, renewing it before the cleanup pass")
+                downloadCache.invalidateCache()
+            }
+            return
+        }
 
         val instant = now()
         // Read once for both phases: the library is what "still a favourite" is answered from.
@@ -189,7 +221,7 @@ class FilteredDownloadCleanupService(
         // their dwell would only start once the clock caught up. They are re-stamped to `now`.
         val restampChapterIds = mutableListOf<Long>()
         batch.forEach { manga ->
-            runCatching {
+            try {
                 val chapters = chaptersByManga[manga.id].orEmpty()
                 // The non-renewing read: an hourly pass must never rebuild the downloads tree.
                 val downloadedIds = downloadCache.getDownloadedChapterIdsNoRenew(chapters, manga)
@@ -220,8 +252,9 @@ class FilteredDownloadCleanupService(
                     .map { it.chapterId }
                     .filter { it in hiddenIds }
                     .forEach { restampChapterIds += it }
-            }.onFailure { e ->
-                if (e is CancellationException) throw e
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
                 xLogE("Failed to queue filtered downloads of manga ${manga.id}", e)
             }
         }
@@ -288,7 +321,7 @@ class FilteredDownloadCleanupService(
             // manga and every one after it is skipped — nothing is deleted, nothing is un-queued.
             if (!downloadPreferences.removeFilteredDownloads.get()) return@forEach
             val manga = mangasById.getValue(mangaId)
-            runCatching {
+            try {
                 val chapters = chaptersByManga[mangaId].orEmpty()
                 // The non-renewing read: an hourly pass must never rebuild the downloads tree.
                 val downloadedIds = downloadCache.getDownloadedChapterIdsNoRenew(chapters, manga)
@@ -320,11 +353,11 @@ class FilteredDownloadCleanupService(
 
                 val staleIds = staleChapterIds.toHashSet()
                 val toDelete = rows.filterNot { it.chapterId in staleIds }.mapNotNull { stillHidden[it.chapterId] }
-                if (toDelete.isEmpty()) return@runCatching
+                if (toDelete.isEmpty()) return@forEach
                 // An unavailable extension cannot produce the chapter directory names, so nothing is
                 // guessed at: the rows stay queued and the next pass with the extension installed
                 // deletes them.
-                val source = sourceManager.get(manga.source) ?: return@runCatching
+                val source = sourceManager.get(manga.source) ?: return@forEach
 
                 // `deleteChapters` deletes by *directory name*, with no check that a chapter it keeps
                 // resolves to a different one, so a hidden chapter can share a directory with a
@@ -348,11 +381,11 @@ class FilteredDownloadCleanupService(
                     if (notDeletedChapterIds.isNotEmpty()) {
                         pendingDeletionRepository.deleteByChapterIds(notDeletedChapterIds)
                     }
-                    return@runCatching
+                    return@forEach
                 }
                 // The last veto read before the files go: the reads above take time, and the switch is
                 // a main-thread callback that can land in the middle of them.
-                if (!downloadPreferences.removeFilteredDownloads.get()) return@runCatching
+                if (!downloadPreferences.removeFilteredDownloads.get()) return@forEach
 
                 deleteDownloads(safe, manga, source)
 
@@ -364,8 +397,9 @@ class FilteredDownloadCleanupService(
                 val removedChapterIds = safe.map { it.id }.filterNot { it in stillDownloaded }
                 val rowsToDrop = notDeletedChapterIds + removedChapterIds
                 if (rowsToDrop.isNotEmpty()) pendingDeletionRepository.deleteByChapterIds(rowsToDrop)
-            }.onFailure { e ->
-                if (e is CancellationException) throw e
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
                 xLogE("Failed to delete filtered downloads of manga $mangaId", e)
             }
         }

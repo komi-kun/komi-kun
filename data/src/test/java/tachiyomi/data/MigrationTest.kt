@@ -459,6 +459,28 @@ class MigrationTest {
                 driver.columnIsNotNull("pending_download_deletion", "first_hidden_at") shouldBe 1L
                 driver.columnIsNotNull("pending_download_deletion", "chapter_url") shouldBe 1L
 
+                // the indices the per-pass scans use, read off the migrated table: without them every
+                // hourly sweep and every stale-row drop reads the whole queue. A name is what proves
+                // the index exists at all; `unique = 0` is what keeps `INSERT OR IGNORE`'s duplicate
+                // chapter id a no-op instead of an aborted sweep.
+                val migratedIndices = driver.indexList("pending_download_deletion")
+                migratedIndices shouldBe listOf(
+                    "pending_download_deletion_first_hidden_at" to 0L,
+                    "pending_download_deletion_manga_id" to 0L,
+                )
+
+                // and a fresh install gets the same ones: the indices live in `pendingDownloadDeletion.sq`
+                // as well as in `66.sqm`, and only that file is what `Schema.create` runs. A migration
+                // that drifted from the `.sq` file would leave upgraded installs (or fresh ones) with a
+                // different set, so the two are compared rather than each checked against a literal.
+                val freshDriver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+                try {
+                    Database.Schema.create(freshDriver).await()
+                    freshDriver.indexList("pending_download_deletion") shouldBe migratedIndices
+                } finally {
+                    freshDriver.close()
+                }
+
                 // the queue an upgraded install actually gets: one row in, the same row out, with a
                 // millisecond stamp no rounding or seconds/milliseconds slip would survive, and the
                 // chapter url that identifies the chapter past a rowid reuse carried intact
@@ -512,6 +534,22 @@ class MigrationTest {
             val names = mutableListOf<String>()
             while (cursor.next().value) names += cursor.getString(0)!!
             QueryResult.Value<List<String>>(names.toList())
+        },
+        0,
+    ).value
+
+    /**
+     * `(name, "unique")` per explicit index on [table], from `PRAGMA index_list`, ordered by name.
+     * An `INTEGER PRIMARY KEY` is a rowid alias, so no implicit index shows up and the list is exactly
+     * the indices the schema declares.
+     */
+    private fun SqlDriver.indexList(table: String): List<Pair<String, Long>> = executeQuery(
+        null,
+        "SELECT name, \"unique\" FROM pragma_index_list('$table') ORDER BY name",
+        { cursor ->
+            val indices = mutableListOf<Pair<String, Long>>()
+            while (cursor.next().value) indices += cursor.getString(0)!! to cursor.getLong(1)!!
+            QueryResult.Value<List<Pair<String, Long>>>(indices.toList())
         },
         0,
     ).value

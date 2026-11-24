@@ -19,6 +19,14 @@ CREATE TABLE pending_download_deletion(
     chapter_url TEXT NOT NULL
 );
 
+-- The two columns every pass filters on: `first_hidden_at` is the expiry cutoff of each hourly sweep,
+-- `manga_id` is what a per-group expiry and the stale-row drops delete by. Without them both scans
+-- read the whole queue.
+CREATE INDEX IF NOT EXISTS pending_download_deletion_first_hidden_at
+    ON pending_download_deletion (first_hidden_at);
+CREATE INDEX IF NOT EXISTS pending_download_deletion_manga_id
+    ON pending_download_deletion (manga_id);
+
 -- OR IGNORE is what makes the timestamp the *first* time: a chapter that is still hidden on the next
 -- pass keeps the time it was first recorded with, instead of restarting the grace period every run.
 insert:

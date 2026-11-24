@@ -113,6 +113,29 @@ class DownloadCache(
     @Volatile
     private var rootDownloadsDir = RootDirectory(null)
 
+    // KUN -->
+    /**
+     * Set where the index is really filled in — the disk-cache load in `init` and the walk in
+     * [renewCache] — and never cleared: an index that has been built once stays usable (stale at
+     * worst) for the rest of the process, while the [RootDirectory] stub the class starts with is
+     * exactly the "no index" state this reports. It is not derived from the index being empty, so a
+     * genuinely empty library counts as built.
+     *
+     * Deliberately not `lastRenew != 0L`: that stamp is also written by [renewCache]'s completion
+     * handler for a renewal that *failed*, which leaves the empty stub in place — reporting that as
+     * "built" is the false positive a caller trusting an empty index must not get.
+     */
+    @Volatile
+    private var indexBuilt = false
+
+    /**
+     * Whether something in this process has built the downloads index, i.e. whether the lookups that
+     * never renew ([getMangaWithDownloads], [getDownloadedChapterIdsNoRenew]) see real data rather
+     * than the empty stub. A pure read: it never touches the filesystem and never starts a build.
+     */
+    fun isIndexBuilt(): Boolean = indexBuilt
+    // KUN <--
+
     init {
         // Attempt to read cache file
         initJob = scope.launch(Dispatchers.IO) {
@@ -124,6 +147,10 @@ class DownloadCache(
                         }
                         rootDownloadsDir = diskCache
                         lastRenew = System.currentTimeMillis()
+                        // KUN -->
+                        // Loaded from disk, so the lookups above have real data from here on.
+                        indexBuilt = true
+                        // KUN <--
                     }
                 } catch (e: Throwable) {
                     logcat(LogPriority.ERROR, e) { "Failed to initialize from disk cache" }
@@ -563,6 +590,10 @@ class DownloadCache(
                     .awaitAll()
 
                 rootDownloadsDir = updatedRootDir
+                // KUN -->
+                // The walk completed, so the index is built even if the tree turned out to be empty.
+                indexBuilt = true
+                // KUN <--
             }
 
             _isInitializing.emit(false)
