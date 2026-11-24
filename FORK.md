@@ -1,10 +1,10 @@
 # komi-kun — personal fork of Komikku
 
-This repository is a **personal vendoring fork of [Komikku](../AGENTS.md)**. It intends to stay a
-superset of Komikku while also tracking two further upstreams. This file documents the upstreams,
-the provenance markers, and the workflow that keeps future porting cheap. `AGENTS.md` is still the
-mandatory rulebook for code style, markers and i18n — read it first; this file only adds the fork's
-upstream topology.
+This repository is a **personal vendoring fork of
+[Komikku](https://github.com/komikku-app/komikku)**. It intends to stay a superset of Komikku while also
+tracking two further upstreams. This file documents the upstreams, the provenance markers, and the
+workflow that keeps future porting cheap. `AGENTS.md` is still the mandatory rulebook for code style,
+markers and i18n — read it first; this file only adds the fork's upstream topology.
 
 ## Upstreams
 

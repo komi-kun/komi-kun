@@ -49,7 +49,7 @@ They go before the command. Quote `?` in zsh (`--status '?'`).
 |--------|---------|
 | Status | `O` cherry-picked into the target branch · `?` maybe, needs review (including commits that cancel each other out, see [Revert chains](#revert-chains-flagged-)) · empty (written as one space so the raw table stays aligned) = not found · `X` won't pick (set by hand, or version-bump-only commits, see [Omitted commits](#omitted-commits-x)) |
 | Commit | Short hash, linked to the full GitHub commit. The script reads the full hash back from this link, so don't edit it |
-| Upstream | `mihon`, `tachiyomiSY`, or `↳ tachiyomiSY` for SY's copy of the mihon commit directly below it |
+| Upstream | `mihon`, `tachiyomiSY`, `komikku`, or `↳ <name>` for that upstream's copy of the mihon commit directly below it |
 | Date | Committer date, i.e. when the commit landed on that upstream branch (ISO) |
 | Title / Author | First line of the commit message and its author |
 | Details | Generated on every run: why the row is listed (`repo-wide: …`, only with [path filters](#path-filters-optional)), how it was paired and how its status was found (see below) |
@@ -61,16 +61,47 @@ Only **Status** and **Notes** are yours to edit. Every other cell, the order of 
 
 An empty or `?` status means **"no pick was detected"**, not "not in the tree".
 
-Ports in this fork land as **squash merges**, so they carry no `cherry picked from commit <sha>`
-trailer and the `hash of` detector never fires; the fork's history was also vendored, so `mihon/main`
-is not an ancestor and `in history as …` never fires either. A blank row is the script reporting that it
-could not *see* the pick — it is not evidence the change is missing. Decide presence by content: see
+Ports in this fork land as **squash merges**, so a squashed pick carries no `cherry picked from commit <sha>`
+trailer and `hash of` cannot see it; the fork's history was also vendored, so `mihon/main` is not an ancestor and
+`in history as mihon` never fires. A blank row is the script reporting that it could not *see* the pick — it is
+not evidence the change is missing. Komikku rows are the exception: the base is merged, not squashed, so
+`in history as komikku` and `hash of komikku` do mark them `O`. Decide presence by content: see
 "Verify presence by content, not by the log" in the `upstream-port` skill.
 
 Because of that, **mark the rows of every squash-merged port** with
 `mark HASH --status O --note "…"` as part of the port, not as a later cleanup. Re-adjudicating the blank
 rows from scratch after each squash merge is the waste this note exists to prevent, and it is what
 turns the blank count in the summary table into a phantom backlog.
+
+## Komikku as a cherry-pick source
+
+`komikku` (`komikku-app/komikku`, the fork's parent) is a cherry-pick source like the other two: it is an
+`additional_upstreams` entry in `config.json`, with the same `name` / `remote` / `branch` / `github` keys, and its
+rows are listed and marked like any other upstream's. `uncertain --repo komikku` filters to them (the `↳` of a copy
+row is stripped before the comparison), `mark HASH` takes any row, whatever its upstream, and a Komikku commit that
+copies a mihon commit is paired with it by the [rules above](#pairing-sy-commits-with-mihon-commits) — they apply to
+every additional upstream, not just SY — and shown as `↳ komikku`, sharing its original's status.
+
+Komikku is still the **base** upstream, not a peer, so it gets its own `since` (`2026-10-08` here, close to the
+current base commit — the global `2024-01-01` would list every Komikku commit back to 2024). Note that `--since`
+sets only the global date: a per-upstream `since` still wins for that upstream's rows.
+
+The default is not to cherry-pick Komikku commit by commit. The fork's `master` descends from a Komikku commit and
+is normally advanced by merging `komikku/master` on a feature branch, which is what the `komikku-sync` skill does.
+Cherry-pick single Komikku commits when you want one change **without** taking the base forward — a fix the fork
+needs now while a full sync waits, or a partial sync — which is what `komikku-sync` falls back to for the commits it
+does want (`git cherry-pick -x`, then adapt to the fork).
+
+The two interact, so check the log before picking:
+
+- A commit a sync already merged is reachable from `master`, so its row is `O` with `in history as komikku`.
+  Don't pick it again: the merge brought the change, and the pick would duplicate it.
+- After a sync, advance Komikku's `since` in `config.json` to the new base commit's date and re-run the generator
+  (`komikku-sync`, step 5): once `since` moves past the merged commits they are no longer listed, so their rows drop
+  out of the log. A Komikku commit older than `since` therefore has no row to mark — decide it by content instead.
+- A picked Komikku commit keeps its `(cherry picked from commit <sha>)` trailer as the pick evidence, and the
+  markers follow `AGENTS.md`: Komikku code is `// KMK` (`-- KMK -->` in `.sq` / `.sqm`), and anything the fork
+  adapts is a nested `// KUN` block. `// KMK` never means the fork wrote it.
 
 ## Rules
 
@@ -229,16 +260,17 @@ templates). Their note is `AI checked <date>: omitted - version bump only (<file
 | `exclude_identity_regex` | Case-insensitive regex matched against author, committer and co-authors (this fork: `renovate`). Empty = exclude nothing |
 | `main_upstream` | `{name, remote, branch, github}` of the main upstream, plus the optional keys below. Its commits set the order of the list. Required |
 | `additional_upstreams` | List of one or more `{name, remote, branch, github, since?}` (or the extra optional keys) to interleave with the main upstream's. Names must be unique. The optional per-upstream `since` (`YYYY-MM-DD`) overrides the global one for that upstream |
-
-A **base / merge upstream** (in this fork: `komikku`, the project it is forked from) is listed as an
-additional upstream too. Its commits are *merged* into `master`, not cherry-picked, so the generator
-marks them `O` automatically once their hash is reachable from the target branch. Give it its own
-`since` close to the current base commit — otherwise every Komikku commit back to the global `since`
-would be listed — and advance that `since` whenever you sync the base forward.
 | `exclude_only_paths` | Per upstream, optional. List of repo-relative directories or files (leading / trailing `/` ignored). That upstream's commits that only change files under them are not listed ([Path filters](#path-filters-optional)). This fork: not set |
 | `repo_wide_min_modules` | Per upstream, optional, whole number. A commit dropped by `exclude_only_paths` is kept as repo-wide when it touches at least this many modules. `0` or absent = off. This fork: not set |
 | `partial_check_paths` | Per upstream, optional. List of repo-relative directories or files. A pick of that upstream's commits must carry its files under them to count as `O` ([Partial picks](#partial-picks)). Absent = all files. This fork: not set |
 | `partial_ignore_paths` | Per upstream, optional. List of repo-relative directories or files that a pick needn't carry. This fork: `CHANGELOG.md` and the SQLDelight `migrations/` folder on mihon |
+
+A **base / merge upstream** (in this fork: `komikku`, the project it is forked from) is listed as an
+additional upstream too. Its commits are *merged* into `master`, not cherry-picked, so the generator
+marks them `O` automatically once their hash is reachable from the target branch (`in history as komikku`).
+Give it its own `since` close to the current base commit — otherwise every Komikku commit back to the global
+`since` would be listed — and advance that `since` whenever you sync the base forward. When a single Komikku
+commit does need cherry-picking, see [Komikku as a cherry-pick source](#komikku-as-a-cherry-pick-source).
 
 Tuning constants (similarity threshold, date limits, minimum title words, module folders) are at the top of the script.
 
