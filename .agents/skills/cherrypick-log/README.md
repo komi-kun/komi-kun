@@ -4,8 +4,8 @@ Tracks which upstream commits still need to be cherry-picked into this fork.
 
 - **Output:** [`cherrypick_log.md`](../../../cherrypick_log.md) in the repo root, a Markdown table with one row per upstream commit.
 - **Generator:** `update_cherrypick_log.py`. This is deterministic Python 3.9+ that needs only the standard library and `git`.
-- **AI review:** `SKILL.md`, a Claude Code skill (`/cherrypick-log`). It runs the generator and then resolves the
-  rows the generator couldn't decide (`?`) by comparing code.
+- **AI review:** `SKILL.md`, the `cherrypick-log` skill in `.agents/skills/`. It runs the generator and then
+  resolves the rows the generator couldn't decide (`?`) by comparing code.
 - **Settings:** `config.json`.
 
 The script decides everything that has a mechanical answer: the list itself, its order, the filters, matching
@@ -18,8 +18,7 @@ script's `mark` command, so the table can't be corrupted.
 # 1. Fetch upstreams and regenerate cherrypick_log.md (safe to run any time)
 python3 .agents/skills/cherrypick-log/update_cherrypick_log.py
 
-# 2. In Claude Code, let the AI review the uncertain rows
-/cherrypick-log review the ? rows
+# 2. Ask the agent to use the cherrypick-log skill to review the uncertain rows
 
 # 3. Pick commits, then mark them yourself (or edit the Status / Notes cells by hand)
 python3 .agents/skills/cherrypick-log/update_cherrypick_log.py mark 1a2b3c4d --status O
@@ -61,12 +60,16 @@ Only **Status** and **Notes** are yours to edit. Every other cell, the order of 
 
 An empty or `?` status means **"no pick was detected"**, not "not in the tree".
 
-Ports in this fork land as **squash merges**, so a squashed pick carries no `cherry picked from commit <sha>`
-trailer and `hash of` cannot see it; the fork's history was also vendored, so `mihon/main` is not an ancestor and
-`in history as mihon` never fires. A blank row is the script reporting that it could not *see* the pick — it is
-not evidence the change is missing. Komikku rows are the exception: the base is merged, not squashed, so
-`in history as komikku` and `hash of komikku` do mark them `O`. Decide presence by content: see
-"Verify presence by content, not by the log" in the `upstream-port` skill.
+The detectors fire unevenly here. `hash of` marks most rows `O`: a squash keeps the
+`(cherry picked from commit <sha>)` trailer whenever the port message carried it (several of this fork's port
+commits do), and the vendored base carries SY's own pick commits as ancestors, trailers and all. `in history as
+tachiyomiSY` fires for those inherited commits. `in history as mihon` never fires, because `mihon/main` is not
+an ancestor. `in history as komikku` effectively does not either: older Komikku commits are ancestors too, but
+Komikku's `since` starts at the base commit, so none of those ancestors is a listed row — the base commit itself
+is not one either (0 rows in `cherrypick_log.md`) — so the detector never matches: a Komikku row is `O` by
+`hash of komikku` or by hand. A blank row is the script reporting that it could not *see* the pick — it is not
+evidence the change is missing. Decide presence by content: see "Verify presence by content, not by the log" in
+the `upstream-port` skill.
 
 Because of that, **mark the rows of every squash-merged port** with
 `mark HASH --status O --note "…"` as part of the port, not as a later cleanup. Re-adjudicating the blank
@@ -94,8 +97,9 @@ does want (`git cherry-pick -x`, then adapt to the fork).
 
 The two interact, so check the log before picking:
 
-- A commit a sync already merged is reachable from `master`, so its row is `O` with `in history as komikku`.
-  Don't pick it again: the merge brought the change, and the pick would duplicate it.
+- A commit a sync already merged is `O` with `in history as komikku` only when the merge reached `master` as a
+  merge commit; a squash-merged sync leaves no ancestry, so its row stays blank and needs a hand mark. Don't
+  pick it again either way: the merge brought the change, and the pick would duplicate it.
 - After a sync, advance Komikku's `since` in `config.json` to the new base commit's date and re-run the generator
   (`komikku-sync`, step 5): once `since` moves past the merged commits they are no longer listed, so their rows drop
   out of the log. A Komikku commit older than `since` therefore has no row to mark — decide it by content instead.
@@ -266,11 +270,13 @@ templates). Their note is `AI checked <date>: omitted - version bump only (<file
 | `partial_ignore_paths` | Per upstream, optional. List of repo-relative directories or files that a pick needn't carry. This fork: `CHANGELOG.md` and the SQLDelight `migrations/` folder on mihon |
 
 A **base / merge upstream** (in this fork: `komikku`, the project it is forked from) is listed as an
-additional upstream too. Its commits are *merged* into `master`, not cherry-picked, so the generator
-marks them `O` automatically once their hash is reachable from the target branch (`in history as komikku`).
+additional upstream too, but it does not get `O` for free: `in history as komikku` fires only for a listed
+commit that is an ancestor of the target branch, and no Komikku commit that is an ancestor of `master` here is
+a listed row. So a Komikku row is `O` through `hash of komikku` (the port kept the trailer) or a hand mark.
 Give it its own `since` close to the current base commit — otherwise every Komikku commit back to the global
 `since` would be listed — and advance that `since` whenever you sync the base forward. When a single Komikku
-commit does need cherry-picking, see [Komikku as a cherry-pick source](#komikku-as-a-cherry-pick-source).
+commit does need cherry-picking, see
+[Komikku as a cherry-pick source](#komikku-as-a-cherry-pick-source).
 
 Tuning constants (similarity threshold, date limits, minimum title words, module folders) are at the top of the script.
 

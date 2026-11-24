@@ -34,10 +34,12 @@ python3 .agents/skills/cherrypick-log/update_cherrypick_log.py uncertain --json 
 The Status column is **not** a presence check in this fork. Reading it as one invents a phantom
 backlog: hundreds of blank rows in `cherrypick_log.md` against a fork that is days behind upstream.
 
-- **Ports land as squash merges.** A squashed port has no `cherry picked from commit <sha>` trailer, so
-  the script's `hash of` detector never fires — `git cherry-pick -x` output does not survive the merge.
-- **`mihon/main` is not an ancestor.** The history was vendored, so `git rev-list master` never reaches
-  an upstream commit and `in history as mihon` never fires either.
+- **Ports land as squash merges.** A squashed port keeps a `cherry picked from commit <sha>` trailer only
+  when the port message carried it, so `hash of` sees some picks and not others — `git cherry-pick -x`
+  output does not survive a squash that drops it.
+- **`mihon/main` is not an ancestor.** The history was vendored, so `git rev-list master` reaches no
+  `mihon/main` commit and `in history as mihon` never fires; the vendored base's own SY commits are
+  reachable, so `in history as tachiyomiSY` does fire for those.
 - The rest (`owner/repo#N` in a commit line, `title+author`) only match a pick whose message quoted the
   PR or kept the title. A squash with a rewritten title is invisible to all of them.
 
@@ -52,10 +54,10 @@ Keep added lines of at least 28 characters, drop `import` / `package` / comment-
 collide across files and prove nothing), and grep them against the target branch. The score is a lead,
 not a verdict:
 
-- **Open the target file before writing ABSENT.** Hunks get relocated between modules: upstream puts the
-  new `ChapterCache` at `app/src/main/java/mihon/data/cache/ChapterCache.kt`, this fork keeps it at
-  `app/src/main/java/eu/kanade/tachiyomi/data/cache/ChapterCache.kt`. A path-based grep misses changes
-  the fork has.
+- **Open the target file before writing ABSENT.** Hunks get relocated between modules: upstream puts
+  `WindowSize` at `presentation-core/src/main/java/mihon/presentation/core/util/WindowSize.kt`, this fork
+  keeps it at `app/src/main/java/eu/kanade/presentation/util/WindowSize.kt`. A path-based grep misses
+  changes the fork has.
 - **A low score never proves absence for code written 1–2 years ago.** Those files have been rewritten
   (Compose migrations, package moves, SY cleanups), so the same behaviour sits on different lines now.
   Check behaviour and symbols instead — the symbol name, the preference key, the SQL view, the string,
@@ -79,8 +81,8 @@ git checkout -b chore/upstream-<what> master
 git cherry-pick -x <sha>        # chronological order; earlier commits unblock later ones
 ```
 
-- Keep the `(cherry picked from commit <sha>)` trailer. It is the only pick evidence in the commit
-  message, and the squash merge drops it, so the log still needs a manual `mark`.
+- Keep the `(cherry picked from commit <sha>)` trailer. It is the pick evidence in the commit message, but a
+  squash merge keeps it only when the squash message carries it, so the log still needs a manual `mark`.
 - Resolve conflicts by adapting to the fork — **never revert Komikku/SY features**.
 - If a port needs local changes, wrap the delta (step 3).
 
@@ -117,14 +119,16 @@ git cherry-pick -x <translation-commit>
 
 The fork's locale files diverge from upstream's in both directions (Komikku kept keys Mihon removed,
 and the files are missing newer upstream keys). Run the helper after the cherry-pick stops with
-conflicts (or right after a `--no-commit` pick, before adding): it rewrites every moko-resources file
-the commit touches — including ones git merged without a conflict — keeping upstream's values,
-dropping entries for strings removed from the fork's `base/`, re-appending the fork-only entries
-that still exist in `base/` (including `plurals`), and keeping hand-corrected entries framed with
-`<!-- KUN -->` … `<!-- KUN -->` at HEAD's value:
+conflicts, or right after a `--no-commit` pick before adding — in that case name the picked commit with
+`--theirs`, because `git cherry-pick -n` records no `CHERRY_PICK_HEAD` and the helper exits 2 without
+one. It rewrites every moko-resources file the commit touches — including ones git merged without a
+conflict — keeping upstream's values, dropping entries for strings removed from the fork's `base/`,
+re-appending the fork-only entries that still exist in `base/` (including `plurals`), and keeping
+hand-corrected entries framed with `<!-- KUN -->` … `<!-- KUN -->` at HEAD's value:
 
 ```bash
-python3 .agents/skills/upstream-port/scripts/resolve_i18n_union.py    # all moko files changed by the pick
+python3 .agents/skills/upstream-port/scripts/resolve_i18n_union.py                 # conflicted pick: reads CHERRY_PICK_HEAD
+python3 .agents/skills/upstream-port/scripts/resolve_i18n_union.py --theirs <sha>  # after a `git cherry-pick -n`
 ```
 
 Then check that nothing was lost: every key in the fork's `base` that was translated before must still
@@ -148,6 +152,6 @@ sync, not new fork code.
 
 - Open a PR from the feature branch to `master` (**never** push `master`).
 - After the port is merged, mark its rows with the script's `mark` command (`cherrypick-log` README) —
-  never hand-edit the table. Refreshing the log is **not** enough: the squash merge dropped every
+  never hand-edit the table. Refreshing the log is **not** enough: the squash merge can drop the
   trailer, so the rows stay blank and the next reader mistakes them for a backlog.
 - If a whole class of markers was wrong, fix it in the same PR rather than leaving it stale.

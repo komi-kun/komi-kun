@@ -16,10 +16,12 @@ Verified against the remotes on 2026-11-18, before the window in §2 is merged:
 | `komikku/master` | `290267dd4c` | 2026-11-16 |
 
 The window itself is the branch `chore/upstream-window-and-deps`, based on `9624dc3187`. Its rows are
-**hand-marked** in the log: ports land here as squash merges with no `cherry picked from commit` trailer, and
-`mihon/main` is not an ancestor of `master` (vendored history), so neither detector can fire. A blank row is
-therefore never evidence that a change is missing — adjudicate presence by content, per "Verify presence by
-content, not by the log" in the `upstream-port` skill, and never from the Status column alone.
+**hand-marked** in the log (the window is not in `master` yet, so the script cannot see the picks): a port's
+`(cherry picked from commit <sha>)` trailer does reach `master` when the port message carried it — 67 of the 77
+commits above the Komikku base have one, so `hash of` fires — and what cannot fire is `in history as mihon`,
+because `mihon/main` is not an ancestor of `master` (vendored history). A blank row is therefore never
+evidence that a change is missing — adjudicate presence by content, per "Verify presence by content, not by
+the log" in the `upstream-port` skill, and never from the Status column alone.
 
 ## 2. The 2026-11-18 window — `chore/upstream-window-and-deps`
 

@@ -6,8 +6,9 @@ description: Build, publish and wire the PaddleOCR native artifact that :core:oc
 # Releasing the OCR native artifact
 
 `:core:ocr` uses **our own** Apache-2.0 PaddleOCR artifact — not the opaque zip Chimahon ships. It lives
-in the GitHub repo **`komi-kun/komi-kun-ocr-models`** (releases tagged like `ocr-models-v5`), and the
-app fetches it at build time and verifies every SHA-256.
+in the GitHub repo **`komi-kun/komi-kun-ocr-models`** (native artifacts use `ocr-native-vN` going
+forward; the current pin keeps the legacy name `ocr-models-v5`), and the app fetches it at build time
+and verifies every SHA-256.
 
 ## What the artifact is
 
@@ -28,7 +29,8 @@ native pin it is today.
 
 Current native artifact: **`ocr-models-v5`** (ONNX Runtime + PP-OCRv6 small). `v5` is a **shim-only**
 rebuild over `ocr-models-v4`'s model bytes — the same ONNX models and runtime, with `libpaddle_ocr.so`
-taking the detector long side as a 7th `nativeProcess` argument (`maxSideLen`).
+taking the detector long side as a 7th `nativeProcess` argument (`maxSideLen`). Its tag is a **legacy
+name**, kept as-is — a new native cut is `ocr-native-vN`.
 
 The runtime releases are a 2×2 matrix. Every release publishes the **same file names** — the detector
 `ppocrv6_small_det.onnx` is shared by all four — so only the tag identifies the bytes:
@@ -79,7 +81,8 @@ exists" — is what says which weights are on disk (the engine keys its reload o
 # in a clone of komi-kun/komi-kun-ocr-models
 ./build.sh                       # builds libpaddle_ocr.so per ABI (+ libomp + libonnxruntime) and stages assets
 ./build.sh --manifest-only       # regenerate manifest.json / app-paddle-manifest.json
-gh release create ocr-models-v<n> <staged-assets> --title "OCR models v<n>"
+# native tags are ocr-native-vN — do not continue the legacy `ocr-models-v*` numbering
+gh release create ocr-native-v<n> <staged-assets> --title "OCR native v<n>"
 ```
 
 Assets are published **flat** (`arm64-v8a_libpaddle_ocr.so`, `arm64-v8a_libonnxruntime.so`,

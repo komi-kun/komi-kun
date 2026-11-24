@@ -17,7 +17,9 @@ to **Komikku**. Details: `NOTICE`, `LICENSES/GPL-3.0-or-later.txt`, and the impl
   (`eu.kanade…viewer.{pager,webtoon,webgpu}` OCR classes) and `eu.kanade.presentation.reader.OcrOverlay`.
 - **GPL-free seam files** (Apache, contract §1.3): `mihon.dictionary.host.ReaderDictionaryHost`,
   `eu.kanade.tachiyomi.ui.reader.ocr.{OcrViewport,ReaderOcrHost}`,
-  `tachiyomi.core.common.ocr.ReaderOcrSource`, and the listed `ReaderActivity`/`ReaderViewModel`/
+  `eu.kanade.tachiyomi.ui.reader.{ReaderOcrTogglePolicy,ReaderOcrOverlayPolicy}`,
+  `tachiyomi.core.common.ocr.ReaderOcrSource`, `tachiyomi.core.common.preference.DictionaryOcrPreferences`,
+  and the listed `ReaderActivity`/`ReaderViewModel`/
   `ReaderPreferences`/`ReaderBottomButton`/`ReaderAppBars`/`Chapter`/`ChapterUpdate`/`54.sqm`/
   `chapter.sq`/`ChapterMapper` files. These must **reference no GPL code** — no import, no
   same-package use, no fully qualified use (the guard below enforces all three).

@@ -22,7 +22,9 @@ For other dependency forks (e.g. `komi-kun/UniFile`) use `unifile-sync`; for the
 
 Our fork carries a few commits on top of the base (`Manhhao/hoshidicts`) — keep them, or the Android/CI build breaks:
 
-- `.gitmodules`: `external/utf8proc` URL is **HTTPS** (upstream uses `git@github.com:…`, which fails CI).
+- `.gitmodules`: `external/utf8proc` URL is **HTTPS**. It was `git@github.com:…` at the base commit we
+  pinned (that is what fails CI); upstream has since switched it to HTTPS itself (`f9aa482`), so keep
+  the fork's HTTPS URL either way.
 - `CMakeLists.txt`: `HOSHIDICTS_BUILD_CLI` / `HOSHIDICTS_BUILD_BENCHMARKS` options gate the optional
   targets (default `OFF`).
 - Host-portability includes (`<cstdint>` in `include/hoshidicts/query.hpp`, `<climits>` in
@@ -31,7 +33,8 @@ Our fork carries a few commits on top of the base (`Manhhao/hoshidicts`) — kee
 Procedure:
 
 ```bash
-# in a clone of komi-kun/hoshidicts (remotes: origin = our fork, upstream = Manhhao/hoshidicts)
+# in a clone of komi-kun/hoshidicts (origin = our fork)
+git remote add upstream https://github.com/Manhhao/hoshidicts.git 2>/dev/null || true
 git fetch upstream && git log --oneline HEAD..upstream/main     # what's new
 git rebase upstream/main                                        # replay our 3 guard commits
 cmake -S . -B build -DHOSHIDICTS_BUILD_CLI=OFF -DHOSHIDICTS_BUILD_BENCHMARKS=OFF \
@@ -102,17 +105,29 @@ git cherry-pick 792aef3b6886343ee38a9140eefdc98114869dfd
 git tag -m "${NEW_TAG}: upstream ${UPSTREAM_TAG} + ocr transform accessors" ${NEW_TAG}
 env -u SSH_AUTH_SOCK git push fork feat/ocr-transform-accessors-${UPSTREAM_TAG} ${NEW_TAG}
 
-# 7. Publish to a temporary Maven local repo
-PUBLISH_VERSION=${NEW_TAG} ./gradlew :library:publishMavenPublicationToMavenLocal -Dmaven.repo.local=/tmp/webgpu-m2
+# 7. Publish the release AAR locally as `ca.mpreg:webgpuviewer:${NEW_TAG}` (~/.m2/repository/…).
+#    There is no PUBLISH_VERSION: library/build.gradle.kts:13-19 takes the version from
+#    GITHUB_REF_NAME when GITHUB_REF_TYPE=tag, else "<short-sha>-SNAPSHOT" — so pass both.
+GITHUB_REF_TYPE=tag GITHUB_REF_NAME=${NEW_TAG} ./gradlew :library:publishToMavenLocal
 ```
 
 ### Update the komi-kun App Repository
 
-1. Replace the vendored artifacts under `maven/`:
+1. Re-group the fork's artifact into the coordinate the catalog resolves —
+   `com.github.komi-kun.webgpuviewer:library` (`gradle/libs.versions.toml:88`). The fork publishes
+   `ca.mpreg:webgpuviewer` (`library/build.gradle.kts:101`), so copy its files, rename them
+   `library-<tag>.*`, and rewrite the artifact's own GAV in the `.pom` (`<groupId>`/`<artifactId>`) and the
+   `.module` — `component.group`/`component.module` and every `variants[].files[].name`/`url`, which still name
+   the published `webgpuviewer-<tag>.*` (names only, so `size`/`sha*` stay valid); leave dependency coordinates
+   alone. The `.aar`/`.jar` bytes are unchanged.
    ```bash
    rm -rf maven/com/github/komi-kun/webgpuviewer/library/ocr-accessors-*
    mkdir -p maven/com/github/komi-kun/webgpuviewer/library/${NEW_TAG}
-   cp -r /tmp/webgpu-m2/com/github/komi-kun/webgpuviewer/library/${NEW_TAG}/* maven/com/github/komi-kun/webgpuviewer/library/${NEW_TAG}/
+   cp ~/.m2/repository/ca/mpreg/webgpuviewer/${NEW_TAG}/webgpuviewer-${NEW_TAG}* \
+     maven/com/github/komi-kun/webgpuviewer/library/${NEW_TAG}/
+   cd maven/com/github/komi-kun/webgpuviewer/library/${NEW_TAG}
+   for f in webgpuviewer-${NEW_TAG}*; do mv "$f" "library-${f#webgpuviewer-}"; done
+   cd -
    ```
 
 2. Update `gradle/libs.versions.toml`:

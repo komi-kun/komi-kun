@@ -31,15 +31,22 @@ hashes/counts, so **corpus drift fails the PR build for free**.
 git clone --depth 1 https://github.com/yomidevs/yomitan.git /tmp/opencode/yomitan   # or git fetch
 git -C /tmp/opencode/yomitan rev-parse HEAD      # the new pinned commit
 
-# 2. regenerate (the script refuses unless the checkout HEAD matches the pinned commit, unless --update)
-node tools/yomitan-corpus/build.mjs --update --yomitan /tmp/opencode/yomitan --commit <sha>
+# 2. bump the pin: edit the hardcoded `YOMITAN` literal (commit/commitShort/version) in build.mjs
+#    — there is no `--commit` flag; the pin exists only in that literal
 
-# 3. review the JSONL diff (added/removed tuples, counts), then commit
+# 3. regenerate the JSONL + manifest.json (the manifest is written by this same run)
+#    the script refuses unless the checkout HEAD equals `YOMITAN.commit` — bypass with
+#    --skip-commit-check; a changed input hash is refused unless --update
+node tools/yomitan-corpus/build.mjs --yomitan /tmp/opencode/yomitan --skip-commit-check --update
+
+# 4. review the diff (added/removed tuples, counts), then commit
 git diff --stat core/dictionary/src/test/resources/yomitan/
 ```
 
 - Generators must stay **deterministic** — no timestamps; re-running must produce identical bytes.
-- The manifest records the Yomitan commit + the SHA-256 of inputs and outputs; keep it current.
+- The pin is the `YOMITAN` literal in `build.mjs`; the run above writes `manifest.json` itself (commit +
+  SHA-256/bytes/count of inputs and outputs). No separate manifest-refresh command exists —
+  `verify-manifest.mjs` only *checks* the manifest against the files.
 
 ## Verify
 
@@ -51,7 +58,14 @@ flock /tmp/opencode/gradle.lock ./gradlew :core:dictionary:testDebugUnitTest
 
 ## Notes
 
-- The corpus is a **schema/hash gate today**, not a runtime oracle — nothing yet feeds the tuples
-  through the native engine. Adding a T2 host-conformance (or emulator) runner that exercises
-  deinflection against these tuples is a known follow-up (see `docs/design/implementation/05-testing-and-anki.md`).
+- The schema/hash gate is `YomitanCorpusTest`; the corpus is also **executed** against the native
+  engine by the T2 runner `core/dictionary/src/test/java/…/corpus/YomitanEngineConformanceTest.kt`
+  (`./gradlew :core:dictionary:conformanceHostTest`). It builds a **host** copy of the
+  `hoshidicts_jni` bridge (the Android `.so` cannot load in a desktop JVM), deinflects every transform
+  tuple, runs the normalization expectations, and imports `lookup-ja.dict.jsonl` as a real dictionary
+  to assert `lookup-ja.jsonl`. It is not part of `testDebugUnitTest` (it needs a host C++ toolchain);
+  PR CI runs it in the path-filtered `conformance-t2` job. Engine gaps are committed per corpus row in
+  `engine-divergences-ja.json`, and the runner fails **both** on an unlisted failure and on a recorded
+  row that starts passing, so a refresh must re-derive that ledger (see
+  `docs/design/implementation/05-testing-and-anki.md` §A1.5).
 - The corpus is GPL-3.0-or-later (derived from Yomitan). Keep the provenance header/`manifest.spdx`.
