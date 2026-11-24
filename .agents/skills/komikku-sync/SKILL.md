@@ -5,9 +5,9 @@ description: Sync komi-kun's master forward from its base upstream, Komikku (kom
 
 # Syncing the Komikku base upstream
 
-komi-kun is a vendoring fork of **Komikku**; its `master` *is* a Komikku commit (see `FORK.md`'s
-upstream table — remote `komikku`, `komikku-app/komikku`). "Syncing" means moving `master` forward to
-include newer Komikku commits, on top of which the fork's own work sits.
+komi-kun is a vendoring fork of **Komikku**; its base is a Komikku commit, with the fork's own commits on
+top (see `FORK.md`'s upstream table — remote `komikku`, `komikku-app/komikku`). "Syncing" means moving that
+base forward to include newer Komikku commits, on top of which the fork's own work still sits.
 
 ## 1. See what is new
 
@@ -61,7 +61,9 @@ Open a PR from the feature branch to `master` (**never** push `master`).
 
 `cherrypick_log.md` tracks Komikku too (`.agents/skills/cherrypick-log/config.json` lists it as an
 additional upstream with its own `since`). After a sync, advance Komikku's `since` in `config.json`
-to the new base commit's date and re-run the generator so merged rows flip to `O`:
+to the new base commit's date and re-run the generator: the merged commits then leave the list, the
+script dropping the rows that fell out of the window rather than flipping them to `O`, a squash-merged
+sync leaving no ancestry to see them in `master`:
 
 ```bash
 python3 .agents/skills/cherrypick-log/update_cherrypick_log.py

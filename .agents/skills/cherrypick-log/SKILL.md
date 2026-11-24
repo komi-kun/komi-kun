@@ -48,8 +48,10 @@ python3 $P uncertain --json --details 'partial:'  # only the partial picks (READ
 ```
 
 Rows whose Notes already contain `AI checked` are skipped (use `--include-reviewed` to redo them).
-A `↳ tachiyomiSY` row is SY's copy of the mihon row directly below it. Both share one status, so
-review the mihon commit once and mark both rows.
+A `↳` row is a copy of its mihon commit, the next row of its group that is not a copy — with two
+secondary upstreams (`tachiyomiSY` then `komikku`, the order in `config.json`) the copies stack above
+it, so a `↳ tachiyomiSY` row can have a `↳ komikku` row between it and the mihon row. All the copies
+share one status, so review the mihon commit once and mark every row of the group.
 
 ## 3. Review each row
 
