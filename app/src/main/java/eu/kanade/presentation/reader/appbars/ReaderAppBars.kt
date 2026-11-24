@@ -113,6 +113,12 @@ fun ReaderAppBars(
         .surfaceColorAtElevation(3.dp)
         .copy(alpha = if (isSystemInDarkTheme()) 0.9f else 0.95f)
 
+    // KMK -->
+    // Keeps the chapter navigator and ExhUtils clear of side system navigation buttons and display cutouts
+    // (e.g. in landscape)
+    val navigatorInsets = WindowInsets.navigationBars.union(WindowInsets.displayCutout)
+    // KMK <--
+
     Column(modifier = Modifier.fillMaxHeight()) {
         AnimatedVisibility(
             visible = visible,
@@ -159,6 +165,9 @@ fun ReaderAppBars(
                     onClickRetryAllHelp = onClickRetryAllHelp,
                     onClickBoostPage = onClickBoostPage,
                     onClickBoostPageHelp = onClickBoostPageHelp,
+                    // KMK -->
+                    windowInsets = navigatorInsets.only(WindowInsetsSides.Horizontal),
+                    // KMK <--
                 )
             }
             // SY <--
