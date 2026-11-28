@@ -53,6 +53,7 @@ import exh.source.EH_PACKAGE
 import exh.source.ExhPreferences
 import exh.ui.login.EhLoginActivity
 import exh.util.nullIfBlank
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import logcat.LogPriority
 import mihon.app.di.appGraph
@@ -82,9 +83,11 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
-object SettingsEhScreen : SearchableSettings {
-    @Suppress("unused")
-    private fun readResolve(): Any = SettingsEhScreen
+// KUN -->
+// A route now, so it must be serializable for Navigation 3 to persist the back stack.
+@Serializable
+data object SettingsEhScreen : SearchableSettings {
+// KUN <--
 
     @ReadOnlyComposable
     @Composable
