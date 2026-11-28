@@ -6,6 +6,7 @@ import eu.kanade.tachiyomi.data.track.TrackerManager
 import eu.kanade.tachiyomi.data.track.myanimelist.dto.MALOAuth
 import exh.md.network.MangaDexSessionNotifier
 import exh.md.utils.MdUtil
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.mockk.every
 import io.mockk.just
@@ -17,6 +18,9 @@ import io.mockk.unmockkConstructor
 import io.mockk.verify
 import mihon.app.di.AppGraph
 import mihon.core.metro.GraphProvider
+import okhttp3.Call
+import okhttp3.Interceptor
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Protocol
 import okhttp3.Request
@@ -31,6 +35,7 @@ import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.InjektScope
 import uy.kohesive.injekt.api.addSingleton
 import uy.kohesive.injekt.registry.default.DefaultRegistrar
+import java.io.IOException
 
 /**
  * Runs the real [MdList.logout], which [exh.md.network.MangaDexLoginHelperTest] stubs.
@@ -79,6 +84,7 @@ class MdListTest {
         // The real notifier needs an Application and the Android notification APIs; only its use is checked here.
         mockkConstructor(MangaDexSessionNotifier::class)
         every { anyConstructed<MangaDexSessionNotifier>().dismiss() } just runs
+        every { anyConstructed<MangaDexSessionNotifier>().notifySessionExpired() } just runs
 
         mdList = MdList(TrackerManager.MDLIST)
     }
@@ -119,6 +125,57 @@ class MdListTest {
         sendThroughInterceptor().header("Authorization") shouldBe null
 
         verify(exactly = 1) { anyConstructed<MangaDexSessionNotifier>().dismiss() }
+    }
+
+    @Test
+    fun `a rejected refresh through the real interceptor fires the log-in-again notification`() {
+        // An access token that is expired, so the interceptor has to refresh it before sending anything;
+        // MdList wires the interceptor's `onSessionRejected` to the notifier, which is the only "log in
+        // again" signal the user gets.
+        mdList.interceptor.setAuth(
+            MALOAuth(
+                refreshToken = "refresh-token",
+                accessToken = "expired-access-token",
+                expiresIn = 900,
+                createdAt = System.currentTimeMillis() / 1000 - 3600,
+            ),
+        )
+
+        val failure = shouldThrow<IOException> { mdList.interceptor.intercept(rejectingRefreshChain()) }
+
+        failure.message shouldBe "MangaDex session expired, please log in again"
+        // The credentials are cleared by the rejection...
+        mdList.interceptor.token shouldBe null
+        tokenPreference.isSet() shouldBe false
+        // ...and the user is told, once.
+        verify(exactly = 1) { anyConstructed<MangaDexSessionNotifier>().notifySessionExpired() }
+    }
+
+    /**
+     * A chain whose token endpoint answers `invalid_grant`, i.e. the one refresh failure that means the
+     * session is dead; every other request would succeed.
+     */
+    private fun rejectingRefreshChain(): Interceptor.Chain {
+        val request = Request.Builder().url(MdUtil.baseUrl + "user/follows/manga").build()
+        val chainCall = mockk<Call> { every { isCanceled() } returns false }
+        return mockk {
+            every { request() } returns request
+            every { call() } returns chainCall
+            every { proceed(any()) } answers {
+                val sent = firstArg<Request>()
+                val rejected = sent.url.host == "auth.mangadex.org"
+                Response.Builder()
+                    .request(sent)
+                    .protocol(Protocol.HTTP_1_1)
+                    .code(if (rejected) 400 else 200)
+                    .message(if (rejected) "Bad Request" else "OK")
+                    .body(
+                        (if (rejected) """{"error":"invalid_grant"}""" else "{}")
+                            .toResponseBody("application/json".toMediaType()),
+                    )
+                    .build()
+            }
+        }
     }
 
     /** Sends a request through [MdList.interceptor] and returns it as it reached the network. */

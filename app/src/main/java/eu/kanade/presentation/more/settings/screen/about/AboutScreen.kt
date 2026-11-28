@@ -226,6 +226,7 @@ fun AboutScreen() {
                                                     downloadLink = result.release.downloadLink,
                                                     // KUN -->
                                                     digest = result.release.digest,
+                                                    // KUN <--
                                                 ),
                                             )
                                         },

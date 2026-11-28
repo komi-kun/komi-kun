@@ -121,6 +121,10 @@ sealed interface RecommendsArgs : JavaSerializable {
  * The recommendation screens take a [RecommendsArgs] / [BrowseRecommendsArgs] holding live `SManga` results, which cannot be
  * expressed as a kotlinx-serializable route. The route therefore carries the Java-serialized bytes
  * (both are `Serializable`, as they were for Voyager) so Navigation 3 can still persist the stack.
+ *
+ * A `ByteArray` property does not break `Navigator.push`'s "don't stack a route that is already on top"
+ * check: a data class compares an array property with `Arrays.equals`, so two routes built from equal
+ * arguments are equal. [RecommendsRouteIdentityTest] pins that, so it is not "fixed" by hand later.
  */
 @Serializable
 data class RecommendsRoute(val argsBytes: ByteArray) : NavKey {

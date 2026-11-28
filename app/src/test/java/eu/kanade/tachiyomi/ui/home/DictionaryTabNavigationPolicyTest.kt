@@ -87,8 +87,11 @@ class DictionaryTabNavigationPolicyTest {
         home shouldContainSource """DictionaryTabNavigationPolicy\.isVisible\(\s*it\s*,\s*dictionaryOcrEnabled\s*,\s*showNavDictionary\s*\)"""
         home shouldContainSource """DictionaryTabNavigationPolicy\.directEventTarget\(\s*dictionaryOcrEnabled\s*,\s*showNavDictionary\s*\)"""
         home shouldContainSource """DictionaryTabNavigationPolicy\.mustFallBackToLibrary\("""
-        // The tab itself must stay in the tab list and in the tab host's entry provider.
-        home shouldContainSource """TopLevelRoute\.Dictionary,"""
+        // The tab itself must stay in the tab list — pinned inside the `TABS` declaration, because
+        // `TopLevelRoute.Dictionary,` also occurs in an unrelated argument (`currentIsDictionary = …`),
+        // so a bare match stays green when the tab is dropped from the list — and in the tab host's
+        // entry provider.
+        home shouldContainSource """private val TABS: List<TopLevelRoute> = listOf\([^)]*TopLevelRoute\.Dictionary,[^)]*\)"""
         home shouldContainSource """entry<TopLevelRoute\.Dictionary>"""
     }
 }
@@ -102,4 +105,3 @@ private infix fun String.shouldContainSource(pattern: String) {
         fail("expected the source to contain /$pattern/")
     }
 }
-// KUN <--

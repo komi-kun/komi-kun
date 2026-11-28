@@ -1,5 +1,6 @@
 package mihon.core.navigation
 
+import androidx.compose.runtime.remember
 import androidx.navigation3.runtime.EntryProviderScope
 import androidx.navigation3.runtime.NavKey
 import eu.kanade.presentation.more.settings.screen.DiscordAccountsScreen
@@ -78,6 +79,10 @@ import eu.kanade.tachiyomi.ui.webview.WebViewScreen
 import exh.debug.SettingsDebugScreen
 import exh.md.follows.MangaDexFollowsScreen
 import exh.pagepreview.PagePreviewScreen
+import exh.recs.BrowseRecommendsRoute
+import exh.recs.BrowseRecommendsScreen
+import exh.recs.RecommendsRoute
+import exh.recs.RecommendsScreen
 import exh.ui.batchadd.BatchAddScreen
 import exh.ui.metadata.MetadataViewScreen
 import exh.ui.smartsearch.SmartSearchScreen
@@ -105,7 +110,14 @@ fun EntryProviderScope<NavKey>.appEntries() {
     }
     entry<MangaRoute> { route ->
         LocalAssistContentManager.current.Provide(route) {
-            MangaScreen(route.mangaId, route.fromSource)
+            MangaScreen(
+                mangaId = route.mangaId,
+                fromSource = route.fromSource,
+                // KUN -->
+                smartSearchTitle = route.smartSearchTitle,
+                smartSearchMangaId = route.smartSearchMangaId,
+                // KUN <--
+            )
         }
     }
     entry<TrackInfoDialogRoute>(metadata = OverlaySheetScene.overlaySheet()) { route ->
@@ -128,7 +140,17 @@ fun EntryProviderScope<NavKey>.appEntries() {
 
     entry<BrowseSourceRoute> { route ->
         LocalAssistContentManager.current.Provide(route) {
-            BrowseSourceScreen(route.sourceId, route.listingQuery)
+            BrowseSourceScreen(
+                sourceId = route.sourceId,
+                listingQuery = route.listingQuery,
+                // KUN -->
+                // TachiyomiSY's entry points: a saved search, the EH filter state and the smart-search
+                // state are all part of the route, so the screen has to receive them back.
+                filtersJson = route.filtersJson,
+                savedSearch = route.savedSearch,
+                smartSearchConfig = route.smartSearchTitle?.let { SmartSearchConfig(it, route.smartSearchMangaId) },
+                // KUN <--
+            )
         }
     }
     entry<ExtensionDetailsRoute> { route ->
@@ -348,6 +370,14 @@ fun EntryProviderScope<NavKey>.appEntries() {
     }
     entry<DiscordAccountsRoute> {
         DiscordAccountsScreen()
+    }
+    entry<RecommendsRoute> { route ->
+        val args = remember(route) { route.args() }
+        RecommendsScreen(args)
+    }
+    entry<BrowseRecommendsRoute> { route ->
+        val args = remember(route) { route.args() }
+        BrowseRecommendsScreen(args, route.isExternalSource)
     }
 
     entry<SettingsConnectionScreen> {

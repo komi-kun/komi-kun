@@ -124,8 +124,11 @@ data object OnboardingRoute : NavKey
 @Serializable
 data object StatsRoute : NavKey
 
-@Serializable
-data object SupportUsRoute : NavKey
+// KUN -->
+// Upstream's `SupportUsRoute` has no screen in this fork (`mihon.feature.support` does not exist
+// here and the donation campaign is not ported), so the route is dropped instead of leaving a
+// `NavKey` that nothing registers — an unregistered key throws when it is pushed.
+// KUN <--
 
 @Serializable
 data object AboutRoute : NavKey
