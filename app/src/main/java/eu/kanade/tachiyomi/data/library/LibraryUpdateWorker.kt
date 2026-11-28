@@ -67,6 +67,7 @@ import mihon.domain.chapter.interactor.FilterChaptersForDownload
 import mihon.domain.source.interactor.UpdateMangaFromRemote
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.preference.getAndSet
+import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.category.model.Category
 import tachiyomi.domain.chapter.model.Chapter
@@ -215,7 +216,7 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
 
             // If this is a chapter update, set the last update time to now
             if (target == Target.CHAPTERS) {
-                libraryPreferences.lastUpdatedTimestamp().set(Instant.now().toEpochMilli())
+                libraryPreferences.lastUpdatedTimestamp.set(Clock.System.now().toEpochMilliseconds())
             }
 
             val categoryId = inputData.getLong(KEY_CATEGORY, -1L)
