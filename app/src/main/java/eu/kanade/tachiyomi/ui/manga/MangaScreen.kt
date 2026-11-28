@@ -60,7 +60,6 @@ import eu.kanade.presentation.more.settings.screen.SettingsEhScreen
 import eu.kanade.presentation.theme.TachiyomiTheme
 import eu.kanade.presentation.util.AssistContentScreen
 import eu.kanade.presentation.util.Screen
-import eu.kanade.presentation.util.isTabletUi
 import eu.kanade.tachiyomi.source.ConfigurableSource
 import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.source.getNameForMangaInfo
@@ -107,6 +106,7 @@ import logcat.LogPriority
 import mihon.app.di.appGraph
 import mihon.feature.migration.config.MigrationConfigScreen
 import mihon.feature.migration.dialog.MigrateMangaDialog
+import mihon.presentation.core.util.isTabletUi
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.core.common.util.lang.launchUI
