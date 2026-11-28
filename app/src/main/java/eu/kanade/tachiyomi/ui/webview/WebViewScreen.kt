@@ -14,8 +14,8 @@ import eu.kanade.tachiyomi.data.connections.discord.DiscordScreen
 import eu.kanade.tachiyomi.util.system.WebViewUtil
 import eu.kanade.tachiyomi.util.system.toast
 import mihon.core.navigation.LocalAssistUrl
-import tachiyomi.core.common.util.lang.launchIO
 import mihon.core.navigation.WebViewRoute
+import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.screens.LoadingScreen
 

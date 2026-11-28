@@ -12,10 +12,10 @@ import eu.kanade.tachiyomi.data.connections.discord.DiscordRPCService
 import eu.kanade.tachiyomi.data.connections.discord.DiscordScreen
 import eu.kanade.tachiyomi.ui.base.activity.BaseActivity
 import eu.kanade.tachiyomi.util.view.setComposeContent
-import tachiyomi.core.common.util.lang.launchIO
 import kotlinx.serialization.json.Json
 import mihon.core.navigation.LocalAssistUrl
 import mihon.core.navigation.WebViewRoute
+import tachiyomi.core.common.util.lang.launchIO
 
 class WebViewActivity : BaseActivity() {
 
