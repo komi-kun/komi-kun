@@ -122,15 +122,29 @@ sealed interface RecommendsArgs : JavaSerializable {
  * expressed as a kotlinx-serializable route. The route therefore carries the Java-serialized bytes
  * (both are `Serializable`, as they were for Voyager) so Navigation 3 can still persist the stack.
  *
- * A `ByteArray` property does not break `Navigator.push`'s "don't stack a route that is already on top"
- * check: a data class compares an array property with `Arrays.equals`, so two routes built from equal
- * arguments are equal. [RecommendsRouteIdentityTest] pins that, so it is not "fixed" by hand later.
+ * Both routes override [equals]/[hashCode] to compare the serialized bytes by content. Without that, the
+ * compiler's generated `data class` equality compares the `ByteArray` with `Intrinsics.areEqual` →
+ * `equals` → **reference** equality, so every `Navigator.push` would see a different route and
+ * `if (current != route)` would stack a duplicate screen on a repeated tap.
  */
 @Serializable
 data class RecommendsRoute(val argsBytes: ByteArray) : NavKey {
     constructor(args: RecommendsArgs) : this(args.toByteArray())
 
     fun args(): RecommendsArgs = argsBytes.toArgs()
+
+    // KUN -->
+    // `Navigator.push` dedupes with `current != route`, and the generated `data class` equality compares a
+    // `ByteArray` by identity. Compare the serialized arguments instead, so a repeated tap does not stack
+    // a second identical screen; `RecommendsRouteIdentityTest` pins it with the `==` the navigator uses.
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is RecommendsRoute) return false
+        return argsBytes.contentEquals(other.argsBytes)
+    }
+
+    override fun hashCode(): Int = argsBytes.contentHashCode()
+    // KUN <--
 }
 
 @Serializable
@@ -141,6 +155,18 @@ data class BrowseRecommendsRoute(
     constructor(args: BrowseRecommendsArgs, isExternalSource: Boolean) : this(args.toByteArray(), isExternalSource)
 
     fun args(): BrowseRecommendsArgs = argsBytes.toArgs()
+
+    // KUN -->
+    // See [RecommendsRoute.equals]: the bytes compare by content, and every other field has to be part of
+    // the comparison too, or two different sources would collapse into one push.
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is BrowseRecommendsRoute) return false
+        return isExternalSource == other.isExternalSource && argsBytes.contentEquals(other.argsBytes)
+    }
+
+    override fun hashCode(): Int = 31 * argsBytes.contentHashCode() + isExternalSource.hashCode()
+    // KUN <--
 }
 
 private fun JavaSerializable.toByteArray(): ByteArray {
