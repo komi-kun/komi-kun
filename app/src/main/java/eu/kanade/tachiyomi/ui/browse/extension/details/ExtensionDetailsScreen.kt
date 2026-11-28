@@ -12,10 +12,10 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import dev.zacsweers.metrox.viewmodel.assistedMetroViewModel
 import eu.kanade.presentation.browse.ExtensionDetailsScreen
+import eu.kanade.presentation.browse.PrivateExtensionUninstallDialog
 import eu.kanade.presentation.util.Screen
 import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.ui.webview.WebViewScreen
-import eu.kanade.presentation.browse.PrivateExtensionUninstallDialog
 import eu.kanade.tachiyomi.util.system.isPackageInstalled
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.screens.EmptyScreen
