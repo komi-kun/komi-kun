@@ -7,9 +7,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import cafe.adriel.voyager.core.screen.Screen
-import cafe.adriel.voyager.navigator.LocalNavigator
-import cafe.adriel.voyager.navigator.currentOrThrow
 import dev.zacsweers.metrox.viewmodel.assistedMetroViewModel
 import eu.kanade.domain.source.model.installedExtension
 import eu.kanade.presentation.browse.SourceCategoriesDialog
@@ -17,15 +14,17 @@ import eu.kanade.presentation.browse.SourceOptionsDialog
 import eu.kanade.presentation.browse.SourcesScreen
 import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.components.TabContent
-import eu.kanade.tachiyomi.ui.browse.extension.details.ExtensionDetailsScreen
-import eu.kanade.tachiyomi.ui.browse.source.SourcesScreen.SmartSearchConfig
-import eu.kanade.tachiyomi.ui.browse.source.browse.BrowseSourceScreen
+import eu.kanade.tachiyomi.ui.browse.source.SmartSearchConfig
 import eu.kanade.tachiyomi.ui.browse.source.browse.BrowseSourceViewModel.Listing
-import eu.kanade.tachiyomi.ui.browse.source.feed.SourceFeedScreen
-import eu.kanade.tachiyomi.ui.browse.source.globalsearch.GlobalSearchScreen
-import exh.ui.smartsearch.SmartSearchScreen
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import mihon.core.navigation.BrowseSourceRoute
+import mihon.core.navigation.ExtensionDetailsRoute
+import mihon.core.navigation.GlobalSearchRoute
+import mihon.core.navigation.LocalNavigator
+import mihon.core.navigation.SmartSearchSourceRoute
+import mihon.core.navigation.SourceFeedRoute
+import mihon.core.navigation.SourcesFilterRoute
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.`18UpRating`
 import mihon.icons.materialsymbols.rounded.FilterList
@@ -36,10 +35,10 @@ import tachiyomi.i18n.sy.SYMR
 import tachiyomi.presentation.core.i18n.stringResource
 
 @Composable
-fun Screen.sourcesTab(
+fun sourcesTab(
     smartSearchConfig: SmartSearchConfig? = null,
 ): TabContent {
-    val navigator = LocalNavigator.currentOrThrow
+    val navigator = LocalNavigator.current
     val viewModel =
         assistedMetroViewModel<SourcesViewModel, SourcesViewModel.Factory> {
             create(smartSearchConfig = smartSearchConfig)
@@ -56,7 +55,7 @@ fun Screen.sourcesTab(
             AppBar.Action(
                 title = stringResource(MR.strings.action_global_search),
                 icon = MaterialSymbols.Rounded.TravelExplore,
-                onClick = { navigator.push(GlobalSearchScreen(smartSearchConfig?.origTitle ?: "")) },
+                onClick = { navigator.push(GlobalSearchRoute(smartSearchConfig?.origTitle ?: "")) },
             ),
             // KMK -->
             AppBar.Action(
@@ -72,7 +71,7 @@ fun Screen.sourcesTab(
                     it + AppBar.Action(
                         title = stringResource(MR.strings.action_filter),
                         icon = MaterialSymbols.Rounded.FilterList,
-                        onClick = { navigator.push(SourcesFilterScreen()) },
+                        onClick = { navigator.push(SourcesFilterRoute) },
                     )
                 }
                 // Merge: find in another source
@@ -86,13 +85,14 @@ fun Screen.sourcesTab(
                 contentPadding = contentPadding,
                 onClickItem = { source, listing ->
                     // SY -->
-                    val screen = when {
+                    val route = when {
                         // Search selected source for entries to merge or for the recommending entry
-                        smartSearchConfig != null -> SmartSearchScreen(source.id, smartSearchConfig)
-                        listing == Listing.Popular && viewModel.useNewSourceNavigation -> SourceFeedScreen(source.id)
-                        else -> BrowseSourceScreen(source.id, listing.query)
+                        smartSearchConfig != null ->
+                            SmartSearchSourceRoute(source.id, smartSearchConfig.origTitle, smartSearchConfig.origMangaId)
+                        listing == Listing.Popular && viewModel.useNewSourceNavigation -> SourceFeedRoute(source.id)
+                        else -> BrowseSourceRoute(source.id, listing.query)
                     }
-                    navigator.push(screen)
+                    navigator.push(route)
                     // SY <--
                 },
                 onClickPin = viewModel::togglePin,
@@ -128,7 +128,7 @@ fun Screen.sourcesTab(
                         // KMK -->
                         onClickSettings = {
                             if (source.installedExtension !== null) {
-                                navigator.push(ExtensionDetailsScreen(source.installedExtension!!.pkgName))
+                                navigator.push(ExtensionDetailsRoute(source.installedExtension!!.pkgName))
                             }
                             viewModel.closeDialog()
                         },

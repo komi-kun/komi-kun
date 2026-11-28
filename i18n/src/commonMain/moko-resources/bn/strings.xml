@@ -72,6 +72,8 @@
     <string name="landscape">ভূদৃশ্য</string>
     <string name="pref_library_update_interval">নিজেথেকে আপডেট</string>
     <string name="update_never">বন্ধ</string>
+    <string name="update_1hour">প্রতি ১ ঘন্টায়</string>
+    <string name="update_3hour">প্রতি ৩ ঘন্টায়</string>
     <string name="update_6hour">প্রতি ৬ ঘন্টায়</string>
     <string name="update_12hour">প্রতি ১২ ঘন্টায়</string>
     <string name="update_24hour">প্রতিদিন</string>
@@ -213,6 +215,9 @@
     <string name="file_select_backup">ব্যাকআপ ফাইল নির্বাচন করুন</string>
     <string name="update_check_confirm">ডাউনলোড</string>
     <string name="update_check_no_new_updates">নতুন কোন হালনাগাদ নেই</string>
+    <string name="update_check_notification_download_in_progress">ডাউনলোড হচ্ছে…</string>
+    <string name="update_check_notification_download_complete">ডাউনলোড সম্পন্ন হয়ে গেছে</string>
+    <string name="update_check_notification_download_error">ডাউনলোড ত্রুটি দেখা গিয়েছে</string>
     <string name="update_check_notification_update_available">নতুন সংস্করণ উপলভ্য!</string>
     <string name="information_no_downloads">ডাউনলোড নেই</string>
     <string name="information_no_recent">কোন নতুন হালনাগাদ নেই</string>
@@ -516,6 +521,7 @@
     <string name="ext_update_all">শব উপদাতে কর</string>
     <string name="backup_info">স্বয়ংক্রিয় ব্যাকআপ অত্যন্ত সুপারিশময়. আপনি অন্যান্য জায়গায়ও কপি রাখা উচিত।</string>
     <string name="getting_started_guide">শুরু হওয়ার গাইড</string>
+    <string name="channel_app_updates">অ্যাপ আপডেট</string>
     <string name="ext_installer_pref">ইন্সটলআর</string>
     <string name="ext_installer_legacy">লেগাছি</string>
     <string name="ext_installer_shizuku_stopped">শিজুকু চলছে না</string>
@@ -561,7 +567,6 @@
     <string name="pref_update_only_completely_read">অপঠিত অধ্যায়সহ</string>
     <string name="pref_update_only_started">যেগুলো শুরু করা হয়নি</string>
     <string name="webview_data_deleted">ওয়েবভিউ ডাটা মুছা হয়েছে</string>
-    <string name="split_tall_images_summary">পঠন কর্মক্ষমতা উন্নত করে</string>
     <string name="pref_clear_webview_data">ওয়েবভিইউ ডাটা মুছুন</string>
     <string name="multi_lang">বহু</string>
     <string name="pref_library_summary">বিভাগসমূহ, সার্বজনীন হালনাগাদ</string>
@@ -733,7 +738,6 @@
     <string name="download_ahead">অধ্যায় আগাম ডাউনলোড</string>
     <string name="download_ahead_info">শুধু তখনই কাজ করবে যদি বর্তমান আর পরের অধ্যায় আগে থেকেই ডাউনলোড করা থাকে।</string>
     <string name="save_chapter_as_cbz">CBZ আর্কাইভ হিসেবে সেভ হবে</string>
-    <string name="split_tall_images">লম্বা ছবি ভাগ হবে</string>
     <string name="pref_download_concurrent_sources">একসাথে কত সোর্স থেকে ডাউনলোড</string>
     <string name="pref_download_concurrent_pages">একসাথে পাতা ডাউনলোড</string>
     <string name="pref_download_concurrent_pages_summary">প্রতি সোর্স থেকে একসাথে ক’টি পাতা ডাউনলোড হবে</string>
@@ -815,10 +819,4 @@
     <string name="intervals_header">বিরতি</string>
     <string name="unknown_title">অজানা নাম</string>
     <string name="copied_to_clipboard_plain">ক্লিপবোর্ডে কপি হয়েছে</string>
-    <string name="update_1hour">প্রতি ১ ঘন্টায়</string>
-    <string name="update_3hour">প্রতি ৩ ঘন্টায়</string>
-    <string name="update_check_notification_download_in_progress">ডাউনলোড হচ্ছে…</string>
-    <string name="update_check_notification_download_complete">ডাউনলোড সম্পন্ন হয়ে গেছে</string>
-    <string name="update_check_notification_download_error">ডাউনলোড ত্রুটি দেখা গিয়েছে</string>
-    <string name="channel_app_updates">অ্যাপ আপডেট</string>
 </resources>

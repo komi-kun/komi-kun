@@ -48,7 +48,6 @@ import eu.kanade.core.preference.PreferenceMutableState
 import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.more.settings.widget.TextPreferenceWidget
 import eu.kanade.presentation.more.settings.widget.TrailingWidgetBuffer
-import eu.kanade.presentation.util.Screen
 import exh.util.capitalize
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -64,171 +63,168 @@ import kotlin.reflect.KFunction
 import kotlin.reflect.KVisibility
 import kotlin.reflect.full.declaredFunctions
 
-class SettingsDebugScreen : Screen() {
+data class DebugToggle(val name: String, val pref: PreferenceMutableState<Boolean>, val default: Boolean)
 
-    data class DebugToggle(val name: String, val pref: PreferenceMutableState<Boolean>, val default: Boolean)
-
-    @Composable
-    override fun Content() {
-        val scope = rememberCoroutineScope()
-        // KMK -->
-        // val navigator = LocalNavigator.currentOrThrow
-        // DisposableEffect(Unit) {
-        //     onDispose { navigator.pop() }
-        // }
-        // KMK <--
-        val functions by produceState<List<Pair<KFunction<*>, String>>?>(initialValue = null) {
-            value = withContext(Dispatchers.Default) {
-                DebugFunctions::class.declaredFunctions.filter {
-                    it.visibility == KVisibility.PUBLIC
-                }.map {
-                    it to it.name.replace("(.)(\\p{Upper})".toRegex(), "$1 $2")
-                        .lowercase(Locale.getDefault())
-                        .capitalize(Locale.getDefault())
-                }.toList()
+@Composable
+fun SettingsDebugScreen() {
+    val scope = rememberCoroutineScope()
+    // KMK -->
+    // val navigator = LocalNavigator.currentOrThrow
+    // DisposableEffect(Unit) {
+    //     onDispose { navigator.pop() }
+    // }
+    // KMK <--
+    val functions by produceState<List<Pair<KFunction<*>, String>>?>(initialValue = null) {
+        value = withContext(Dispatchers.Default) {
+            DebugFunctions::class.declaredFunctions.filter {
+                it.visibility == KVisibility.PUBLIC
+            }.map {
+                it to it.name.replace("(.)(\\p{Upper})".toRegex(), "$1 $2")
+                    .lowercase(Locale.getDefault())
+                    .capitalize(Locale.getDefault())
+            }.toList()
+        }
+    }
+    val toggles by produceState(initialValue = listOf()) {
+        value = withContext(Dispatchers.Default) {
+            DebugToggles.entries.map { DebugToggle(it.name, it.asPref(scope), it.default) }.toList()
+        }
+    }
+    Scaffold(
+        topBar = { scrollBehavior ->
+            AppBar(
+                title = "DEBUG MENU",
+                scrollBehavior = scrollBehavior,
+            )
+        },
+    ) { paddingValues ->
+        Crossfade(functions == null, label = "debug_functions") {
+            when (it) {
+                true -> LoadingScreen()
+                false -> FunctionList(paddingValues, functions ?: listOf(), toggles, scope)
             }
         }
-        val toggles by produceState(initialValue = listOf()) {
-            value = withContext(Dispatchers.Default) {
-                DebugToggles.entries.map { DebugToggle(it.name, it.asPref(scope), it.default) }.toList()
-            }
-        }
-        Scaffold(
-            topBar = { scrollBehavior ->
-                AppBar(
-                    title = "DEBUG MENU",
-                    scrollBehavior = scrollBehavior,
+    }
+}
+
+@Composable
+fun FunctionList(
+    paddingValues: PaddingValues,
+    functions: List<Pair<KFunction<*>, String>>,
+    toggles: List<DebugToggle>,
+    scope: CoroutineScope,
+) {
+    Box(Modifier.fillMaxSize()) {
+        var running by remember { mutableStateOf(false) }
+        var result by remember { mutableStateOf<Pair<String, String>?>(null) }
+        ScrollbarLazyColumn(
+            Modifier.fillMaxSize(),
+            contentPadding = paddingValues +
+                WindowInsets.navigationBars.only(WindowInsetsSides.Vertical).asPaddingValues() +
+                topSmallPaddingValues,
+        ) {
+            item {
+                Text(
+                    text = "Functions",
+                    color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(16.dp),
                 )
-            },
-        ) { paddingValues ->
-            Crossfade(functions == null, label = "debug_functions") {
-                when (it) {
-                    true -> LoadingScreen()
-                    false -> FunctionList(paddingValues, functions ?: listOf(), toggles, scope)
-                }
             }
-        }
-    }
-
-    @Composable
-    fun FunctionList(
-        paddingValues: PaddingValues,
-        functions: List<Pair<KFunction<*>, String>>,
-        toggles: List<DebugToggle>,
-        scope: CoroutineScope,
-    ) {
-        Box(Modifier.fillMaxSize()) {
-            var running by remember { mutableStateOf(false) }
-            var result by remember { mutableStateOf<Pair<String, String>?>(null) }
-            ScrollbarLazyColumn(
-                Modifier.fillMaxSize(),
-                contentPadding = paddingValues +
-                    WindowInsets.navigationBars.only(WindowInsetsSides.Vertical).asPaddingValues() +
-                    topSmallPaddingValues,
-            ) {
-                item {
-                    Text(
-                        text = "Functions",
-                        color = MaterialTheme.colorScheme.primary,
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(16.dp),
-                    )
-                }
-                items(functions) { (func, name) ->
-                    TextPreferenceWidget(
-                        title = name,
-                        onPreferenceClick = {
-                            scope.launch(Dispatchers.Default) {
-                                val text = try {
-                                    running = true
-                                    "Function returned result:\n\n${func.call(DebugFunctions)}"
-                                } catch (e: Exception) {
-                                    "Function threw exception:\n\n${Log.getStackTraceString(e)}"
-                                } finally {
-                                    running = false
-                                }
-                                result = name to text
+            items(functions) { (func, name) ->
+                TextPreferenceWidget(
+                    title = name,
+                    onPreferenceClick = {
+                        scope.launch(Dispatchers.Default) {
+                            val text = try {
+                                running = true
+                                "Function returned result:\n\n${func.call(DebugFunctions)}"
+                            } catch (e: Exception) {
+                                "Function threw exception:\n\n${Log.getStackTraceString(e)}"
+                            } finally {
+                                running = false
                             }
-                        },
-                    )
-                }
-                item {
-                    HorizontalDivider()
-                }
-                item {
-                    Text(
-                        text = "Toggles",
-                        color = MaterialTheme.colorScheme.primary,
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(16.dp),
-                    )
-                }
-                items(toggles) { (name, pref, default) ->
-                    var state by pref
-                    TextPreferenceWidget(
-                        title = name.replace('_', ' ')
-                            .lowercase(Locale.getDefault())
-                            .capitalize(Locale.getDefault()),
-                        subtitle = if (pref.value != default) {
-                            AnnotatedString("MODIFIED", SpanStyle(color = Color.Red))
-                        } else {
-                            null
-                        },
-                        widget = {
-                            Switch(
-                                checked = state,
-                                onCheckedChange = null,
-                                modifier = Modifier.padding(start = TrailingWidgetBuffer),
-                            )
-                        },
-                        onPreferenceClick = { state = !state },
-                    )
-                }
-                item {
-                    Spacer(modifier = Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
-                }
+                            result = name to text
+                        }
+                    },
+                )
             }
-            AnimatedVisibility(
-                running && result == null,
-                enter = fadeIn(),
-                exit = fadeOut(),
-                modifier = Modifier.fillMaxSize(),
+            item {
+                HorizontalDivider()
+            }
+            item {
+                Text(
+                    text = "Toggles",
+                    color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(16.dp),
+                )
+            }
+            items(toggles) { (name, pref, default) ->
+                var state by pref
+                TextPreferenceWidget(
+                    title = name.replace('_', ' ')
+                        .lowercase(Locale.getDefault())
+                        .capitalize(Locale.getDefault()),
+                    subtitle = if (pref.value != default) {
+                        AnnotatedString("MODIFIED", SpanStyle(color = Color.Red))
+                    } else {
+                        null
+                    },
+                    widget = {
+                        Switch(
+                            checked = state,
+                            onCheckedChange = null,
+                            modifier = Modifier.padding(start = TrailingWidgetBuffer),
+                        )
+                    },
+                    onPreferenceClick = { state = !state },
+                )
+            }
+            item {
+                Spacer(modifier = Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
+            }
+        }
+        AnimatedVisibility(
+            running && result == null,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(color = Color.White.copy(alpha = 0.3F))
+                    .pointerInput(running && result == null) {
+                        awaitEachGesture { waitForUpOrCancellation()?.consume() }
+                    },
+                contentAlignment = Alignment.Center,
             ) {
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .background(color = Color.White.copy(alpha = 0.3F))
-                        .pointerInput(running && result == null) {
-                            awaitEachGesture { waitForUpOrCancellation()?.consume() }
-                        },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    CircularProgressIndicator()
-                }
+                CircularProgressIndicator()
             }
-
-            ResultTextDialog(
-                result = result,
-                onDismissRequest = { result = null },
-            )
         }
+
+        ResultTextDialog(
+            result = result,
+            onDismissRequest = { result = null },
+        )
     }
+}
 
-    @Composable
-    private fun ResultTextDialog(result: Pair<String, String>?, onDismissRequest: () -> Unit) {
-        if (result != null) {
-            AlertDialog(
-                onDismissRequest = onDismissRequest,
-                title = {
-                    Text(text = result.first)
-                },
-                confirmButton = {},
-                text = {
-                    SelectionContainer(Modifier.verticalScroll(rememberScrollState())) {
-                        Text(text = result.second)
-                    }
-                },
-            )
-        }
+@Composable
+private fun ResultTextDialog(result: Pair<String, String>?, onDismissRequest: () -> Unit) {
+    if (result != null) {
+        AlertDialog(
+            onDismissRequest = onDismissRequest,
+            title = {
+                Text(text = result.first)
+            },
+            confirmButton = {},
+            text = {
+                SelectionContainer(Modifier.verticalScroll(rememberScrollState())) {
+                    Text(text = result.second)
+                }
+            },
+        )
     }
 }

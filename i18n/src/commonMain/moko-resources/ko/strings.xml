@@ -74,6 +74,8 @@
     <string name="landscape">가로</string>
     <string name="pref_library_update_interval">자동 업데이트</string>
     <string name="update_never">끄기</string>
+    <string name="update_1hour">1시간</string>
+    <string name="update_3hour">3시간</string>
     <string name="update_6hour">6시간</string>
     <string name="update_12hour">12시간</string>
     <string name="update_24hour">1일</string>
@@ -93,7 +95,7 @@
     <string name="ext_untrusted">신뢰되지않음</string>
     <string name="ext_uninstall">삭제</string>
     <string name="untrusted_extension">신뢰할 수 없는 확장 앱</string>
-    <string name="untrusted_extension_message">일부 악의적인 확장 앱은 Komikun에 저장된 로그인 정보를 읽거나 임의의 코드를 실행할 수도 있습니다. \n \n이 확장 앱을 신뢰하면 이러한 위험에 노출될 수 있습니다.</string>
+    <string name="untrusted_extension_message">일부 악의적인 확장 앱은 Komikku에 저장된 로그인 정보를 읽거나 임의의 코드를 실행할 수도 있습니다. \n \n이 확장 앱을 신뢰하면 이러한 위험에 노출될 수 있습니다.</string>
     <string name="pref_fullscreen">전체화면</string>
     <string name="pref_double_tap_anim_speed">더블 탭 애니메이션 속도</string>
     <string name="pref_show_page_number">페이지 번호 표시</string>
@@ -207,6 +209,9 @@
     <string name="file_select_backup">백업 파일 선택</string>
     <string name="update_check_confirm">다운로드</string>
     <string name="update_check_no_new_updates">새로운 업데이트 없음</string>
+    <string name="update_check_notification_download_in_progress">다운로드 중…</string>
+    <string name="update_check_notification_download_complete">탭하여 업데이트 설치</string>
+    <string name="update_check_notification_download_error">다운로드 오류</string>
     <string name="update_check_notification_update_available">업데이트 이용 가능!</string>
     <string name="information_no_downloads">다운로드 없음</string>
     <string name="information_no_recent">최근 업데이트 없음</string>
@@ -411,6 +416,7 @@
     <string name="set_chapter_settings_as_default">기본값으로 설정</string>
     <string name="pref_manage_notifications">알림 설정</string>
     <string name="also_set_chapter_settings_for_library">서재의 모든 항목에 적용</string>
+    <string name="channel_app_updates">앱 업데이트</string>
     <string name="channel_progress">진행 상황</string>
     <string name="channel_errors">오류</string>
     <string name="database_clean">지울 것이 없습니다</string>
@@ -462,7 +468,7 @@
     <string name="skipped_reason_not_started">읽지 않은 만화를 건너 뛰었습니다</string>
     <string name="update_check_eol">이 안드로이드 버전은 더이상 지원되지 않습니다</string>
     <string name="information_cloudflare_bypass_failure">Cloudflare를 통과하지 못했습니다</string>
-    <string name="information_webview_required">Komikun 앱의 기능을 사용하려면 WebView가 필요합니다</string>
+    <string name="information_webview_required">Komikku 앱의 기능을 사용하려면 WebView가 필요합니다</string>
     <string name="information_webview_outdated">호환성을 위해 WebView 어플리케이션을 업데이트 해 주세요</string>
     <string name="pref_navigate_pan">넓은 이미지 이동</string>
     <string name="obsolete_extension_message">이 확장 프로그램은 어떤 스토어와도 연결되어 있지 않습니다. 업데이트되지 않으며, 제대로 작동하지 않을 수 있고, 앱에 문제가 발생할 수 있습니다. 제거하는 것을 권장합니다.</string>
@@ -945,10 +951,4 @@
     <string name="update_check_skip_title">%s를 건너뛰시겠습니까?</string>
     <string name="update_check_skip_message">업데이트에는 보통 버그 수정과 보안 개선 사항이 포함됩니다. 이 버전에 대한 알림은 더 이상 받지 않지만, 새 버전이 출시되면 알림을 받게 됩니다.</string>
     <string name="information_webview_crashed">WebView가 정지되어 페이지가 닫혔습니다</string>
-    <string name="update_1hour">1시간</string>
-    <string name="update_3hour">3시간</string>
-    <string name="update_check_notification_download_in_progress">다운로드 중…</string>
-    <string name="update_check_notification_download_complete">탭하여 업데이트 설치</string>
-    <string name="update_check_notification_download_error">다운로드 오류</string>
-    <string name="channel_app_updates">앱 업데이트</string>
 </resources>

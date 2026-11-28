@@ -48,7 +48,6 @@ import androidx.compose.ui.unit.dp
 import eu.kanade.presentation.components.DownloadDropdownMenu
 import eu.kanade.presentation.components.DropdownMenu
 import eu.kanade.presentation.manga.DownloadAction
-import eu.kanade.tachiyomi.util.system.isTabletUi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -66,6 +65,7 @@ import mihon.icons.materialsymbols.rounded.MoreVert
 import mihon.icons.materialsymbols.rounded.Refresh
 import mihon.icons.materialsymbols.rounded.RemoveDone
 import mihon.icons.materialsymbols.rounded.SwapCalls
+import mihon.presentation.core.util.isTabletUi
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
 import tachiyomi.i18n.sy.SYMR

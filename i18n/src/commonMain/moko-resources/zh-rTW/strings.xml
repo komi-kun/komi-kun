@@ -72,6 +72,8 @@
     <string name="landscape">橫向</string>
     <string name="pref_library_update_interval">自動更新</string>
     <string name="update_never">關閉</string>
+    <string name="update_1hour">每 1 小時</string>
+    <string name="update_3hour">每 3 小時</string>
     <string name="update_6hour">每 6 小時</string>
     <string name="update_12hour">每 12 小時</string>
     <string name="update_24hour">每天</string>
@@ -141,6 +143,9 @@
     <string name="copy">副本</string>
     <string name="update_check_confirm">下載</string>
     <string name="update_check_no_new_updates">沒有可用的更新</string>
+    <string name="update_check_notification_download_in_progress">正在下載更新…</string>
+    <string name="update_check_notification_download_complete">輕觸即可更新</string>
+    <string name="update_check_notification_download_error">更新下載失敗</string>
     <string name="update_check_notification_update_available">有可用的更新！</string>
     <string name="information_no_downloads">尚無下載作業</string>
     <string name="download_notifier_title_error">錯誤</string>
@@ -532,6 +537,7 @@
     <string name="update_72hour">每 3 天</string>
     <string name="download_queue_size_warning">警告：大量批次下載可能壅塞來源，甚至使其封鎖 %s，輕觸以瞭解詳情</string>
     <string name="ext_update_all">全部更新</string>
+    <string name="channel_app_updates">應用程式更新</string>
     <string name="pref_auto_clear_chapter_cache">啟動應用程式時清除章節快取</string>
     <string name="clear_database_source_item_count">資料庫中有 %1$d 部作品未加入書櫃</string>
     <string name="database_clean">無須清理</string>
@@ -945,10 +951,4 @@
     <string name="update_check_skip_title">略過 %s？</string>
     <string name="update_check_skip_message">更新通常包含錯誤修復與安全性改善。您不會再收到關於此版本的提醒，但當有較新版本釋出時，您仍會收到通知。</string>
     <string name="information_webview_crashed">WebView 停止運作，且頁面已關閉</string>
-    <string name="update_1hour">每 1 小時</string>
-    <string name="update_3hour">每 3 小時</string>
-    <string name="update_check_notification_download_in_progress">正在下載更新…</string>
-    <string name="update_check_notification_download_complete">輕觸即可更新</string>
-    <string name="update_check_notification_download_error">更新下載失敗</string>
-    <string name="channel_app_updates">應用程式更新</string>
 </resources>

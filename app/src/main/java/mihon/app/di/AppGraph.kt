@@ -53,7 +53,6 @@ import eu.kanade.tachiyomi.ui.reader.ocr.OcrHostBindings
 import eu.kanade.tachiyomi.ui.reader.ocr.impl.ReaderOcrPopupAnchor
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.ui.setting.track.BaseOAuthLoginActivity
-import eu.kanade.tachiyomi.ui.webview.WebViewActivity
 import eu.kanade.tachiyomi.util.CrashLogUtil
 import exh.GalleryAdder
 import exh.eh.EHentaiUpdateHelper
@@ -119,7 +118,6 @@ interface AppGraph : ViewModelGraph {
     fun inject(app: App)
     fun inject(mainActivity: MainActivity)
     fun inject(readerActivity: ReaderActivity)
-    fun inject(webViewActivity: WebViewActivity)
     fun inject(baseOAuthLoginActivity: BaseOAuthLoginActivity)
     fun inject(libraryUpdateWorker: LibraryUpdateWorker)
     fun inject(metadataUpdateWorker: MetadataUpdateWorker)

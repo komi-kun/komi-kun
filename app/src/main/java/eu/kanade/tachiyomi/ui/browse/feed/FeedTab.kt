@@ -10,9 +10,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.platform.LocalHapticFeedback
-import cafe.adriel.voyager.core.screen.Screen
-import cafe.adriel.voyager.navigator.LocalNavigator
-import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.presentation.browse.FeedAddDialog
 import eu.kanade.presentation.browse.FeedAddSearchDialog
 import eu.kanade.presentation.browse.FeedOrderScreen
@@ -24,11 +21,14 @@ import eu.kanade.presentation.browse.components.bulkSelectionButton
 import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.components.TabContent
 import eu.kanade.tachiyomi.ui.browse.BulkFavoriteViewModel
-import eu.kanade.tachiyomi.ui.browse.source.browse.BrowseSourceScreen
 import eu.kanade.tachiyomi.ui.home.HomeScreen
+import eu.kanade.tachiyomi.ui.home.showBottomNav
 import eu.kanade.tachiyomi.ui.manga.MangaScreen
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import mihon.core.navigation.BrowseSourceRoute
+import mihon.core.navigation.LocalNavigator
+import mihon.core.navigation.MangaRoute
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.Add
 import mihon.icons.materialsymbols.rounded.Close
@@ -40,13 +40,13 @@ import tachiyomi.i18n.sy.SYMR
 import tachiyomi.presentation.core.i18n.stringResource
 
 @Composable
-fun Screen.feedTab(
+fun feedTab(
     // KMK -->
     viewModel: FeedViewModel,
     bulkFavoriteViewModel: BulkFavoriteViewModel,
     // KMK <--
 ): TabContent {
-    val navigator = LocalNavigator.currentOrThrow
+    val navigator = LocalNavigator.current
     val state by viewModel.state.collectAsState()
 
     // KMK -->
@@ -56,7 +56,7 @@ fun Screen.feedTab(
     val haptic = LocalHapticFeedback.current
 
     LaunchedEffect(bulkFavoriteState.selectionMode) {
-        HomeScreen.showBottomNav(!bulkFavoriteState.selectionMode)
+        showBottomNav(!bulkFavoriteState.selectionMode)
     }
     // KMK <--
 
@@ -122,7 +122,7 @@ fun Screen.feedTab(
                         onClickSavedSearch = { savedSearch, source ->
                             viewModel.sourcePreferences.lastUsedSource.set(savedSearch.source)
                             navigator.push(
-                                BrowseSourceScreen(
+                                BrowseSourceRoute(
                                     source.id,
                                     listingQuery = null,
                                     savedSearch = savedSearch.id,
@@ -132,7 +132,7 @@ fun Screen.feedTab(
                         onClickSource = { source ->
                             viewModel.sourcePreferences.lastUsedSource.set(source.id)
                             navigator.push(
-                                BrowseSourceScreen(
+                                BrowseSourceRoute(
                                     source.id,
                                     // KMK -->
                                     listingQuery = if (!source.supportsLatest) {
@@ -153,7 +153,7 @@ fun Screen.feedTab(
                                 bulkFavoriteViewModel.toggleSelection(manga)
                             } else {
                                 // KMK <--
-                                navigator.push(MangaScreen(manga.id, true))
+                                navigator.push(MangaRoute(manga.id, true))
                             }
                         },
                         // KMK -->
@@ -161,7 +161,7 @@ fun Screen.feedTab(
                             if (!bulkFavoriteState.selectionMode) {
                                 bulkFavoriteViewModel.addRemoveManga(manga, haptic)
                             } else {
-                                navigator.push(MangaScreen(manga.id, true))
+                                navigator.push(MangaRoute(manga.id, true))
                             }
                         },
                         selection = bulkFavoriteState.selection,

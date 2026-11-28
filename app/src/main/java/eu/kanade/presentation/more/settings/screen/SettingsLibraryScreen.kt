@@ -12,17 +12,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.util.fastMap
 import androidx.core.content.ContextCompat
-import cafe.adriel.voyager.navigator.LocalNavigator
-import cafe.adriel.voyager.navigator.Navigator
-import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.presentation.category.visualName
 import eu.kanade.presentation.more.settings.Preference
 import eu.kanade.presentation.more.settings.widget.TriStateListDialog
 import eu.kanade.tachiyomi.data.library.LibraryUpdateWorker
-import eu.kanade.tachiyomi.ui.category.CategoryScreen
-import eu.kanade.tachiyomi.ui.category.genre.SortTagScreen
 import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
 import mihon.app.di.appGraph
+import mihon.core.navigation.CategoryRoute
+import mihon.core.navigation.LocalNavigator
+import mihon.core.navigation.Navigator
+import mihon.core.navigation.SortTagRoute
 import tachiyomi.domain.category.model.Category
 import tachiyomi.domain.library.model.GroupLibraryMode
 import tachiyomi.domain.library.service.LibraryPreferences
@@ -42,9 +42,8 @@ import tachiyomi.presentation.core.i18n.pluralStringResource
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsState
 
-object SettingsLibraryScreen : SearchableSettings {
-    @Suppress("unused")
-    private fun readResolve(): Any = SettingsLibraryScreen
+@Serializable
+data object SettingsLibraryScreen : SearchableSettings {
 
     @Composable
     @ReadOnlyComposable
@@ -58,22 +57,22 @@ object SettingsLibraryScreen : SearchableSettings {
         val allCategories by getCategories.subscribe().collectAsState(initial = emptyList())
 
         return listOf(
-            getCategoriesGroup(LocalNavigator.currentOrThrow, allCategories, libraryPreferences),
+            getCategoriesGroup(allCategories, libraryPreferences),
             getGlobalUpdateGroup(allCategories, libraryPreferences),
             getBehaviorGroup(libraryPreferences),
             // SY -->
-            getSortingCategory(LocalNavigator.currentOrThrow, libraryPreferences),
+            getSortingCategory(LocalNavigator.current, libraryPreferences),
             // SY <--
         )
     }
 
     @Composable
     private fun getCategoriesGroup(
-        navigator: Navigator,
         allCategories: List<Category>,
         libraryPreferences: LibraryPreferences,
     ): Preference.PreferenceGroup {
         val context = LocalContext.current
+        val navigator = LocalNavigator.current
         val scope = rememberCoroutineScope()
         val userCategoriesCount = allCategories.filterNot(Category::isSystemCategory).size
 
@@ -93,7 +92,7 @@ object SettingsLibraryScreen : SearchableSettings {
                         count = userCategoriesCount,
                         userCategoriesCount,
                     ),
-                    onClick = { navigator.push(CategoryScreen()) },
+                    onClick = { navigator.push(CategoryRoute) },
                 ),
                 Preference.PreferenceItem.ListPreference(
                     preference = libraryPreferences.defaultCategory,
@@ -316,7 +315,7 @@ object SettingsLibraryScreen : SearchableSettings {
                     title = stringResource(SYMR.strings.pref_tag_sorting),
                     subtitle = pluralStringResource(SYMR.plurals.pref_tag_sorting_desc, tagCount.size, tagCount.size),
                     onClick = {
-                        navigator.push(SortTagScreen())
+                        navigator.push(SortTagRoute)
                     },
                 ),
             ),

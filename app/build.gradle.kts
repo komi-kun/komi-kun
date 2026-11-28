@@ -326,6 +326,7 @@ dependencies {
     implementation(projects.telemetry)
 
     implementation(projects.core.metro)
+    implementation(projects.core.navigation)
     implementation(libs.metro.runtime)
     implementation(libs.metrox.viewmodel)
     implementation(libs.metrox.viewmodel.compose)
@@ -370,6 +371,7 @@ dependencies {
     implementation(androidx.profileinstaller)
 
     implementation(androidx.bundles.lifecycle)
+    implementation(androidx.bundles.navigation3)
 
     // Job scheduling
     implementation(androidx.workmanager)
@@ -418,7 +420,6 @@ dependencies {
     }
     implementation(libs.richeditor.compose)
     implementation(libs.aboutLibraries.compose)
-    implementation(libs.bundles.voyager)
     implementation(libs.compose.materialmotion)
     implementation(libs.swipe)
     implementation(libs.compose.webview)

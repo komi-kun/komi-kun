@@ -75,6 +75,8 @@
     <string name="landscape">Horitzontal</string>
     <string name="pref_library_update_interval">Actualitzacions automàtiques</string>
     <string name="update_never">Desactivades</string>
+    <string name="update_1hour">Cada 1 hores</string>
+    <string name="update_3hour">Cada 3 hores</string>
     <string name="update_6hour">Cada 6 hores</string>
     <string name="update_12hour">Cada 12 hores</string>
     <string name="update_24hour">Cada dia</string>
@@ -250,6 +252,9 @@
     <string name="file_select_backup">Seleccioneu el fitxer de còpia de seguretat</string>
     <string name="update_check_confirm">Baixa</string>
     <string name="update_check_no_new_updates">No hi ha cap nova actualització disponible</string>
+    <string name="update_check_notification_download_in_progress">S’està baixant…</string>
+    <string name="update_check_notification_download_complete">Premeu per a instal·lar l’actualització</string>
+    <string name="update_check_notification_download_error">Error de baixada</string>
     <string name="update_check_notification_update_available">Nova versió disponible!</string>
     <string name="information_no_downloads">No hi ha baixades</string>
     <string name="information_no_recent">No hi ha actualitzacions recents</string>
@@ -539,6 +544,7 @@
     <string name="pref_verbose_logging_summary">Imprimeix registres detallats al registre del sistema (redueix el rendiment de l’aplicació)</string>
     <string name="publishing_finished">Publicació finalitzada</string>
     <string name="on_hiatus">En pausa</string>
+    <string name="channel_app_updates">Actualitzacions de l’aplicació</string>
     <string name="action_track">Segueix</string>
     <string name="ext_app_info">Informació de l’aplicació</string>
     <string name="download_queue_size_warning">Advertència: Les baixades massa grosses poden fer que les fonts es tornin més lentes i/o bloquin el %s. Premeu per a obtenir-ne més informació.</string>
@@ -950,10 +956,4 @@
     <string name="follow_language">El de la llengua</string>
     <string name="time_24_hours">24 hores</string>
     <string name="time_12_hours">12 hores</string>
-    <string name="update_1hour">Cada 1 hores</string>
-    <string name="update_3hour">Cada 3 hores</string>
-    <string name="update_check_notification_download_in_progress">S’està baixant…</string>
-    <string name="update_check_notification_download_complete">Premeu per a instal·lar l’actualització</string>
-    <string name="update_check_notification_download_error">Error de baixada</string>
-    <string name="channel_app_updates">Actualitzacions de l’aplicació</string>
 </resources>

@@ -65,6 +65,8 @@
     <string name="landscape">横向き</string>
     <string name="pref_library_update_interval">自動更新</string>
     <string name="update_never">オフ</string>
+    <string name="update_1hour">1時間ごと</string>
+    <string name="update_3hour">3時間ごと</string>
     <string name="update_6hour">6 時間ごと</string>
     <string name="update_12hour">12 時間ごと</string>
     <string name="update_24hour">毎日</string>
@@ -242,6 +244,9 @@
     <string name="file_select_backup">バックアップファイルを選択</string>
     <string name="update_check_confirm">ダウンロード</string>
     <string name="update_check_no_new_updates">新しいバージョンがありません</string>
+    <string name="update_check_notification_download_in_progress">ダウンロード中…</string>
+    <string name="update_check_notification_download_complete">タップでアップデートをインストール</string>
+    <string name="update_check_notification_download_error">ダウンロード中にエラー発生</string>
     <string name="update_check_notification_update_available">新しいバージョンがリリースされました！</string>
     <string name="information_no_downloads">ダウンロードがありません</string>
     <string name="information_no_recent">最近の更新はありません</string>
@@ -538,6 +543,7 @@
     <string name="update_72hour">3 日ごと</string>
     <string name="connected_to_wifi">Wi-Fi 接続時のみ</string>
     <string name="ext_update_all">すべて更新</string>
+    <string name="channel_app_updates">アプリ更新</string>
     <string name="clear_database_source_item_count">データベース内に %1$d 件のライブラリにない項目があります</string>
     <string name="pref_auto_clear_chapter_cache">アプリ起動時に章のキャッシュを消去</string>
     <string name="database_clean">消去できるものはありませんでした</string>
@@ -571,8 +577,6 @@
     <string name="source_filter_empty_screen">インストール済みのソースが見つかりません</string>
     <string name="action_sort_last_manga_update">前回の更新確認</string>
     <string name="action_sort_unread_count">未読の章数</string>
-    <string name="split_tall_images_summary">ビューアのパフォーマンスを向上させます</string>
-    <string name="download_notifier_split_page_not_found">分割時にページ %d が見つかりませんでした</string>
     <string name="pref_reset_viewer_flags">シリーズごとのリーダー設定をリセット</string>
     <string name="pref_reset_viewer_flags_summary">すべてのシリーズの読書モードと画面の向きをリセットします</string>
     <string name="download_notifier_split_page_path_not_found">ページ %d のファイルパスが見つかりませんでした</string>
@@ -672,7 +676,6 @@
     <string name="action_copy_to_clipboard">クリップボードにコピー</string>
     <string name="pref_hide_in_library_items">ライブラリにある項目を非表示</string>
     <string name="action_update_category">カテゴリーを更新</string>
-    <string name="split_tall_images">長い画像を分割</string>
     <string name="overlay_header">オーバーレイ</string>
     <string name="pref_page_rotate">画面に合わせるように幅広いページを回転</string>
     <string name="pref_page_rotate_invert">回転した幅広いページの向きを反転</string>
@@ -925,10 +928,4 @@
     <string name="follow_language">システムの言語に従う</string>
     <string name="time_24_hours">24 時間制</string>
     <string name="time_12_hours">12 時間制</string>
-    <string name="update_1hour">1時間ごと</string>
-    <string name="update_3hour">3時間ごと</string>
-    <string name="update_check_notification_download_in_progress">ダウンロード中…</string>
-    <string name="update_check_notification_download_complete">タップでアップデートをインストール</string>
-    <string name="update_check_notification_download_error">ダウンロード中にエラー発生</string>
-    <string name="channel_app_updates">アプリ更新</string>
 </resources>

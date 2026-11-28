@@ -14,6 +14,7 @@ import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences.Companion.zoomWid
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences.WebtoonScaleType
 import eu.kanade.tachiyomi.ui.reader.setting.ReadingMode
 import eu.kanade.tachiyomi.util.system.hasDisplayCutout
+import kotlinx.serialization.Serializable
 import mihon.app.di.appGraph
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
@@ -23,9 +24,8 @@ import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsState
 import java.text.NumberFormat
 
-object SettingsReaderScreen : SearchableSettings {
-    @Suppress("unused")
-    private fun readResolve(): Any = SettingsReaderScreen
+@Serializable
+data object SettingsReaderScreen : SearchableSettings {
 
     @ReadOnlyComposable
     @Composable

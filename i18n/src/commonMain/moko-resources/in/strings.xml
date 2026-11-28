@@ -70,6 +70,8 @@
     <string name="landscape">Layar mendatar</string>
     <string name="pref_library_update_interval">Pembaruan otomatis</string>
     <string name="update_never">Matikan</string>
+    <string name="update_1hour">Tiap 1 jam</string>
+    <string name="update_3hour">Tiap 3 jam</string>
     <string name="update_6hour">Tiap 6 jam</string>
     <string name="update_12hour">Tiap 12 jam</string>
     <string name="update_24hour">Tiap hari</string>
@@ -205,6 +207,9 @@
     <string name="file_select_backup">Pilih berkas cadangan</string>
     <string name="update_check_confirm">Unduh</string>
     <string name="update_check_no_new_updates">Pembaruan tidak tersedia</string>
+    <string name="update_check_notification_download_in_progress">Mengunduh…</string>
+    <string name="update_check_notification_download_complete">Ketuk untuk menginstal pembaruan</string>
+    <string name="update_check_notification_download_error">Terjadi kesalahan saat mengunduh</string>
     <string name="update_check_notification_update_available">Versi baru tersedia!</string>
     <string name="information_no_downloads">Tidak ada unduhan</string>
     <string name="information_no_recent">Tidak ada pembaruan terkini</string>
@@ -329,8 +334,8 @@
     <string name="add_tracking">Tambahkan pelacak</string>
     <string name="manga_info_collapse">Lebih sedikit</string>
     <string name="manga_info_expand">Selengkapnya</string>
-    <string name="in_library">Di perpustakaan</string>
-    <string name="add_to_library">Tambahkan ke perpustakaan</string>
+    <string name="in_library">Di pustaka</string>
+    <string name="add_to_library">Tambah ke pustaka</string>
     <string name="licenses">Lisensi terbuka</string>
     <string name="restoring_backup_error">Gagal memulihkan data dari cadangan</string>
     <string name="creating_backup_error">Pencadangan data gagal</string>
@@ -531,6 +536,7 @@
     <string name="action_display_language_badge">Bahasa</string>
     <string name="update_72hour">Tiap 3 hari</string>
     <string name="connected_to_wifi">Hanya pada Wi-FI</string>
+    <string name="channel_app_updates">Pembaruan aplikasi</string>
     <string name="ext_update_all">Perbarui semuanya</string>
     <string name="pref_auto_clear_chapter_cache">Bersihkan cache bab saat aplikasi dibuka</string>
     <string name="database_clean">Tidak ada yang perlu dibersihkan</string>
@@ -945,10 +951,4 @@
     <string name="update_check_skip_title">Lewati %s?</string>
     <string name="update_check_skip_message">Pembaruan sering kali berisi perbaikan bug dan peningkatan keamanan. Anda tidak akan lagi menerima pengingat mengenai versi ini, tetapi Anda tetap akan mendapat pemberitahuan saat versi yang lebih baru dirilis.</string>
     <string name="information_webview_crashed">WebView berhenti berfungsi dan halaman tersebut ditutup</string>
-    <string name="update_1hour">Tiap 1 jam</string>
-    <string name="update_3hour">Tiap 3 jam</string>
-    <string name="update_check_notification_download_in_progress">Mengunduh…</string>
-    <string name="update_check_notification_download_complete">Ketuk untuk menginstal pembaruan</string>
-    <string name="update_check_notification_download_error">Terjadi kesalahan saat mengunduh</string>
-    <string name="channel_app_updates">Pembaruan aplikasi</string>
 </resources>

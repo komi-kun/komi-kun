@@ -11,8 +11,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLocale
 import androidx.core.app.ActivityCompat
-import cafe.adriel.voyager.navigator.LocalNavigator
-import cafe.adriel.voyager.navigator.currentOrThrow
 import com.materialkolor.PaletteStyle
 import eu.kanade.core.preference.asState
 import eu.kanade.domain.ui.UiPreferences
@@ -31,7 +29,11 @@ import eu.kanade.tachiyomi.util.system.toast
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toJavaLocalDateTime
 import kotlinx.datetime.toLocalDateTime
+import kotlinx.serialization.Serializable
 import mihon.app.di.appGraph
+import mihon.core.navigation.AppCustomThemeColorPickerRoute
+import mihon.core.navigation.AppLanguageRoute
+import mihon.core.navigation.LocalNavigator
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
 import tachiyomi.i18n.kun.KUNMR
@@ -41,9 +43,8 @@ import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsState
 import kotlin.time.Clock
 
-object SettingsAppearanceScreen : SearchableSettings {
-    @Suppress("unused")
-    private fun readResolve(): Any = SettingsAppearanceScreen
+@Serializable
+data object SettingsAppearanceScreen : SearchableSettings {
 
     @ReadOnlyComposable
     @Composable
@@ -72,7 +73,7 @@ object SettingsAppearanceScreen : SearchableSettings {
         uiPreferences: UiPreferences,
     ): Preference.PreferenceGroup {
         val context = LocalContext.current
-        val navigator = LocalNavigator.currentOrThrow
+        val navigator = LocalNavigator.current
 
         val themeModePref = uiPreferences.themeMode
         val themeMode by themeModePref.collectAsState()
@@ -110,7 +111,7 @@ object SettingsAppearanceScreen : SearchableSettings {
                     title = stringResource(KMR.strings.pref_custom_color),
                     subtitle = stringResource(KMR.strings.custom_color_description),
                     visible = appTheme == AppTheme.CUSTOM,
-                    onClick = { navigator.push(AppCustomThemeColorPickerScreen()) },
+                    onClick = { navigator.push(AppCustomThemeColorPickerRoute) },
                 ),
                 Preference.PreferenceItem.ListPreference(
                     preference = uiPreferences.customThemeStyle,
@@ -224,7 +225,7 @@ object SettingsAppearanceScreen : SearchableSettings {
         uiPreferences: UiPreferences,
     ): Preference.PreferenceGroup {
         val context = LocalContext.current
-        val navigator = LocalNavigator.currentOrThrow
+        val navigator = LocalNavigator.current
         val locale = LocalLocale.current
         val is24HourSystem = rememberIs24HourSystem()
 
@@ -245,7 +246,7 @@ object SettingsAppearanceScreen : SearchableSettings {
                 Preference.PreferenceItem.TextPreference(
                     title = stringResource(MR.strings.pref_app_language) +
                         if (currentLanguage.isNotEmpty() && !currentLanguage.startsWith("en")) " (App Language)" else "",
-                    onClick = { navigator.push(AppLanguageScreen()) },
+                    onClick = { navigator.push(AppLanguageRoute) },
                 ),
                 Preference.PreferenceItem.ListPreference(
                     preference = uiPreferences.tabletUiMode,

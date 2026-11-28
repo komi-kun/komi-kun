@@ -102,14 +102,14 @@ Markers record **what diverges from upstream** — they never mark upstream code
 
 ## Tech stack
 
-- **UI:** Jetpack Compose + Material 3, [Voyager](https://voyager.adriel.cafe/) navigation, Coil 3 for images
+- **UI:** Jetpack Compose + Material 3, [Navigation 3](https://developer.android.com/guide/navigation/navigation-3) (`androidx.navigation3`, wrapped by `:core:navigation`), Coil 3 for images
 - **DI:** [Metro](https://zacsweers.github.io/metro/) (`dev.zacsweers.metro`) — compile-time DI (`@Inject`, `@AssistedInject`, `@DependencyGraph`, `@ContributesIntoMap` / `@ContributesIntoSet`); an **Injekt** (`uy.kohesive.injekt`) interop bridge survives for extension-facing code (`mihon/app/di/injekt/`)
 - **Database:** SQLDelight, SQLCipher encryption
 - **Network:** OkHttp 5 with DNS-over-HTTPS
 - **Serialization:** Kotlinx Serialization (JSON/Protobuf)
 - **JS engine:** QuickJS (used by sources)
 - **Concurrency:** Kotlin coroutines + Flow for new code; RxJava 1 remains in `source-api` for extension compatibility
-- **Toolchain:** JDK 21 to build (matches `.github/.java-version`), bytecode targets Java 17, Gradle 9.9.1, compileSdk 37.2
+- **Toolchain:** JDK 21 to build (matches `.github/.java-version`), bytecode targets Java 17, Gradle 9.9.2 (`gradle/wrapper/gradle-wrapper.properties`), compileSdk 37.2
 
 Version catalogs in `gradle/`: `libs.versions.toml`, `kotlinx.versions.toml`, `androidx.versions.toml`, `compose.versions.toml`, `sy.versions.toml`.
 
@@ -124,6 +124,7 @@ Version catalogs in `gradle/`: `libs.versions.toml`, `kotlinx.versions.toml`, `a
 | `data/` | SQLDelight DB, `*RepositoryImpl` (`tachiyomi.data.*`) |
 | `core:common/` | Network (OkHttp), security, storage, shared utils |
 | `core:metro/` | Shared Metro helpers (`mihon.core.metro`: `GraphProvider`, `AppCoroutineScope`, `IsDebugBuild`) |
+| `core:navigation/` | Navigation 3 wrapper (`mihon.core.navigation`): the `Navigator`/`NavigatorDisplay` API, upstream routes (`AppRoutes.kt`), the two-pane settings and overlay-sheet scene strategies, the assist-content registry |
 | `core:archive/` | CBZ/archive reading with optional encryption |
 | `core:dictionary/` | **GPL-3.0-or-later** — vendored `hoshidicts` engine (nested git submodule + NDK/CMake + JNI) and the Kotlin dictionary facade (`mihon.core.dictionary`) |
 | `core:ocr/` | **GPL-3.0-or-later** — PaddleOCR models on an ONNX Runtime backend + `.mokuro` OCR pipeline, box merge and overlay math (`mihon.core.ocr`); its native `.so`s are fetched, not built (see [Licensing & native modules](#licensing--native-modules)) |
@@ -139,9 +140,9 @@ Version catalogs in `gradle/`: `libs.versions.toml`, `kotlinx.versions.toml`, `a
 | `baseline-profile/` | Baseline profile and startup benchmark generation (CI-only) |
 | `buildSrc/` | Convention plugins and build logic |
 
-Dependency flow: `app` → `domain` → `source-api`; `data` implements `domain` repos. `:app` also depends on the two **GPL-3.0** modules `:core:dictionary` and `:core:ocr`; those two are independent and must **never** depend on each other (see [Licensing & native modules](#licensing--native-modules)).
+Dependency flow: `app` → `domain` → `source-api`; `data` implements `domain` repos. `:app` also depends on `:core:navigation` (the Navigation 3 wrapper), which depends on `:presentation-core` for shared Compose pieces (e.g. `isTabletUi()`); `:app` depends on the two **GPL-3.0** modules `:core:dictionary` and `:core:ocr`, which are independent and must **never** depend on each other (see [Licensing & native modules](#licensing--native-modules)).
 
-Package roots: `eu.kanade.tachiyomi.*` (legacy UI), `tachiyomi.*` (domain/data), `mihon.*` (Mihon's newer package root — also used by komi-kun code, e.g. `mihon.feature.*`, `mihon.core.dictionary.*`, `mihon.core.ocr.*`), `exh.*` (enhanced sources, SY), `komikun.*` (fork-only code).
+Package roots: `eu.kanade.tachiyomi.*` (legacy UI), `tachiyomi.*` (domain/data), `mihon.*` (Mihon's newer package root — also used by komi-kun code, e.g. `mihon.feature.*`, `mihon.core.navigation.*`, `mihon.core.dictionary.*`, `mihon.core.ocr.*`), `exh.*` (enhanced sources, SY), `komikun.*` (fork-only code).
 
 ---
 
@@ -149,11 +150,11 @@ Package roots: `eu.kanade.tachiyomi.*` (legacy UI), `tachiyomi.*` (domain/data),
 
 **DI** – [Metro](https://zacsweers.github.io/metro/), not Hilt/Injekt. The graph is `mihon/app/di/AppGraph.kt` (`@DependencyGraph`) with providers/bindings in `mihon/app/di/AppBindings.kt`; it is built in `App.kt` (`createGraphFactory<AppGraph.Factory>().create(...)`) and reached as `context.appGraph` or by injecting `AppGraph`. Most classes need only `@Inject` on the constructor (interactors, repositories, services); use `@Provides`/`@Binds` in `AppBindings` for third-party or interface types, and `@ContributesIntoMap` / `@ContributesIntoSet` for maps/sets. Parameterised types use `@AssistedInject` + `@AssistedFactory`. Feature bindings live in per-feature Metro `@BindingContainer` objects registered once in `AppGraph.bindingContainers` (`DictionaryBindings`, `OcrBindings`, `DictionaryHostBindings`, `OcrHostBindings`), and feature impls are contributed with `@ContributesBinding(AppScope::class)` — this keeps the GPL modules' wiring out of the shared `AppBindings`. Extension-facing code still resolves through the Injekt interop bridge (`mihon/app/di/injekt/`).
 
-**UI & navigation** – Voyager `Screen`s in `eu.kanade.tachiyomi.ui.*`, composables in `eu.kanade.presentation.*`. Base type: `eu.kanade.presentation.util.Screen` (in `Navigator.kt`). State lives in **Metro ViewModels** obtained with `metroViewModel<VM>()` or `assistedMetroViewModel<VM, Factory> { create(...) }`; they extend `androidx.lifecycle.ViewModel`, expose a `StateFlow` / `MutableStateFlow` (often a `State` data class) and run work in `viewModelScope`. Example: `NewUpdateScreen` + `NewUpdateViewModel` in `app/src/main/java/eu/kanade/tachiyomi/ui/more/`.
+**UI & navigation** – Navigation 3. A screen is a `@Composable fun` taking its arguments; the *route* is a `@Serializable` `NavKey` in `:core:navigation` (`AppRoutes.kt`, upstream chains) or `app/src/main/java/mihon/core/navigation/KunRoutes.kt` (this fork's screens), and it is dispatched by the single registry `mihon.core.navigation.AppNavGraph.appEntries()`. Navigate with `LocalNavigator.current.push(Route)` / `.pop()` / `.popTo { … }`; the wrapper (`mihon.core.navigation.Navigator`) exposes `routes`/`current`/`previous`/`canPop` and nothing else. `MainActivity` hosts the root `NavigatorDisplay` (two-pane settings + overlay-sheet scene strategies, per-entry `ViewModelStore`, result-event bus); `HomeScreen` hosts a second `Navigator` for the tabs (`TopLevelRoute`). Screens report a share URL through `LocalAssistUrl`; tab switches and other cross-screen requests go through `LocalResultEventBus`. State lives in **Metro ViewModels** obtained with `metroViewModel<VM>()` or `assistedMetroViewModel<VM, Factory> { create(...) }`; they extend `androidx.lifecycle.ViewModel`, expose a `StateFlow` / `MutableStateFlow` (often a `State` data class) and run work in `viewModelScope`. Example: `NewUpdateScreen` + `NewUpdateViewModel` in `app/src/main/java/eu/kanade/tachiyomi/ui/more/`.
 
 **Coroutines** – In ViewModels use `viewModelScope`. Helpers in `tachiyomi.core.common.util.lang`: `withIOContext`, `withUIContext`, `CoroutineScope.launchIO` (on a given scope). The top-level `launchIO` / `launchNow` run on **GlobalScope** — avoid them for lifecycle-bound work. `rememberCoroutineScope()` is fine in Compose; long-lived services may own their own scope (`AppCoroutineScope` in `mihon.core.metro`).
 
-**Activities (not Voyager)** – `MainActivity` (shell / Voyager host), `ReaderActivity` + `ReaderViewModel`, `WebViewActivity`, `UnlockActivity`, OAuth login activities, `DeepLinkActivity`. Reader: `ReaderActivity.newIntent(context, mangaId, chapterId)`. Web: both `WebViewScreen` (Voyager) and `WebViewActivity.newIntent(...)`.
+**Activities (not Compose navigation)** – `MainActivity` (shell / Navigation 3 host), `ReaderActivity` + `ReaderViewModel`, `WebViewActivity`, `UnlockActivity`, OAuth login activities, `DeepLinkActivity`. Reader: `ReaderActivity.newIntent(context, mangaId, chapterId)`. Web: `WebViewScreen` (route `WebViewRoute`) is also hosted by `WebViewActivity`, which decodes the same route from its intent.
 
 The reader's OCR overlay is per-activity, not app-wide: `ReaderActivity.onCreate` asks the DI-injected `ReaderOcrHost` for a `ReaderOcrSession` (`newSession()`) and `onDestroy` closes it with `close(recreating = isChangingConfigurations && !isFinishing)`. The session owns everything that belongs to that one reader — the viewport the overlay was composed with, the block currently looked up, the popup anchor and the page work it started — so none of it can outlive the reader; the app-scoped pieces (engine, caches, download queue, dictionary popup host) stay behind the host/services. A configuration change closes the session too, but hands its state, and the open lookup, to the session the recreated reader creates — a reader that is *finishing* never does, even when a configuration change lands before destroy, because no successor would consume the handover; `reset()` is the narrower release the same activity calls when it opens another chapter (`onNewIntent`) and stays alive (a no-op once the session is closed).
 
@@ -209,11 +210,11 @@ Dictionaries and OCR are **one feature behind one explicit, default-off switch**
 | yes (pre-feature upgrade) | no | `DictionaryOcrSetupScreen`, a one-time standalone screen on the first launch |
 | yes | yes | none, ever again |
 
-Both surfaces render the same `DictionaryOcrSetupContent` (the onboarding step with the switch, the upgrade screen without it), so the copy is identical. The upgrade screen answers with two equally weighted buttons — **Turn on** (`choose(true)`) and **Keep off** (`choose(false)`) — each storing the answer and dismissing in one tap, an equal-width pair from `InfoScreen(equalActionButtons = true)`; there is no disabled accept and no in-content switch, and the screen cannot be dismissed without an answer (`BackHandler` swallowed). `MainActivity.ShowOnboarding()` pushes it once — guarded by the policy, a `rememberSaveable` flag and a `lastItem` check — and only after onboarding is complete. A fresh install can never reach it: finishing onboarding goes through one policy call, `DictionaryOcrSetupPolicy.finishOnboarding`, which stores the answer *before* setting `shownOnboardingFlow`, so the policy already resolves `NONE` when the flag flips. **There is no versionCode migration**: the nightly `versionCode` is pinned at 83, so an `oldVersion < newVersion` migration would no-op for every existing install; the existing runtime preference architecture carries the one-time prompt instead.
+Both surfaces render the same `DictionaryOcrSetupContent` (the onboarding step with the switch, the upgrade screen without it), so the copy is identical. The upgrade screen answers with two equally weighted buttons — **Turn on** (`choose(true)`) and **Keep off** (`choose(false)`) — each storing the answer and dismissing in one tap, an equal-width pair from `InfoScreen(equalActionButtons = true)`; there is no disabled accept and no in-content switch, and the screen cannot be dismissed without an answer (`BackHandler` swallowed). `MainActivity.ShowOnboarding()` pushes `DictionaryOcrSetupRoute` once — guarded by the policy, a `rememberSaveable` flag and a `route in navigator.routes` check — and only after onboarding is complete. A fresh install can never reach it: finishing onboarding goes through one policy call, `DictionaryOcrSetupPolicy.finishOnboarding`, which stores the answer *before* setting `shownOnboardingFlow`, so the policy already resolves `NONE` when the flag flips. **There is no versionCode migration**: the nightly `versionCode` is pinned at 83, so an `oldVersion < newVersion` migration would no-op for every existing install; the existing runtime preference architecture carries the one-time prompt instead.
 
 **Runtime gates** (all read `isEnabled()`; off means inert, not just invisible):
 
-- Navigation: When the feature is enabled, the Dictionary is accessed via the More ("その他") screen by default. An option (`UiPreferences.showNavDictionary`, configurable in Appearance or Dictionary settings) allows displaying it in the bottom navigation bar and rail instead. `DictionaryTab.isEnabled()` and `DictionaryTabNavigationPolicy` govern tab visibility and the library fallbacks when the feature is turned off or removed from the navigation bar.
+- Navigation: When the feature is enabled, the Dictionary is accessed via the More ("その他") screen by default. An option (`UiPreferences.showNavDictionary`, configurable in Appearance or Dictionary settings) allows displaying it in the bottom navigation bar and rail instead. `HomeScreen`'s tab filter and `DictionaryTabNavigationPolicy` govern tab visibility (the tab itself is `TopLevelRoute.Dictionary`) and the library fallbacks when the feature is turned off or removed from the navigation bar.
 - Settings: `SettingsDictionaryScreen` and `SettingsOcrScreen` stay reachable and each owns a master switch; while off, every actionable item/group in them (`visible = featureEnabled`) is hidden — import, model download, cache clearing, engine tuning. The secondary feature screens (`SettingsDictionaryPopupScreen`, `SettingsAnkiScreen`) are themselves `SearchableSettings.isEnabled()`-gated on the switch, so they are hidden from Settings *and* search — which is what keeps the Anki screen from migrating preferences or talking to AnkiDroid while off. The master switch lives on the two **ungated** screens (Dictionary and OCR), so hiding the secondary screens can never strand re-enable.
 - Reader (`ReaderActivity`, `ReaderViewModel`): overlay composition, dictionary popup composition, single/long tap hit-testing, outside-tap block test, the two-finger toggle, the bottom-bar OCR button (removed from `enabledButtons`) and its long-press redo dialog, and `toggleOcrOverlay()` (via `ReaderOcrTogglePolicy`: off means no write).
 - Data layer: `ReaderOcrBlockLoader.ensureLoaded()`/`redoOcr()` (so no `.mokuro` sidecar, cache or engine read happens) and `OcrWorker.doWork()` (off returns success and leaves the persisted queue untouched).
@@ -291,12 +292,12 @@ Current SyncYomi allocation: `Backup.deletions` = `11000` (`List<BackupDeletedIt
 ## Adding a komi-kun feature
 
 1. **Interactor:** `domain/src/main/java/tachiyomi/domain/<area>/interactor/MyFeature.kt`, annotated `@Inject` (Metro resolves it; add a `@Provides` / `@Binds` to `mihon/app/di/AppBindings.kt` — or a feature `@BindingContainer`, as the GPL dictionary/OCR modules do — only if it needs manual wiring)
-2. **UI:** Metro ViewModel + `Screen` under `app/src/main/java/eu/kanade/tachiyomi/ui/` (see [Architecture](#architecture))
+2. **UI:** Metro ViewModel + `@Composable` screen + a `@Serializable` route in `app/src/main/java/mihon/core/navigation/KunRoutes.kt`, registered as an `entry<…>` in `AppNavGraph.appEntries()`, under `app/src/main/java/eu/kanade/tachiyomi/ui/` (see [Architecture](#architecture))
 3. **Strings:** `i18n-kun/src/commonMain/moko-resources/base/strings.xml`, referenced via `KUNMR`
 4. **Markers:** wrap edits to existing files in `// KUN -->` / `// KUN <--`
 5. **Backup/sync fields:** new `@ProtoNumber`s must use the fork-reserved `10000-10999` block (see [Backup protobuf field numbers](#backup-protobuf-field-numbers)); never take an upstream number.
 
-Reference: `domain/src/main/java/tachiyomi/domain/category/interactor/HideCategory.kt` (an `@Inject` interactor) and `app/src/main/java/eu/kanade/tachiyomi/ui/more/NewUpdateScreen.kt` + `NewUpdateViewModel.kt` (ViewModel + Screen).
+Reference: `domain/src/main/java/tachiyomi/domain/category/interactor/HideCategory.kt` (an `@Inject` interactor) and `app/src/main/java/eu/kanade/tachiyomi/ui/more/NewUpdateScreen.kt` + `NewUpdateViewModel.kt` (ViewModel + `@Composable` screen).
 
 ---
 
@@ -355,7 +356,10 @@ Gradle `-P` flags (`buildSrc/src/main/kotlin/mihon/buildlogic/BuildConfig.kt`):
 ## Key files
 
 - `App.kt` – Metro graph bootstrap, logging setup, Coil initialization
-- `MainActivity.kt` – Voyager navigation host
+- `MainActivity.kt` – Navigation 3 host (`NavigatorDisplay`, scene strategies, assist content)
+- `app/src/main/java/mihon/core/navigation/AppNavGraph.kt` – the single entry registry (`appEntries()`): every route in the app is dispatched from here
+- `app/src/main/java/mihon/core/navigation/KunRoutes.kt` – this fork's `@Serializable` routes (upstream's live in `:core:navigation`)
+- `core/navigation/src/main/kotlin/mihon/core/navigation/` – the Navigation 3 wrapper: `Navigator.kt` (`Navigator` / `NavigatorDisplay` / `LocalNavigator` / `rememberNavigator`), `AppRoutes.kt`, `AssistContentManager.kt`, `LeavingEntryInputNavEntryDecorator.kt`, `TwoPaneSettingsScene.kt`, `OverlaySheetScene.kt`
 - `app/src/main/java/mihon/app/di/AppGraph.kt` – Metro `@DependencyGraph` (the DI graph)
 - `app/src/main/java/mihon/app/di/AppBindings.kt` – `@Provides` / `@Binds` / contributed bindings
 - `buildSrc/src/main/kotlin/mihon/buildlogic/BuildConfig.kt`, `AndroidConfig.kt` – flags, SDK versions

@@ -5,6 +5,7 @@ import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import eu.kanade.presentation.more.settings.Preference
+import kotlinx.serialization.Serializable
 import mihon.app.di.appGraph
 import tachiyomi.i18n.kun.KUNMR
 import uy.kohesive.injekt.Injekt
@@ -14,7 +15,11 @@ import uy.kohesive.injekt.api.get
  * Global dictionary popup chrome (theme, layout, typography). Preference widgets are reused from
  * [SettingsDictionaryScreen] (02 §5.1).
  */
-object SettingsDictionaryPopupScreen : SearchableSettings {
+// KUN -->
+// A route now, so it must be serializable for Navigation 3 to persist the back stack.
+@Serializable
+data object SettingsDictionaryPopupScreen : SearchableSettings {
+// KUN <--
 
     @ReadOnlyComposable
     @Composable

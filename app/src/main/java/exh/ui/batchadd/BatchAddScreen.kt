@@ -26,11 +26,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import cafe.adriel.voyager.navigator.LocalNavigator
-import cafe.adriel.voyager.navigator.currentOrThrow
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 import eu.kanade.presentation.components.AppBar
-import eu.kanade.presentation.util.Screen
+import mihon.core.navigation.LocalNavigator
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
 import tachiyomi.i18n.sy.SYMR
@@ -40,124 +38,121 @@ import tachiyomi.presentation.core.components.material.padding
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.plus
 
-class BatchAddScreen : Screen() {
+@Composable
+fun BatchAddScreen() {
+    val viewModel = metroViewModel<BatchAddViewModel>()
+    val state by viewModel.state.collectAsState()
+    val navigator = LocalNavigator.current
+    val context = LocalContext.current
 
-    @Composable
-    override fun Content() {
-        val viewModel = metroViewModel<BatchAddViewModel>()
-        val state by viewModel.state.collectAsState()
-        val navigator = LocalNavigator.currentOrThrow
-        val context = LocalContext.current
-
-        Scaffold(
-            topBar = { scrollBehavior ->
-                AppBar(
-                    title = stringResource(SYMR.strings.batch_add),
-                    navigateUp = navigator::pop,
-                    scrollBehavior = scrollBehavior,
-                )
-            },
-        ) { paddingValues ->
-            when (state.state) {
-                BatchAddViewModel.State.INPUT -> {
-                    Column(
-                        Modifier
-                            .padding(paddingValues)
-                            .verticalScroll(rememberScrollState())
-                            .padding(MaterialTheme.padding.medium),
-                    ) {
-                        Text(text = stringResource(SYMR.strings.eh_batch_add_title), style = MaterialTheme.typography.titleLarge)
-                        Spacer(Modifier.height(8.dp))
-                        TextField(
-                            value = state.galleries,
-                            onValueChange = viewModel::updateGalleries,
-                            modifier = Modifier.fillMaxWidth(),
-                            placeholder = {
-                                Text(
-                                    text =
-                                    // KMK -->
-                                    stringResource(SYMR.strings.md_batch_add_description) +
-                                        if (viewModel.isHentaiEnabled) {
-                                            // KMK <--
-                                            stringResource(SYMR.strings.eh_batch_add_description)
-                                        } else {
-                                            ""
-                                        },
-                                )
-                            },
-                            keyboardOptions = KeyboardOptions(autoCorrectEnabled = false),
-                            textStyle = MaterialTheme.typography.bodyLarge,
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        Button(
-                            modifier = Modifier.fillMaxWidth(),
-                            onClick = { viewModel.addGalleries(context) },
-                        ) {
-                            Text(text = stringResource(SYMR.strings.eh_batch_add_button))
-                        }
-                        // KMK -->
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            text = stringResource(KMR.strings.batch_add_description),
-                        )
-                        // KMK <--
-                    }
-                }
-                BatchAddViewModel.State.PROGRESS -> {
-                    LazyColumn(
-                        contentPadding = paddingValues + PaddingValues(MaterialTheme.padding.medium),
-                    ) {
-                        item(key = "top") {
-                            Column {
-                                Text(text = stringResource(SYMR.strings.eh_batch_add_adding_galleries), style = MaterialTheme.typography.titleLarge)
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Row(
-                                    Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    val progress = state.progress.toFloat()
-                                    if (state.progressTotal > 0 && !progress.isNaN()) {
-                                        val realProgress = progress / state.progressTotal
-                                        if (!realProgress.isNaN()) {
-                                            LinearProgressIndicator(
-                                                progress = { realProgress },
-                                                modifier = Modifier
-                                                    .padding(top = 2.dp)
-                                                    .weight(1f),
-                                            )
-                                        }
-                                    }
-                                    Text(
-                                        text = state.progress.toString() + "/" + state.progressTotal,
-                                        modifier = Modifier.weight(0.15f),
-                                        textAlign = TextAlign.Center,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(12.dp))
-                            }
-                        }
-                        itemsIndexed(
-                            state.events,
-                            key = { index, text -> "batch-add-${index + text.hashCode()}" },
-                        ) { _, text ->
+    Scaffold(
+        topBar = { scrollBehavior ->
+            AppBar(
+                title = stringResource(SYMR.strings.batch_add),
+                navigateUp = navigator::pop,
+                scrollBehavior = scrollBehavior,
+            )
+        },
+    ) { paddingValues ->
+        when (state.state) {
+            BatchAddViewModel.State.INPUT -> {
+                Column(
+                    Modifier
+                        .padding(paddingValues)
+                        .verticalScroll(rememberScrollState())
+                        .padding(MaterialTheme.padding.medium),
+                ) {
+                    Text(text = stringResource(SYMR.strings.eh_batch_add_title), style = MaterialTheme.typography.titleLarge)
+                    Spacer(Modifier.height(8.dp))
+                    TextField(
+                        value = state.galleries,
+                        onValueChange = viewModel::updateGalleries,
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = {
                             Text(
-                                text = text,
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.fillMaxWidth(),
-                                textAlign = TextAlign.Center,
+                                text =
+                                // KMK -->
+                                stringResource(SYMR.strings.md_batch_add_description) +
+                                    if (viewModel.isHentaiEnabled) {
+                                        // KMK <--
+                                        stringResource(SYMR.strings.eh_batch_add_description)
+                                    } else {
+                                        ""
+                                    },
                             )
-                        }
-                        if (state.progress == state.progressTotal) {
-                            item(key = "finish") {
-                                Column {
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Button(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        onClick = viewModel::finish,
-                                    ) {
-                                        Text(text = stringResource(SYMR.strings.eh_batch_add_finish))
+                        },
+                        keyboardOptions = KeyboardOptions(autoCorrectEnabled = false),
+                        textStyle = MaterialTheme.typography.bodyLarge,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Button(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = { viewModel.addGalleries(context) },
+                    ) {
+                        Text(text = stringResource(SYMR.strings.eh_batch_add_button))
+                    }
+                    // KMK -->
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = stringResource(KMR.strings.batch_add_description),
+                    )
+                    // KMK <--
+                }
+            }
+            BatchAddViewModel.State.PROGRESS -> {
+                LazyColumn(
+                    contentPadding = paddingValues + PaddingValues(MaterialTheme.padding.medium),
+                ) {
+                    item(key = "top") {
+                        Column {
+                            Text(text = stringResource(SYMR.strings.eh_batch_add_adding_galleries), style = MaterialTheme.typography.titleLarge)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                val progress = state.progress.toFloat()
+                                if (state.progressTotal > 0 && !progress.isNaN()) {
+                                    val realProgress = progress / state.progressTotal
+                                    if (!realProgress.isNaN()) {
+                                        LinearProgressIndicator(
+                                            progress = { realProgress },
+                                            modifier = Modifier
+                                                .padding(top = 2.dp)
+                                                .weight(1f),
+                                        )
                                     }
+                                }
+                                Text(
+                                    text = state.progress.toString() + "/" + state.progressTotal,
+                                    modifier = Modifier.weight(0.15f),
+                                    textAlign = TextAlign.Center,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(12.dp))
+                        }
+                    }
+                    itemsIndexed(
+                        state.events,
+                        key = { index, text -> "batch-add-${index + text.hashCode()}" },
+                    ) { _, text ->
+                        Text(
+                            text = text,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+                    if (state.progress == state.progressTotal) {
+                        item(key = "finish") {
+                            Column {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Button(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    onClick = viewModel::finish,
+                                ) {
+                                    Text(text = stringResource(SYMR.strings.eh_batch_add_finish))
                                 }
                             }
                         }
@@ -165,24 +160,24 @@ class BatchAddScreen : Screen() {
                 }
             }
         }
+    }
 
-        val onDismissRequest = viewModel::dismissDialog
-        when (state.dialog) {
-            BatchAddViewModel.Dialog.NoGalleriesSpecified -> AlertDialog(
-                onDismissRequest = onDismissRequest,
-                confirmButton = {
-                    TextButton(onClick = onDismissRequest) {
-                        Text(text = stringResource(MR.strings.action_ok))
-                    }
-                },
-                title = {
-                    Text(text = stringResource(SYMR.strings.batch_add_no_valid_galleries))
-                },
-                text = {
-                    Text(text = stringResource(SYMR.strings.batch_add_no_valid_galleries_message))
-                },
-            )
-            null -> Unit
-        }
+    val onDismissRequest = viewModel::dismissDialog
+    when (state.dialog) {
+        BatchAddViewModel.Dialog.NoGalleriesSpecified -> AlertDialog(
+            onDismissRequest = onDismissRequest,
+            confirmButton = {
+                TextButton(onClick = onDismissRequest) {
+                    Text(text = stringResource(MR.strings.action_ok))
+                }
+            },
+            title = {
+                Text(text = stringResource(SYMR.strings.batch_add_no_valid_galleries))
+            },
+            text = {
+                Text(text = stringResource(SYMR.strings.batch_add_no_valid_galleries_message))
+            },
+        )
+        null -> Unit
     }
 }

@@ -56,6 +56,7 @@ import eu.kanade.tachiyomi.util.system.toast
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.Serializable
 import mihon.app.di.appGraph
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.automirroredrounded.Help
@@ -68,9 +69,8 @@ import tachiyomi.i18n.sy.SYMR
 import tachiyomi.presentation.core.components.material.padding
 import tachiyomi.presentation.core.i18n.stringResource
 
-object SettingsTrackingScreen : SearchableSettings {
-    @Suppress("unused")
-    private fun readResolve(): Any = SettingsTrackingScreen
+@Serializable
+data object SettingsTrackingScreen : SearchableSettings {
 
     @ReadOnlyComposable
     @Composable
@@ -168,7 +168,14 @@ object SettingsTrackingScreen : SearchableSettings {
                     ),
                     Preference.PreferenceItem.TrackerPreference(
                         tracker = trackerManager.myAnimeList,
-                        login = { context.openInBrowser(MyAnimeListApi.authUrl(), forceDefaultBrowser = true) },
+                        login = {
+                            context.openInBrowser(
+                                // KMK -->
+                                MyAnimeListApi.authUrl(trackPreferences, trackerManager.myAnimeList),
+                                // KMK <--
+                                forceDefaultBrowser = true,
+                            )
+                        },
                         logout = { dialog = LogoutDialog(trackerManager.myAnimeList) },
                     ),
                     Preference.PreferenceItem.TrackerPreference(

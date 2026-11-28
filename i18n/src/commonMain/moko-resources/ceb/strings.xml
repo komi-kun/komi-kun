@@ -136,6 +136,8 @@
     <string name="landscape">Landscape</string>
     <string name="pref_category_library_update">Tibuok kalibutan nga update</string>
     <string name="update_never">Off</string>
+    <string name="update_1hour">Kada 1 ka oras</string>
+    <string name="update_3hour">Kada 3 ka oras</string>
     <string name="update_6hour">Kada 6 ka oras</string>
     <string name="update_12hour">Matag 12 ka oras</string>
     <string name="update_24hour">Adlaw-adlaw</string>
@@ -241,11 +243,7 @@
     <string name="none">Wala</string>
     <string name="ext_pending">Naghulat</string>
     <string name="ext_app_info">Impormasyon sa app</string>
-    <string name="untrusted_extension_message">Kini nga extension gipirmahan gamit ang dili kasaligan nga sertipiko ug wala gi-aktibo.
-\n
-\nAng usa ka malisyoso nga extension mahimong makabasa sa bisan unsang mga kredensyal sa pag-login nga gitipigan sa Komikku o ipatuman ang arbitraryong code.
-\n
-\nPinaagi sa pagsalig niini nga sertipiko gidawat nimo kini nga mga risgo.</string>
+    <string name="untrusted_extension_message">Kini nga extension gipirmahan gamit ang dili kasaligan nga sertipiko ug wala gi-aktibo. \n \nAng usa ka malisyoso nga extension mahimong makabasa sa bisan unsang mga kredensyal sa pag-login nga gitipigan sa Komikku o ipatuman ang arbitraryong code. \n \nPinaagi sa pagsalig niini nga sertipiko gidawat nimo kini nga mga risgo.</string>
     <string name="pref_cutout_short">Ipakita ang sulod sa ginunting nga lugar</string>
     <string name="pref_page_transitions">I-animate ang mga transisyon sa panid</string>
     <string name="pref_custom_brightness">Custom nga kahayag</string>
@@ -433,6 +431,4 @@
     <string name="information_webview_required">Gikinahanlan ang WebView alang sa Komikku</string>
     <string name="information_required_plain">*gikinahanlan</string>
     <string name="selected">Napili</string>
-    <string name="update_1hour">Kada 1 ka oras</string>
-    <string name="update_3hour">Kada 3 ka oras</string>
 </resources>

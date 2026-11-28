@@ -75,6 +75,8 @@
     <string name="landscape">Альбомна</string>
     <string name="pref_library_update_interval">Автоматичне оновлення</string>
     <string name="update_never">Вимкнути</string>
+    <string name="update_1hour">Кожні 1 годин</string>
+    <string name="update_3hour">Кожні 3 годин</string>
     <string name="update_6hour">Кожні 6 годин</string>
     <string name="update_12hour">Кожні 12 годин</string>
     <string name="update_24hour">Щодня</string>
@@ -250,6 +252,9 @@
     <string name="file_select_backup">Виберіть файл резервної копії</string>
     <string name="update_check_confirm">Завантажити</string>
     <string name="update_check_no_new_updates">Оновлень не виявлено</string>
+    <string name="update_check_notification_download_in_progress">Завантаження в процесі…</string>
+    <string name="update_check_notification_download_complete">Тицьніть для встановлення оновлень</string>
+    <string name="update_check_notification_download_error">Помилка завантаження</string>
     <string name="update_check_notification_update_available">Доступна нова версія!</string>
     <string name="information_no_downloads">Завантажень немає</string>
     <string name="information_no_recent">Без оновлень</string>
@@ -525,6 +530,7 @@
     <string name="pref_verbose_logging">Докладне журналювання</string>
     <string name="pref_verbose_logging_summary">Записувати докладні журнали до системного журналу (знижує продуктивність застосунку)</string>
     <string name="notification_size_warning">Попередження: великі оновлення можуть призвести до сповільнення джерел або збільшити використання батареї. Тицьніть задля подробиць.</string>
+    <string name="channel_app_updates">Оновлення застосунку</string>
     <string name="download_queue_size_warning">Попередження: великий об\'єм завантажень може призвести до сповільнення роботи джерел та/або блокуванню %s.</string>
     <string name="ext_update_all">Оновити все</string>
     <string name="backup_info">Ви повинні зберігати декілька резервних копій в інших місцях. Резервні копії можуть містити конфіденційні дані, включно зі збереженими паролями; будьте обережні, якщо ділитеся ними.</string>
@@ -552,8 +558,6 @@
     <string name="skipped_reason_not_caught_up">Пропущено через те, що є непрочитані розділи</string>
     <string name="skipped_reason_not_started">Пропущено, оскільки серія не почата</string>
     <string name="empty_backup_error">Немає елементів у бібліотеці для резервування</string>
-    <string name="download_notifier_split_page_not_found">Сторінку %d не знайдено, при розділенні</string>
-    <string name="split_tall_images_summary">Покращує продуктивність читалки</string>
     <string name="webview_data_deleted">Дані WebView очищені</string>
     <string name="pref_clear_webview_data">Очистити дані WebView</string>
     <string name="reading_list">Читаю</string>
@@ -666,7 +670,6 @@
     <string name="pref_hide_in_library_items">Приховати записи, які вже є в бібліотеці</string>
     <string name="action_copy_to_clipboard">Копіювати в буфер обміну</string>
     <string name="action_update_category">Оновити категорію</string>
-    <string name="split_tall_images">Розділяти довгі зображення</string>
     <string name="overlay_header">Оверлей</string>
     <string name="pref_page_rotate">Повернути широкі сторінки за розміром</string>
     <string name="pref_page_rotate_invert">Перевернути орієнтацію обернутих широких сторінок</string>
@@ -816,10 +819,4 @@
     <string name="action_webview_close_tab">Закрити вкладку</string>
     <string name="theme_catppuccin">Catppuccin</string>
     <string name="pref_display_images_description">Рендерити зображення в описах манґи</string>
-    <string name="update_1hour">Кожні 1 годин</string>
-    <string name="update_3hour">Кожні 3 годин</string>
-    <string name="update_check_notification_download_in_progress">Завантаження в процесі…</string>
-    <string name="update_check_notification_download_complete">Тицьніть для встановлення оновлень</string>
-    <string name="update_check_notification_download_error">Помилка завантаження</string>
-    <string name="channel_app_updates">Оновлення застосунку</string>
 </resources>

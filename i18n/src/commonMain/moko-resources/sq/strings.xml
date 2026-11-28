@@ -47,6 +47,7 @@
     <string name="pref_library_columns">Përmasat e grafikut</string>
     <string name="pref_category_library_update">Përditësim global</string>
     <string name="update_never">Joaktiv</string>
+
     <string name="update_12hour">Çdo 12 orë</string>
     <string name="update_24hour">Ditore</string>
     <string name="update_weekly">Javore</string>
@@ -85,6 +86,7 @@
     <string name="spen_next_page">Faqja tjetër</string>
     <string name="spen_previous_page">Faqja e meparshme</string>
     <string name="channel_ext_updates">Përditësimet shtesë</string>
+    <string name="channel_app_updates">Përditësimet e aplikacioneve</string>
     <string name="channel_new_chapters">Përditësimet e kapitullit</string>
     <string name="download_notifier_cache_renewal">Shkarkimet e indeksimit</string>
     <string name="download_notifier_downloader_title">Shkarkues</string>
@@ -163,6 +165,8 @@
     <string name="portrait">Portret</string>
     <string name="restrictions">Kufizimet: %s</string>
     <string name="pref_library_update_interval">Përditësimet automatike</string>
+    <string name="update_1hour">Çdo 1 orë</string>
+    <string name="update_3hour">Çdo 3 orë</string>
     <string name="update_6hour">Çdo 6 orë</string>
     <string name="update_72hour">Çdo 3 ditë</string>
     <string name="pref_library_update_restriction">Përditësimet automatike të kufizimet e pajisjes</string>
@@ -279,11 +283,7 @@
     <string name="ext_downloading">Po shkarkohet</string>
     <string name="ext_uninstall">Çinstaloni</string>
     <string name="ext_installer_legacy">Trashëgimia</string>
-    <string name="untrusted_extension_message">Kjo shtesë u nënshkrua me një certifikatë të pabesueshme dhe nuk u aktivizua.
-\n
-\n Një shtesë me qëllim të keq mund të lexojë çdo kredencial identifikimi të ruajtur në Komikku ose të ekzekutojë kod arbitrar.
-\n
-\n Duke i besuar kësaj certifikate ju i pranoni këto rreziqe.</string>
+    <string name="untrusted_extension_message">Kjo shtesë u nënshkrua me një certifikatë të pabesueshme dhe nuk u aktivizua. \n \n Një shtesë me qëllim të keq mund të lexojë çdo kredencial identifikimi të ruajtur në Komikku ose të ekzekutojë kod arbitrar. \n \n Duke i besuar kësaj certifikate ju i pranoni këto rreziqe.</string>
     <string name="obsolete_extension_message">Kjo shtesë nuk është më e disponueshme. Mund të mos funksionojë siç duhet dhe mund të shkaktojë probleme me aplikacionin. Rekomandohet ta çinstaloni.</string>
     <string name="ext_info_language">Gjuha</string>
     <string name="pref_read_with_volume_keys">Çelsat e volumit</string>
@@ -415,6 +415,7 @@
     <string name="file_select_cover">Zgjidhni imazhin e kopertinës</string>
     <string name="update_check_open">Hapni në GitHub</string>
     <string name="update_check_confirm">Shkarko</string>
+    <string name="update_check_notification_download_complete">Prekni për të instaluar përditësimin</string>
     <string name="transition_no_previous">Nuk ka kapitull të mëparshëm</string>
     <string name="database_clean">Asgjë për të pastruar</string>
     <string name="notification_incognito_text">Çaktivizo modalitetin e fshehtë</string>
@@ -436,6 +437,7 @@
     <string name="manga_info_expand">Më shumë</string>
     <string name="chapter_settings">Cilësimet e kapitullit</string>
     <string name="crash_screen_title">Ups!</string>
+    <string name="update_check_notification_download_error">Gabim shkarkimi</string>
     <string name="pref_invalidate_download_cache">Anuloni indeksin e shkarkimeve</string>
     <string name="pref_auto_clear_chapter_cache">Pastro memorjen e kapitullit në mbylljen e aplikacionit</string>
     <string name="pref_clear_database">Pastro bazën e të dhënave</string>
@@ -606,6 +608,7 @@
     <string name="skipped_reason_not_always_update">U anashkalua sepse seritë nuk kërkojnë përditësime</string>
     <string name="file_select_backup">Zgjidhni skedarin rezervë</string>
     <string name="update_check_no_new_updates">Nuk disponohen përditësime të reja</string>
+    <string name="update_check_notification_download_in_progress">Po shkarkohet…</string>
     <string name="update_check_notification_update_available">Versioni i ri në dispozicion!</string>
     <string name="chapter_settings_updated">Cilësimet e kapitullit të parazgjedhur të përditësuara</string>
     <string name="theme_midnightdusk">Perëndim Mesnate</string>
@@ -677,10 +680,4 @@
     <string name="track_activity_name">Gjurmuesi i identifikimit</string>
     <string name="pref_relative_format">Koha relative</string>
     <string name="pref_relative_format_summary">\"%1$s\" në vend të \"%2$s\"</string>
-    <string name="channel_app_updates">Përditësimet e aplikacioneve</string>
-    <string name="update_1hour">Çdo 1 orë</string>
-    <string name="update_3hour">Çdo 3 orë</string>
-    <string name="update_check_notification_download_complete">Prekni për të instaluar përditësimin</string>
-    <string name="update_check_notification_download_error">Gabim shkarkimi</string>
-    <string name="update_check_notification_download_in_progress">Po shkarkohet…</string>
 </resources>

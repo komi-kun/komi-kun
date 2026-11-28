@@ -33,8 +33,8 @@
         <item quantity="other">antaŭ %1$d tagoj</item>
     </plurals>
     <plurals name="browse_language_and_pages">
-        <item quantity="one">%2$s, %1$d paĝo</item>
-        <item quantity="other">%2$s, %1$d paĝoj</item>
+        <item quantity="one">%2$s %1$d paĝo</item>
+        <item quantity="other">%2$s %1$d paĝoj</item>
     </plurals>
     <plurals name="num_pages">
         <item quantity="one">%1$d paĝo</item>
@@ -52,6 +52,10 @@
         <item quantity="one">%1$s plej ŝatata</item>
         <item quantity="other">%1$s plej ŝatataj</item>
     </plurals>
+    <plurals name="rec_selected_entries">
+        <item quantity="one">Por %d elektita elemento</item>
+        <item quantity="other">Por %d elektitaj elementoj</item>
+    </plurals>
     <!-- KUN -->
     <!-- Fork-added: `base/plurals.xml` defines num_views, upstream's eo translation does not. -->
     <plurals name="num_views">
@@ -59,8 +63,4 @@
         <item quantity="other">%1$s vidoj</item>
     </plurals>
     <!-- KUN -->
-    <plurals name="rec_selected_entries">
-        <item quantity="one">Por %d elektita elemento</item>
-        <item quantity="other">Por %d elektitaj elementoj</item>
-    </plurals>
 </resources>

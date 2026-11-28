@@ -45,6 +45,7 @@ import exh.md.utils.MdUtil
 import exh.source.BlacklistedSources
 import exh.source.getMainSource
 import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
 import logcat.LogPriority
 import mihon.app.di.appGraph
 import mihon.icons.materialsymbols.MaterialSymbols
@@ -61,9 +62,11 @@ import tachiyomi.presentation.core.util.secondaryItemAlpha
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
-object SettingsMangadexScreen : SearchableSettings {
-    @Suppress("unused")
-    private fun readResolve(): Any = SettingsMangadexScreen
+// KUN -->
+// A route now, so it must be serializable for Navigation 3 to persist the back stack.
+@Serializable
+data object SettingsMangadexScreen : SearchableSettings {
+// KUN <--
 
     @ReadOnlyComposable
     @Composable
@@ -191,7 +194,9 @@ object SettingsMangadexScreen : SearchableSettings {
                     } else {
                         {
                             context.openInBrowser(
-                                MdConstants.Login.authUrl(MdUtil.getPkceChallengeCode()),
+                                // KMK -->
+                                MdConstants.Login.authUrl(MdUtil.newLoginCodeVerifier(trackPreferences, mdex.mdList)),
+                                // KMK <--
                                 forceDefaultBrowser = true,
                             )
                         }

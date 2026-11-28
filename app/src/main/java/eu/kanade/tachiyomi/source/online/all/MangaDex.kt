@@ -119,7 +119,10 @@ class MangaDex(delegate: HttpSource, val context: Context) :
         MangaHandler(mdLang.lang, mangadexService, apiMangaParser)
     }
     private val mangaPlusHandler by lazy {
+        // KUN -->
+        // The fork's handlers also take the shared Json instance.
         MangaPlusHandler(networkClient, context.appGraph.json)
+        // KUN <--
     }
     private val comikeyHandler by lazy {
         ComikeyHandler(networkClient)

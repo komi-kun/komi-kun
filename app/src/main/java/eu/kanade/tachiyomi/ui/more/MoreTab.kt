@@ -10,11 +10,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import cafe.adriel.voyager.navigator.LocalNavigator
-import cafe.adriel.voyager.navigator.Navigator
-import cafe.adriel.voyager.navigator.currentOrThrow
-import cafe.adriel.voyager.navigator.tab.LocalTabNavigator
-import cafe.adriel.voyager.navigator.tab.TabOptions
+import androidx.navigation3.runtime.result.ResultEffect
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
@@ -24,101 +20,85 @@ import eu.kanade.core.preference.asState
 import eu.kanade.domain.base.BasePreferences
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.presentation.more.MoreScreen
-import eu.kanade.presentation.util.Tab
+import eu.kanade.presentation.more.settings.screen.SettingsDataScreen
+import eu.kanade.presentation.more.settings.screen.openSettings
 import eu.kanade.presentation.util.rememberAnimatedVectorPainter
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.connections.discord.DiscordRPCService
 import eu.kanade.tachiyomi.data.connections.discord.DiscordScreen
 import eu.kanade.tachiyomi.data.download.DownloadManager
-import eu.kanade.tachiyomi.ui.category.CategoryScreen
-import eu.kanade.tachiyomi.ui.dictionary.DictionaryTab
-import eu.kanade.tachiyomi.ui.download.DownloadQueueScreen
-import eu.kanade.tachiyomi.ui.history.HistoryTab
-import eu.kanade.tachiyomi.ui.libraryUpdateError.LibraryUpdateErrorScreen
-import eu.kanade.tachiyomi.ui.setting.SettingsScreen
-import eu.kanade.tachiyomi.ui.stats.StatsScreen
-import eu.kanade.tachiyomi.ui.updates.UpdatesTab
-import exh.ui.batchadd.BatchAddScreen
+import eu.kanade.tachiyomi.ui.home.TopLevelRoute
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import mihon.core.navigation.AboutRoute
+import mihon.core.navigation.BatchAddRoute
+import mihon.core.navigation.CategoryRoute
+import mihon.core.navigation.DownloadQueueRoute
+import mihon.core.navigation.HistoryTabRoute
+import mihon.core.navigation.LibraryUpdateErrorRoute
+import mihon.core.navigation.LocalNavigator
+import mihon.core.navigation.StatsRoute
+import mihon.core.navigation.UpdatesTabRoute
+import mihon.presentation.core.util.isTabletUi
 import tachiyomi.core.common.preference.DictionaryOcrPreferences
 import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
 
-data object MoreTab : Tab {
-    @Suppress("unused")
-    private fun readResolve(): Any = MoreTab
+@Composable
+fun MoreTab() {
+    val context = LocalContext.current
+    val navigator = LocalNavigator.current
+    val isTabletUi = isTabletUi()
+    val viewModel = metroViewModel<MoreViewModel>()
+    val downloadQueueState by viewModel.downloadQueueState.collectAsState()
+    MoreScreen(
+        downloadQueueStateProvider = { downloadQueueState },
+        downloadedOnly = viewModel.downloadedOnly,
+        onDownloadedOnlyChange = { viewModel.downloadedOnly = it },
+        incognitoMode = viewModel.incognitoMode,
+        onIncognitoModeChange = { viewModel.incognitoMode = it },
+        // SY -->
+        showNavUpdates = viewModel.showNavUpdates,
+        showNavHistory = viewModel.showNavHistory,
+        // SY <--
+        // KUN -->
+        showDictionary = viewModel.showDictionary,
+        onClickDictionary = { navigator.push(TopLevelRoute.Dictionary) },
+        // KUN <--
+        onClickDownloadQueue = { navigator.push(DownloadQueueRoute) },
+        onClickCategories = { navigator.push(CategoryRoute) },
+        onClickStats = { navigator.push(StatsRoute) },
+        onClickDataAndStorage = {
+            navigator.openSettings(SettingsDataScreen, isTabletUi)
+        },
+        onClickSettings = { navigator.openSettings(twoPane = isTabletUi) },
+        onClickAbout = { navigator.openSettings(AboutRoute, isTabletUi) },
+        // SY -->
+        onClickBatchAdd = { navigator.push(BatchAddRoute) },
+        onClickUpdates = { navigator.push(UpdatesTabRoute) },
+        onClickHistory = { navigator.push(HistoryTabRoute) },
+        // SY <--
+        // KMK -->
+        onClickLibraryUpdateErrors = { navigator.push(LibraryUpdateErrorRoute) },
+        // KMK <--
+    )
 
-    override val options: TabOptions
-        @Composable
-        get() {
-            val isSelected = LocalTabNavigator.current.current.key == key
-            val enter = AnimatedImageVector.animatedVectorResource(R.drawable.animated_more_enter)
-            val exit = AnimatedImageVector.animatedVectorResource(R.drawable.animated_more_exit)
-            return TabOptions(
-                // KUN -->
-                // DictionaryTab is inserted before MoreTab in HomeScreen.TABS (slot 4), so MoreTab
-                // keeps the last slot to match the visual order.
-                index = 5u,
-                // KUN <--
-                title = stringResource(MR.strings.label_more),
-                icon = rememberAnimatedVectorPainter(enter, exit, isSelected),
-            )
-        }
-
-    override suspend fun onReselect(navigator: Navigator) {
-        navigator.push(SettingsScreen())
+    ResultEffect<Unit>(resultKey = TopLevelRoute.More.reselectEventKey) {
+        navigator.openSettings(twoPane = isTabletUi)
     }
 
-    @Composable
-    override fun Content() {
-        val context = LocalContext.current
-        val navigator = LocalNavigator.currentOrThrow
-        val viewModel = metroViewModel<MoreViewModel>()
-        val downloadQueueState by viewModel.downloadQueueState.collectAsState()
-        MoreScreen(
-            downloadQueueStateProvider = { downloadQueueState },
-            downloadedOnly = viewModel.downloadedOnly,
-            onDownloadedOnlyChange = { viewModel.downloadedOnly = it },
-            incognitoMode = viewModel.incognitoMode,
-            onIncognitoModeChange = { viewModel.incognitoMode = it },
-            // SY -->
-            showNavUpdates = viewModel.showNavUpdates,
-            showNavHistory = viewModel.showNavHistory,
-            // SY <--
-            // KUN -->
-            showDictionary = viewModel.showDictionary,
-            onClickDictionary = { navigator.push(DictionaryTab) },
-            // KUN <--
-            onClickDownloadQueue = { navigator.push(DownloadQueueScreen) },
-            onClickCategories = { navigator.push(CategoryScreen()) },
-            onClickStats = { navigator.push(StatsScreen()) },
-            onClickDataAndStorage = { navigator.push(SettingsScreen(SettingsScreen.Destination.DataAndStorage)) },
-            onClickSettings = { navigator.push(SettingsScreen()) },
-            onClickAbout = { navigator.push(SettingsScreen(SettingsScreen.Destination.About)) },
-            // SY -->
-            onClickBatchAdd = { navigator.push(BatchAddScreen()) },
-            onClickUpdates = { navigator.push(UpdatesTab) },
-            onClickHistory = { navigator.push(HistoryTab) },
-            // SY <--
-            // KMK -->
-            onClickLibraryUpdateErrors = { navigator.push(LibraryUpdateErrorScreen()) },
-            // KMK <--
-        )
-
-        // AM (DISCORD) -->
-        LaunchedEffect(Unit) {
-            with(DiscordRPCService) {
-                discordScope.launchIO { setScreen(context, DiscordScreen.MORE) }
-            }
+    // AM (DISCORD) -->
+    LaunchedEffect(Unit) {
+        with(DiscordRPCService) {
+            discordScope.launchIO { setScreen(context, DiscordScreen.MORE) }
         }
-        // <-- AM (DISCORD)
     }
+    // <-- AM (DISCORD)
 }
 
 @Inject

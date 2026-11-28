@@ -49,7 +49,9 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -350,6 +352,9 @@ fun SearchToolbar(
 
             val keyboardController = LocalSoftwareKeyboardController.current
             val focusManager = LocalFocusManager.current
+            // KMK -->
+            val inputModeManager = LocalInputModeManager.current
+            // KMK <--
 
             val searchAndClearFocus: () -> Unit = f@{
                 val query = searchFieldState.text.toString()
@@ -357,7 +362,16 @@ fun SearchToolbar(
                 onSearch(query)
                 focusManager.clearFocus()
                 keyboardController?.hide()
-                focusManager.moveFocus(FocusDirection.Next)
+                // KMK -->
+                // Only a hardware Enter (keyboard input mode) leaves focus on the back button after clearFocus,
+                // which moveFocus avoids. In touch mode nothing is focused, so Next lands on this field and
+                // re-opens the soft keyboard.
+                if (inputModeManager.inputMode == InputMode.Keyboard) {
+                    // KMK <--
+                    focusManager.moveFocus(FocusDirection.Next)
+                    // KMK -->
+                }
+                // KMK <--
             }
 
             BasicTextField(

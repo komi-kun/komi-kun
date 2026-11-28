@@ -187,11 +187,7 @@
     <string name="ext_updates_pending">Yangilanishlar mavjud</string>
     <string name="untrusted_extension">Ishonchsiz kengaytma</string>
     <string name="ext_untrusted">Ishonchsiz</string>
-    <string name="untrusted_extension_message">Bu kengaytma ishonchsiz sertifikat tomonidan imzolangan va faollashtirilmagan.
-\n
-\nZararli kengaytma Komikkuda saqlanadigan barcha hisobga kirish ma\'lumotlarini o\'qishi, yoki ixtiyoriy kodni bajarishi mumkin.
-\n
-\nBu sertifikatga ishonish orqali, ushbu xavflarni qabul qilasiz.</string>
+    <string name="untrusted_extension_message">Bu kengaytma ishonchsiz sertifikat tomonidan imzolangan va faollashtirilmagan. \n \nZararli kengaytma Komikkuda saqlanadigan barcha hisobga kirish ma\'lumotlarini o\'qishi, yoki ixtiyoriy kodni bajarishi mumkin. \n \nBu sertifikatga ishonish orqali, ushbu xavflarni qabul qilasiz.</string>
     <string name="pref_dual_page_invert_summary">Agar keng sahifalarning bo\'linishi o\'qish yo\'nalishiga mos kelmasa</string>
     <string name="pref_fullscreen">To\'liq ekran rejimi</string>
     <string name="pref_dual_page_split">Keng sahifalarni bo\'lish</string>
@@ -209,6 +205,8 @@
     <string name="pref_update_only_completely_read">O\'qilmagan bob(lar) bor</string>
     <string name="ext_update">Yangilash</string>
     <string name="pref_show_page_number">Sahifa raqamini ko\'rsatish</string>
+    <string name="update_1hour">Har 1 soatda</string>
+    <string name="update_3hour">Har 3 soatda</string>
     <string name="update_6hour">Har 6 soatda</string>
     <string name="pref_reader_navigation">Navigatsiya</string>
     <string name="landscape">Landshaft</string>
@@ -350,6 +348,4 @@
     <string name="pref_webtoon_side_padding">Yon bo\'shliq</string>
     <string name="pref_remove_bookmarked_chapters">Xatchopli boblarni o\'chirish</string>
     <string name="third_to_last">O\'qilgan bobdan uchinchisi</string>
-    <string name="update_1hour">Har 1 soatda</string>
-    <string name="update_3hour">Har 3 soatda</string>
 </resources>

@@ -8,13 +8,12 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
-import cafe.adriel.voyager.navigator.LocalNavigator
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 import eu.kanade.presentation.components.AppBarActions
 import eu.kanade.presentation.components.AppBarTitle
 import eu.kanade.presentation.components.SearchToolbar
-import eu.kanade.presentation.util.Screen
 import eu.kanade.tachiyomi.ui.main.MainActivity
+import mihon.core.navigation.LocalNavigator
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.i18n.stringResource
@@ -22,47 +21,45 @@ import tachiyomi.presentation.core.i18n.stringResource
 /**
  * An alternative ExtensionsScreen used when want to open [extensionsTab] directly
  */
-class ExtensionsScreen(private val searchSource: String? = null) : Screen() {
-    @Composable
-    override fun Content() {
-        val context = LocalContext.current
-        val navigator = LocalNavigator.current
+@Composable
+fun ExtensionsScreen(searchSource: String? = null) {
+    val context = LocalContext.current
+    val navigator = LocalNavigator.current
 
-        val extensionsViewModel = metroViewModel<ExtensionsViewModel>()
-        val extensionsState by extensionsViewModel.state.collectAsState()
-        val extensionsTab = extensionsTab(extensionsViewModel)
+    val extensionsViewModel = metroViewModel<ExtensionsViewModel>()
+    val extensionsState by extensionsViewModel.state.collectAsState()
+    val extensionsTab = extensionsTab(extensionsViewModel)
 
-        val searchQuery = extensionsState.searchQuery
-        val onChangeSearchQuery = extensionsViewModel::search
+    val searchQuery = extensionsState.searchQuery
+    val onChangeSearchQuery = extensionsViewModel::search
 
-        val snackbarHostState = remember { SnackbarHostState() }
+    val snackbarHostState = remember { SnackbarHostState() }
 
-        Scaffold(
-            topBar = {
-                val searchEnabled = extensionsTab.searchEnabled
-                SearchToolbar(
-                    navigateUp = { navigator?.pop() },
-                    titleContent = { AppBarTitle(stringResource(MR.strings.label_extensions)) },
-                    searchEnabled = searchEnabled,
-                    searchQuery = if (searchEnabled) searchQuery else null,
-                    onChangeSearchQuery = onChangeSearchQuery,
-                    actions = { AppBarActions(extensionsTab.actions) },
-                )
-            },
-            snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
-        ) { paddingValues ->
-            extensionsTab.content(paddingValues, snackbarHostState)
-        }
+    Scaffold(
+        topBar = {
+            val searchEnabled = extensionsTab.searchEnabled
+            SearchToolbar(
+                navigateUp = { navigator?.pop() },
+                titleContent = { AppBarTitle(stringResource(MR.strings.label_extensions)) },
+                searchEnabled = searchEnabled,
+                searchQuery = if (searchEnabled) searchQuery else null,
+                onChangeSearchQuery = onChangeSearchQuery,
+                actions = { AppBarActions(extensionsTab.actions) },
+            )
+        },
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+    ) { paddingValues ->
+        extensionsTab.content(paddingValues, snackbarHostState)
+    }
 
-        LaunchedEffect(Unit) {
-            (context as? MainActivity)?.ready = true
+    LaunchedEffect(Unit) {
+        (context as? MainActivity)?.ready = true
 
-            /*
-             * This will redo the searching for [searchSource] every times the screen is launched, for example when
-             * back from the [ExtensionFilterScreen] or from the [ExtensionStoresScreen].
-             * Not really desired but let's accept it.
-             */
-            if (!searchSource.isNullOrBlank()) onChangeSearchQuery(searchSource)
-        }
+        /*
+         * This will redo the searching for [searchSource] every times the screen is launched, for example when
+         * back from the [ExtensionFilterScreen] or from the [ExtensionStoresScreen].
+         * Not really desired but let's accept it.
+         */
+        if (!searchSource.isNullOrBlank()) onChangeSearchQuery(searchSource)
     }
 }

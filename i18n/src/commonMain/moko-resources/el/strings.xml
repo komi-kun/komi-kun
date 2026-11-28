@@ -75,6 +75,8 @@
     <string name="landscape">Οριζόντια</string>
     <string name="pref_library_update_interval">Αυτόματες ενημερώσεις</string>
     <string name="update_never">Απενεργοποιημένο</string>
+    <string name="update_1hour">Κάθε 1 ώρες</string>
+    <string name="update_3hour">Κάθε 3 ώρες</string>
     <string name="update_6hour">Κάθε 6 ώρες</string>
     <string name="update_12hour">Κάθε 12 ώρες</string>
     <string name="update_24hour">Καθημερινά</string>
@@ -250,6 +252,9 @@
     <string name="file_select_backup">Επιλέξτε αρχείο αντιγράφου ασφαλείας</string>
     <string name="update_check_confirm">Λήψη</string>
     <string name="update_check_no_new_updates">Δεν υπάρχουν διαθέσιμες νέες ενημερώσεις</string>
+    <string name="update_check_notification_download_in_progress">Γίνεται λήψη…</string>
+    <string name="update_check_notification_download_complete">Πατήστε για να εγκαταστήσετε την ενημέρωση</string>
+    <string name="update_check_notification_download_error">Σφάλμα λήψης</string>
     <string name="update_check_notification_update_available">Υπάρχει διαθέσιμη ενημέρωση!</string>
     <string name="information_no_downloads">Δεν υπάρχουν λήψεις</string>
     <string name="information_no_recent">Δεν υπάρχουν πρόσφατες ενημερώσεις</string>
@@ -532,6 +537,7 @@
     <string name="update_72hour">Κάθε 3 ημέρες</string>
     <string name="download_queue_size_warning">Προειδοποίηση: οι μαζικές λήψεις ενδέχεται να οδηγήσουν σε επιβράδυνση των πηγών ή/και αποκλεισμό του %s. Πατήστε για να μάθετε περισσότερα.</string>
     <string name="ext_update_all">Ενημέρωση όλων</string>
+    <string name="channel_app_updates">Ενημερώσεις εφαρμογής</string>
     <string name="pref_auto_clear_chapter_cache">Εκκαθάριση της προσωρινής μνήμης κεφαλαίων κατά την εκκίνηση της εφαρμογής</string>
     <string name="clear_database_source_item_count">%1$d καταχωρήσεις εκτός βιβλιοθήκης στη βάση δεδομένων</string>
     <string name="database_clean">Τίποτα προς εκκαθάριση</string>
@@ -565,8 +571,6 @@
     <string name="action_sort_unread_count">Αριθμός μη αναγνωσμένων</string>
     <string name="action_sort_last_manga_update">Τελευταίος έλεγχος ενημέρωσης</string>
     <string name="source_empty_screen">Δε βρέθηκε πηγή</string>
-    <string name="split_tall_images_summary">Βελτιώνει την απόδοση του αναγνώστη</string>
-    <string name="download_notifier_split_page_not_found">Η σελίδα %d δε βρέθηκε κατά τη διάσπαση</string>
     <string name="download_notifier_split_page_path_not_found">Δεν ήταν δυνατή η εύρεση της διαδρομής αρχείου της σελίδας %d</string>
     <string name="pref_reset_viewer_flags_summary">Επαναφέρει τη λειτουργία ανάγνωσης και τον προσανατολισμό όλων των σειρών</string>
     <string name="pref_reset_viewer_flags">Επαναφορά ρυθμίσεων προγράμματος ανάγνωσης ανά σειρά</string>
@@ -666,7 +670,6 @@
     <string name="pref_hide_in_library_items">Απόκρυψη καταχωρήσεων που βρίσκονται ήδη στη βιβλιοθήκη</string>
     <string name="action_copy_to_clipboard">Αντιγραφή στο πρόχειρο</string>
     <string name="action_update_category">Ενημέρωση κατηγορίας</string>
-    <string name="split_tall_images">Διαχωρισμός ψηλών εικόνων</string>
     <string name="overlay_header">Επικάλυψη</string>
     <string name="pref_page_rotate">Περιστροφή πλατιών σελίδων για να χωρέσουν</string>
     <string name="pref_page_rotate_invert">Αναστροφή του προσανατολισμού των πλατιών σελίδων που έχουν περιστραφεί</string>
@@ -880,10 +883,4 @@
     <string name="extensionStoresScreen.deleteStore.title">Κατάργηση καταστήματος επεκτάσεων</string>
     <string name="extensionStoresScreen.deleteStore.body">Θέλετε να καταργήσετε το κατάστημα επεκτάσεων \"%1$s\" (%2$s);</string>
     <string name="pref_webtoon_vertical_navigator_on_left">Τοποθέτηση του κάθετου πλοηγού στην αριστερή πλευρά</string>
-    <string name="update_1hour">Κάθε 1 ώρες</string>
-    <string name="update_3hour">Κάθε 3 ώρες</string>
-    <string name="update_check_notification_download_in_progress">Γίνεται λήψη…</string>
-    <string name="update_check_notification_download_complete">Πατήστε για να εγκαταστήσετε την ενημέρωση</string>
-    <string name="update_check_notification_download_error">Σφάλμα λήψης</string>
-    <string name="channel_app_updates">Ενημερώσεις εφαρμογής</string>
 </resources>

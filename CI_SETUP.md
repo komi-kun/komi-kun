@@ -12,7 +12,7 @@ current state in this repo.
 - **Default branch:** `master`
 - **App id:** `app.komikun`
 - **JDK:** 21 (`.github/.java-version`)
-- **Gradle:** 9.9.1 (wrapper)
+- **Gradle:** 9.9.2 (wrapper)
 
 > **Scope note:** none of this requires editing Kotlin/Gradle. The build already
 > supports the `-Pdist` / `MIHON_GITHUB_RELEASE` / env-var signing contract the

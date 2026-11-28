@@ -27,6 +27,8 @@
     <string name="update_24hour">በየቀኑ</string>
     <string name="update_12hour">በየ 12 ሰዓቱ</string>
     <string name="update_6hour">በየ 6 ሰዓቱ</string>
+    <string name="update_1hour">በየ 1 ሰዓቱ</string>
+    <string name="update_3hour">በየ 3 ሰዓቱ</string>
     <string name="update_never">መመሪያ</string>
     <string name="pref_library_update_interval">የቤተ-መጽሐፍት ማዘመኛ ድግግሞሽ</string>
     <string name="pref_category_library_update">ዝመናዎች</string>
@@ -268,6 +270,4 @@
     <string name="backup_restore_missing_trackers">መከታተያዎች አልገቡም:</string>
     <string name="backup_restore_missing_sources">የጠፋ ምንጮች:</string>
     <string name="invalid_backup_file_missing_manga">ምትኬ ማንኛውንም ማንጋ አልያዘም ፡፡</string>
-    <string name="update_1hour">በየ 1 ሰዓቱ</string>
-    <string name="update_3hour">በየ 3 ሰዓቱ</string>
 </resources>

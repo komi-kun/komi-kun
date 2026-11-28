@@ -1,6 +1,6 @@
 [versions]
-agp_version = "9.4.1"
-lifecycle_version = "2.10.0"
+agp_version = "9.5.2"
+lifecycle_version = "2.11.1"
 # KMK -->
 paging_version = "3.5.3"
 # KMK <--
@@ -9,6 +9,7 @@ sqlite = "2.7.1"
 # KMK -->
 navigationevent_version = "1.2.0"
 # KMK <--
+navigation3_version = "1.2.2"
 
 [libraries]
 gradle = { module = "com.android.tools.build:gradle", version.ref = "agp_version" }
@@ -28,8 +29,13 @@ lifecycle-process = { module = "androidx.lifecycle:lifecycle-process", version.r
 lifecycle-runtimektx = { module = "androidx.lifecycle:lifecycle-runtime-ktx", version.ref = "lifecycle_version" }
 lifecycle-viewmodel = { module = "androidx.lifecycle:lifecycle-viewmodel", version.ref = "lifecycle_version" }
 lifecycle-viewmodelCompose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycle_version" }
+lifecycle-viewmodelNavigation3 = { module = "androidx.lifecycle:lifecycle-viewmodel-navigation3", version.ref = "lifecycle_version" }
+
+navigation3-runtime = { module = "androidx.navigation3:navigation3-runtime", version.ref = "navigation3_version" }
+navigation3-ui = { module = "androidx.navigation3:navigation3-ui", version.ref = "navigation3_version" }
 
 workmanager = "androidx.work:work-runtime:2.11.2"
+webkit = "androidx.webkit:webkit:1.16.0"
 
 paging-runtime = { module = "androidx.paging:paging-runtime", version.ref = "paging_version" }
 paging-compose = { module = "androidx.paging:paging-compose", version.ref = "paging_version" }
@@ -47,4 +53,5 @@ test-uiautomator = "androidx.test.uiautomator:uiautomator:2.4.1"
 sqlite-bundled = { module = "androidx.sqlite:sqlite-bundled", version.ref = "sqlite" }
 
 [bundles]
-lifecycle = ["lifecycle-common", "lifecycle-process", "lifecycle-runtimektx", "lifecycle-viewmodel", "lifecycle-viewmodelCompose"]
+lifecycle = ["lifecycle-common", "lifecycle-process", "lifecycle-runtimektx", "lifecycle-viewmodel", "lifecycle-viewmodelCompose", "lifecycle-viewmodelNavigation3"]
+navigation3 = ["navigation3-runtime", "navigation3-ui"]

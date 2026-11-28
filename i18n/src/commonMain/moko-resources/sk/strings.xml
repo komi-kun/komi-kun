@@ -77,6 +77,8 @@
     <string name="landscape">Na šírku</string>
     <string name="pref_library_update_interval">Automatické aktualizácie</string>
     <string name="update_never">Vyp.</string>
+    <string name="update_1hour">Každých 1 hodín</string>
+    <string name="update_3hour">Každých 3 hodín</string>
     <string name="update_6hour">Každých 6 hodín</string>
     <string name="update_12hour">Každých 12 hodín</string>
     <string name="update_24hour">Raz za deň</string>
@@ -99,11 +101,7 @@
     <string name="ext_untrusted">Odobrať dôveru</string>
     <string name="ext_uninstall">Odinštalovať</string>
     <string name="untrusted_extension">Nedôveryhodné rozšírenie</string>
-    <string name="untrusted_extension_message">Toto rozšírenie bolo podpísané nedôveryhodným certifikátom a nebolo aktivované.
-\n
-\nŠkodlivé rozšírenie môže čítať všetky prihlasovacie údaje uložené v Komikku alebo spúšťať ľubovoľný kód.
-\n
-\nDôverovaním tohto certifikátu akceptujete tieto riziká.</string>
+    <string name="untrusted_extension_message">Toto rozšírenie bolo podpísané nedôveryhodným certifikátom a nebolo aktivované. \n \nŠkodlivé rozšírenie môže čítať všetky prihlasovacie údaje uložené v Komikku alebo spúšťať ľubovoľný kód. \n \nDôverovaním tohto certifikátu akceptujete tieto riziká.</string>
     <string name="pref_fullscreen">Na celú obrazovku</string>
     <string name="pref_page_transitions">Animácia prechodov strán</string>
     <string name="pref_double_tap_anim_speed">Rýchlosť animácie pre dvojité ťuknutie</string>
@@ -270,6 +268,9 @@
     <string name="file_select_backup">Vyberte záložný súbor</string>
     <string name="update_check_confirm">Stiahnuť</string>
     <string name="update_check_no_new_updates">Žiadné nové aktualizácie</string>
+    <string name="update_check_notification_download_in_progress">Prebiehá stahovanie…</string>
+    <string name="update_check_notification_download_complete">Klepnutím nainštalujte</string>
+    <string name="update_check_notification_download_error">Chyba sťahovania</string>
     <string name="update_check_notification_update_available">Dostupná nová aktualizácia!</string>
     <string name="information_no_downloads">Žiadne sťahovanie</string>
     <string name="information_no_recent">Žiadne nedávne aktualizácie</string>
@@ -569,6 +570,7 @@
     <string name="about_dont_kill_my_app">Niektorí výrobcovia majú ďalšie obmedzenia aplikácií, ktoré vypínajú služby na pozadí. Na tejto webovej stránke nájdete viac informácií o tom, ako to opraviť.</string>
     <string name="viewer">Režim čítania</string>
     <string name="error_saving_picture">Chyba pri ukladaní obrázka</string>
+    <string name="channel_app_updates">Aktualizácie aplikácie</string>
     <string name="appwidget_unavailable_locked">Widget nie je k dispozícii, keď je povolený zámok aplikácie</string>
     <string name="local_filter_order_by">Zoradiť podľa</string>
     <string name="local_invalid_format">Neplatný formát kapitoly</string>
@@ -719,10 +721,4 @@
     <string name="pref_flash_style_black">Čiernou</string>
     <string name="pref_flash_style_white">Bielou</string>
     <string name="pref_flash_style_white_black">Čiernou aj Bielou</string>
-    <string name="update_1hour">Každých 1 hodín</string>
-    <string name="update_3hour">Každých 3 hodín</string>
-    <string name="update_check_notification_download_in_progress">Prebiehá stahovanie…</string>
-    <string name="update_check_notification_download_complete">Klepnutím nainštalujte</string>
-    <string name="update_check_notification_download_error">Chyba sťahovania</string>
-    <string name="channel_app_updates">Aktualizácie aplikácie</string>
 </resources>

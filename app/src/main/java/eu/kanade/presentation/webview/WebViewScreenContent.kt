@@ -23,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -33,7 +34,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
-import cafe.adriel.voyager.core.stack.mutableStateStackOf
 import com.kevinnzou.web.AccompanistWebChromeClient
 import com.kevinnzou.web.AccompanistWebViewClient
 import com.kevinnzou.web.LoadingState
@@ -87,7 +87,7 @@ fun WebViewScreenContent(
     val coroutineScope = rememberCoroutineScope()
 
     val windowStack = remember {
-        mutableStateStackOf(
+        mutableStateListOf(
             WebViewWindow(
                 WebContent.Url(url = url, additionalHttpHeaders = headers),
                 WebViewNavigator(coroutineScope),
@@ -95,7 +95,7 @@ fun WebViewScreenContent(
         )
     }
 
-    val currentWindow = windowStack.lastItemOrNull!!
+    val currentWindow = windowStack.last()
     val navigator = currentWindow.navigator
 
     val uriHandler = LocalUriHandler.current
@@ -104,6 +104,9 @@ fun WebViewScreenContent(
     var currentUrl by remember { mutableStateOf(url) }
     var showCloudflareHelp by remember { mutableStateOf(false) }
     var isActive by remember { mutableStateOf(true) }
+    // KMK -->
+    var isRendererGone by remember { mutableStateOf(false) }
+    // KMK <--
 
     DisposableEffect(Unit) {
         onDispose { isActive = false }
@@ -151,7 +154,7 @@ fun WebViewScreenContent(
                 if (url.startsWith("intent://")) return true
 
                 // Only send source headers to the source itself
-                if (request.url.host != headersHost) return false
+                if (/* KMK --> */!request.url.host.equals(headersHost, ignoreCase = true)/* KMK <-- */) return false
 
                 // Only open valid web urls
                 if (url.startsWith("http") || url.startsWith("https")) {
@@ -165,6 +168,12 @@ fun WebViewScreenContent(
             }
 
             override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
+                // KMK -->
+                // The WebViews of popup windows stay alive with this client and share the renderer, so each one
+                // reports its death; close the screen only once
+                if (isRendererGone) return true
+                isRendererGone = true
+                // KMK <--
                 // Not handling it kills the app along with the page
                 logcat(LogPriority.ERROR) {
                     "WebView renderer gone: crashed=${detail.didCrash()}, " +
@@ -187,7 +196,7 @@ fun WebViewScreenContent(
             ): Boolean {
                 // if it wasn't initiated by a user gesture, we should ignore it like a normal browser would
                 if (isUserGesture) {
-                    windowStack.push(WebViewWindow(resultMsg, WebViewNavigator(coroutineScope)))
+                    windowStack.add(WebViewWindow(resultMsg, WebViewNavigator(coroutineScope)))
                     return true
                 }
                 return false
@@ -237,7 +246,7 @@ fun WebViewScreenContent(
             if (windowStack.size == 1) {
                 onNavigateUp()
             } else {
-                windowStack.pop()
+                windowStack.removeAt(windowStack.lastIndex)
             }
         }
     }
@@ -362,10 +371,14 @@ fun WebViewScreenContent(
                         WebView.setWebContentsDebuggingEnabled(true)
                     }
 
-                    webView.setUserAgent(headers["user-agent"] ?: defaultUserAgentProvider())
+                    // KMK -->
+                    // toWebViewHeaders keeps the source's own casing, usually "User-Agent"
+                    val userAgent = headers.entries.firstOrNull { it.key.equals("user-agent", ignoreCase = true) }?.value
+                    webView.setUserAgent(userAgent ?: defaultUserAgentProvider())
+                    // KMK <--
                 },
                 onDispose = { webView ->
-                    val window = windowStack.items.find { it.webView == webView }
+                    val window = windowStack.find { it.webView == webView }
                     if (window == null) {
                         // If we couldn't find any window on the stack that owns this WebView, it means that we can
                         // safely dispose of it because the window containing it has been closed.

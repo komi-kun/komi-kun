@@ -29,15 +29,11 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.core.text.HtmlCompat
-import cafe.adriel.voyager.navigator.LocalNavigator
-import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.domain.base.BasePreferences
 import eu.kanade.domain.extension.interactor.TrustExtension
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.domain.source.service.SourcePreferences.DataSaver
 import eu.kanade.presentation.more.settings.Preference
-import eu.kanade.presentation.more.settings.screen.advanced.ClearDatabaseScreen
-import eu.kanade.presentation.more.settings.screen.debug.DebugInfoScreen
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.download.DownloadCache
 import eu.kanade.tachiyomi.data.library.MetadataUpdateWorker
@@ -57,7 +53,6 @@ import eu.kanade.tachiyomi.network.PREF_DOH_QUAD101
 import eu.kanade.tachiyomi.network.PREF_DOH_QUAD9
 import eu.kanade.tachiyomi.network.PREF_DOH_SHECAN
 import eu.kanade.tachiyomi.source.AndroidSourceManager
-import eu.kanade.tachiyomi.ui.more.OnboardingScreen
 import eu.kanade.tachiyomi.util.CrashLogUtil
 import eu.kanade.tachiyomi.util.storage.DiskUtil
 import eu.kanade.tachiyomi.util.system.isDebugBuildType
@@ -74,8 +69,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.Serializable
 import logcat.LogPriority
 import mihon.app.di.appGraph
+import mihon.core.navigation.ClearDatabaseRoute
+import mihon.core.navigation.DebugInfoRoute
+import mihon.core.navigation.LocalNavigator
+import mihon.core.navigation.OnboardingRoute
+import mihon.core.navigation.SettingsDebugRoute
 import okhttp3.Headers
 import tachiyomi.core.common.i18n.pluralStringResource
 import tachiyomi.core.common.i18n.stringResource
@@ -95,9 +96,8 @@ import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsState
 import java.io.File
 
-object SettingsAdvancedScreen : SearchableSettings {
-    @Suppress("unused")
-    private fun readResolve(): Any = SettingsAdvancedScreen
+@Serializable
+data object SettingsAdvancedScreen : SearchableSettings {
 
     @ReadOnlyComposable
     @Composable
@@ -107,7 +107,7 @@ object SettingsAdvancedScreen : SearchableSettings {
     override fun getPreferences(): List<Preference> {
         val scope = rememberCoroutineScope()
         val context = LocalContext.current
-        val navigator = LocalNavigator.currentOrThrow
+        val navigator = LocalNavigator.current
 
         val graph = remember { context.appGraph }
         val basePreferences = remember { graph.basePreferences }
@@ -140,11 +140,11 @@ object SettingsAdvancedScreen : SearchableSettings {
             ), SY <-- */
             Preference.PreferenceItem.TextPreference(
                 title = stringResource(MR.strings.pref_debug_info),
-                onClick = { navigator.push(DebugInfoScreen()) },
+                onClick = { navigator.push(DebugInfoRoute) },
             ),
             Preference.PreferenceItem.TextPreference(
                 title = stringResource(MR.strings.pref_onboarding_guide),
-                onClick = { navigator.push(OnboardingScreen()) },
+                onClick = { navigator.push(OnboardingRoute) },
             ),
             Preference.PreferenceItem.TextPreference(
                 title = stringResource(MR.strings.pref_manage_notifications),
@@ -232,7 +232,7 @@ object SettingsAdvancedScreen : SearchableSettings {
     @Composable
     private fun getDataGroup(): Preference.PreferenceGroup {
         val context = LocalContext.current
-        val navigator = LocalNavigator.currentOrThrow
+        val navigator = LocalNavigator.current
 
         return Preference.PreferenceGroup(
             title = stringResource(MR.strings.label_data),
@@ -248,7 +248,7 @@ object SettingsAdvancedScreen : SearchableSettings {
                 Preference.PreferenceItem.TextPreference(
                     title = stringResource(MR.strings.pref_clear_database),
                     subtitle = stringResource(MR.strings.pref_clear_database_summary),
-                    onClick = { navigator.push(ClearDatabaseScreen()) },
+                    onClick = { navigator.push(ClearDatabaseRoute) },
                 ),
             ),
         )
@@ -753,7 +753,7 @@ object SettingsAdvancedScreen : SearchableSettings {
     @Composable
     private fun getDeveloperToolsGroup(): Preference.PreferenceGroup {
         val context = LocalContext.current
-        val navigator = LocalNavigator.currentOrThrow
+        val navigator = LocalNavigator.current
         val sourcePreferences = remember { context.appGraph.sourcePreferences }
         val exhPreferences = remember { context.appGraph.exhPreferences }
         val delegateSourcePreferences = remember { context.appGraph.delegateSourcePreferences }
@@ -856,7 +856,7 @@ object SettingsAdvancedScreen : SearchableSettings {
                             HtmlCompat.FROM_HTML_MODE_COMPACT,
                         ).toAnnotatedString()
                     },
-                    onClick = { navigator.push(SettingsDebugScreen()) },
+                    onClick = { navigator.push(SettingsDebugRoute) },
                 ),
             ),
         )

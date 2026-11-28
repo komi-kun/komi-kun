@@ -25,13 +25,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.core.os.LocaleListCompat
-import cafe.adriel.voyager.navigator.LocalNavigator
-import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.domain.extension.interactor.GetExtensionLanguages.Companion.getLanguageIconID
 import eu.kanade.presentation.components.AppBar
-import eu.kanade.presentation.util.Screen
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.util.system.LocaleHelper
+import mihon.core.navigation.LocalNavigator
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.Check
 import org.xmlpull.v1.XmlPullParser
@@ -41,106 +39,103 @@ import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.i18n.R as I18nR
 
-class AppLanguageScreen : Screen() {
+@Composable
+fun AppLanguageScreen() {
+    val context = LocalContext.current
+    val navigator = LocalNavigator.current
 
-    @Composable
-    override fun Content() {
-        val context = LocalContext.current
-        val navigator = LocalNavigator.currentOrThrow
+    val langs = remember { getLangs(context) }
+    var currentLanguage by remember {
+        mutableStateOf(AppCompatDelegate.getApplicationLocales().get(0)?.toLanguageTag() ?: "")
+    }
 
-        val langs = remember { getLangs(context) }
-        var currentLanguage by remember {
-            mutableStateOf(AppCompatDelegate.getApplicationLocales().get(0)?.toLanguageTag() ?: "")
+    LaunchedEffect(currentLanguage) {
+        val locale = if (currentLanguage.isEmpty()) {
+            LocaleListCompat.getEmptyLocaleList()
+        } else {
+            LocaleListCompat.forLanguageTags(currentLanguage)
         }
+        AppCompatDelegate.setApplicationLocales(locale)
+    }
 
-        LaunchedEffect(currentLanguage) {
-            val locale = if (currentLanguage.isEmpty()) {
-                LocaleListCompat.getEmptyLocaleList()
-            } else {
-                LocaleListCompat.forLanguageTags(currentLanguage)
-            }
-            AppCompatDelegate.setApplicationLocales(locale)
-        }
-
-        Scaffold(
-            topBar = { scrollBehavior ->
-                AppBar(
-                    title = stringResource(MR.strings.pref_app_language),
-                    navigateUp = navigator::pop,
-                    scrollBehavior = scrollBehavior,
-                )
-            },
-        ) { contentPadding ->
-            LazyColumn(
-                modifier = Modifier.padding(contentPadding),
-            ) {
-                items(langs) {
-                    ListItem(
-                        modifier = Modifier.clickable {
-                            currentLanguage = it.langTag
-                        },
-                        // KMK -->
-                        leadingContent = {
-                            val iconResId = getLanguageIconID(it.langTag) ?: R.drawable.globe
+    Scaffold(
+        topBar = { scrollBehavior ->
+            AppBar(
+                title = stringResource(MR.strings.pref_app_language),
+                navigateUp = navigator::pop,
+                scrollBehavior = scrollBehavior,
+            )
+        },
+    ) { contentPadding ->
+        LazyColumn(
+            modifier = Modifier.padding(contentPadding),
+        ) {
+            items(langs) {
+                ListItem(
+                    modifier = Modifier.clickable {
+                        currentLanguage = it.langTag
+                    },
+                    // KMK -->
+                    leadingContent = {
+                        val iconResId = getLanguageIconID(it.langTag) ?: R.drawable.globe
+                        Icon(
+                            painter = painterResource(id = iconResId),
+                            tint = Color.Unspecified,
+                            contentDescription = it.langTag,
+                            modifier = Modifier
+                                .width(48.dp)
+                                .height(32.dp),
+                        )
+                    },
+                    // KMK <--
+                    trailingContent = {
+                        if (currentLanguage == it.langTag) {
                             Icon(
-                                painter = painterResource(id = iconResId),
-                                tint = Color.Unspecified,
-                                contentDescription = it.langTag,
-                                modifier = Modifier
-                                    .width(48.dp)
-                                    .height(32.dp),
+                                imageVector = MaterialSymbols.Rounded.Check,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
                             )
-                        },
-                        // KMK <--
-                        trailingContent = {
-                            if (currentLanguage == it.langTag) {
-                                Icon(
-                                    imageVector = MaterialSymbols.Rounded.Check,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                )
-                            }
-                        },
-                        supportingContent = {
-                            it.localizedDisplayName?.let {
-                                Text(it)
-                            }
-                        },
-                        content = { Text(it.displayName) },
-                    )
-                }
+                        }
+                    },
+                    supportingContent = {
+                        it.localizedDisplayName?.let {
+                            Text(it)
+                        }
+                    },
+                    content = { Text(it.displayName) },
+                )
             }
         }
     }
+}
 
-    private fun getLangs(context: Context): List<Language> {
-        val langs = mutableListOf<Language>()
-        val parser = context.resources.getXml(I18nR.xml.locales_config)
-        var eventType = parser.eventType
-        while (eventType != XmlPullParser.END_DOCUMENT) {
-            if (eventType == XmlPullParser.START_TAG && parser.name == "locale") {
-                for (i in 0..<parser.attributeCount) {
-                    if (parser.getAttributeName(i) == "name") {
-                        val langTag = parser.getAttributeValue(i)
-                        val displayName = LocaleHelper.getLocalizedDisplayName(langTag)
-                        if (displayName.isNotEmpty()) {
-                            langs.add(Language(langTag, displayName, LocaleHelper.getDisplayName(langTag)))
-                        }
+private fun getLangs(context: Context): List<Language> {
+    val langs = mutableListOf<Language>()
+    val parser = context.resources.getXml(I18nR.xml.locales_config)
+    var eventType = parser.eventType
+    while (eventType != XmlPullParser.END_DOCUMENT) {
+        if (eventType == XmlPullParser.START_TAG && parser.name == "locale") {
+            for (i in 0..<parser.attributeCount) {
+                if (parser.getAttributeName(i) == "name") {
+                    val langTag = parser.getAttributeValue(i)
+                    val displayName = LocaleHelper.getLocalizedDisplayName(langTag)
+                    if (displayName.isNotEmpty()) {
+                        langs.add(Language(langTag, displayName, LocaleHelper.getDisplayName(langTag)))
                     }
                 }
             }
-            eventType = parser.next()
         }
-
-        langs.sortBy { it.displayName }
-        langs.add(0, Language("", context.stringResource(MR.strings.label_default), null))
-
-        return langs.toList()
+        eventType = parser.next()
     }
 
-    private data class Language(
-        val langTag: String,
-        val displayName: String,
-        val localizedDisplayName: String?,
-    )
+    langs.sortBy { it.displayName }
+    langs.add(0, Language("", context.stringResource(MR.strings.label_default), null))
+
+    return langs.toList()
 }
+
+private data class Language(
+    val langTag: String,
+    val displayName: String,
+    val localizedDisplayName: String?,
+)

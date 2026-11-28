@@ -30,9 +30,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import cafe.adriel.voyager.core.screen.Screen
-import cafe.adriel.voyager.navigator.LocalNavigator
-import cafe.adriel.voyager.navigator.currentOrThrow
 import coil3.compose.AsyncImage
 import eu.kanade.domain.connections.service.ConnectionsPreferences
 import eu.kanade.presentation.components.AppBar
@@ -45,6 +42,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import logcat.logcat
 import mihon.app.di.appGraph
+import mihon.core.navigation.DiscordLoginRoute
+import mihon.core.navigation.LocalNavigator
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.Add
 import mihon.icons.materialsymbols.rounded.Delete
@@ -53,14 +52,9 @@ import tachiyomi.i18n.kmk.KMR
 import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.i18n.stringResource
 
-object DiscordAccountsScreen : Screen {
-    @Suppress("unused")
-    private fun readResolve(): Any = DiscordAccountsScreen
-
-    @Composable
-    override fun Content() {
-        DiscordAccountsScreenContent()
-    }
+@Composable
+fun DiscordAccountsScreen() {
+    DiscordAccountsScreenContent()
 }
 
 data class DiscordAccountsScreenState(
@@ -72,7 +66,7 @@ data class DiscordAccountsScreenState(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DiscordAccountsScreenContent() {
-    val navigator = LocalNavigator.currentOrThrow
+    val navigator = LocalNavigator.current
     val context = LocalContext.current
     val viewModel = remember {
         DiscordAccountsViewModel(
@@ -92,7 +86,7 @@ private fun DiscordAccountsScreenContent() {
                 actions = {
                     IconButton(
                         onClick = {
-                            navigator.push(DiscordLoginScreen())
+                            navigator.push(DiscordLoginRoute)
                         },
                     ) {
                         Icon(

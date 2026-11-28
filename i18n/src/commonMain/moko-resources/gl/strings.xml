@@ -76,9 +76,7 @@
     <string name="pref_cutout_short">Mostrar contido na área recortada</string>
     <string name="pref_fullscreen">Pantalla completa</string>
     <string name="obsolete_extension_message">Esta extensión xa non está dispoñible. Pode que non funcione ben e cause problemas na aplicación. Recoméndase desinstalala.</string>
-    <string name="untrusted_extension_message">Unha extensión maliciosa podería ler calquera credencial de inicio de sesión gardada en Komikku ou executar calquera tipo de código.
-\n
-\nSe confías nesta extensión, aceptas estes riscos.</string>
+    <string name="untrusted_extension_message">Unha extensión maliciosa podería ler calquera credencial de inicio de sesión gardada en Komikku ou executar calquera tipo de código. \n \nSe confías nesta extensión, aceptas estes riscos.</string>
     <string name="untrusted_extension">Extensión non confiable</string>
     <string name="ext_untrusted">Non confiable</string>
     <string name="ext_uninstall">Desinstalar</string>
@@ -104,6 +102,8 @@
     <string name="update_24hour">Diariamente</string>
     <string name="update_12hour">Cada 12 horas</string>
     <string name="update_6hour">Cada 6 horas</string>
+    <string name="update_1hour">Cada 1 hora</string>
+    <string name="update_3hour">Cada 3 horas</string>
     <string name="update_never">Desactivadas</string>
     <string name="pref_library_update_interval">Actualizacións automáticas</string>
     <string name="pref_category_library_update">Actualización global</string>
@@ -571,7 +571,9 @@
     <string name="download_notifier_downloader_title">Xestor de descargas</string>
     <string name="download_notifier_title_error">Erro</string>
     <string name="download_notifier_download_paused">Descargas en pausa</string>
+    <string name="update_check_notification_download_complete">Preme para instalar a actualización</string>
     <string name="channel_progress">Progreso</string>
+    <string name="update_check_notification_download_error">Erro na descarga</string>
     <string name="manga_info_collapse">Menos</string>
     <string name="delete_downloads_for_manga">Eliminar os capítulos descargados?</string>
     <string name="on_hold">En espera</string>
@@ -595,6 +597,7 @@
     <string name="chapter_progress">Páxina: %1$d</string>
     <string name="error_saving_picture">Produciuse un erro ao gardar a imaxe</string>
     <string name="update_check_confirm">Descargar</string>
+    <string name="channel_app_updates">Actualizacións da aplicación</string>
     <string name="learn_more">Preme para saber máis</string>
     <string name="notification_cover_update_failed">Erro ao actualizar a portada</string>
     <string name="show_chapter_number">Número do capítulo</string>
@@ -627,6 +630,7 @@
     <string name="label_read_duration">Tempo de lectura</string>
     <string name="label_titles_in_global_update">Na actualización global</string>
     <string name="label_total_chapters">Totais</string>
+    <string name="update_check_notification_download_in_progress">Descargando…</string>
     <string name="information_empty_category_dialog">Aínda non tes categorías.</string>
     <string name="information_required_plain">*necesario</string>
     <string name="spen_previous_page">Páxina anterior</string>
@@ -819,10 +823,4 @@
     <string name="clear_database_text">Estás a piques de borrar elementos da túa base de datos</string>
     <string name="clear_database_history_warning">Perderás os capítulos lidos e o progreso de lectura das obras que non estén na biblioteca</string>
     <string name="clear_db_exclude_read">Conservar as obras con capítulos lidos</string>
-    <string name="update_1hour">Cada 1 hora</string>
-    <string name="update_3hour">Cada 3 horas</string>
-    <string name="update_check_notification_download_complete">Preme para instalar a actualización</string>
-    <string name="update_check_notification_download_error">Erro na descarga</string>
-    <string name="channel_app_updates">Actualizacións da aplicación</string>
-    <string name="update_check_notification_download_in_progress">Descargando…</string>
 </resources>

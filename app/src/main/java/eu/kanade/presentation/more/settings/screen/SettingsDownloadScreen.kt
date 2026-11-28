@@ -12,15 +12,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.util.fastMap
 import androidx.core.content.ContextCompat
-import cafe.adriel.voyager.navigator.LocalNavigator
-import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.presentation.category.visualName
 import eu.kanade.presentation.more.settings.Preference
-import eu.kanade.presentation.more.settings.screen.advanced.OrphanedDownloadsScreen
 import eu.kanade.presentation.more.settings.widget.TriStateListDialog
 import eu.kanade.tachiyomi.data.download.OrphanedDownloadScanManager
 import komikun.download.FilteredDownloadCleanupWorker
+import kotlinx.serialization.Serializable
 import mihon.app.di.appGraph
+import mihon.core.navigation.LocalNavigator
+import mihon.core.navigation.OrphanedDownloadsRoute
 import tachiyomi.domain.category.model.Category
 import tachiyomi.domain.download.service.DownloadPreferences
 import tachiyomi.i18n.MR
@@ -30,9 +30,8 @@ import tachiyomi.presentation.core.i18n.pluralStringResource
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsState
 
-object SettingsDownloadScreen : SearchableSettings {
-    @Suppress("unused")
-    private fun readResolve(): Any = SettingsDownloadScreen
+@Serializable
+data object SettingsDownloadScreen : SearchableSettings {
 
     @ReadOnlyComposable
     @Composable
@@ -250,7 +249,7 @@ object SettingsDownloadScreen : SearchableSettings {
     private fun getOrphanedDownloadsGroup(
         downloadPreferences: DownloadPreferences,
     ): Preference.PreferenceGroup {
-        val navigator = LocalNavigator.currentOrThrow
+        val navigator = LocalNavigator.current
         val context = LocalContext.current
         // The app-scoped scan, so this row reports a scan started from the screen (and a scan that
         // keeps running after the screen is popped) instead of a static description.
@@ -284,7 +283,7 @@ object SettingsDownloadScreen : SearchableSettings {
                         is OrphanedDownloadScanManager.State.Failed ->
                             stringResource(KUNMR.strings.orphaned_downloads_scan_failed_short)
                     },
-                    onClick = { navigator.push(OrphanedDownloadsScreen()) },
+                    onClick = { navigator.push(OrphanedDownloadsRoute) },
                 ),
             ),
         )

@@ -17,10 +17,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.MaterialTheme
@@ -113,6 +117,12 @@ fun ReaderAppBars(
         .surfaceColorAtElevation(3.dp)
         .copy(alpha = if (isSystemInDarkTheme()) 0.9f else 0.95f)
 
+    // KMK -->
+    // Keeps the chapter navigator and ExhUtils clear of side system navigation buttons and display cutouts
+    // (e.g. in landscape)
+    val navigatorInsets = WindowInsets.navigationBars.union(WindowInsets.displayCutout)
+    // KMK <--
+
     Column(modifier = Modifier.fillMaxHeight()) {
         AnimatedVisibility(
             visible = visible,
@@ -159,6 +169,9 @@ fun ReaderAppBars(
                     onClickRetryAllHelp = onClickRetryAllHelp,
                     onClickBoostPage = onClickBoostPage,
                     onClickBoostPageHelp = onClickBoostPageHelp,
+                    // KMK -->
+                    windowInsets = navigatorInsets.only(WindowInsetsSides.Horizontal),
+                    // KMK <--
                 )
             }
             // SY <--

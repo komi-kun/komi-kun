@@ -70,6 +70,8 @@
     <string name="landscape">عرضيٌّ</string>
     <string name="pref_library_update_interval">التحديثات التلقائية</string>
     <string name="update_never">إيقاف</string>
+    <string name="update_1hour">كل ١ ساعة</string>
+    <string name="update_3hour">كل ٣ ساعات</string>
     <string name="update_6hour">كل ٦ ساعات</string>
     <string name="update_12hour">كل 12 ساعة</string>
     <string name="update_24hour">يومياً</string>
@@ -212,6 +214,9 @@
     <string name="file_select_backup">اختر ملف النسخة الاحتياطية</string>
     <string name="update_check_confirm">تنزيل</string>
     <string name="update_check_no_new_updates">لا تتوفر تحديثات جديدة</string>
+    <string name="update_check_notification_download_in_progress">جار التنزيل…</string>
+    <string name="update_check_notification_download_complete">اضغط لتثبيت التحديث</string>
+    <string name="update_check_notification_download_error">حدث خطأ في التنزيل</string>
     <string name="update_check_notification_update_available">نسخة جديدة متوفرة!</string>
     <string name="information_no_downloads">لا توجد تنزيلات</string>
     <string name="information_no_recent">لا توجد تحديثات جديدة</string>
@@ -525,6 +530,7 @@
     <string name="ext_app_info">معلومات التطبيق</string>
     <string name="ext_install_service_notif">جارٍ تثبيت الإضافة …</string>
     <string name="pref_verbose_logging_summary">طباعة السجلات المطولة في سجل النظام (يقلل من أداء التطبيق)</string>
+    <string name="channel_app_updates">تحديثات التطبيق</string>
     <string name="ext_update_all">تحديث الكل</string>
     <string name="update_72hour">كل ثلاثة ايام</string>
     <string name="connected_to_wifi">فقط على شبكة Wi-Fi</string>
@@ -565,8 +571,6 @@
     <string name="source_empty_screen">لا يوجد مصدر</string>
     <string name="action_sort_unread_count">عدد الغير مقروءة</string>
     <string name="action_sort_last_manga_update">آخر فحص للتحديث</string>
-    <string name="split_tall_images_summary">يحسِّن أداء القارئ</string>
-    <string name="download_notifier_split_page_not_found">لم يُعثر على الصفحة %d أثناء التقسيم</string>
     <string name="download_notifier_split_page_path_not_found">لم يتم العثور على مسار الصفخة %d</string>
     <string name="pref_reset_viewer_flags_success">اعادة تعيين جميع اعدادات القارئ</string>
     <string name="pref_reset_viewer_flags_summary">إعادة تعيين اعدادات القراءه لكل القصص</string>
@@ -666,7 +670,6 @@
     <string name="action_copy_to_clipboard">نسخ إلى الحافظة</string>
     <string name="pref_hide_in_library_items">إخفاء الإدخالات الموجودة بالفعل في المكتبة</string>
     <string name="action_update_category">تحديث الفئة</string>
-    <string name="split_tall_images">افصل الصور الطويلة</string>
     <string name="overlay_header">التراكب</string>
     <string name="pref_page_rotate">دوِّر الصفحات العريضة لتلائم الشاشة</string>
     <string name="pref_page_rotate_invert">اعكس اتِّجاه الصفحات العريضة المدوَّرة</string>
@@ -892,10 +895,4 @@
     <string name="ext_content_warning_nsfw">18+</string>
     <string name="ext_content_warning_mixed_description">قد تحتوي المصادر الواردة من هذه الإضافة على محتوى آمن وآخر مخصص للبالغين (18+).</string>
     <string name="ext_content_warning_nsfw_description">تركز المصادر الواردة من هذه الإضافة بشكل أساسي على المحتوى الموجه لمن هم في سن 18 عاماً فما فوق.</string>
-    <string name="update_1hour">كل ١ ساعة</string>
-    <string name="update_3hour">كل ٣ ساعات</string>
-    <string name="update_check_notification_download_in_progress">جار التنزيل…</string>
-    <string name="update_check_notification_download_complete">اضغط لتثبيت التحديث</string>
-    <string name="update_check_notification_download_error">حدث خطأ في التنزيل</string>
-    <string name="channel_app_updates">تحديثات التطبيق</string>
 </resources>

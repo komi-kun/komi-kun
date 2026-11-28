@@ -34,14 +34,15 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import cafe.adriel.voyager.navigator.LocalNavigator
-import cafe.adriel.voyager.navigator.currentOrThrow
 import dev.icerock.moko.resources.StringResource
 import eu.kanade.presentation.more.settings.Preference
 import eu.kanade.tachiyomi.data.connections.ConnectionsService
 import eu.kanade.tachiyomi.ui.setting.connections.DiscordLoginScreen
 import eu.kanade.tachiyomi.util.system.toast
+import kotlinx.serialization.Serializable
 import mihon.app.di.appGraph
+import mihon.core.navigation.DiscordLoginRoute
+import mihon.core.navigation.LocalNavigator
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.Close
 import mihon.icons.materialsymbols.roundedfilled.Visibility
@@ -52,9 +53,8 @@ import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
 import tachiyomi.presentation.core.i18n.stringResource
 
-object SettingsConnectionScreen : SearchableSettings {
-    @Suppress("unused")
-    private fun readResolve(): Any = SettingsConnectionScreen
+@Serializable
+data object SettingsConnectionScreen : SearchableSettings {
 
     @ReadOnlyComposable
     @Composable
@@ -62,7 +62,7 @@ object SettingsConnectionScreen : SearchableSettings {
 
     @Composable
     override fun getPreferences(): List<Preference> {
-        val navigator = LocalNavigator.currentOrThrow
+        val navigator = LocalNavigator.current
         val context = LocalContext.current
         val connectionsManager = remember { context.appGraph.connectionsManager }
 
@@ -90,7 +90,7 @@ object SettingsConnectionScreen : SearchableSettings {
                         subtitle = stringResource(KMR.strings.pref_discord_configuration).takeIf { isLoggedIn },
                         service = connectionsManager.discord,
                         login = {
-                            navigator.push(DiscordLoginScreen())
+                            navigator.push(DiscordLoginRoute)
                         },
                         openSettings = { navigator.push(SettingsDiscordScreen) },
                     ),

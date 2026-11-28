@@ -123,6 +123,8 @@
     <string name="update_24hour">दैनिक</string>
     <string name="update_12hour">प्रत्येक १२ घण्टा</string>
     <string name="update_6hour">प्रत्येक ६ घण्टा</string>
+    <string name="update_1hour">प्रत्येक १ घण्टा</string>
+    <string name="update_3hour">प्रत्येक ३ घण्टा</string>
     <string name="update_never">अफ</string>
     <string name="pref_library_update_interval">स्वचालित अपडेट्स</string>
     <string name="pref_category_library_update">ग्लोबल अपडेट</string>
@@ -352,6 +354,8 @@
     <string name="label_data">डेटा</string>
     <string name="cache_delete_error">खाली गर्दा त्रुटि भयो</string>
     <string name="status">स्थिति</string>
+    <string name="update_check_notification_download_in_progress">डाउनलोड गर्दै…</string>
+    <string name="update_check_notification_download_complete">अपडेट स्थापना गर्न ट्याप गर्नुहोस्</string>
     <string name="download_notifier_unknown_error">अप्रत्याशित त्रुटिका कारण अध्याय डाउनलोड गर्न सकिएन</string>
     <string name="notification_chapters_single">अध्याय %1$s</string>
     <string name="scale_type_original_size">मूल आकार</string>
@@ -375,6 +379,7 @@
     <string name="used_cache">प्रयोग गरिएको: %1$s</string>
     <string name="cache_deleted">Cache खाली गरियो। %1$d फाइलहरू हटाएका छन्</string>
     <string name="notification_chapters_single_and_more">अध्याय %1$s र %2$d अरू</string>
+    <string name="update_check_notification_download_error">डाउनलोड त्रुटि</string>
     <string name="channel_ext_updates">एक्सटेन्शन अपडेट्स</string>
     <string name="pref_dump_crash_logs_summary">विकासकर्ताहरूसँग साझेदारी गर्नको लागि फाइलमा error logs सेभ गर्दछ</string>
     <string name="label_background_activity">ब्याकग्राउण्ड गतिविधि</string>
@@ -538,6 +543,7 @@
     <string name="spen_next_page">अर्को पृष्ठ</string>
     <string name="channel_progress">प्रगति</string>
     <string name="channel_complete">पूरा</string>
+    <string name="channel_app_updates">एप अपडेट्स</string>
     <string name="channel_errors">त्रुटिहरू</string>
     <string name="skipped_reason_not_started">कुनै अध्याय नपढेकाले छोडियो</string>
     <string name="notification_size_warning">ठूला अपडेटले स्रोतहरूलाई हानि पुर्‍याउँछ र यसले ढिलो अपडेट्स निम्त्याउन सक्छ र ब्याट्रीको प्रयोग पनि बढाउँछ। थप जान्न ट्याप गर्नुहोस्।</string>
@@ -626,7 +632,6 @@
     <string name="custom_cover">कस्टम आवरण</string>
     <string name="wish_list">इच्छा सूची</string>
     <string name="popular">लोकप्रिय</string>
-    <string name="split_tall_images_summary">रिडर कार्यसम्पादन सुधार गर्दछ</string>
     <string name="pref_reset_viewer_flags">प्रति-श्रृङ्खला रिडर सेटिंग्स रिसेट गर्नुहोस्</string>
     <string name="track_remove_date_conf_title">मिति हटाउने हो?</string>
     <string name="track_remove_start_date_conf_text">यसले %s बाट तपाइँको पहिले चयन गरिएको सुरु मिति हटाउनेछ</string>
@@ -636,7 +641,6 @@
     <string name="not_installed">स्थापना गरिएको छैन</string>
     <string name="pref_reset_viewer_flags_summary">पढ्ने मोड र सबै श्रृङ्खलाहरूको अभिमुखीकरण रिसेट गर्दछ</string>
     <string name="are_you_sure">के तपाईँ निश्चित हुनुहुन्छ?</string>
-    <string name="download_notifier_split_page_not_found">पृष्ठ विभाजन गर्दा %d फेला परेन</string>
     <string name="information_no_manga_category">वर्ग खाली छ</string>
     <string name="internal_error">आन्तरिक त्रुटि: थप जानकारीको लागि Crash logs जाँच गर्नुहोस्</string>
     <string name="label_completed_titles">पढिसकेका इन्ट्रीहरू</string>
@@ -666,7 +670,6 @@
     <string name="day_short">%dदि</string>
     <string name="hour_short">%dघ</string>
     <string name="action_update_category">वर्ग अपडेट गर्नुहोस्</string>
-    <string name="split_tall_images">अग्लो छविहरू विभाजित गर्नुहोस्</string>
     <string name="overlay_header">ओभरले</string>
     <string name="pref_page_rotate">फिट गर्न चौडा पृष्ठहरू घुमाउनुहोस्</string>
     <string name="pref_page_rotate_invert">घुमाइएका चौडा पृष्ठहरूको अभिमुखीकरण फ्लिप गर्नुहोस्</string>
@@ -860,10 +863,4 @@
     <string name="migrationListScreen.exitDialog.cancelLabel">रद्द गर्नुहोस्</string>
     <string name="migrationListScreen.migrateDialog.copyLabel">प्रतिलिपि गर्नुहोस्</string>
     <string name="migrationListScreen.matchWithoutChapterToast">कुनै अध्यायहरू फेला परेनन्, यो इन्ट्री स्थानान्तरणका लागि प्रयोग गर्न सकिँदैन</string>
-    <string name="update_1hour">प्रत्येक १ घण्टा</string>
-    <string name="update_3hour">प्रत्येक ३ घण्टा</string>
-    <string name="update_check_notification_download_in_progress">डाउनलोड गर्दै…</string>
-    <string name="update_check_notification_download_complete">अपडेट स्थापना गर्न ट्याप गर्नुहोस्</string>
-    <string name="update_check_notification_download_error">डाउनलोड त्रुटि</string>
-    <string name="channel_app_updates">एप अपडेट्स</string>
 </resources>

@@ -32,6 +32,7 @@ import exh.log.xLogE
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import mihon.app.di.appGraph
@@ -55,7 +56,11 @@ import uy.kohesive.injekt.api.get
  * default `PreferenceStore` (same pattern as [SettingsOcrScreen]) and talks to AnkiDroid through
  * [AnkiDroidBridge] for the deck/model lists.
  */
-object SettingsAnkiScreen : SearchableSettings {
+// KUN -->
+// A route now, so it must be serializable for Navigation 3 to persist the back stack.
+@Serializable
+data object SettingsAnkiScreen : SearchableSettings {
+// KUN <--
 
     @ReadOnlyComposable
     @Composable

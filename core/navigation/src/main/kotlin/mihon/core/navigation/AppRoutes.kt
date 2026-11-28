@@ -1,0 +1,168 @@
+package mihon.core.navigation
+
+import androidx.navigation3.runtime.NavKey
+import kotlinx.serialization.Serializable
+
+@Serializable
+data object HomeRoute : NavKey
+
+@Serializable
+data class DeepLinkRoute(val query: String) : NavKey
+
+@Serializable
+data class WebViewRoute(
+    val url: String,
+    val initialTitle: String? = null,
+    val sourceId: Long? = null,
+) : NavKey
+
+@Serializable
+data class MangaNotesRoute(val mangaId: Long) : NavKey
+
+@Serializable
+data class MangaRoute(
+    val mangaId: Long,
+    val fromSource: Boolean = false,
+    // KUN -->
+    // Smart-search state the fork's manga screen carries: the entry a merge is being searched for.
+    // Flattened into primitives because the concrete type lives in the app module.
+    val smartSearchTitle: String? = null,
+    val smartSearchMangaId: Long? = null,
+    // KUN <--
+) : NavKey
+
+@Serializable
+data class TrackInfoDialogRoute(
+    val mangaId: Long,
+    val mangaTitle: String,
+    val sourceId: Long,
+) : NavKey
+
+@Serializable
+data class GlobalSearchRoute(
+    val searchQuery: String = "",
+    val extensionFilter: String? = null,
+) : NavKey
+
+@Serializable
+data object UpcomingRoute : NavKey
+
+@Serializable
+data class BrowseSourceRoute(
+    val sourceId: Long,
+    val listingQuery: String?,
+    // KUN -->
+    // TachiyomiSY's extra entry points into a source's browse screen: a saved search, the EH filter
+    // state and the smart-search state (see [MangaRoute]).
+    val filtersJson: String? = null,
+    val savedSearch: Long? = null,
+    val smartSearchTitle: String? = null,
+    val smartSearchMangaId: Long? = null,
+    // KUN <--
+) : NavKey
+
+@Serializable
+data class ExtensionDetailsRoute(val pkgName: String) : NavKey
+
+@Serializable
+data object ExtensionFilterRoute : NavKey
+
+@Serializable
+data class MigrateMangaRoute(val sourceId: Long) : NavKey
+
+@Serializable
+data class MigrateSearchRoute(val mangaId: Long) : NavKey
+
+@Serializable
+data class MigrateSourceSearchRoute(
+    val currentMangaId: Long,
+    val sourceId: Long,
+    val query: String?,
+) : NavKey
+
+@Serializable
+data class MigrationConfigRoute(val mangaIds: Collection<Long>) : NavKey {
+    constructor(mangaId: Long) : this(listOf(mangaId))
+}
+
+@Serializable
+data class MigrationListRoute(
+    val mangaIds: Collection<Long>,
+    val extraSearchQuery: String?,
+    // KUN -->
+    /** Komikku's migration-smart-search preference for a single entry. */
+    val isSmartSearchSingleEntry: Boolean = false,
+    // KUN <--
+) : NavKey
+
+@Serializable
+data object SourcesFilterRoute : NavKey
+
+@Serializable
+data class SourcePreferencesRoute(val sourceId: Long) : NavKey
+
+@Serializable
+data object CategoryRoute : NavKey
+
+@Serializable
+data object DownloadQueueRoute : NavKey
+
+@Serializable
+data class NewUpdateRoute(
+    val versionName: String,
+    val changelogInfo: String,
+    val releaseLink: String,
+    val downloadLink: String,
+    // KUN -->
+    val digest: String? = null,
+    // KUN <--
+) : NavKey
+
+@Serializable
+data object OnboardingRoute : NavKey
+
+@Serializable
+data object StatsRoute : NavKey
+
+// KUN -->
+// Upstream's `SupportUsRoute` has no screen in this fork (`mihon.feature.support` does not exist
+// here and the donation campaign is not ported), so the route is dropped instead of leaving a
+// `NavKey` that nothing registers — an unregistered key throws when it is pushed.
+// KUN <--
+
+@Serializable
+data object AboutRoute : NavKey
+
+@Serializable
+data object AppLanguageRoute : NavKey
+
+@Serializable
+data object BackupSchemaRoute : NavKey {
+    const val TITLE = "Backup file schema"
+}
+
+@Serializable
+data object ClearDatabaseRoute : NavKey
+
+@Serializable
+data object CreateBackupRoute : NavKey
+
+@Serializable
+data object DebugInfoRoute : NavKey
+
+@Serializable
+data object ExtensionStoresRoute : NavKey
+
+@Serializable
+data object OpenSourceLicensesRoute : NavKey
+
+@Serializable
+data class RestoreBackupRoute(val uri: String) : NavKey
+
+@Serializable
+data object SettingsSearchRoute : NavKey
+
+@Serializable
+data object WorkerInfoRoute : NavKey {
+    const val TITLE = "Worker info"
+}

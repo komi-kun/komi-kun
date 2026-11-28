@@ -157,6 +157,7 @@
     <string name="biometric_lock_time_conflicts">Un temps de verrouillage entre en conflit avec celui qui existe déjà !</string>
     <string name="biometric_lock_start_time">Entrez l\'heure de début</string>
     <string name="biometric_lock_end_time">Entrez l\'heure de fin</string>
+<!--        <string name="download_threads">Download threads</string>-->
     <string name="download_threads_summary">Des valeurs plus élevées peuvent accélérer considérablement le téléchargement des images, mais peuvent également déclencher des Bannissement. La valeur recommandée est 2 ou 3. La valeur actuelle est : %s</string>
     <string name="aggressively_load_pages">Charger les pages de manière agressive</string>
     <string name="aggressively_load_pages_summary">Téléchargez lentement le chapitre entier pendant la lecture au lieu de simplement charger les pages que vous consultez.</string>
@@ -184,12 +185,6 @@
     <!-- Reader -->
     <!-- Reader Actions -->
     <string name="eh_autoscroll">Défilement automatique</string>
-    <string name="eh_autoscroll_gestures">Gestes de défilement automatique</string>
-    <string name="eh_autoscroll_gestures_help">Aide des gestes de défilement automatique</string>
-    <string name="eh_autoscroll_gestures_help_message">Défilement automatique activé :\n- Appuyez pour mettre en pause ou reprendre\n- Balayez vers le haut ou le bas pour régler la vitesse\n- Faites glisser avec deux doigts pour défiler manuellement\n- Balayez sur le côté pour arrêter\n\nDéfilement automatique désactivé :\n- Balayez sur le côté pour démarrer\n\nFermez le menu du lecteur pour utiliser les gestes.</string>
-    <string name="eh_autoscroll_gesture_toasts">Messages des gestes</string>
-    <string name="eh_autoscroll_gesture_toasts_help">Aide des messages des gestes</string>
-    <string name="eh_autoscroll_gesture_toasts_help_message">Lorsque cette option est activée, le lecteur affiche de brefs messages après les gestes de défilement automatique, par exemple pour le démarrage, la pause, la reprise, l\'arrêt, les changements de vitesse ou le passage au chapitre suivant.\n\nLorsque cette option est désactivée, les gestes fonctionnent de la même manière, mais ces messages ne sont pas affichés.</string>
     <string name="eh_retry_all">Tout réessayer</string>
     <string name="eh_boost_page">Booster la page</string>
     <string name="eh_autoscroll_help">Aide du défilement automatique</string>
@@ -648,11 +643,17 @@
     <string name="rec_initializing">Initialisation</string>
     <string name="mangadex_push_favorites_to_mangadex_summary">Synchronise toutes les séries non suivies par MdList vers MangaDex en tant que lecture en cours.</string>
     <string name="similar_titles">Titres similaires</string>
-    <string name="select_scanlators">Groupes de scantrad à afficher</string>
     <string name="pref_include_chapter_url_hash">Inclure le hash de l\'URL du chapitre</string>
     <string name="pref_include_chapter_url_hash_desc">Ajoutez les six premiers caractères du hachage MD5 de l\'URL du chapitre au nom du fichier ou du dossier du chapitre.</string>
     <string name="filename">Nom du fichier</string>
     <string name="file_extension">Extension du fichier</string>
     <string name="base_url">URL de base</string>
     <string name="final_chapter">Chapitre final</string>
+    <string name="eh_autoscroll_gestures">Gestes de défilement automatique</string>
+    <string name="eh_autoscroll_gestures_help">Aide des gestes de défilement automatique</string>
+    <string name="eh_autoscroll_gestures_help_message">Défilement automatique activé :\n- Appuyez pour mettre en pause ou reprendre\n- Balayez vers le haut ou le bas pour régler la vitesse\n- Faites glisser avec deux doigts pour défiler manuellement\n- Balayez sur le côté pour arrêter\n\nDéfilement automatique désactivé :\n- Balayez sur le côté pour démarrer\n\nFermez le menu du lecteur pour utiliser les gestes.</string>
+    <string name="eh_autoscroll_gesture_toasts">Messages des gestes</string>
+    <string name="eh_autoscroll_gesture_toasts_help">Aide des messages des gestes</string>
+    <string name="eh_autoscroll_gesture_toasts_help_message">Lorsque cette option est activée, le lecteur affiche de brefs messages après les gestes de défilement automatique, par exemple pour le démarrage, la pause, la reprise, l\'arrêt, les changements de vitesse ou le passage au chapitre suivant.\n\nLorsque cette option est désactivée, les gestes fonctionnent de la même manière, mais ces messages ne sont pas affichés.</string>
+    <string name="select_scanlators">Groupes de scantrad à afficher</string>
 </resources>

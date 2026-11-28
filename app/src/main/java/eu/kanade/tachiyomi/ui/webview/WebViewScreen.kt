@@ -1,62 +1,66 @@
 package eu.kanade.tachiyomi.ui.webview
 
+import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
-import cafe.adriel.voyager.navigator.LocalNavigator
-import cafe.adriel.voyager.navigator.currentOrThrow
 import dev.zacsweers.metrox.viewmodel.assistedMetroViewModel
-import eu.kanade.presentation.util.AssistContentScreen
-import eu.kanade.presentation.util.Screen
 import eu.kanade.presentation.webview.WebViewScreenContent
 import eu.kanade.tachiyomi.data.connections.discord.DiscordRPCService
 import eu.kanade.tachiyomi.data.connections.discord.DiscordScreen
+import eu.kanade.tachiyomi.util.system.WebViewUtil
+import eu.kanade.tachiyomi.util.system.toast
+import mihon.core.navigation.LocalAssistUrl
+import mihon.core.navigation.WebViewRoute
 import tachiyomi.core.common.util.lang.launchIO
+import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.screens.LoadingScreen
 
-class WebViewScreen(
-    private val url: String,
-    private val initialTitle: String? = null,
-    private val sourceId: Long? = null,
-) : Screen(), AssistContentScreen {
+@Composable
+fun WebViewScreen(
+    route: WebViewRoute,
+    onNavigateUp: () -> Unit,
+) {
+    val setAssistUrl = LocalAssistUrl.current
+    val context = LocalContext.current
 
-    private var assistUrl: String? = null
-
-    override fun onProvideAssistUrl() = assistUrl
-
-    @Composable
-    override fun Content() {
-        val navigator = LocalNavigator.currentOrThrow
-        val context = LocalContext.current
-        val viewModel =
-            assistedMetroViewModel<WebViewViewModel, WebViewViewModel.Factory> { create(sourceId = sourceId) }
-
-        val headers by viewModel.headers.collectAsState()
-        if (headers == null) {
-            LoadingScreen()
-            return
-        }
-
-        WebViewScreenContent(
-            onNavigateUp = { navigator.pop() },
-            initialTitle = initialTitle,
-            url = url,
-            headers = headers.orEmpty(),
-            defaultUserAgentProvider = viewModel::defaultUserAgentProvider,
-            onUrlChange = { assistUrl = it },
-            onShare = { viewModel.shareWebpage(context, it) },
-            onOpenInBrowser = { viewModel.openInBrowser(context, it) },
-            onClearCookies = viewModel::clearCookies,
-        )
-
-        // KMK -->
+    if (!remember { WebViewUtil.supportsWebView(context) }) {
         LaunchedEffect(Unit) {
-            with(DiscordRPCService) {
-                discordScope.launchIO { setScreen(context, DiscordScreen.WEBVIEW) }
-            }
+            context.toast(MR.strings.information_webview_required, Toast.LENGTH_LONG)
+            onNavigateUp()
         }
-        // <-- KMK
+        return
     }
+
+    val viewModel =
+        assistedMetroViewModel<WebViewViewModel, WebViewViewModel.Factory> { create(sourceId = route.sourceId) }
+
+    val headers by viewModel.headers.collectAsState()
+    if (headers == null) {
+        LoadingScreen()
+        return
+    }
+
+    WebViewScreenContent(
+        onNavigateUp = onNavigateUp,
+        initialTitle = route.initialTitle,
+        url = route.url,
+        headers = headers.orEmpty(),
+        defaultUserAgentProvider = viewModel::defaultUserAgentProvider,
+        onUrlChange = setAssistUrl,
+        onShare = { viewModel.shareWebpage(context, it) },
+        onOpenInBrowser = { viewModel.openInBrowser(context, it) },
+        onClearCookies = viewModel::clearCookies,
+    )
+
+    // KMK -->
+    LaunchedEffect(Unit) {
+        with(DiscordRPCService) {
+            discordScope.launchIO { setScreen(context, DiscordScreen.WEBVIEW) }
+        }
+    }
+    // <-- KMK
 }

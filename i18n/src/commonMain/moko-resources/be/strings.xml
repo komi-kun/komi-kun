@@ -117,6 +117,8 @@
     <string name="update_24hour">Штодня</string>
     <string name="update_12hour">Кожныя 12 гадзін</string>
     <string name="update_6hour">Кожныя 6 гадзін</string>
+    <string name="update_1hour">Кожныя 1 гадзін</string>
+    <string name="update_3hour">Кожныя 3 гадзін</string>
     <string name="update_never">Выключаны</string>
     <string name="pref_library_update_interval">Аўтаабнаўленні</string>
     <string name="pref_category_library_update">Глабальнае абнаўленне</string>
@@ -798,6 +800,9 @@
     <string name="update_check_open">Адкрыць на GitHub</string>
     <string name="update_check_eol">Гэтая версія Android больш не падтрымліваецца</string>
     <string name="update_check_no_new_updates">Няма новых абнаўленняў</string>
+    <string name="update_check_notification_download_in_progress">Спампоўванне…</string>
+    <string name="update_check_notification_download_complete">Націсніце, каб усталяваць абнаўленне</string>
+    <string name="update_check_notification_download_error">Памылка спампоўвання</string>
     <string name="update_check_notification_update_available">Даступная новая версія!</string>
     <string name="information_no_manga_category">Катэгорыя пустая</string>
     <string name="information_no_entries_found">У гэтай катэгорыі твораў не знойдзена</string>
@@ -821,6 +826,7 @@
     <string name="channel_complete">Завершэнні</string>
     <string name="channel_errors">Памылкі</string>
     <string name="channel_new_chapters">Абнаўленні раздзелаў</string>
+    <string name="channel_app_updates">Абнаўленні праграмы</string>
     <string name="channel_ext_updates">Абнаўленні пашырэнняў</string>
     <string name="spen_previous_page">Папярэдняя старонка</string>
     <string name="spen_next_page">Наступная старонка</string>
@@ -913,10 +919,4 @@
     <string name="pref_cutout_mode_dual">Рэжым выразу экрана (падвойны)</string>
     <string name="cutout_mode_shift">Ссоўваць</string>
     <string name="extensionStoresScreen.emptyLabel">Вы яшчэ не дадавалі крам пашырэнняў</string>
-    <string name="update_1hour">Кожныя 1 гадзін</string>
-    <string name="update_3hour">Кожныя 3 гадзін</string>
-    <string name="update_check_notification_download_in_progress">Спампоўванне…</string>
-    <string name="update_check_notification_download_complete">Націсніце, каб усталяваць абнаўленне</string>
-    <string name="update_check_notification_download_error">Памылка спампоўвання</string>
-    <string name="channel_app_updates">Абнаўленні праграмы</string>
 </resources>

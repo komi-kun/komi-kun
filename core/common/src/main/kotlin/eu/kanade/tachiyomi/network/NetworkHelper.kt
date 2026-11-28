@@ -5,6 +5,7 @@ import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import eu.kanade.tachiyomi.network.interceptor.CloudflareInterceptor
+import eu.kanade.tachiyomi.network.interceptor.MangaDexUserAgentInterceptor
 import eu.kanade.tachiyomi.network.interceptor.UncaughtExceptionInterceptor
 import eu.kanade.tachiyomi.network.interceptor.UserAgentInterceptor
 import eu.kanade.tachiyomi.util.lang.Hash
@@ -70,7 +71,10 @@ open /* SY <-- */ class NetworkHelper(
                 ),
             )
             .addInterceptor(UncaughtExceptionInterceptor())
-            .addInterceptor(UserAgentInterceptor(::defaultUserAgentProvider))
+            // KMK -->
+            // Adds MangaDexUserAgentInterceptor ahead of UserAgentInterceptor.
+            .addUserAgentInterceptors(::defaultUserAgentProvider)
+            // KMK <--
             // KUN -->
             // Cache any `.mokuro` OCR sidecar fetched through this client so the reader can use a
             // source-provided sidecar without downloading it again (03 §4). Generic + Apache: it
@@ -282,6 +286,17 @@ open /* SY <-- */ class NetworkHelper(
     companion object {
         // KMK -->
         private const val MAX_RETRY = 5
+
+        /**
+         * Adds the User-Agent interceptors in the order the shared client needs: [MangaDexUserAgentInterceptor]
+         * first, because MangaDex challenges the default browser User-Agent and [UserAgentInterceptor] only fills
+         * in a User-Agent that is still missing.
+         */
+        internal fun OkHttpClient.Builder.addUserAgentInterceptors(
+            defaultUserAgentProvider: () -> String,
+        ): OkHttpClient.Builder = this
+            .addInterceptor(MangaDexUserAgentInterceptor())
+            .addInterceptor(UserAgentInterceptor(defaultUserAgentProvider))
         // KMK <--
     }
 }

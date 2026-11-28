@@ -22,6 +22,7 @@ import eu.kanade.tachiyomi.data.ocr.OcrRuntimePolicy
 import eu.kanade.tachiyomi.data.ocr.OcrWorker
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
 import mihon.app.di.appGraph
 import mihon.core.ocr.DetModelVariant
 import mihon.core.ocr.OcrDetResolution
@@ -51,7 +52,11 @@ import tachiyomi.presentation.core.util.collectAsState
  * overlay here actually enables it in the reader. Selecting Paddle triggers the checksum-verified,
  * opt-in model download (contract §1.7).
  */
-object SettingsOcrScreen : SearchableSettings {
+// KUN -->
+// A route now, so it must be serializable for Navigation 3 to persist the back stack.
+@Serializable
+data object SettingsOcrScreen : SearchableSettings {
+// KUN <--
 
     @ReadOnlyComposable
     @Composable

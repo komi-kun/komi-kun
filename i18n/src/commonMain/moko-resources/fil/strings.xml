@@ -203,6 +203,8 @@
     <string name="update_24hour">Araw-araw</string>
     <string name="update_12hour">Kada 12 oras</string>
     <string name="update_6hour">Kada 6 na oras</string>
+    <string name="update_1hour">Kada 1 na oras</string>
+    <string name="update_3hour">Kada 3 na oras</string>
     <string name="update_never">Nakapatay</string>
     <string name="pref_library_update_interval">Awtomatikong pag-update</string>
     <string name="pref_category_library_update">Panlahatang update</string>
@@ -250,6 +252,9 @@
     <string name="information_webview_required">Kinakailangan ng app ang WebView upang gumana ito</string>
     <string name="information_cloudflare_bypass_failure">Bigong ma-bypass ang Cloudflare</string>
     <string name="update_check_notification_update_available">May bagong bersyon!</string>
+    <string name="update_check_notification_download_error">Nagka-error sa pag-download</string>
+    <string name="update_check_notification_download_complete">I-tap upang ma-install ang update</string>
+    <string name="update_check_notification_download_in_progress">Dina-download…</string>
     <string name="update_check_no_new_updates">Walang bagong update</string>
     <string name="update_check_confirm">I-download</string>
     <string name="file_select_backup">Pumili ng backup</string>
@@ -531,6 +536,7 @@
     <string name="connected_to_wifi">Sa Wi-Fi lang</string>
     <string name="update_72hour">Kada 3 araw</string>
     <string name="download_queue_size_warning">Babala: maaaring humantong sa pagbagal at/o pagharang ng mga source sa %s ang maramihang pag-download. I-tap para matuto pa.</string>
+    <string name="channel_app_updates">Mga update sa app</string>
     <string name="ext_update_all">I-update lahat</string>
     <string name="clear_database_source_item_count">%1$d na entry sa database na wala sa aklatan</string>
     <string name="pref_auto_clear_chapter_cache">Linisin ang cache ng kabanata sa paglulunsad ng app</string>
@@ -945,10 +951,4 @@
     <string name="update_check_skip_title">Laktawan ang %s?</string>
     <string name="update_check_skip_message">Ang mga update ay karaniwang may kasamang mga bug fix at pagpapahusay sa seguridad. Hindi ka na muling ipapaalala tungkol sa bersyong ito, ngunit makakatanggap ka pa rin ng abiso kapag may lumabas na mas bagong bersyon.</string>
     <string name="information_webview_crashed">Huminto sa paggana ang WebView at isinarado ang pahina</string>
-    <string name="update_1hour">Kada 1 na oras</string>
-    <string name="update_3hour">Kada 3 na oras</string>
-    <string name="update_check_notification_download_error">Nagka-error sa pag-download</string>
-    <string name="update_check_notification_download_complete">I-tap upang ma-install ang update</string>
-    <string name="update_check_notification_download_in_progress">Dina-download…</string>
-    <string name="channel_app_updates">Mga update sa app</string>
 </resources>

@@ -33,6 +33,12 @@ data class PagePreviewInfo(
     @Transient
     private val _progress: MutableStateFlow<Int> = MutableStateFlow(-1),
 ) : ProgressListener {
+    // Stable signature for extensions; calls using the default arguments compile to a synthetic constructor
+    // KUN -->
+    // This fork's signature also carries `cacheKey` (defaults to `imageUrl`), so the extra arguments are named.
+    constructor(index: Int, imageUrl: String) : this(index = index, imageUrl = imageUrl, _progress = MutableStateFlow(-1))
+    // KUN <--
+
     @Transient
     val progress = _progress.asStateFlow()
 
