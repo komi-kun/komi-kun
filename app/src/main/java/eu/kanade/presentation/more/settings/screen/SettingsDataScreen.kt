@@ -37,8 +37,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.core.net.toUri
-import cafe.adriel.voyager.navigator.LocalNavigator
-import cafe.adriel.voyager.navigator.currentOrThrow
 import com.google.zxing.client.android.Intents
 import com.hippo.unifile.UniFile
 import com.journeyapps.barcodescanner.ScanContract
@@ -46,8 +44,6 @@ import com.journeyapps.barcodescanner.ScanOptions
 import eu.kanade.domain.sync.SyncPreferences
 import eu.kanade.presentation.more.settings.Preference
 import eu.kanade.presentation.more.settings.screen.SettingsSecurityScreen.PasswordDialog
-import eu.kanade.presentation.more.settings.screen.data.CreateBackupScreen
-import eu.kanade.presentation.more.settings.screen.data.RestoreBackupScreen
 import eu.kanade.presentation.more.settings.screen.data.StorageInfo
 import eu.kanade.presentation.more.settings.screen.data.SyncSettingsSelector
 import eu.kanade.presentation.more.settings.screen.data.SyncTriggerOptionsScreen
@@ -70,8 +66,14 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
 import logcat.LogPriority
 import mihon.app.di.appGraph
+import mihon.core.navigation.CreateBackupRoute
+import mihon.core.navigation.LocalNavigator
+import mihon.core.navigation.RestoreBackupRoute
+import mihon.core.navigation.SyncSettingsSelectorRoute
+import mihon.core.navigation.SyncTriggerOptionsRoute
 import mihon.data.cache.ChapterCache
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.automirroredrounded.Help
@@ -92,9 +94,8 @@ import tachiyomi.i18n.sy.SYMR
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsState
 
-object SettingsDataScreen : SearchableSettings {
-    @Suppress("unused")
-    private fun readResolve(): Any = SettingsDataScreen
+@Serializable
+data object SettingsDataScreen : SearchableSettings {
 
     val restorePreferenceKeyString = MR.strings.label_backup
     const val HELP_URL = "https://komikku-app.github.io/docs/faq/storage"
@@ -230,7 +231,7 @@ object SettingsDataScreen : SearchableSettings {
     @Composable
     private fun getBackupAndRestoreGroup(backupPreferences: BackupPreferences): Preference.PreferenceGroup {
         val context = LocalContext.current
-        val navigator = LocalNavigator.currentOrThrow
+        val navigator = LocalNavigator.current
         val scope = rememberCoroutineScope()
 
         val lastAutoBackup by backupPreferences.lastAutoBackupTimestamp.collectAsState()
@@ -252,7 +253,7 @@ object SettingsDataScreen : SearchableSettings {
                 logcat(LogPriority.ERROR, e)
             }
 
-            navigator.push(RestoreBackupScreen(it.toString()))
+            navigator.push(RestoreBackupRoute(it.toString()))
         }
 
         return Preference.PreferenceGroup(
@@ -273,7 +274,7 @@ object SettingsDataScreen : SearchableSettings {
                                 SegmentedButton(
                                     modifier = Modifier.fillMaxHeight(),
                                     checked = false,
-                                    onCheckedChange = { navigator.push(CreateBackupScreen()) },
+                                    onCheckedChange = { navigator.push(CreateBackupRoute) },
                                     shape = SegmentedButtonDefaults.itemShape(0, 2),
                                 ) {
                                     Text(stringResource(MR.strings.pref_create_backup))
@@ -620,7 +621,7 @@ object SettingsDataScreen : SearchableSettings {
         syncServiceType: SyncManager.SyncService,
         syncPreferences: SyncPreferences,
     ): List<Preference> {
-        val navigator = LocalNavigator.currentOrThrow
+        val navigator = LocalNavigator.current
         val preferences = when (syncServiceType) {
             SyncManager.SyncService.NONE -> emptyList()
             SyncManager.SyncService.SYNCYOMI -> getSelfHostPreferences(syncPreferences)
@@ -634,7 +635,7 @@ object SettingsDataScreen : SearchableSettings {
             preferences + Preference.PreferenceItem.TextPreference(
                 title = stringResource(SYMR.strings.pref_choose_what_to_sync),
                 onClick = {
-                    navigator.push(SyncSettingsSelector())
+                    navigator.push(SyncSettingsSelectorRoute)
                 },
             )
         } else {
@@ -1045,11 +1046,11 @@ object SettingsDataScreen : SearchableSettings {
 
     @Composable
     private fun getSyncOptionsPref(): Preference.PreferenceItem.TextPreference {
-        val navigator = LocalNavigator.currentOrThrow
+        val navigator = LocalNavigator.current
         return Preference.PreferenceItem.TextPreference(
             title = stringResource(SYMR.strings.pref_sync_options),
             subtitle = stringResource(SYMR.strings.pref_sync_options_summ),
-            onClick = { navigator.push(SyncTriggerOptionsScreen()) },
+            onClick = { navigator.push(SyncTriggerOptionsRoute) },
         )
     }
 

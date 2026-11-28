@@ -12,17 +12,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import cafe.adriel.voyager.navigator.LocalNavigator
 import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.components.AppBarActions
 import eu.kanade.presentation.components.AppBarTitle
 import eu.kanade.presentation.components.DownloadDropdownMenu
 import eu.kanade.presentation.manga.DownloadAction
-import eu.kanade.tachiyomi.ui.browse.source.browse.BrowseSourceScreen
-import eu.kanade.tachiyomi.ui.browse.source.feed.SourceFeedScreen
-import eu.kanade.tachiyomi.ui.manga.MangaScreen
 import eu.kanade.tachiyomi.util.system.isDebugBuildType
 import mihon.app.di.appGraph
+import mihon.core.navigation.BrowseSourceRoute
+import mihon.core.navigation.LocalNavigator
+import mihon.core.navigation.MangaRoute
+import mihon.core.navigation.SourceFeedRoute
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.Download
 import mihon.icons.materialsymbols.rounded.FilterList
@@ -74,8 +74,8 @@ fun MangaToolbar(
 ) {
     // KMK -->
     val navigator = LocalNavigator.current
-    fun onHomeClicked() = navigator?.popUntil { screen ->
-        screen is SourceFeedScreen || screen is BrowseSourceScreen
+    fun onHomeClicked() = navigator.popTo { route ->
+        route is SourceFeedRoute || route is BrowseSourceRoute
     }
     val isHomeEnabled = LocalContext.current.appGraph.uiPreferences.showHomeOnRelatedMangas.get()
     // KMK <--
@@ -96,10 +96,9 @@ fun MangaToolbar(
         // KMK -->
         goHome = { onHomeClicked() }.takeIf {
             isHomeEnabled &&
-                navigator != null &&
                 (
-                    navigator.size >= 5 ||
-                        (navigator.size >= 2 && navigator.items[navigator.size - 2] is MangaScreen)
+                    navigator.routes.size >= 5 ||
+                        (navigator.routes.size >= 2 && navigator.routes[navigator.routes.size - 2] is MangaRoute)
                     )
         },
         // KMK <--

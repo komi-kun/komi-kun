@@ -7,16 +7,15 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import cafe.adriel.voyager.core.screen.Screen
-import cafe.adriel.voyager.navigator.LocalNavigator
-import cafe.adriel.voyager.navigator.Navigator
 import eu.kanade.presentation.category.components.ChangeCategoryDialog
 import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.manga.DuplicateMangaDialog
 import eu.kanade.tachiyomi.ui.browse.BulkFavoriteViewModel
 import eu.kanade.tachiyomi.ui.browse.BulkFavoriteViewModel.Dialog
-import eu.kanade.tachiyomi.ui.category.CategoryScreen
-import eu.kanade.tachiyomi.ui.manga.MangaScreen
+import mihon.core.navigation.CategoryRoute
+import mihon.core.navigation.LocalNavigator
+import mihon.core.navigation.MangaRoute
+import mihon.core.navigation.Navigator
 import mihon.feature.migration.dialog.MigrateMangaDialog
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.Checklist
@@ -31,7 +30,7 @@ import tachiyomi.presentation.core.i18n.stringResource
  * @param dialog the dialog to show.
  */
 @Composable
-fun Screen.BulkFavoriteDialogs(
+fun BulkFavoriteDialogs(
     bulkFavoriteViewModel: BulkFavoriteViewModel,
     dialog: Dialog?,
 ) {
@@ -97,7 +96,7 @@ fun Screen.BulkFavoriteDialogs(
 }
 
 @Composable
-private fun Screen.ShowMigrateDialog(
+private fun ShowMigrateDialog(
     dialog: Dialog.Migrate,
     navigator: Navigator?,
     state: BulkFavoriteViewModel.State,
@@ -112,7 +111,7 @@ private fun Screen.ShowMigrateDialog(
         current = dialog.current,
         target = dialog.target,
         // Initiated from the context of [dialog.target] so we show [dialog.current].
-        onClickTitle = { navigator?.push(MangaScreen(dialog.current.id)) },
+        onClickTitle = { navigator?.push(MangaRoute(dialog.current.id)) },
         onDismissRequest = onDismiss,
         onComplete = {
             toggleSelection(dialog.target, false)
@@ -148,7 +147,7 @@ private fun AddDuplicateMangaDialog(
             toggleSelectionMode(false)
             addFavorite(dialog.manga)
         },
-        onOpenManga = { navigator?.push(MangaScreen(it.id)) },
+        onOpenManga = { navigator?.push(MangaRoute(it.id)) },
         onMigrate = { showMigrateDialog(dialog.manga, it) },
         targetManga = dialog.manga,
     )
@@ -177,7 +176,7 @@ private fun ChangeMangasCategoryDialog(
     ChangeCategoryDialog(
         initialSelection = dialog.initialSelection,
         onDismissRequest = onDismiss,
-        onEditCategories = { navigator?.push(CategoryScreen()) },
+        onEditCategories = { navigator?.push(CategoryRoute) },
         onConfirm = onConfirm,
     )
 }
@@ -200,7 +199,7 @@ private fun BulkAllowDuplicateDialog(
         duplicates = dialog.duplicates,
         onDismissRequest = onDismiss,
         onConfirm = { addFavorite(dialog.currentIdx + 1) },
-        onOpenManga = { navigator?.push(MangaScreen(it.id)) },
+        onOpenManga = { navigator?.push(MangaRoute(it.id)) },
         onMigrate = { showMigrateDialog(dialog.manga, it) },
         targetManga = dialog.manga,
         bulkFavoriteManga = dialog.manga,

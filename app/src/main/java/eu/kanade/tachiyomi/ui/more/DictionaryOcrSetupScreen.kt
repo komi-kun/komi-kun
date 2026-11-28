@@ -19,55 +19,50 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
-import cafe.adriel.voyager.navigator.LocalNavigator
-import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.presentation.more.onboarding.DictionaryOcrSetupContent
-import eu.kanade.presentation.util.Screen
 import eu.kanade.tachiyomi.ui.more.setup.DictionaryOcrSetupPolicy
 import mihon.app.di.appGraph
+import mihon.core.navigation.LocalNavigator
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.Book
 import tachiyomi.i18n.kun.KUNMR
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.screens.InfoScreen
 
-class DictionaryOcrSetupScreen : Screen() {
+@Composable
+fun DictionaryOcrSetupScreen() {
+    val context = LocalContext.current
+    val navigator = LocalNavigator.current
+    val preferences = remember(context) { context.appGraph.dictionaryOcrPreferences }
 
-    @Composable
-    override fun Content() {
-        val context = LocalContext.current
-        val navigator = LocalNavigator.currentOrThrow
-        val preferences = remember(context) { context.appGraph.dictionaryOcrPreferences }
+    // No dismiss without an answer: back is swallowed, and both answers are buttons.
+    BackHandler(enabled = true) {
+        // Intentionally empty; the user must turn it on or keep it off.
+    }
 
-        // No dismiss without an answer: back is swallowed, and both answers are buttons.
-        BackHandler(enabled = true) {
-            // Intentionally empty; the user must turn it on or keep it off.
-        }
-
-        InfoScreen(
-            icon = MaterialSymbols.Rounded.Book,
-            headingText = stringResource(KUNMR.strings.dictionary_ocr_setup_title),
-            subtitleText = stringResource(KUNMR.strings.dictionary_ocr_setup_description),
-            acceptText = stringResource(KUNMR.strings.dictionary_ocr_setup_accept),
-            // Both buttons are always enabled: each one *is* an answer, so neither may be disabled.
-            canAccept = true,
-            equalActionButtons = true,
-            onAcceptClick = {
-                DictionaryOcrSetupPolicy.recordAnswer(preferences, accepted = true)
-                navigator.pop()
-            },
-            rejectText = stringResource(KUNMR.strings.dictionary_ocr_setup_decline),
-            onRejectClick = {
-                // An explicit decline is stored too, so this screen never returns.
-                DictionaryOcrSetupPolicy.recordAnswer(preferences, accepted = false)
-                navigator.pop()
-            },
-        ) {
-            DictionaryOcrSetupContent(
-                enabled = false,
-                onEnabledChange = {},
-                showEnableSwitch = false,
-            )
-        }
+    InfoScreen(
+        icon = MaterialSymbols.Rounded.Book,
+        headingText = stringResource(KUNMR.strings.dictionary_ocr_setup_title),
+        subtitleText = stringResource(KUNMR.strings.dictionary_ocr_setup_description),
+        acceptText = stringResource(KUNMR.strings.dictionary_ocr_setup_accept),
+        // Both buttons are always enabled: each one *is* an answer, so neither may be disabled.
+        canAccept = true,
+        equalActionButtons = true,
+        onAcceptClick = {
+            DictionaryOcrSetupPolicy.recordAnswer(preferences, accepted = true)
+            navigator.pop()
+        },
+        rejectText = stringResource(KUNMR.strings.dictionary_ocr_setup_decline),
+        onRejectClick = {
+            // An explicit decline is stored too, so this screen never returns.
+            DictionaryOcrSetupPolicy.recordAnswer(preferences, accepted = false)
+            navigator.pop()
+        },
+    ) {
+        DictionaryOcrSetupContent(
+            enabled = false,
+            onEnabledChange = {},
+            showEnableSwitch = false,
+        )
     }
 }

@@ -18,14 +18,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastForEachIndexed
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import cafe.adriel.voyager.navigator.LocalNavigator
-import cafe.adriel.voyager.navigator.currentOrThrow
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 import eu.kanade.presentation.category.visualName
 import eu.kanade.presentation.components.TabbedDialog
 import eu.kanade.presentation.components.TabbedDialogPaddings
-import eu.kanade.presentation.util.Screen
-import eu.kanade.tachiyomi.ui.manga.MangaScreen
+import mihon.core.navigation.LocalNavigator
+import mihon.core.navigation.MangaRoute
 import tachiyomi.core.common.preference.TriState
 import tachiyomi.domain.library.service.LibraryPreferences.Companion.MANGA_OUTSIDE_RELEASE_PERIOD
 import tachiyomi.i18n.MR
@@ -36,38 +34,35 @@ import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.screens.LoadingScreen
 import tachiyomi.presentation.core.util.collectAsState
 
-class UpcomingScreen : Screen() {
+@Composable
+fun UpcomingScreen() {
+    val navigator = LocalNavigator.current
 
-    @Composable
-    override fun Content() {
-        val navigator = LocalNavigator.currentOrThrow
+    val viewModel = metroViewModel<UpcomingViewModel>()
+    val state by viewModel.state.collectAsStateWithLifecycle()
 
-        val viewModel = metroViewModel<UpcomingViewModel>()
-        val state by viewModel.state.collectAsStateWithLifecycle()
-
-        when (state.dialog) {
-            is UpcomingViewModel.Dialog.FilterSheet -> {
-                UpcomingFilterDialog(
-                    viewModel = viewModel,
-                )
-            }
-
-            null -> {}
+    when (state.dialog) {
+        is UpcomingViewModel.Dialog.FilterSheet -> {
+            UpcomingFilterDialog(
+                viewModel = viewModel,
+            )
         }
 
-        UpcomingScreenContent(
-            state = state,
-            setSelectedYearMonth = viewModel::setSelectedYearMonth,
-            onClickUpcoming = { navigator.push(MangaScreen(it.id)) },
-            // KMK -->
-            showUpdatingMangas = viewModel::showUpdatingMangas,
-            hideUpdatingMangas = viewModel::hideUpdatingMangas,
-            isPredictReleaseDate = MANGA_OUTSIDE_RELEASE_PERIOD in viewModel.restriction,
-            // KMK <--
-            hasActiveFilters = state.hasActiveFilters,
-            onClickFilter = viewModel::showFilterDialog,
-        )
+        null -> {}
     }
+
+    UpcomingScreenContent(
+        state = state,
+        setSelectedYearMonth = viewModel::setSelectedYearMonth,
+        onClickUpcoming = { navigator.push(MangaRoute(it.id)) },
+        // KMK -->
+        showUpdatingMangas = viewModel::showUpdatingMangas,
+        hideUpdatingMangas = viewModel::hideUpdatingMangas,
+        isPredictReleaseDate = MANGA_OUTSIDE_RELEASE_PERIOD in viewModel.restriction,
+        // KMK <--
+        hasActiveFilters = state.hasActiveFilters,
+        onClickFilter = viewModel::showFilterDialog,
+    )
 }
 
 @Composable

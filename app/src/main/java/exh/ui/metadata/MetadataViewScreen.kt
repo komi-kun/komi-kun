@@ -20,13 +20,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import cafe.adriel.voyager.navigator.LocalNavigator
-import cafe.adriel.voyager.navigator.currentOrThrow
 import dev.zacsweers.metrox.viewmodel.assistedMetroViewModel
 import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.theme.TachiyomiTheme
-import eu.kanade.presentation.util.Screen
 import eu.kanade.tachiyomi.util.system.copyToClipboard
+import mihon.core.navigation.LocalNavigator
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.ScrollbarLazyColumn
 import tachiyomi.presentation.core.components.material.Scaffold
@@ -36,89 +34,87 @@ import tachiyomi.presentation.core.screens.LoadingScreen
 import tachiyomi.presentation.core.util.clickableNoIndication
 import tachiyomi.presentation.core.util.plus
 
-class MetadataViewScreen(
-    private val mangaId: Long,
-    private val sourceId: Long,
+@Composable
+fun MetadataViewScreen(
+    mangaId: Long,
+    sourceId: Long,
     // KMK -->
-    @ColorInt private val seedColor: Int?,
+    @ColorInt seedColor: Int?,
     // KMK <--
-) : Screen() {
+) {
+    val viewModel = assistedMetroViewModel<MetadataViewViewModel, MetadataViewViewModel.Factory> {
+        create(mangaId = mangaId, sourceId = sourceId)
+    }
+    val navigator = LocalNavigator.current
+
+    val state by viewModel.state.collectAsState()
+
     @Composable
-    override fun Content() {
-        val viewModel = assistedMetroViewModel<MetadataViewViewModel, MetadataViewViewModel.Factory> {
-            create(mangaId = mangaId, sourceId = sourceId)
-        }
-        val navigator = LocalNavigator.currentOrThrow
-
-        val state by viewModel.state.collectAsState()
-
-        @Composable
-        fun content() = Scaffold(
-            topBar = { scrollBehavior ->
-                AppBar(
-                    title = viewModel.manga.collectAsState().value?.title,
-                    navigateUp = navigator::pop,
-                    scrollBehavior = scrollBehavior,
-                )
-            },
-        ) { paddingValues ->
-            when (
-                @Suppress("NAME_SHADOWING")
-                val state = state
-            ) {
-                MetadataViewState.Loading -> LoadingScreen()
-                MetadataViewState.MetadataNotFound -> EmptyScreen(MR.strings.no_results_found)
-                MetadataViewState.SourceNotFound -> EmptyScreen(MR.strings.source_empty_screen)
-                is MetadataViewState.Success -> {
-                    val context = LocalContext.current
-                    val items = remember(state.meta) { state.meta.getExtraInfoPairs(context) }
-                    ScrollbarLazyColumn(
-                        contentPadding =
-                        paddingValues + WindowInsets.navigationBars.asPaddingValues() + topSmallPaddingValues,
-                    ) {
-                        items(items) { (title, text) ->
-                            Row(
-                                Modifier
+    fun content() = Scaffold(
+        topBar = { scrollBehavior ->
+            AppBar(
+                title = viewModel.manga.collectAsState().value?.title,
+                navigateUp = navigator::pop,
+                scrollBehavior = scrollBehavior,
+            )
+        },
+    ) { paddingValues ->
+        when (
+            @Suppress("NAME_SHADOWING")
+            val state = state
+        ) {
+            MetadataViewState.Loading -> LoadingScreen()
+            MetadataViewState.MetadataNotFound -> EmptyScreen(MR.strings.no_results_found)
+            MetadataViewState.SourceNotFound -> EmptyScreen(MR.strings.source_empty_screen)
+            is MetadataViewState.Success -> {
+                val context = LocalContext.current
+                val items = remember(state.meta) { state.meta.getExtraInfoPairs(context) }
+                ScrollbarLazyColumn(
+                    contentPadding =
+                    paddingValues + WindowInsets.navigationBars.asPaddingValues() + topSmallPaddingValues,
+                ) {
+                    items(items) { (title, text) ->
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clickableNoIndication(
+                                    onLongClick = {
+                                        context.copyToClipboard(
+                                            title,
+                                            text,
+                                        )
+                                    },
+                                    onClick = {},
+                                )
+                                .padding(vertical = 8.dp),
+                        ) {
+                            Text(
+                                title,
+                                modifier = Modifier
+                                    .width(140.dp)
+                                    .padding(start = 16.dp),
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                            Text(
+                                text,
+                                modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickableNoIndication(
-                                        onLongClick = {
-                                            context.copyToClipboard(
-                                                title,
-                                                text,
-                                            )
-                                        },
-                                        onClick = {},
-                                    )
-                                    .padding(vertical = 8.dp),
-                            ) {
-                                Text(
-                                    title,
-                                    modifier = Modifier
-                                        .width(140.dp)
-                                        .padding(start = 16.dp),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                )
-                                Text(
-                                    text,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(start = 8.dp, end = 8.dp),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = LocalContentColor.current.copy(alpha = 0.7F),
-                                )
-                            }
+                                    .padding(start = 8.dp, end = 8.dp),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = LocalContentColor.current.copy(alpha = 0.7F),
+                            )
                         }
                     }
                 }
             }
         }
+    }
 
-        // KMK -->
-        TachiyomiTheme(
-            seedColor = seedColor?.let { Color(seedColor) }.takeIf { viewModel.themeCoverBased },
-        ) {
-            // KMK <--
-            content()
-        }
+    // KMK -->
+    TachiyomiTheme(
+        seedColor = seedColor?.let { Color(seedColor) }.takeIf { viewModel.themeCoverBased },
+    ) {
+        // KMK <--
+        content()
     }
 }

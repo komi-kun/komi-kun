@@ -54,8 +54,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import cafe.adriel.voyager.navigator.LocalNavigator
-import cafe.adriel.voyager.navigator.currentOrThrow
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
@@ -63,7 +61,6 @@ import dev.zacsweers.metro.binding
 import dev.zacsweers.metrox.viewmodel.ViewModelKey
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 import eu.kanade.presentation.components.AppBar
-import eu.kanade.presentation.util.Screen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -79,6 +76,8 @@ import mihon.core.dictionary.model.matchDictionaryName
 import mihon.core.dictionary.model.resolveDictionaryOrder
 import mihon.core.dictionary.repository.DictionaryRepository
 import mihon.core.dictionary.ui.invalidateDictionaryTitle
+import mihon.core.navigation.DictionaryBackupImportRoute
+import mihon.core.navigation.LocalNavigator
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.Add
 import mihon.icons.materialsymbols.rounded.ArrowDownward
@@ -106,619 +105,616 @@ import java.io.File
  *  - Active profile selector
  *  - Direct ZIP import
  */
-class DictionaryManagementScreen : Screen() {
+@Composable
+fun DictionaryManagementScreen() {
+    val navigator = LocalNavigator.current
+    val viewModel = metroViewModel<DictionaryManagementViewModel>()
+    val state by viewModel.state.collectAsState()
 
-    @Composable
-    override fun Content() {
-        val navigator = LocalNavigator.currentOrThrow
-        val viewModel = metroViewModel<DictionaryManagementViewModel>()
-        val state by viewModel.state.collectAsState()
+    var editingAliasItem by remember { mutableStateOf<DictionaryItem?>(null) }
+    var deletingItem by remember { mutableStateOf<DictionaryItem?>(null) }
 
-        var editingAliasItem by remember { mutableStateOf<DictionaryItem?>(null) }
-        var deletingItem by remember { mutableStateOf<DictionaryItem?>(null) }
-
-        val importLauncher = rememberLauncherForActivityResult(
-            ActivityResultContracts.OpenMultipleDocuments(),
-        ) { uris: List<Uri> ->
-            if (uris.isNotEmpty()) {
-                viewModel.importZips(uris)
-            }
-        }
-
-        Scaffold(
-            topBar = {
-                AppBar(
-                    title = stringResource(KUNMR.strings.pref_manage_dictionaries),
-                    navigateUp = { navigator.pop() },
-                    actions = {
-                        IconButton(
-                            onClick = {
-                                importLauncher.launch(arrayOf("application/zip", "application/x-zip-compressed"))
-                            },
-                        ) {
-                            Icon(
-                                imageVector = MaterialSymbols.Rounded.Add,
-                                contentDescription = stringResource(KUNMR.strings.pref_import_dictionary),
-                            )
-                        }
-                    },
-                )
-            },
-        ) { paddingValues ->
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-            ) {
-                if (state.isImporting) {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                }
-
-                state.importMessage?.let { msg ->
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                text = msg,
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.weight(1f),
-                            )
-                            IconButton(onClick = { viewModel.clearImportMessage() }) {
-                                Icon(MaterialSymbols.Rounded.Close, contentDescription = null)
-                            }
-                        }
-                    }
-                }
-
-                // A failed import says why, through the same dismissible card as the success message.
-                state.importFailure?.let { failure ->
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                text = stringResource(failure.message),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.weight(1f),
-                            )
-                            IconButton(onClick = { viewModel.clearImportMessage() }) {
-                                Icon(MaterialSymbols.Rounded.Close, contentDescription = null)
-                            }
-                        }
-                    }
-                }
-
-                if (state.dictionaries.isEmpty() && !state.isImporting) {
-                    EmptyState(
-                        onImport = {
-                            importLauncher.launch(arrayOf("application/zip", "application/x-zip-compressed"))
-                        },
-                        onImportBackup = {
-                            navigator.push(DictionaryBackupImportScreen())
-                        },
-                    )
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        if (state.profiles.size > 1) {
-                            item(key = "header_profile") {
-                                ProfileSelectorCard(
-                                    profiles = state.profiles,
-                                    activeProfile = state.activeProfile,
-                                    onSelect = { viewModel.setActiveProfile(it) },
-                                )
-                            }
-                        }
-
-                        item(key = "header_collapse_mode") {
-                            CollapseModeCard(
-                                activeMode = state.activeProfile.dictionaryCollapseMode,
-                                onSelect = { viewModel.setCollapseMode(it) },
-                            )
-                        }
-
-                        itemsIndexed(
-                            items = state.dictionaries,
-                            key = { _, item -> item.name },
-                        ) { index, item ->
-                            DictionaryCard(
-                                index = index,
-                                totalCount = state.dictionaries.size,
-                                item = item,
-                                onToggle = { viewModel.toggleEnabled(item.name, it) },
-                                onMoveUp = { viewModel.move(index, index - 1) },
-                                onMoveDown = { viewModel.move(index, index + 1) },
-                                onEditAlias = { editingAliasItem = item },
-                                onDelete = { deletingItem = item },
-                            )
-                        }
-
-                        item(key = "footer_actions") {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            ) {
-                                OutlinedButton(
-                                    onClick = {
-                                        importLauncher.launch(arrayOf("application/zip", "application/x-zip-compressed"))
-                                    },
-                                    modifier = Modifier.weight(1f),
-                                ) {
-                                    Icon(MaterialSymbols.Rounded.Add, contentDescription = null)
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(stringResource(KUNMR.strings.pref_import_dictionary))
-                                }
-                                OutlinedButton(
-                                    onClick = { navigator.push(DictionaryBackupImportScreen()) },
-                                    modifier = Modifier.weight(1f),
-                                ) {
-                                    Text(stringResource(KUNMR.strings.pref_import_yomitan_backup))
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        editingAliasItem?.let { item ->
-            EditAliasDialog(
-                item = item,
-                onDismiss = { editingAliasItem = null },
-                onConfirm = { alias -> viewModel.setAlias(item.name, alias) },
-            )
-        }
-
-        deletingItem?.let { item ->
-            DeleteConfirmDialog(
-                item = item,
-                onDismiss = { deletingItem = null },
-                onConfirm = { viewModel.delete(item.name) },
-            )
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenMultipleDocuments(),
+    ) { uris: List<Uri> ->
+        if (uris.isNotEmpty()) {
+            viewModel.importZips(uris)
         }
     }
 
-    @Composable
-    private fun EmptyState(
-        onImport: () -> Unit,
-        onImportBackup: () -> Unit,
-    ) {
+    Scaffold(
+        topBar = {
+            AppBar(
+                title = stringResource(KUNMR.strings.pref_manage_dictionaries),
+                navigateUp = { navigator.pop() },
+                actions = {
+                    IconButton(
+                        onClick = {
+                            importLauncher.launch(arrayOf("application/zip", "application/x-zip-compressed"))
+                        },
+                    ) {
+                        Icon(
+                            imageVector = MaterialSymbols.Rounded.Add,
+                            contentDescription = stringResource(KUNMR.strings.pref_import_dictionary),
+                        )
+                    }
+                },
+            )
+        },
+    ) { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
+                .padding(paddingValues),
         ) {
-            Icon(
-                imageVector = MaterialSymbols.Rounded.Book,
-                contentDescription = null,
-                modifier = Modifier.size(64.dp),
-                tint = MaterialTheme.colorScheme.primary,
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = stringResource(KUNMR.strings.pref_dict_none_imported),
-                style = MaterialTheme.typography.titleLarge,
-                textAlign = TextAlign.Center,
-            )
-            Spacer(modifier = Modifier.height(24.dp))
-            Button(onClick = onImport) {
-                Icon(MaterialSymbols.Rounded.Add, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(stringResource(KUNMR.strings.pref_import_dictionary))
+            if (state.isImporting) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             }
-            Spacer(modifier = Modifier.height(8.dp))
-            OutlinedButton(onClick = onImportBackup) {
-                Text(stringResource(KUNMR.strings.pref_import_yomitan_backup))
-            }
-        }
-    }
 
-    @Composable
-    private fun ProfileSelectorCard(
-        profiles: List<DictionaryProfile>,
-        activeProfile: DictionaryProfile,
-        onSelect: (String) -> Unit,
-    ) {
-        var expanded by remember { mutableStateOf(false) }
-        Box {
-            OutlinedCard(
-                onClick = { expanded = true },
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Row(
+            state.importMessage?.let { msg ->
+                Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = stringResource(KUNMR.strings.pref_dictionary_profiles),
-                            style = MaterialTheme.typography.titleMedium,
-                        )
-                        Text(
-                            text = stringResource(KUNMR.strings.pref_dict_active_profile, activeProfile.name),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    Icon(MaterialSymbols.Rounded.ArrowDropDown, contentDescription = null)
-                }
-            }
-            DropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { expanded = false },
-            ) {
-                profiles.forEach { profile ->
-                    DropdownMenuItem(
-                        text = { Text(profile.name) },
-                        onClick = {
-                            onSelect(profile.id)
-                            expanded = false
-                        },
-                    )
-                }
-            }
-        }
-    }
-
-    @Composable
-    private fun CollapseModeCard(
-        activeMode: String,
-        onSelect: (String) -> Unit,
-    ) {
-        var expanded by remember { mutableStateOf(false) }
-        Box {
-            OutlinedCard(
-                onClick = { expanded = true },
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = stringResource(KUNMR.strings.pref_dict_collapse_mode),
-                            style = MaterialTheme.typography.titleMedium,
-                        )
-                        Text(
-                            text = when (activeMode) {
-                                DictionaryProfile.DICTIONARY_COLLAPSE_EXPAND_FIRST_AVAILABLE ->
-                                    stringResource(KUNMR.strings.pref_dict_collapse_mode_expand_first)
-                                DictionaryProfile.DICTIONARY_COLLAPSE_COLLAPSE_ALL ->
-                                    stringResource(KUNMR.strings.pref_dict_collapse_mode_collapse_all)
-                                else ->
-                                    stringResource(KUNMR.strings.pref_dict_collapse_mode_expand_all)
-                            },
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    Icon(MaterialSymbols.Rounded.ArrowDropDown, contentDescription = null)
-                }
-            }
-            DropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { expanded = false },
-            ) {
-                DropdownMenuItem(
-                    text = { Text(stringResource(KUNMR.strings.pref_dict_collapse_mode_expand_all)) },
-                    onClick = {
-                        onSelect(DictionaryProfile.DICTIONARY_COLLAPSE_EXPAND_ALL)
-                        expanded = false
-                    },
-                )
-                DropdownMenuItem(
-                    text = { Text(stringResource(KUNMR.strings.pref_dict_collapse_mode_expand_first)) },
-                    onClick = {
-                        onSelect(DictionaryProfile.DICTIONARY_COLLAPSE_EXPAND_FIRST_AVAILABLE)
-                        expanded = false
-                    },
-                )
-                DropdownMenuItem(
-                    text = { Text(stringResource(KUNMR.strings.pref_dict_collapse_mode_collapse_all)) },
-                    onClick = {
-                        onSelect(DictionaryProfile.DICTIONARY_COLLAPSE_COLLAPSE_ALL)
-                        expanded = false
-                    },
-                )
-            }
-        }
-    }
-
-    @Composable
-    private fun DictionaryCard(
-        index: Int,
-        totalCount: Int,
-        item: DictionaryItem,
-        onToggle: (Boolean) -> Unit,
-        onMoveUp: () -> Unit,
-        onMoveDown: () -> Unit,
-        onEditAlias: () -> Unit,
-        onDelete: () -> Unit,
-    ) {
-        ElevatedCard(
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer,
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            text = "#${index + 1}",
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                            fontWeight = FontWeight.Bold,
+                            text = msg,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.weight(1f),
                         )
+                        IconButton(onClick = { viewModel.clearImportMessage() }) {
+                            Icon(MaterialSymbols.Rounded.Close, contentDescription = null)
+                        }
                     }
-                    Column(modifier = Modifier.weight(1f)) {
+                }
+            }
+
+            // A failed import says why, through the same dismissible card as the success message.
+            state.importFailure?.let { failure ->
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
                         Text(
-                            text = item.displayTitle,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
+                            text = stringResource(failure.message),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.weight(1f),
                         )
-                        if (item.alias != null) {
-                            Text(
-                                text = stringResource(KUNMR.strings.pref_dict_alias_original, item.title),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
+                        IconButton(onClick = { viewModel.clearImportMessage() }) {
+                            Icon(MaterialSymbols.Rounded.Close, contentDescription = null)
+                        }
+                    }
+                }
+            }
+
+            if (state.dictionaries.isEmpty() && !state.isImporting) {
+                EmptyState(
+                    onImport = {
+                        importLauncher.launch(arrayOf("application/zip", "application/x-zip-compressed"))
+                    },
+                    onImportBackup = {
+                        navigator.push(DictionaryBackupImportRoute)
+                    },
+                )
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    if (state.profiles.size > 1) {
+                        item(key = "header_profile") {
+                            ProfileSelectorCard(
+                                profiles = state.profiles,
+                                activeProfile = state.activeProfile,
+                                onSelect = { viewModel.setActiveProfile(it) },
                             )
                         }
                     }
-                    Switch(
-                        checked = item.enabled,
-                        onCheckedChange = onToggle,
+
+                    item(key = "header_collapse_mode") {
+                        CollapseModeCard(
+                            activeMode = state.activeProfile.dictionaryCollapseMode,
+                            onSelect = { viewModel.setCollapseMode(it) },
+                        )
+                    }
+
+                    itemsIndexed(
+                        items = state.dictionaries,
+                        key = { _, item -> item.name },
+                    ) { index, item ->
+                        DictionaryCard(
+                            index = index,
+                            totalCount = state.dictionaries.size,
+                            item = item,
+                            onToggle = { viewModel.toggleEnabled(item.name, it) },
+                            onMoveUp = { viewModel.move(index, index - 1) },
+                            onMoveDown = { viewModel.move(index, index + 1) },
+                            onEditAlias = { editingAliasItem = item },
+                            onDelete = { deletingItem = item },
+                        )
+                    }
+
+                    item(key = "footer_actions") {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            OutlinedButton(
+                                onClick = {
+                                    importLauncher.launch(arrayOf("application/zip", "application/x-zip-compressed"))
+                                },
+                                modifier = Modifier.weight(1f),
+                            ) {
+                                Icon(MaterialSymbols.Rounded.Add, contentDescription = null)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(stringResource(KUNMR.strings.pref_import_dictionary))
+                            }
+                            OutlinedButton(
+                                onClick = { navigator.push(DictionaryBackupImportRoute) },
+                                modifier = Modifier.weight(1f),
+                            ) {
+                                Text(stringResource(KUNMR.strings.pref_import_yomitan_backup))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    editingAliasItem?.let { item ->
+        EditAliasDialog(
+            item = item,
+            onDismiss = { editingAliasItem = null },
+            onConfirm = { alias -> viewModel.setAlias(item.name, alias) },
+        )
+    }
+
+    deletingItem?.let { item ->
+        DeleteConfirmDialog(
+            item = item,
+            onDismiss = { deletingItem = null },
+            onConfirm = { viewModel.delete(item.name) },
+        )
+    }
+}
+
+@Composable
+private fun EmptyState(
+    onImport: () -> Unit,
+    onImportBackup: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Icon(
+            imageVector = MaterialSymbols.Rounded.Book,
+            contentDescription = null,
+            modifier = Modifier.size(64.dp),
+            tint = MaterialTheme.colorScheme.primary,
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            text = stringResource(KUNMR.strings.pref_dict_none_imported),
+            style = MaterialTheme.typography.titleLarge,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(modifier = Modifier.height(24.dp))
+        Button(onClick = onImport) {
+            Icon(MaterialSymbols.Rounded.Add, contentDescription = null)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(stringResource(KUNMR.strings.pref_import_dictionary))
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedButton(onClick = onImportBackup) {
+            Text(stringResource(KUNMR.strings.pref_import_yomitan_backup))
+        }
+    }
+}
+
+@Composable
+private fun ProfileSelectorCard(
+    profiles: List<DictionaryProfile>,
+    activeProfile: DictionaryProfile,
+    onSelect: (String) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        OutlinedCard(
+            onClick = { expanded = true },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(KUNMR.strings.pref_dictionary_profiles),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Text(
+                        text = stringResource(KUNMR.strings.pref_dict_active_profile, activeProfile.name),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+                Icon(MaterialSymbols.Rounded.ArrowDropDown, contentDescription = null)
+            }
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            profiles.forEach { profile ->
+                DropdownMenuItem(
+                    text = { Text(profile.name) },
+                    onClick = {
+                        onSelect(profile.id)
+                        expanded = false
+                    },
+                )
+            }
+        }
+    }
+}
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+@Composable
+private fun CollapseModeCard(
+    activeMode: String,
+    onSelect: (String) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        OutlinedCard(
+            onClick = { expanded = true },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(KUNMR.strings.pref_dict_collapse_mode),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Text(
+                        text = when (activeMode) {
+                            DictionaryProfile.DICTIONARY_COLLAPSE_EXPAND_FIRST_AVAILABLE ->
+                                stringResource(KUNMR.strings.pref_dict_collapse_mode_expand_first)
+                            DictionaryProfile.DICTIONARY_COLLAPSE_COLLAPSE_ALL ->
+                                stringResource(KUNMR.strings.pref_dict_collapse_mode_collapse_all)
+                            else ->
+                                stringResource(KUNMR.strings.pref_dict_collapse_mode_expand_all)
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Icon(MaterialSymbols.Rounded.ArrowDropDown, contentDescription = null)
+            }
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            DropdownMenuItem(
+                text = { Text(stringResource(KUNMR.strings.pref_dict_collapse_mode_expand_all)) },
+                onClick = {
+                    onSelect(DictionaryProfile.DICTIONARY_COLLAPSE_EXPAND_ALL)
+                    expanded = false
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(KUNMR.strings.pref_dict_collapse_mode_expand_first)) },
+                onClick = {
+                    onSelect(DictionaryProfile.DICTIONARY_COLLAPSE_EXPAND_FIRST_AVAILABLE)
+                    expanded = false
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(KUNMR.strings.pref_dict_collapse_mode_collapse_all)) },
+                onClick = {
+                    onSelect(DictionaryProfile.DICTIONARY_COLLAPSE_COLLAPSE_ALL)
+                    expanded = false
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun DictionaryCard(
+    index: Int,
+    totalCount: Int,
+    item: DictionaryItem,
+    onToggle: (Boolean) -> Unit,
+    onMoveUp: () -> Unit,
+    onMoveDown: () -> Unit,
+    onEditAlias: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer,
                 ) {
-                    if ("term" in item.types) {
-                        TypeBadge(
-                            label = stringResource(KUNMR.strings.pref_dict_type_term),
-                            containerColor = MaterialTheme.colorScheme.primaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                        )
-                    }
-                    if ("frequency" in item.types) {
-                        TypeBadge(
-                            label = stringResource(KUNMR.strings.pref_dict_type_freq),
-                            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
-                        )
-                    }
-                    if ("pitch" in item.types) {
-                        TypeBadge(
-                            label = stringResource(KUNMR.strings.pref_dict_type_pitch),
-                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                        )
-                    }
-                    if ("kanji" in item.types) {
-                        TypeBadge(
-                            label = stringResource(KUNMR.strings.pref_dict_type_kanji),
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    if (!item.revision.isNullOrBlank()) {
+                    Text(
+                        text = "#${index + 1}",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = item.displayTitle,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (item.alias != null) {
                         Text(
-                            text = stringResource(KUNMR.strings.pref_dict_revision_label, item.revision),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.outline,
+                            text = stringResource(KUNMR.strings.pref_dict_alias_original, item.title),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
                 }
+                Switch(
+                    checked = item.enabled,
+                    onCheckedChange = onToggle,
+                )
+            }
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        IconButton(
-                            onClick = onMoveUp,
-                            enabled = index > 0,
-                        ) {
-                            Icon(
-                                MaterialSymbols.Rounded.ArrowUpward,
-                                contentDescription = stringResource(KUNMR.strings.pref_dict_move_up),
-                            )
-                        }
-                        IconButton(
-                            onClick = onMoveDown,
-                            enabled = index < totalCount - 1,
-                        ) {
-                            Icon(
-                                MaterialSymbols.Rounded.ArrowDownward,
-                                contentDescription = stringResource(KUNMR.strings.pref_dict_move_down),
-                            )
-                        }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if ("term" in item.types) {
+                    TypeBadge(
+                        label = stringResource(KUNMR.strings.pref_dict_type_term),
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    )
+                }
+                if ("frequency" in item.types) {
+                    TypeBadge(
+                        label = stringResource(KUNMR.strings.pref_dict_type_freq),
+                        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                    )
+                }
+                if ("pitch" in item.types) {
+                    TypeBadge(
+                        label = stringResource(KUNMR.strings.pref_dict_type_pitch),
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                    )
+                }
+                if ("kanji" in item.types) {
+                    TypeBadge(
+                        label = stringResource(KUNMR.strings.pref_dict_type_kanji),
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (!item.revision.isNullOrBlank()) {
+                    Text(
+                        text = stringResource(KUNMR.strings.pref_dict_revision_label, item.revision),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.outline,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    IconButton(
+                        onClick = onMoveUp,
+                        enabled = index > 0,
+                    ) {
+                        Icon(
+                            MaterialSymbols.Rounded.ArrowUpward,
+                            contentDescription = stringResource(KUNMR.strings.pref_dict_move_up),
+                        )
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        IconButton(onClick = onEditAlias) {
-                            Icon(
-                                MaterialSymbols.Rounded.Edit,
-                                contentDescription = stringResource(KUNMR.strings.pref_dict_edit_alias),
-                            )
-                        }
-                        IconButton(onClick = onDelete) {
-                            Icon(
-                                MaterialSymbols.Rounded.Delete,
-                                contentDescription = stringResource(MR.strings.action_delete),
-                                tint = MaterialTheme.colorScheme.error,
-                            )
-                        }
+                    IconButton(
+                        onClick = onMoveDown,
+                        enabled = index < totalCount - 1,
+                    ) {
+                        Icon(
+                            MaterialSymbols.Rounded.ArrowDownward,
+                            contentDescription = stringResource(KUNMR.strings.pref_dict_move_down),
+                        )
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    IconButton(onClick = onEditAlias) {
+                        Icon(
+                            MaterialSymbols.Rounded.Edit,
+                            contentDescription = stringResource(KUNMR.strings.pref_dict_edit_alias),
+                        )
+                    }
+                    IconButton(onClick = onDelete) {
+                        Icon(
+                            MaterialSymbols.Rounded.Delete,
+                            contentDescription = stringResource(MR.strings.action_delete),
+                            tint = MaterialTheme.colorScheme.error,
+                        )
                     }
                 }
             }
         }
     }
+}
 
-    @Composable
-    private fun TypeBadge(
-        label: String,
-        containerColor: Color,
-        contentColor: Color,
+@Composable
+private fun TypeBadge(
+    label: String,
+    containerColor: Color,
+    contentColor: Color,
+) {
+    Surface(
+        shape = RoundedCornerShape(4.dp),
+        color = containerColor,
     ) {
-        Surface(
-            shape = RoundedCornerShape(4.dp),
-            color = containerColor,
-        ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                color = contentColor,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-            )
-        }
-    }
-
-    @Composable
-    private fun EditAliasDialog(
-        item: DictionaryItem,
-        onDismiss: () -> Unit,
-        onConfirm: (String?) -> Unit,
-    ) {
-        var aliasText by remember { mutableStateOf(item.alias.orEmpty()) }
-        AlertDialog(
-            onDismissRequest = onDismiss,
-            title = { Text(text = stringResource(KUNMR.strings.pref_dict_edit_alias)) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        text = stringResource(KUNMR.strings.pref_dict_alias_original, item.title),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    OutlinedTextField(
-                        value = aliasText,
-                        onValueChange = { aliasText = it },
-                        label = { Text(text = stringResource(KUNMR.strings.pref_dict_alias)) },
-                        placeholder = { Text(text = stringResource(KUNMR.strings.pref_dict_alias_hint)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        onConfirm(aliasText.trim().ifEmpty { null })
-                        onDismiss()
-                    },
-                ) {
-                    Text(text = stringResource(MR.strings.action_save))
-                }
-            },
-            dismissButton = {
-                Row {
-                    if (item.alias != null) {
-                        TextButton(
-                            onClick = {
-                                onConfirm(null)
-                                onDismiss()
-                            },
-                        ) {
-                            Text(text = stringResource(MR.strings.action_reset))
-                        }
-                    }
-                    TextButton(onClick = onDismiss) {
-                        Text(text = stringResource(MR.strings.action_cancel))
-                    }
-                }
-            },
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = contentColor,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
         )
     }
+}
 
-    @Composable
-    private fun DeleteConfirmDialog(
-        item: DictionaryItem,
-        onDismiss: () -> Unit,
-        onConfirm: () -> Unit,
-    ) {
-        AlertDialog(
-            onDismissRequest = onDismiss,
-            title = { Text(text = stringResource(MR.strings.action_delete)) },
-            text = {
+@Composable
+private fun EditAliasDialog(
+    item: DictionaryItem,
+    onDismiss: () -> Unit,
+    onConfirm: (String?) -> Unit,
+) {
+    var aliasText by remember { mutableStateOf(item.alias.orEmpty()) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = stringResource(KUNMR.strings.pref_dict_edit_alias)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    text = stringResource(
-                        KUNMR.strings.pref_dict_delete_confirm,
-                        item.displayTitle,
-                    ),
+                    text = stringResource(KUNMR.strings.pref_dict_alias_original, item.title),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        onConfirm()
-                        onDismiss()
-                    },
-                ) {
-                    Text(
-                        text = stringResource(MR.strings.action_delete),
-                        color = MaterialTheme.colorScheme.error,
-                    )
+                OutlinedTextField(
+                    value = aliasText,
+                    onValueChange = { aliasText = it },
+                    label = { Text(text = stringResource(KUNMR.strings.pref_dict_alias)) },
+                    placeholder = { Text(text = stringResource(KUNMR.strings.pref_dict_alias_hint)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    onConfirm(aliasText.trim().ifEmpty { null })
+                    onDismiss()
+                },
+            ) {
+                Text(text = stringResource(MR.strings.action_save))
+            }
+        },
+        dismissButton = {
+            Row {
+                if (item.alias != null) {
+                    TextButton(
+                        onClick = {
+                            onConfirm(null)
+                            onDismiss()
+                        },
+                    ) {
+                        Text(text = stringResource(MR.strings.action_reset))
+                    }
                 }
-            },
-            dismissButton = {
                 TextButton(onClick = onDismiss) {
                     Text(text = stringResource(MR.strings.action_cancel))
                 }
-            },
-        )
-    }
+            }
+        },
+    )
+}
+
+@Composable
+private fun DeleteConfirmDialog(
+    item: DictionaryItem,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = stringResource(MR.strings.action_delete)) },
+        text = {
+            Text(
+                text = stringResource(
+                    KUNMR.strings.pref_dict_delete_confirm,
+                    item.displayTitle,
+                ),
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    onConfirm()
+                    onDismiss()
+                },
+            ) {
+                Text(
+                    text = stringResource(MR.strings.action_delete),
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = stringResource(MR.strings.action_cancel))
+            }
+        },
+    )
 }
 
 @Immutable

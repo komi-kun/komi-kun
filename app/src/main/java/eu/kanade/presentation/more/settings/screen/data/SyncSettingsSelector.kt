@@ -6,8 +6,6 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.ViewModel
-import cafe.adriel.voyager.navigator.LocalNavigator
-import cafe.adriel.voyager.navigator.currentOrThrow
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
@@ -16,12 +14,12 @@ import dev.zacsweers.metrox.viewmodel.metroViewModel
 import eu.kanade.domain.sync.SyncPreferences
 import eu.kanade.domain.sync.models.SyncSettings
 import eu.kanade.presentation.components.AppBar
-import eu.kanade.presentation.util.Screen
 import eu.kanade.tachiyomi.data.backup.create.BackupOptions
 import eu.kanade.tachiyomi.data.sync.SyncDataJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
+import mihon.core.navigation.LocalNavigator
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.sy.SYMR
 import tachiyomi.presentation.core.components.LabeledCheckbox
@@ -30,61 +28,59 @@ import tachiyomi.presentation.core.components.SectionCard
 import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.i18n.stringResource
 
-class SyncSettingsSelector : Screen() {
-    @Composable
-    override fun Content() {
-        val navigator = LocalNavigator.currentOrThrow
-        val model = metroViewModel<SyncSettingsSelectorModel>()
-        val state by model.state.collectAsState()
+@Composable
+fun SyncSettingsSelector() {
+    val navigator = LocalNavigator.current
+    val model = metroViewModel<SyncSettingsSelectorModel>()
+    val state by model.state.collectAsState()
 
-        Scaffold(
-            topBar = {
-                AppBar(
-                    title = stringResource(SYMR.strings.pref_choose_what_to_sync),
-                    navigateUp = navigator::pop,
-                    scrollBehavior = it,
-                )
+    Scaffold(
+        topBar = {
+            AppBar(
+                title = stringResource(SYMR.strings.pref_choose_what_to_sync),
+                navigateUp = navigator::pop,
+                scrollBehavior = it,
+            )
+        },
+    ) { contentPadding ->
+        LazyColumnWithAction(
+            contentPadding = contentPadding,
+            actionLabel = stringResource(MR.strings.action_save),
+            actionEnabled = true,
+            onClickAction = {
+                navigator.pop()
             },
-        ) { contentPadding ->
-            LazyColumnWithAction(
-                contentPadding = contentPadding,
-                actionLabel = stringResource(MR.strings.action_save),
-                actionEnabled = true,
-                onClickAction = {
-                    navigator.pop()
-                },
-            ) {
-                item {
-                    SectionCard(MR.strings.label_library) {
-                        Options(BackupOptions.libraryOptions, state, model)
-                    }
+        ) {
+            item {
+                SectionCard(MR.strings.label_library) {
+                    Options(BackupOptions.libraryOptions, state, model)
                 }
+            }
 
-                item {
-                    SectionCard(MR.strings.label_settings) {
-                        Options(BackupOptions.settingsOptions, state, model)
-                    }
+            item {
+                SectionCard(MR.strings.label_settings) {
+                    Options(BackupOptions.settingsOptions, state, model)
                 }
             }
         }
     }
+}
 
-    @Composable
-    private fun Options(
-        options: List<BackupOptions.Entry>,
-        state: SyncSettingsSelectorModel.State,
-        model: SyncSettingsSelectorModel,
-    ) {
-        options.forEach { option ->
-            LabeledCheckbox(
-                label = stringResource(option.label),
-                checked = option.getter(state.options),
-                onCheckedChange = {
-                    model.toggle(option.setter, it)
-                },
-                enabled = option.enabled(state.options),
-            )
-        }
+@Composable
+private fun Options(
+    options: List<BackupOptions.Entry>,
+    state: SyncSettingsSelectorModel.State,
+    model: SyncSettingsSelectorModel,
+) {
+    options.forEach { option ->
+        LabeledCheckbox(
+            label = stringResource(option.label),
+            checked = option.getter(state.options),
+            onCheckedChange = {
+                model.toggle(option.setter, it)
+            },
+            enabled = option.enabled(state.options),
+        )
     }
 }
 

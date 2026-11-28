@@ -51,7 +51,7 @@ import tachiyomi.domain.source.service.SourceManager
 
 @AssistedInject
 class BrowseRecommendsViewModel(
-    @Assisted private val args: BrowseRecommendsScreen.Args,
+    @Assisted private val args: BrowseRecommendsArgs,
     private val getManga: GetManga,
     sourceManager: SourceManager,
     sourcePreferences: SourcePreferences,
@@ -77,8 +77,8 @@ class BrowseRecommendsViewModel(
     @AppCoroutineScope private val appScope: CoroutineScope,
 ) : BrowseSourceViewModel(
     sourceId = when (args) {
-        is BrowseRecommendsScreen.Args.SingleSourceManga -> args.sourceId
-        is BrowseRecommendsScreen.Args.MergedSourceMangas -> args.results.recAssociatedSourceId ?: RECOMMENDS_SOURCE
+        is BrowseRecommendsArgs.SingleSourceManga -> args.sourceId
+        is BrowseRecommendsArgs.MergedSourceMangas -> args.results.recAssociatedSourceId ?: RECOMMENDS_SOURCE
     },
     listingQuery = null,
     filtersJson = null,
@@ -112,7 +112,7 @@ class BrowseRecommendsViewModel(
     @ManualViewModelAssistedFactoryKey
     @ContributesIntoMap(AppScope::class)
     interface Factory : ManualViewModelAssistedFactory {
-        fun create(args: BrowseRecommendsScreen.Args): BrowseRecommendsViewModel
+        fun create(args: BrowseRecommendsArgs): BrowseRecommendsViewModel
     }
 
     private var manga: Manga? = null
@@ -120,16 +120,16 @@ class BrowseRecommendsViewModel(
     init {
         viewModelScope.launchIO {
             manga = when (args) {
-                is BrowseRecommendsScreen.Args.SingleSourceManga -> getManga.await(args.mangaId)
-                is BrowseRecommendsScreen.Args.MergedSourceMangas -> null
+                is BrowseRecommendsArgs.SingleSourceManga -> getManga.await(args.mangaId)
+                is BrowseRecommendsArgs.MergedSourceMangas -> null
             }
         }
     }
 
     val recommendationPagingSource: RecommendationPagingSource
         get() = when (args) {
-            is BrowseRecommendsScreen.Args.MergedSourceMangas -> StaticResultPagingSource(args.results)
-            is BrowseRecommendsScreen.Args.SingleSourceManga -> RecommendationPagingSource.createSources(
+            is BrowseRecommendsArgs.MergedSourceMangas -> StaticResultPagingSource(args.results)
+            is BrowseRecommendsArgs.SingleSourceManga -> RecommendationPagingSource.createSources(
                 manga ?: runBlocking(Dispatchers.IO) { getManga.await(args.mangaId)!! },
                 // KMK -->
                 RecommendationSource(sourceId),

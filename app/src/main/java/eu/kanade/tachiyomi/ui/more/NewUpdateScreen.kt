@@ -4,55 +4,50 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
-import cafe.adriel.voyager.navigator.LocalNavigator
-import cafe.adriel.voyager.navigator.currentOrThrow
 import dev.zacsweers.metrox.viewmodel.assistedMetroViewModel
 import eu.kanade.presentation.more.NewUpdateScreen
-import eu.kanade.presentation.util.Screen
 import eu.kanade.tachiyomi.util.system.openInBrowser
+import mihon.core.navigation.LocalNavigator
 
-class NewUpdateScreen(
-    private val versionName: String,
-    private val changelogInfo: String,
-    private val releaseLink: String,
-    private val downloadLink: String,
+@Composable
+fun NewUpdateScreen(
+    versionName: String,
+    changelogInfo: String,
+    releaseLink: String,
+    downloadLink: String,
     // KUN -->
-    private val digest: String? = null,
+    digest: String? = null,
     // KUN <--
-) : Screen() {
-
-    @Composable
-    override fun Content() {
-        val navigator = LocalNavigator.currentOrThrow
-        val context = LocalContext.current
-        val viewModel = assistedMetroViewModel<NewUpdateViewModel, NewUpdateViewModel.Factory> {
-            create(
-                versionName = versionName,
-                changelogInfo = changelogInfo,
-                downloadLink = downloadLink,
-                digest = digest,
-            )
-        }
-        val state by viewModel.state.collectAsState()
-
-        NewUpdateScreen(
+) {
+    val navigator = LocalNavigator.current
+    val context = LocalContext.current
+    val viewModel = assistedMetroViewModel<NewUpdateViewModel, NewUpdateViewModel.Factory> {
+        create(
             versionName = versionName,
-            stage = state.stage,
-            downloadProgress = { state.downloadProgress },
-            changelogInfo = state.changelogInfo,
-            onOpenInBrowser = { context.openInBrowser(releaseLink) },
-            onAcceptUpdate = {
-                when (state.stage) {
-                    NewUpdateViewModel.Stage.Available, NewUpdateViewModel.Stage.Failed -> viewModel.startDownload()
-                    NewUpdateViewModel.Stage.Downloaded -> viewModel.installUpdate()
-                    else -> Unit
-                }
-            },
-            onRejectUpdate = navigator::pop,
-            onSkipUpdate = {
-                viewModel.skipUpdate(versionName)
-                navigator.pop()
-            },
+            changelogInfo = changelogInfo,
+            downloadLink = downloadLink,
+            digest = digest,
         )
     }
+    val state by viewModel.state.collectAsState()
+
+    NewUpdateScreen(
+        versionName = versionName,
+        stage = state.stage,
+        downloadProgress = { state.downloadProgress },
+        changelogInfo = state.changelogInfo,
+        onOpenInBrowser = { context.openInBrowser(releaseLink) },
+        onAcceptUpdate = {
+            when (state.stage) {
+                NewUpdateViewModel.Stage.Available, NewUpdateViewModel.Stage.Failed -> viewModel.startDownload()
+                NewUpdateViewModel.Stage.Downloaded -> viewModel.installUpdate()
+                else -> Unit
+            }
+        },
+        onRejectUpdate = navigator::pop,
+        onSkipUpdate = {
+            viewModel.skipUpdate(versionName)
+            navigator.pop()
+        },
+    )
 }

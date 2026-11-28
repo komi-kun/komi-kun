@@ -38,8 +38,6 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import androidx.fragment.app.FragmentActivity
-import cafe.adriel.voyager.navigator.LocalNavigator
-import cafe.adriel.voyager.navigator.currentOrThrow
 import dev.icerock.moko.resources.StringResource
 import eu.kanade.presentation.more.settings.Preference
 import eu.kanade.tachiyomi.core.security.PrivacyPreferences
@@ -49,8 +47,11 @@ import eu.kanade.tachiyomi.ui.category.biometric.BiometricTimesScreen
 import eu.kanade.tachiyomi.util.system.AuthenticatorUtil.authenticate
 import eu.kanade.tachiyomi.util.system.AuthenticatorUtil.isAuthenticationSupported
 import eu.kanade.tachiyomi.util.system.telemetryIncluded
+import kotlinx.serialization.Serializable
 import mihon.app.di.appGraph
 import mihon.core.archive.CbzCrypto
+import mihon.core.navigation.BiometricTimesRoute
+import mihon.core.navigation.LocalNavigator
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.roundedfilled.Visibility
 import mihon.icons.materialsymbols.roundedfilled.VisibilityOff
@@ -61,9 +62,8 @@ import tachiyomi.presentation.core.i18n.pluralStringResource
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsState
 
-object SettingsSecurityScreen : SearchableSettings {
-    @Suppress("unused")
-    private fun readResolve(): Any = SettingsSecurityScreen
+@Serializable
+data object SettingsSecurityScreen : SearchableSettings {
 
     @ReadOnlyComposable
     @Composable
@@ -183,7 +183,7 @@ object SettingsSecurityScreen : SearchableSettings {
                     },
                 ),
                 run {
-                    val navigator = LocalNavigator.currentOrThrow
+                    val navigator = LocalNavigator.current
                     val count by securityPreferences.authenticatorTimeRanges.collectAsState()
                     Preference.PreferenceItem.TextPreference(
                         title = stringResource(SYMR.strings.action_edit_biometric_lock_times),
@@ -194,7 +194,7 @@ object SettingsSecurityScreen : SearchableSettings {
                         ),
                         visible = useAuth,
                         onClick = {
-                            navigator.push(BiometricTimesScreen())
+                            navigator.push(BiometricTimesRoute)
                         },
                     )
                 },

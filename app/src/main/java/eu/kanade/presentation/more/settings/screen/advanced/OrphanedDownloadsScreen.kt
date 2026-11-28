@@ -36,8 +36,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import cafe.adriel.voyager.navigator.LocalNavigator
-import cafe.adriel.voyager.navigator.currentOrThrow
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
@@ -48,7 +46,6 @@ import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.components.AppBarActions
 import eu.kanade.presentation.components.DropdownMenu
 import eu.kanade.presentation.components.RadioMenuItem
-import eu.kanade.presentation.util.Screen
 import eu.kanade.tachiyomi.data.download.OrphanedDownloadScanManager
 import eu.kanade.tachiyomi.data.download.OrphanedDownloadScanner
 import eu.kanade.tachiyomi.data.download.OrphanedDownloadScanner.Kind
@@ -65,6 +62,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import mihon.core.navigation.LocalNavigator
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.automirroredrounded.Sort
 import mihon.icons.materialsymbols.rounded.Close
@@ -91,470 +89,467 @@ import tachiyomi.core.common.i18n.pluralStringResource as contextPluralStringRes
  * this entry only joins it, so the walk survives a pop and reopening the screen shows the scan that is
  * still running, or the results of the last one.
  */
-class OrphanedDownloadsScreen : Screen() {
+@Composable
+fun OrphanedDownloadsScreen() {
+    val context = LocalContext.current
+    val navigator = LocalNavigator.current
+    val viewModel = metroViewModel<OrphanedDownloadsViewModel>()
+    val state by viewModel.state.collectAsState()
 
-    @Composable
-    override fun Content() {
-        val context = LocalContext.current
-        val navigator = LocalNavigator.currentOrThrow
-        val viewModel = metroViewModel<OrphanedDownloadsViewModel>()
-        val state by viewModel.state.collectAsState()
-
-        LaunchedEffect(viewModel) {
-            viewModel.deleted.collect { count ->
-                context.toast(
-                    context.contextPluralStringResource(KUNMR.plurals.orphaned_downloads_deleted, count, count),
-                )
-            }
+    LaunchedEffect(viewModel) {
+        viewModel.deleted.collect { count ->
+            context.toast(
+                context.contextPluralStringResource(KUNMR.plurals.orphaned_downloads_deleted, count, count),
+            )
         }
+    }
 
-        // Opening the screen asks for a scan only when the manager holds nothing at all. An idle
-        // manager means no scan was ever started, so it starts here and then runs on the app scope; a
-        // running, finished, failed or stopped one is simply shown, and a ready list is never walked
-        // again just because the screen was reopened. A stopped scan stays stopped — reopening or
-        // rotating the screen must not quietly restart what the user stopped; rescan is the explicit
-        // way to start it again.
-        LaunchedEffect(viewModel) {
-            viewModel.startScanIfIdle()
-        }
+    // Opening the screen asks for a scan only when the manager holds nothing at all. An idle
+    // manager means no scan was ever started, so it starts here and then runs on the app scope; a
+    // running, finished, failed or stopped one is simply shown, and a ready list is never walked
+    // again just because the screen was reopened. A stopped scan stays stopped — reopening or
+    // rotating the screen must not quietly restart what the user stopped; rescan is the explicit
+    // way to start it again.
+    LaunchedEffect(viewModel) {
+        viewModel.startScanIfIdle()
+    }
 
-        // The rows are a pure function of the entries and the two ordering choices, so they are
-        // computed here, once per change of those three, instead of inside the ViewModel's state
-        // transform: that one also runs for every checkbox tap, and a selection change neither
-        // reorders nor re-groups anything.
-        val rows = remember(state.items, state.sort, state.group) {
-            rows(state.items, state.sort, state.group)
-        }
+    // The rows are a pure function of the entries and the two ordering choices, so they are
+    // computed here, once per change of those three, instead of inside the ViewModel's state
+    // transform: that one also runs for every checkbox tap, and a selection change neither
+    // reorders nor re-groups anything.
+    val rows = remember(state.items, state.sort, state.group) {
+        rows(state.items, state.sort, state.group)
+    }
 
-        Scaffold(
-            topBar = { scrollBehavior ->
-                AppBar(
-                    title = stringResource(KUNMR.strings.orphaned_downloads_title),
-                    navigateUp = navigator::pop,
-                    actions = {
-                        val scan = state.scan
-                        val ready = scan as? OrphanedDownloadScanManager.State.Ready
-                        var sortExpanded by remember { mutableStateOf(false) }
-                        var groupExpanded by remember { mutableStateOf(false) }
+    Scaffold(
+        topBar = { scrollBehavior ->
+            AppBar(
+                title = stringResource(KUNMR.strings.orphaned_downloads_title),
+                navigateUp = navigator::pop,
+                actions = {
+                    val scan = state.scan
+                    val ready = scan as? OrphanedDownloadScanManager.State.Ready
+                    var sortExpanded by remember { mutableStateOf(false) }
+                    var groupExpanded by remember { mutableStateOf(false) }
 
-                        if (ready != null && state.items.isNotEmpty()) {
-                            DropdownMenu(
-                                expanded = sortExpanded,
-                                onDismissRequest = { sortExpanded = false },
-                            ) {
-                                OrphanedDownloadSort.entries.forEach { sort ->
-                                    RadioMenuItem(
-                                        text = { Text(text = sortLabel(sort)) },
-                                        isChecked = state.sort == sort,
-                                        onClick = {
-                                            viewModel.setSort(sort)
-                                            sortExpanded = false
-                                        },
-                                    )
-                                }
-                            }
-                            DropdownMenu(
-                                expanded = groupExpanded,
-                                onDismissRequest = { groupExpanded = false },
-                            ) {
-                                OrphanedDownloadGroup.entries.forEach { group ->
-                                    RadioMenuItem(
-                                        text = { Text(text = groupLabel(group)) },
-                                        isChecked = state.group == group,
-                                        onClick = {
-                                            viewModel.setGroup(group)
-                                            groupExpanded = false
-                                        },
-                                    )
-                                }
-                            }
-                        }
-
-                        AppBarActions(
-                            actions = buildList {
-                                if (ready != null && state.items.isNotEmpty()) {
-                                    add(
-                                        AppBar.Action(
-                                            title = stringResource(MR.strings.action_sort),
-                                            icon = MaterialSymbols.AutoMirroredRounded.Sort,
-                                            onClick = { sortExpanded = true },
-                                            enabled = !state.deleting,
-                                        ),
-                                    )
-                                    add(
-                                        AppBar.Action(
-                                            title = stringResource(SYMR.strings.group),
-                                            icon = MaterialSymbols.Rounded.Folder,
-                                            onClick = { groupExpanded = true },
-                                            enabled = !state.deleting,
-                                        ),
-                                    )
-                                }
-                                if (ready != null && state.selectableIds.isNotEmpty()) {
-                                    val allSelected = state.allSelected
-                                    add(
-                                        AppBar.Action(
-                                            title = if (allSelected) {
-                                                stringResource(KUNMR.strings.orphaned_downloads_clear_selection)
-                                            } else {
-                                                stringResource(MR.strings.action_select_all)
-                                            },
-                                            icon = if (allSelected) {
-                                                MaterialSymbols.Rounded.Deselect
-                                            } else {
-                                                MaterialSymbols.Rounded.SelectAll
-                                            },
-                                            onClick = viewModel::toggleSelectAll,
-                                            enabled = !state.deleting,
-                                        ),
-                                    )
-                                }
-                                // A ready list can go stale (a library update adds chapters, a deletion
-                                // elsewhere changes the tree), so it can be walked again without
-                                // leaving the screen. An idle manager is offered the same action, since
-                                // an unpacked scan would otherwise leave the screen empty.
-                                if (ready != null || scan is OrphanedDownloadScanManager.State.Idle) {
-                                    add(
-                                        AppBar.Action(
-                                            title = stringResource(KUNMR.strings.orphaned_downloads_refresh),
-                                            icon = MaterialSymbols.Rounded.Refresh,
-                                            onClick = viewModel::rescan,
-                                            enabled = !state.deleting,
-                                        ),
-                                    )
-                                }
-                                // The scan is the app-scoped manager's, so leaving the screen no longer
-                                // stops it: stopping is an explicit action, and it reports the manager
-                                // as stopped.
-                                if (scan is OrphanedDownloadScanManager.State.Running) {
-                                    add(
-                                        AppBar.Action(
-                                            title = stringResource(KUNMR.strings.orphaned_downloads_stop),
-                                            icon = MaterialSymbols.Rounded.Close,
-                                            onClick = viewModel::cancelScan,
-                                            enabled = !state.deleting,
-                                        ),
-                                    )
-                                }
-                            },
-                        )
-                    },
-                    scrollBehavior = scrollBehavior,
-                )
-            },
-        ) { contentPadding ->
-            when (val scan = state.scan) {
-                is OrphanedDownloadScanManager.State.Idle,
-                is OrphanedDownloadScanManager.State.Running,
-                -> {
-                    ScanningContent(
-                        // Idle is what a fresh entry shows for the one frame before the scan starts:
-                        // an indeterminate bar fits it, and a running scan reports its own progress.
-                        scanned = (scan as? OrphanedDownloadScanManager.State.Running)?.scanned ?: 0,
-                        total = (scan as? OrphanedDownloadScanManager.State.Running)?.total ?: 0,
-                        modifier = Modifier.padding(contentPadding),
-                    )
-                }
-                is OrphanedDownloadScanManager.State.Stopped -> {
-                    // A stopped scan is not a scan in progress: it says so, and offers the rescan that
-                    // starts a new one.
-                    EmptyScreen(
-                        message = stringResource(KUNMR.strings.orphaned_downloads_stopped),
-                        modifier = Modifier.padding(contentPadding),
-                        actions = listOf(
-                            EmptyScreenAction(
-                                stringRes = KUNMR.strings.orphaned_downloads_refresh,
-                                icon = MaterialSymbols.Rounded.Refresh,
-                                onClick = viewModel::rescan,
-                            ),
-                        ),
-                    )
-                }
-                is OrphanedDownloadScanManager.State.Failed -> {
-                    // A revoked SAF grant or an unreadable SD card lands here instead of leaving the
-                    // screen spinning: say so, and offer the scan again.
-                    EmptyScreen(
-                        message = stringResource(KUNMR.strings.orphaned_downloads_scan_failed),
-                        modifier = Modifier.padding(contentPadding),
-                        actions = listOf(
-                            EmptyScreenAction(
-                                stringRes = MR.strings.action_retry,
-                                icon = MaterialSymbols.Rounded.Refresh,
-                                onClick = viewModel::rescan,
-                            ),
-                        ),
-                    )
-                }
-                is OrphanedDownloadScanManager.State.Ready -> {
-                    // Hoisted here so the busy branch below (a delete in flight) and
-                    // [LazyColumnWithAction] share one state: swapping between them must not jump the
-                    // list back to the top.
-                    val listState = rememberLazyListState()
-
-                    if (state.showConfirmation) {
-                        DeleteConfirmationDialog(
-                            itemCount = state.selection.size,
-                            totalSize = state.selectedSizeBytes,
-                            onConfirm = viewModel::deleteSelected,
-                            onDismiss = viewModel::hideConfirmation,
-                        )
-                    }
-
-                    when {
-                        state.deleteFailed -> {
-                            EmptyScreen(
-                                message = stringResource(KUNMR.strings.orphaned_downloads_delete_failed),
-                                modifier = Modifier.padding(contentPadding),
-                                actions = listOf(
-                                    EmptyScreenAction(
-                                        stringRes = MR.strings.action_retry,
-                                        icon = MaterialSymbols.Rounded.Refresh,
-                                        onClick = viewModel::rescan,
-                                    ),
-                                ),
-                            )
-                        }
-                        state.items.isEmpty() -> {
-                            EmptyScreen(
-                                message = stringResource(KUNMR.strings.orphaned_downloads_empty),
-                                modifier = Modifier.padding(contentPadding),
-                            )
-                        }
-                        else -> {
-                            // The list keeps rendering while the deletion runs, so the user sees what
-                            // is going away, but nothing on it can be acted on again until the delete
-                            // finishes: a second Delete would run over the same files, and a rescan
-                            // would walk a tree that is being emptied under it.
-                            val listContent: LazyListScope.() -> Unit = {
-                                item(key = "row:summary") {
-                                    Text(
-                                        text = stringResource(
-                                            KUNMR.strings.orphaned_downloads_summary,
-                                            state.items.size,
-                                            Formatter.formatFileSize(context, state.items.sumOf { it.sizeBytes }),
-                                        ),
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                                    )
-                                }
-                                items(
-                                    items = rows,
-                                    key = { row ->
-                                        when (row) {
-                                            is OrphanedDownloadRow.Header -> row.key
-                                            is OrphanedDownloadRow.Item -> "item:${row.item.id}"
-                                        }
+                    if (ready != null && state.items.isNotEmpty()) {
+                        DropdownMenu(
+                            expanded = sortExpanded,
+                            onDismissRequest = { sortExpanded = false },
+                        ) {
+                            OrphanedDownloadSort.entries.forEach { sort ->
+                                RadioMenuItem(
+                                    text = { Text(text = sortLabel(sort)) },
+                                    isChecked = state.sort == sort,
+                                    onClick = {
+                                        viewModel.setSort(sort)
+                                        sortExpanded = false
                                     },
-                                    contentType = { row ->
-                                        if (row is OrphanedDownloadRow.Header) "header" else "item"
-                                    },
-                                ) { row ->
-                                    when (row) {
-                                        is OrphanedDownloadRow.Header -> ListGroupHeader(text = headerLabel(row.label))
-                                        is OrphanedDownloadRow.Item -> OrphanedDownloadItem(
-                                            item = row.item,
-                                            isSelected = row.item.id in state.selection,
-                                            enabled = !state.deleting,
-                                            onClickSelect = { viewModel.toggleSelection(row.item.id) },
-                                        )
-                                    }
-                                }
+                                )
                             }
-                            if (state.deleting) {
-                                // An indeterminate bar takes the bottom action bar's place while the
-                                // deletion runs: there is nothing to press, and the list is unchanged
-                                // until the rescan that follows it.
-                                Column(
-                                    modifier = Modifier
-                                        .padding(contentPadding)
-                                        .fillMaxSize(),
-                                ) {
-                                    LazyColumn(
-                                        modifier = Modifier.weight(1f),
-                                        content = listContent,
-                                        state = listState,
-                                    )
-                                    HorizontalDivider()
-                                    LinearProgressIndicator(
-                                        modifier = Modifier
-                                            .padding(horizontal = 16.dp, vertical = 22.dp)
-                                            .fillMaxWidth(),
-                                    )
-                                }
-                            } else {
-                                LazyColumnWithAction(
-                                    contentPadding = contentPadding,
-                                    actionLabel = stringResource(MR.strings.action_delete),
-                                    actionEnabled = state.selection.isNotEmpty(),
-                                    onClickAction = viewModel::showConfirmation,
-                                    content = listContent,
-                                    state = listState,
+                        }
+                        DropdownMenu(
+                            expanded = groupExpanded,
+                            onDismissRequest = { groupExpanded = false },
+                        ) {
+                            OrphanedDownloadGroup.entries.forEach { group ->
+                                RadioMenuItem(
+                                    text = { Text(text = groupLabel(group)) },
+                                    isChecked = state.group == group,
+                                    onClick = {
+                                        viewModel.setGroup(group)
+                                        groupExpanded = false
+                                    },
                                 )
                             }
                         }
                     }
-                }
-            }
-        }
-    }
 
-    @Composable
-    private fun sortLabel(sort: OrphanedDownloadSort): String = stringResource(
-        when (sort) {
-            OrphanedDownloadSort.PATH -> KUNMR.strings.orphaned_downloads_sort_path
-            OrphanedDownloadSort.SIZE_DESC -> KUNMR.strings.orphaned_downloads_sort_size_desc
-            OrphanedDownloadSort.SIZE_ASC -> KUNMR.strings.orphaned_downloads_sort_size_asc
-            OrphanedDownloadSort.KIND -> KUNMR.strings.orphaned_downloads_sort_kind
-        },
-    )
-
-    @Composable
-    private fun groupLabel(group: OrphanedDownloadGroup): String = stringResource(
-        when (group) {
-            OrphanedDownloadGroup.NONE -> KUNMR.strings.orphaned_downloads_group_none
-            OrphanedDownloadGroup.SOURCE -> KUNMR.strings.orphaned_downloads_group_source
-            OrphanedDownloadGroup.MANGA -> KUNMR.strings.orphaned_downloads_group_manga
-            OrphanedDownloadGroup.KIND -> KUNMR.strings.orphaned_downloads_group_kind
-        },
-    )
-
-    /**
-     * The text of a section header.
-     *
-     * A kind section reuses the same labels the entries carry, so what a section holds reads exactly
-     * like the entries describe themselves.
-     */
-    @Composable
-    private fun headerLabel(label: OrphanedDownloadRow.Label): String = when (label) {
-        is OrphanedDownloadRow.Label.Source -> label.name
-        is OrphanedDownloadRow.Label.Manga -> label.path
-        is OrphanedDownloadRow.Label.Type -> when (label.kind) {
-            Kind.CHAPTER -> stringResource(MR.strings.chapters)
-            Kind.MANGA -> stringResource(KUNMR.strings.orphaned_downloads_kind_manga)
-            Kind.SOURCE -> stringResource(KUNMR.strings.orphaned_downloads_kind_source)
-        }
-    }
-
-    @Composable
-    private fun ScanningContent(
-        scanned: Int,
-        total: Int,
-        modifier: Modifier = Modifier,
-    ) {
-        Column(
-            modifier = modifier
-                .fillMaxSize()
-                .padding(horizontal = 24.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            if (total > 0) {
-                LinearProgressIndicator(
-                    progress = { scanned.toFloat() / total },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            } else {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-            }
-            Spacer(Modifier.height(16.dp))
-            Text(
-                text = if (total > 0) {
-                    stringResource(KUNMR.strings.orphaned_downloads_progress, scanned, total)
-                } else {
-                    stringResource(KUNMR.strings.orphaned_downloads_scanning)
+                    AppBarActions(
+                        actions = buildList {
+                            if (ready != null && state.items.isNotEmpty()) {
+                                add(
+                                    AppBar.Action(
+                                        title = stringResource(MR.strings.action_sort),
+                                        icon = MaterialSymbols.AutoMirroredRounded.Sort,
+                                        onClick = { sortExpanded = true },
+                                        enabled = !state.deleting,
+                                    ),
+                                )
+                                add(
+                                    AppBar.Action(
+                                        title = stringResource(SYMR.strings.group),
+                                        icon = MaterialSymbols.Rounded.Folder,
+                                        onClick = { groupExpanded = true },
+                                        enabled = !state.deleting,
+                                    ),
+                                )
+                            }
+                            if (ready != null && state.selectableIds.isNotEmpty()) {
+                                val allSelected = state.allSelected
+                                add(
+                                    AppBar.Action(
+                                        title = if (allSelected) {
+                                            stringResource(KUNMR.strings.orphaned_downloads_clear_selection)
+                                        } else {
+                                            stringResource(MR.strings.action_select_all)
+                                        },
+                                        icon = if (allSelected) {
+                                            MaterialSymbols.Rounded.Deselect
+                                        } else {
+                                            MaterialSymbols.Rounded.SelectAll
+                                        },
+                                        onClick = viewModel::toggleSelectAll,
+                                        enabled = !state.deleting,
+                                    ),
+                                )
+                            }
+                            // A ready list can go stale (a library update adds chapters, a deletion
+                            // elsewhere changes the tree), so it can be walked again without
+                            // leaving the screen. An idle manager is offered the same action, since
+                            // an unpacked scan would otherwise leave the screen empty.
+                            if (ready != null || scan is OrphanedDownloadScanManager.State.Idle) {
+                                add(
+                                    AppBar.Action(
+                                        title = stringResource(KUNMR.strings.orphaned_downloads_refresh),
+                                        icon = MaterialSymbols.Rounded.Refresh,
+                                        onClick = viewModel::rescan,
+                                        enabled = !state.deleting,
+                                    ),
+                                )
+                            }
+                            // The scan is the app-scoped manager's, so leaving the screen no longer
+                            // stops it: stopping is an explicit action, and it reports the manager
+                            // as stopped.
+                            if (scan is OrphanedDownloadScanManager.State.Running) {
+                                add(
+                                    AppBar.Action(
+                                        title = stringResource(KUNMR.strings.orphaned_downloads_stop),
+                                        icon = MaterialSymbols.Rounded.Close,
+                                        onClick = viewModel::cancelScan,
+                                        enabled = !state.deleting,
+                                    ),
+                                )
+                            }
+                        },
+                    )
                 },
-                style = MaterialTheme.typography.bodyMedium,
+                scrollBehavior = scrollBehavior,
             )
-        }
-    }
-
-    @Composable
-    private fun OrphanedDownloadItem(
-        item: OrphanedDownload,
-        isSelected: Boolean,
-        enabled: Boolean,
-        onClickSelect: () -> Unit,
-    ) {
-        val context = LocalContext.current
-        val kindLabel = when (item.kind) {
-            Kind.CHAPTER -> null
-            Kind.MANGA -> stringResource(KUNMR.strings.orphaned_downloads_kind_manga)
-            Kind.SOURCE -> stringResource(KUNMR.strings.orphaned_downloads_kind_source)
-        }
-        Row(
-            modifier = Modifier
-                .selectedBackground(isSelected)
-                .clickable(enabled = enabled, onClick = onClickSelect)
-                .padding(horizontal = 8.dp)
-                .height(64.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Checkbox(
-                checked = isSelected,
-                onCheckedChange = { onClickSelect() },
-                enabled = enabled,
-            )
-            Column(
-                modifier = Modifier
-                    .padding(start = 8.dp)
-                    .weight(1f),
-            ) {
-                Text(
-                    text = item.file.name ?: item.relativePath.substringAfterLast('/'),
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = listOfNotNull(item.relativePath, kindLabel).joinToString(" · "),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
+        },
+    ) { contentPadding ->
+        when (val scan = state.scan) {
+            is OrphanedDownloadScanManager.State.Idle,
+            is OrphanedDownloadScanManager.State.Running,
+            -> {
+                ScanningContent(
+                    // Idle is what a fresh entry shows for the one frame before the scan starts:
+                    // an indeterminate bar fits it, and a running scan reports its own progress.
+                    scanned = (scan as? OrphanedDownloadScanManager.State.Running)?.scanned ?: 0,
+                    total = (scan as? OrphanedDownloadScanManager.State.Running)?.total ?: 0,
+                    modifier = Modifier.padding(contentPadding),
                 )
             }
-            Text(
-                text = Formatter.formatFileSize(context, item.sizeBytes),
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(start = 8.dp),
-            )
-        }
-    }
-
-    @Composable
-    private fun DeleteConfirmationDialog(
-        itemCount: Int,
-        totalSize: Long,
-        onConfirm: () -> Unit,
-        onDismiss: () -> Unit,
-    ) {
-        val context = LocalContext.current
-        AlertDialog(
-            title = {
-                Text(text = stringResource(KUNMR.strings.orphaned_downloads_confirm_title))
-            },
-            text = {
-                Text(
-                    text = stringResource(
-                        KUNMR.strings.orphaned_downloads_confirm_message,
-                        itemCount,
-                        Formatter.formatFileSize(context, totalSize),
+            is OrphanedDownloadScanManager.State.Stopped -> {
+                // A stopped scan is not a scan in progress: it says so, and offers the rescan that
+                // starts a new one.
+                EmptyScreen(
+                    message = stringResource(KUNMR.strings.orphaned_downloads_stopped),
+                    modifier = Modifier.padding(contentPadding),
+                    actions = listOf(
+                        EmptyScreenAction(
+                            stringRes = KUNMR.strings.orphaned_downloads_refresh,
+                            icon = MaterialSymbols.Rounded.Refresh,
+                            onClick = viewModel::rescan,
+                        ),
                     ),
                 )
-            },
-            onDismissRequest = onDismiss,
-            confirmButton = {
-                TextButton(onClick = onConfirm) {
-                    Text(text = stringResource(MR.strings.action_delete))
+            }
+            is OrphanedDownloadScanManager.State.Failed -> {
+                // A revoked SAF grant or an unreadable SD card lands here instead of leaving the
+                // screen spinning: say so, and offer the scan again.
+                EmptyScreen(
+                    message = stringResource(KUNMR.strings.orphaned_downloads_scan_failed),
+                    modifier = Modifier.padding(contentPadding),
+                    actions = listOf(
+                        EmptyScreenAction(
+                            stringRes = MR.strings.action_retry,
+                            icon = MaterialSymbols.Rounded.Refresh,
+                            onClick = viewModel::rescan,
+                        ),
+                    ),
+                )
+            }
+            is OrphanedDownloadScanManager.State.Ready -> {
+                // Hoisted here so the busy branch below (a delete in flight) and
+                // [LazyColumnWithAction] share one state: swapping between them must not jump the
+                // list back to the top.
+                val listState = rememberLazyListState()
+
+                if (state.showConfirmation) {
+                    DeleteConfirmationDialog(
+                        itemCount = state.selection.size,
+                        totalSize = state.selectedSizeBytes,
+                        onConfirm = viewModel::deleteSelected,
+                        onDismiss = viewModel::hideConfirmation,
+                    )
                 }
-            },
-            dismissButton = {
-                TextButton(onClick = onDismiss) {
-                    Text(text = stringResource(MR.strings.action_cancel))
+
+                when {
+                    state.deleteFailed -> {
+                        EmptyScreen(
+                            message = stringResource(KUNMR.strings.orphaned_downloads_delete_failed),
+                            modifier = Modifier.padding(contentPadding),
+                            actions = listOf(
+                                EmptyScreenAction(
+                                    stringRes = MR.strings.action_retry,
+                                    icon = MaterialSymbols.Rounded.Refresh,
+                                    onClick = viewModel::rescan,
+                                ),
+                            ),
+                        )
+                    }
+                    state.items.isEmpty() -> {
+                        EmptyScreen(
+                            message = stringResource(KUNMR.strings.orphaned_downloads_empty),
+                            modifier = Modifier.padding(contentPadding),
+                        )
+                    }
+                    else -> {
+                        // The list keeps rendering while the deletion runs, so the user sees what
+                        // is going away, but nothing on it can be acted on again until the delete
+                        // finishes: a second Delete would run over the same files, and a rescan
+                        // would walk a tree that is being emptied under it.
+                        val listContent: LazyListScope.() -> Unit = {
+                            item(key = "row:summary") {
+                                Text(
+                                    text = stringResource(
+                                        KUNMR.strings.orphaned_downloads_summary,
+                                        state.items.size,
+                                        Formatter.formatFileSize(context, state.items.sumOf { it.sizeBytes }),
+                                    ),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                                )
+                            }
+                            items(
+                                items = rows,
+                                key = { row ->
+                                    when (row) {
+                                        is OrphanedDownloadRow.Header -> row.key
+                                        is OrphanedDownloadRow.Item -> "item:${row.item.id}"
+                                    }
+                                },
+                                contentType = { row ->
+                                    if (row is OrphanedDownloadRow.Header) "header" else "item"
+                                },
+                            ) { row ->
+                                when (row) {
+                                    is OrphanedDownloadRow.Header -> ListGroupHeader(text = headerLabel(row.label))
+                                    is OrphanedDownloadRow.Item -> OrphanedDownloadItem(
+                                        item = row.item,
+                                        isSelected = row.item.id in state.selection,
+                                        enabled = !state.deleting,
+                                        onClickSelect = { viewModel.toggleSelection(row.item.id) },
+                                    )
+                                }
+                            }
+                        }
+                        if (state.deleting) {
+                            // An indeterminate bar takes the bottom action bar's place while the
+                            // deletion runs: there is nothing to press, and the list is unchanged
+                            // until the rescan that follows it.
+                            Column(
+                                modifier = Modifier
+                                    .padding(contentPadding)
+                                    .fillMaxSize(),
+                            ) {
+                                LazyColumn(
+                                    modifier = Modifier.weight(1f),
+                                    content = listContent,
+                                    state = listState,
+                                )
+                                HorizontalDivider()
+                                LinearProgressIndicator(
+                                    modifier = Modifier
+                                        .padding(horizontal = 16.dp, vertical = 22.dp)
+                                        .fillMaxWidth(),
+                                )
+                            }
+                        } else {
+                            LazyColumnWithAction(
+                                contentPadding = contentPadding,
+                                actionLabel = stringResource(MR.strings.action_delete),
+                                actionEnabled = state.selection.isNotEmpty(),
+                                onClickAction = viewModel::showConfirmation,
+                                content = listContent,
+                                state = listState,
+                            )
+                        }
+                    }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun sortLabel(sort: OrphanedDownloadSort): String = stringResource(
+    when (sort) {
+        OrphanedDownloadSort.PATH -> KUNMR.strings.orphaned_downloads_sort_path
+        OrphanedDownloadSort.SIZE_DESC -> KUNMR.strings.orphaned_downloads_sort_size_desc
+        OrphanedDownloadSort.SIZE_ASC -> KUNMR.strings.orphaned_downloads_sort_size_asc
+        OrphanedDownloadSort.KIND -> KUNMR.strings.orphaned_downloads_sort_kind
+    },
+)
+
+@Composable
+private fun groupLabel(group: OrphanedDownloadGroup): String = stringResource(
+    when (group) {
+        OrphanedDownloadGroup.NONE -> KUNMR.strings.orphaned_downloads_group_none
+        OrphanedDownloadGroup.SOURCE -> KUNMR.strings.orphaned_downloads_group_source
+        OrphanedDownloadGroup.MANGA -> KUNMR.strings.orphaned_downloads_group_manga
+        OrphanedDownloadGroup.KIND -> KUNMR.strings.orphaned_downloads_group_kind
+    },
+)
+
+/**
+ * The text of a section header.
+ *
+ * A kind section reuses the same labels the entries carry, so what a section holds reads exactly
+ * like the entries describe themselves.
+ */
+@Composable
+private fun headerLabel(label: OrphanedDownloadRow.Label): String = when (label) {
+    is OrphanedDownloadRow.Label.Source -> label.name
+    is OrphanedDownloadRow.Label.Manga -> label.path
+    is OrphanedDownloadRow.Label.Type -> when (label.kind) {
+        Kind.CHAPTER -> stringResource(MR.strings.chapters)
+        Kind.MANGA -> stringResource(KUNMR.strings.orphaned_downloads_kind_manga)
+        Kind.SOURCE -> stringResource(KUNMR.strings.orphaned_downloads_kind_source)
+    }
+}
+
+@Composable
+private fun ScanningContent(
+    scanned: Int,
+    total: Int,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(horizontal = 24.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        if (total > 0) {
+            LinearProgressIndicator(
+                progress = { scanned.toFloat() / total },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        } else {
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+        }
+        Spacer(Modifier.height(16.dp))
+        Text(
+            text = if (total > 0) {
+                stringResource(KUNMR.strings.orphaned_downloads_progress, scanned, total)
+            } else {
+                stringResource(KUNMR.strings.orphaned_downloads_scanning)
             },
+            style = MaterialTheme.typography.bodyMedium,
         )
     }
+}
+
+@Composable
+private fun OrphanedDownloadItem(
+    item: OrphanedDownload,
+    isSelected: Boolean,
+    enabled: Boolean,
+    onClickSelect: () -> Unit,
+) {
+    val context = LocalContext.current
+    val kindLabel = when (item.kind) {
+        Kind.CHAPTER -> null
+        Kind.MANGA -> stringResource(KUNMR.strings.orphaned_downloads_kind_manga)
+        Kind.SOURCE -> stringResource(KUNMR.strings.orphaned_downloads_kind_source)
+    }
+    Row(
+        modifier = Modifier
+            .selectedBackground(isSelected)
+            .clickable(enabled = enabled, onClick = onClickSelect)
+            .padding(horizontal = 8.dp)
+            .height(64.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Checkbox(
+            checked = isSelected,
+            onCheckedChange = { onClickSelect() },
+            enabled = enabled,
+        )
+        Column(
+            modifier = Modifier
+                .padding(start = 8.dp)
+                .weight(1f),
+        ) {
+            Text(
+                text = item.file.name ?: item.relativePath.substringAfterLast('/'),
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = listOfNotNull(item.relativePath, kindLabel).joinToString(" · "),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Text(
+            text = Formatter.formatFileSize(context, item.sizeBytes),
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(start = 8.dp),
+        )
+    }
+}
+
+@Composable
+private fun DeleteConfirmationDialog(
+    itemCount: Int,
+    totalSize: Long,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val context = LocalContext.current
+    AlertDialog(
+        title = {
+            Text(text = stringResource(KUNMR.strings.orphaned_downloads_confirm_title))
+        },
+        text = {
+            Text(
+                text = stringResource(
+                    KUNMR.strings.orphaned_downloads_confirm_message,
+                    itemCount,
+                    Formatter.formatFileSize(context, totalSize),
+                ),
+            )
+        },
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(text = stringResource(MR.strings.action_delete))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = stringResource(MR.strings.action_cancel))
+            }
+        },
+    )
 }
 
 @Inject

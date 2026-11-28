@@ -21,8 +21,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import cafe.adriel.voyager.navigator.LocalNavigator
-import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.presentation.more.settings.Preference
 import eu.kanade.tachiyomi.ui.dictionary.DictionaryAudioSettingsScreen
 import eu.kanade.tachiyomi.ui.dictionary.DictionaryBackupImportScreen
@@ -37,12 +35,17 @@ import eu.kanade.tachiyomi.ui.dictionary.YomitanSettingsApplier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.Serializable
 import mihon.app.di.appGraph
 import mihon.core.dictionary.anki.AnkiPreferences
 import mihon.core.dictionary.model.allDictionaryNames
 import mihon.core.dictionary.yomitan.YomitanImportResult
 import mihon.core.dictionary.yomitan.YomitanSettingsImport
 import mihon.core.dictionary.yomitan.YomitanSettingsMapper
+import mihon.core.navigation.DictionaryAudioSettingsRoute
+import mihon.core.navigation.DictionaryBackupImportRoute
+import mihon.core.navigation.DictionaryManagementRoute
+import mihon.core.navigation.LocalNavigator
 import tachiyomi.core.common.preference.AndroidPreferenceStore
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.kun.KUNMR
@@ -57,7 +60,8 @@ import tachiyomi.presentation.core.util.collectAsState
  * Manga-only adaptation of Chimahon's `SettingsDictionaryScreen`: anime/novel/word-audio groups and
  * the kanji-stroke-font auto-download are dropped.
  */
-object SettingsDictionaryScreen : SearchableSettings {
+@Serializable
+data object SettingsDictionaryScreen : SearchableSettings {
 
     @ReadOnlyComposable
     @Composable
@@ -91,7 +95,7 @@ object SettingsDictionaryScreen : SearchableSettings {
     @Composable
     override fun getPreferences(): List<Preference> {
         val context = LocalContext.current
-        val navigator = LocalNavigator.currentOrThrow
+        val navigator = LocalNavigator.current
         val prefs = remember(context) { context.appGraph.dictionaryPreferences }
         // KUN -->
         val uiPreferences = remember(context) { context.appGraph.uiPreferences }
@@ -276,7 +280,7 @@ object SettingsDictionaryScreen : SearchableSettings {
                         Preference.PreferenceItem.TextPreference(
                             title = stringResource(KUNMR.strings.pref_import_yomitan_backup),
                             subtitle = stringResource(KUNMR.strings.pref_import_yomitan_backup_summ),
-                            onClick = { navigator.push(DictionaryBackupImportScreen()) },
+                            onClick = { navigator.push(DictionaryBackupImportRoute) },
                         ),
                     )
                     // KUN <--
@@ -289,7 +293,7 @@ object SettingsDictionaryScreen : SearchableSettings {
                             } else {
                                 stringResource(KUNMR.strings.pref_manage_dictionaries_summary, dictionaries.size)
                             },
-                            onClick = { navigator.push(DictionaryManagementScreen()) },
+                            onClick = { navigator.push(DictionaryManagementRoute) },
                         ),
                     )
                     // KUN <--
@@ -346,7 +350,7 @@ object SettingsDictionaryScreen : SearchableSettings {
                     Preference.PreferenceItem.TextPreference(
                         title = stringResource(KUNMR.strings.pref_category_dictionary_audio),
                         subtitle = stringResource(KUNMR.strings.pref_dictionary_audio_summary),
-                        onClick = { navigator.push(DictionaryAudioSettingsScreen()) },
+                        onClick = { navigator.push(DictionaryAudioSettingsRoute) },
                     ),
                 ),
             ),

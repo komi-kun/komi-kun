@@ -8,15 +8,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import androidx.fragment.app.FragmentActivity
-import cafe.adriel.voyager.navigator.LocalNavigator
-import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.core.preference.asState
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.presentation.more.settings.Preference
 import eu.kanade.presentation.more.settings.screen.browse.ExtensionStoresScreen
-import eu.kanade.tachiyomi.ui.category.sources.SourceCategoryScreen
 import eu.kanade.tachiyomi.util.system.AuthenticatorUtil.authenticate
+import kotlinx.serialization.Serializable
 import mihon.app.di.appGraph
+import mihon.core.navigation.ExtensionStoresRoute
+import mihon.core.navigation.LocalNavigator
+import mihon.core.navigation.SourceCategoryRoute
 import mihon.domain.extension.interactor.GetExtensionStoreCountAsFlow
 import mihon.domain.extension.model.ContentWarning
 import tachiyomi.core.common.i18n.stringResource
@@ -27,9 +28,8 @@ import tachiyomi.presentation.core.i18n.pluralStringResource
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsState
 
-object SettingsBrowseScreen : SearchableSettings {
-    @Suppress("unused")
-    private fun readResolve(): Any = SettingsBrowseScreen
+@Serializable
+data object SettingsBrowseScreen : SearchableSettings {
 
     @ReadOnlyComposable
     @Composable
@@ -38,7 +38,7 @@ object SettingsBrowseScreen : SearchableSettings {
     @Composable
     override fun getPreferences(): List<Preference> {
         val context = LocalContext.current
-        val navigator = LocalNavigator.currentOrThrow
+        val navigator = LocalNavigator.current
 
         val sourcePreferences = remember { context.appGraph.sourcePreferences }
         val getExtensionStoreCountAsFlow = remember { context.appGraph.getExtensionStoreCountAsFlow }
@@ -89,7 +89,7 @@ object SettingsBrowseScreen : SearchableSettings {
                             title = stringResource(MR.strings.action_edit_categories),
                             subtitle = pluralStringResource(MR.plurals.num_categories, count.size, count.size),
                             onClick = {
-                                navigator.push(SourceCategoryScreen())
+                                navigator.push(SourceCategoryRoute)
                             },
                         )
                     },
@@ -143,7 +143,7 @@ object SettingsBrowseScreen : SearchableSettings {
                         title = stringResource(MR.strings.extensionStores),
                         subtitle = pluralStringResource(MR.plurals.num_repos, reposCount.toInt(), reposCount),
                         onClick = {
-                            navigator.push(ExtensionStoresScreen())
+                            navigator.push(ExtensionStoresRoute)
                         },
                     ),
                 ),

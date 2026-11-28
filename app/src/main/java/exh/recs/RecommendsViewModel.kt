@@ -34,7 +34,7 @@ import tachiyomi.domain.manga.model.Manga
 
 @AssistedInject
 class RecommendsViewModel(
-    @Assisted private val args: RecommendsScreen.Args,
+    @Assisted private val args: RecommendsArgs,
     private val getManga: GetManga,
     private val networkToLocalManga: NetworkToLocalManga,
 ) : ViewModel() {
@@ -43,7 +43,7 @@ class RecommendsViewModel(
     @ManualViewModelAssistedFactoryKey
     @ContributesIntoMap(AppScope::class)
     interface Factory : ManualViewModelAssistedFactory {
-        fun create(args: RecommendsScreen.Args): RecommendsViewModel
+        fun create(args: RecommendsArgs): RecommendsViewModel
     }
 
     val state: StateFlow<RecommendsViewModel.State>
@@ -62,7 +62,7 @@ class RecommendsViewModel(
     init {
         viewModelScope.launch {
             val recommendationSources = when (args) {
-                is RecommendsScreen.Args.SingleSourceManga -> {
+                is RecommendsArgs.SingleSourceManga -> {
                     val manga = getManga.await(args.mangaId) ?: return@launch
                     state.update { it.copy(title = manga.title) }
 
@@ -73,7 +73,7 @@ class RecommendsViewModel(
                         // KMK <--
                     )
                 }
-                is RecommendsScreen.Args.MergedSourceMangas -> {
+                is RecommendsArgs.MergedSourceMangas -> {
                     args.mergedResults.map(::StaticResultPagingSource)
                 }
             }

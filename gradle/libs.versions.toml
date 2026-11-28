@@ -6,7 +6,6 @@ okhttp_version = "5.5.1"
 shizuku_version = "13.1.5"
 sqldelight = "2.4.1"
 sqldelight-androidx-driver = "0.2.2"
-voyager = "1.1.0-beta03"
 spotless = "8.8.0"
 ktlint-core = "1.8.0"
 firebase-bom = "34.15.0"
@@ -137,9 +136,6 @@ mockk = "io.mockk:mockk:1.14.12"
 # KUN -->
 org-json = { module = "org.json:json", version = "20240303" }
 # KUN <--
-voyager-navigator = { module = "cafe.adriel.voyager:voyager-navigator", version.ref = "voyager" }
-voyager-tab-navigator = { module = "cafe.adriel.voyager:voyager-tab-navigator", version.ref = "voyager" }
-voyager-transitions = { module = "cafe.adriel.voyager:voyager-transitions", version.ref = "voyager" }
 
 spotless-gradle = { group = "com.diffplug.spotless", name = "spotless-plugin-gradle", version.ref = "spotless" }
 ktlint-core = { module = "com.pinterest.ktlint:ktlint-cli", version.ref = "ktlint-core" }
@@ -170,6 +166,5 @@ js-engine = ["quickjs-android"]
 coil = ["coil-core", "coil-gif", "coil-compose", "coil-network-okhttp"]
 shizuku = ["shizuku-api", "shizuku-provider"]
 sqldelight = ["sqldelight-androidx-driver", "sqldelight-async", "sqldelight-coroutines", "sqldelight-android-paging"]
-voyager = ["voyager-navigator", "voyager-tab-navigator", "voyager-transitions"]
 test = ["junit-jupiter", "kotest-assertions", "mockk"]
 markdown = ["markdown-core", "markdown-coil"]

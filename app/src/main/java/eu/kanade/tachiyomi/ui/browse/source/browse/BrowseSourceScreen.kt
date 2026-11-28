@@ -30,8 +30,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalUriHandler
-import cafe.adriel.voyager.navigator.LocalNavigator
-import cafe.adriel.voyager.navigator.currentOrThrow
+import androidx.navigation3.runtime.result.ResultEffect
 import dev.zacsweers.metrox.viewmodel.assistedMetroViewModel
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 import eu.kanade.presentation.browse.BrowseSourceContent
@@ -45,29 +44,30 @@ import eu.kanade.presentation.category.components.ChangeCategoryDialog
 import eu.kanade.presentation.components.BulkSelectionToolbar
 import eu.kanade.presentation.manga.DuplicateMangaDialog
 import eu.kanade.presentation.more.settings.screen.SettingsEhScreen
-import eu.kanade.presentation.util.AssistContentScreen
-import eu.kanade.presentation.util.Screen
 import eu.kanade.tachiyomi.source.ConfigurableSource
 import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.ui.browse.BulkFavoriteViewModel
-import eu.kanade.tachiyomi.ui.browse.extension.details.SourcePreferencesScreen
-import eu.kanade.tachiyomi.ui.browse.source.SourcesScreen
+import eu.kanade.tachiyomi.ui.browse.source.SmartSearchConfig
 import eu.kanade.tachiyomi.ui.browse.source.browse.BrowseSourceViewModel.Listing
-import eu.kanade.tachiyomi.ui.category.CategoryScreen
-import eu.kanade.tachiyomi.ui.manga.MangaScreen
-import eu.kanade.tachiyomi.ui.webview.WebViewScreen
 import eu.kanade.tachiyomi.util.system.toast
-import exh.md.follows.MangaDexFollowsScreen
 import exh.source.anyIs
 import exh.source.isEhBasedSource
 import exh.source.isMdBasedSource
-import exh.ui.smartsearch.SmartSearchScreen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import mihon.app.di.appGraph
+import mihon.core.navigation.BrowseSourceRoute
+import mihon.core.navigation.CategoryRoute
+import mihon.core.navigation.LocalAssistUrl
+import mihon.core.navigation.LocalNavigator
+import mihon.core.navigation.MangaDexFollowsRoute
+import mihon.core.navigation.MangaRoute
+import mihon.core.navigation.SmartSearchRoute
+import mihon.core.navigation.SourcePreferencesRoute
+import mihon.core.navigation.WebViewRoute
 import mihon.feature.migration.dialog.MigrateMangaDialog
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.FilterList
@@ -84,25 +84,20 @@ import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.screens.LoadingScreen
 import tachiyomi.source.local.LocalSource
 
-data class BrowseSourceScreen(
-    val sourceId: Long,
-    private val listingQuery: String?,
+@Composable
+fun BrowseSourceScreen(
+    sourceId: Long,
+    listingQuery: String?,
     // SY -->
-    private val filtersJson: String? = null,
-    private val savedSearch: Long? = null,
-    /** being set when called from [SmartSearchScreen] or when click on a manga from this screen
+    filtersJson: String? = null,
+    savedSearch: Long? = null,
+    /** being set when called from [SmartSearchRoute] or when click on a manga from this screen
      * which was previously opened from `SmartSearchScreen` */
-    private val smartSearchConfig: SourcesScreen.SmartSearchConfig? = null,
+    smartSearchConfig: SmartSearchConfig? = null,
     // SY <--
-) : Screen(), AssistContentScreen {
-
-    private var assistUrl: String? = null
-
-    override fun onProvideAssistUrl() = assistUrl
-
-    @Composable
-    override fun Content() {
-        val viewModel = assistedMetroViewModel<BrowseSourceViewModel, BrowseSourceViewModel.Factory> {
+) {
+    val viewModel =
+        assistedMetroViewModel<BrowseSourceViewModel, BrowseSourceViewModel.Factory> {
             create(
                 sourceId = sourceId,
                 listingQuery = listingQuery,
@@ -112,424 +107,409 @@ data class BrowseSourceScreen(
                 // SY <--
             )
         }
-        val state by viewModel.state.collectAsState()
-        // SY -->
-        val savedSearches by viewModel.savedSearches.collectAsState()
-        // SY <--
+    val state by viewModel.state.collectAsState()
+    // SY -->
+    val savedSearches by viewModel.savedSearches.collectAsState()
+    // SY <--
 
-        val navigator = LocalNavigator.currentOrThrow
-        val navigateUp: () -> Unit = {
-            when {
-                !state.isUserQuery && state.toolbarQuery != null -> viewModel.setToolbarQuery(null)
-                else -> navigator.pop()
-            }
+    val navigator = LocalNavigator.current
+    val setAssistUrl = LocalAssistUrl.current
+    val navigateUp: () -> Unit = {
+        when {
+            !state.isUserQuery && state.toolbarQuery != null -> viewModel.setToolbarQuery(null)
+            else -> navigator.pop()
         }
+    }
 
-        // SY -->
-        val context = LocalContext.current
-        // SY <--
+    // SY -->
+    val context = LocalContext.current
+    // SY <--
 
-        val source = state.source
-        if (source == null) {
-            LoadingScreen()
-            return
-        }
+    val source = state.source
+    if (source == null) {
+        LoadingScreen()
+        return
+    }
 
-        if (source is StubSource) {
-            MissingSourceScreen(
-                source = source,
-                navigateUp = navigateUp,
-            )
-            return
-        }
+    if (source is StubSource) {
+        MissingSourceScreen(
+            source = source,
+            navigateUp = navigateUp,
+        )
+        return
+    }
 
-        val scope = rememberCoroutineScope()
-        val haptic = LocalHapticFeedback.current
-        val uriHandler = LocalUriHandler.current
-        val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val haptic = LocalHapticFeedback.current
+    val uriHandler = LocalUriHandler.current
+    val snackbarHostState = remember { SnackbarHostState() }
 
-        val onHelpClick = { uriHandler.openUri(LocalSource.HELP_URL) }
-        val onWebViewClick = f@{
-            val httpSource = source as? HttpSource ?: return@f
-            navigator.push(
-                WebViewScreen(
-                    url = httpSource.getHomeUrl(),
-                    initialTitle = httpSource.name,
-                    sourceId = httpSource.id,
-                ),
-            )
-        }
+    val onHelpClick = { uriHandler.openUri(LocalSource.HELP_URL) }
+    val onWebViewClick = f@{
+        val httpSource = source as? HttpSource ?: return@f
+        navigator.push(
+            WebViewRoute(
+                url = httpSource.getHomeUrl(),
+                initialTitle = httpSource.name,
+                sourceId = httpSource.id,
+            ),
+        )
+    }
 
-        // KMK -->
-        val bulkFavoriteViewModel = metroViewModel<BulkFavoriteViewModel>()
-        val bulkFavoriteState by bulkFavoriteViewModel.state.collectAsState()
+    // KMK -->
+    val bulkFavoriteViewModel = metroViewModel<BulkFavoriteViewModel>()
+    val bulkFavoriteState by bulkFavoriteViewModel.state.collectAsState()
 
-        BackHandler(enabled = bulkFavoriteState.selectionMode) {
-            bulkFavoriteViewModel.backHandler()
-        }
-        // KMK <--
+    BackHandler(enabled = bulkFavoriteState.selectionMode) {
+        bulkFavoriteViewModel.backHandler()
+    }
+    // KMK <--
 
-        LaunchedEffect(source) {
-            assistUrl = (source as? HttpSource)?.getHomeUrl()
-        }
+    LaunchedEffect(source) {
+        setAssistUrl((source as? HttpSource)?.getHomeUrl())
+    }
 
-        // KMK -->
-        val mangaList = viewModel.mangaPagerFlowFlow.collectAsLazyPagingItems()
+    // KMK -->
+    val mangaList = viewModel.mangaPagerFlowFlow.collectAsLazyPagingItems()
 
-        val isHentaiEnabled: Boolean = LocalContext.current.appGraph.exhPreferences.isHentaiEnabled.get()
-        val isConfigurableSource = source.anyIs<ConfigurableSource>() ||
-            (source.isEhBasedSource() && isHentaiEnabled)
-        // KMK <--
+    val isHentaiEnabled: Boolean = LocalContext.current.appGraph.exhPreferences.isHentaiEnabled.get()
+    val isConfigurableSource = source.anyIs<ConfigurableSource>() ||
+        (source.isEhBasedSource() && isHentaiEnabled)
+    // KMK <--
 
-        Scaffold(
-            topBar = {
-                Column(
-                    modifier = Modifier
-                        .background(MaterialTheme.colorScheme.surface)
-                        .pointerInput(Unit) {},
-                ) {
-                    // KMK -->
-                    if (bulkFavoriteState.selectionMode) {
-                        BulkSelectionToolbar(
-                            selectedCount = bulkFavoriteState.selection.size,
-                            isRunning = bulkFavoriteState.isRunning,
-                            onClickClearSelection = bulkFavoriteViewModel::toggleSelectionMode,
-                            onChangeCategoryClick = bulkFavoriteViewModel::addFavorite,
-                            onSelectAll = {
-                                mangaList.itemSnapshotList.items
-                                    .map { it.value.first }
-                                    .forEach { bulkFavoriteViewModel.select(it) }
+    Scaffold(
+        topBar = {
+            Column(
+                modifier = Modifier
+                    .background(MaterialTheme.colorScheme.surface)
+                    .pointerInput(Unit) {},
+            ) {
+                // KMK -->
+                if (bulkFavoriteState.selectionMode) {
+                    BulkSelectionToolbar(
+                        selectedCount = bulkFavoriteState.selection.size,
+                        isRunning = bulkFavoriteState.isRunning,
+                        onClickClearSelection = bulkFavoriteViewModel::toggleSelectionMode,
+                        onChangeCategoryClick = bulkFavoriteViewModel::addFavorite,
+                        onSelectAll = {
+                            mangaList.itemSnapshotList.items
+                                .map { it.value.first }
+                                .forEach { bulkFavoriteViewModel.select(it) }
+                        },
+                        onReverseSelection = {
+                            mangaList.itemSnapshotList.items
+                                .map { it.value.first }
+                                .let { bulkFavoriteViewModel.reverseSelection(it) }
+                        },
+                    )
+                } else {
+                    // KMK <--
+                    BrowseSourceToolbar(
+                        searchQuery = state.toolbarQuery,
+                        onSearchQueryChange = viewModel::setToolbarQuery,
+                        source = source,
+                        displayMode = viewModel.displayMode
+                            // KMK -->
+                            .takeIf {
+                                !source.isEhBasedSource() || !viewModel.ehentaiBrowseDisplayMode
                             },
-                            onReverseSelection = {
-                                mangaList.itemSnapshotList.items
-                                    .map { it.value.first }
-                                    .let { bulkFavoriteViewModel.reverseSelection(it) }
-                            },
-                        )
-                    } else {
                         // KMK <--
-                        BrowseSourceToolbar(
-                            searchQuery = state.toolbarQuery,
-                            onSearchQueryChange = viewModel::setToolbarQuery,
-                            source = source,
-                            displayMode = viewModel.displayMode
-                                // KMK -->
-                                .takeIf {
-                                    !source.isEhBasedSource() || !viewModel.ehentaiBrowseDisplayMode
-                                },
-                            // KMK <--
-                            onDisplayModeChange = { viewModel.displayMode = it },
-                            navigateUp = navigateUp,
-                            onWebViewClick = onWebViewClick,
-                            onHelpClick = onHelpClick,
-                            // KMK -->
-                            onToggleIncognito = viewModel::toggleIncognitoMode,
-                            onSettingsClick = {
-                                when {
-                                    source.isEhBasedSource() && isHentaiEnabled ->
-                                        navigator.push(SettingsEhScreen)
-                                    source.anyIs<ConfigurableSource>() ->
-                                        navigator.push(SourcePreferencesScreen(sourceId))
-                                    else -> {}
-                                }
-                            }.takeIf { isConfigurableSource },
-                            // KMK <--
-                            onSearch = viewModel::search,
-                            // KMK -->
-                            toggleSelectionMode = bulkFavoriteViewModel::toggleSelectionMode,
-                            isRunning = bulkFavoriteState.isRunning,
-                            // KMK <--
-                        )
-                    }
+                        onDisplayModeChange = { viewModel.displayMode = it },
+                        navigateUp = navigateUp,
+                        onWebViewClick = onWebViewClick,
+                        onHelpClick = onHelpClick,
+                        // KMK -->
+                        onToggleIncognito = viewModel::toggleIncognitoMode,
+                        onSettingsClick = {
+                            when {
+                                source.isEhBasedSource() && isHentaiEnabled ->
+                                    navigator.push(SettingsEhScreen)
+                                source.anyIs<ConfigurableSource>() ->
+                                    navigator.push(SourcePreferencesRoute(sourceId))
+                                else -> {}
+                            }
+                        }.takeIf { isConfigurableSource },
+                        // KMK <--
+                        onSearch = viewModel::search,
+                        // KMK -->
+                        toggleSelectionMode = bulkFavoriteViewModel::toggleSelectionMode,
+                        isRunning = bulkFavoriteState.isRunning,
+                        // KMK <--
+                    )
+                }
 
-                    Row(
-                        modifier = Modifier
-                            .horizontalScroll(rememberScrollState())
-                            .padding(horizontal = MaterialTheme.padding.small),
-                        horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
-                    ) {
+                Row(
+                    modifier = Modifier
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = MaterialTheme.padding.small),
+                    horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
+                ) {
+                    FilterChip(
+                        selected = state.listing == Listing.Popular,
+                        onClick = {
+                            viewModel.resetFilters()
+                            viewModel.setListing(Listing.Popular)
+                        },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = MaterialSymbols.RoundedFilled.Favorite,
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .size(FilterChipDefaults.IconSize),
+                            )
+                        },
+                        label = {
+                            Text(text = stringResource(MR.strings.popular))
+                        },
+                    )
+                    if (source.supportsLatest) {
                         FilterChip(
-                            selected = state.listing == Listing.Popular,
+                            selected = state.listing == Listing.Latest,
                             onClick = {
                                 viewModel.resetFilters()
-                                viewModel.setListing(Listing.Popular)
+                                viewModel.setListing(Listing.Latest)
                             },
                             leadingIcon = {
                                 Icon(
-                                    imageVector = MaterialSymbols.RoundedFilled.Favorite,
+                                    imageVector = MaterialSymbols.Rounded.Verified,
                                     contentDescription = null,
                                     modifier = Modifier
                                         .size(FilterChipDefaults.IconSize),
                                 )
                             },
                             label = {
-                                Text(text = stringResource(MR.strings.popular))
+                                Text(text = stringResource(MR.strings.latest))
                             },
                         )
-                        if (source.supportsLatest) {
-                            FilterChip(
-                                selected = state.listing == Listing.Latest,
-                                onClick = {
-                                    viewModel.resetFilters()
-                                    viewModel.setListing(Listing.Latest)
-                                },
-                                leadingIcon = {
-                                    Icon(
-                                        imageVector = MaterialSymbols.Rounded.Verified,
-                                        contentDescription = null,
-                                        modifier = Modifier
-                                            .size(FilterChipDefaults.IconSize),
-                                    )
-                                },
-                                label = {
-                                    Text(text = stringResource(MR.strings.latest))
-                                },
-                            )
-                        }
-                        if (/* SY --> */ state.filterable /* SY <-- */) {
-                            FilterChip(
-                                selected = state.listing is Listing.Search &&
-                                    // KMK -->
-                                    (state.listing as Listing.Search).savedSearchId == null,
-                                // KMK <--
-                                onClick = viewModel::openFilterSheet,
-                                leadingIcon = {
-                                    Icon(
-                                        imageVector = MaterialSymbols.Rounded.FilterList,
-                                        contentDescription = null,
-                                        modifier = Modifier
-                                            .size(FilterChipDefaults.IconSize),
-                                    )
-                                },
-                                label = {
-                                    // SY -->
-                                    Text(
-                                        text = if (state.filters.isNotEmpty()) {
-                                            stringResource(MR.strings.action_filter)
-                                        } else {
-                                            stringResource(MR.strings.action_search)
-                                        },
-                                    )
-                                    // SY <--
-                                },
-                            )
-                        }
-                        // KMK -->
-                        savedSearches.forEach { savedSearch ->
-                            FilterChip(
-                                selected = state.listing is Listing.Search &&
-                                    (state.listing as Listing.Search).savedSearchId == savedSearch.id,
-                                onClick = {
-                                    viewModel.onSavedSearch(savedSearch) {
-                                        context.toast(it)
-                                    }
-                                },
-                                label = {
-                                    Text(
-                                        text = savedSearch.name,
-                                    )
-                                },
-                            )
-                        }
-                        // KMK <--
                     }
-
-                    HorizontalDivider()
-                }
-            },
-            snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
-        ) { paddingValues ->
-            BrowseSourceContent(
-                source = source,
-                mangaList = mangaList,
-                columns = viewModel.getColumnsPreference(LocalConfiguration.current.orientation),
-                // SY -->
-                ehentaiBrowseDisplayMode = viewModel.ehentaiBrowseDisplayMode,
-                // SY <--
-                displayMode = viewModel.displayMode,
-                snackbarHostState = snackbarHostState,
-                contentPadding = paddingValues,
-                onWebViewClick = onWebViewClick,
-                onHelpClick = { uriHandler.openUri(Constants.URL_HELP) },
-                onLocalSourceHelpClick = onHelpClick,
-                onMangaClick = { manga ->
-                    // KMK -->
-                    if (bulkFavoriteState.selectionMode) {
-                        bulkFavoriteViewModel.toggleSelection(manga)
-                    } else {
-                        // KMK <--
-                        navigator.push(
-                            MangaScreen(
-                                mangaId = manga.id,
+                    if (/* SY --> */ state.filterable /* SY <-- */) {
+                        FilterChip(
+                            selected = state.listing is Listing.Search &&
                                 // KMK -->
-                                // Finding the entry to be merged to, so we don't want to expand description
-                                // so that user can see the `Merge to another` button
-                                fromSource = smartSearchConfig == null,
-                                // KMK <--
-                                smartSearchConfig = smartSearchConfig,
-                            ),
+                                (state.listing as Listing.Search).savedSearchId == null,
+                            // KMK <--
+                            onClick = viewModel::openFilterSheet,
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = MaterialSymbols.Rounded.FilterList,
+                                    contentDescription = null,
+                                    modifier = Modifier
+                                        .size(FilterChipDefaults.IconSize),
+                                )
+                            },
+                            label = {
+                                // SY -->
+                                Text(
+                                    text = if (state.filters.isNotEmpty()) {
+                                        stringResource(MR.strings.action_filter)
+                                    } else {
+                                        stringResource(MR.strings.action_search)
+                                    },
+                                )
+                                // SY <--
+                            },
                         )
                     }
-                },
-                onMangaLongClick = { manga ->
                     // KMK -->
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    if (bulkFavoriteState.selectionMode) {
-                        navigator.push(MangaScreen(manga.id, true))
-                    } else {
-                        // KMK <--
-                        scope.launch(Dispatchers.IO) {
-                            val duplicates = viewModel.getDuplicateLibraryManga(manga)
-                            when {
-                                manga.favorite -> viewModel.setDialog(BrowseSourceViewModel.Dialog.RemoveManga(manga))
-                                duplicates.isNotEmpty() -> viewModel.setDialog(
-                                    BrowseSourceViewModel.Dialog.AddDuplicateManga(manga, duplicates),
+                    savedSearches.forEach { savedSearch ->
+                        FilterChip(
+                            selected = state.listing is Listing.Search &&
+                                (state.listing as Listing.Search).savedSearchId == savedSearch.id,
+                            onClick = {
+                                viewModel.onSavedSearch(savedSearch) {
+                                    context.toast(it)
+                                }
+                            },
+                            label = {
+                                Text(
+                                    text = savedSearch.name,
                                 )
-                                else -> viewModel.addFavorite(manga)
-                            }
+                            },
+                        )
+                    }
+                    // KMK <--
+                }
+
+                HorizontalDivider()
+            }
+        },
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+    ) { paddingValues ->
+        BrowseSourceContent(
+            source = source,
+            mangaList = mangaList,
+            columns = viewModel.getColumnsPreference(LocalConfiguration.current.orientation),
+            // SY -->
+            ehentaiBrowseDisplayMode = viewModel.ehentaiBrowseDisplayMode,
+            // SY <--
+            displayMode = viewModel.displayMode,
+            snackbarHostState = snackbarHostState,
+            contentPadding = paddingValues,
+            onWebViewClick = onWebViewClick,
+            onHelpClick = { uriHandler.openUri(Constants.URL_HELP) },
+            onLocalSourceHelpClick = onHelpClick,
+            onMangaClick = { manga ->
+                // KMK -->
+                if (bulkFavoriteState.selectionMode) {
+                    bulkFavoriteViewModel.toggleSelection(manga)
+                } else {
+                    // KMK <--
+                    navigator.push(
+                        MangaRoute(
+                            mangaId = manga.id,
+                            // KMK -->
+                            // Finding the entry to be merged to, so we don't want to expand description
+                            // so that user can see the `Merge to another` button
+                            fromSource = smartSearchConfig == null,
+                            // KMK <--
+                            smartSearchTitle = smartSearchConfig?.origTitle,
+                            smartSearchMangaId = smartSearchConfig?.origMangaId,
+                        ),
+                    )
+                }
+            },
+            onMangaLongClick = { manga ->
+                // KMK -->
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                if (bulkFavoriteState.selectionMode) {
+                    navigator.push(MangaRoute(manga.id, true))
+                } else {
+                    // KMK <--
+                    scope.launch(Dispatchers.IO) {
+                        val duplicates = viewModel.getDuplicateLibraryManga(manga)
+                        when {
+                            manga.favorite -> viewModel.setDialog(BrowseSourceViewModel.Dialog.RemoveManga(manga))
+                            duplicates.isNotEmpty() -> viewModel.setDialog(
+                                BrowseSourceViewModel.Dialog.AddDuplicateManga(manga, duplicates),
+                            )
+                            else -> viewModel.addFavorite(manga)
                         }
                     }
+                }
+            },
+            // KMK -->
+            selection = bulkFavoriteState.selection,
+            // KMK <--
+        )
+    }
+
+    val onDismissRequest = { viewModel.setDialog(null) }
+    when (val dialog = state.dialog) {
+        is BrowseSourceViewModel.Dialog.Filter -> {
+            SourceFilterDialog(
+                onDismissRequest = onDismissRequest,
+                filters = state.filters,
+                onReset = viewModel::resetFilters,
+                onFilter = { viewModel.search(filters = state.filters) },
+                onUpdate = viewModel::setFilters,
+                // SY -->
+                startExpanded = viewModel.startExpanded,
+                onSave = viewModel::onSaveSearch,
+                savedSearches = savedSearches,
+                onSavedSearch = { search ->
+                    viewModel.onSavedSearch(search) {
+                        context.toast(it)
+                    }
                 },
+                onSavedSearchPress = viewModel::onSavedSearchPress,
                 // KMK -->
-                selection = bulkFavoriteState.selection,
+                onSavedSearchPressDesc = stringResource(KMR.strings.saved_searches_delete),
+                // KMK <--
+                openMangaDexRandom = if (source.isMdBasedSource()) {
+                    {
+                        viewModel.onMangaDexRandom {
+                            navigator.replace(
+                                BrowseSourceRoute(
+                                    sourceId,
+                                    "id:$it",
+                                ),
+                            )
+                        }
+                    }
+                } else {
+                    null
+                },
+                openMangaDexFollows = if (source.isMdBasedSource()) {
+                    {
+                        // KMK -->
+                        // navigator.replace(MangaDexFollowsRoute(sourceId))
+                        navigator.push(MangaDexFollowsRoute(sourceId))
+                        // KMK <--
+                    }
+                } else {
+                    null
+                },
+                // SY <--
+            )
+        }
+        is BrowseSourceViewModel.Dialog.AddDuplicateManga -> {
+            DuplicateMangaDialog(
+                duplicates = dialog.duplicates,
+                onDismissRequest = onDismissRequest,
+                onConfirm = { viewModel.addFavorite(dialog.manga) },
+                onOpenManga = { navigator.push(MangaRoute(it.id)) },
+                onMigrate = { viewModel.setDialog(BrowseSourceViewModel.Dialog.Migrate(dialog.manga, it)) },
+                // KMK -->
+                targetManga = dialog.manga,
                 // KMK <--
             )
         }
 
-        val onDismissRequest = { viewModel.setDialog(null) }
-        when (val dialog = state.dialog) {
-            is BrowseSourceViewModel.Dialog.Filter -> {
-                SourceFilterDialog(
-                    onDismissRequest = onDismissRequest,
-                    filters = state.filters,
-                    onReset = viewModel::resetFilters,
-                    onFilter = { viewModel.search(filters = state.filters) },
-                    onUpdate = viewModel::setFilters,
-                    // SY -->
-                    startExpanded = viewModel.startExpanded,
-                    onSave = viewModel::onSaveSearch,
-                    savedSearches = savedSearches,
-                    onSavedSearch = { search ->
-                        viewModel.onSavedSearch(search) {
-                            context.toast(it)
-                        }
-                    },
-                    onSavedSearchPress = viewModel::onSavedSearchPress,
-                    // KMK -->
-                    onSavedSearchPressDesc = stringResource(KMR.strings.saved_searches_delete),
-                    // KMK <--
-                    openMangaDexRandom = if (source.isMdBasedSource()) {
-                        {
-                            viewModel.onMangaDexRandom {
-                                navigator.replace(
-                                    BrowseSourceScreen(
-                                        sourceId,
-                                        "id:$it",
-                                    ),
-                                )
-                            }
-                        }
-                    } else {
-                        null
-                    },
-                    openMangaDexFollows = if (source.isMdBasedSource()) {
-                        {
-                            // KMK -->
-                            // navigator.replace(MangaDexFollowsScreen(sourceId))
-                            navigator.push(MangaDexFollowsScreen(sourceId))
-                            // KMK <--
-                        }
-                    } else {
-                        null
-                    },
-                    // SY <--
-                )
-            }
-            is BrowseSourceViewModel.Dialog.AddDuplicateManga -> {
-                DuplicateMangaDialog(
-                    duplicates = dialog.duplicates,
-                    onDismissRequest = onDismissRequest,
-                    onConfirm = { viewModel.addFavorite(dialog.manga) },
-                    onOpenManga = { navigator.push(MangaScreen(it.id)) },
-                    onMigrate = { viewModel.setDialog(BrowseSourceViewModel.Dialog.Migrate(dialog.manga, it)) },
-                    // KMK -->
-                    targetManga = dialog.manga,
-                    // KMK <--
-                )
-            }
-
-            is BrowseSourceViewModel.Dialog.Migrate -> {
-                MigrateMangaDialog(
-                    current = dialog.current,
-                    target = dialog.target,
-                    // Initiated from the context of [dialog.target] so we show [dialog.current].
-                    onClickTitle = { navigator.push(MangaScreen(dialog.current.id)) },
-                    onDismissRequest = onDismissRequest,
-                )
-            }
-            is BrowseSourceViewModel.Dialog.RemoveManga -> {
-                RemoveMangaDialog(
-                    onDismissRequest = onDismissRequest,
-                    onConfirm = {
-                        viewModel.changeMangaFavorite(dialog.manga)
-                    },
-                    mangaToRemove = dialog.manga,
-                )
-            }
-            is BrowseSourceViewModel.Dialog.ChangeMangaCategory -> {
-                ChangeCategoryDialog(
-                    initialSelection = dialog.initialSelection,
-                    onDismissRequest = onDismissRequest,
-                    onEditCategories = { navigator.push(CategoryScreen()) },
-                    onConfirm = { include, _ ->
-                        viewModel.changeMangaFavorite(dialog.manga)
-                        viewModel.moveMangaToCategories(dialog.manga, include)
-                    },
-                )
-            }
-            is BrowseSourceViewModel.Dialog.CreateSavedSearch -> SavedSearchCreateDialog(
+        is BrowseSourceViewModel.Dialog.Migrate -> {
+            MigrateMangaDialog(
+                current = dialog.current,
+                target = dialog.target,
+                // Initiated from the context of [dialog.target] so we show [dialog.current].
+                onClickTitle = { navigator.push(MangaRoute(dialog.current.id)) },
                 onDismissRequest = onDismissRequest,
-                currentSavedSearches = dialog.currentSavedSearches,
-                saveSearch = viewModel::saveSearch,
             )
-            is BrowseSourceViewModel.Dialog.DeleteSavedSearch -> SavedSearchDeleteDialog(
+        }
+        is BrowseSourceViewModel.Dialog.RemoveManga -> {
+            RemoveMangaDialog(
                 onDismissRequest = onDismissRequest,
-                name = dialog.name,
-                deleteSavedSearch = {
-                    viewModel.deleteSearch(dialog.idToDelete)
+                onConfirm = {
+                    viewModel.changeMangaFavorite(dialog.manga)
+                },
+                mangaToRemove = dialog.manga,
+            )
+        }
+        is BrowseSourceViewModel.Dialog.ChangeMangaCategory -> {
+            ChangeCategoryDialog(
+                initialSelection = dialog.initialSelection,
+                onDismissRequest = onDismissRequest,
+                onEditCategories = { navigator.push(CategoryRoute) },
+                onConfirm = { include, _ ->
+                    viewModel.changeMangaFavorite(dialog.manga)
+                    viewModel.moveMangaToCategories(dialog.manga, include)
                 },
             )
-            else -> {}
         }
-
-        // KMK -->
-        // Bulk-favorite actions only
-        BulkFavoriteDialogs(
-            bulkFavoriteViewModel = bulkFavoriteViewModel,
-            dialog = bulkFavoriteState.dialog,
+        is BrowseSourceViewModel.Dialog.CreateSavedSearch -> SavedSearchCreateDialog(
+            onDismissRequest = onDismissRequest,
+            currentSavedSearches = dialog.currentSavedSearches,
+            saveSearch = viewModel::saveSearch,
         )
-        // KMK <--
-
-        LaunchedEffect(Unit) {
-            queryEvent.receiveAsFlow()
-                .collectLatest {
-                    when (it) {
-                        is SearchType.Genre -> viewModel.searchGenre(it.txt)
-                        is SearchType.Text -> viewModel.search(it.txt)
-                    }
-                }
-        }
+        is BrowseSourceViewModel.Dialog.DeleteSavedSearch -> SavedSearchDeleteDialog(
+            onDismissRequest = onDismissRequest,
+            name = dialog.name,
+            deleteSavedSearch = {
+                viewModel.deleteSearch(dialog.idToDelete)
+            },
+        )
+        else -> {}
     }
 
-    suspend fun search(query: String) = queryEvent.send(SearchType.Text(query))
-    suspend fun searchGenre(name: String) = queryEvent.send(SearchType.Genre(name))
+    // KMK -->
+    // Bulk-favorite actions only
+    BulkFavoriteDialogs(
+        bulkFavoriteViewModel = bulkFavoriteViewModel,
+        dialog = bulkFavoriteState.dialog,
+    )
+    // KMK <--
 
-    companion object {
-        private val queryEvent = Channel<SearchType>()
-    }
-
-    sealed class SearchType(val txt: String) {
-        class Text(txt: String) : SearchType(txt)
-        class Genre(txt: String) : SearchType(txt)
+    ResultEffect<BrowseSearchEvent> {
+        if (it.genre) viewModel.searchGenre(it.query) else viewModel.search(it.query)
     }
 }
+
+data class BrowseSearchEvent(val query: String, val genre: Boolean = false)

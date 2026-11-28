@@ -535,6 +535,13 @@ open class BrowseSourceViewModel(
         state.update { it.copy(dialog = dialog) }
     }
 
+    fun showMigrateDialog(currentMangaId: Long, target: Manga) {
+        viewModelScope.launch {
+            val current = getManga.await(currentMangaId) ?: return@launch
+            setDialog(Dialog.Migrate(target = target, current = current))
+        }
+    }
+
     fun setToolbarQuery(query: String?) {
         state.update { it.copy(toolbarQuery = query) }
     }

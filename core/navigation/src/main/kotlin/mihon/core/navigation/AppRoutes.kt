@@ -23,6 +23,12 @@ data class MangaNotesRoute(val mangaId: Long) : NavKey
 data class MangaRoute(
     val mangaId: Long,
     val fromSource: Boolean = false,
+    // KUN -->
+    // Smart-search state the fork's manga screen carries: the entry a merge is being searched for.
+    // Flattened into primitives because the concrete type lives in the app module.
+    val smartSearchTitle: String? = null,
+    val smartSearchMangaId: Long? = null,
+    // KUN <--
 ) : NavKey
 
 @Serializable
@@ -45,6 +51,14 @@ data object UpcomingRoute : NavKey
 data class BrowseSourceRoute(
     val sourceId: Long,
     val listingQuery: String?,
+    // KUN -->
+    // TachiyomiSY's extra entry points into a source's browse screen: a saved search, the EH filter
+    // state and the smart-search state (see [MangaRoute]).
+    val filtersJson: String? = null,
+    val savedSearch: Long? = null,
+    val smartSearchTitle: String? = null,
+    val smartSearchMangaId: Long? = null,
+    // KUN <--
 ) : NavKey
 
 @Serializable
@@ -75,6 +89,10 @@ data class MigrationConfigRoute(val mangaIds: Collection<Long>) : NavKey {
 data class MigrationListRoute(
     val mangaIds: Collection<Long>,
     val extraSearchQuery: String?,
+    // KUN -->
+    /** Komikku's migration-smart-search preference for a single entry. */
+    val isSmartSearchSingleEntry: Boolean = false,
+    // KUN <--
 ) : NavKey
 
 @Serializable
@@ -95,6 +113,9 @@ data class NewUpdateRoute(
     val changelogInfo: String,
     val releaseLink: String,
     val downloadLink: String,
+    // KUN -->
+    val digest: String? = null,
+    // KUN <--
 ) : NavKey
 
 @Serializable

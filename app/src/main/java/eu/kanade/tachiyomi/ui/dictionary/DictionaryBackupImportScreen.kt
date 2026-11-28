@@ -40,8 +40,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import cafe.adriel.voyager.navigator.LocalNavigator
-import cafe.adriel.voyager.navigator.currentOrThrow
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
@@ -49,7 +47,6 @@ import dev.zacsweers.metro.binding
 import dev.zacsweers.metrox.viewmodel.ViewModelKey
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 import eu.kanade.presentation.components.AppBar
-import eu.kanade.presentation.util.Screen
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -59,6 +56,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import mihon.core.dictionary.repository.DictionaryRepository
+import mihon.core.navigation.LocalNavigator
 import tachiyomi.i18n.kun.KUNMR
 import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.i18n.stringResource
@@ -71,256 +69,251 @@ import tachiyomi.presentation.core.i18n.stringResource
  * It never loads the file into memory; [DictionaryBackupImporter] streams it and routes each
  * reconstructed ZIP through the existing [DictionaryImportCoordinator].
  */
-class DictionaryBackupImportScreen : Screen() {
+@Composable
+fun DictionaryBackupImportScreen() {
+    val context = LocalContext.current
+    val navigator = LocalNavigator.current
+    val viewModel = metroViewModel<DictionaryBackupImportViewModel>()
+    val state by viewModel.state.collectAsState()
+    var confirmCancel by remember { mutableStateOf(false) }
 
-    @Composable
-    override fun Content() {
-        val context = LocalContext.current
-        val navigator = LocalNavigator.currentOrThrow
-        val viewModel = metroViewModel<DictionaryBackupImportViewModel>()
-        val state by viewModel.state.collectAsState()
-        var confirmCancel by remember { mutableStateOf(false) }
-
-        val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
-            if (uri != null) {
-                runCatching {
-                    context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                }
-                viewModel.onPicked(uri)
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+        if (uri != null) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
+            viewModel.onPicked(uri)
         }
+    }
 
-        val running = state.phase == DictionaryBackupImportViewModel.Phase.Running
+    val running = state.phase == DictionaryBackupImportViewModel.Phase.Running
 
-        BackHandler(enabled = running) { confirmCancel = true }
+    BackHandler(enabled = running) { confirmCancel = true }
 
-        Scaffold(
-            topBar = {
-                AppBar(
-                    title = stringResource(KUNMR.strings.pref_import_yomitan_backup),
-                    navigateUp = { if (running) confirmCancel = true else navigator.pop() },
-                    scrollBehavior = it,
-                )
-            },
-        ) { padding ->
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(16.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                when (state.phase) {
-                    DictionaryBackupImportViewModel.Phase.Idle ->
-                        Intro(onChoose = { picker.launch(BACKUP_MIME_TYPES) })
+    Scaffold(
+        topBar = {
+            AppBar(
+                title = stringResource(KUNMR.strings.pref_import_yomitan_backup),
+                navigateUp = { if (running) confirmCancel = true else navigator.pop() },
+                scrollBehavior = it,
+            )
+        },
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(16.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            when (state.phase) {
+                DictionaryBackupImportViewModel.Phase.Idle ->
+                    Intro(onChoose = { picker.launch(BACKUP_MIME_TYPES) })
 
-                    DictionaryBackupImportViewModel.Phase.Ready -> {
-                        val inspection = state.inspection
-                        if (inspection != null) Ready(inspection = inspection)
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(onClick = viewModel::start) {
-                                Text(stringResource(KUNMR.strings.yomitan_backup_import))
-                            }
-                            OutlinedButton(onClick = { picker.launch(BACKUP_MIME_TYPES) }) {
-                                Text(stringResource(KUNMR.strings.yomitan_backup_choose_file))
-                            }
+                DictionaryBackupImportViewModel.Phase.Ready -> {
+                    val inspection = state.inspection
+                    if (inspection != null) Ready(inspection = inspection)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = viewModel::start) {
+                            Text(stringResource(KUNMR.strings.yomitan_backup_import))
                         }
-                    }
-
-                    DictionaryBackupImportViewModel.Phase.Running ->
-                        Running(state = state, onCancel = { confirmCancel = true })
-
-                    DictionaryBackupImportViewModel.Phase.Done -> {
-                        state.summary?.let { Done(summary = it) }
-                        Button(onClick = navigator::pop) {
-                            Text(stringResource(KUNMR.strings.yomitan_backup_done))
-                        }
-                    }
-
-                    DictionaryBackupImportViewModel.Phase.Error -> {
-                        Card(modifier = Modifier.fillMaxWidth()) {
-                            Text(
-                                text = stringResource(
-                                    KUNMR.strings.yomitan_backup_error,
-                                    state.error.orEmpty(),
-                                ),
-                                color = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.padding(16.dp),
-                            )
-                        }
-                        OutlinedButton(onClick = viewModel::reset) {
+                        OutlinedButton(onClick = { picker.launch(BACKUP_MIME_TYPES) }) {
                             Text(stringResource(KUNMR.strings.yomitan_backup_choose_file))
                         }
-                        Button(onClick = navigator::pop) {
-                            Text(stringResource(KUNMR.strings.yomitan_backup_done))
-                        }
+                    }
+                }
+
+                DictionaryBackupImportViewModel.Phase.Running ->
+                    Running(state = state, onCancel = { confirmCancel = true })
+
+                DictionaryBackupImportViewModel.Phase.Done -> {
+                    state.summary?.let { Done(summary = it) }
+                    Button(onClick = navigator::pop) {
+                        Text(stringResource(KUNMR.strings.yomitan_backup_done))
+                    }
+                }
+
+                DictionaryBackupImportViewModel.Phase.Error -> {
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            text = stringResource(
+                                KUNMR.strings.yomitan_backup_error,
+                                state.error.orEmpty(),
+                            ),
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(16.dp),
+                        )
+                    }
+                    OutlinedButton(onClick = viewModel::reset) {
+                        Text(stringResource(KUNMR.strings.yomitan_backup_choose_file))
+                    }
+                    Button(onClick = navigator::pop) {
+                        Text(stringResource(KUNMR.strings.yomitan_backup_done))
                     }
                 }
             }
         }
-
-        if (confirmCancel) {
-            AlertDialog(
-                onDismissRequest = { confirmCancel = false },
-                title = { Text(stringResource(KUNMR.strings.yomitan_backup_cancel_confirm_title)) },
-                text = { Text(stringResource(KUNMR.strings.yomitan_backup_cancel_confirm_message)) },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            confirmCancel = false
-                            viewModel.cancel()
-                            navigator.pop()
-                        },
-                    ) { Text(stringResource(KUNMR.strings.yomitan_backup_cancel)) }
-                },
-                dismissButton = {
-                    TextButton(onClick = { confirmCancel = false }) {
-                        Text(stringResource(KUNMR.strings.yomitan_backup_keep_importing))
-                    }
-                },
-            )
-        }
     }
 
-    @Composable
-    private fun Intro(onChoose: () -> Unit) {
-        Text(stringResource(KUNMR.strings.yomitan_backup_intro))
-        Button(onClick = onChoose, modifier = Modifier.fillMaxWidth()) {
-            Text(stringResource(KUNMR.strings.yomitan_backup_choose_file))
-        }
-    }
-
-    @Composable
-    private fun Ready(inspection: BackupInspection) {
-        val context = LocalContext.current
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(inspection.displayName, style = MaterialTheme.typography.titleMedium)
-                Text(
-                    stringResource(
-                        KUNMR.strings.yomitan_backup_warning_space,
-                        formatBytes(context, inspection.sizeBytes),
-                        formatBytes(context, inspection.requiredBytes),
-                        formatBytes(context, inspection.freeBytes),
-                    ),
-                )
-                if (!inspection.hasRecommendedSpace) {
-                    Text(
-                        text = stringResource(
-                            KUNMR.strings.yomitan_backup_warning_low_space,
-                            formatBytes(context, inspection.freeBytes),
-                            formatBytes(context, inspection.requiredBytes),
-                        ),
-                        color = MaterialTheme.colorScheme.error,
-                    )
+    if (confirmCancel) {
+        AlertDialog(
+            onDismissRequest = { confirmCancel = false },
+            title = { Text(stringResource(KUNMR.strings.yomitan_backup_cancel_confirm_title)) },
+            text = { Text(stringResource(KUNMR.strings.yomitan_backup_cancel_confirm_message)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmCancel = false
+                        viewModel.cancel()
+                        navigator.pop()
+                    },
+                ) { Text(stringResource(KUNMR.strings.yomitan_backup_cancel)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmCancel = false }) {
+                    Text(stringResource(KUNMR.strings.yomitan_backup_keep_importing))
                 }
-                Text(stringResource(KUNMR.strings.yomitan_backup_warning_no_styles))
-            }
-        }
-    }
-
-    @Composable
-    private fun Running(state: DictionaryBackupImportViewModel.State, onCancel: () -> Unit) {
-        val progress = when {
-            state.dictTotal > 0 -> state.dictIndex.toFloat() / state.dictTotal
-            state.rowsTotal > 0 -> state.rowsRead.toFloat() / state.rowsTotal
-            else -> null
-        }
-        Text(
-            if (state.currentTitle.isNotEmpty()) {
-                stringResource(
-                    KUNMR.strings.yomitan_backup_importing,
-                    state.dictIndex,
-                    state.dictTotal,
-                    state.currentTitle,
-                )
-            } else {
-                stringResource(KUNMR.strings.yomitan_backup_parsing, state.rowsRead, state.rowsTotal)
             },
         )
-        if (progress != null) {
-            LinearProgressIndicator(
-                progress = { progress.coerceIn(0f, 1f) },
-                modifier = Modifier.fillMaxWidth(),
-            )
-        } else {
-            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-        }
-        if (state.importedCount > 0 || state.failedCount > 0) {
+    }
+}
+
+@Composable
+private fun Intro(onChoose: () -> Unit) {
+    Text(stringResource(KUNMR.strings.yomitan_backup_intro))
+    Button(onClick = onChoose, modifier = Modifier.fillMaxWidth()) {
+        Text(stringResource(KUNMR.strings.yomitan_backup_choose_file))
+    }
+}
+
+@Composable
+private fun Ready(inspection: BackupInspection) {
+    val context = LocalContext.current
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(inspection.displayName, style = MaterialTheme.typography.titleMedium)
             Text(
                 stringResource(
-                    KUNMR.strings.yomitan_backup_running_counts,
-                    state.importedCount,
-                    state.failedCount,
+                    KUNMR.strings.yomitan_backup_warning_space,
+                    formatBytes(context, inspection.sizeBytes),
+                    formatBytes(context, inspection.requiredBytes),
+                    formatBytes(context, inspection.freeBytes),
                 ),
             )
-        }
-        Spacer(Modifier.height(4.dp))
-        OutlinedButton(onClick = onCancel) {
-            Text(stringResource(KUNMR.strings.yomitan_backup_cancel))
-        }
-    }
-
-    @Composable
-    private fun Done(summary: BackupImportSummary) {
-        Text(
-            text = stringResource(KUNMR.strings.yomitan_backup_done_title),
-            style = MaterialTheme.typography.titleLarge,
-        )
-        Text(
-            stringResource(
-                KUNMR.strings.yomitan_backup_summary,
-                summary.imported.size,
-                summary.skipped.size,
-                summary.failed.size,
-                formatElapsed(summary.elapsedMs),
-            ),
-        )
-        if (summary.malformedRows > 0) {
-            Text(stringResource(KUNMR.strings.yomitan_backup_summary_malformed, summary.malformedRows))
-        }
-        if (summary.imported.isEmpty() && summary.skipped.isEmpty() && summary.failed.isEmpty()) {
-            Text(stringResource(KUNMR.strings.yomitan_backup_none))
-        }
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            summary.imported.forEach { dictionary ->
+            if (!inspection.hasRecommendedSpace) {
                 Text(
-                    stringResource(
-                        KUNMR.strings.yomitan_backup_imported_item,
-                        dictionary.title,
-                        dictionary.termCount,
+                    text = stringResource(
+                        KUNMR.strings.yomitan_backup_warning_low_space,
+                        formatBytes(context, inspection.freeBytes),
+                        formatBytes(context, inspection.requiredBytes),
                     ),
-                )
-            }
-            summary.skipped.forEach { title ->
-                Text(stringResource(KUNMR.strings.yomitan_backup_skipped_item, title))
-            }
-            summary.failed.forEach { failure ->
-                Text(
-                    text = stringResource(KUNMR.strings.yomitan_backup_failed_item, failure.title, failure.reason),
                     color = MaterialTheme.colorScheme.error,
                 )
             }
+            Text(stringResource(KUNMR.strings.yomitan_backup_warning_no_styles))
         }
-    }
-
-    private fun formatBytes(context: Context, bytes: Long): String =
-        Formatter.formatFileSize(context, bytes)
-
-    private fun formatElapsed(millis: Long): String {
-        val seconds = millis / 1000
-        return if (seconds < 60) {
-            "${seconds}s"
-        } else {
-            "${seconds / 60}m ${seconds % 60}s"
-        }
-    }
-
-    private companion object {
-        val BACKUP_MIME_TYPES = arrayOf("application/json", "application/octet-stream", "*/*")
     }
 }
+
+@Composable
+private fun Running(state: DictionaryBackupImportViewModel.State, onCancel: () -> Unit) {
+    val progress = when {
+        state.dictTotal > 0 -> state.dictIndex.toFloat() / state.dictTotal
+        state.rowsTotal > 0 -> state.rowsRead.toFloat() / state.rowsTotal
+        else -> null
+    }
+    Text(
+        if (state.currentTitle.isNotEmpty()) {
+            stringResource(
+                KUNMR.strings.yomitan_backup_importing,
+                state.dictIndex,
+                state.dictTotal,
+                state.currentTitle,
+            )
+        } else {
+            stringResource(KUNMR.strings.yomitan_backup_parsing, state.rowsRead, state.rowsTotal)
+        },
+    )
+    if (progress != null) {
+        LinearProgressIndicator(
+            progress = { progress.coerceIn(0f, 1f) },
+            modifier = Modifier.fillMaxWidth(),
+        )
+    } else {
+        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+    }
+    if (state.importedCount > 0 || state.failedCount > 0) {
+        Text(
+            stringResource(
+                KUNMR.strings.yomitan_backup_running_counts,
+                state.importedCount,
+                state.failedCount,
+            ),
+        )
+    }
+    Spacer(Modifier.height(4.dp))
+    OutlinedButton(onClick = onCancel) {
+        Text(stringResource(KUNMR.strings.yomitan_backup_cancel))
+    }
+}
+
+@Composable
+private fun Done(summary: BackupImportSummary) {
+    Text(
+        text = stringResource(KUNMR.strings.yomitan_backup_done_title),
+        style = MaterialTheme.typography.titleLarge,
+    )
+    Text(
+        stringResource(
+            KUNMR.strings.yomitan_backup_summary,
+            summary.imported.size,
+            summary.skipped.size,
+            summary.failed.size,
+            formatElapsed(summary.elapsedMs),
+        ),
+    )
+    if (summary.malformedRows > 0) {
+        Text(stringResource(KUNMR.strings.yomitan_backup_summary_malformed, summary.malformedRows))
+    }
+    if (summary.imported.isEmpty() && summary.skipped.isEmpty() && summary.failed.isEmpty()) {
+        Text(stringResource(KUNMR.strings.yomitan_backup_none))
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        summary.imported.forEach { dictionary ->
+            Text(
+                stringResource(
+                    KUNMR.strings.yomitan_backup_imported_item,
+                    dictionary.title,
+                    dictionary.termCount,
+                ),
+            )
+        }
+        summary.skipped.forEach { title ->
+            Text(stringResource(KUNMR.strings.yomitan_backup_skipped_item, title))
+        }
+        summary.failed.forEach { failure ->
+            Text(
+                text = stringResource(KUNMR.strings.yomitan_backup_failed_item, failure.title, failure.reason),
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+    }
+}
+
+private fun formatBytes(context: Context, bytes: Long): String =
+    Formatter.formatFileSize(context, bytes)
+
+private fun formatElapsed(millis: Long): String {
+    val seconds = millis / 1000
+    return if (seconds < 60) {
+        "${seconds}s"
+    } else {
+        "${seconds / 60}m ${seconds % 60}s"
+    }
+}
+
+private val BACKUP_MIME_TYPES = arrayOf("application/json", "application/octet-stream", "*/*")
 
 /**
  * Owns the running import. The work lives in [viewModelScope] on [Dispatchers.IO] with a partial

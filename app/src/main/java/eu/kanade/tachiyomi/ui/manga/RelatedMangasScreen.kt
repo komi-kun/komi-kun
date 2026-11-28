@@ -13,7 +13,6 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
-import cafe.adriel.voyager.navigator.Navigator
 import eu.kanade.core.preference.asState
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.presentation.browse.RelatedMangasContent
@@ -24,6 +23,10 @@ import eu.kanade.tachiyomi.ui.browse.source.browse.BrowseSourceScreen
 import eu.kanade.tachiyomi.ui.browse.source.globalsearch.GlobalSearchScreen
 import kotlinx.coroutines.CoroutineScope
 import mihon.app.di.appGraph
+import mihon.core.navigation.BrowseSourceRoute
+import mihon.core.navigation.GlobalSearchRoute
+import mihon.core.navigation.MangaRoute
+import mihon.core.navigation.Navigator
 import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.presentation.core.components.material.Scaffold
 
@@ -95,21 +98,21 @@ fun RelatedMangasScreen(
                 if (bulkFavoriteState.selectionMode) {
                     bulkFavoriteViewModel.toggleSelection(manga)
                 } else {
-                    navigator.push(MangaScreen(manga.id, true))
+                    navigator.push(MangaRoute(manga.id, true))
                 }
             },
             onMangaLongClick = { manga ->
                 if (!bulkFavoriteState.selectionMode) {
                     bulkFavoriteViewModel.addRemoveManga(manga, haptic)
                 } else {
-                    navigator.push(MangaScreen(manga.id, true))
+                    navigator.push(MangaRoute(manga.id, true))
                 }
             },
             onKeywordClick = { query ->
-                navigator.push(BrowseSourceScreen(successState.source.id, query))
+                navigator.push(BrowseSourceRoute(successState.source.id, query))
             },
             onKeywordLongClick = { query ->
-                navigator.push(GlobalSearchScreen(query))
+                navigator.push(GlobalSearchRoute(query))
             },
             selection = bulkFavoriteState.selection,
         )

@@ -301,6 +301,20 @@ class MangaViewModel(
     internal val autoOpenTrack: Boolean
         get() = successState?.hasLoggedInTrackers == true && trackPreferences.trackOnAddingToLibrary.get()
 
+    // KUN -->
+    /**
+     * Set when the track dialog should open on its own after the entry was added to the library.
+     * The screen consumes it and pushes `TrackInfoDialogRoute` — the dialog is a navigation route
+     * now, so the view model can no longer open it itself.
+     */
+    internal var openTrackDialogRequested: Boolean = false
+        private set
+
+    internal fun consumeTrackDialogRequest() {
+        openTrackDialogRequested = false
+    }
+    // KUN <--
+
     // EXH -->
     val redirectFlow: MutableSharedFlow<EXHRedirect> = MutableSharedFlow()
 
@@ -975,7 +989,9 @@ class MangaViewModel(
                 // Finally match with enhanced tracking when available
                 addTracks.bindEnhancedTrackers(manga, state.source)
                 if (autoOpenTrack && !showTrackDialogAfterCategorySelection) {
-                    showTrackDialog()
+                    // KUN -->
+                    openTrackDialogRequested = true
+                    // KUN <--
                 }
             }
         }
@@ -1887,7 +1903,6 @@ class MangaViewModel(
         // KMK <--
 
         data object SettingsSheet : Dialog
-        data object TrackSheet : Dialog
         data object FullCover : Dialog
     }
 
@@ -1901,10 +1916,6 @@ class MangaViewModel(
 
     fun showSettingsDialog() {
         dialog.value = Dialog.SettingsSheet
-    }
-
-    fun showTrackDialog() {
-        dialog.value = Dialog.TrackSheet
     }
 
     fun showCoverDialog() {

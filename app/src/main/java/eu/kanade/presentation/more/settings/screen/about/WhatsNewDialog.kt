@@ -6,6 +6,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import eu.kanade.tachiyomi.BuildConfig
 import tachiyomi.i18n.MR
@@ -30,7 +31,7 @@ fun WhatsNewDialog(
                 Text(text = stringResource(MR.strings.whats_new))
             }
         },
-        text = { Text(text = AboutScreen.getVersionName(withBuildDate = true)) },
+        text = { Text(text = getVersionName(buildTime = getFormattedBuildTime(LocalContext.current))) },
         // KMK <--
     )
 }

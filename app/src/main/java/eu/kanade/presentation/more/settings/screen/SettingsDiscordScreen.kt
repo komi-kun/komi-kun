@@ -24,13 +24,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
-import cafe.adriel.voyager.navigator.LocalNavigator
-import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.domain.connections.service.ConnectionsPreferences
 import eu.kanade.presentation.category.visualName
 import eu.kanade.presentation.more.settings.Preference
 import eu.kanade.presentation.more.settings.widget.TextPreferenceWidget
+import kotlinx.serialization.Serializable
 import mihon.app.di.appGraph
+import mihon.core.navigation.DiscordAccountsRoute
+import mihon.core.navigation.LocalNavigator
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.automirroredrounded.Help
 import mihon.icons.materialsymbols.automirroredrounded.Logout
@@ -40,9 +41,8 @@ import tachiyomi.presentation.core.components.material.padding
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsState
 
-object SettingsDiscordScreen : SearchableSettings {
-    @Suppress("unused")
-    private fun readResolve(): Any = SettingsDiscordScreen
+@Serializable
+data object SettingsDiscordScreen : SearchableSettings {
 
     @ReadOnlyComposable
     @Composable
@@ -61,7 +61,7 @@ object SettingsDiscordScreen : SearchableSettings {
 
     @Composable
     override fun getPreferences(): List<Preference> {
-        val navigator = LocalNavigator.currentOrThrow
+        val navigator = LocalNavigator.current
         val context = LocalContext.current
         val connectionsPreferences = remember { context.appGraph.connectionsPreferences }
         val connectionsManager = remember { context.appGraph.connectionsManager }
@@ -156,7 +156,7 @@ object SettingsDiscordScreen : SearchableSettings {
         return listOf(
             Preference.PreferenceItem.TextPreference(
                 title = stringResource(KMR.strings.discord_accounts),
-                onClick = { navigator.push(DiscordAccountsScreen) },
+                onClick = { navigator.push(DiscordAccountsRoute) },
             ),
             Preference.PreferenceGroup(
                 title = stringResource(KMR.strings.connections_discord),

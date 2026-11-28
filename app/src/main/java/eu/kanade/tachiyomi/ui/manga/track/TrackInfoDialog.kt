@@ -1,7 +1,12 @@
 package eu.kanade.tachiyomi.ui.manga.track
 
 import android.content.Context
+import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -20,6 +25,7 @@ import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -35,9 +41,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import cafe.adriel.voyager.navigator.LocalNavigator
-import cafe.adriel.voyager.navigator.Navigator
-import cafe.adriel.voyager.navigator.currentOrThrow
+import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
+import androidx.navigation3.runtime.NavKey
+import androidx.navigation3.runtime.entryProvider
+import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import dev.icerock.moko.resources.StringResource
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.Assisted
@@ -51,13 +58,13 @@ import eu.kanade.domain.track.interactor.RefreshTracks
 import eu.kanade.domain.track.model.toDbTrack
 import eu.kanade.domain.track.service.TrackPreferences
 import eu.kanade.domain.ui.UiPreferences
+import eu.kanade.presentation.components.AdaptiveSheet
 import eu.kanade.presentation.track.TrackChapterSelector
 import eu.kanade.presentation.track.TrackDateSelector
 import eu.kanade.presentation.track.TrackInfoDialogHome
 import eu.kanade.presentation.track.TrackScoreSelector
 import eu.kanade.presentation.track.TrackStatusSelector
 import eu.kanade.presentation.track.TrackerSearch
-import eu.kanade.presentation.util.Screen
 import eu.kanade.tachiyomi.data.track.DeletableTracker
 import eu.kanade.tachiyomi.data.track.EnhancedTracker
 import eu.kanade.tachiyomi.data.track.TrackerManager
@@ -86,9 +93,14 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+import kotlinx.serialization.Serializable
 import logcat.LogPriority
 import mihon.app.di.appGraph
 import mihon.core.metro.AppCoroutineScope
+import mihon.core.navigation.LocalNavigator
+import mihon.core.navigation.Navigator
+import mihon.core.navigation.NavigatorDisplay
+import mihon.core.navigation.rememberNavigator
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.roundedfilled.Delete
 import tachiyomi.core.common.i18n.stringResource
@@ -113,983 +125,1074 @@ import tachiyomi.presentation.core.i18n.stringResource
 import kotlin.time.Clock
 import kotlin.time.Instant
 
-data class TrackInfoDialogHomeScreen(
-    private val mangaId: Long,
-    private val mangaTitle: String,
-    private val sourceId: Long,
-) : Screen() {
+@Serializable
+data class TrackInfoDialogHomeRoute(
+    val mangaId: Long,
+    val mangaTitle: String,
+    val sourceId: Long,
+) : NavKey
 
-    @Composable
-    override fun Content() {
-        val navigator = LocalNavigator.currentOrThrow
-        val context = LocalContext.current
-        val locale = LocalLocale.current
-        val viewModel = assistedMetroViewModel<Model, Model.Factory> { create(mangaId = mangaId, sourceId = sourceId) }
+@Composable
+fun TrackInfoDialogHomeScreen(
+    mangaId: Long,
+    mangaTitle: String,
+    sourceId: Long,
+) {
+    val navigator = LocalNavigator.current
+    val context = LocalContext.current
+    val locale = LocalLocale.current
+    val viewModel = assistedMetroViewModel<TrackInfoDialogHomeViewModel, TrackInfoDialogHomeViewModel.Factory> {
+        create(mangaId = mangaId, sourceId = sourceId)
+    }
 
-        val dateFormat = remember {
-            UiPreferences.dateFormat(
-                context.appGraph.uiPreferences.dateFormat.get(),
-                locale.platformLocale,
+    val dateFormat = remember {
+        UiPreferences.dateFormat(
+            context.appGraph.uiPreferences.dateFormat.get(),
+            locale.platformLocale,
+        )
+    }
+    val state by viewModel.state.collectAsState()
+
+    // SY -->
+    Column(modifier = Modifier.animateContentSize()) {
+        if (state.isLoading) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(32.dp)
+                    .windowInsetsPadding(WindowInsets.systemBars),
+                verticalArrangement = Arrangement.spacedBy(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                CircularProgressIndicator()
+                Text(
+                    stringResource(MR.strings.loading),
+                    fontSize = 14.sp,
+                )
+            }
+        }
+        // SY <--
+        else {
+            TrackInfoDialogHome(
+                trackItems = state.trackItems,
+                dateFormat = dateFormat,
+                onStatusClick = {
+                    navigator.push(
+                        TrackStatusSelectorRoute(
+                            track = it.track!!,
+                            serviceId = it.tracker.id,
+                        ),
+                    )
+                },
+                onChapterClick = {
+                    navigator.push(
+                        TrackChapterSelectorRoute(
+                            track = it.track!!,
+                            serviceId = it.tracker.id,
+                        ),
+                    )
+                },
+                onScoreClick = {
+                    navigator.push(
+                        TrackScoreSelectorRoute(
+                            track = it.track!!,
+                            serviceId = it.tracker.id,
+                        ),
+                    )
+                },
+                onStartDateEdit = {
+                    navigator.push(
+                        TrackDateSelectorRoute(
+                            track = it.track!!,
+                            serviceId = it.tracker.id,
+                            start = true,
+                        ),
+                    )
+                },
+                onEndDateEdit = {
+                    navigator.push(
+                        TrackDateSelectorRoute(
+                            track = it.track!!,
+                            serviceId = it.tracker.id,
+                            start = false,
+                        ),
+                    )
+                },
+                onNewSearch = {
+                    if (it.tracker is EnhancedTracker) {
+                        viewModel.registerEnhancedTracking(it)
+                    } else {
+                        // SY -->
+                        viewModel.newSearch(navigator, it, mangaTitle)
+                        // SY <--
+                    }
+                },
+                onOpenInBrowser = { openTrackerInBrowser(context, it) },
+                onRemoved = {
+                    navigator.push(
+                        TrackerRemoveRoute(
+                            mangaId = mangaId,
+                            track = it.track!!,
+                            serviceId = it.tracker.id,
+                        ),
+                    )
+                },
+                onCopyLink = { context.copyTrackerLink(it) },
+                onTogglePrivate = viewModel::togglePrivate,
             )
         }
-        val state by viewModel.state.collectAsState()
+    }
+}
 
-        // SY -->
-        Column(modifier = Modifier.animateContentSize()) {
-            if (state.isLoading) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(32.dp)
-                        .windowInsetsPadding(WindowInsets.systemBars),
-                    verticalArrangement = Arrangement.spacedBy(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    CircularProgressIndicator()
-                    Text(
-                        stringResource(MR.strings.loading),
-                        fontSize = 14.sp,
-                    )
-                }
-            }
-            // SY <--
-            else {
-                TrackInfoDialogHome(
-                    trackItems = state.trackItems,
-                    dateFormat = dateFormat,
-                    onStatusClick = {
-                        navigator.push(
-                            TrackStatusSelectorScreen(
-                                track = it.track!!,
-                                serviceId = it.tracker.id,
-                            ),
-                        )
-                    },
-                    onChapterClick = {
-                        navigator.push(
-                            TrackChapterSelectorScreen(
-                                track = it.track!!,
-                                serviceId = it.tracker.id,
-                            ),
-                        )
-                    },
-                    onScoreClick = {
-                        navigator.push(
-                            TrackScoreSelectorScreen(
-                                track = it.track!!,
-                                serviceId = it.tracker.id,
-                            ),
-                        )
-                    },
-                    onStartDateEdit = {
-                        navigator.push(
-                            TrackDateSelectorScreen(
-                                track = it.track!!,
-                                serviceId = it.tracker.id,
-                                start = true,
-                            ),
-                        )
-                    },
-                    onEndDateEdit = {
-                        navigator.push(
-                            TrackDateSelectorScreen(
-                                track = it.track!!,
-                                serviceId = it.tracker.id,
-                                start = false,
-                            ),
-                        )
-                    },
-                    onNewSearch = {
-                        if (it.tracker is EnhancedTracker) {
-                            viewModel.registerEnhancedTracking(it)
-                        } else {
-                            // SY -->
-                            viewModel.newSearch(navigator, it, mangaTitle)
-                            // SY <--
-                        }
-                    },
-                    onOpenInBrowser = { openTrackerInBrowser(context, it) },
-                    onRemoved = {
-                        navigator.push(
-                            TrackerRemoveScreen(
-                                mangaId = mangaId,
-                                track = it.track!!,
-                                serviceId = it.tracker.id,
-                            ),
-                        )
-                    },
-                    onCopyLink = { context.copyTrackerLink(it) },
-                    onTogglePrivate = viewModel::togglePrivate,
-                )
-            }
+/**
+ * Opens registered tracker url in browser
+ */
+private fun openTrackerInBrowser(context: Context, trackItem: TrackItem) {
+    val url = trackItem.track?.remoteUrl ?: return
+    if (url.isNotBlank()) {
+        context.openInBrowser(url)
+    }
+}
+
+private fun Context.copyTrackerLink(trackItem: TrackItem) {
+    val url = trackItem.track?.remoteUrl ?: return
+    if (url.isNotBlank()) {
+        copyToClipboard(url, url)
+    }
+}
+
+@AssistedInject
+class TrackInfoDialogHomeViewModel(
+    @Assisted private val mangaId: Long,
+    @Assisted private val sourceId: Long,
+    @AppCoroutineScope private val appScope: CoroutineScope,
+    private val context: Context,
+    private val getTracks: GetTracks,
+    private val trackerManager: TrackerManager,
+    // SY -->
+    private val trackPreferences: TrackPreferences,
+    // SY <--
+    // KMK -->
+    private val sourceManager: SourceManager,
+    private val getFlatMetadataById: GetFlatMetadataById,
+    private val getMangaById: GetManga,
+    private val getMergedEntriesById: GetMergedEntriesById,
+    // KMK <--
+    private val refreshTracks: RefreshTracks,
+) : ViewModel() {
+
+    val state: StateFlow<TrackInfoDialogHomeViewModel.State>
+        field = MutableStateFlow<TrackInfoDialogHomeViewModel.State>(State())
+
+    @AssistedFactory
+    @ManualViewModelAssistedFactoryKey
+    @ContributesIntoMap(AppScope::class)
+    interface Factory : ManualViewModelAssistedFactory {
+        fun create(mangaId: Long, sourceId: Long): TrackInfoDialogHomeViewModel
+    }
+
+    init {
+        viewModelScope.launch {
+            refreshTrackers()
+        }
+
+        viewModelScope.launch {
+            getTracks.subscribe(mangaId)
+                .catch { logcat(LogPriority.ERROR, it) }
+                .distinctUntilChanged()
+                .map { it.mapToTrackItem() }
+                .collectLatest { trackItems -> state.update { it.copy(trackItems = trackItems) } }
         }
     }
 
-    /**
-     * Opens registered tracker url in browser
-     */
-    private fun openTrackerInBrowser(context: Context, trackItem: TrackItem) {
-        val url = trackItem.track?.remoteUrl ?: return
-        if (url.isNotBlank()) {
-            context.openInBrowser(url)
+    // KMK -->
+    private suspend fun getMangaForTracking(item: TrackItem): Manga? {
+        if (sourceId != MERGED_SOURCE_ID) {
+            return getMangaById.await(mangaId)
         }
+        item.tracker as EnhancedTracker
+        // KUN -->
+        // An entry stores the child's manga id, so its source comes from the manga row.
+        val entries = getMergedEntriesById.await(mangaId)
+        return entries.firstNotNullOfOrNull { entry ->
+            val manga = getMangaById.await(entry.mangaId)
+            manga?.let { sourceManager.get(it.source) }
+                ?.takeIf(item.tracker::accept)
+                ?.let { manga }
+        }
+        // KUN <--
     }
+    // KMK <--
 
-    private fun Context.copyTrackerLink(trackItem: TrackItem) {
-        val url = trackItem.track?.remoteUrl ?: return
-        if (url.isNotBlank()) {
-            copyToClipboard(url, url)
-        }
-    }
-
-    @AssistedInject
-    class Model(
-        @Assisted private val mangaId: Long,
-        @Assisted private val sourceId: Long,
-        @AppCoroutineScope private val appScope: CoroutineScope,
-        private val context: Context,
-        private val getTracks: GetTracks,
-        private val trackerManager: TrackerManager,
-        // SY -->
-        private val trackPreferences: TrackPreferences,
-        // SY <--
-        // KMK -->
-        private val sourceManager: SourceManager,
-        private val getFlatMetadataById: GetFlatMetadataById,
-        private val getMangaById: GetManga,
-        private val getMergedEntriesById: GetMergedEntriesById,
-        // KMK <--
-        private val refreshTracks: RefreshTracks,
-    ) : ViewModel() {
-
-        val state: StateFlow<Model.State>
-            field = MutableStateFlow<Model.State>(State())
-
-        @AssistedFactory
-        @ManualViewModelAssistedFactoryKey
-        @ContributesIntoMap(AppScope::class)
-        interface Factory : ManualViewModelAssistedFactory {
-            fun create(mangaId: Long, sourceId: Long): Model
-        }
-
-        init {
-            viewModelScope.launch {
-                refreshTrackers()
-            }
-
-            viewModelScope.launch {
-                getTracks.subscribe(mangaId)
-                    .catch { logcat(LogPriority.ERROR, it) }
-                    .distinctUntilChanged()
-                    .map { it.mapToTrackItem() }
-                    .collectLatest { trackItems -> state.update { it.copy(trackItems = trackItems) } }
-            }
-        }
-
-        // KMK -->
-        private suspend fun getMangaForTracking(item: TrackItem): Manga? {
-            if (sourceId != MERGED_SOURCE_ID) {
-                return getMangaById.await(mangaId)
-            }
-            item.tracker as EnhancedTracker
-            // KUN -->
-            // An entry stores the child's manga id, so its source comes from the manga row.
-            val entries = getMergedEntriesById.await(mangaId)
-            return entries.firstNotNullOfOrNull { entry ->
-                val manga = getMangaById.await(entry.mangaId)
-                manga?.let { sourceManager.get(it.source) }
-                    ?.takeIf(item.tracker::accept)
-                    ?.let { manga }
-            }
-            // KUN <--
-        }
-        // KMK <--
-
-        fun registerEnhancedTracking(item: TrackItem) {
-            item.tracker as EnhancedTracker
-            appScope.launch {
-                val manga = getMangaForTracking(item) ?: return@launch
-                try {
-                    val matchResult = item.tracker.match(manga) ?: throw Exception()
-                    item.tracker.register(matchResult, mangaId)
-                } catch (_: Exception) {
-                    withContext(Dispatchers.Main) {
-                        context.toast(MR.strings.error_no_match)
-                    }
-                }
-            }
-        }
-
-        // SY -->
-        fun newSearch(navigator: Navigator, item: TrackItem, mangaTitle: String) {
-            viewModelScope.launchNonCancellable {
-                if (trackPreferences.resolveUsingSourceMetadata.get()) {
-                    // Check if the tracker id is contained in the metadata
-                    val result = getTrackerIdFromMetadata(item.tracker.id)
-                    if (result != null) {
-                        state.update { it.copy(isLoading = true) }
-
-                        // Try to register tracking by id
-                        val success = registerTrackingById(item.tracker.id, result)
-
-                        state.update { it.copy(isLoading = false) }
-
-                        if (success) {
-                            // Return on success
-                            return@launchNonCancellable
-                        }
-                    }
-                }
-
-                // Open search screen
-                navigator.push(
-                    TrackerSearchScreen(
-                        mangaId = mangaId,
-                        initialQuery = item.track?.title ?: mangaTitle,
-                        currentUrl = item.track?.remoteUrl,
-                        serviceId = item.tracker.id,
-                    ),
-                )
-            }
-        }
-
-        suspend fun getTrackerIdFromMetadata(trackerId: Long): String? {
+    fun registerEnhancedTracking(item: TrackItem) {
+        item.tracker as EnhancedTracker
+        appScope.launch {
+            val manga = getMangaForTracking(item) ?: return@launch
             try {
-                val metadataSource = sourceManager.get(sourceId)
-                    ?.getMainSource<MetadataSource<*, *>>() ?: return null
+                val matchResult = item.tracker.match(manga) ?: throw Exception()
+                item.tracker.register(matchResult, mangaId)
+            } catch (_: Exception) {
+                withContext(Dispatchers.Main) {
+                    context.toast(MR.strings.error_no_match)
+                }
+            }
+        }
+    }
 
-                return getFlatMetadataById.await(mangaId)?.run {
-                    // Use 'raise' to dynamically obtain the specific metadata type and then attempt to cast
-                    raise(metadataSource.metaClass) as? TrackerIdMetadata
-                }?.let { metadata ->
-                    when (trackerId) {
-                        trackerManager.aniList.id -> metadata.anilistId
-                        trackerManager.kitsu.id -> metadata.kitsuId
-                        trackerManager.myAnimeList.id -> metadata.myAnimeListId
-                        trackerManager.mangaUpdates.id -> metadata.mangaUpdatesId
-                        else -> null
+    // SY -->
+    fun newSearch(navigator: Navigator, item: TrackItem, mangaTitle: String) {
+        viewModelScope.launchNonCancellable {
+            if (trackPreferences.resolveUsingSourceMetadata.get()) {
+                // Check if the tracker id is contained in the metadata
+                val result = getTrackerIdFromMetadata(item.tracker.id)
+                if (result != null) {
+                    state.update { it.copy(isLoading = true) }
+
+                    // Try to register tracking by id
+                    val success = registerTrackingById(item.tracker.id, result)
+
+                    state.update { it.copy(isLoading = false) }
+
+                    if (success) {
+                        // Return on success
+                        return@launchNonCancellable
                     }
+                }
+            }
+
+            // Open search screen
+            navigator.push(
+                TrackerSearchRoute(
+                    mangaId = mangaId,
+                    initialQuery = item.track?.title ?: mangaTitle,
+                    currentUrl = item.track?.remoteUrl,
+                    serviceId = item.tracker.id,
+                ),
+            )
+        }
+    }
+
+    suspend fun getTrackerIdFromMetadata(trackerId: Long): String? {
+        try {
+            val metadataSource = sourceManager.get(sourceId)
+                ?.getMainSource<MetadataSource<*, *>>() ?: return null
+
+            return getFlatMetadataById.await(mangaId)?.run {
+                // Use 'raise' to dynamically obtain the specific metadata type and then attempt to cast
+                raise(metadataSource.metaClass) as? TrackerIdMetadata
+            }?.let { metadata ->
+                when (trackerId) {
+                    trackerManager.aniList.id -> metadata.anilistId
+                    trackerManager.kitsu.id -> metadata.kitsuId
+                    trackerManager.myAnimeList.id -> metadata.myAnimeListId
+                    trackerManager.mangaUpdates.id -> metadata.mangaUpdatesId
+                    else -> null
+                }
+            }
+        } catch (e: Throwable) {
+            logcat(LogPriority.ERROR, e) { "Failed to get tracker ID from metadata" }
+            return null
+        }
+    }
+
+    suspend fun registerTrackingById(trackerId: Long, remoteId: String): Boolean {
+        trackerManager.get(trackerId)?.let { tracker ->
+            try {
+                tracker.searchById(remoteId)?.let { track ->
+                    tracker.register(track, mangaId)
+                    return true
                 }
             } catch (e: Throwable) {
-                logcat(LogPriority.ERROR, e) { "Failed to get tracker ID from metadata" }
-                return null
+                logcat(LogPriority.ERROR, e) { "Failed to register tracking by id" }
             }
         }
-
-        suspend fun registerTrackingById(trackerId: Long, remoteId: String): Boolean {
-            trackerManager.get(trackerId)?.let { tracker ->
-                try {
-                    tracker.searchById(remoteId)?.let { track ->
-                        tracker.register(track, mangaId)
-                        return true
-                    }
-                } catch (e: Throwable) {
-                    logcat(LogPriority.ERROR, e) { "Failed to register tracking by id" }
-                }
-            }
-            return false
-        }
-        // SY <--
-
-        private suspend fun refreshTrackers() {
-            refreshTracks.await(mangaId)
-                .filter { it.first != null }
-                .forEach { (track, e) ->
-                    logcat(LogPriority.ERROR, e) {
-                        "Failed to refresh track data mangaId=$mangaId for service ${track!!.id}"
-                    }
-                    withContext(Dispatchers.Main) {
-                        context.toast(
-                            context.stringResource(
-                                MR.strings.track_error,
-                                track!!.name,
-                                e.message ?: "",
-                            ),
-                        )
-                    }
-                }
-        }
-
-        fun togglePrivate(item: TrackItem) {
-            appScope.launch {
-                item.tracker.setRemotePrivate(item.track!!.toDbTrack(), !item.track.private)
-            }
-        }
-
-        private suspend fun List<Track>.mapToTrackItem(): List<TrackItem> {
-            val loggedInTrackers = trackerManager.loggedInTrackers()
-            val source = sourceManager.getOrStub(sourceId)
-            return loggedInTrackers
-                // Map to TrackItem
-                .map { service -> TrackItem(find { it.trackerId == service.id }, service) }
-                // Show only if the service supports this manga's source
-                // KMK -->
-                .let { trackers ->
-                    val sources = if (source is MergedSource) {
-                        sourceManager.getMergedSources(mangaId)
-                    } else {
-                        listOf(source)
-                    }
-                    trackers.filter { (it.tracker as? EnhancedTracker)?.accept(sources) ?: true }
-                }
-            // KMK <--
-        }
-
-        @Immutable
-        data class State(
-            val trackItems: List<TrackItem> = emptyList(),
-            // SY -->
-            val isLoading: Boolean = false,
-            // SY <--
-        )
+        return false
     }
-}
+    // SY <--
 
-data class TrackStatusSelectorScreen(
-    private val track: Track,
-    private val serviceId: Long,
-) : Screen() {
-
-    @Composable
-    override fun Content() {
-        val navigator = LocalNavigator.currentOrThrow
-        val viewModel = assistedMetroViewModel<Model, Model.Factory> { create(track = track, trackerId = serviceId) }
-        val state by viewModel.state.collectAsState()
-        TrackStatusSelector(
-            selection = state.selection,
-            onSelectionChange = viewModel::setSelection,
-            selections = remember { viewModel.getSelections() },
-            onConfirm = {
-                viewModel.setStatus()
-                navigator.pop()
-            },
-            onDismissRequest = navigator::pop,
-        )
-    }
-
-    @AssistedInject
-    class Model(
-        @Assisted private val track: Track,
-        @Assisted private val trackerId: Long,
-        @AppCoroutineScope private val appScope: CoroutineScope,
-        trackerManager: TrackerManager,
-    ) : ViewModel() {
-
-        val state: StateFlow<Model.State>
-            field = MutableStateFlow<Model.State>(State(track.status))
-
-        @AssistedFactory
-        @ManualViewModelAssistedFactoryKey
-        @ContributesIntoMap(AppScope::class)
-        interface Factory : ManualViewModelAssistedFactory {
-            fun create(track: Track, trackerId: Long): Model
-        }
-
-        val tracker = trackerManager.get(trackerId)!!
-
-        fun getSelections(): Map<Long, StringResource?> {
-            return tracker.getStatusList().associateWith { tracker.getStatus(it) }
-        }
-
-        fun setSelection(selection: Long) {
-            state.update { it.copy(selection = selection) }
-        }
-
-        fun setStatus() {
-            appScope.launch {
-                tracker.setRemoteStatus(track.toDbTrack(), state.value.selection)
-            }
-        }
-
-        @Immutable
-        data class State(
-            val selection: Long,
-        )
-    }
-}
-
-data class TrackChapterSelectorScreen(
-    private val track: Track,
-    private val serviceId: Long,
-) : Screen() {
-
-    @Composable
-    override fun Content() {
-        val navigator = LocalNavigator.currentOrThrow
-        val viewModel = assistedMetroViewModel<Model, Model.Factory> { create(track = track, trackerId = serviceId) }
-        val state by viewModel.state.collectAsState()
-
-        TrackChapterSelector(
-            selection = state.selection,
-            onSelectionChange = viewModel::setSelection,
-            range = remember { viewModel.getRange() },
-            onConfirm = {
-                viewModel.setChapter()
-                navigator.pop()
-            },
-            onDismissRequest = navigator::pop,
-        )
-    }
-
-    @AssistedInject
-    class Model(
-        @Assisted private val track: Track,
-        @Assisted private val trackerId: Long,
-        @AppCoroutineScope private val appScope: CoroutineScope,
-        trackerManager: TrackerManager,
-    ) : ViewModel() {
-
-        val state: StateFlow<Model.State>
-            field = MutableStateFlow<Model.State>(State(track.lastChapterRead.toInt()))
-
-        @AssistedFactory
-        @ManualViewModelAssistedFactoryKey
-        @ContributesIntoMap(AppScope::class)
-        interface Factory : ManualViewModelAssistedFactory {
-            fun create(track: Track, trackerId: Long): Model
-        }
-
-        val tracker = trackerManager.get(trackerId)!!
-
-        fun getRange(): Iterable<Int> {
-            val endRange = if (track.totalChapters > 0) {
-                track.totalChapters
-            } else {
-                10000
-            }
-            return 0..endRange.toInt()
-        }
-
-        fun setSelection(selection: Int) {
-            state.update { it.copy(selection = selection) }
-        }
-
-        fun setChapter() {
-            appScope.launch {
-                tracker.setRemoteLastChapterRead(track.toDbTrack(), state.value.selection)
-            }
-        }
-
-        @Immutable
-        data class State(
-            val selection: Int,
-        )
-    }
-}
-
-data class TrackScoreSelectorScreen(
-    private val track: Track,
-    private val serviceId: Long,
-) : Screen() {
-
-    @Composable
-    override fun Content() {
-        val navigator = LocalNavigator.currentOrThrow
-        val viewModel = assistedMetroViewModel<Model, Model.Factory> { create(track = track, trackerId = serviceId) }
-        val state by viewModel.state.collectAsState()
-
-        TrackScoreSelector(
-            selection = state.selection,
-            onSelectionChange = viewModel::setSelection,
-            selections = remember { viewModel.getSelections() },
-            onConfirm = {
-                viewModel.setScore()
-                navigator.pop()
-            },
-            onDismissRequest = navigator::pop,
-        )
-    }
-
-    @AssistedInject
-    class Model(
-        @Assisted private val track: Track,
-        @Assisted private val trackerId: Long,
-        @AppCoroutineScope private val appScope: CoroutineScope,
-        trackerManager: TrackerManager,
-    ) : ViewModel() {
-
-        val state: StateFlow<Model.State>
-            field = MutableStateFlow<Model.State>(State(""))
-
-        @AssistedFactory
-        @ManualViewModelAssistedFactoryKey
-        @ContributesIntoMap(AppScope::class)
-        interface Factory : ManualViewModelAssistedFactory {
-            fun create(track: Track, trackerId: Long): Model
-        }
-
-        val tracker = trackerManager.get(trackerId)!!
-
-        init {
-            tracker.displayScore(track).let(::setSelection)
-        }
-
-        fun getSelections(): List<String> {
-            return tracker.getScoreList()
-        }
-
-        fun setSelection(selection: String) {
-            state.update { it.copy(selection = selection) }
-        }
-
-        fun setScore() {
-            appScope.launch {
-                tracker.setRemoteScore(track.toDbTrack(), state.value.selection)
-            }
-        }
-
-        @Immutable
-        data class State(
-            val selection: String,
-        )
-    }
-}
-
-data class TrackDateSelectorScreen(
-    private val track: Track,
-    private val serviceId: Long,
-    private val start: Boolean,
-) : Screen() {
-
-    @Transient
-    private val selectableDates = object : SelectableDates {
-        override fun isSelectableDate(utcTimeMillis: Long): Boolean {
-            val targetDate = Instant.fromEpochMilliseconds(utcTimeMillis).toLocalDateTime(TimeZone.UTC)
-
-            // Disallow future dates
-            if (targetDate > Clock.System.now().toLocalDateTime(TimeZone.UTC)) return false
-
-            val finishDate = track.finishDate?.toLocalDateTime(TimeZone.UTC)
-            val startDate = track.startDate?.toLocalDateTime(TimeZone.UTC)
-            return when {
-                // Disallow setting start date after finish date
-                start && finishDate != null -> {
-                    targetDate <= finishDate
+    private suspend fun refreshTrackers() {
+        refreshTracks.await(mangaId)
+            .filter { it.first != null }
+            .forEach { (track, e) ->
+                logcat(LogPriority.ERROR, e) {
+                    "Failed to refresh track data mangaId=$mangaId for service ${track!!.id}"
                 }
-                // Disallow setting finish date before start date
-                !start && startDate != null -> {
-                    startDate <= targetDate
-                }
-                else -> {
-                    true
-                }
-            }
-        }
-
-        override fun isSelectableYear(year: Int): Boolean {
-            // Disallow future years
-            if (year > Clock.System.now().toLocalDateTime(TimeZone.UTC).year) return false
-
-            val finishDate = track.finishDate?.toLocalDateTime(TimeZone.UTC)
-            val startDate = track.startDate?.toLocalDateTime(TimeZone.UTC)
-            return when {
-                // Disallow setting start year after finish year
-                start && finishDate != null -> {
-                    year <= finishDate.year
-                }
-                // Disallow setting finish year before start year
-                !start && startDate != null -> {
-                    startDate.year <= year
-                }
-                else -> {
-                    true
-                }
-            }
-        }
-    }
-
-    @Composable
-    override fun Content() {
-        val navigator = LocalNavigator.currentOrThrow
-        val viewModel = assistedMetroViewModel<Model, Model.Factory> {
-            create(track = track, trackerId = serviceId, start = start)
-        }
-
-        val canRemove = if (start) {
-            track.startDate != null
-        } else {
-            track.finishDate != null
-        }
-        TrackDateSelector(
-            title = if (start) {
-                stringResource(MR.strings.track_started_reading_date)
-            } else {
-                stringResource(MR.strings.track_finished_reading_date)
-            },
-            initialSelectedDateMillis = viewModel.initialSelection,
-            selectableDates = selectableDates,
-            onConfirm = {
-                viewModel.setDate(it)
-                navigator.pop()
-            },
-            onRemove = { viewModel.confirmRemoveDate(navigator) }.takeIf { canRemove },
-            onDismissRequest = navigator::pop,
-        )
-    }
-
-    @AssistedInject
-    class Model(
-        @Assisted private val track: Track,
-        @Assisted private val trackerId: Long,
-        @Assisted private val start: Boolean,
-        @AppCoroutineScope private val appScope: CoroutineScope,
-        trackerManager: TrackerManager,
-    ) : ViewModel() {
-
-        @AssistedFactory
-        @ManualViewModelAssistedFactoryKey
-        @ContributesIntoMap(AppScope::class)
-        interface Factory : ManualViewModelAssistedFactory {
-            fun create(track: Track, trackerId: Long, start: Boolean): Model
-        }
-
-        private val tracker = trackerManager.get(trackerId)!!
-
-        // In UTC
-        val initialSelection: Long
-            get() {
-                val date = (if (start) track.startDate else track.finishDate) ?: Clock.System.now()
-                return date.toEpochMilliseconds().convertEpochMillisZone(TimeZone.currentSystemDefault(), TimeZone.UTC)
-            }
-
-        // In UTC
-        fun setDate(millis: Long) {
-            // Convert to local time
-            val localMillis = millis.convertEpochMillisZone(TimeZone.UTC, TimeZone.currentSystemDefault())
-            appScope.launch {
-                if (start) {
-                    tracker.setRemoteStartDate(track.toDbTrack(), localMillis)
-                } else {
-                    tracker.setRemoteFinishDate(track.toDbTrack(), localMillis)
-                }
-            }
-        }
-
-        fun confirmRemoveDate(navigator: Navigator) {
-            navigator.push(TrackDateRemoverScreen(track, tracker.id, start))
-        }
-    }
-}
-
-data class TrackDateRemoverScreen(
-    private val track: Track,
-    private val serviceId: Long,
-    private val start: Boolean,
-) : Screen() {
-
-    @Composable
-    override fun Content() {
-        val navigator = LocalNavigator.currentOrThrow
-        val viewModel = assistedMetroViewModel<Model, Model.Factory> {
-            create(track = track, trackerId = serviceId, start = start)
-        }
-        AlertDialogContent(
-            modifier = Modifier.windowInsetsPadding(WindowInsets.systemBars),
-            icon = {
-                Icon(
-                    imageVector = MaterialSymbols.RoundedFilled.Delete,
-                    contentDescription = null,
-                )
-            },
-            title = {
-                Text(
-                    text = stringResource(MR.strings.track_remove_date_conf_title),
-                    textAlign = TextAlign.Center,
-                )
-            },
-            text = {
-                val serviceName = viewModel.getServiceName()
-                Text(
-                    text = if (start) {
-                        stringResource(MR.strings.track_remove_start_date_conf_text, serviceName)
-                    } else {
-                        stringResource(MR.strings.track_remove_finish_date_conf_text, serviceName)
-                    },
-                )
-            },
-            buttons = {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small, Alignment.End),
-                ) {
-                    TextButton(onClick = navigator::pop) {
-                        Text(text = stringResource(MR.strings.action_cancel))
-                    }
-                    FilledTonalButton(
-                        onClick = {
-                            viewModel.removeDate()
-                            navigator.popUntil { it is TrackInfoDialogHomeScreen }
-                        },
-                        colors = ButtonDefaults.filledTonalButtonColors(
-                            containerColor = MaterialTheme.colorScheme.errorContainer,
-                            contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                withContext(Dispatchers.Main) {
+                    context.toast(
+                        context.stringResource(
+                            MR.strings.track_error,
+                            track!!.name,
+                            e.message ?: "",
                         ),
-                    ) {
-                        Text(text = stringResource(MR.strings.action_remove))
-                    }
+                    )
                 }
-            },
-        )
+            }
     }
 
-    @AssistedInject
-    class Model(
-        @Assisted private val track: Track,
-        @Assisted private val trackerId: Long,
-        @Assisted private val start: Boolean,
-        @AppCoroutineScope private val appScope: CoroutineScope,
-        trackerManager: TrackerManager,
-    ) : ViewModel() {
-
-        @AssistedFactory
-        @ManualViewModelAssistedFactoryKey
-        @ContributesIntoMap(AppScope::class)
-        interface Factory : ManualViewModelAssistedFactory {
-            fun create(track: Track, trackerId: Long, start: Boolean): Model
+    fun togglePrivate(item: TrackItem) {
+        appScope.launch {
+            item.tracker.setRemotePrivate(item.track!!.toDbTrack(), !item.track.private)
         }
+    }
 
-        private val tracker = trackerManager.get(trackerId)!!
-
-        fun getServiceName() = tracker.name
-
-        fun removeDate() {
-            appScope.launch {
-                if (start) {
-                    tracker.setRemoteStartDate(track.toDbTrack(), 0)
+    private suspend fun List<Track>.mapToTrackItem(): List<TrackItem> {
+        val loggedInTrackers = trackerManager.loggedInTrackers()
+        val source = sourceManager.getOrStub(sourceId)
+        return loggedInTrackers
+            // Map to TrackItem
+            .map { service -> TrackItem(find { it.trackerId == service.id }, service) }
+            // Show only if the service supports this manga's source
+            // KMK -->
+            .let { trackers ->
+                val sources = if (source is MergedSource) {
+                    sourceManager.getMergedSources(mangaId)
                 } else {
-                    tracker.setRemoteFinishDate(track.toDbTrack(), 0)
+                    listOf(source)
+                }
+                trackers.filter { (it.tracker as? EnhancedTracker)?.accept(sources) ?: true }
+            }
+        // KMK <--
+    }
+
+    @Immutable
+    data class State(
+        val trackItems: List<TrackItem> = emptyList(),
+        // SY -->
+        val isLoading: Boolean = false,
+        // SY <--
+    )
+}
+
+@Serializable
+data class TrackStatusSelectorRoute(
+    val track: Track,
+    val serviceId: Long,
+) : NavKey
+
+@Composable
+fun TrackStatusSelectorScreen(track: Track, serviceId: Long) {
+    val navigator = LocalNavigator.current
+    val viewModel =
+        assistedMetroViewModel<TrackStatusSelectorViewModel, TrackStatusSelectorViewModel.Factory> {
+            create(track = track, trackerId = serviceId)
+        }
+    val state by viewModel.state.collectAsState()
+    TrackStatusSelector(
+        selection = state.selection,
+        onSelectionChange = viewModel::setSelection,
+        selections = remember { viewModel.getSelections() },
+        onConfirm = {
+            viewModel.setStatus()
+            navigator.pop()
+        },
+        onDismissRequest = navigator::pop,
+    )
+}
+
+@AssistedInject
+class TrackStatusSelectorViewModel(
+    @Assisted private val track: Track,
+    @Assisted private val trackerId: Long,
+    @AppCoroutineScope private val appScope: CoroutineScope,
+    trackerManager: TrackerManager,
+) : ViewModel() {
+
+    val state: StateFlow<TrackStatusSelectorViewModel.State>
+        field = MutableStateFlow<TrackStatusSelectorViewModel.State>(State(track.status))
+
+    @AssistedFactory
+    @ManualViewModelAssistedFactoryKey
+    @ContributesIntoMap(AppScope::class)
+    interface Factory : ManualViewModelAssistedFactory {
+        fun create(track: Track, trackerId: Long): TrackStatusSelectorViewModel
+    }
+
+    val tracker = trackerManager.get(trackerId)!!
+
+    fun getSelections(): Map<Long, StringResource?> {
+        return tracker.getStatusList().associateWith { tracker.getStatus(it) }
+    }
+
+    fun setSelection(selection: Long) {
+        state.update { it.copy(selection = selection) }
+    }
+
+    fun setStatus() {
+        appScope.launch {
+            tracker.setRemoteStatus(track.toDbTrack(), state.value.selection)
+        }
+    }
+
+    @Immutable
+    data class State(
+        val selection: Long,
+    )
+}
+
+@Serializable
+data class TrackChapterSelectorRoute(
+    val track: Track,
+    val serviceId: Long,
+) : NavKey
+
+@Composable
+fun TrackChapterSelectorScreen(track: Track, serviceId: Long) {
+    val navigator = LocalNavigator.current
+    val viewModel =
+        assistedMetroViewModel<TrackChapterSelectorViewModel, TrackChapterSelectorViewModel.Factory> {
+            create(track = track, trackerId = serviceId)
+        }
+    val state by viewModel.state.collectAsState()
+
+    TrackChapterSelector(
+        selection = state.selection,
+        onSelectionChange = viewModel::setSelection,
+        range = remember { viewModel.getRange() },
+        onConfirm = {
+            viewModel.setChapter()
+            navigator.pop()
+        },
+        onDismissRequest = navigator::pop,
+    )
+}
+
+@AssistedInject
+class TrackChapterSelectorViewModel(
+    @Assisted private val track: Track,
+    @Assisted private val trackerId: Long,
+    @AppCoroutineScope private val appScope: CoroutineScope,
+    trackerManager: TrackerManager,
+) : ViewModel() {
+
+    val state: StateFlow<TrackChapterSelectorViewModel.State>
+        field = MutableStateFlow<TrackChapterSelectorViewModel.State>(State(track.lastChapterRead.toInt()))
+
+    @AssistedFactory
+    @ManualViewModelAssistedFactoryKey
+    @ContributesIntoMap(AppScope::class)
+    interface Factory : ManualViewModelAssistedFactory {
+        fun create(track: Track, trackerId: Long): TrackChapterSelectorViewModel
+    }
+
+    val tracker = trackerManager.get(trackerId)!!
+
+    fun getRange(): Iterable<Int> {
+        val endRange = if (track.totalChapters > 0) {
+            track.totalChapters
+        } else {
+            10000
+        }
+        return 0..endRange.toInt()
+    }
+
+    fun setSelection(selection: Int) {
+        state.update { it.copy(selection = selection) }
+    }
+
+    fun setChapter() {
+        appScope.launch {
+            tracker.setRemoteLastChapterRead(track.toDbTrack(), state.value.selection)
+        }
+    }
+
+    @Immutable
+    data class State(
+        val selection: Int,
+    )
+}
+
+@Serializable
+data class TrackScoreSelectorRoute(
+    val track: Track,
+    val serviceId: Long,
+) : NavKey
+
+@Composable
+fun TrackScoreSelectorScreen(track: Track, serviceId: Long) {
+    val navigator = LocalNavigator.current
+    val viewModel =
+        assistedMetroViewModel<TrackScoreSelectorViewModel, TrackScoreSelectorViewModel.Factory> {
+            create(track = track, trackerId = serviceId)
+        }
+    val state by viewModel.state.collectAsState()
+
+    TrackScoreSelector(
+        selection = state.selection,
+        onSelectionChange = viewModel::setSelection,
+        selections = remember { viewModel.getSelections() },
+        onConfirm = {
+            viewModel.setScore()
+            navigator.pop()
+        },
+        onDismissRequest = navigator::pop,
+    )
+}
+
+@AssistedInject
+class TrackScoreSelectorViewModel(
+    @Assisted private val track: Track,
+    @Assisted private val trackerId: Long,
+    @AppCoroutineScope private val appScope: CoroutineScope,
+    trackerManager: TrackerManager,
+) : ViewModel() {
+
+    val state: StateFlow<TrackScoreSelectorViewModel.State>
+        field = MutableStateFlow<TrackScoreSelectorViewModel.State>(State(""))
+
+    @AssistedFactory
+    @ManualViewModelAssistedFactoryKey
+    @ContributesIntoMap(AppScope::class)
+    interface Factory : ManualViewModelAssistedFactory {
+        fun create(track: Track, trackerId: Long): TrackScoreSelectorViewModel
+    }
+
+    val tracker = trackerManager.get(trackerId)!!
+
+    init {
+        tracker.displayScore(track).let(::setSelection)
+    }
+
+    fun getSelections(): List<String> {
+        return tracker.getScoreList()
+    }
+
+    fun setSelection(selection: String) {
+        state.update { it.copy(selection = selection) }
+    }
+
+    fun setScore() {
+        appScope.launch {
+            tracker.setRemoteScore(track.toDbTrack(), state.value.selection)
+        }
+    }
+
+    @Immutable
+    data class State(
+        val selection: String,
+    )
+}
+
+@Serializable
+data class TrackDateSelectorRoute(
+    val track: Track,
+    val serviceId: Long,
+    val start: Boolean,
+) : NavKey
+
+@Composable
+fun TrackDateSelectorScreen(
+    track: Track,
+    serviceId: Long,
+    start: Boolean,
+) {
+    val navigator = LocalNavigator.current
+    val viewModel = assistedMetroViewModel<TrackDateSelectorViewModel, TrackDateSelectorViewModel.Factory> {
+        create(track = track, trackerId = serviceId, start = start)
+    }
+
+    val selectableDates = remember(track, serviceId, start) {
+        object : SelectableDates {
+            override fun isSelectableDate(utcTimeMillis: Long): Boolean {
+                val targetDate = Instant.fromEpochMilliseconds(utcTimeMillis).toLocalDateTime(TimeZone.UTC)
+
+                // Disallow future dates
+                if (targetDate > Clock.System.now().toLocalDateTime(TimeZone.UTC)) return false
+
+                val finishDate = track.finishDate?.toLocalDateTime(TimeZone.UTC)
+                val startDate = track.startDate?.toLocalDateTime(TimeZone.UTC)
+                return when {
+                    // Disallow setting start date after finish date
+                    start && finishDate != null -> {
+                        targetDate <= finishDate
+                    }
+                    // Disallow setting finish date before start date
+                    !start && startDate != null -> {
+                        startDate <= targetDate
+                    }
+                    else -> {
+                        true
+                    }
+                }
+            }
+
+            override fun isSelectableYear(year: Int): Boolean {
+                // Disallow future years
+                if (year > Clock.System.now().toLocalDateTime(TimeZone.UTC).year) return false
+
+                val finishDate = track.finishDate?.toLocalDateTime(TimeZone.UTC)
+                val startDate = track.startDate?.toLocalDateTime(TimeZone.UTC)
+                return when {
+                    // Disallow setting start year after finish year
+                    start && finishDate != null -> {
+                        year <= finishDate.year
+                    }
+                    // Disallow setting finish year before start year
+                    !start && startDate != null -> {
+                        startDate.year <= year
+                    }
+                    else -> {
+                        true
+                    }
                 }
             }
         }
     }
+
+    val canRemove = if (start) {
+        track.startDate != null
+    } else {
+        track.finishDate != null
+    }
+    TrackDateSelector(
+        title = if (start) {
+            stringResource(MR.strings.track_started_reading_date)
+        } else {
+            stringResource(MR.strings.track_finished_reading_date)
+        },
+        initialSelectedDateMillis = viewModel.initialSelection,
+        selectableDates = selectableDates,
+        onConfirm = {
+            viewModel.setDate(it)
+            navigator.pop()
+        },
+        onRemove = { viewModel.confirmRemoveDate(navigator) }.takeIf { canRemove },
+        onDismissRequest = navigator::pop,
+    )
 }
 
-data class TrackerSearchScreen(
-    private val mangaId: Long,
-    private val initialQuery: String,
-    private val currentUrl: String?,
-    private val serviceId: Long,
-) : Screen() {
+@AssistedInject
+class TrackDateSelectorViewModel(
+    @Assisted private val track: Track,
+    @Assisted private val trackerId: Long,
+    @Assisted private val start: Boolean,
+    @AppCoroutineScope private val appScope: CoroutineScope,
+    trackerManager: TrackerManager,
+) : ViewModel() {
 
-    @Composable
-    override fun Content() {
-        val navigator = LocalNavigator.currentOrThrow
-        val viewModel = assistedMetroViewModel<Model, Model.Factory> {
-            create(
-                mangaId = mangaId,
-                currentUrl = currentUrl,
-                initialQuery = initialQuery,
-                trackerId = serviceId,
+    @AssistedFactory
+    @ManualViewModelAssistedFactoryKey
+    @ContributesIntoMap(AppScope::class)
+    interface Factory : ManualViewModelAssistedFactory {
+        fun create(track: Track, trackerId: Long, start: Boolean): TrackDateSelectorViewModel
+    }
+
+    private val tracker = trackerManager.get(trackerId)!!
+
+    // In UTC
+    val initialSelection: Long
+        get() {
+            val date = (if (start) track.startDate else track.finishDate) ?: Clock.System.now()
+            return date.toEpochMilliseconds().convertEpochMillisZone(TimeZone.currentSystemDefault(), TimeZone.UTC)
+        }
+
+    // In UTC
+    fun setDate(millis: Long) {
+        // Convert to local time
+        val localMillis = millis.convertEpochMillisZone(TimeZone.UTC, TimeZone.currentSystemDefault())
+        appScope.launch {
+            if (start) {
+                tracker.setRemoteStartDate(track.toDbTrack(), localMillis)
+            } else {
+                tracker.setRemoteFinishDate(track.toDbTrack(), localMillis)
+            }
+        }
+    }
+
+    fun confirmRemoveDate(navigator: Navigator) {
+        navigator.push(TrackDateRemoverRoute(track, tracker.id, start))
+    }
+}
+
+@Serializable
+data class TrackDateRemoverRoute(
+    val track: Track,
+    val serviceId: Long,
+    val start: Boolean,
+) : NavKey
+
+@Composable
+fun TrackDateRemoverScreen(
+    track: Track,
+    serviceId: Long,
+    start: Boolean,
+) {
+    val navigator = LocalNavigator.current
+    val viewModel = assistedMetroViewModel<TrackDateRemoverViewModel, TrackDateRemoverViewModel.Factory> {
+        create(track = track, trackerId = serviceId, start = start)
+    }
+    AlertDialogContent(
+        modifier = Modifier.windowInsetsPadding(WindowInsets.systemBars),
+        icon = {
+            Icon(
+                imageVector = MaterialSymbols.RoundedFilled.Delete,
+                contentDescription = null,
             )
-        }
-
-        val state by viewModel.state.collectAsState()
-
-        val textFieldState = rememberTextFieldState(initialQuery)
-        TrackerSearch(
-            state = textFieldState,
-            onDispatchQuery = { viewModel.trackingSearch(textFieldState.text.toString()) },
-            queryResult = state.queryResult,
-            selected = state.selected,
-            onSelectedChange = viewModel::updateSelection,
-            onConfirmSelection = f@{ private: Boolean ->
-                val selected = state.selected ?: return@f
-                selected.private = private
-                viewModel.registerTracking(selected)
-                navigator.pop()
-            },
-            onDismissRequest = navigator::pop,
-            supportsPrivateTracking = viewModel.supportsPrivateTracking,
-        )
-    }
-
-    @AssistedInject
-    class Model(
-        @Assisted private val mangaId: Long,
-        @Assisted private val currentUrl: String?,
-        @Assisted initialQuery: String,
-        @Assisted private val trackerId: Long,
-        @AppCoroutineScope private val appScope: CoroutineScope,
-        trackerManager: TrackerManager,
-    ) : ViewModel() {
-
-        val state: StateFlow<Model.State>
-            field = MutableStateFlow<Model.State>(State())
-
-        @AssistedFactory
-        @ManualViewModelAssistedFactoryKey
-        @ContributesIntoMap(AppScope::class)
-        interface Factory : ManualViewModelAssistedFactory {
-            fun create(
-                mangaId: Long,
-                currentUrl: String?,
-                initialQuery: String,
-                trackerId: Long,
-            ): Model
-        }
-
-        private val tracker = trackerManager.get(trackerId)!!
-
-        private var searchJob: Job? = null
-
-        val supportsPrivateTracking = tracker.supportsPrivateTracking
-
-        init {
-            // Run search on first launch
-            if (initialQuery.isNotBlank()) {
-                trackingSearch(initialQuery)
-            }
-        }
-
-        fun trackingSearch(query: String) {
-            searchJob?.cancel()
-            searchJob = viewModelScope.launch {
-                // To show loading state
-                state.update { it.copy(queryResult = null, selected = null) }
-
-                val result = withContext(Dispatchers.IO) {
-                    try {
-                        val results = tracker.search(query.sanitize())
-                        Result.success(results)
-                    } catch (e: Throwable) {
-                        if (e is CancellationException) throw e
-                        Result.failure(e)
-                    }
+        },
+        title = {
+            Text(
+                text = stringResource(MR.strings.track_remove_date_conf_title),
+                textAlign = TextAlign.Center,
+            )
+        },
+        text = {
+            val serviceName = viewModel.getServiceName()
+            Text(
+                text = if (start) {
+                    stringResource(MR.strings.track_remove_start_date_conf_text, serviceName)
+                } else {
+                    stringResource(MR.strings.track_remove_finish_date_conf_text, serviceName)
+                },
+            )
+        },
+        buttons = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small, Alignment.End),
+            ) {
+                TextButton(onClick = navigator::pop) {
+                    Text(text = stringResource(MR.strings.action_cancel))
                 }
-                state.update { oldState ->
-                    oldState.copy(
-                        queryResult = result,
-                        selected = result.getOrNull()?.find { it.tracking_url == currentUrl },
-                    )
-                }
-            }
-        }
-
-        fun registerTracking(item: TrackSearch) {
-            appScope.launch { tracker.register(item, mangaId) }
-        }
-
-        fun updateSelection(selected: TrackSearch) {
-            state.update { it.copy(selected = selected) }
-        }
-
-        @Immutable
-        data class State(
-            val queryResult: Result<List<TrackSearch>>? = null,
-            val selected: TrackSearch? = null,
-        )
-    }
-}
-
-data class TrackerRemoveScreen(
-    private val mangaId: Long,
-    private val track: Track,
-    private val serviceId: Long,
-) : Screen() {
-
-    @Composable
-    override fun Content() {
-        val navigator = LocalNavigator.currentOrThrow
-        val viewModel = assistedMetroViewModel<Model, Model.Factory> {
-            create(mangaId = mangaId, track = track, trackerId = serviceId)
-        }
-        val serviceName = viewModel.getName()
-        var removeRemoteTrack by remember { mutableStateOf(false) }
-        AlertDialogContent(
-            modifier = Modifier.windowInsetsPadding(WindowInsets.systemBars),
-            icon = {
-                Icon(
-                    imageVector = MaterialSymbols.RoundedFilled.Delete,
-                    contentDescription = null,
-                )
-            },
-            title = {
-                Text(
-                    text = stringResource(MR.strings.track_delete_title, serviceName),
-                    textAlign = TextAlign.Center,
-                )
-            },
-            text = {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
-                ) {
-                    Text(
-                        text = stringResource(MR.strings.track_delete_text, serviceName),
-                    )
-
-                    if (viewModel.isDeletable()) {
-                        LabeledCheckbox(
-                            label = stringResource(MR.strings.track_delete_remote_text, serviceName),
-                            checked = removeRemoteTrack,
-                            onCheckedChange = { removeRemoteTrack = it },
-                        )
-                    }
-                }
-            },
-            buttons = {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(
-                        MaterialTheme.padding.small,
-                        Alignment.End,
+                FilledTonalButton(
+                    onClick = {
+                        viewModel.removeDate()
+                        navigator.popTo { it is TrackInfoDialogHomeRoute }
+                    },
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                        contentColor = MaterialTheme.colorScheme.onErrorContainer,
                     ),
                 ) {
-                    TextButton(onClick = navigator::pop) {
-                        Text(text = stringResource(MR.strings.action_cancel))
-                    }
-                    FilledTonalButton(
-                        onClick = {
-                            viewModel.unregisterTracking(serviceId)
-                            if (removeRemoteTrack) viewModel.deleteMangaFromService()
-                            navigator.pop()
-                        },
-                        colors = ButtonDefaults.filledTonalButtonColors(
-                            containerColor = MaterialTheme.colorScheme.errorContainer,
-                            contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                        ),
-                    ) {
-                        Text(text = stringResource(MR.strings.action_ok))
-                    }
-                }
-            },
-        )
-    }
-
-    @AssistedInject
-    class Model(
-        @Assisted private val mangaId: Long,
-        @Assisted private val track: Track,
-        @Assisted private val trackerId: Long,
-        @AppCoroutineScope private val appScope: CoroutineScope,
-        private val deleteTrack: DeleteTrack,
-        trackerManager: TrackerManager,
-    ) : ViewModel() {
-
-        @AssistedFactory
-        @ManualViewModelAssistedFactoryKey
-        @ContributesIntoMap(AppScope::class)
-        interface Factory : ManualViewModelAssistedFactory {
-            fun create(mangaId: Long, track: Track, trackerId: Long): Model
-        }
-
-        private val tracker = trackerManager.get(trackerId)!!
-
-        fun getName() = tracker.name
-
-        fun isDeletable() = tracker is DeletableTracker
-
-        fun deleteMangaFromService() {
-            appScope.launch {
-                try {
-                    (tracker as DeletableTracker).delete(track)
-                } catch (e: Exception) {
-                    logcat(LogPriority.ERROR, e) { "Failed to delete entry from service" }
+                    Text(text = stringResource(MR.strings.action_remove))
                 }
             }
-        }
+        },
+    )
+}
 
-        fun unregisterTracking(serviceId: Long) {
-            appScope.launch { deleteTrack.await(mangaId, serviceId) }
+@AssistedInject
+class TrackDateRemoverViewModel(
+    @Assisted private val track: Track,
+    @Assisted private val trackerId: Long,
+    @Assisted private val start: Boolean,
+    @AppCoroutineScope private val appScope: CoroutineScope,
+    trackerManager: TrackerManager,
+) : ViewModel() {
+
+    @AssistedFactory
+    @ManualViewModelAssistedFactoryKey
+    @ContributesIntoMap(AppScope::class)
+    interface Factory : ManualViewModelAssistedFactory {
+        fun create(track: Track, trackerId: Long, start: Boolean): TrackDateRemoverViewModel
+    }
+
+    private val tracker = trackerManager.get(trackerId)!!
+
+    fun getServiceName() = tracker.name
+
+    fun removeDate() {
+        appScope.launch {
+            if (start) {
+                tracker.setRemoteStartDate(track.toDbTrack(), 0)
+            } else {
+                tracker.setRemoteFinishDate(track.toDbTrack(), 0)
+            }
         }
     }
 }
+
+@Serializable
+data class TrackerSearchRoute(
+    val mangaId: Long,
+    val initialQuery: String,
+    val currentUrl: String?,
+    val serviceId: Long,
+) : NavKey
+
+@Composable
+fun TrackerSearchScreen(
+    mangaId: Long,
+    initialQuery: String,
+    currentUrl: String?,
+    serviceId: Long,
+) {
+    val navigator = LocalNavigator.current
+    val viewModel = assistedMetroViewModel<TrackerSearchViewModel, TrackerSearchViewModel.Factory> {
+        create(
+            mangaId = mangaId,
+            currentUrl = currentUrl,
+            initialQuery = initialQuery,
+            trackerId = serviceId,
+        )
+    }
+
+    val state by viewModel.state.collectAsState()
+
+    val textFieldState = rememberTextFieldState(initialQuery)
+    TrackerSearch(
+        state = textFieldState,
+        onDispatchQuery = { viewModel.trackingSearch(textFieldState.text.toString()) },
+        queryResult = state.queryResult,
+        selected = state.selected,
+        onSelectedChange = viewModel::updateSelection,
+        onConfirmSelection = f@{ private: Boolean ->
+            val selected = state.selected ?: return@f
+            selected.private = private
+            viewModel.registerTracking(selected)
+            navigator.pop()
+        },
+        onDismissRequest = navigator::pop,
+        supportsPrivateTracking = viewModel.supportsPrivateTracking,
+    )
+}
+
+@AssistedInject
+class TrackerSearchViewModel(
+    @Assisted private val mangaId: Long,
+    @Assisted private val currentUrl: String?,
+    @Assisted initialQuery: String,
+    @Assisted private val trackerId: Long,
+    @AppCoroutineScope private val appScope: CoroutineScope,
+    trackerManager: TrackerManager,
+) : ViewModel() {
+
+    val state: StateFlow<TrackerSearchViewModel.State>
+        field = MutableStateFlow<TrackerSearchViewModel.State>(State())
+
+    @AssistedFactory
+    @ManualViewModelAssistedFactoryKey
+    @ContributesIntoMap(AppScope::class)
+    interface Factory : ManualViewModelAssistedFactory {
+        fun create(
+            mangaId: Long,
+            currentUrl: String?,
+            initialQuery: String,
+            trackerId: Long,
+        ): TrackerSearchViewModel
+    }
+
+    private val tracker = trackerManager.get(trackerId)!!
+
+    private var searchJob: Job? = null
+
+    val supportsPrivateTracking = tracker.supportsPrivateTracking
+
+    init {
+        // Run search on first launch
+        if (initialQuery.isNotBlank()) {
+            trackingSearch(initialQuery)
+        }
+    }
+
+    fun trackingSearch(query: String) {
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
+            // To show loading state
+            state.update { it.copy(queryResult = null, selected = null) }
+
+            val result = withContext(Dispatchers.IO) {
+                try {
+                    val results = tracker.search(query.sanitize())
+                    Result.success(results)
+                } catch (e: Throwable) {
+                    if (e is CancellationException) throw e
+                    Result.failure(e)
+                }
+            }
+            state.update { oldState ->
+                oldState.copy(
+                    queryResult = result,
+                    selected = result.getOrNull()?.find { it.tracking_url == currentUrl },
+                )
+            }
+        }
+    }
+
+    fun registerTracking(item: TrackSearch) {
+        appScope.launch { tracker.register(item, mangaId) }
+    }
+
+    fun updateSelection(selected: TrackSearch) {
+        state.update { it.copy(selected = selected) }
+    }
+
+    @Immutable
+    data class State(
+        val queryResult: Result<List<TrackSearch>>? = null,
+        val selected: TrackSearch? = null,
+    )
+}
+
+@Serializable
+data class TrackerRemoveRoute(
+    val mangaId: Long,
+    val track: Track,
+    val serviceId: Long,
+) : NavKey
+
+@Composable
+fun TrackerRemoveScreen(
+    mangaId: Long,
+    track: Track,
+    serviceId: Long,
+) {
+    val navigator = LocalNavigator.current
+    val viewModel = assistedMetroViewModel<TrackerRemoveViewModel, TrackerRemoveViewModel.Factory> {
+        create(mangaId = mangaId, track = track, trackerId = serviceId)
+    }
+    val serviceName = viewModel.getName()
+    var removeRemoteTrack by remember { mutableStateOf(false) }
+    AlertDialogContent(
+        modifier = Modifier.windowInsetsPadding(WindowInsets.systemBars),
+        icon = {
+            Icon(
+                imageVector = MaterialSymbols.RoundedFilled.Delete,
+                contentDescription = null,
+            )
+        },
+        title = {
+            Text(
+                text = stringResource(MR.strings.track_delete_title, serviceName),
+                textAlign = TextAlign.Center,
+            )
+        },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
+            ) {
+                Text(
+                    text = stringResource(MR.strings.track_delete_text, serviceName),
+                )
+
+                if (viewModel.isDeletable()) {
+                    LabeledCheckbox(
+                        label = stringResource(MR.strings.track_delete_remote_text, serviceName),
+                        checked = removeRemoteTrack,
+                        onCheckedChange = { removeRemoteTrack = it },
+                    )
+                }
+            }
+        },
+        buttons = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(
+                    MaterialTheme.padding.small,
+                    Alignment.End,
+                ),
+            ) {
+                TextButton(onClick = navigator::pop) {
+                    Text(text = stringResource(MR.strings.action_cancel))
+                }
+                FilledTonalButton(
+                    onClick = {
+                        viewModel.unregisterTracking(serviceId)
+                        if (removeRemoteTrack) viewModel.deleteMangaFromService()
+                        navigator.pop()
+                    },
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                    ),
+                ) {
+                    Text(text = stringResource(MR.strings.action_ok))
+                }
+            }
+        },
+    )
+}
+
+@AssistedInject
+class TrackerRemoveViewModel(
+    @Assisted private val mangaId: Long,
+    @Assisted private val track: Track,
+    @Assisted private val trackerId: Long,
+    @AppCoroutineScope private val appScope: CoroutineScope,
+    private val deleteTrack: DeleteTrack,
+    trackerManager: TrackerManager,
+) : ViewModel() {
+
+    @AssistedFactory
+    @ManualViewModelAssistedFactoryKey
+    @ContributesIntoMap(AppScope::class)
+    interface Factory : ManualViewModelAssistedFactory {
+        fun create(mangaId: Long, track: Track, trackerId: Long): TrackerRemoveViewModel
+    }
+
+    private val tracker = trackerManager.get(trackerId)!!
+
+    fun getName() = tracker.name
+
+    fun isDeletable() = tracker is DeletableTracker
+
+    fun deleteMangaFromService() {
+        appScope.launch {
+            try {
+                (tracker as DeletableTracker).delete(track)
+            } catch (e: Exception) {
+                logcat(LogPriority.ERROR, e) { "Failed to delete entry from service" }
+            }
+        }
+    }
+
+    fun unregisterTracking(serviceId: Long) {
+        appScope.launch { deleteTrack.await(mangaId, serviceId) }
+    }
+}
+
+@Composable
+fun TrackInfoDialog(
+    mangaId: Long,
+    mangaTitle: String,
+    sourceId: Long,
+    onDismissRequest: () -> Unit,
+) {
+    val sheetNavigator = rememberNavigator(TrackInfoDialogHomeRoute(mangaId, mangaTitle, sourceId))
+
+    CompositionLocalProvider(LocalNavigator provides sheetNavigator) {
+        AdaptiveSheet(
+            onDismissRequest = onDismissRequest,
+            enableSwipeDismiss = !sheetNavigator.canPop,
+        ) {
+            NavigatorDisplay(
+                navigator = sheetNavigator,
+                sizeTransform = SizeTransform(),
+                transitionSpec = { fade },
+                popTransitionSpec = { fade },
+                predictivePopTransitionSpec = { fade },
+                // Otherwise every picker reuses the first one's ViewModel, keyed only by class
+                entryDecorators = listOf(
+                    rememberSaveableStateHolderNavEntryDecorator(),
+                    rememberViewModelStoreNavEntryDecorator(),
+                ),
+                entryProvider = entryProvider {
+                    entry<TrackerRemoveRoute> { route ->
+                        TrackerRemoveScreen(route.mangaId, route.track, route.serviceId)
+                    }
+                    entry<TrackerSearchRoute> { route ->
+                        TrackerSearchScreen(route.mangaId, route.initialQuery, route.currentUrl, route.serviceId)
+                    }
+                    entry<TrackChapterSelectorRoute> { route ->
+                        TrackChapterSelectorScreen(route.track, route.serviceId)
+                    }
+                    entry<TrackDateRemoverRoute> { route ->
+                        TrackDateRemoverScreen(route.track, route.serviceId, route.start)
+                    }
+                    entry<TrackDateSelectorRoute> { route ->
+                        TrackDateSelectorScreen(route.track, route.serviceId, route.start)
+                    }
+                    entry<TrackInfoDialogHomeRoute> { route ->
+                        TrackInfoDialogHomeScreen(route.mangaId, route.mangaTitle, route.sourceId)
+                    }
+                    entry<TrackScoreSelectorRoute> { route ->
+                        TrackScoreSelectorScreen(route.track, route.serviceId)
+                    }
+                    entry<TrackStatusSelectorRoute> { route ->
+                        TrackStatusSelectorScreen(route.track, route.serviceId)
+                    }
+                },
+            )
+        }
+    }
+}
+
+private val fade = fadeIn(tween(220, delayMillis = 90)) togetherWith fadeOut(tween(90))

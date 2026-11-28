@@ -47,7 +47,7 @@ import kotlin.time.Duration.Companion.seconds
 
 @AssistedInject
 class SourcesViewModel(
-    @Assisted val smartSearchConfig: SourcesScreen.SmartSearchConfig?,
+    @Assisted val smartSearchConfig: SmartSearchConfig?,
     private val getEnabledSources: GetEnabledSources,
     private val toggleSource: ToggleSource,
     private val toggleSourcePin: ToggleSourcePin,
@@ -65,7 +65,7 @@ class SourcesViewModel(
     @ManualViewModelAssistedFactoryKey
     @ContributesIntoMap(AppScope::class)
     interface Factory : ManualViewModelAssistedFactory {
-        fun create(smartSearchConfig: SourcesScreen.SmartSearchConfig?): SourcesViewModel
+        fun create(smartSearchConfig: SmartSearchConfig?): SourcesViewModel
     }
 
     private val _events = Channel<Event>(Int.MAX_VALUE)
