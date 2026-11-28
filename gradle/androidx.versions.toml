@@ -30,7 +30,6 @@ lifecycle-viewmodel = { module = "androidx.lifecycle:lifecycle-viewmodel", versi
 lifecycle-viewmodelCompose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycle_version" }
 
 workmanager = "androidx.work:work-runtime:2.11.2"
-navigationevent = "androidx.navigationevent:navigationevent:1.2.0"
 webkit = "androidx.webkit:webkit:1.16.0"
 
 paging-runtime = { module = "androidx.paging:paging-runtime", version.ref = "paging_version" }
