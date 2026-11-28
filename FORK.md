@@ -38,7 +38,7 @@ upstream** — they never mark upstream code itself. Rules (extending `AGENTS.md
 
 - `// KMK` is **not** this fork's marker: it means the code came from the **Komikku** upstream (this
   repo's base). komi-kun's own code uses `// KUN`.
-- New strings go to `i18n-kmk/.../base/strings.xml` and are referenced via `KMR` (`AGENTS.md`).
+- New strings go to `i18n-kun/.../base/strings.xml` and are referenced via `KUNMR` (`AGENTS.md`).
   Weblate is **not** connected to this repo, so non-`base` locales are maintained here: translation
   updates arrive by porting upstream translation commits, and new strings ship with best-effort
   translations instead of waiting for a translation service.
@@ -83,7 +83,8 @@ assume these are the current state, not divergences:
 - **Metro DI** (`dev.zacsweers.metro` + `metrox-viewmodel`) replacing Injekt, with the `AppGraph`
   dependency graph and `AppBindings`/`DatabaseBindings` binding containers.
 - **Preference getters are properties** (`val`, not `fun`) — ported from Mihon #3091 / SY #3091.
-- **Jetpack AndroidX ViewModel** — screens use `ViewModel`; Voyager is kept for navigation only.
+- **Jetpack AndroidX ViewModel** — screens use `ViewModel`; navigation is **Navigation 3**
+  (`androidx.navigation3`, wrapped by the `:core:navigation` module), and Voyager is gone from the tree.
 - **`WebGPU` renderer (`ca.mpreg:webgpuviewer`)** plus the **mpreg `ca.mpreg:imagedecoder`** and
   progressive rendering; SSIV remains for the non-high-quality modes. Mihon's **v0.21.0 release**
   reverted it (`f45d0ad31d`, release-tag only — it was experimental and unstable, with ~17 follow-up
@@ -105,7 +106,7 @@ assume these are the current state, not divergences:
 - **Raw database access is restricted to `:data`** (`RestoreRepositoryImpl`, `DatabaseBindings`).
 - **`:source-api`/`:source-local` are Android library modules** (no longer KMP).
 - **Gradle isolated projects is enabled** (`org.gradle.isolated-projects=true`) on the coherent
-  AGP 9.4.1 / Gradle 9.9.1 / Kotlin 2.4.21 toolchain, matching `mihon/main`. This is what removed the
+  AGP 9.5.2 / Gradle 9.9.2 / Kotlin 2.4.21 toolchain, matching `mihon/main`. This is what removed the
   moko-resources `findProperty` blocker, the compileSdk-37 AAR-metadata excludes and the
   whole-configuration Compose force (they were only needed on AGP 8.13.2).
 - **Mihon's extension-store model** (`Extension.Loaded`/`NotLoaded`, `signatures`, `store`).

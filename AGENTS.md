@@ -109,7 +109,7 @@ Markers record **what diverges from upstream** — they never mark upstream code
 - **Serialization:** Kotlinx Serialization (JSON/Protobuf)
 - **JS engine:** QuickJS (used by sources)
 - **Concurrency:** Kotlin coroutines + Flow for new code; RxJava 1 remains in `source-api` for extension compatibility
-- **Toolchain:** JDK 21 to build (matches `.github/.java-version`), bytecode targets Java 17, Gradle 9.9.1, compileSdk 37.2
+- **Toolchain:** JDK 21 to build (matches `.github/.java-version`), bytecode targets Java 17, Gradle 9.9.2 (`gradle/wrapper/gradle-wrapper.properties`), compileSdk 37.2
 
 Version catalogs in `gradle/`: `libs.versions.toml`, `kotlinx.versions.toml`, `androidx.versions.toml`, `compose.versions.toml`, `sy.versions.toml`.
 
@@ -140,9 +140,9 @@ Version catalogs in `gradle/`: `libs.versions.toml`, `kotlinx.versions.toml`, `a
 | `baseline-profile/` | Baseline profile and startup benchmark generation (CI-only) |
 | `buildSrc/` | Convention plugins and build logic |
 
-Dependency flow: `app` → `domain` → `source-api`; `data` implements `domain` repos. `:app` also depends on the two **GPL-3.0** modules `:core:dictionary` and `:core:ocr`; those two are independent and must **never** depend on each other (see [Licensing & native modules](#licensing--native-modules)).
+Dependency flow: `app` → `domain` → `source-api`; `data` implements `domain` repos. `:app` also depends on `:core:navigation` (the Navigation 3 wrapper), which depends on `:presentation-core` for shared Compose pieces (e.g. `isTabletUi()`); `:app` depends on the two **GPL-3.0** modules `:core:dictionary` and `:core:ocr`, which are independent and must **never** depend on each other (see [Licensing & native modules](#licensing--native-modules)).
 
-Package roots: `eu.kanade.tachiyomi.*` (legacy UI), `tachiyomi.*` (domain/data), `mihon.*` (Mihon's newer package root — also used by komi-kun code, e.g. `mihon.feature.*`, `mihon.core.dictionary.*`, `mihon.core.ocr.*`), `exh.*` (enhanced sources, SY), `komikun.*` (fork-only code).
+Package roots: `eu.kanade.tachiyomi.*` (legacy UI), `tachiyomi.*` (domain/data), `mihon.*` (Mihon's newer package root — also used by komi-kun code, e.g. `mihon.feature.*`, `mihon.core.navigation.*`, `mihon.core.dictionary.*`, `mihon.core.ocr.*`), `exh.*` (enhanced sources, SY), `komikun.*` (fork-only code).
 
 ---
 
@@ -297,7 +297,7 @@ Current SyncYomi allocation: `Backup.deletions` = `11000` (`List<BackupDeletedIt
 4. **Markers:** wrap edits to existing files in `// KUN -->` / `// KUN <--`
 5. **Backup/sync fields:** new `@ProtoNumber`s must use the fork-reserved `10000-10999` block (see [Backup protobuf field numbers](#backup-protobuf-field-numbers)); never take an upstream number.
 
-Reference: `domain/src/main/java/tachiyomi/domain/category/interactor/HideCategory.kt` (an `@Inject` interactor) and `app/src/main/java/eu/kanade/tachiyomi/ui/more/NewUpdateScreen.kt` + `NewUpdateViewModel.kt` (ViewModel + Screen).
+Reference: `domain/src/main/java/tachiyomi/domain/category/interactor/HideCategory.kt` (an `@Inject` interactor) and `app/src/main/java/eu/kanade/tachiyomi/ui/more/NewUpdateScreen.kt` + `NewUpdateViewModel.kt` (ViewModel + `@Composable` screen).
 
 ---
 
@@ -357,6 +357,9 @@ Gradle `-P` flags (`buildSrc/src/main/kotlin/mihon/buildlogic/BuildConfig.kt`):
 
 - `App.kt` – Metro graph bootstrap, logging setup, Coil initialization
 - `MainActivity.kt` – Navigation 3 host (`NavigatorDisplay`, scene strategies, assist content)
+- `app/src/main/java/mihon/core/navigation/AppNavGraph.kt` – the single entry registry (`appEntries()`): every route in the app is dispatched from here
+- `app/src/main/java/mihon/core/navigation/KunRoutes.kt` – this fork's `@Serializable` routes (upstream's live in `:core:navigation`)
+- `core/navigation/src/main/kotlin/mihon/core/navigation/` – the Navigation 3 wrapper: `Navigator.kt` (`Navigator` / `NavigatorDisplay` / `LocalNavigator` / `rememberNavigator`), `AppRoutes.kt`, `AssistContentManager.kt`, `LeavingEntryInputNavEntryDecorator.kt`, `TwoPaneSettingsScene.kt`, `OverlaySheetScene.kt`
 - `app/src/main/java/mihon/app/di/AppGraph.kt` – Metro `@DependencyGraph` (the DI graph)
 - `app/src/main/java/mihon/app/di/AppBindings.kt` – `@Provides` / `@Binds` / contributed bindings
 - `buildSrc/src/main/kotlin/mihon/buildlogic/BuildConfig.kt`, `AndroidConfig.kt` – flags, SDK versions
