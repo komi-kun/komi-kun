@@ -212,6 +212,14 @@ fun HomeScreen() {
         context.appGraph.uiPreferences.showNavDictionary.asState(scope)
     }
     // KUN <--
+    // SY -->
+    val showNavUpdates by remember {
+        context.appGraph.uiPreferences.showNavUpdates.asState(scope)
+    }
+    val showNavHistory by remember {
+        context.appGraph.uiPreferences.showNavHistory.asState(scope)
+    }
+    // SY <--
 
     NavigationSuiteScaffold(
         navigationSuiteType = navigationSuiteType,
@@ -223,6 +231,17 @@ fun HomeScreen() {
         navigationItemVerticalArrangement = Arrangement.Center,
         navigationItems = {
             TABS
+                // SY -->
+                // Keep the updates/history tabs' own visibility preference, which used to live on
+                // the tabs themselves (`Tab.isEnabled()`).
+                .fastFilter { tab ->
+                    when (tab) {
+                        TopLevelRoute.Updates -> showNavUpdates
+                        TopLevelRoute.History -> showNavHistory
+                        else -> true
+                    }
+                }
+                // SY <--
                 // KUN -->
                 // Same rule as the old `DictionaryTab.isEnabled()`, applied here so the tab's
                 // presence in the navigation never depends on a single call site.
