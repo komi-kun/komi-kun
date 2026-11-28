@@ -18,7 +18,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Test
 import tachiyomi.domain.chapter.repository.ChapterRepository
 import tachiyomi.domain.manga.model.Manga
-import tachiyomi.domain.manga.model.MangaUpdate
+import tachiyomi.domain.manga.model.MangaRemoteUpdate
 import tachiyomi.domain.manga.repository.MangaRepository
 
 class UpdateMangaFromRemoteTest {
@@ -28,9 +28,9 @@ class UpdateMangaFromRemoteTest {
         Manga.create().copy(id = 1L, source = 2L, url = "/manga/1", ogTitle = "Title", ogThumbnailUrl = SOURCE_URL),
     ).also { every { it.thumbnailUrl } returns CUSTOM_URL }
 
-    private val mangaUpdate = slot<MangaUpdate>()
+    private val mangaUpdate = slot<MangaRemoteUpdate>()
     private val mangaRepository = mockk<MangaRepository> {
-        coEvery { update(capture(mangaUpdate)) } returns true
+        coEvery { updateRemote(capture(mangaUpdate)) } returns true
         coEvery { getMangaById(any()) } returns manga
     }
     private val chapterRepository = mockk<ChapterRepository> {

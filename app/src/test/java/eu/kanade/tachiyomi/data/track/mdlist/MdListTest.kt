@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.data.track.mdlist
 
+import android.content.Context
 import eu.kanade.domain.track.service.TrackPreferences
 import eu.kanade.tachiyomi.data.track.TrackerManager
 import eu.kanade.tachiyomi.data.track.myanimelist.dto.MALOAuth
@@ -8,11 +9,14 @@ import exh.md.utils.MdUtil
 import io.kotest.matchers.shouldBe
 import io.mockk.every
 import io.mockk.just
+import io.mockk.mockk
 import io.mockk.mockkConstructor
 import io.mockk.runs
 import io.mockk.spyk
 import io.mockk.unmockkConstructor
 import io.mockk.verify
+import mihon.app.di.AppGraph
+import mihon.core.metro.GraphProvider
 import okhttp3.OkHttpClient
 import okhttp3.Protocol
 import okhttp3.Request
@@ -57,7 +61,21 @@ class MdListTest {
     @BeforeEach
     fun setUp() {
         previousInjekt = Injekt
-        Injekt = InjektScope(DefaultRegistrar()).apply { addSingleton(trackPreferences) }
+        // KUN -->
+        // The fork's BaseTracker resolves its preferences from the Metro graph
+        // (`Injekt.get<Context>().appGraph.trackPreferences`), so the scope has to provide an app graph.
+        val appGraph = mockk<AppGraph>(relaxed = true)
+        every { appGraph.trackPreferences } returns trackPreferences
+        val context = mockk<Context>(moreInterfaces = arrayOf(GraphProvider::class))
+        every { context.applicationContext } returns context
+        every { (context as GraphProvider<AppGraph>).graph } returns appGraph
+        // KUN <--
+        Injekt = InjektScope(DefaultRegistrar()).apply {
+            addSingleton(trackPreferences)
+            // KUN -->
+            addSingleton(context)
+            // KUN <--
+        }
         // The real notifier needs an Application and the Android notification APIs; only its use is checked here.
         mockkConstructor(MangaDexSessionNotifier::class)
         every { anyConstructed<MangaDexSessionNotifier>().dismiss() } just runs
@@ -76,7 +94,6 @@ class MdListTest {
         mdList.saveCredentials("user", "password")
         mdList.interceptor.setAuth(
             MALOAuth(
-                tokenType = "Bearer",
                 refreshToken = "refresh-token",
                 accessToken = "access-token",
                 expiresIn = 900,

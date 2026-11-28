@@ -64,7 +64,6 @@ class MangaDexAuthInterceptorTest {
     fun `refresh request is a public client refresh grant with no other fields or credentials`() {
         val interceptor = loggedInInterceptor(
             oauth = MALOAuth(
-                tokenType = "Bearer",
                 refreshToken = "stored-refresh-token-a1b2c3",
                 accessToken = "expired-access-token",
                 expiresIn = 900,
@@ -393,7 +392,6 @@ class MangaDexAuthInterceptorTest {
     private fun loggedInInterceptor(
         onSessionRejected: () -> Unit = {},
         oauth: MALOAuth = MALOAuth(
-            tokenType = "Bearer",
             refreshToken = "refresh-token",
             accessToken = "access-token",
             expiresIn = 900,
@@ -406,7 +404,6 @@ class MangaDexAuthInterceptorTest {
 
     /** Credentials as a login returns them, valid for 15 minutes. */
     private fun loginOAuth(accessToken: String) = MALOAuth(
-        tokenType = "Bearer",
         refreshToken = "refresh-token",
         accessToken = accessToken,
         expiresIn = 900,

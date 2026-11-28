@@ -148,7 +148,6 @@ class MangaDexLoginHelperTest {
     fun `login without a stored code verifier fails without calling the server`() {
         // Logged in already, e.g. when the redirect is delivered a second time.
         val session = MALOAuth(
-            tokenType = "Bearer",
             refreshToken = "refresh-token",
             accessToken = "access-token",
             expiresIn = 900,
@@ -178,7 +177,6 @@ class MangaDexLoginHelperTest {
     fun `logout clears local state and returns true when the server call fails`() {
         interceptor.setAuth(
             MALOAuth(
-                tokenType = "Bearer",
                 refreshToken = "refresh-token",
                 accessToken = "access-token",
                 expiresIn = 900,

@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.data.track.myanimelist
 
+import android.content.Context
 import android.net.Uri
 import eu.kanade.domain.track.service.TrackPreferences
 import eu.kanade.tachiyomi.data.track.myanimelist.dto.MALOAuth
@@ -15,6 +16,8 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
+import mihon.app.di.AppGraph
+import mihon.core.metro.GraphProvider
 import okhttp3.FormBody
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
@@ -39,12 +42,20 @@ class MyAnimeListLoginTest {
     private val authExpiredPreference = InMemoryPreference("pref_tracker_auth_expired_1", null, false)
     private val tokenPreference = InMemoryPreference("track_token_1", null, "")
     private val codeVerifierPreference = InMemoryPreference("track_pkce_code_verifier_1", null, "")
+    // KUN --> the fork also remembers the display name and which OAuth client issued the token
+    private val displayUsernamePreference = InMemoryPreference("pref_mangasync_display_username_1", null, "")
+    private val oauthClientIdPreference = InMemoryPreference("track_oauth_client_id_1", null, MyAnimeListApi.CLIENT_ID)
+    // KUN <--
     private val trackPreferences = mockk<TrackPreferences> {
         every { trackUsername(any()) } returns usernamePreference
         every { trackPassword(any()) } returns passwordPreference
         every { trackAuthExpired(any()) } returns authExpiredPreference
         every { trackToken(any()) } returns tokenPreference
         every { trackPkceCodeVerifier(any()) } returns codeVerifierPreference
+        // KUN -->
+        every { trackOAuthClientId(any()) } returns oauthClientIdPreference
+        every { trackDisplayUsername(any()) } returns displayUsernamePreference
+        // KUN <--
         every { setCredentials(any(), any(), any()) } answers {
             usernamePreference.set(secondArg())
             passwordPreference.set(thirdArg())
@@ -73,10 +84,26 @@ class MyAnimeListLoginTest {
     init {
         // MyAnimeList and its API and interceptor resolve these through Injekt. Factories, not singletons: Injekt
         // keeps a singleton's first instance for the whole JVM, whichever test registered it.
-        val networkHelper = mockk<NetworkHelper> { every { client } returns this@MyAnimeListLoginTest.client }
+        // KUN --> the fork's tracker builds its client from NetworkHelper, so the other members are relaxed
+        val networkHelper = mockk<NetworkHelper>(relaxed = true) {
+            every { client } returns this@MyAnimeListLoginTest.client
+            every { defaultUserAgentProvider() } returns "test-agent"
+        }
+        // KUN <--
         Injekt.addFactory { trackPreferences }
         Injekt.addFactory { networkHelper }
         Injekt.addFactory { json }
+        // KUN -->
+        // The fork's BaseTracker resolves its preferences from the Metro graph
+        // (`Injekt.get<Context>().appGraph.trackPreferences`), so one is provided too.
+        val appGraph = mockk<AppGraph>(relaxed = true)
+        every { appGraph.trackPreferences } returns trackPreferences
+        every { appGraph.networkHelper } returns networkHelper
+        val context = mockk<Context>(moreInterfaces = arrayOf(GraphProvider::class))
+        every { context.applicationContext } returns context
+        every { (context as GraphProvider<AppGraph>).graph } returns appGraph
+        Injekt.addFactory { context }
+        // KUN <--
     }
 
     /** A new tracker, as in a new app process: nothing is kept in memory. */
@@ -203,7 +230,6 @@ class MyAnimeListLoginTest {
         tokenPreference.set(
             json.encodeToString(
                 MALOAuth(
-                    tokenType = "Bearer",
                     refreshToken = "old-refresh-token",
                     accessToken = "old-access-token",
                     expiresIn = 3600,

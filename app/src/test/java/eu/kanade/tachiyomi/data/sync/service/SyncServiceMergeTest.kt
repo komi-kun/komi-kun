@@ -1,6 +1,7 @@
 package eu.kanade.tachiyomi.data.sync.service
 
 import eu.kanade.domain.sync.SyncPreferences
+import eu.kanade.domain.sync.models.SyncSettings
 import eu.kanade.tachiyomi.data.backup.models.Backup
 import eu.kanade.tachiyomi.data.backup.models.BackupCategory
 import eu.kanade.tachiyomi.data.backup.models.BackupManga
@@ -10,15 +11,22 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.serialization.json.Json
 import org.junit.jupiter.api.Test
+import tachiyomi.core.common.preference.InMemoryPreferenceStore.InMemoryPreference
 
 class SyncServiceMergeTest {
 
-    private val syncPreferences = mockk<SyncPreferences> {
+    private val syncPreferences = mockk<SyncPreferences>(relaxed = true) {
         every { uniqueDeviceID() } returns "device"
+        // KUN --> this fork's merge reads the sync settings, whose defaults sync everything
+        every { getSyncSettings() } returns SyncSettings()
+        every { lastSyncTimestamp } returns InMemoryPreference("last_sync_timestamp", null, 0L)
+        // KUN <--
     }
 
     private val service = object : SyncService(mockk(), Json, syncPreferences) {
-        override suspend fun doSync(syncData: SyncData): Backup? = null
+        // KUN --> this fork's sync protocol needs the full/delta flag and returns a SyncResult
+        override suspend fun doSync(syncData: SyncData, full: Boolean): SyncResult = error("not used by this test")
+        // KUN <--
 
         fun merge(local: Backup, remote: Backup) = mergeSyncData(SyncData(backup = local), SyncData(backup = remote))
     }
