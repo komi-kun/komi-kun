@@ -164,6 +164,7 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
     @Inject private lateinit var insertLibraryUpdateErrors: InsertLibraryUpdateErrors
 
     @Inject private lateinit var insertLibraryUpdateErrorMessages: InsertLibraryUpdateErrorMessages
+
     @Inject private lateinit var chapterRepository: ChapterRepository
     // KMK <--
 

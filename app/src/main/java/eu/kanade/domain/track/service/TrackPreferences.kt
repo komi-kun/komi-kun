@@ -68,7 +68,6 @@ class TrackPreferences(
     )
     // KMK <--
 
-
     val anilistScoreType = preferenceStore.getString("anilist_score_type", Anilist.POINT_10)
 
     val kitsuScoreType: Preference<String> = preferenceStore.getString("kitsu_score_type", Kitsu.RATING_ADVANCED)

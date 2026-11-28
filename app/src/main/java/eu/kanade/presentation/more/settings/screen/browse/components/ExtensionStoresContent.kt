@@ -34,6 +34,7 @@ import mihon.domain.extension.model.ANIKKU_SIGNATURE
 import mihon.domain.extension.model.ExtensionStore
 import mihon.domain.extension.model.KOMIKKU_SIGNATURE
 import mihon.domain.extension.model.REPO_SIGNATURE
+import mihon.domain.extension.model.githubAvatarUrl
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.ContentCopy
 import mihon.icons.materialsymbols.rounded.Delete
@@ -42,7 +43,6 @@ import mihon.icons.materialsymbols.roundedfilled.Visibility
 import mihon.icons.materialsymbols.roundedfilled.VisibilityOff
 import mihon.icons.simpleicons.Discord
 import mihon.icons.simpleicons.SimpleIcons
-import mihon.domain.extension.model.githubAvatarUrl
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
 import tachiyomi.presentation.core.components.material.padding

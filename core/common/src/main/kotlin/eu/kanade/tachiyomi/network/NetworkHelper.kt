@@ -82,7 +82,7 @@ open /* SY <-- */ class NetworkHelper(
             // Gated on the immersion switch *inside* the interceptor (read per request), not here:
             // the client outlives a switch flip, so a construction-time check would need a restart.
             .addInterceptor(MokuroOcrInterceptor(context, dictionaryOcrPreferences::isEnabled))
-            // KUN <--
+        // KUN <--
 
         // KMK -->
         if (EHLogLevel.isExtraLogging()) {
